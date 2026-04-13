@@ -2386,6 +2386,10 @@ type MumbleCore struct {
 
 	// sync
 	syncDone chan struct{} // closed when ServerSync received
+
+	// Ice RPC admin connection (out-of-band, for server administration)
+	ice               *mumbleIceClient
+	iceContextHandler func(action string, session uint32, channelID int32)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -5177,41 +5181,607 @@ func (c *MumbleCore) SetPreferredCodec(opus bool) {
 	c.mu.Unlock()
 }
 
-// ── Admin Ice RPC (server-admin only, out-of-band) ──
+// ── Admin Ice RPC — ZeroC Ice Wire Protocol Client ──
+//
+// Minimal pure-Go ZeroC Ice binary protocol implementation (v1.0, encoding 1.1).
+// Used for Murmur server administration via the Ice RPC interface.
+// Murmur servant identities: Meta → {name:"Meta", category:""},
+// Server N → {name:"N", category:"s"} (via ServerLocator).
 
-// GetServerLog requires Murmur Ice RPC admin access (not available via client protocol).
+const (
+	iceHeaderLen   = 14
+	iceProtoMaj    = 1
+	iceProtoMin    = 0
+	iceEncMaj      = 1
+	iceEncMin      = 0
+	iceMsgRequest  = 0
+	iceMsgReply    = 2
+	iceMsgValidate = 3
+	iceMsgClose    = 4
+	iceReplyOK     = 0
+	iceOpNormal    = 0
+	iceOpIdempotent = 2
+)
+
+type mumbleIceClient struct {
+	conn     net.Conn
+	mu       sync.Mutex
+	reqID    uint32
+	secret   string
+	serverID string
+
+	cbListener net.Listener
+	cbID       string
+	cbHandler  func(action string, session uint32, channelID int32)
+	cbMu       sync.Mutex
+}
+
+func iceEncSize(buf *bytes.Buffer, n int) {
+	if n < 255 {
+		buf.WriteByte(byte(n))
+	} else {
+		buf.WriteByte(0xFF)
+		binary.Write(buf, binary.LittleEndian, int32(n))
+	}
+}
+
+func iceDecSize(r io.Reader) (int, error) {
+	var b [1]byte
+	if _, err := io.ReadFull(r, b[:]); err != nil {
+		return 0, err
+	}
+	if b[0] < 255 {
+		return int(b[0]), nil
+	}
+	var n int32
+	if err := binary.Read(r, binary.LittleEndian, &n); err != nil {
+		return 0, err
+	}
+	return int(n), nil
+}
+
+func iceEncStr(buf *bytes.Buffer, s string) {
+	iceEncSize(buf, len(s))
+	buf.WriteString(s)
+}
+
+func iceDecStr(r io.Reader) (string, error) {
+	n, err := iceDecSize(r)
+	if err != nil || n == 0 {
+		return "", err
+	}
+	b := make([]byte, n)
+	_, err = io.ReadFull(r, b)
+	return string(b), err
+}
+
+func iceEncInt(buf *bytes.Buffer, v int32) {
+	binary.Write(buf, binary.LittleEndian, v)
+}
+
+func iceDecInt(r io.Reader) (int32, error) {
+	var v int32
+	return v, binary.Read(r, binary.LittleEndian, &v)
+}
+
+func iceEncEncap(buf *bytes.Buffer, encode func(*bytes.Buffer)) {
+	inner := &bytes.Buffer{}
+	encode(inner)
+	binary.Write(buf, binary.LittleEndian, int32(6+inner.Len())) // size FIRST (includes 4+2 header)
+	buf.WriteByte(iceEncMaj)
+	buf.WriteByte(iceEncMin)
+	buf.Write(inner.Bytes())
+}
+
+func iceDecEncap(r io.Reader) ([]byte, error) {
+	var sizeBytes [4]byte
+	if _, err := io.ReadFull(r, sizeBytes[:]); err != nil {
+		return nil, err
+	}
+	size := int(binary.LittleEndian.Uint32(sizeBytes[:]))
+	if size < 6 {
+		return nil, fmt.Errorf("ice: bad encapsulation size %d", size)
+	}
+	var ver [2]byte // encoding version (skip)
+	if _, err := io.ReadFull(r, ver[:]); err != nil {
+		return nil, err
+	}
+	n := size - 6
+	if n == 0 {
+		return nil, nil
+	}
+	data := make([]byte, n)
+	_, err := io.ReadFull(r, data)
+	return data, err
+}
+
+func iceEncHeader(buf *bytes.Buffer, msgType byte, bodyLen int) {
+	buf.Write([]byte{'I', 'c', 'e', 'P', iceProtoMaj, iceProtoMin, iceEncMaj, iceEncMin, msgType, 0})
+	binary.Write(buf, binary.LittleEndian, int32(iceHeaderLen+bodyLen))
+}
+
+func iceReadMsg(conn net.Conn) (byte, []byte, error) {
+	var hdr [iceHeaderLen]byte
+	if _, err := io.ReadFull(conn, hdr[:]); err != nil {
+		return 0, nil, err
+	}
+	if hdr[0] != 'I' || hdr[1] != 'c' || hdr[2] != 'e' || hdr[3] != 'P' {
+		return 0, nil, fmt.Errorf("ice: bad magic %x", hdr[:4])
+	}
+	bodyLen := int(binary.LittleEndian.Uint32(hdr[10:14])) - iceHeaderLen
+	if bodyLen <= 0 {
+		return hdr[8], nil, nil
+	}
+	body := make([]byte, bodyLen)
+	_, err := io.ReadFull(conn, body)
+	return hdr[8], body, err
+}
+
+func iceEncProxy(buf *bytes.Buffer, name, category, host string, port int) {
+	iceEncStr(buf, name)
+	iceEncStr(buf, category)
+	iceEncSize(buf, 0) // facet: empty
+	buf.WriteByte(0)   // mode: twoway
+	buf.WriteByte(0)   // secure: false
+	buf.WriteByte(iceProtoMaj)
+	buf.WriteByte(iceProtoMin)
+	buf.WriteByte(iceEncMaj)
+	buf.WriteByte(iceEncMin)
+	iceEncSize(buf, 1) // 1 endpoint
+	binary.Write(buf, binary.LittleEndian, int16(1)) // TCP type
+	iceEncEncap(buf, func(ep *bytes.Buffer) {
+		iceEncStr(ep, host)
+		iceEncInt(ep, int32(port))
+		iceEncInt(ep, -1) // timeout: default
+		ep.WriteByte(0)   // compress: false
+	})
+}
+
+// iceSkipUser skips a Murmur User struct (25 fields) in an Ice byte stream.
+func iceSkipUser(r io.Reader) {
+	iceDecInt(r) // session
+	iceDecInt(r) // userid
+	io.ReadFull(r, make([]byte, 7)) // mute,deaf,suppress,prioritySpeaker,selfMute,selfDeaf,recording
+	iceDecInt(r) // channel
+	iceDecStr(r) // name
+	iceDecInt(r) // onlinesecs
+	iceDecInt(r) // bytespersec
+	iceDecInt(r) // version (legacy)
+	io.ReadFull(r, make([]byte, 8)) // version2 (long)
+	iceDecStr(r) // release
+	iceDecStr(r) // os
+	iceDecStr(r) // osversion
+	iceDecStr(r) // identity
+	iceDecStr(r) // context
+	iceDecStr(r) // comment
+	if n, err := iceDecSize(r); err == nil && n > 0 { // address (NetAddress = seq<byte>)
+		io.ReadFull(r, make([]byte, n))
+	}
+	io.ReadFull(r, make([]byte, 1)) // tcponly
+	iceDecInt(r)                     // idlesecs
+	io.ReadFull(r, make([]byte, 8)) // udpPing + tcpPing (2 floats)
+}
+
+func (ic *mumbleIceClient) call(identName, identCat, op string, mode byte, encParams func(*bytes.Buffer)) ([]byte, error) {
+	ic.mu.Lock()
+	defer ic.mu.Unlock()
+
+	ic.reqID++
+	rid := ic.reqID
+
+	var body bytes.Buffer
+	binary.Write(&body, binary.LittleEndian, rid)
+	iceEncStr(&body, identName)
+	iceEncStr(&body, identCat)
+	iceEncSize(&body, 0) // facet
+	iceEncStr(&body, op)
+	body.WriteByte(mode)
+	if ic.secret != "" {
+		iceEncSize(&body, 1)
+		iceEncStr(&body, "secret")
+		iceEncStr(&body, ic.secret)
+	} else {
+		iceEncSize(&body, 0)
+	}
+	iceEncEncap(&body, encParams)
+
+	var msg bytes.Buffer
+	iceEncHeader(&msg, iceMsgRequest, body.Len())
+	msg.Write(body.Bytes())
+
+	ic.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	if _, err := ic.conn.Write(msg.Bytes()); err != nil {
+		return nil, fmt.Errorf("ice write: %w", err)
+	}
+
+	ic.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+	defer ic.conn.SetReadDeadline(time.Time{})
+
+	for {
+		mt, rb, err := iceReadMsg(ic.conn)
+		if err != nil {
+			return nil, fmt.Errorf("ice read: %w", err)
+		}
+		if mt == iceMsgValidate {
+			var vc bytes.Buffer
+			iceEncHeader(&vc, iceMsgValidate, 0)
+			ic.conn.Write(vc.Bytes())
+			continue
+		}
+		if mt != iceMsgReply || len(rb) < 5 {
+			return nil, fmt.Errorf("ice: unexpected msg type %d (len %d)", mt, len(rb))
+		}
+		if binary.LittleEndian.Uint32(rb[:4]) != rid {
+			return nil, fmt.Errorf("ice: request ID mismatch")
+		}
+		status := rb[4]
+		rest := rb[5:]
+		if status == iceReplyOK {
+			if len(rest) == 0 {
+				return nil, nil
+			}
+			return iceDecEncap(bytes.NewReader(rest))
+		}
+		errMsg := "ice: "
+		switch status {
+		case 2:
+			errMsg += "ObjectNotExist"
+		case 4:
+			errMsg += fmt.Sprintf("OperationNotExist: %s", op)
+		default:
+			if len(rest) > 0 {
+				if data, e := iceDecEncap(bytes.NewReader(rest)); e == nil && len(data) > 0 {
+					if tid, e := iceDecStr(bytes.NewReader(data)); e == nil && tid != "" {
+						return nil, fmt.Errorf("ice: %s", tid)
+					}
+				}
+			}
+			errMsg += fmt.Sprintf("reply status %d", status)
+		}
+		return nil, errors.New(errMsg)
+	}
+}
+
+func (ic *mumbleIceClient) callServer(op string, mode byte, enc func(*bytes.Buffer)) ([]byte, error) {
+	return ic.call(ic.serverID, "s", op, mode, enc)
+}
+
+// ConnectAdmin opens an Ice RPC connection to the Murmur admin interface.
+// addr is "host:port" (default Murmur Ice port: 6502), secret is icesecretwrite from murmur.ini,
+// serverID is the virtual server ID (usually 1).
+func (c *MumbleCore) ConnectAdmin(addr, secret string, serverID int) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.ice != nil {
+		return fmt.Errorf("mumble: Ice admin already connected")
+	}
+	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
+	if err != nil {
+		return fmt.Errorf("mumble: Ice connect %s: %w", addr, err)
+	}
+	// Protocol validation handshake
+	var vmsg bytes.Buffer
+	iceEncHeader(&vmsg, iceMsgValidate, 0)
+	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn.Write(vmsg.Bytes()); err != nil {
+		conn.Close()
+		return fmt.Errorf("mumble: Ice validate write: %w", err)
+	}
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	mt, _, err := iceReadMsg(conn)
+	if err != nil {
+		conn.Close()
+		return fmt.Errorf("mumble: Ice validate read: %w", err)
+	}
+	if mt != iceMsgValidate {
+		conn.Close()
+		return fmt.Errorf("mumble: Ice expected validate-connection, got %d", mt)
+	}
+	conn.SetReadDeadline(time.Time{})
+	conn.SetWriteDeadline(time.Time{})
+	c.ice = &mumbleIceClient{conn: conn, secret: secret, serverID: strconv.Itoa(serverID)}
+	return nil
+}
+
+// DisconnectAdmin closes the Ice RPC admin connection and callback adapter.
+func (c *MumbleCore) DisconnectAdmin() {
+	c.mu.Lock()
+	ice := c.ice
+	c.ice = nil
+	c.mu.Unlock()
+	if ice == nil {
+		return
+	}
+	var msg bytes.Buffer
+	iceEncHeader(&msg, iceMsgClose, 0)
+	ice.conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
+	ice.conn.Write(msg.Bytes())
+	ice.conn.Close()
+	ice.cbMu.Lock()
+	if ice.cbListener != nil {
+		ice.cbListener.Close()
+	}
+	ice.cbMu.Unlock()
+}
+
+// OnIceContextAction sets the handler for Ice context action trigger callbacks.
+func (c *MumbleCore) OnIceContextAction(handler func(action string, session uint32, channelID int32)) {
+	c.mu.Lock()
+	c.iceContextHandler = handler
+	if c.ice != nil {
+		c.ice.cbMu.Lock()
+		c.ice.cbHandler = handler
+		c.ice.cbMu.Unlock()
+	}
+	c.mu.Unlock()
+}
+
+// — Ice callback adapter (mini Ice server for receiving Murmur callbacks) —
+
+func (ic *mumbleIceClient) startCBAdapter() error {
+	localIP := "127.0.0.1"
+	if ta, ok := ic.conn.LocalAddr().(*net.TCPAddr); ok {
+		localIP = ta.IP.String()
+	}
+	ln, err := net.Listen("tcp", localIP+":0")
+	if err != nil {
+		return err
+	}
+	ic.cbListener = ln
+	ic.cbID = fmt.Sprintf("uniclient-cb-%d", time.Now().UnixNano())
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go ic.serveCBConn(conn)
+		}
+	}()
+	return nil
+}
+
+func (ic *mumbleIceClient) serveCBConn(conn net.Conn) {
+	defer conn.Close()
+	for {
+		mt, body, err := iceReadMsg(conn)
+		if err != nil || mt == iceMsgClose {
+			return
+		}
+		if mt == iceMsgValidate {
+			var reply bytes.Buffer
+			iceEncHeader(&reply, iceMsgValidate, 0)
+			conn.Write(reply.Bytes())
+		} else if mt == iceMsgRequest {
+			ic.handleCBReq(conn, body)
+		}
+	}
+}
+
+func (ic *mumbleIceClient) handleCBReq(conn net.Conn, body []byte) {
+	if len(body) < 4 {
+		return
+	}
+	r := bytes.NewReader(body)
+	var rid uint32
+	binary.Read(r, binary.LittleEndian, &rid)
+	iceDecStr(r) // identity name
+	iceDecStr(r) // identity category
+	if n, _ := iceDecSize(r); n > 0 {
+		for i := 0; i < n; i++ {
+			iceDecStr(r) // facet entries
+		}
+	}
+	op, _ := iceDecStr(r)
+	r.ReadByte() // mode
+	if n, _ := iceDecSize(r); n > 0 {
+		for i := 0; i < n; i++ {
+			iceDecStr(r); iceDecStr(r) // context entries
+		}
+	}
+	params, _ := iceDecEncap(r)
+
+	if op == "contextAction" && params != nil {
+		pr := bytes.NewReader(params)
+		action, _ := iceDecStr(pr)
+		iceSkipUser(pr)
+		session, _ := iceDecInt(pr)
+		channelID, _ := iceDecInt(pr)
+		ic.cbMu.Lock()
+		h := ic.cbHandler
+		ic.cbMu.Unlock()
+		if h != nil {
+			h(action, uint32(session), channelID)
+		}
+	}
+
+	// Reply OK (void)
+	var rb bytes.Buffer
+	binary.Write(&rb, binary.LittleEndian, rid)
+	rb.WriteByte(iceReplyOK)
+	iceEncEncap(&rb, func(*bytes.Buffer) {})
+	var msg bytes.Buffer
+	iceEncHeader(&msg, iceMsgReply, rb.Len())
+	msg.Write(rb.Bytes())
+	conn.Write(msg.Bytes())
+}
+
+// — Admin Ice RPC method implementations —
+
+// GetServerLog retrieves server log entries via Murmur Ice RPC.
+// Returns up to 100 most recent log entries. Requires ConnectAdmin() first.
 func (c *MumbleCore) GetServerLog() ([]string, error) {
-	return nil, fmt.Errorf("mumble: GetServerLog requires Murmur Ice RPC admin access")
+	c.mu.RLock()
+	ice := c.ice
+	c.mu.RUnlock()
+	if ice == nil {
+		return nil, fmt.Errorf("mumble: GetServerLog requires Ice admin (call ConnectAdmin)")
+	}
+	data, err := ice.callServer("getLog", iceOpIdempotent, func(buf *bytes.Buffer) {
+		iceEncInt(buf, 0)   // first (0 = most recent)
+		iceEncInt(buf, 100) // last
+	})
+	if err != nil {
+		return nil, fmt.Errorf("mumble: GetServerLog: %w", err)
+	}
+	if data == nil {
+		return []string{}, nil
+	}
+	r := bytes.NewReader(data)
+	count, err := iceDecSize(r)
+	if err != nil {
+		return nil, fmt.Errorf("mumble: GetServerLog decode: %w", err)
+	}
+	logs := make([]string, 0, count)
+	for i := 0; i < count; i++ {
+		ts, e1 := iceDecInt(r)
+		txt, e2 := iceDecStr(r)
+		if e1 != nil || e2 != nil {
+			break
+		}
+		logs = append(logs, fmt.Sprintf("[%s] %s",
+			time.Unix(int64(ts), 0).Format("2006-01-02 15:04:05"), txt))
+	}
+	return logs, nil
 }
 
-// GetServerUptime requires Murmur Ice RPC admin access (not available via client protocol).
+// GetServerUptime returns the virtual server uptime via Murmur Ice RPC.
 func (c *MumbleCore) GetServerUptime() (time.Duration, error) {
-	return 0, fmt.Errorf("mumble: GetServerUptime requires Murmur Ice RPC admin access")
+	c.mu.RLock()
+	ice := c.ice
+	c.mu.RUnlock()
+	if ice == nil {
+		return 0, fmt.Errorf("mumble: GetServerUptime requires Ice admin (call ConnectAdmin)")
+	}
+	data, err := ice.callServer("getUptime", iceOpIdempotent, func(buf *bytes.Buffer) {})
+	if err != nil {
+		return 0, fmt.Errorf("mumble: GetServerUptime: %w", err)
+	}
+	if len(data) < 4 {
+		return 0, fmt.Errorf("mumble: GetServerUptime: empty response")
+	}
+	return time.Duration(int32(binary.LittleEndian.Uint32(data[:4]))) * time.Second, nil
 }
 
-// UpdateCertificate requires Murmur Ice RPC admin access (not available via client protocol).
+// UpdateCertificate updates the server's TLS certificate via Murmur Ice RPC.
 func (c *MumbleCore) UpdateCertificate(certPEM, keyPEM string) error {
-	return fmt.Errorf("mumble: UpdateCertificate requires Murmur Ice RPC admin access")
+	c.mu.RLock()
+	ice := c.ice
+	c.mu.RUnlock()
+	if ice == nil {
+		return fmt.Errorf("mumble: UpdateCertificate requires Ice admin (call ConnectAdmin)")
+	}
+	_, err := ice.callServer("updateCertificate", iceOpIdempotent, func(buf *bytes.Buffer) {
+		iceEncStr(buf, certPEM)
+		iceEncStr(buf, keyPEM)
+		iceEncStr(buf, "") // passphrase
+	})
+	if err != nil {
+		return fmt.Errorf("mumble: UpdateCertificate: %w", err)
+	}
+	return nil
 }
 
-// SendWelcomeMessage requires Murmur Ice RPC admin access (not available via client protocol).
+// SendWelcomeMessage sets the server's welcome text via Murmur Ice RPC (setConf).
 func (c *MumbleCore) SendWelcomeMessage(text string) error {
-	return fmt.Errorf("mumble: SendWelcomeMessage requires Murmur Ice RPC admin access")
+	c.mu.RLock()
+	ice := c.ice
+	c.mu.RUnlock()
+	if ice == nil {
+		return fmt.Errorf("mumble: SendWelcomeMessage requires Ice admin (call ConnectAdmin)")
+	}
+	_, err := ice.callServer("setConf", iceOpIdempotent, func(buf *bytes.Buffer) {
+		iceEncStr(buf, "welcometext")
+		iceEncStr(buf, text)
+	})
+	if err != nil {
+		return fmt.Errorf("mumble: SendWelcomeMessage: %w", err)
+	}
+	return nil
 }
 
-// RedirectWhisperGroup requires Murmur Ice RPC admin access (not available via client protocol).
+// RedirectWhisperGroup redirects whispers from source to target group for the current session.
 func (c *MumbleCore) RedirectWhisperGroup(source, target string) error {
-	return fmt.Errorf("mumble: RedirectWhisperGroup requires Murmur Ice RPC admin access")
+	c.mu.RLock()
+	ice := c.ice
+	session := c.mySession
+	c.mu.RUnlock()
+	if ice == nil {
+		return fmt.Errorf("mumble: RedirectWhisperGroup requires Ice admin (call ConnectAdmin)")
+	}
+	_, err := ice.callServer("redirectWhisperGroup", iceOpIdempotent, func(buf *bytes.Buffer) {
+		iceEncInt(buf, int32(session))
+		iceEncStr(buf, source)
+		iceEncStr(buf, target)
+	})
+	if err != nil {
+		return fmt.Errorf("mumble: RedirectWhisperGroup: %w", err)
+	}
+	return nil
 }
 
-// AddContextCallback requires Murmur Ice RPC admin access (not available via client protocol).
+// AddContextCallback registers a context action for the current user session via Murmur Ice RPC.
+// ctx is a bitmask: ContextServer=1, ContextChannel=2, ContextUser=4.
+// Use OnIceContextAction to receive trigger notifications.
 func (c *MumbleCore) AddContextCallback(action, text string, ctx uint32) error {
-	return fmt.Errorf("mumble: AddContextCallback requires Murmur Ice RPC admin access")
+	c.mu.RLock()
+	ice := c.ice
+	session := c.mySession
+	handler := c.iceContextHandler
+	c.mu.RUnlock()
+	if ice == nil {
+		return fmt.Errorf("mumble: AddContextCallback requires Ice admin (call ConnectAdmin)")
+	}
+	ice.cbMu.Lock()
+	if ice.cbListener == nil {
+		ice.cbHandler = handler
+		if err := ice.startCBAdapter(); err != nil {
+			ice.cbMu.Unlock()
+			return fmt.Errorf("mumble: AddContextCallback adapter: %w", err)
+		}
+	}
+	cbID := ice.cbID
+	cbAddr := ice.cbListener.Addr().(*net.TCPAddr)
+	ice.cbMu.Unlock()
+	_, err := ice.callServer("addContextCallback", iceOpNormal, func(buf *bytes.Buffer) {
+		iceEncInt(buf, int32(session))
+		iceEncStr(buf, action)
+		iceEncStr(buf, text)
+		iceEncProxy(buf, cbID, "", cbAddr.IP.String(), cbAddr.Port)
+		iceEncInt(buf, int32(ctx))
+	})
+	if err != nil {
+		return fmt.Errorf("mumble: AddContextCallback: %w", err)
+	}
+	return nil
 }
 
-// RemoveContextCallback requires Murmur Ice RPC admin access (not available via client protocol).
+// RemoveContextCallback removes all context actions registered via this client's callback adapter.
+// The action parameter is unused — Murmur's Ice API removes all callbacks for a given proxy.
 func (c *MumbleCore) RemoveContextCallback(action string) error {
-	return fmt.Errorf("mumble: RemoveContextCallback requires Murmur Ice RPC admin access")
+	c.mu.RLock()
+	ice := c.ice
+	c.mu.RUnlock()
+	if ice == nil {
+		return fmt.Errorf("mumble: RemoveContextCallback requires Ice admin (call ConnectAdmin)")
+	}
+	ice.cbMu.Lock()
+	cbID := ice.cbID
+	var cbAddr *net.TCPAddr
+	if ice.cbListener != nil {
+		cbAddr = ice.cbListener.Addr().(*net.TCPAddr)
+	}
+	ice.cbMu.Unlock()
+	if cbID == "" || cbAddr == nil {
+		return fmt.Errorf("mumble: RemoveContextCallback: no callback adapter running")
+	}
+	_, err := ice.callServer("removeContextCallback", iceOpNormal, func(buf *bytes.Buffer) {
+		iceEncProxy(buf, cbID, "", cbAddr.IP.String(), cbAddr.Port)
+	})
+	if err != nil {
+		return fmt.Errorf("mumble: RemoveContextCallback: %w", err)
+	}
+	return nil
 }
 
 // ── DNS / Discovery ──

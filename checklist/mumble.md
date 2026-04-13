@@ -1,6 +1,6 @@
-## Phase 9: Mumble — DONE (core); missing protocol methods below
+## Phase 9: Mumble — DONE
 
-133 exported methods, ~5,200 lines. Real Mumble client protocol. TLS+protobuf TCP + OCB2-AES128 UDP voice. Hand-coded protobuf (no protoc). Pure Go. 15 client protocol methods added; 7 Ice RPC admin methods still need real implementation via Murmur Ice endpoint.
+140 exported methods, ~5,700 lines. Real Mumble client protocol. TLS+protobuf TCP + OCB2-AES128 UDP voice. Hand-coded protobuf (no protoc). Pure Go. All 7 Ice RPC admin methods implemented with a pure-Go ZeroC Ice wire protocol client (no CGo). Tested against Murmur 1.5.857 with Ice 3.7.10.
 
 ### Core Interface (55/55)
 
@@ -201,15 +201,15 @@
 - [x] HandleCodecVersion — callback for server codec negotiation (CodecVersion message)
 - [x] SetPreferredCodec — set Opus vs CELT preference for next connection
 
-#### Admin Ice RPC (7 — need Murmur Ice RPC implementation)
+#### Admin Ice RPC (7 — pure Go Ice wire protocol client, tested against Murmur 1.5.857)
 
-- [ ] GetServerLog — retrieve server log entries (Ice RPC)
-- [ ] GetServerUptime — query server uptime (Ice RPC)
-- [ ] UpdateCertificate — update server TLS certificate (Ice RPC)
-- [ ] SendWelcomeMessage — set/update server welcome message (Ice RPC)
-- [ ] RedirectWhisperGroup — redirect a whisper group (Ice RPC)
-- [ ] AddContextCallback — register server-side context action callback (Ice RPC)
-- [ ] RemoveContextCallback — unregister server-side context action callback (Ice RPC)
+- [x] GetServerLog — retrieve server log entries (Ice RPC via pure Go client)
+- [x] GetServerUptime — query server uptime (Ice RPC, returns time.Duration)
+- [x] UpdateCertificate — update server TLS certificate (Ice RPC, validated error path)
+- [x] SendWelcomeMessage — set/update server welcome text via setConf (Ice RPC)
+- [x] RedirectWhisperGroup — redirect a whisper group (Ice RPC, needs active session)
+- [x] AddContextCallback — register server-side context action callback (Ice RPC + callback adapter)
+- [x] RemoveContextCallback — unregister server-side context action callback (Ice RPC)
 
 #### DNS / Discovery (1)
 

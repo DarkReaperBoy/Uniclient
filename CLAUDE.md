@@ -134,6 +134,7 @@ When the user says "add X", follow these steps in order:
 - `research/teamspeak_protocol.md` — TS3 UDP client protocol spec
 - `research/matrix_protocol.md` — Matrix CS API, mautrix-go SDK mapping
 - `research/mumble_protocol.md` — Mumble protocol spec (TCP/UDP, OCB2 crypto)
+- `research/ice_protocol.md` — ZeroC Ice wire protocol for Murmur admin (encap format, identities, tested methods)
 - `research/xmpp_protocol.md` — XMPP (RFC 6120/6121 + 30+ XEPs, Jingle)
 - `research/gui-idea.md` — UI/UX design exploration, Discord/Telegram hybrid rationale
 - `checklist/roadmap.md` — pre-GUI roadmap progress tracker (current step, core, method)

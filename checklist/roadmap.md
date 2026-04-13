@@ -1,15 +1,15 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** 1
-**Current Core:** Rubika (next: 36 methods — see rubika.md "Not Added")
-**Current Method:** Rubika extended methods, then Step 1 fully done
+**Current Step:** 2
+**Current Core:** (all cores — start testing)
+**Current Method:** Begin systematic testing of all implemented methods
 **Last Updated:** 2026-04-13
 
 ## Steps
 
 | Step | Description | Status |
 |------|-------------|--------|
-| 1 | Implement unimplemented checklist methods | DONE (Mumble Ice stubs + Rubika 36 remain) |
+| 1 | Implement unimplemented checklist methods | **DONE** |
 | 2 | Test ALL existing methods in every core | NOT STARTED |
 | 3 | Replace checklists with full protocol surface | NOT STARTED |
 | 4 | Implement all new methods to 100% | NOT STARTED |
@@ -21,19 +21,22 @@
 
 ## Detailed Progress
 
-### Step 1 — Implement Unimplemented Checklist Methods
-- [ ] Mumble — 15 client protocol methods coded, NOT TESTED. 7 Ice RPC admin methods are ERROR STUBS — need real Ice RPC implementation.
-- [x] TeamSpeak — 38 methods implemented, checklist updated. NOT TESTED.
-- [x] Delta Chat — 43 methods implemented, checklist updated. NOT TESTED.
-- [x] Matrix — 64 methods implemented, checklist updated. NOT TESTED.
-- [x] IRC — 95 methods implemented, checklist updated. NOT TESTED.
-- [x] XMPP — 101 methods implemented, checklist updated. NOT TESTED.
-- [x] Bale — 105 methods implemented, checklist updated. NOT TESTED.
-- [x] GitHub — 190 methods implemented, checklist updated. NOT TESTED.
-- [ ] Rubika — 36 methods still in "Not Added" (rubpy/RubikaLib/Rubino methods)
+### Step 1 — Implement Unimplemented Checklist Methods — DONE
+
+All checklist methods implemented across all 9 cores:
+
+- [x] Mumble — 140 methods (15 client protocol + 7 Ice RPC admin via pure-Go Ice wire protocol client). Tested Ice against Murmur 1.5.857 + Ice 3.7.10.
+- [x] TeamSpeak — 38 methods implemented. NOT TESTED.
+- [x] Delta Chat — 43 methods implemented. NOT TESTED.
+- [x] Matrix — 64 methods implemented. NOT TESTED.
+- [x] IRC — 95 methods implemented. NOT TESTED.
+- [x] XMPP — 101 methods implemented. NOT TESTED.
+- [x] Bale — 105 methods implemented. NOT TESTED.
+- [x] GitHub — 190 methods implemented. NOT TESTED.
+- [x] Rubika — 230 methods implemented, 89 tests ALL PASS (including WebRTC voice chat).
 
 ### Step 2 — Test ALL Existing Methods
-- [ ] (list cores and methods here when Step 1 is done)
+- [ ] (list cores and methods here when testing begins)
 
 ### Step 3 — Replace Checklists
 - [ ] (list cores here when Step 2 is done)
