@@ -41,13 +41,16 @@ import (
 	"github.com/pion/stun/v3"
 	"github.com/pion/webrtc/v4"
 
-	"uniclient/utils"
+
 	pionmedia "github.com/pion/webrtc/v4/pkg/media"
 )
+
+const tgPlatform = "telegram"
 
 // TelegramCore implements the Core interface for Telegram via gotd/td (pure Go MTProto).
 type TelegramCore struct {
 	mu sync.RWMutex
+	wg sync.WaitGroup
 
 	client  *telegram.Client
 	api     *tg.Client
@@ -115,6 +118,8 @@ type TelegramCore struct {
 	newVideoDecoder func() (VideoDecoder, error)
 }
 
+var _ Core = (*TelegramCore)(nil)
+
 // VideoEncoder encodes raw YUV420P frames to VP8.
 type VideoEncoder interface {
 	Encode(yuv420p []byte, width, height int) (vp8Frame []byte, err error)
@@ -177,7 +182,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 	}
 }
 
-func (t *TelegramCore) Name() string { return "telegram" }
+func (t *TelegramCore) Name() string { return tgPlatform }
 
 func (t *TelegramCore) Capabilities() []string {
 	return []string{
@@ -561,7 +566,9 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 	authDone := make(chan struct{})
 	errCh := make(chan error, 1)
 
+	t.wg.Add(1)
 	go func() {
+		defer t.wg.Done()
 		errCh <- t.client.Run(t.ctx, func(ctx context.Context) error {
 			api := tg.NewClient(t.client)
 			up := uploader.NewUploader(api)
@@ -7850,9 +7857,7 @@ func (t *TelegramCore) SendVideoFrameYUV(callID string, yuv420p []byte, width, h
 	if call.videoEncoder == nil {
 		factory := t.newVideoEncoder
 		if factory == nil {
-			factory = func(w, h, br int) (VideoEncoder, error) {
-				return utils.NewVP8Enc(w, h, br)
-			}
+			return fmt.Errorf("no video encoder factory set; call SetVideoEncoderFactory first")
 		}
 		enc, err := factory(width, height, 500000) // 500kbps default
 		if err != nil {
@@ -8013,9 +8018,7 @@ func (t *TelegramCore) SendScreenFrameYUV(callID string, yuv420p []byte, width, 
 	if call.screenEncoder == nil {
 		factory := t.newVideoEncoder
 		if factory == nil {
-			factory = func(w, h, br int) (VideoEncoder, error) {
-				return utils.NewVP8Enc(w, h, br)
-			}
+			return fmt.Errorf("no video encoder factory set; call SetVideoEncoderFactory first")
 		}
 		enc, err := factory(width, height, 500000)
 		if err != nil {
@@ -8618,6 +8621,10 @@ func (t *TelegramCore) Close() error {
 	if t.cancel != nil {
 		t.cancel()
 	}
+	t.wg.Wait()
+	t.mu.Lock()
+	t.authed = false
+	t.mu.Unlock()
 	return nil
 }
 
@@ -8625,9 +8632,11 @@ func (t *TelegramCore) Close() error {
 
 func (t *TelegramCore) fireUpdate(u Update) {
 	t.updateMu.RLock()
-	defer t.updateMu.RUnlock()
-	for _, h := range t.updateHandlers {
-		go h(u)
+	handlers := make([]func(Update), len(t.updateHandlers))
+	copy(handlers, t.updateHandlers)
+	t.updateMu.RUnlock()
+	for _, h := range handlers {
+		h(u)
 	}
 }
 

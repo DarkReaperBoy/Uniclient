@@ -177,7 +177,10 @@ type GitHubCore struct {
 	// Context for goroutines
 	ctx    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
+
+var _ Core = (*GitHubCore)(nil)
 
 // ghDialog is internal dialog metadata.
 type ghDialog struct {
@@ -271,6 +274,7 @@ func (g *GitHubCore) Authenticate(cfg AuthConfig) error {
 			g.userID, _ = strconv.ParseInt(user.ID, 10, 64)
 			g.authed = true
 			g.ensureProfileRepo() // best-effort, non-blocking
+			g.wg.Add(1)
 			go g.pollLoop()
 			return nil
 		}
@@ -304,6 +308,7 @@ func (g *GitHubCore) Authenticate(cfg AuthConfig) error {
 	g.ensureProfileRepo() // best-effort, non-blocking
 
 	g.saveSession()
+	g.wg.Add(1)
 	go g.pollLoop()
 	return nil
 }
@@ -541,8 +546,7 @@ func (g *GitHubCore) GetFolders() ([]Folder, error) {
 }
 
 func (g *GitHubCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
-	// GitHub doesn't have custom lists via API yet — store locally
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: github does not support custom folders", ErrNotSupported)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -840,10 +844,18 @@ func (g *GitHubCore) SendImageBase64(chatID string, b64 string, caption string) 
 // Core Interface: Calls (not supported)
 // ════════════════════════════════════════════════════════════════════════════════
 
-func (g *GitHubCore) StartCall(_ string, _ bool) (*CallSession, error) { return nil, ErrNotSupported }
-func (g *GitHubCore) JoinGroupCall(_ string) (*CallSession, error)     { return nil, ErrNotSupported }
-func (g *GitHubCore) EndCall(_ string) error                           { return ErrNotSupported }
-func (g *GitHubCore) SetCallMuted(_ string, _ bool) error              { return ErrNotSupported }
+func (g *GitHubCore) StartCall(_ string, _ bool) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: github does not support calls", ErrNotSupported)
+}
+func (g *GitHubCore) JoinGroupCall(_ string) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: github does not support calls", ErrNotSupported)
+}
+func (g *GitHubCore) EndCall(_ string) error {
+	return fmt.Errorf("%w: github does not support calls", ErrNotSupported)
+}
+func (g *GitHubCore) SetCallMuted(_ string, _ bool) error {
+	return fmt.Errorf("%w: github does not support calls", ErrNotSupported)
+}
 
 // ════════════════════════════════════════════════════════════════════════════════
 // Core Interface: Profile
@@ -868,10 +880,11 @@ func (g *GitHubCore) OnUpdate(handler func(Update)) {
 
 func (g *GitHubCore) Close() error {
 	g.mu.Lock()
-	defer g.mu.Unlock()
 	g.saveSession()
 	g.cancel()
 	g.authed = false
+	g.mu.Unlock()
+	g.wg.Wait()
 	return nil
 }
 
@@ -1298,7 +1311,7 @@ func (g *GitHubCore) GetSessions() ([]Session, error) {
 }
 
 func (g *GitHubCore) TerminateSession(_ string) error {
-	return ErrNotSupported // Can't revoke PAT via API
+	return fmt.Errorf("%w: github cannot revoke PAT via API", ErrNotSupported)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -1875,6 +1888,7 @@ func (g *GitHubCore) getRepoMessages(chatID string, limit int) ([]Message, error
 // ════════════════════════════════════════════════════════════════════════════════
 
 func (g *GitHubCore) pollLoop() {
+	defer g.wg.Done()
 	interval := ghNotifPoll
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -2514,7 +2528,8 @@ func (g *GitHubCore) saveSession() {
 
 func (g *GitHubCore) fireUpdate(u Update) {
 	g.updateMu.RLock()
-	handlers := g.updateHandlers
+	handlers := make([]func(Update), len(g.updateHandlers))
+	copy(handlers, g.updateHandlers)
 	g.updateMu.RUnlock()
 	for _, h := range handlers {
 		h(u)

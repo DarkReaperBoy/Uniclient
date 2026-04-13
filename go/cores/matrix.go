@@ -31,6 +31,8 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
+const mxPlatform = "matrix"
+
 // MatrixCore implements the Core interface for Matrix via the mautrix SDK.
 type MatrixCore struct {
 	mu sync.RWMutex
@@ -81,7 +83,10 @@ type MatrixCore struct {
 	// Context
 	ctx    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
+
+var _ Core = (*MatrixCore)(nil)
 
 type matrixRoomState struct {
 	ID          id.RoomID
@@ -158,7 +163,7 @@ func NewMatrixCore(sessionPath string) *MatrixCore {
 
 // --- Core Interface: Identity ---
 
-func (m *MatrixCore) Name() string { return "matrix" }
+func (m *MatrixCore) Name() string { return mxPlatform }
 
 func (m *MatrixCore) Capabilities() []string {
 	return []string{
@@ -216,7 +221,11 @@ func (m *MatrixCore) Authenticate(cfg AuthConfig) error {
 				fmt.Fprintf(os.Stderr, "matrix: E2EE init failed (will work without encryption): %v\n", err)
 			}
 			m.saveSession()
-			go m.startSync()
+			m.wg.Add(1)
+			go func() {
+				defer m.wg.Done()
+				m.startSync()
+			}()
 			return nil
 		}
 	}
@@ -285,7 +294,11 @@ func (m *MatrixCore) Authenticate(cfg AuthConfig) error {
 		fmt.Fprintf(os.Stderr, "matrix: E2EE init failed (will work without encryption): %v\n", err)
 	}
 	m.saveSession()
-	go m.startSync()
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.startSync()
+	}()
 
 	return nil
 }
@@ -1106,7 +1119,11 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	m.callsMu.Unlock()
 
 	// Start silence sender to keep the audio stream alive
-	go m.sendAudio(callCtx, call)
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.sendAudio(callCtx, call)
+	}()
 
 	// Start invite timeout
 	go func() {
@@ -1131,7 +1148,7 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 }
 
 func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
-	return nil, ErrNotSupported // MSC3401, defer
+	return nil, fmt.Errorf("%w: matrix group calls (MSC3401) not yet implemented", ErrNotSupported)
 }
 
 func (m *MatrixCore) EndCall(callID string) error {
@@ -1323,7 +1340,7 @@ func (m *MatrixCore) RejectCall(callID string) error {
 		return fmt.Errorf("send reject: %w", err)
 	}
 
-	m.dispatchUpdate(Update{
+	m.fireUpdate(Update{
 		Type:   UpdateCallState,
 		ChatID: call.RoomID.String(),
 		Call: &CallSession{
@@ -1367,7 +1384,7 @@ func (m *MatrixCore) setupCallStateHandlers(call *matrixCall) {
 			call.State = CallStateActive
 			call.mu.Unlock()
 
-			m.dispatchUpdate(Update{
+			m.fireUpdate(Update{
 				Type:   UpdateCallState,
 				ChatID: call.RoomID.String(),
 				Call: &CallSession{
@@ -1401,7 +1418,7 @@ func (m *MatrixCore) setupCallStateHandlers(call *matrixCall) {
 				}
 				m.client.SendMessageEvent(m.ctx, call.RoomID, event.CallHangup, hangup)
 
-				m.dispatchUpdate(Update{
+				m.fireUpdate(Update{
 					Type:   UpdateCallState,
 					ChatID: call.RoomID.String(),
 					Call: &CallSession{
@@ -1604,7 +1621,7 @@ func (m *MatrixCore) handleCallAnswer(evt *event.Event) {
 	call.State = CallStateConnecting
 	call.mu.Unlock()
 
-	m.dispatchUpdate(Update{
+	m.fireUpdate(Update{
 		Type:   UpdateCallState,
 		ChatID: evt.RoomID.String(),
 		Call: &CallSession{
@@ -1694,13 +1711,14 @@ func (m *MatrixCore) OnUpdate(handler func(Update)) {
 
 func (m *MatrixCore) Close() error {
 	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	if m.syncStop != nil {
 		m.syncStop()
 	}
 	m.cancel()
 	m.saveSession()
+	m.authed = false
+	m.mu.Unlock()
+	m.wg.Wait()
 
 	return nil
 }
@@ -1957,7 +1975,7 @@ func (m *MatrixCore) GetContacts() ([]User, error) {
 }
 
 func (m *MatrixCore) AddContact(phone string, firstName string, lastName string) error {
-	return ErrNotSupported // Matrix uses @user:server, not phone numbers
+	return fmt.Errorf("%w: matrix uses @user:server identifiers, not phone numbers", ErrNotSupported)
 }
 
 func (m *MatrixCore) DeleteContact(userID string) error {
@@ -2950,7 +2968,7 @@ func (m *MatrixCore) setupSyncer() {
 
 	// Redactions
 	syncer.OnEventType(event.EventRedaction, func(ctx context.Context, evt *event.Event) {
-		m.dispatchUpdate(Update{
+		m.fireUpdate(Update{
 			Type:      UpdateDeleteMessage,
 			ChatID:    evt.RoomID.String(),
 			MessageID: evt.Redacts.String(),
@@ -2973,7 +2991,7 @@ func (m *MatrixCore) setupSyncer() {
 
 	// Typing
 	syncer.OnEventType(event.EphemeralEventTyping, func(ctx context.Context, evt *event.Event) {
-		m.dispatchUpdate(Update{
+		m.fireUpdate(Update{
 			Type:     UpdateTyping,
 			ChatID:   evt.RoomID.String(),
 			Platform: "matrix",
@@ -2982,7 +3000,7 @@ func (m *MatrixCore) setupSyncer() {
 
 	// Read receipts
 	syncer.OnEventType(event.EphemeralEventReceipt, func(ctx context.Context, evt *event.Event) {
-		m.dispatchUpdate(Update{
+		m.fireUpdate(Update{
 			Type:     UpdateReadState,
 			ChatID:   evt.RoomID.String(),
 			Platform: "matrix",
@@ -2994,7 +3012,7 @@ func (m *MatrixCore) setupSyncer() {
 		evt.Content.ParseRaw(evt.Type)
 		if pc, ok := evt.Content.Parsed.(*event.PresenceEventContent); ok {
 			isOnline := pc.Presence == event.PresenceOnline
-			m.dispatchUpdate(Update{
+			m.fireUpdate(Update{
 				Type:     UpdateUserStatus,
 				UserID:   evt.Sender.String(),
 				IsOnline: &isOnline,
@@ -3155,7 +3173,7 @@ func (m *MatrixCore) handleMessageEvent(evt *event.Event) {
 		msg := m.eventToMessage(evt)
 		if msg != nil {
 			msg.ID = mc.RelatesTo.EventID.String() // use original event ID
-			m.dispatchUpdate(Update{
+			m.fireUpdate(Update{
 				Type:    UpdateEditMessage,
 				ChatID:  evt.RoomID.String(),
 				Message: msg,
@@ -3167,7 +3185,7 @@ func (m *MatrixCore) handleMessageEvent(evt *event.Event) {
 
 	msg := m.eventToMessage(evt)
 	if msg != nil {
-		m.dispatchUpdate(Update{
+		m.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   evt.RoomID.String(),
 			Message:  msg,
@@ -3194,7 +3212,7 @@ func (m *MatrixCore) handleMemberEvent(evt *event.Event) {
 	}
 	m.roomsMu.Unlock()
 
-	m.dispatchUpdate(Update{
+	m.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   evt.RoomID.String(),
 		Platform: "matrix",
@@ -3314,10 +3332,14 @@ func (m *MatrixCore) handleCallInvite(evt *event.Event) {
 	m.callsMu.Unlock()
 
 	// Start silence sender
-	go m.sendAudio(callCtx, call)
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.sendAudio(callCtx, call)
+	}()
 
 	// Notify UI of incoming call
-	m.dispatchUpdate(Update{
+	m.fireUpdate(Update{
 		Type:   UpdateCallState,
 		ChatID: evt.RoomID.String(),
 		Call: &CallSession{
@@ -3337,7 +3359,7 @@ func (m *MatrixCore) handleCallHangup(evt *event.Event) {
 		delete(m.activeCalls, ch.CallID)
 		m.callsMu.Unlock()
 
-		m.dispatchUpdate(Update{
+		m.fireUpdate(Update{
 			Type:   UpdateCallState,
 			ChatID: evt.RoomID.String(),
 			Call: &CallSession{
@@ -3530,7 +3552,7 @@ func (m *MatrixCore) serverName() string {
 	return "matrix.org"
 }
 
-func (m *MatrixCore) dispatchUpdate(update Update) {
+func (m *MatrixCore) fireUpdate(update Update) {
 	m.updateMu.RLock()
 	handlers := make([]func(Update), len(m.updateHandlers))
 	copy(handlers, m.updateHandlers)
@@ -4122,7 +4144,7 @@ type matrixVerificationCallbacks struct {
 }
 
 func (c *matrixVerificationCallbacks) VerificationRequested(_ context.Context, txnID id.VerificationTransactionID, from id.UserID, fromDevice id.DeviceID) {
-	c.m.dispatchUpdate(Update{
+	c.m.fireUpdate(Update{
 		Type: UpdateVerification,
 		Verification: &VerificationInfo{
 			TransactionID: txnID.String(),
@@ -4135,7 +4157,7 @@ func (c *matrixVerificationCallbacks) VerificationRequested(_ context.Context, t
 }
 
 func (c *matrixVerificationCallbacks) VerificationReady(_ context.Context, txnID id.VerificationTransactionID, otherDeviceID id.DeviceID, supportsSAS, _ bool, _ *verificationhelper.QRCode) {
-	c.m.dispatchUpdate(Update{
+	c.m.fireUpdate(Update{
 		Type: UpdateVerification,
 		Verification: &VerificationInfo{
 			TransactionID: txnID.String(),
@@ -4151,7 +4173,7 @@ func (c *matrixVerificationCallbacks) VerificationReady(_ context.Context, txnID
 }
 
 func (c *matrixVerificationCallbacks) VerificationCancelled(_ context.Context, txnID id.VerificationTransactionID, code event.VerificationCancelCode, reason string) {
-	c.m.dispatchUpdate(Update{
+	c.m.fireUpdate(Update{
 		Type: UpdateVerification,
 		Verification: &VerificationInfo{
 			TransactionID: txnID.String(),
@@ -4164,7 +4186,7 @@ func (c *matrixVerificationCallbacks) VerificationCancelled(_ context.Context, t
 }
 
 func (c *matrixVerificationCallbacks) VerificationDone(_ context.Context, txnID id.VerificationTransactionID, _ event.VerificationMethod) {
-	c.m.dispatchUpdate(Update{
+	c.m.fireUpdate(Update{
 		Type: UpdateVerification,
 		Verification: &VerificationInfo{
 			TransactionID: txnID.String(),
@@ -4179,7 +4201,7 @@ func (c *matrixVerificationCallbacks) ShowSAS(_ context.Context, txnID id.Verifi
 	for i, r := range emojis {
 		symbols[i] = string(r)
 	}
-	c.m.dispatchUpdate(Update{
+	c.m.fireUpdate(Update{
 		Type: UpdateVerification,
 		Verification: &VerificationInfo{
 			TransactionID: txnID.String(),

@@ -36,12 +36,14 @@ import (
 // RubikaCore implements the Core interface for Rubika.
 type RubikaCore struct {
 	mu sync.RWMutex
+	wg sync.WaitGroup
 
 	// Auth state
 	auth       string // 32-char auth key
 	key        string // 32-char passphrase (AES key)
 	decodeAuth string // substitution-ciphered auth for wire format
 	guid       string // current user GUID
+	phone      string // phone number for session save
 	privateKey *rsa.PrivateKey
 	authed     bool
 	isBot      bool
@@ -81,6 +83,8 @@ type RubikaCore struct {
 	activeCall   *rubikaActiveCall
 	activeCallMu sync.Mutex
 }
+
+var _ Core = (*RubikaCore)(nil)
 
 // rubikaActiveCall holds state for an active voice chat session.
 type rubikaActiveCall struct {
@@ -138,9 +142,11 @@ func NewRubikaCore(sessionPath string) *RubikaCore {
 	}
 }
 
+const rubikaPlatform = "rubika"
+
 // --- Core Interface: Identity ---
 
-func (r *RubikaCore) Name() string { return "rubika" }
+func (r *RubikaCore) Name() string { return rubikaPlatform }
 
 func (r *RubikaCore) Capabilities() []string {
 	return []string{
@@ -931,6 +937,7 @@ func (r *RubikaCore) loadSession() error {
 	r.key = passphrase(sess.Auth)
 	r.decodeAuth = decodeAuthStr(sess.Auth)
 	r.guid = sess.GUID
+	r.phone = sess.Phone
 	if sess.UserAgent != "" {
 		r.userAgent = sess.UserAgent
 	}
@@ -1140,6 +1147,7 @@ func (r *RubikaCore) signInInternal(phone string, otp string, phoneCodeHash stri
 		r.guid, _ = userData["user_guid"].(string)
 	}
 
+	r.phone = phone
 	r.authed = true
 
 	// Save session BEFORE registerDevice (rubpy saves then registers)
@@ -1348,7 +1356,7 @@ func (r *RubikaCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	}
 
 	if r.isBot {
-		return nil, ErrNotSupported
+		return nil, fmt.Errorf("%w: rubika bots do not support dialog listing", ErrNotSupported)
 	}
 
 	input := map[string]interface{}{
@@ -1494,7 +1502,7 @@ func (r *RubikaCore) CreateChannel(name string, description string) (*Dialog, er
 }
 
 func (r *RubikaCore) CreateTopic(chatID string, name string) (*Dialog, error) {
-	return nil, ErrNotSupported // Rubika doesn't have forum topics
+	return nil, fmt.Errorf("%w: rubika does not support forum topics", ErrNotSupported)
 }
 
 func (r *RubikaCore) GetFolders() ([]Folder, error) {
@@ -1873,8 +1881,7 @@ func (r *RubikaCore) MarkAsRead(chatID string, upToMsgID string) error {
 }
 
 func (r *RubikaCore) GetReadState(chatID string) (*ReadState, error) {
-	// Rubika doesn't expose per-user read state in the same way
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: rubika does not expose read state", ErrNotSupported)
 }
 
 // --- Files ---
@@ -2104,7 +2111,7 @@ func (r *RubikaCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 // --- Media ---
 
 func (r *RubikaCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: rubika does not support base64 image sending", ErrNotSupported)
 }
 
 // --- Calls ---
@@ -2432,7 +2439,9 @@ func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSes
 		},
 	}
 	// Wire the OnTrack counter + audio callback into the call
+	r.wg.Add(1)
 	go func() {
+		defer r.wg.Done()
 		for {
 			time.Sleep(500 * time.Millisecond)
 			call.rtpRecv.Store(rtpRecvCounter.Load())
@@ -2450,6 +2459,7 @@ func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSes
 	r.activeCall = call
 	r.activeCallMu.Unlock()
 
+	r.wg.Add(3)
 	go r.rubikaHeartbeatLoop(ctx, chatGUID, vcID)
 	go r.rubikaUpdatesLoop(ctx, chatGUID, vcID)
 	go r.rubikaSilenceSender(ctx, call)
@@ -2459,6 +2469,7 @@ func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSes
 
 // rubikaHeartbeatLoop sends speaking activity every 1s to keep the voice chat alive.
 func (r *RubikaCore) rubikaHeartbeatLoop(ctx context.Context, chatGUID, vcID string) {
+	defer r.wg.Done()
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -2473,6 +2484,7 @@ func (r *RubikaCore) rubikaHeartbeatLoop(ctx context.Context, chatGUID, vcID str
 
 // rubikaUpdatesLoop polls for voice chat updates every 3s.
 func (r *RubikaCore) rubikaUpdatesLoop(ctx context.Context, chatGUID, vcID string) {
+	defer r.wg.Done()
 	var state int64
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
@@ -2501,6 +2513,7 @@ func (r *RubikaCore) rubikaUpdatesLoop(ctx context.Context, chatGUID, vcID strin
 // rubikaSilenceSender sends audio frames every 20ms.
 // Uses real Opus frames from audioInCh when available, falls back to silence.
 func (r *RubikaCore) rubikaSilenceSender(ctx context.Context, call *rubikaActiveCall) {
+	defer r.wg.Done()
 	silencePayload := []byte{0xF8, 0xFF, 0xFE}
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
@@ -2679,6 +2692,13 @@ func (r *RubikaCore) Close() error {
 	if r.wsConn != nil {
 		r.wsConn.Close(websocket.StatusNormalClosure, "closing")
 	}
+	r.wg.Wait()
+	r.mu.Lock()
+	if r.sessionPath != "" {
+		r.saveSession(r.phone)
+	}
+	r.authed = false
+	r.mu.Unlock()
 	return nil
 }
 
@@ -2690,11 +2710,13 @@ func (r *RubikaCore) StartWebSocket() error {
 		}
 	}
 
+	r.wg.Add(1)
 	go r.wsLoop()
 	return nil
 }
 
 func (r *RubikaCore) wsLoop() {
+	defer r.wg.Done()
 	for {
 		select {
 		case <-r.ctx.Done():
@@ -4627,7 +4649,7 @@ func (r *RubikaCore) EditChatTitle(chatID string, title string) error {
 	case ChatTypeChannel:
 		return r.EditChannelInfo(chatID, map[string]interface{}{"title": title})
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: rubika does not support editing title for this chat type", ErrNotSupported)
 }
 
 func (r *RubikaCore) EditChatDescription(chatID string, description string) error {
@@ -4638,7 +4660,7 @@ func (r *RubikaCore) EditChatDescription(chatID string, description string) erro
 	case ChatTypeChannel:
 		return r.EditChannelInfo(chatID, map[string]interface{}{"description": description})
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: rubika does not support editing description for this chat type", ErrNotSupported)
 }
 
 func (r *RubikaCore) LeaveChat(chatID string) error {
@@ -4650,7 +4672,7 @@ func (r *RubikaCore) LeaveChat(chatID string) error {
 		_, err := r.api("leaveChannel", map[string]interface{}{"channel_guid": chatID})
 		return err
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: rubika does not support leaving this chat type", ErrNotSupported)
 }
 
 func (r *RubikaCore) GetInviteLink(chatID string) (string, error) {
@@ -4675,7 +4697,7 @@ func (r *RubikaCore) GetInviteLink(chatID string) (string, error) {
 		}
 		return "", nil
 	}
-	return "", ErrNotSupported
+	return "", fmt.Errorf("%w: rubika does not support invite links for this chat type", ErrNotSupported)
 }
 
 func (r *RubikaCore) AddMembers(chatID string, userIDs []string) error {
@@ -4686,7 +4708,7 @@ func (r *RubikaCore) AddMembers(chatID string, userIDs []string) error {
 	case ChatTypeChannel:
 		return r.AddChannelMembers(chatID, userIDs)
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: rubika does not support adding members to this chat type", ErrNotSupported)
 }
 
 func (r *RubikaCore) RemoveMember(chatID string, userID string) error {
@@ -4701,7 +4723,7 @@ func (r *RubikaCore) BanMember(chatID string, userID string) error {
 	case ChatTypeChannel:
 		return r.BanChannelMember(chatID, userID, true)
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: rubika does not support banning in this chat type", ErrNotSupported)
 }
 
 func (r *RubikaCore) UnbanMember(chatID string, userID string) error {
@@ -4712,7 +4734,7 @@ func (r *RubikaCore) UnbanMember(chatID string, userID string) error {
 	case ChatTypeChannel:
 		return r.BanChannelMember(chatID, userID, false)
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: rubika does not support unbanning in this chat type", ErrNotSupported)
 }
 
 func (r *RubikaCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
@@ -4725,7 +4747,7 @@ func (r *RubikaCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	case ChatTypeChannel:
 		raw, err = r.GetChannelAllMembers(chatID)
 	default:
-		return nil, ErrNotSupported
+		return nil, fmt.Errorf("%w: rubika does not support member listing for this chat type", ErrNotSupported)
 	}
 	if err != nil {
 		return nil, err
@@ -4770,7 +4792,7 @@ func (r *RubikaCore) SetAdmin(chatID string, userID string, admin bool) error {
 		}
 		return r.SetGroupAdmin(chatID, userID, []string{})
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: rubika does not support admin management for this chat type", ErrNotSupported)
 }
 
 func (r *RubikaCore) GetContacts() ([]User, error) {
@@ -4932,7 +4954,7 @@ func (r *RubikaCore) VotePoll(chatID string, msgID string, optionIndex int) erro
 }
 
 func (r *RubikaCore) SendSticker(chatID string, stickerID string) (*Message, error) {
-	return nil, ErrNotSupported // Rubika stickers use file-based sending, not sticker IDs
+	return nil, fmt.Errorf("%w: rubika stickers use file-based sending, not sticker IDs", ErrNotSupported)
 }
 
 func (r *RubikaCore) GetSessions() ([]Session, error) {

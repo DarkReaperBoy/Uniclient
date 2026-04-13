@@ -60,6 +60,8 @@ import (
 // Constants & namespaces
 // ---------------------------------------------------------------------------
 
+const xmppPlatform = "xmpp"
+
 const (
 	xmppDefaultPort    = "5222"
 	xmppDirectTLSPort  = "5223"
@@ -410,7 +412,10 @@ type XMPPCore struct {
 	sessionPath string
 	ctx         context.Context
 	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 }
+
+var _ Core = (*XMPPCore)(nil)
 
 // NewXMPPCore creates a new XMPP core instance.
 func NewXMPPCore(sessionPath string) *XMPPCore {
@@ -434,7 +439,7 @@ func NewXMPPCore(sessionPath string) *XMPPCore {
 // Core interface — Identity
 // ---------------------------------------------------------------------------
 
-func (c *XMPPCore) Name() string { return "xmpp" }
+func (c *XMPPCore) Name() string { return xmppPlatform }
 
 func (c *XMPPCore) Capabilities() []string {
 	return []string{
@@ -537,7 +542,9 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 	c.mu.Unlock()
 
 	// Post-auth setup
+	c.wg.Add(1)
 	go c.readLoop()
+	c.wg.Add(1)
 	go c.pingLoop()
 
 	// Request roster
@@ -565,11 +572,11 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 
 func (c *XMPPCore) Logout() error {
 	c.mu.RLock()
-	authed := c.authed
-	c.mu.RUnlock()
-	if !authed {
-		return nil
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
 	}
+	c.mu.RUnlock()
 
 	// Send unavailable presence
 	c.SendPresenceUnavailable("Logged out")
@@ -1209,6 +1216,7 @@ func (c *XMPPCore) establishSession() {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) readLoop() {
+	defer c.wg.Done()
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -1312,7 +1320,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 			if msg.Type == "groupchat" {
 				senderID = resourceFromJID(from)
 			}
-			c.notifyUpdate(Update{
+			c.fireUpdate(Update{
 				Type:     UpdateTyping,
 				ChatID:   chatID,
 				UserID:   senderID,
@@ -1336,7 +1344,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		}
 		c.readState[chatID].PeerLastRead[fromBare] = parsed.DisplayedID
 		c.readStateMu.Unlock()
-		c.notifyUpdate(Update{
+		c.fireUpdate(Update{
 			Type:   UpdateReadState,
 			ChatID: chatID,
 			ReadState: &ReadState{
@@ -1390,7 +1398,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 			Platform:   "xmpp",
 		}
 		c.bufferMessage(chatID, m)
-		c.notifyUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   chatID,
 			Message:  m,
@@ -1413,7 +1421,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 					now := time.Now()
 					m.EditedAt = &now
 					c.messagesMu.Unlock()
-					c.notifyUpdate(Update{
+					c.fireUpdate(Update{
 						Type:     UpdateEditMessage,
 						ChatID:   chatID,
 						Message:  m,
@@ -1483,7 +1491,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		c.SendReceipt(from, msg.ID)
 	}
 
-	c.notifyUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  m,
@@ -1511,7 +1519,7 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 			c.SendPresenceSubscribed(fromBare)
 		}
 		// Fire update for subscription request
-		c.notifyUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   fromBare,
 			Message: &Message{
@@ -1535,7 +1543,7 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 	case "unavailable":
 		// User went offline
 		isOnline := false
-		c.notifyUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateUserStatus,
 			UserID:   fromBare,
 			IsOnline: &isOnline,
@@ -1545,7 +1553,7 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 	case "", "available":
 		// User is online
 		isOnline := true
-		c.notifyUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateUserStatus,
 			UserID:   fromBare,
 			IsOnline: &isOnline,
@@ -1574,7 +1582,7 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 	if pres.Type == "unavailable" {
 		delete(room.Occupants, nick)
 		c.roomsMu.Unlock()
-		c.notifyUpdate(Update{
+		c.fireUpdate(Update{
 			Type:   UpdateGroupMembers,
 			ChatID: roomJID,
 			UserID: nick,
@@ -1602,7 +1610,7 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 
 	c.roomsMu.Unlock()
 
-	c.notifyUpdate(Update{
+	c.fireUpdate(Update{
 		Type:   UpdateGroupMembers,
 		ChatID: roomJID,
 		UserID: nick,
@@ -1826,6 +1834,7 @@ func (c *XMPPCore) sendRawStanza(stanza string) error {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) pingLoop() {
+	defer c.wg.Done()
 	ticker := time.NewTicker(xmppPingInterval)
 	defer ticker.Stop()
 	for {
@@ -1843,6 +1852,13 @@ func (c *XMPPCore) pingLoop() {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	c.rosterMu.RLock()
 	defer c.rosterMu.RUnlock()
 
@@ -1901,6 +1917,10 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 
 func (c *XMPPCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
 	mucSvc := c.mucService
 	c.mu.RUnlock()
 
@@ -1936,6 +1956,13 @@ func (c *XMPPCore) CreateGroup(name string, members []string) (*Dialog, error) {
 }
 
 func (c *XMPPCore) CreateChannel(name string, description string) (*Dialog, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// XMPP doesn't distinguish channels from groups — create a MUC room
 	d, err := c.CreateGroup(name, nil)
 	if err != nil {
@@ -1949,10 +1976,17 @@ func (c *XMPPCore) CreateChannel(name string, description string) (*Dialog, erro
 }
 
 func (c *XMPPCore) CreateTopic(chatID string, name string) (*Dialog, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: xmpp does not support forum topics", ErrNotSupported)
 }
 
 func (c *XMPPCore) GetFolders() ([]Folder, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// Return bookmarks as folders
 	c.bookmarksMu.RLock()
 	defer c.bookmarksMu.RUnlock()
@@ -1974,6 +2008,13 @@ func (c *XMPPCore) GetFolders() ([]Folder, error) {
 }
 
 func (c *XMPPCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// Save as bookmarks
 	for _, id := range chatIDs {
 		c.SetBookmark(id, name, "", true)
@@ -1990,6 +2031,13 @@ func (c *XMPPCore) CreateFolder(name string, chatIDs []string) (*Folder, error) 
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	msgType := "chat"
 	if c.isRoom(chatID) {
 		msgType = "groupchat"
@@ -2044,6 +2092,13 @@ func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 }
 
 func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// Try MAM first for archive
 	if opts.Offset != "" || opts.Limit > 0 {
 		msgs, err := c.QueryMAM(chatID, opts.Limit, opts.Offset)
@@ -2069,10 +2124,23 @@ func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, e
 }
 
 func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Message, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
 	return c.CorrectMessage(chatID, msgID, text)
 }
 
 func (c *XMPPCore) DeleteMessage(chatID string, msgID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// XMPP doesn't have standard message deletion — use correction with empty body
 	// Or use XEP-0424 Message Retraction (not widely supported)
 	c.messagesMu.Lock()
@@ -2089,11 +2157,24 @@ func (c *XMPPCore) DeleteMessage(chatID string, msgID string) error {
 }
 
 func (c *XMPPCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
 	msg.ReplyToID = replyToMsgID
 	return c.SendMessage(chatID, msg)
 }
 
 func (c *XMPPCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// Find the original message
 	c.messagesMu.RLock()
 	var original *Message
@@ -2119,10 +2200,23 @@ func (c *XMPPCore) ForwardMessage(fromChatID string, msgID string, toChatID stri
 }
 
 func (c *XMPPCore) ReactToMessage(chatID string, msgID string, emoji string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
 	return c.SendReaction(chatID, msgID, []string{emoji})
 }
 
 func (c *XMPPCore) PinMessage(chatID string, msgID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	c.pinnedMu.Lock()
 	defer c.pinnedMu.Unlock()
 	if _, ok := c.pinned[chatID]; !ok {
@@ -2134,6 +2228,13 @@ func (c *XMPPCore) PinMessage(chatID string, msgID string) error {
 }
 
 func (c *XMPPCore) UnpinMessage(chatID string, msgID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	c.pinnedMu.Lock()
 	defer c.pinnedMu.Unlock()
 	if pins, ok := c.pinned[chatID]; ok {
@@ -2148,6 +2249,13 @@ func (c *XMPPCore) UnpinMessage(chatID string, msgID string) error {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) MarkAsRead(chatID string, upToMsgID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	c.readStateMu.Lock()
 	if _, ok := c.readState[chatID]; !ok {
 		c.readState[chatID] = &ReadState{PeerLastRead: make(map[string]string)}
@@ -2161,6 +2269,13 @@ func (c *XMPPCore) MarkAsRead(chatID string, upToMsgID string) error {
 }
 
 func (c *XMPPCore) GetReadState(chatID string) (*ReadState, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	c.readStateMu.RLock()
 	defer c.readStateMu.RUnlock()
 	if rs, ok := c.readState[chatID]; ok {
@@ -2176,6 +2291,10 @@ func (c *XMPPCore) GetReadState(chatID string) (*ReadState, error) {
 func (c *XMPPCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	// Use XEP-0363 HTTP File Upload
 	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
 	uploadSvc := c.uploadService
 	c.mu.RUnlock()
 
@@ -2204,6 +2323,13 @@ func (c *XMPPCore) UploadFile(chatID string, file FileUpload, progress func(sent
 }
 
 func (c *XMPPCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if fileRef.URL == "" {
 		return fmt.Errorf("%w: no URL in file ref", ErrInvalidInput)
 	}
@@ -2212,15 +2338,19 @@ func (c *XMPPCore) DownloadFile(fileRef FileRef, dest string, progress func(recv
 }
 
 func (c *XMPPCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	uploadSvc := c.uploadService
+	c.mu.RUnlock()
+
 	// Decode, upload via HTTP, send URL
 	data, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
 		return nil, fmt.Errorf("decode base64: %w", err)
 	}
-
-	c.mu.RLock()
-	uploadSvc := c.uploadService
-	c.mu.RUnlock()
 
 	if uploadSvc == "" {
 		// Fallback: send as text with base64
@@ -2244,20 +2374,31 @@ func (c *XMPPCore) SendImageBase64(chatID string, b64 string, caption string) (*
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) StartCall(chatID string, video bool) (*CallSession, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
 	return c.InitiateJingle(chatID, video)
 }
 
 func (c *XMPPCore) JoinGroupCall(chatID string) (*CallSession, error) {
-	return nil, ErrNotSupported // Muji (XEP-0272) not widely supported
+	return nil, fmt.Errorf("%w: xmpp group calls (Muji/XEP-0272) not widely supported", ErrNotSupported)
 }
 
 func (c *XMPPCore) EndCall(callID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
 	return c.TerminateJingle(callID, "success")
 }
 
 func (c *XMPPCore) SetCallMuted(callID string, muted bool) error {
-	// Would need to control local media track
-	return ErrNotSupported
+	return fmt.Errorf("%w: xmpp does not support call muting", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -2265,6 +2406,13 @@ func (c *XMPPCore) SetCallMuted(callID string, muted bool) error {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) GetProfile(userID string) (*User, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if userID == "" {
 		userID = c.bareJID
 	}
@@ -2327,15 +2475,18 @@ func (c *XMPPCore) Close() error {
 	c.saveSession()
 	c.cancel()
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.authed = false
+	var connErr error
 	if c.conn != nil {
 		// Try graceful close
 		c.writeMu.Lock()
 		c.conn.Write([]byte("</stream:stream>"))
 		c.writeMu.Unlock()
-		return c.conn.Close()
+		connErr = c.conn.Close()
 	}
-	return nil
+	c.mu.Unlock()
+	c.wg.Wait()
+	return connErr
 }
 
 // ---------------------------------------------------------------------------
@@ -2343,6 +2494,13 @@ func (c *XMPPCore) Close() error {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if c.isRoom(chatID) {
 		info, err := c.GetMUCInfo(chatID)
 		if err != nil {
@@ -2381,22 +2539,43 @@ func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 }
 
 func (c *XMPPCore) EditChatTitle(chatID string, title string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if c.isRoom(chatID) {
 		return c.SetMUCSubject(chatID, title)
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: xmpp does not support editing DM titles", ErrNotSupported)
 }
 
 func (c *XMPPCore) EditChatDescription(chatID string, description string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if c.isRoom(chatID) {
 		return c.ConfigureMUC(chatID, map[string]string{
 			"muc#roomconfig_roomdesc": description,
 		})
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: xmpp does not support editing DM descriptions", ErrNotSupported)
 }
 
 func (c *XMPPCore) LeaveChat(chatID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if c.isRoom(chatID) {
 		return c.LeaveMUC(chatID)
 	}
@@ -2405,6 +2584,13 @@ func (c *XMPPCore) LeaveChat(chatID string) error {
 }
 
 func (c *XMPPCore) GetInviteLink(chatID string) (string, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return "", ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// XMPP uses xmpp: URI scheme
 	return "xmpp:" + chatID + "?join", nil
 }
@@ -2414,8 +2600,15 @@ func (c *XMPPCore) GetInviteLink(chatID string) (string, error) {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) AddMembers(chatID string, userIDs []string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if !c.isRoom(chatID) {
-		return ErrNotSupported
+		return fmt.Errorf("%w: xmpp only supports adding members to MUC rooms", ErrNotSupported)
 	}
 	for _, uid := range userIDs {
 		c.SendMUCInvitation(chatID, uid, "")
@@ -2424,27 +2617,55 @@ func (c *XMPPCore) AddMembers(chatID string, userIDs []string) error {
 }
 
 func (c *XMPPCore) RemoveMember(chatID string, userID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if !c.isRoom(chatID) {
-		return ErrNotSupported
+		return fmt.Errorf("%w: xmpp only supports removing members from MUC rooms", ErrNotSupported)
 	}
 	return c.KickFromMUC(chatID, userID, "")
 }
 
 func (c *XMPPCore) BanMember(chatID string, userID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if !c.isRoom(chatID) {
-		return ErrNotSupported
+		return fmt.Errorf("%w: xmpp only supports banning in MUC rooms", ErrNotSupported)
 	}
 	return c.BanFromMUC(chatID, userID, "")
 }
 
 func (c *XMPPCore) UnbanMember(chatID string, userID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if !c.isRoom(chatID) {
-		return ErrNotSupported
+		return fmt.Errorf("%w: xmpp only supports unbanning in MUC rooms", ErrNotSupported)
 	}
 	return c.UnbanFromMUC(chatID, userID)
 }
 
 func (c *XMPPCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if c.isRoom(chatID) {
 		return c.GetMUCOccupants(chatID)
 	}
@@ -2456,8 +2677,15 @@ func (c *XMPPCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error
 }
 
 func (c *XMPPCore) SetAdmin(chatID string, userID string, admin bool) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	if !c.isRoom(chatID) {
-		return ErrNotSupported
+		return fmt.Errorf("%w: xmpp only supports admin management in MUC rooms", ErrNotSupported)
 	}
 	aff := "admin"
 	if !admin {
@@ -2471,6 +2699,13 @@ func (c *XMPPCore) SetAdmin(chatID string, userID string, admin bool) error {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) GetContacts() ([]User, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	c.rosterMu.RLock()
 	defer c.rosterMu.RUnlock()
 
@@ -2493,6 +2728,13 @@ func (c *XMPPCore) GetContacts() ([]User, error) {
 }
 
 func (c *XMPPCore) AddContact(phone string, firstName string, lastName string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// In XMPP, "phone" is the JID
 	jid := phone
 	name := firstName
@@ -2503,18 +2745,43 @@ func (c *XMPPCore) AddContact(phone string, firstName string, lastName string) e
 }
 
 func (c *XMPPCore) DeleteContact(userID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
 	return c.RemoveRosterItem(userID)
 }
 
 func (c *XMPPCore) BlockUser(userID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
 	return c.BlockJID(userID)
 }
 
 func (c *XMPPCore) UnblockUser(userID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
 	return c.UnblockJID(userID)
 }
 
 func (c *XMPPCore) GetBlockedUsers() ([]User, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	jids, err := c.GetBlocklist()
 	if err != nil {
 		return nil, err
@@ -2535,6 +2802,13 @@ func (c *XMPPCore) GetBlockedUsers() ([]User, error) {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// Search local buffer
 	c.messagesMu.RLock()
 	defer c.messagesMu.RUnlock()
@@ -2564,6 +2838,13 @@ func (c *XMPPCore) SearchMessages(chatID string, query string, opts PaginationOp
 }
 
 func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// Search roster and rooms
 	q := strings.ToLower(query)
 	var results []Dialog
@@ -2610,6 +2891,12 @@ func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) SendTyping(chatID string) error {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return ErrAuth
+	}
+	c.mu.RUnlock()
 	return c.SendChatStateComposing(chatID)
 }
 
@@ -2618,15 +2905,15 @@ func (c *XMPPCore) SendTyping(chatID string) error {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: xmpp does not support polls", ErrNotSupported)
 }
 
 func (c *XMPPCore) VotePoll(chatID string, msgID string, optionIndex int) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: xmpp does not support polls", ErrNotSupported)
 }
 
 func (c *XMPPCore) SendSticker(chatID string, stickerID string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: xmpp does not support stickers", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -2634,6 +2921,13 @@ func (c *XMPPCore) SendSticker(chatID string, stickerID string) (*Message, error
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) GetSessions() ([]Session, error) {
+	c.mu.RLock()
+	if !c.authed {
+		c.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	c.mu.RUnlock()
+
 	// XMPP doesn't have a standard session list — return current
 	return []Session{{
 		ID:         c.jid,
@@ -2645,7 +2939,7 @@ func (c *XMPPCore) GetSessions() ([]Session, error) {
 }
 
 func (c *XMPPCore) TerminateSession(sessionID string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: xmpp does not support session termination", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -3016,8 +3310,7 @@ func (c *XMPPCore) SendOOBURL(chatID, url, desc string) error {
 }
 
 func (c *XMPPCore) SetMessageHint(chatID, msgID, hint string) error {
-	// Hints are typically set per-message at send time, not retroactively
-	return ErrNotSupported
+	return fmt.Errorf("%w: xmpp message hints can only be set at send time", ErrNotSupported)
 }
 
 func (c *XMPPCore) SendReply(chatID, replyToJID, replyToID, body string) (*Message, error) {
@@ -4655,7 +4948,7 @@ func (c *XMPPCore) nextMsgID() string {
 // Helper: update notification
 // ---------------------------------------------------------------------------
 
-func (c *XMPPCore) notifyUpdate(u Update) {
+func (c *XMPPCore) fireUpdate(u Update) {
 	c.updateMu.RLock()
 	handlers := make([]func(Update), len(c.updateHandlers))
 	copy(handlers, c.updateHandlers)

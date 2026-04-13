@@ -84,7 +84,8 @@ var tsRootKey = [32]byte{
 
 // Version string and platform for clientinit
 const tsVersionStr = "3.?.? [Build: 5680278000]"
-const tsPlatform = "Linux"
+const tsPlatform = "Linux" // TS3 clientinit platform field
+const ts3Platform = "teamspeak"
 const tsVersionSign = "Hjd+N58Gv3ENhoKmGYy2bNRBsNNgm5kpiaQWxOj5HN2DXttG6REjymSwJtpJ8muC2gSwRuZi0R+8Laan5ts5CQ=="
 
 // ──────────────────────────── QuickLZ Level 1 ────────────────────────────
@@ -1132,7 +1133,10 @@ type TeamSpeakCore struct {
 	// Context
 	ctx    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
+
+var _ Core = (*TeamSpeakCore)(nil)
 
 // VoicePacket represents incoming or outgoing voice audio data.
 type VoicePacket struct {
@@ -1187,7 +1191,7 @@ func NewTeamSpeakCore(sessionPath string) *TeamSpeakCore {
 	}
 }
 
-func (t *TeamSpeakCore) Name() string { return "teamspeak" }
+func (t *TeamSpeakCore) Name() string { return ts3Platform }
 
 func (t *TeamSpeakCore) Capabilities() []string {
 	return []string{"CHANNELS", "ADMIN", "SESSIONS"}
@@ -2023,8 +2027,15 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 	tc.pktState[tsPktAck].nextRecvID = 0
 
 	// Now start the receive loop for encrypted command exchange
-	go tc.tsReceiveLoop(t.ctx)
-	go tc.tsKeepaliveLoop(t.ctx)
+	t.wg.Add(2)
+	go func() {
+		defer t.wg.Done()
+		tc.tsReceiveLoop(t.ctx)
+	}()
+	go func() {
+		defer t.wg.Done()
+		tc.tsKeepaliveLoop(t.ctx)
+	}()
 
 	// --- Send clientinit (encrypted with shared key, pID=2) ---
 	hwid := "123456789abcdef0123456789abcdef0"
@@ -2151,7 +2162,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			order: order,
 		}
 		t.channelsMu.Unlock()
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: "teamspeak",
 		})
@@ -2160,7 +2171,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		t.channelsMu.Lock()
 		delete(t.channels, cid)
 		t.channelsMu.Unlock()
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: "teamspeak",
 		})
@@ -2183,7 +2194,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			t.channels[cid] = ch
 		}
 		t.channelsMu.Unlock()
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: "teamspeak",
 		})
@@ -2210,7 +2221,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform:   "teamspeak",
 		}
 		t.tsAddMessage(msg.ChatID, &msg)
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   msg.ChatID,
 			Message:  &msg,
@@ -2221,7 +2232,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		go t.SetConnectionInfo()
 	case "notifychanneldescriptionchanged":
 		// Channel description changed — could fetch new desc if needed
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: "teamspeak",
 		})
@@ -2230,7 +2241,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "notifychannelsubscribed":
 		// We subscribed to a channel — receive events from it now
 		cid, _ := strconv.Atoi(cmd.params["cid"])
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			ChatID:   fmt.Sprintf("ch:%d", cid),
 			Platform: "teamspeak",
@@ -2238,25 +2249,25 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "notifychannelunsubscribed":
 		// We unsubscribed from a channel
 		cid, _ := strconv.Atoi(cmd.params["cid"])
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			ChatID:   fmt.Sprintf("ch:%d", cid),
 			Platform: "teamspeak",
 		})
 	case "notifyserveredited", "notifyserverupdated":
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: "teamspeak",
 		})
 	case "notifyservergroupclientadded", "notifyservergroupclientdeleted":
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: "teamspeak",
 		})
 	case "notifytokenused":
 		// Privilege key was used — informational
 	case "notifyclientchannelgroupchanged":
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: "teamspeak",
 		})
@@ -2264,7 +2275,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		// Server tells us what permissions we need — informational
 	case "notifyclientchatcomposing":
 		clid, _ := strconv.Atoi(cmd.params["clid"])
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateTyping,
 			ChatID:   fmt.Sprintf("dm:%d", clid),
 			UserID:   strconv.Itoa(clid),
@@ -2286,7 +2297,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform:   "teamspeak",
 		}
 		t.tsAddMessage(msg.ChatID, &msg)
-		t.tsDispatchUpdate(Update{
+		t.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   msg.ChatID,
 			Message:  &msg,
@@ -2471,7 +2482,7 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 	}
 	t.tsAddMessage(chatID, &msg)
 
-	t.tsDispatchUpdate(Update{
+	t.fireUpdate(Update{
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  &msg,
@@ -2497,7 +2508,7 @@ func (t *TeamSpeakCore) tsHandleClientEnter(kv map[string]string) {
 	t.clientInfo[clid] = info
 	t.clientInfoMu.Unlock()
 
-	t.tsDispatchUpdate(Update{
+	t.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   fmt.Sprintf("ch:%d", cid),
 		UserID:   strconv.Itoa(dbid),
@@ -2513,7 +2524,7 @@ func (t *TeamSpeakCore) tsHandleClientLeave(kv map[string]string) {
 	delete(t.clientInfo, clid)
 	t.clientInfoMu.Unlock()
 
-	t.tsDispatchUpdate(Update{
+	t.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   fmt.Sprintf("ch:%d", cid),
 		Platform: "teamspeak",
@@ -2535,7 +2546,7 @@ func (t *TeamSpeakCore) tsHandleClientMoved(kv map[string]string) {
 	}
 	t.clientInfoMu.Unlock()
 
-	t.tsDispatchUpdate(Update{
+	t.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   fmt.Sprintf("ch:%d", cid),
 		Platform: "teamspeak",
@@ -2544,11 +2555,13 @@ func (t *TeamSpeakCore) tsHandleClientMoved(kv map[string]string) {
 
 // ──────────────────────────── Helpers ────────────────────────────
 
-func (t *TeamSpeakCore) tsDispatchUpdate(u Update) {
+func (t *TeamSpeakCore) fireUpdate(u Update) {
 	t.updateMu.RLock()
-	defer t.updateMu.RUnlock()
-	for _, h := range t.updateHandlers {
-		go h(u)
+	handlers := make([]func(Update), len(t.updateHandlers))
+	copy(handlers, t.updateHandlers)
+	t.updateMu.RUnlock()
+	for _, h := range handlers {
+		h(u)
 	}
 }
 
@@ -2735,7 +2748,11 @@ func (t *TeamSpeakCore) Authenticate(cfg AuthConfig) error {
 	t.authed = true
 
 	// Start command processing loop first (needed for tsExec routing)
-	go t.tsCommandLoop()
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		t.tsCommandLoop()
+	}()
 
 	// Register for notifications
 	_ = t.tsExecSimple("servernotifyregister event=server")
@@ -2885,15 +2902,15 @@ func (t *TeamSpeakCore) CreateChannel(name string, description string) (*Dialog,
 }
 
 func (t *TeamSpeakCore) CreateTopic(_ string, _ string) (*Dialog, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support forum topics", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) GetFolders() ([]Folder, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support folders", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) CreateFolder(_ string, _ []string) (*Folder, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support folders", ErrNotSupported)
 }
 
 // ──────────────────────────── Core Interface: Messages ────────────────────────────
@@ -2971,11 +2988,11 @@ func (t *TeamSpeakCore) GetMessages(chatID string, opts PaginationOpts) ([]Messa
 }
 
 func (t *TeamSpeakCore) EditMessage(_ string, _ string, _ string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support message editing", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) DeleteMessage(_ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support message deletion", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) ReplyToMessage(chatID string, _ string, msg OutgoingMessage) (*Message, error) {
@@ -2983,29 +3000,29 @@ func (t *TeamSpeakCore) ReplyToMessage(chatID string, _ string, msg OutgoingMess
 }
 
 func (t *TeamSpeakCore) ForwardMessage(_ string, _ string, _ string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support message forwarding", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) ReactToMessage(_ string, _ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support reactions", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) PinMessage(_ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support message pinning", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) UnpinMessage(_ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support message pinning", ErrNotSupported)
 }
 
 // ──────────────────────────── Core Interface: Read State ────────────────────────────
 
 func (t *TeamSpeakCore) MarkAsRead(_ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support read state", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) GetReadState(_ string) (*ReadState, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support read state", ErrNotSupported)
 }
 
 // ──────────────────────────── Core Interface: Files ────────────────────────────
@@ -3168,23 +3185,23 @@ func (t *TeamSpeakCore) DownloadFile(fileRef FileRef, dest string, progress func
 // ──────────────────────────── Core Interface: Media / Calls / Misc ────────────────────────────
 
 func (t *TeamSpeakCore) SendImageBase64(_ string, _ string, _ string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support base64 image sending", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) StartCall(_ string, _ bool) (*CallSession, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) JoinGroupCall(_ string) (*CallSession, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) EndCall(_ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) SetCallMuted(_ string, _ bool) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
 }
 
 // ──────────────────────────── Core Interface: Profile ────────────────────────────
@@ -3239,16 +3256,16 @@ func (t *TeamSpeakCore) OnUpdate(handler func(Update)) {
 
 func (t *TeamSpeakCore) Close() error {
 	t.mu.Lock()
-	defer t.mu.Unlock()
-
+	t.tsSaveSession()
 	t.cancel()
 	if t.tsConn != nil {
 		t.tsConn.tsSendCommand("clientdisconnect")
-		time.Sleep(100 * time.Millisecond)
 		t.tsConn.conn.Close()
 		t.tsConn = nil
 	}
 	t.authed = false
+	t.mu.Unlock()
+	t.wg.Wait()
 	return nil
 }
 
@@ -3319,7 +3336,7 @@ func (t *TeamSpeakCore) EditChatTitle(chatID string, title string) error {
 		return err
 	}
 	if kind != "ch" {
-		return ErrNotSupported
+		return fmt.Errorf("%w: teamspeak only supports editing channel titles", ErrNotSupported)
 	}
 	return t.tsExecSimple(fmt.Sprintf("channeledit cid=%d channel_name=%s", id, tsEscape(title)))
 }
@@ -3336,13 +3353,13 @@ func (t *TeamSpeakCore) EditChatDescription(chatID string, description string) e
 		return err
 	}
 	if kind != "ch" {
-		return ErrNotSupported
+		return fmt.Errorf("%w: teamspeak only supports editing channel descriptions", ErrNotSupported)
 	}
 	return t.tsExecSimple(fmt.Sprintf("channeledit cid=%d channel_description=%s", id, tsEscape(description)))
 }
 
 func (t *TeamSpeakCore) LeaveChat(_ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support leaving chats", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) GetInviteLink(chatID string) (string, error) {
@@ -3357,7 +3374,7 @@ func (t *TeamSpeakCore) GetInviteLink(chatID string) (string, error) {
 		return "", err
 	}
 	if kind != "ch" {
-		return "", ErrNotSupported
+		return "", fmt.Errorf("%w: teamspeak only supports invite links for channels", ErrNotSupported)
 	}
 
 	cmd := fmt.Sprintf("privilegekeyadd tokentype=0 tokenid1=0 tokenid2=%d tokendescription=%s",
@@ -3386,7 +3403,7 @@ func (t *TeamSpeakCore) AddMembers(chatID string, userIDs []string) error {
 		return err
 	}
 	if kind != "ch" {
-		return ErrNotSupported
+		return fmt.Errorf("%w: teamspeak only supports adding members to channels", ErrNotSupported)
 	}
 
 	for _, uid := range userIDs {
@@ -3561,11 +3578,11 @@ func (t *TeamSpeakCore) GetContacts() ([]User, error) {
 }
 
 func (t *TeamSpeakCore) AddContact(_ string, _ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support contacts", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) DeleteContact(_ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support contacts", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) BlockUser(userID string) error {
@@ -3675,19 +3692,19 @@ func (t *TeamSpeakCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 // ──────────────────────────── Core Interface: Remaining Stubs ────────────────────────────
 
 func (t *TeamSpeakCore) SendTyping(_ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support typing indicators", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) CreatePoll(_ string, _ string, _ []string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support polls", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) VotePoll(_ string, _ string, _ int) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: teamspeak does not support polls", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) SendSticker(_ string, _ string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: teamspeak does not support stickers", ErrNotSupported)
 }
 
 func (t *TeamSpeakCore) GetSessions() ([]Session, error) {

@@ -132,7 +132,10 @@ type DeltaChatCore struct {
 	// Context
 	ctx    context.Context
 	cancel context.CancelFunc
+	wg     sync.WaitGroup
 }
+
+var _ Core = (*DeltaChatCore)(nil)
 
 // dcCall tracks an active WebRTC call.
 type dcCall struct {
@@ -310,9 +313,11 @@ func NewDeltaChatCore(sessionPath string) *DeltaChatCore {
 	}
 }
 
+const dcPlatform = "deltachat"
+
 // --- Core Interface: Identity ---
 
-func (d *DeltaChatCore) Name() string { return "deltachat" }
+func (d *DeltaChatCore) Name() string { return dcPlatform }
 
 func (d *DeltaChatCore) Capabilities() []string {
 	return []string{
@@ -425,8 +430,15 @@ func (d *DeltaChatCore) Authenticate(cfg AuthConfig) error {
 	d.saveSession()
 
 	// Start IDLE loops
-	go d.idleLoop(d.idleInbox, "INBOX", "inbox-idle")
-	go d.idleLoop(d.idleDC, d.dcFolder, "dc-idle")
+	d.wg.Add(2)
+	go func() {
+		defer d.wg.Done()
+		d.idleLoop(d.idleInbox, "INBOX", "inbox-idle")
+	}()
+	go func() {
+		defer d.wg.Done()
+		d.idleLoop(d.idleDC, d.dcFolder, "dc-idle")
+	}()
 
 	return nil
 }
@@ -1767,6 +1779,11 @@ func (d *DeltaChatCore) Close() error {
 	if d.idleDC != nil {
 		d.idleDC.Close()
 	}
+	d.wg.Wait()
+	d.mu.Lock()
+	d.saveSession()
+	d.authed = false
+	d.mu.Unlock()
 	return nil
 }
 
@@ -4933,11 +4950,11 @@ func (d *DeltaChatCore) updateChatTime(chatID string, t time.Time) {
 
 func (d *DeltaChatCore) fireUpdate(u Update) {
 	d.updateMu.RLock()
-	handlers := d.updateHandlers
+	handlers := make([]func(Update), len(d.updateHandlers))
+	copy(handlers, d.updateHandlers)
 	d.updateMu.RUnlock()
-
 	for _, h := range handlers {
-		go h(u)
+		h(u)
 	}
 }
 

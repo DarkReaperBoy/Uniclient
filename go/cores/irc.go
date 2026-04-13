@@ -46,6 +46,8 @@ import (
 // Constants
 // ---------------------------------------------------------------------------
 
+const ircPlatform = "irc"
+
 const (
 	ircMaxMsgLen    = 512 // RFC 2812 max line length (including CRLF)
 	ircMsgBufSize   = 500 // max per-chat message buffer
@@ -284,6 +286,7 @@ type IRCCore struct {
 	sessionPath string
 	ctx         context.Context
 	cancel      context.CancelFunc
+	wg          sync.WaitGroup
 
 	// Registration state (used during connect)
 	registered chan struct{}
@@ -366,6 +369,8 @@ type IRCCore struct {
 	saslMech           string               // SASL mechanism name
 }
 
+var _ Core = (*IRCCore)(nil)
+
 // NewIRCCore creates a new IRC core instance.
 func NewIRCCore(sessionPath string) *IRCCore {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -392,7 +397,7 @@ func NewIRCCore(sessionPath string) *IRCCore {
 // Core interface — Identity
 // ---------------------------------------------------------------------------
 
-func (c *IRCCore) Name() string { return "irc" }
+func (c *IRCCore) Name() string { return ircPlatform }
 
 func (c *IRCCore) Capabilities() []string {
 	return []string{
@@ -508,6 +513,7 @@ func (c *IRCCore) connect() error {
 	c.capDone = make(chan struct{})
 
 	// Start read loop
+	c.wg.Add(1)
 	go c.readLoop()
 
 	// IRC registration sequence
@@ -546,6 +552,7 @@ func (c *IRCCore) connect() error {
 	}
 
 	// Start ping loop
+	c.wg.Add(1)
 	go c.pingLoop()
 
 	return nil
@@ -601,6 +608,7 @@ func (c *IRCCore) sendRaw(line string) {
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) readLoop() {
+	defer c.wg.Done()
 	scanner := bufio.NewScanner(c.conn)
 	scanner.Buffer(make([]byte, 0, 4096), 4096)
 
@@ -1017,7 +1025,7 @@ func (c *IRCCore) handleJoin(msg *ircMsg) {
 		c.sendRaw("MODE " + channel)
 	}
 
-	c.emitUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   channel,
 		UserID:   nick,
@@ -1046,7 +1054,7 @@ func (c *IRCCore) handlePart(msg *ircMsg) {
 	}
 	c.channelsMu.Unlock()
 
-	c.emitUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   channel,
 		UserID:   nick,
@@ -1074,7 +1082,7 @@ func (c *IRCCore) handleKick(msg *ircMsg) {
 	}
 	c.channelsMu.Unlock()
 
-	c.emitUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   channel,
 		UserID:   kicked,
@@ -1327,7 +1335,7 @@ func (c *IRCCore) handleMode(msg *ircMsg) {
 	}
 	c.channelsMu.Unlock()
 
-	c.emitUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   target,
 		Platform: "irc",
@@ -1443,7 +1451,7 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 	c.bufferMessage(chatID, m)
 
 	// Emit update
-	c.emitUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  m,
@@ -1481,7 +1489,7 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 	}
 	c.bufferMessage(chatID, m)
 
-	c.emitUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  m,
@@ -1542,7 +1550,7 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 		}
 		c.bufferMessage(chatID, m)
 
-		c.emitUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   chatID,
 			Message:  m,
@@ -1598,7 +1606,7 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 			Platform:   "irc",
 		}
 		c.bufferMessage(dccChatID, dccMsg)
-		c.emitUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   dccChatID,
 			Message:  dccMsg,
@@ -1612,6 +1620,7 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) pingLoop() {
+	defer c.wg.Done()
 	ticker := time.NewTicker(ircPingInterval)
 	defer ticker.Stop()
 
@@ -1645,7 +1654,7 @@ func (c *IRCCore) bufferMessage(chatID string, msg *Message) {
 // Update emitter
 // ---------------------------------------------------------------------------
 
-func (c *IRCCore) emitUpdate(u Update) {
+func (c *IRCCore) fireUpdate(u Update) {
 	c.updateMu.RLock()
 	handlers := make([]func(Update), len(c.updateHandlers))
 	copy(handlers, c.updateHandlers)
@@ -1753,15 +1762,15 @@ func (c *IRCCore) CreateChannel(name string, description string) (*Dialog, error
 }
 
 func (c *IRCCore) CreateTopic(_ string, _ string) (*Dialog, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support forum topics", ErrNotSupported)
 }
 
 func (c *IRCCore) GetFolders() ([]Folder, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support folders", ErrNotSupported)
 }
 
 func (c *IRCCore) CreateFolder(_ string, _ []string) (*Folder, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support folders", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -1862,11 +1871,11 @@ func (c *IRCCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, er
 }
 
 func (c *IRCCore) EditMessage(_ string, _ string, _ string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support message editing", ErrNotSupported)
 }
 
 func (c *IRCCore) DeleteMessage(_ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support message deletion", ErrNotSupported)
 }
 
 func (c *IRCCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
@@ -1922,7 +1931,7 @@ func (c *IRCCore) ForwardMessage(fromChatID string, msgID string, toChatID strin
 }
 
 func (c *IRCCore) ReactToMessage(_ string, _ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support reactions", ErrNotSupported)
 }
 
 func (c *IRCCore) PinMessage(chatID string, msgID string) error {
@@ -1974,15 +1983,15 @@ func (c *IRCCore) GetReadState(chatID string) (*ReadState, error) {
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) UploadFile(_ string, _ FileUpload, _ func(int64, int64)) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support file uploads", ErrNotSupported)
 }
 
 func (c *IRCCore) DownloadFile(_ FileRef, _ string, _ func(int64, int64)) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support file downloads", ErrNotSupported)
 }
 
 func (c *IRCCore) SendImageBase64(_ string, _ string, _ string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support base64 image sending", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -1990,19 +1999,19 @@ func (c *IRCCore) SendImageBase64(_ string, _ string, _ string) (*Message, error
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) StartCall(_ string, _ bool) (*CallSession, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
 
 func (c *IRCCore) JoinGroupCall(_ string) (*CallSession, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
 
 func (c *IRCCore) EndCall(_ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
 
 func (c *IRCCore) SetCallMuted(_ string, _ bool) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -2065,9 +2074,8 @@ func (c *IRCCore) OnUpdate(handler func(Update)) {
 
 func (c *IRCCore) Close() error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.authed {
+		c.saveSession()
 		c.sendRaw("QUIT :Goodbye")
 	}
 	c.cancel()
@@ -2075,6 +2083,8 @@ func (c *IRCCore) Close() error {
 		c.conn.Close()
 	}
 	c.authed = false
+	c.mu.Unlock()
+	c.wg.Wait()
 	return nil
 }
 
@@ -2117,8 +2127,7 @@ func (c *IRCCore) GetChatInfo(chatID string) (*Dialog, error) {
 }
 
 func (c *IRCCore) EditChatTitle(_ string, _ string) error {
-	// IRC channel names are immutable
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc channel names are immutable", ErrNotSupported)
 }
 
 func (c *IRCCore) EditChatDescription(chatID string, description string) error {
@@ -2146,7 +2155,7 @@ func (c *IRCCore) LeaveChat(chatID string) error {
 }
 
 func (c *IRCCore) GetInviteLink(_ string) (string, error) {
-	return "", ErrNotSupported
+	return "", fmt.Errorf("%w: irc does not support invite links", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -2247,15 +2256,15 @@ func (c *IRCCore) SetAdmin(chatID string, userID string, admin bool) error {
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) GetContacts() ([]User, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support contacts", ErrNotSupported)
 }
 
 func (c *IRCCore) AddContact(_ string, _ string, _ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support contacts", ErrNotSupported)
 }
 
 func (c *IRCCore) DeleteContact(_ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support contacts", ErrNotSupported)
 }
 
 func (c *IRCCore) BlockUser(userID string) error {
@@ -2381,11 +2390,11 @@ func (c *IRCCore) SendTyping(_ string) error {
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) CreatePoll(_ string, _ string, _ []string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support polls", ErrNotSupported)
 }
 
 func (c *IRCCore) VotePoll(_ string, _ string, _ int) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support polls", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -2393,7 +2402,7 @@ func (c *IRCCore) VotePoll(_ string, _ string, _ int) error {
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) SendSticker(_ string, _ string) (*Message, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support stickers", ErrNotSupported)
 }
 
 // ---------------------------------------------------------------------------
@@ -2401,11 +2410,11 @@ func (c *IRCCore) SendSticker(_ string, _ string) (*Message, error) {
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) GetSessions() ([]Session, error) {
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: irc does not support session management", ErrNotSupported)
 }
 
 func (c *IRCCore) TerminateSession(_ string) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: irc does not support session management", ErrNotSupported)
 }
 
 // ===========================================================================
@@ -2708,7 +2717,7 @@ func (c *IRCCore) handleAwayNotify(msg *ircMsg) {
 	nick := msg.Nick()
 	awayMsg := msg.Trailing()
 	notAway := awayMsg == ""
-	c.emitUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateUserStatus,
 		UserID:   nick,
 		IsOnline: &notAway,
@@ -2743,7 +2752,7 @@ func (c *IRCCore) handleInvite(msg *ircMsg) {
 	c.mu.RUnlock()
 
 	if strings.EqualFold(msg.Params[0], myNick) {
-		c.emitUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   channel,
 			UserID:   nick,
@@ -2781,7 +2790,7 @@ func (c *IRCCore) handleMonitorOnline(msg *ircMsg) {
 			nick = nick[:idx]
 		}
 		online := true
-		c.emitUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateUserStatus,
 			UserID:   nick,
 			IsOnline: &online,
@@ -2794,7 +2803,7 @@ func (c *IRCCore) handleMonitorOffline(msg *ircMsg) {
 	nicks := strings.Split(msg.Trailing(), ",")
 	for _, nick := range nicks {
 		offline := false
-		c.emitUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateUserStatus,
 			UserID:   strings.TrimSpace(nick),
 			IsOnline: &offline,
@@ -2824,7 +2833,7 @@ func (c *IRCCore) handleTagMsg(msg *ircMsg) {
 			chatID = nick
 		}
 
-		c.emitUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateTyping,
 			ChatID:   chatID,
 			UserID:   nick,
@@ -2859,7 +2868,7 @@ func (c *IRCCore) handleTagMsg(msg *ircMsg) {
 			Platform:   "irc",
 		}
 		c.bufferMessage(chatID, reactMsg)
-		c.emitUpdate(Update{
+		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   chatID,
 			Message:  reactMsg,
@@ -2873,7 +2882,7 @@ func (c *IRCCore) handleWatchEvent(msg *ircMsg, online bool) {
 		return
 	}
 	nick := msg.Params[1]
-	c.emitUpdate(Update{
+	c.fireUpdate(Update{
 		Type:     UpdateUserStatus,
 		UserID:   nick,
 		IsOnline: &online,

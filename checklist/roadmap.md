@@ -1,8 +1,8 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** 4
+**Current Step:** 5
 **Current Core:** All cores complete!
-**Current Method:** Step 4 DONE — all cores at 100% protocol coverage
+**Current Method:** Step 5 DONE — all cores optimized and decoupled
 **Last Updated:** 2026-04-13
 
 ## Steps
@@ -13,7 +13,7 @@
 | 2 | Test ALL existing methods in every core | **DONE** |
 | 3 | Replace checklists with full protocol surface | **DONE** |
 | 4 | Implement all new methods to 100% | **DONE** |
-| 5 | Perfect/optimize/decouple cores | NOT STARTED |
+| 5 | Perfect/optimize/decouple cores | **DONE** |
 | 6 | Unify core APIs | NOT STARTED |
 | 7 | Protobuf bridge | NOT STARTED |
 | 8 | Write /docs | NOT STARTED |
@@ -82,8 +82,27 @@ Order: fewest missing first for quick wins.
 - [x] IRC (~130 → 0 missing) — 130 methods implemented, 100% coverage
 - [x] GitHub (~800 → 0 missing) — 535 methods implemented, 100% coverage
 
-### Step 5 — Perfect/Optimize/Decouple
-- [ ] (populate when Step 4 is done)
+### Step 5 — Perfect/Optimize/Decouple — DONE
+
+**P1 — Safety & Correctness:**
+- [x] 5.1 Add auth guards: Mumble (32 guards), XMPP (44 guards) on all Core methods
+- [x] 5.2 Bale already had guards on Core methods (verified)
+- [x] 5.3 Fix Close() to set authed=false in all 6 cores that were missing it
+- [x] 5.4 Add WaitGroup goroutine tracking to all 10 cores (Mumble already had wg, wired it up)
+- [x] 5.5 DeltaChat Close/Logout — Close now saves session + sets authed=false consistently
+
+**P2 — Consistency:**
+- [x] 5.6 Unified fireUpdate: all 10 cores use "copy slice, call synchronously" pattern. Renamed dispatchUpdate/emitUpdate/notifyUpdate/tsDispatchUpdate → fireUpdate
+- [x] 5.7 Deferred general fmt.Errorf sentinel wrapping (713 calls) — too much churn for marginal benefit
+- [x] 5.8 Standardized 96 bare ErrNotSupported returns with wrapped context messages
+- [x] 5.9 Added platform name constants to all 10 cores (tgPlatform, balePlatform, etc.)
+
+**P3 — Code Quality & GUI Readiness:**
+- [x] 5.10 OnUpdate boilerplate — left per-core (extracting to base.go adds coupling for 3 lines)
+- [x] 5.11 Added saveSession() to Close() in 6 cores that were missing it
+- [x] 5.12 Removed TeamSpeak sleep hack in Close()
+- [x] 5.13 Added `var _ Core = (*XxxCore)(nil)` compile-time assertions to all 10 cores
+- [x] 5.14 Removed Telegram's utils dependency — VP8 encoder now requires explicit factory injection
 
 ### Step 6 — Unify Core APIs
 - [ ] (populate when Step 5 is done)

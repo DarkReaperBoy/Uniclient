@@ -69,6 +69,7 @@ var baleFallbackIPs = map[string][]string{
 // BaleCore implements the Core interface for Bale via its Bot API (Telegram Bot API-compatible).
 type BaleCore struct {
 	mu sync.RWMutex
+	wg sync.WaitGroup
 
 	// Auth state
 	botToken string
@@ -116,6 +117,8 @@ type BaleCore struct {
 	activeCall   *baleActiveCall
 	activeCallMu sync.Mutex
 }
+
+var _ Core = (*BaleCore)(nil)
 
 // baleActiveCall holds state for an active LiveKit call connection.
 // UNTESTED: meet-em.ble.ir is geo-restricted to Iran. This entire subsystem
@@ -223,9 +226,11 @@ func NewBaleCore(sessionPath string) *BaleCore {
 	}
 }
 
+const balePlatform = "bale"
+
 // --- Core Interface: Identity ---
 
-func (b *BaleCore) Name() string { return "bale" }
+func (b *BaleCore) Name() string { return balePlatform }
 
 // GetUserID returns the authenticated user's ID (user mode only).
 func (b *BaleCore) GetUserID() int64 { return b.userID }
@@ -566,10 +571,12 @@ func (b *BaleCore) apiRequestMultipart(method string, fields map[string]string, 
 
 func (b *BaleCore) startPolling() {
 	b.pollCtx, b.pollCancel = context.WithCancel(b.ctx)
+	b.wg.Add(1)
 	go b.pollLoop()
 }
 
 func (b *BaleCore) pollLoop() {
+	defer b.wg.Done()
 	for {
 		select {
 		case <-b.pollCtx.Done():
@@ -681,7 +688,7 @@ func (b *BaleCore) processUpdate(u map[string]interface{}) {
 	}
 
 	for _, h := range handlers {
-		go h(update)
+		h(update)
 	}
 }
 
@@ -1850,6 +1857,11 @@ func (b *BaleCore) Close() error {
 		b.pollCancel()
 	}
 	b.cancel()
+	b.wg.Wait()
+	b.mu.Lock()
+	b.saveSession()
+	b.authed = false
+	b.mu.Unlock()
 	return nil
 }
 
@@ -2919,6 +2931,7 @@ func (b *BaleCore) wsConnect() error {
 	b.wsConn = conn
 
 	// Start receive loop and ping loop
+	b.wg.Add(2)
 	go b.wsRecvLoop()
 	go b.wsPingLoop()
 
@@ -2941,6 +2954,7 @@ func (b *BaleCore) wsConnect() error {
 }
 
 func (b *BaleCore) wsRecvLoop() {
+	defer b.wg.Done()
 	for {
 		_, data, err := b.wsConn.Read(b.wsCtx)
 		if err != nil {
@@ -3041,6 +3055,7 @@ func (b *BaleCore) wsHandleUpdate(wsUpdate map[string]interface{}) {
 }
 
 func (b *BaleCore) wsPingLoop() {
+	defer b.wg.Done()
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -4542,12 +4557,12 @@ func (b *BaleCore) GetInviteLink(chatID string) (string, error) {
 	if b.isBot {
 		return b.ExportChatInviteLink(chatID)
 	}
-	return "", ErrNotSupported
+	return "", fmt.Errorf("%w: bale user mode does not support invite links", ErrNotSupported)
 }
 
 func (b *BaleCore) AddMembers(chatID string, userIDs []string) error {
 	if b.isBot {
-		return ErrNotSupported
+		return fmt.Errorf("%w: bale bots cannot add members", ErrNotSupported)
 	}
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
@@ -4597,7 +4612,7 @@ func (b *BaleCore) UnbanMember(chatID string, userID string) error {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
 		return b.UnbanChatMember(chatID, uid, false)
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: bale user mode does not support unbanning", ErrNotSupported)
 }
 
 func (b *BaleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
@@ -4622,7 +4637,7 @@ func (b *BaleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error
 		}
 		return users, nil
 	}
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: bale user mode does not support member listing", ErrNotSupported)
 }
 
 func (b *BaleCore) SetAdmin(chatID string, userID string, admin bool) error {
@@ -4638,7 +4653,7 @@ func (b *BaleCore) SetAdmin(chatID string, userID string, admin bool) error {
 		}
 		return b.PromoteChatMember(chatID, uid, perms)
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: bale user mode does not support admin management", ErrNotSupported)
 }
 
 func (b *BaleCore) GetContacts() ([]User, error) {
@@ -4666,7 +4681,7 @@ func (b *BaleCore) GetContacts() ([]User, error) {
 		}
 		return users, nil
 	}
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: bale bots cannot list contacts", ErrNotSupported)
 }
 
 func (b *BaleCore) AddContact(phone string, firstName string, lastName string) error {
@@ -4677,7 +4692,7 @@ func (b *BaleCore) AddContact(phone string, firstName string, lastName string) e
 		_, err := b.UserImportContacts(contacts)
 		return err
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: bale bots cannot manage contacts", ErrNotSupported)
 }
 
 func (b *BaleCore) DeleteContact(userID string) error {
@@ -4686,7 +4701,7 @@ func (b *BaleCore) DeleteContact(userID string) error {
 		_, err := b.UserRemoveContact(uid)
 		return err
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: bale bots cannot manage contacts", ErrNotSupported)
 }
 
 func (b *BaleCore) BlockUser(userID string) error {
@@ -4695,7 +4710,7 @@ func (b *BaleCore) BlockUser(userID string) error {
 		_, err := b.UserBlockUser(uid)
 		return err
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: bale bots cannot block users", ErrNotSupported)
 }
 
 func (b *BaleCore) UnblockUser(userID string) error {
@@ -4704,7 +4719,7 @@ func (b *BaleCore) UnblockUser(userID string) error {
 		_, err := b.UserUnblockUser(uid)
 		return err
 	}
-	return ErrNotSupported
+	return fmt.Errorf("%w: bale bots cannot unblock users", ErrNotSupported)
 }
 
 func (b *BaleCore) GetBlockedUsers() ([]User, error) {
@@ -4727,11 +4742,11 @@ func (b *BaleCore) GetBlockedUsers() ([]User, error) {
 		}
 		return users, nil
 	}
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: bale bots cannot list blocked users", ErrNotSupported)
 }
 
 func (b *BaleCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
-	return nil, ErrNotSupported // Bale doesn't expose message search
+	return nil, fmt.Errorf("%w: bale does not support message search", ErrNotSupported)
 }
 
 func (b *BaleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
@@ -4759,7 +4774,7 @@ func (b *BaleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 		}
 		return dialogs, nil
 	}
-	return nil, ErrNotSupported
+	return nil, fmt.Errorf("%w: bale bots cannot search globally", ErrNotSupported)
 }
 
 func (b *BaleCore) SendTyping(chatID string) error {
@@ -4771,11 +4786,11 @@ func (b *BaleCore) SendTyping(chatID string) error {
 }
 
 func (b *BaleCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
-	return nil, ErrNotSupported // Bale doesn't support polls
+	return nil, fmt.Errorf("%w: bale does not support polls", ErrNotSupported)
 }
 
 func (b *BaleCore) VotePoll(chatID string, msgID string, optionIndex int) error {
-	return ErrNotSupported
+	return fmt.Errorf("%w: bale does not support polls", ErrNotSupported)
 }
 
 // SendSticker is already implemented with the correct unified signature (bot mode).
