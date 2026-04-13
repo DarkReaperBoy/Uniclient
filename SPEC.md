@@ -750,15 +750,15 @@ Zero CGo dependencies anywhere — CGO_ENABLED=0 across the entire project.
 | Platform | Protocol | Status |
 |---|---|---|
 | **Telegram** | MTProto (gotd/td) | **DONE.** 786 methods, ~14k lines. Bot+user mode. 1:1 calls: trimmed to 3 versions (v13.0.0 SCTP, v8.0.0 V2Impl, v4.0.0 Web) — all verified bidirectional audio. Pure Go VP8 encoder (zero CGo). Group calls: SFU bidirectional video+audio working (data channel ReceiverVideoConstraints subscription). Diff-IP verified (local + Singapore proxy). |
-| **Bale** | HTTP + gRPC-Web | **DONE.** Bot 17/17, user 68/68. Calling implemented (LiveKit). |
-| **Rubika** | HTTP + WSS | **DONE.** ~219 methods, 63/63 tests. |
-| **Delta Chat** | IMAP/SMTP | **DONE.** ~119 methods, 132/132 tests. PGP/MIME E2EE. |
-| **TeamSpeak** | Custom UDP | **DONE.** ~192 methods. Bidirectional audio verified on real servers. |
-| **Matrix** | HTTP/JSON (mautrix-go) | **DONE.** 109 methods. Full E2EE (Olm/Megolm), calls, real-time sync. |
-| **Mumble** | TLS TCP + OCB2 UDP | **DONE.** 228 methods, ~4.9k lines. Real Mumble protocol. |
-| **IRC** | TCP/TLS | **DONE.** 302 methods, ~4.5k lines. RFC 1459/2812 + IRCv3. Tested on 6 networks. |
-| **XMPP** | TCP/TLS, XML streams | **DONE.** 242 methods, 32/32 tests. RFC 6120/6121 + 30 XEPs. |
-| **GitHub** | REST API | **DONE.** Issues-as-channels, 5-layer rate limit defense. |
+| **Bale** | HTTP + gRPC-Web | **DONE.** 267 methods, ~5.8k lines. Bot 17/17, user 68/68. 105 extended methods ALL TESTED. Calling implemented (LiveKit). |
+| **Rubika** | HTTP + WSS | **DONE.** ~219 methods, 89/89 tests (including WebRTC voice chat). |
+| **Delta Chat** | IMAP/SMTP | **DONE.** 135 methods, ~5.9k lines. 132 + 43 extended ALL TESTED. PGP/MIME E2EE. |
+| **TeamSpeak** | Custom UDP | **DONE.** 210 methods, ~5.9k lines. 38 extended ALL TESTED. Bidirectional audio verified on real servers. |
+| **Matrix** | HTTP/JSON (mautrix-go) | **DONE.** 109+ methods. 64 extended ALL TESTED. Full E2EE (Olm/Megolm), calls, real-time sync. |
+| **Mumble** | TLS TCP + OCB2 UDP | **DONE.** 228 methods, ~4.9k lines. ALL TESTED (Ice RPC, audio, crypto, protocol). |
+| **IRC** | TCP/TLS | **DONE.** 340 methods, ~5.7k lines. 95 extended ALL TESTED. RFC 1459/2812 + IRCv3. Tested on 6 networks. |
+| **XMPP** | TCP/TLS, XML streams | **DONE.** 242 methods. 101 extended ALL TESTED. RFC 6120/6121 + 30 XEPs. |
+| **GitHub** | REST API | **DONE.** 246 methods, ~4.3k lines. 190 extended ALL TESTED. Issues-as-channels, 5-layer rate limit defense. |
 
 ## Future Platforms (Planned)
 

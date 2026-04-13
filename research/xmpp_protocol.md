@@ -203,9 +203,18 @@ PEP is PubSub on the user's bare JID. Used for:
 - Domain JID: `domainpart` (e.g., `conference.example.com`)
 
 ## Public Test Servers
+- yax.im (Prosody) — used for all extended method testing. Supports XEP-0077 in-band registration (STARTTLS required first). Account: `uctest1776076689@yax.im`.
 - conversations.im (registration open)
 - jabber.de
 - jabber.ccc.de
 - xmpp.jp
 - Sure.im
 - 404.city
+
+## Testing Findings (2026-04-13)
+
+- **XEP-0077 In-Band Registration on yax.im**: requires STARTTLS upgrade before registration IQ. Server advertises `<register xmlns='http://jabber.org/features/iq-register'/>` in TLS features. Registration uses GET to discover fields, then SET with username/password. Server responds with self-closing `<iq type='result' id='...'/>` (no `</iq>` closing tag).
+- **IQ timeout pattern**: Many XEPs not supported by yax.im (Prosody) cause 30s IQ timeouts instead of quick error responses. This makes test suites slow (~460s for 101 methods). Server-unsupported features: privacy lists (XEP-0016), flexible offline (XEP-0013), Jabber Search (XEP-0055), private XML (XEP-0049).
+- **IBB/S5B self-JID deadlock**: Sending IQs to self (e.g., OpenIBBSession to own JID) creates a deadlock — the server relays the IQ back as an incoming stanza, but the client's readLoop doesn't auto-respond, so sendIQSync hangs forever. Use a non-existent JID for testing.
+- **BOSH/WebSocket**: yax.im advertises alternative connections via XRD (`/.well-known/host-meta`). BOSH at `https://xmpp.yaxim.org/http-bind`. WebSocket URL format differs from expected.
+- **OMEMO/OX crypto**: Encrypt/decrypt roundtrips work locally without server involvement. PEP publish for device lists and bundles succeeds on yax.im.
