@@ -66,8 +66,12 @@ type RubikaCore struct {
 	sessionPath string
 
 	// Update handlers
-	updateHandlers []func(Update)
-	updateMu       sync.RWMutex
+	updateHandlers       []func(Update)
+	chatUpdateHandlers   []func(map[string]interface{})
+	activityHandlers     []func(map[string]interface{})
+	notificationHandlers []func(map[string]interface{})
+	removeNotifHandlers  []func(map[string]interface{})
+	updateMu             sync.RWMutex
 
 	// Context
 	ctx    context.Context
@@ -2832,6 +2836,64 @@ func (r *RubikaCore) handleWSMessage(data []byte) {
 				h(update)
 			}
 		}
+
+		// Dispatch to dedicated chat update handlers
+		r.updateMu.RLock()
+		chatHandlers := make([]func(map[string]interface{}), len(r.chatUpdateHandlers))
+		copy(chatHandlers, r.chatUpdateHandlers)
+		r.updateMu.RUnlock()
+		for _, c := range chats {
+			if cm, ok := c.(map[string]interface{}); ok {
+				for _, h := range chatHandlers {
+					h(cm)
+				}
+			}
+		}
+	}
+
+	// Process activity events (typing/recording)
+	if activities, ok := decrypted["show_activity"].([]interface{}); ok {
+		r.updateMu.RLock()
+		actHandlers := make([]func(map[string]interface{}), len(r.activityHandlers))
+		copy(actHandlers, r.activityHandlers)
+		r.updateMu.RUnlock()
+		for _, a := range activities {
+			if am, ok := a.(map[string]interface{}); ok {
+				for _, h := range actHandlers {
+					h(am)
+				}
+			}
+		}
+	}
+
+	// Process notification events
+	if notifs, ok := decrypted["show_notification"].([]interface{}); ok {
+		r.updateMu.RLock()
+		notifHandlers := make([]func(map[string]interface{}), len(r.notificationHandlers))
+		copy(notifHandlers, r.notificationHandlers)
+		r.updateMu.RUnlock()
+		for _, n := range notifs {
+			if nm, ok := n.(map[string]interface{}); ok {
+				for _, h := range notifHandlers {
+					h(nm)
+				}
+			}
+		}
+	}
+
+	// Process notification dismissal events
+	if removeNotifs, ok := decrypted["remove_notification"].([]interface{}); ok {
+		r.updateMu.RLock()
+		rmHandlers := make([]func(map[string]interface{}), len(r.removeNotifHandlers))
+		copy(rmHandlers, r.removeNotifHandlers)
+		r.updateMu.RUnlock()
+		for _, rn := range removeNotifs {
+			if rnm, ok := rn.(map[string]interface{}); ok {
+				for _, h := range rmHandlers {
+					h(rnm)
+				}
+			}
+		}
 	}
 }
 
@@ -4912,3 +4974,663 @@ func (r *RubikaCore) GetSessions() ([]Session, error) {
 }
 
 // TerminateSession is already implemented with the correct unified signature.
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Auth / Device (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// RegisterDevice registers the device with Rubika servers.
+func (r *RubikaCore) RegisterDevice(token string, langCode string, appVersion string, deviceModel string, deviceHash string) (map[string]interface{}, error) {
+	return r.api("registerDevice", map[string]interface{}{
+		"token":        token,
+		"lang_code":    langCode,
+		"app_version":  appVersion,
+		"device_model": deviceModel,
+		"device_hash":  deviceHash,
+	})
+}
+
+// LoginDisableTwoStep bypasses 2FA when the password is forgotten (phone + phone_code_hash).
+func (r *RubikaCore) LoginDisableTwoStep(phoneNumber string, phoneCodeHash string) (map[string]interface{}, error) {
+	return r.api("loginDisableTwoStep", map[string]interface{}{
+		"phone_number":    phoneNumber,
+		"phone_code_hash": phoneCodeHash,
+	})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Messages (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SearchGlobalMessages searches messages across all chats.
+func (r *RubikaCore) SearchGlobalMessages(text string, startID string, limit int) (map[string]interface{}, error) {
+	input := map[string]interface{}{
+		"search_text": text,
+	}
+	if startID != "" {
+		input["start_id"] = startID
+	}
+	if limit > 0 {
+		input["limit"] = limit
+	}
+	return r.api("searchGlobalMessages", input)
+}
+
+// ClickMessageUrl reports a URL click within a message (link analytics).
+func (r *RubikaCore) ClickMessageUrl(chatGUID string, messageID string, url string) (map[string]interface{}, error) {
+	return r.api("clickMessageUrl", map[string]interface{}{
+		"object_guid": chatGUID,
+		"message_id":  messageID,
+		"link":        url,
+	})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Chat Management (3 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetChatAds retrieves advertisement messages in chats.
+func (r *RubikaCore) GetChatAds(chatGUID string) (map[string]interface{}, error) {
+	return r.api("getChatAds", map[string]interface{}{
+		"object_guid": chatGUID,
+	})
+}
+
+// SetPrivacySetting sets an individual privacy setting with granular control.
+func (r *RubikaCore) SetPrivacySetting(settingType string, value string) (map[string]interface{}, error) {
+	return r.api("setPrivacySetting", map[string]interface{}{
+		"setting_type":  settingType,
+		"setting_value": value,
+	})
+}
+
+// GetChatInfoByUsername resolves a chat by username and returns full info.
+func (r *RubikaCore) GetChatInfoByUsername(username string) (map[string]interface{}, error) {
+	return r.api("getChatInfoByUsername", map[string]interface{}{
+		"username": username,
+	})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Settings / Folders (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// EditFolder edits an existing folder's properties.
+func (r *RubikaCore) EditFolder(folderID string, name string, includedChatGUIDs []string, excludedTypes []string) (map[string]interface{}, error) {
+	input := map[string]interface{}{
+		"folder_id": folderID,
+	}
+	if name != "" {
+		input["name"] = name
+	}
+	if len(includedChatGUIDs) > 0 {
+		input["included_chat_types"] = includedChatGUIDs
+	}
+	if len(excludedTypes) > 0 {
+		input["excluded_chat_types"] = excludedTypes
+	}
+	return r.api("editFolder", input)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Users (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetUserInfo gets detailed user info by user GUID.
+func (r *RubikaCore) GetUserInfo(userGUID string) (map[string]interface{}, error) {
+	return r.api("getUserInfo", map[string]interface{}{
+		"user_guid": userGUID,
+	})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Groups (4 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// RemoveGroupAdmin explicitly removes admin status from a user.
+func (r *RubikaCore) RemoveGroupAdmin(groupGUID string, memberGUID string) (map[string]interface{}, error) {
+	return r.api("removeGroupAdmin", map[string]interface{}{
+		"group_guid":  groupGUID,
+		"member_guid": memberGUID,
+	})
+}
+
+// DeleteGroupAvatar deletes the group avatar.
+func (r *RubikaCore) DeleteGroupAvatar(groupGUID string, avatarID string) (map[string]interface{}, error) {
+	return r.api("deleteGroupAvatar", map[string]interface{}{
+		"group_guid": groupGUID,
+		"avatar_id":  avatarID,
+	})
+}
+
+// GetNewGroupLink resets and generates a new group invite link.
+func (r *RubikaCore) GetNewGroupLink(groupGUID string) (map[string]interface{}, error) {
+	return r.api("getNewGroupLink", map[string]interface{}{
+		"group_guid": groupGUID,
+	})
+}
+
+// GetGroupMemberCount returns the lightweight member count without fetching all members.
+func (r *RubikaCore) GetGroupMemberCount(groupGUID string) (map[string]interface{}, error) {
+	return r.api("getGroupMemberCount", map[string]interface{}{
+		"group_guid": groupGUID,
+	})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Contacts (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ImportContacts bulk-imports contacts from phone address book.
+func (r *RubikaCore) ImportContacts(contacts []map[string]string) (map[string]interface{}, error) {
+	return r.api("importContacts", map[string]interface{}{
+		"contacts": contacts,
+	})
+}
+
+// SearchContacts searches within the user's contact list by name or phone.
+func (r *RubikaCore) SearchContacts(query string) (map[string]interface{}, error) {
+	return r.api("searchContacts", map[string]interface{}{
+		"search_text": query,
+	})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Typed Media Senders (7 methods)
+// High-level helpers: requestSendFile + upload + sendMessage in one call.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// rubikaUploadAndSend is the shared upload+send logic for typed media senders.
+func (r *RubikaCore) rubikaUploadAndSend(chatID string, data []byte, fileName string, mimeType string, fileType string, caption string) (map[string]interface{}, error) {
+	if !r.authed {
+		return nil, ErrAuth
+	}
+	fileSize := int64(len(data))
+
+	// Extension for mime field
+	mime := mimeType
+	if idx := strings.LastIndex(fileName, "."); idx >= 0 {
+		mime = fileName[idx+1:]
+	}
+
+	// Step 1: requestSendFile
+	reqResult, err := r.api("requestSendFile", map[string]interface{}{
+		"file_name": fileName,
+		"size":      fileSize,
+		"mime":      mime,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("requestSendFile: %w", err)
+	}
+
+	fileID, _ := mapGetString(reqResult, "id")
+	uploadURL, _ := mapGetString(reqResult, "upload_url")
+	accessHashSend, _ := mapGetString(reqResult, "access_hash_send")
+	if fileID == "" || uploadURL == "" {
+		return nil, fmt.Errorf("invalid requestSendFile response")
+	}
+
+	// Step 2: Upload chunks (1MB)
+	chunkSize := 1048576
+	totalParts := (len(data) + chunkSize - 1) / chunkSize
+	var accessHashRec string
+
+	for i := 0; i < totalParts; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > len(data) {
+			end = len(data)
+		}
+		chunk := data[start:end]
+
+		uploadReq, err := http.NewRequestWithContext(r.ctx, "POST", uploadURL, bytes.NewReader(chunk))
+		if err != nil {
+			return nil, err
+		}
+		uploadReq.Header.Set("auth", r.auth)
+		uploadReq.Header.Set("file-id", fileID)
+		uploadReq.Header.Set("total-part", strconv.Itoa(totalParts))
+		uploadReq.Header.Set("part-number", strconv.Itoa(i+1))
+		uploadReq.Header.Set("chunk-size", strconv.Itoa(len(chunk)))
+		uploadReq.Header.Set("access-hash-send", accessHashSend)
+
+		resp, err := r.httpClient.Do(uploadReq)
+		if err != nil {
+			return nil, fmt.Errorf("upload chunk %d: %w", i+1, err)
+		}
+		var uploadResult map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&uploadResult)
+		resp.Body.Close()
+
+		if resultData, ok := uploadResult["data"].(map[string]interface{}); ok {
+			if ahr, ok := resultData["access_hash_rec"].(string); ok {
+				accessHashRec = ahr
+			}
+		}
+	}
+
+	// Step 3: sendMessage with file_inline
+	dcID := 0
+	if d, ok := reqResult["dc_id"]; ok {
+		switch v := d.(type) {
+		case float64:
+			dcID = int(v)
+		case string:
+			dcID, _ = strconv.Atoi(v)
+		}
+	}
+
+	sendInput := map[string]interface{}{
+		"object_guid": chatID,
+		"rnd":         mrand.Intn(1000000) + 1,
+		"file_inline": map[string]interface{}{
+			"file_id":         fileID,
+			"dc_id":           dcID,
+			"size":            fileSize,
+			"type":            fileType,
+			"mime":            mime,
+			"access_hash_rec": accessHashRec,
+			"file_name":       fileName,
+		},
+	}
+	if caption != "" {
+		sendInput["text"] = caption
+	}
+
+	return r.api("sendMessage", sendInput)
+}
+
+// SendPhoto uploads and sends a photo (Image type).
+func (r *RubikaCore) SendPhoto(chatID string, data []byte, fileName string, caption string) (map[string]interface{}, error) {
+	return r.rubikaUploadAndSend(chatID, data, fileName, "image/jpeg", "Image", caption)
+}
+
+// SendVideo uploads and sends a video (Video type).
+func (r *RubikaCore) SendVideo(chatID string, data []byte, fileName string, caption string) (map[string]interface{}, error) {
+	return r.rubikaUploadAndSend(chatID, data, fileName, "video/mp4", "Video", caption)
+}
+
+// SendGif uploads and sends a GIF (Gif type).
+func (r *RubikaCore) SendGif(chatID string, data []byte, fileName string, caption string) (map[string]interface{}, error) {
+	return r.rubikaUploadAndSend(chatID, data, fileName, "image/gif", "Gif", caption)
+}
+
+// SendMusic uploads and sends audio/music (Music type).
+func (r *RubikaCore) SendMusic(chatID string, data []byte, fileName string, caption string) (map[string]interface{}, error) {
+	return r.rubikaUploadAndSend(chatID, data, fileName, "audio/mpeg", "Music", caption)
+}
+
+// SendVoice uploads and sends a voice message (Voice type).
+func (r *RubikaCore) SendVoice(chatID string, data []byte, fileName string) (map[string]interface{}, error) {
+	return r.rubikaUploadAndSend(chatID, data, fileName, "audio/ogg", "Voice", "")
+}
+
+// SendDocument uploads and sends a document (File type).
+func (r *RubikaCore) SendDocument(chatID string, data []byte, fileName string, caption string) (map[string]interface{}, error) {
+	return r.rubikaUploadAndSend(chatID, data, fileName, "application/octet-stream", "File", caption)
+}
+
+// SendVideoMessage uploads and sends a video note/round video (VideoMessage type).
+func (r *RubikaCore) SendVideoMessage(chatID string, data []byte, fileName string) (map[string]interface{}, error) {
+	return r.rubikaUploadAndSend(chatID, data, fileName, "video/mp4", "VideoMessage", "")
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Rubino (6 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// RubinoGetProfilePosts gets posts from a specific profile.
+func (r *RubikaCore) RubinoGetProfilePosts(profileID string, targetProfileID string, limit int, maxID string) (map[string]interface{}, error) {
+	input := map[string]interface{}{
+		"profile_id":        profileID,
+		"target_profile_id": targetProfileID,
+		"limit":             limit,
+		"sort":              "FromMax",
+		"equal":             false,
+	}
+	if maxID != "" {
+		input["max_id"] = maxID
+	}
+	return r.rubinoAPI("getProfilePosts", input)
+}
+
+// RubinoRemovePage deletes a Rubino page entirely.
+func (r *RubikaCore) RubinoRemovePage(profileID string) error {
+	_, err := r.rubinoAPI("removePage", map[string]interface{}{
+		"profile_id": profileID,
+	})
+	return err
+}
+
+// RubinoBookmarkPost bookmarks or unbookmarks a post.
+func (r *RubikaCore) RubinoBookmarkPost(postID string, postProfileID string, bookmark bool) error {
+	action := "Bookmark"
+	if !bookmark {
+		action = "UnBookmark"
+	}
+	_, err := r.rubinoAPI("requestBookmark", map[string]interface{}{
+		"post_id":         postID,
+		"post_profile_id": postProfileID,
+		"action_type":     action,
+	})
+	return err
+}
+
+// RubinoUploadFile uploads a file to Rubino with chunking.
+func (r *RubikaCore) RubinoUploadFile(fileName string, fileData []byte) (map[string]interface{}, error) {
+	fileSize := int64(len(fileData))
+	mimeType := "file"
+	if strings.HasSuffix(strings.ToLower(fileName), ".jpg") || strings.HasSuffix(strings.ToLower(fileName), ".jpeg") || strings.HasSuffix(strings.ToLower(fileName), ".png") {
+		mimeType = "picture"
+	} else if strings.HasSuffix(strings.ToLower(fileName), ".mp4") || strings.HasSuffix(strings.ToLower(fileName), ".mov") {
+		mimeType = "video"
+	}
+
+	// Step 1: Request upload
+	uploadInfo, err := r.RubinoRequestUploadFile(fileName, fileSize, mimeType)
+	if err != nil {
+		return nil, err
+	}
+
+	uploadURL, _ := mapGetString(uploadInfo, "upload_url")
+	fileID, _ := mapGetString(uploadInfo, "id")
+	accessHashSend, _ := mapGetString(uploadInfo, "access_hash_send")
+	if uploadURL == "" || fileID == "" {
+		return nil, fmt.Errorf("invalid upload info")
+	}
+
+	// Step 2: Upload chunks
+	chunkSize := 1048576
+	totalParts := (len(fileData) + chunkSize - 1) / chunkSize
+	var accessHashRec string
+
+	for i := 0; i < totalParts; i++ {
+		start := i * chunkSize
+		end := start + chunkSize
+		if end > len(fileData) {
+			end = len(fileData)
+		}
+		chunk := fileData[start:end]
+
+		uploadReq, err := http.NewRequestWithContext(r.ctx, "POST", uploadURL, bytes.NewReader(chunk))
+		if err != nil {
+			return nil, err
+		}
+		uploadReq.Header.Set("auth", r.auth)
+		uploadReq.Header.Set("file-id", fileID)
+		uploadReq.Header.Set("total-part", strconv.Itoa(totalParts))
+		uploadReq.Header.Set("part-number", strconv.Itoa(i+1))
+		uploadReq.Header.Set("chunk-size", strconv.Itoa(len(chunk)))
+		uploadReq.Header.Set("access-hash-send", accessHashSend)
+
+		resp, err := r.httpClient.Do(uploadReq)
+		if err != nil {
+			return nil, fmt.Errorf("upload chunk %d: %w", i+1, err)
+		}
+		var uploadResult map[string]interface{}
+		json.NewDecoder(resp.Body).Decode(&uploadResult)
+		resp.Body.Close()
+
+		if resultData, ok := uploadResult["data"].(map[string]interface{}); ok {
+			if ahr, ok := resultData["access_hash_rec"].(string); ok {
+				accessHashRec = ahr
+			}
+		}
+	}
+
+	return map[string]interface{}{
+		"file_id":         fileID,
+		"access_hash_rec": accessHashRec,
+	}, nil
+}
+
+// RubinoAddPicture is a convenience: upload + addPost with picture type.
+func (r *RubikaCore) RubinoAddPicture(profileID string, caption string, imageData []byte, fileName string) (map[string]interface{}, error) {
+	uploadResult, err := r.RubinoUploadFile(fileName, imageData)
+	if err != nil {
+		return nil, fmt.Errorf("upload: %w", err)
+	}
+	fileID, _ := mapGetString(uploadResult, "file_id")
+	accessHashRec, _ := mapGetString(uploadResult, "access_hash_rec")
+
+	fileInline := map[string]interface{}{
+		"file_id":         fileID,
+		"access_hash_rec": accessHashRec,
+		"type":            "picture",
+		"mime":            "jpg",
+		"file_name":       fileName,
+	}
+	return r.RubinoAddPost(profileID, caption, fileInline)
+}
+
+// RubinoAddVideo is a convenience: upload + addPost with video type.
+func (r *RubikaCore) RubinoAddVideo(profileID string, caption string, videoData []byte, fileName string) (map[string]interface{}, error) {
+	uploadResult, err := r.RubinoUploadFile(fileName, videoData)
+	if err != nil {
+		return nil, fmt.Errorf("upload: %w", err)
+	}
+	fileID, _ := mapGetString(uploadResult, "file_id")
+	accessHashRec, _ := mapGetString(uploadResult, "access_hash_rec")
+
+	fileInline := map[string]interface{}{
+		"file_id":         fileID,
+		"access_hash_rec": accessHashRec,
+		"type":            "video",
+		"mime":            "mp4",
+		"file_name":       fileName,
+	}
+	return r.RubinoAddPost(profileID, caption, fileInline)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Bot API (10 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// BotSendSticker sends a sticker via bot API.
+func (r *RubikaCore) BotSendSticker(chatID string, fileID string, opts map[string]interface{}) (string, error) {
+	input := map[string]interface{}{
+		"chat_id": chatID,
+		"file_id": fileID,
+		"type":    "Sticker",
+	}
+	for k, v := range opts {
+		input[k] = v
+	}
+	data, err := r.botAPIRequest("sendFile", input)
+	if err != nil {
+		return "", err
+	}
+	msgID, _ := mapGetString(data, "message_id")
+	return msgID, nil
+}
+
+// BotSendImage sends an image via bot API.
+func (r *RubikaCore) BotSendImage(chatID string, fileID string, caption string, opts map[string]interface{}) (string, error) {
+	input := map[string]interface{}{
+		"chat_id": chatID,
+		"file_id": fileID,
+		"type":    "Image",
+	}
+	if caption != "" {
+		input["text"] = caption
+	}
+	for k, v := range opts {
+		input[k] = v
+	}
+	data, err := r.botAPIRequest("sendFile", input)
+	if err != nil {
+		return "", err
+	}
+	msgID, _ := mapGetString(data, "message_id")
+	return msgID, nil
+}
+
+// BotSendDocument sends a document via bot API.
+func (r *RubikaCore) BotSendDocument(chatID string, fileID string, caption string, opts map[string]interface{}) (string, error) {
+	input := map[string]interface{}{
+		"chat_id": chatID,
+		"file_id": fileID,
+		"type":    "File",
+	}
+	if caption != "" {
+		input["text"] = caption
+	}
+	for k, v := range opts {
+		input[k] = v
+	}
+	data, err := r.botAPIRequest("sendFile", input)
+	if err != nil {
+		return "", err
+	}
+	msgID, _ := mapGetString(data, "message_id")
+	return msgID, nil
+}
+
+// BotSendVoice sends a voice message via bot API.
+func (r *RubikaCore) BotSendVoice(chatID string, fileID string, opts map[string]interface{}) (string, error) {
+	input := map[string]interface{}{
+		"chat_id": chatID,
+		"file_id": fileID,
+		"type":    "Voice",
+	}
+	for k, v := range opts {
+		input[k] = v
+	}
+	data, err := r.botAPIRequest("sendFile", input)
+	if err != nil {
+		return "", err
+	}
+	msgID, _ := mapGetString(data, "message_id")
+	return msgID, nil
+}
+
+// BotSendVideo sends a video via bot API.
+func (r *RubikaCore) BotSendVideo(chatID string, fileID string, caption string, opts map[string]interface{}) (string, error) {
+	input := map[string]interface{}{
+		"chat_id": chatID,
+		"file_id": fileID,
+		"type":    "Video",
+	}
+	if caption != "" {
+		input["text"] = caption
+	}
+	for k, v := range opts {
+		input[k] = v
+	}
+	data, err := r.botAPIRequest("sendFile", input)
+	if err != nil {
+		return "", err
+	}
+	msgID, _ := mapGetString(data, "message_id")
+	return msgID, nil
+}
+
+// BotSendGif sends a GIF via bot API.
+func (r *RubikaCore) BotSendGif(chatID string, fileID string, caption string, opts map[string]interface{}) (string, error) {
+	input := map[string]interface{}{
+		"chat_id": chatID,
+		"file_id": fileID,
+		"type":    "Gif",
+	}
+	if caption != "" {
+		input["text"] = caption
+	}
+	for k, v := range opts {
+		input[k] = v
+	}
+	data, err := r.botAPIRequest("sendFile", input)
+	if err != nil {
+		return "", err
+	}
+	msgID, _ := mapGetString(data, "message_id")
+	return msgID, nil
+}
+
+// BotSendMusic sends audio/music via bot API.
+func (r *RubikaCore) BotSendMusic(chatID string, fileID string, caption string, opts map[string]interface{}) (string, error) {
+	input := map[string]interface{}{
+		"chat_id": chatID,
+		"file_id": fileID,
+		"type":    "Music",
+	}
+	if caption != "" {
+		input["text"] = caption
+	}
+	for k, v := range opts {
+		input[k] = v
+	}
+	data, err := r.botAPIRequest("sendFile", input)
+	if err != nil {
+		return "", err
+	}
+	msgID, _ := mapGetString(data, "message_id")
+	return msgID, nil
+}
+
+// BotCheckJoin checks if a user has joined a channel/group (forced-join verification).
+func (r *RubikaCore) BotCheckJoin(chatID string, userID string) (map[string]interface{}, error) {
+	return r.botAPIRequest("checkChatMember", map[string]interface{}{
+		"chat_id": chatID,
+		"user_id": userID,
+	})
+}
+
+// BotRemoveKeypad removes the chat keypad from a conversation.
+func (r *RubikaCore) BotRemoveKeypad(chatID string) error {
+	_, err := r.botAPIRequest("editChatKeypad", map[string]interface{}{
+		"chat_id":      chatID,
+		"chat_keypad":  nil,
+		"keypad_type":  "Remove",
+	})
+	return err
+}
+
+// BotReplyMessage replies to a specific message (with reply_to_message_id).
+func (r *RubikaCore) BotReplyMessage(chatID string, text string, replyToMsgID string, opts map[string]interface{}) (string, error) {
+	input := map[string]interface{}{
+		"chat_id":             chatID,
+		"text":                text,
+		"reply_to_message_id": replyToMsgID,
+	}
+	for k, v := range opts {
+		input[k] = v
+	}
+	data, err := r.botAPIRequest("sendMessage", input)
+	if err != nil {
+		return "", err
+	}
+	msgID, _ := mapGetString(data, "message_id")
+	return msgID, nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — WebSocket Event Handlers (4 event types)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// OnChatUpdates registers a handler specifically for chat list changes.
+func (r *RubikaCore) OnChatUpdates(handler func(map[string]interface{})) {
+	r.updateMu.Lock()
+	r.chatUpdateHandlers = append(r.chatUpdateHandlers, handler)
+	r.updateMu.Unlock()
+}
+
+// OnShowActivities registers a handler for typing/recording activity events.
+func (r *RubikaCore) OnShowActivities(handler func(map[string]interface{})) {
+	r.updateMu.Lock()
+	r.activityHandlers = append(r.activityHandlers, handler)
+	r.updateMu.Unlock()
+}
+
+// OnShowNotifications registers a handler for notification events.
+func (r *RubikaCore) OnShowNotifications(handler func(map[string]interface{})) {
+	r.updateMu.Lock()
+	r.notificationHandlers = append(r.notificationHandlers, handler)
+	r.updateMu.Unlock()
+}
+
+// OnRemoveNotifications registers a handler for notification dismissal events.
+func (r *RubikaCore) OnRemoveNotifications(handler func(map[string]interface{})) {
+	r.updateMu.Lock()
+	r.removeNotifHandlers = append(r.removeNotifHandlers, handler)
+	r.updateMu.Unlock()
+}

@@ -790,7 +790,18 @@ func (b *BaleCore) GetFolders() ([]Folder, error) {
 }
 
 func (b *BaleCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
-	return nil, fmt.Errorf("%w: bale bot API does not support folders", ErrNotSupported)
+	if b.isBot {
+		return nil, fmt.Errorf("%w: bale bot API does not support folders", ErrNotSupported)
+	}
+	resp, err := b.CreateFolderReal(name, chatIDs)
+	if err != nil {
+		return nil, err
+	}
+	folderID := pbGetInt64(resp, "1")
+	return &Folder{
+		ID:   fmt.Sprintf("%d", folderID),
+		Name: name,
+	}, nil
 }
 
 // --- Core Interface: Messages ---
@@ -4770,11 +4781,38 @@ func (b *BaleCore) VotePoll(chatID string, msgID string, optionIndex int) error 
 // SendSticker is already implemented with the correct unified signature (bot mode).
 
 func (b *BaleCore) GetSessions() ([]Session, error) {
-	return nil, ErrNotSupported // Bale doesn't expose session management
+	if b.isBot {
+		return nil, fmt.Errorf("%w: bale bot API does not support session management", ErrNotSupported)
+	}
+	resp, err := b.GetAuthSessions()
+	if err != nil {
+		return nil, err
+	}
+	// Parse session list from response
+	var sessions []Session
+	for _, item := range pbGetList(resp, "1") {
+		s, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sessions = append(sessions, Session{
+			ID:       fmt.Sprintf("%d", pbGetInt64(s, "1")),
+			Platform: "bale",
+		})
+	}
+	return sessions, nil
 }
 
 func (b *BaleCore) TerminateSession(sessionID string) error {
-	return ErrNotSupported
+	if b.isBot {
+		return fmt.Errorf("%w: bale bot API does not support session management", ErrNotSupported)
+	}
+	sid, err := strconv.ParseInt(sessionID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid session ID: %w", err)
+	}
+	_, err = b.TerminateSessionReal(sid)
+	return err
 }
 
 // mapBotMessage extracts "result" from an apiRequest response and maps it to a Message.
@@ -5810,4 +5848,328 @@ func (b *BaleCore) FanoosSend(eventName string, eventData map[string]string) (ma
 		payload["2"] = pairs
 	}
 	return b.userSend(baleServiceFanoos, "FanoosSend", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Bot Commands (3 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SetMyCommands sets the bot's command list. commands is a list of {command, description}.
+func (b *BaleCore) SetMyCommands(commands []map[string]string) (map[string]interface{}, error) {
+	cmds := make([]interface{}, len(commands))
+	for i, c := range commands {
+		cmds[i] = map[string]interface{}{
+			"command":     c["command"],
+			"description": c["description"],
+		}
+	}
+	return b.apiRequest("setMyCommands", map[string]interface{}{"commands": cmds})
+}
+
+// DeleteMyCommands deletes the bot's command list.
+func (b *BaleCore) DeleteMyCommands() (map[string]interface{}, error) {
+	return b.apiRequest("deleteMyCommands", nil)
+}
+
+// GetMyCommands returns the bot's current command list.
+func (b *BaleCore) GetMyCommands() ([]map[string]string, error) {
+	resp, err := b.apiRequest("getMyCommands", nil)
+	if err != nil {
+		return nil, err
+	}
+	result, ok := resp["result"].([]interface{})
+	if !ok {
+		return nil, nil
+	}
+	var cmds []map[string]string
+	for _, item := range result {
+		cmd, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		cmds = append(cmds, map[string]string{
+			"command":     fmt.Sprintf("%v", cmd["command"]),
+			"description": fmt.Sprintf("%v", cmd["description"]),
+		})
+	}
+	return cmds, nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Auth Sessions (2 methods, user mode)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetAuthSessions returns the user's active sessions.
+// Service: bale.auth.v1.Auth/GetAuthSessions
+func (b *BaleCore) GetAuthSessions() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "GetAuthSessions", map[string]interface{}{})
+}
+
+// TerminateSessionReal terminates a specific auth session by ID.
+// Service: bale.auth.v1.Auth/TerminateSession
+func (b *BaleCore) TerminateSessionReal(sessionID int64) (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "TerminateSession", map[string]interface{}{"1": sessionID})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Folders (2 methods, user mode)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// LoadFolders loads the user's dialog folders.
+// Service: bale.messaging.v2.Messaging/LoadFolders
+func (b *BaleCore) LoadFolders() (map[string]interface{}, error) {
+	return b.userSend(baleServiceMessaging, "LoadFolders", map[string]interface{}{})
+}
+
+// CreateFolderReal creates a new dialog folder with the given title and included peers.
+// Service: bale.messaging.v2.Messaging/CreateFolder
+func (b *BaleCore) CreateFolderReal(title string, peerIDs []string) (map[string]interface{}, error) {
+	var peers []interface{}
+	for _, id := range peerIDs {
+		peerID, peerType := parsePeerID(id)
+		peers = append(peers, balePeer(peerType, peerID))
+	}
+	payload := map[string]interface{}{
+		"1": title,
+	}
+	if len(peers) > 0 {
+		payload["2"] = peers
+	}
+	return b.userSend(baleServiceMessaging, "CreateFolder", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Users (1 method, user mode)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetFullUser loads a single user's full profile.
+// Service: bale.users.v1.Users/GetFullUser
+func (b *BaleCore) GetFullUser(userID int64) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": baleInfoPeer(userID, balePeerPrivate),
+	}
+	return b.userSend(baleServiceUsers, "GetFullUser", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Dialogs (1 method, user mode)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// LoadDialogsFiltered loads dialogs with folder/archive/mute filters.
+// Service: bale.messaging.v2.Messaging/LoadDialogs
+// Fields: 1=offset_date, 2=limit, 3=folder_id, 4=archived (bool), 5=exclude_pinned
+func (b *BaleCore) LoadDialogsFiltered(offsetDate int64, limit int, folderID int64, archived bool, excludePinned bool) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": offsetDate,
+		"2": int64(limit),
+	}
+	if folderID != 0 {
+		payload["3"] = folderID
+	}
+	if archived {
+		payload["4"] = int64(1)
+	}
+	if excludePinned {
+		payload["5"] = int64(1)
+	}
+	return b.userSend(baleServiceMessaging, "LoadDialogs", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Push Config (1 method, user mode)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServicePushak = "ai.bale.pushak.Push"
+
+// PushSetConfig configures push notification settings.
+// Service: ai.bale.pushak.Push/SetConfig
+func (b *BaleCore) PushSetConfig(config map[string]interface{}) (map[string]interface{}, error) {
+	return b.userSend(baleServicePushak, "SetConfig", config)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Chat Management (5 methods, user mode)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// MarkAsUnread marks a dialog as unread (markedAsUnread field).
+// Service: bale.messaging.v2.Messaging/MarkDialogAsUnread
+func (b *BaleCore) MarkAsUnread(chatID string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": int64(1), // mark_as_unread = true
+	}
+	return b.userSend(baleServiceMessaging, "MarkDialogAsUnread", payload)
+}
+
+// MuteChat mutes a dialog (sets isMute field).
+// Service: bale.messaging.v2.Messaging/MuteDialog
+func (b *BaleCore) MuteChat(chatID string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": int64(1), // mute = true
+	}
+	return b.userSend(baleServiceMessaging, "MuteDialog", payload)
+}
+
+// UnmuteChat unmutes a dialog (clears isMute field).
+// Service: bale.messaging.v2.Messaging/MuteDialog
+func (b *BaleCore) UnmuteChat(chatID string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": int64(0), // mute = false
+	}
+	return b.userSend(baleServiceMessaging, "MuteDialog", payload)
+}
+
+// ArchiveChat archives a dialog.
+// Service: bale.messaging.v2.Messaging/ArchiveDialog
+func (b *BaleCore) ArchiveChat(chatID string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+	}
+	return b.userSend(baleServiceMessaging, "ArchiveDialog", payload)
+}
+
+// UnarchiveChat unarchives a dialog.
+// Service: bale.messaging.v2.Messaging/UnarchiveDialog
+func (b *BaleCore) UnarchiveChat(chatID string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+	}
+	return b.userSend(baleServiceMessaging, "UnarchiveDialog", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Message Features (3 methods, user mode)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SendScheduledMessage sends a message scheduled for a future time.
+// Sends via Messaging/SendMessage with an additional schedule_date field.
+func (b *BaleCore) SendScheduledMessage(chatID string, text string, scheduleDate int64) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	rid := baleRID()
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": map[string]interface{}{
+			"15": map[string]interface{}{"1": text},
+		},
+		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
+		"7": scheduleDate, // schedule_date in millis
+	}
+	return b.userSend(baleServiceMessaging, "SendMessage", payload)
+}
+
+// SendProtectedMessage sends a self-destructing/view-once message (MessageContent field 27).
+func (b *BaleCore) SendProtectedMessage(chatID string, text string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	rid := baleRID()
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": map[string]interface{}{
+			"27": map[string]interface{}{"1": text}, // ProtectedMessage
+		},
+		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
+	}
+	return b.userSend(baleServiceMessaging, "SendMessage", payload)
+}
+
+// SendLongTextMessage sends a message with text exceeding the normal limit (MessageContent field 30).
+func (b *BaleCore) SendLongTextMessage(chatID string, text string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	rid := baleRID()
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": map[string]interface{}{
+			"30": map[string]interface{}{"1": text}, // LongTextMessage
+		},
+		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
+	}
+	return b.userSend(baleServiceMessaging, "SendMessage", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Exotic Content Types (5 methods, user mode)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SendBankMessage sends a banking/payment content message (MessageContent field 1).
+func (b *BaleCore) SendBankMessage(chatID string, bankData map[string]interface{}) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	rid := baleRID()
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": map[string]interface{}{
+			"1": bankData, // BankMessage
+		},
+		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
+	}
+	return b.userSend(baleServiceMessaging, "SendMessage", payload)
+}
+
+// SendJsonMessage sends a JSON payload message (MessageContent field 7).
+func (b *BaleCore) SendJsonMessage(chatID string, jsonData string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	rid := baleRID()
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": map[string]interface{}{
+			"7": map[string]interface{}{"1": jsonData}, // JsonMessage
+		},
+		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
+	}
+	return b.userSend(baleServiceMessaging, "SendMessage", payload)
+}
+
+// SendOrderMessage sends an order-related content message (MessageContent field 9).
+func (b *BaleCore) SendOrderMessage(chatID string, orderData map[string]interface{}) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	rid := baleRID()
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": map[string]interface{}{
+			"9": orderData, // OrderMessage
+		},
+		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
+	}
+	return b.userSend(baleServiceMessaging, "SendMessage", payload)
+}
+
+// SendAnimatedSticker sends an animated sticker (TGS/Lottie, MessageContent field 24).
+func (b *BaleCore) SendAnimatedSticker(chatID string, stickerData map[string]interface{}) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	rid := baleRID()
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": map[string]interface{}{
+			"24": stickerData, // AnimatedStickerMessage
+		},
+		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
+	}
+	return b.userSend(baleServiceMessaging, "SendMessage", payload)
+}
+
+// SendLiveMessage sends a live stream content message (MessageContent field 26).
+func (b *BaleCore) SendLiveMessage(chatID string, liveData map[string]interface{}) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	rid := baleRID()
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": map[string]interface{}{
+			"26": liveData, // LiveMessage
+		},
+		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
+	}
+	return b.userSend(baleServiceMessaging, "SendMessage", payload)
 }

@@ -1,8 +1,8 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** 3
-**Current Core:** (all cores — replace checklists with full protocol surface)
-**Current Method:** Research full protocol surface for each core
+**Current Step:** 4
+**Current Core:** Bale (starting with fewest missing: ~25)
+**Current Method:** SetMyCommands (Bot API commands)
 **Last Updated:** 2026-04-13
 
 ## Steps
@@ -12,7 +12,7 @@
 | 1 | Implement unimplemented checklist methods | **DONE** |
 | 2 | Test ALL existing methods in every core | **DONE** |
 | 3 | Replace checklists with full protocol surface | **DONE** |
-| 4 | Implement all new methods to 100% | NOT STARTED |
+| 4 | Implement all new methods to 100% | **IN PROGRESS** |
 | 5 | Perfect/optimize/decouple cores | NOT STARTED |
 | 6 | Unify core APIs | NOT STARTED |
 | 7 | Protobuf bridge | NOT STARTED |
@@ -68,8 +68,19 @@ Researched full protocol/API surface for all 10 cores. Created new comprehensive
 - [x] IRC — ~130 missing (oper commands, IRCv3 extensions, SASL, DCC, extended bans, modes)
 - [x] XMPP — ~120 missing (connection XEPs, messaging, MUC, MIX, Jingle, PubSub, discovery)
 
-### Step 4 — Implement New Methods to 100%
-- [ ] (populate from new checklists when Step 3 is done)
+### Step 4 — Implement New Methods to 100% — IN PROGRESS
+
+Order: fewest missing first for quick wins.
+
+- [ ] Bale (~25 missing)
+- [ ] Rubika (~45 missing)
+- [ ] TeamSpeak (~80 missing)
+- [ ] Matrix (~90 missing)
+- [ ] Delta Chat (~105 missing)
+- [ ] Mumble (~111 missing)
+- [ ] XMPP (~120 missing)
+- [ ] IRC (~130 missing)
+- [ ] GitHub (~800 missing)
 
 ### Step 5 — Perfect/Optimize/Decouple
 - [ ] (populate when Step 4 is done)

@@ -1,87 +1,76 @@
 # Rubika — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 3)
-**Current:** 270 methods, ~4,808 lines. REST/WebSocket API + Bot API + Rubino social layer.
-**Confirmed working:** 89 tests ALL PASS (including WebRTC voice chat, Step 1/2).
-**Remaining:** ~45 methods listed below.
+**Last updated:** 2026-04-13 (Step 4)
+**Current:** 315 methods, ~5,500 lines. REST/WebSocket API + Bot API + Rubino social layer.
+**Confirmed working:** 89 tests ALL PASS (including WebRTC voice chat, Step 1/2). 45 new methods added (Step 4), not yet tested.
+**Remaining:** 0 methods — 100% protocol coverage.
 
-Only methods NOT yet implemented are listed.
+All methods implemented. User API, Bot API, Rubino social, and WebSocket events fully covered.
 
 ---
 
-## User API — Auth / Device (2 methods)
+## Step 4 — Newly Implemented (45 methods) — NEEDS TESTING
 
-- [ ] RegisterDevice — Register device with Rubika (token, lang_code, app_version, device_model, device_hash)
-- [ ] LoginDisableTwoStep — Bypass 2FA when password forgotten (phone + phone_code_hash)
+### Auth / Device (2)
+- [x] RegisterDevice — Register device with Rubika
+- [x] LoginDisableTwoStep — Bypass 2FA when password forgotten
 
-## User API — Messages (2 methods)
+### Messages (2)
+- [x] SearchGlobalMessages — Search messages across all chats
+- [x] ClickMessageUrl — Track URL click within a message
 
-- [ ] SearchGlobalMessages — Search messages across all chats (distinct from per-chat SearchChatMessages)
-- [ ] ClickMessageUrl — Track/report URL click within a message (link analytics)
+### Chat Management (3)
+- [x] GetChatAds — Retrieve advertisement messages
+- [x] SetPrivacySetting — Set individual privacy settings
+- [x] GetChatInfoByUsername — Resolve chat by username
 
-## User API — Chat Management (3 methods)
+### Settings / Folders (1)
+- [x] EditFolder — Edit existing folder properties
 
-- [ ] GetChatAds — Retrieve advertisement messages in chats
-- [ ] SetPrivacySetting — Set individual privacy settings (granular control)
-- [ ] GetChatInfoByUsername — Resolve chat by username and return full info
+### Users (1)
+- [x] GetUserInfo — Get detailed user info by GUID
 
-## User API — Settings / Folders (1 method)
+### Groups (4)
+- [x] RemoveGroupAdmin — Remove admin status
+- [x] DeleteGroupAvatar — Delete group avatar
+- [x] GetNewGroupLink — Reset and generate new invite link
+- [x] GetGroupMemberCount — Lightweight member count
 
-- [ ] EditFolder — Edit existing folder properties (name, included chats, excluded types)
+### Contacts (2)
+- [x] ImportContacts — Bulk import from address book
+- [x] SearchContacts — Search contact list
 
-## User API — Users (1 method)
+### Typed Media Senders (7)
+- [x] SendPhoto — Upload + send photo (Image type)
+- [x] SendVideo — Upload + send video (Video type)
+- [x] SendGif — Upload + send GIF (Gif type)
+- [x] SendMusic — Upload + send audio (Music type)
+- [x] SendVoice — Upload + send voice (Voice type)
+- [x] SendDocument — Upload + send document (File type)
+- [x] SendVideoMessage — Upload + send video note (VideoMessage type)
 
-- [ ] GetUserInfo — Get detailed user info by user_guid (raw API method)
+### Rubino (6)
+- [x] RubinoGetProfilePosts — Get posts from specific profile
+- [x] RubinoRemovePage — Delete a Rubino page
+- [x] RubinoBookmarkPost — Bookmark/unbookmark a post
+- [x] RubinoUploadFile — File upload with chunking
+- [x] RubinoAddPicture — Upload + addPost with picture type
+- [x] RubinoAddVideo — Upload + addPost with video type
 
-## User API — Groups (4 methods)
+### Bot API (10)
+- [x] BotSendSticker — Send sticker via bot API
+- [x] BotSendImage — Send image via bot API
+- [x] BotSendDocument — Send document via bot API
+- [x] BotSendVoice — Send voice via bot API
+- [x] BotSendVideo — Send video via bot API
+- [x] BotSendGif — Send GIF via bot API
+- [x] BotSendMusic — Send music via bot API
+- [x] BotCheckJoin — Check if user joined channel/group
+- [x] BotRemoveKeypad — Remove chat keypad
+- [x] BotReplyMessage — Reply to specific message
 
-- [ ] RemoveGroupAdmin — Explicitly remove admin status (separate from SetGroupAdmin access list)
-- [ ] DeleteGroupAvatar — Delete group avatar specifically
-- [ ] GetNewGroupLink — Reset and generate new group invite link
-- [ ] GetGroupMemberCount — Lightweight member count (without fetching all members)
-
-## User API — Contacts (2 methods)
-
-- [ ] ImportContacts — Bulk import contacts from phone address book
-- [ ] SearchContacts — Search within user's contact list by name/phone
-
-## User API — Typed Media Senders (7 methods)
-
-High-level helpers that handle requestSendFile + upload + sendMessage in one call:
-
-- [ ] SendPhoto — Dedicated photo sending (Image type)
-- [ ] SendVideo — Dedicated video sending (Video type)
-- [ ] SendGif — Dedicated GIF sending (Gif type)
-- [ ] SendMusic — Dedicated audio/music sending (Music type)
-- [ ] SendVoice — Dedicated voice message sending (Voice type)
-- [ ] SendDocument — Dedicated document sending (File type, no thumbnail)
-- [ ] SendVideoMessage — Dedicated video note/round video (VideoMessage type)
-
-## Rubino — Missing Methods (6 methods)
-
-- [ ] RubinoGetProfilePosts — Get posts from a specific profile
-- [ ] RubinoRemovePage — Delete a Rubino page entirely
-- [ ] RubinoBookmarkPost — Bookmark/unbookmark a post
-- [ ] RubinoUploadFile — High-level file upload with chunking and progress
-- [ ] RubinoAddPicture — Convenience: upload + addPost with picture type
-- [ ] RubinoAddVideo — Convenience: upload + addPost with video type
-
-## Bot API — Missing Methods (10 methods)
-
-- [ ] BotSendSticker — Send sticker via bot API
-- [ ] BotSendImage — Send image via bot API (distinct from generic BotSendFile)
-- [ ] BotSendDocument — Send document via bot API
-- [ ] BotSendVoice — Send voice message via bot API
-- [ ] BotSendVideo — Send video via bot API
-- [ ] BotSendGif — Send GIF via bot API
-- [ ] BotSendMusic — Send audio/music via bot API
-- [ ] BotCheckJoin — Check if user joined a channel/group (forced-join verification)
-- [ ] BotRemoveKeypad — Remove chat keypad from conversation
-- [ ] BotReplyMessage — Reply to specific message (with reply_to_message_id)
-
-## WebSocket Events — Missing Handlers (4 event types)
-
-- [ ] OnChatUpdates — Separate handler for chat list changes
-- [ ] OnShowActivities — Handler for typing/recording activity
-- [ ] OnShowNotifications — Handler for notification events
-- [ ] OnRemoveNotifications — Handler for notification dismissal
+### WebSocket Events (4)
+- [x] OnChatUpdates — Handler for chat list changes
+- [x] OnShowActivities — Handler for typing/recording activity
+- [x] OnShowNotifications — Handler for notification events
+- [x] OnRemoveNotifications — Handler for notification dismissal
