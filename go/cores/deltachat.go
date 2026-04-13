@@ -321,14 +321,9 @@ func (d *DeltaChatCore) Name() string { return dcPlatform }
 
 func (d *DeltaChatCore) Capabilities() []string {
 	return []string{
-		"CALLS",
-		"CHANNELS",
-		"REACTIONS",
-		"READ_RECEIPTS",
-		"STICKERS",
-		"FOLDERS",
-		"ADMIN",
-		"BASE64_IMAGE",
+		CapText, CapChannels, CapCalls, CapReactions, CapReadReceipts,
+		CapBase64Image, CapE2EE, CapTyping, CapSearch, CapBlocking,
+		CapLocation, CapFileTransfer,
 	}
 }
 
@@ -2707,18 +2702,18 @@ func (d *DeltaChatCore) StopLocationStreaming(chatID string) error {
 }
 
 // SendLocation sends a single location (POI) to a chat as a KML attachment.
-func (d *DeltaChatCore) SendLocation(chatID string, lat float64, lon float64) error {
+func (d *DeltaChatCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	if !d.authed {
-		return ErrAuth
+		return nil, ErrAuth
 	}
 
 	d.chatsMu.RLock()
 	cs, ok := d.chats[chatID]
 	d.chatsMu.RUnlock()
 	if !ok {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
 
 	kml := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
@@ -2750,7 +2745,15 @@ func (d *DeltaChatCore) SendLocation(chatID string, lat float64, lon float64) er
 	}
 
 	msgID := d.generateMsgID(cs.GroupID)
-	return d.sendEmail(toAddrs, "Chat: "+cs.Title, "", msgID, "", headers, attachment)
+	err := d.sendEmail(toAddrs, "Chat: "+cs.Title, "", msgID, "", headers, attachment)
+	if err != nil {
+		return nil, err
+	}
+	return &Message{
+		ID:       msgID,
+		ChatID:   chatID,
+		Platform: dcPlatform,
+	}, nil
 }
 
 // --- vCard Import/Export ---
@@ -7436,4 +7439,31 @@ func (d *DeltaChatCore) IsSendingLocationsToChat(chatID string) bool {
 	defer d.locationMu.RUnlock()
 	_, ok := d.locationStreaming[chatID]
 	return ok
+}
+
+func (d *DeltaChatCore) AcceptCall(callID string) (*CallSession, error) {
+	return d.AcceptIncomingCall(callID, "")
+}
+
+func (d *DeltaChatCore) DeclineCall(callID string) error {
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, dcPlatform)
+}
+
+func (d *DeltaChatCore) MuteChat(chatID string, muted bool) error {
+	if muted {
+		return d.SetChatMuted(chatID, 0) // 0 = muted forever
+	}
+	return d.SetChatMuted(chatID, -1) // -1 = unmute
+}
+
+func (d *DeltaChatCore) ArchiveChat(chatID string, archived bool) error {
+	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, dcPlatform)
+}
+
+func (d *DeltaChatCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, dcPlatform)
+}
+
+func (d *DeltaChatCore) UnpinAllMessages(chatID string) error {
+	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, dcPlatform)
 }

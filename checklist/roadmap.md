@@ -1,8 +1,8 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** 5
+**Current Step:** 6
 **Current Core:** All cores complete!
-**Current Method:** Step 5 DONE — all cores optimized and decoupled
+**Current Method:** Step 6 DONE — unified APIs, capability constants, 7 new interface methods
 **Last Updated:** 2026-04-13
 
 ## Steps
@@ -14,7 +14,7 @@
 | 3 | Replace checklists with full protocol surface | **DONE** |
 | 4 | Implement all new methods to 100% | **DONE** |
 | 5 | Perfect/optimize/decouple cores | **DONE** |
-| 6 | Unify core APIs | NOT STARTED |
+| 6 | Unify core APIs | **DONE** |
 | 7 | Protobuf bridge | NOT STARTED |
 | 8 | Write /docs | NOT STARTED |
 | 9 | Build GUI | NOT STARTED |
@@ -104,8 +104,14 @@ Order: fewest missing first for quick wins.
 - [x] 5.13 Added `var _ Core = (*XxxCore)(nil)` compile-time assertions to all 10 cores
 - [x] 5.14 Removed Telegram's utils dependency — VP8 encoder now requires explicit factory injection
 
-### Step 6 — Unify Core APIs
-- [ ] (populate when Step 5 is done)
+### Step 6 — Unify Core APIs — DONE
+
+- [x] 6.1 Define 24 capability constants in base.go (CapText, CapChannels, CapCalls, etc.)
+- [x] 6.2 Standardize Capabilities() in all 10 cores to use constants (fixed XMPP/Mumble lowercase)
+- [x] 6.3 Audit and add missing capabilities per core (e.g., Bale was missing REACTIONS/FOLDERS/TYPING)
+- [x] 6.4 Add 7 new Core interface methods: MuteChat, ArchiveChat, MarkUnread, UnpinAllMessages, AcceptCall, DeclineCall, SendLocation
+- [x] 6.5 Implement new methods: adapted existing methods with different signatures (Telegram ArchiveChat, Bale MuteChat/ArchiveChat, Rubika SendLocation, DeltaChat SendLocation/MuteChat/AcceptCall, Matrix DeclineCall)
+- [x] 6.6 Added ErrNotSupported stubs for cores that don't support the new operations
 
 ### Step 7 — Protobuf Bridge
 - [ ] (populate when Step 6 is done)

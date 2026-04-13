@@ -246,13 +246,8 @@ func (g *GitHubCore) Name() string { return ghPlatform }
 
 func (g *GitHubCore) Capabilities() []string {
 	return []string{
-		"REACTIONS",
-		"READ_RECEIPTS",
-		"CHANNELS",
-		"ADMIN",
-		"FOLDERS",
-		"SEARCH",
-		"POLLS",
+		CapText, CapChannels, CapReactions, CapReadReceipts,
+		CapAdmin, CapFolders, CapSearch, CapPolls,
 	}
 }
 
@@ -6637,4 +6632,32 @@ func (g *GitHubCore) GetOrgOIDCProperties(org string) (json.RawMessage, error) {
 
 func (g *GitHubCore) SetOrgOIDCProperties(org string, payload map[string]any) (json.RawMessage, error) {
 	return g.apiPost(fmt.Sprintf("/orgs/%s/actions/oidc/customization/properties/repo", org), payload)
+}
+
+func (g *GitHubCore) MuteChat(chatID string, muted bool) error {
+	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, ghPlatform)
+}
+
+func (g *GitHubCore) ArchiveChat(chatID string, archived bool) error {
+	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, ghPlatform)
+}
+
+func (g *GitHubCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, ghPlatform)
+}
+
+func (g *GitHubCore) UnpinAllMessages(chatID string) error {
+	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, ghPlatform)
+}
+
+func (g *GitHubCore) AcceptCall(callID string) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, ghPlatform)
+}
+
+func (g *GitHubCore) DeclineCall(callID string) error {
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, ghPlatform)
+}
+
+func (g *GitHubCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, ghPlatform)
 }

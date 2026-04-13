@@ -150,13 +150,9 @@ func (r *RubikaCore) Name() string { return rubikaPlatform }
 
 func (r *RubikaCore) Capabilities() []string {
 	return []string{
-		"CHANNELS",
-		"REACTIONS",
-		"POLLS",
-		"STICKERS",
-		"FOLDERS",
-		"ADMIN",
-		"SESSIONS",
+		CapText, CapChannels, CapReactions, CapPolls, CapStickers,
+		CapFolders, CapAdmin, CapSessions, CapTyping, CapLocation,
+		CapFileTransfer,
 	}
 }
 
@@ -4231,15 +4227,35 @@ func (r *RubikaCore) SendContact(chatGUID string, firstName string, lastName str
 }
 
 // SendLocation sends a location message.
-func (r *RubikaCore) SendLocation(chatGUID string, latitude float64, longitude float64) (map[string]interface{}, error) {
-	return r.api("sendMessage", map[string]interface{}{
-		"object_guid": chatGUID,
+func (r *RubikaCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	r.mu.RLock()
+	if !r.authed {
+		r.mu.RUnlock()
+		return nil, ErrAuth
+	}
+	r.mu.RUnlock()
+
+	resp, err := r.api("sendMessage", map[string]interface{}{
+		"object_guid": chatID,
 		"rnd":         mrand.Intn(1000000) + 1,
 		"location": map[string]interface{}{
-			"latitude":  latitude,
-			"longitude": longitude,
+			"latitude":  lat,
+			"longitude": lon,
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	// Extract message_update from response if available
+	if mu, ok := resp["message_update"].(map[string]interface{}); ok {
+		msgID, _ := mu["message_id"].(string)
+		return &Message{
+			ID:       msgID,
+			ChatID:   chatID,
+			Platform: rubikaPlatform,
+		}, nil
+	}
+	return &Message{ChatID: chatID, Platform: rubikaPlatform}, nil
 }
 
 // SeenChats marks multiple chats as seen. seenList maps chat GUID → last seen message ID.
@@ -5655,4 +5671,28 @@ func (r *RubikaCore) OnRemoveNotifications(handler func(map[string]interface{}))
 	r.updateMu.Lock()
 	r.removeNotifHandlers = append(r.removeNotifHandlers, handler)
 	r.updateMu.Unlock()
+}
+
+func (r *RubikaCore) MuteChat(chatID string, muted bool) error {
+	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, rubikaPlatform)
+}
+
+func (r *RubikaCore) ArchiveChat(chatID string, archived bool) error {
+	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, rubikaPlatform)
+}
+
+func (r *RubikaCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, rubikaPlatform)
+}
+
+func (r *RubikaCore) UnpinAllMessages(chatID string) error {
+	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, rubikaPlatform)
+}
+
+func (r *RubikaCore) AcceptCall(callID string) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, rubikaPlatform)
+}
+
+func (r *RubikaCore) DeclineCall(callID string) error {
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, rubikaPlatform)
 }

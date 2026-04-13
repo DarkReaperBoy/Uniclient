@@ -167,21 +167,10 @@ func (m *MatrixCore) Name() string { return mxPlatform }
 
 func (m *MatrixCore) Capabilities() []string {
 	return []string{
-		"CALLS",
-		"CHANNELS",
-		"REACTIONS",
-		"READ_RECEIPTS",
-		"STICKERS",
-		"FOLDERS",
-		"ADMIN",
-		"BASE64_IMAGE",
-		"THREADS",
-		"PRESENCE",
-		"SPACES",
-		"E2EE",
-		"POLLS",
-		"TYPING",
-		"SEARCH",
+		CapText, CapChannels, CapCalls, CapReactions, CapReadReceipts,
+		CapTyping, CapPolls, CapStickers, CapFolders, CapAdmin,
+		CapBase64Image, CapThreads, CapPresence, CapSpaces, CapE2EE,
+		CapSearch, CapBlocking, CapFileTransfer,
 	}
 }
 
@@ -6387,6 +6376,26 @@ func (m *MatrixCore) GetIgnoredUsers() ([]string, error) {
 		users = append(users, u)
 	}
 	return users, nil
+}
+
+func (m *MatrixCore) ArchiveChat(chatID string, archived bool) error {
+	return fmt.Errorf("%w: %s archive chat not yet implemented", ErrNotSupported, mxPlatform)
+}
+
+func (m *MatrixCore) DeclineCall(callID string) error {
+	return m.RejectCall(callID)
+}
+
+func (m *MatrixCore) MuteChat(chatID string, muted bool) error {
+	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, mxPlatform)
+}
+
+func (m *MatrixCore) UnpinAllMessages(chatID string) error {
+	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, mxPlatform)
+}
+
+func (m *MatrixCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	return nil, fmt.Errorf("%w: %s send location not yet implemented", ErrNotSupported, mxPlatform)
 }
 
 // GetFullyReadMarker returns the m.fully_read room account data.

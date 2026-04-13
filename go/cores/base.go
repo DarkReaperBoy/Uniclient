@@ -74,6 +74,36 @@ const (
 	AuthModeUser AuthMode = "user"
 )
 
+// --- Capability constants ---
+// Return these from Capabilities() so the frontend can query supported features.
+
+const (
+	CapText         = "TEXT"
+	CapChannels     = "CHANNELS"
+	CapTopics       = "TOPICS"
+	CapThreads      = "THREADS"
+	CapCalls        = "CALLS"
+	CapGroupCalls   = "GROUP_CALLS"
+	CapReactions    = "REACTIONS"
+	CapReadReceipts = "READ_RECEIPTS"
+	CapTyping       = "TYPING"
+	CapPolls        = "POLLS"
+	CapStickers     = "STICKERS"
+	CapFolders      = "FOLDERS"
+	CapAdmin        = "ADMIN"
+	CapSessions     = "SESSIONS"
+	CapSearch       = "SEARCH"
+	CapE2EE         = "E2EE"
+	CapPresence     = "PRESENCE"
+	CapBase64Image  = "BASE64_IMAGE"
+	CapVoice        = "VOICE"
+	CapBlocking     = "BLOCKING"
+	CapLocation     = "LOCATION"
+	CapScheduled    = "SCHEDULED"
+	CapSpaces       = "SPACES"
+	CapFileTransfer = "FILE_TRANSFER"
+)
+
 // --- Models ---
 
 type AuthConfig struct {
@@ -335,4 +365,17 @@ type Core interface {
 	// Sessions
 	GetSessions() ([]Session, error)
 	TerminateSession(sessionID string) error
+
+	// Chat state
+	MuteChat(chatID string, muted bool) error
+	ArchiveChat(chatID string, archived bool) error
+	MarkUnread(chatID string, unread bool) error
+	UnpinAllMessages(chatID string) error
+
+	// Calls (incoming)
+	AcceptCall(callID string) (*CallSession, error)
+	DeclineCall(callID string) error
+
+	// Location
+	SendLocation(chatID string, lat float64, lon float64) (*Message, error)
 }

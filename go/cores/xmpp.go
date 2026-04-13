@@ -443,11 +443,9 @@ func (c *XMPPCore) Name() string { return xmppPlatform }
 
 func (c *XMPPCore) Capabilities() []string {
 	return []string{
-		"messaging", "groups", "presence", "file_transfer",
-		"reactions", "replies", "corrections", "read_receipts",
-		"typing", "blocking", "search", "muc",
-		"pubsub", "vcard", "bookmarks", "carbons",
-		"stream_management", "service_discovery",
+		CapText, CapChannels, CapCalls, CapReactions, CapReadReceipts,
+		CapTyping, CapBlocking, CapSearch, CapPresence, CapE2EE,
+		CapFileTransfer,
 	}
 }
 
@@ -7838,6 +7836,34 @@ func HashElement(algo string, data []byte) string {
 	h.Write(data)
 	return fmt.Sprintf(`<hash xmlns='urn:xmpp:hashes:2' algo='%s'>%s</hash>`,
 		algo, base64.StdEncoding.EncodeToString(h.Sum(nil)))
+}
+
+func (c *XMPPCore) MuteChat(chatID string, muted bool) error {
+	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, xmppPlatform)
+}
+
+func (c *XMPPCore) ArchiveChat(chatID string, archived bool) error {
+	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, xmppPlatform)
+}
+
+func (c *XMPPCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, xmppPlatform)
+}
+
+func (c *XMPPCore) UnpinAllMessages(chatID string) error {
+	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, xmppPlatform)
+}
+
+func (c *XMPPCore) AcceptCall(callID string) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, xmppPlatform)
+}
+
+func (c *XMPPCore) DeclineCall(callID string) error {
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, xmppPlatform)
+}
+
+func (c *XMPPCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, xmppPlatform)
 }
 
 // PasswordHashingBestPractice implements XEP-0438 — check hash strength.

@@ -186,9 +186,10 @@ func (t *TelegramCore) Name() string { return tgPlatform }
 
 func (t *TelegramCore) Capabilities() []string {
 	return []string{
-		"CALLS", "GROUP_CALLS", "CHANNELS", "REACTIONS",
-		"READ_RECEIPTS", "POLLS", "STICKERS", "TOPICS",
-		"SCHEDULED", "FOLDERS", "ADMIN", "SESSIONS", "BASE64_IMAGE",
+		CapText, CapChannels, CapTopics, CapCalls, CapGroupCalls,
+		CapReactions, CapReadReceipts, CapTyping, CapPolls, CapStickers,
+		CapFolders, CapAdmin, CapSessions, CapBase64Image, CapScheduled,
+		CapSearch, CapBlocking, CapFileTransfer,
 	}
 }
 
@@ -9425,7 +9426,7 @@ func (t *TelegramCore) getBlockedUsersRaw(limit int) ([]User, error) {
 }
 
 // ArchiveChat moves a chat to the archive folder.
-func (t *TelegramCore) ArchiveChat(chatID string) error {
+func (t *TelegramCore) ArchiveChat(chatID string, archived bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -9438,28 +9439,13 @@ func (t *TelegramCore) ArchiveChat(chatID string) error {
 	}
 	inputPeer, _ := t.toInputPeer(peer)
 
-	_, err = t.api.FoldersEditPeerFolders(t.ctx, []tg.InputFolderPeer{
-		{Peer: inputPeer, FolderID: 1}, // 1 = Archive folder
-	})
-	return err
-}
-
-// UnarchiveChat moves a chat back from the archive folder.
-func (t *TelegramCore) UnarchiveChat(chatID string) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
+	folderID := 1 // 1 = Archive folder
+	if !archived {
+		folderID = 0 // 0 = Main folder (unarchive)
 	}
 
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return err
-	}
-	inputPeer, _ := t.toInputPeer(peer)
-
 	_, err = t.api.FoldersEditPeerFolders(t.ctx, []tg.InputFolderPeer{
-		{Peer: inputPeer, FolderID: 0}, // 0 = Main folder
+		{Peer: inputPeer, FolderID: folderID},
 	})
 	return err
 }
@@ -15311,6 +15297,18 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 		})
 	}
 	return result, nil
+}
+
+func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
+	return fmt.Errorf("%w: telegram mute not yet implemented", ErrNotSupported)
+}
+
+func (t *TelegramCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: telegram mark unread not yet implemented", ErrNotSupported)
+}
+
+func (t *TelegramCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	return nil, fmt.Errorf("%w: telegram send location not yet implemented", ErrNotSupported)
 }
 
 func (t *TelegramCore) TerminateSession(sessionID string) error {

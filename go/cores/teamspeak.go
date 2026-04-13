@@ -1194,7 +1194,7 @@ func NewTeamSpeakCore(sessionPath string) *TeamSpeakCore {
 func (t *TeamSpeakCore) Name() string { return ts3Platform }
 
 func (t *TeamSpeakCore) Capabilities() []string {
-	return []string{"CHANNELS", "ADMIN", "SESSIONS"}
+	return []string{CapText, CapChannels, CapVoice, CapAdmin, CapSessions, CapTyping}
 }
 
 // ──────────────────────────── UDP Transport ────────────────────────────
@@ -6710,6 +6710,34 @@ func (t *TeamSpeakCore) DecodeLegacyCodec(codecType int, data []byte) ([]int16, 
 // ══════════════════════════════════════════════════════════════════════════════
 // Step 4 — Supporting types for new fields
 // ══════════════════════════════════════════════════════════════════════════════
+
+func (t *TeamSpeakCore) MuteChat(chatID string, muted bool) error {
+	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, ts3Platform)
+}
+
+func (t *TeamSpeakCore) ArchiveChat(chatID string, archived bool) error {
+	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, ts3Platform)
+}
+
+func (t *TeamSpeakCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, ts3Platform)
+}
+
+func (t *TeamSpeakCore) UnpinAllMessages(chatID string) error {
+	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, ts3Platform)
+}
+
+func (t *TeamSpeakCore) AcceptCall(callID string) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, ts3Platform)
+}
+
+func (t *TeamSpeakCore) DeclineCall(callID string) error {
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, ts3Platform)
+}
+
+func (t *TeamSpeakCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, ts3Platform)
+}
 
 type ts3DListener struct {
 	position [3]float32

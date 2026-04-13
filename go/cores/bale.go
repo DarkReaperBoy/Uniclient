@@ -307,10 +307,9 @@ func (b *BaleCore) resolveGroupInternalID(peerID int64) (int64, error) {
 
 func (b *BaleCore) Capabilities() []string {
 	return []string{
-		"CHANNELS",
-		"ADMIN",
-		"STICKERS",
-		"POLLS",
+		CapText, CapChannels, CapReactions, CapPolls, CapStickers,
+		CapAdmin, CapFolders, CapTyping, CapSearch, CapLocation,
+		CapFileTransfer,
 	}
 }
 
@@ -6019,44 +6018,33 @@ func (b *BaleCore) MarkAsUnread(chatID string) (map[string]interface{}, error) {
 
 // MuteChat mutes a dialog (sets isMute field).
 // Service: bale.messaging.v2.Messaging/MuteDialog
-func (b *BaleCore) MuteChat(chatID string) (map[string]interface{}, error) {
+func (b *BaleCore) MuteChat(chatID string, muted bool) error {
 	peerID, peerType := parsePeerID(chatID)
+	muteVal := int64(0)
+	if muted {
+		muteVal = 1
+	}
 	payload := map[string]interface{}{
 		"1": balePeer(peerType, peerID),
-		"2": int64(1), // mute = true
+		"2": muteVal,
 	}
-	return b.userSend(baleServiceMessaging, "MuteDialog", payload)
-}
-
-// UnmuteChat unmutes a dialog (clears isMute field).
-// Service: bale.messaging.v2.Messaging/MuteDialog
-func (b *BaleCore) UnmuteChat(chatID string) (map[string]interface{}, error) {
-	peerID, peerType := parsePeerID(chatID)
-	payload := map[string]interface{}{
-		"1": balePeer(peerType, peerID),
-		"2": int64(0), // mute = false
-	}
-	return b.userSend(baleServiceMessaging, "MuteDialog", payload)
+	_, err := b.userSend(baleServiceMessaging, "MuteDialog", payload)
+	return err
 }
 
 // ArchiveChat archives a dialog.
 // Service: bale.messaging.v2.Messaging/ArchiveDialog
-func (b *BaleCore) ArchiveChat(chatID string) (map[string]interface{}, error) {
+func (b *BaleCore) ArchiveChat(chatID string, archived bool) error {
 	peerID, peerType := parsePeerID(chatID)
 	payload := map[string]interface{}{
 		"1": balePeer(peerType, peerID),
 	}
-	return b.userSend(baleServiceMessaging, "ArchiveDialog", payload)
-}
-
-// UnarchiveChat unarchives a dialog.
-// Service: bale.messaging.v2.Messaging/UnarchiveDialog
-func (b *BaleCore) UnarchiveChat(chatID string) (map[string]interface{}, error) {
-	peerID, peerType := parsePeerID(chatID)
-	payload := map[string]interface{}{
-		"1": balePeer(peerType, peerID),
+	method := "ArchiveDialog"
+	if !archived {
+		method = "UnarchiveDialog"
 	}
-	return b.userSend(baleServiceMessaging, "UnarchiveDialog", payload)
+	_, err := b.userSend(baleServiceMessaging, method, payload)
+	return err
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -6187,4 +6175,20 @@ func (b *BaleCore) SendLiveMessage(chatID string, liveData map[string]interface{
 		"6": map[string]interface{}{"1": int64(peerType), "2": peerID},
 	}
 	return b.userSend(baleServiceMessaging, "SendMessage", payload)
+}
+
+func (b *BaleCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, balePlatform)
+}
+
+func (b *BaleCore) UnpinAllMessages(chatID string) error {
+	return b.UnpinAllChatMessages(chatID)
+}
+
+func (b *BaleCore) AcceptCall(callID string) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, balePlatform)
+}
+
+func (b *BaleCore) DeclineCall(callID string) error {
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, balePlatform)
 }

@@ -400,11 +400,7 @@ func NewIRCCore(sessionPath string) *IRCCore {
 func (c *IRCCore) Name() string { return ircPlatform }
 
 func (c *IRCCore) Capabilities() []string {
-	return []string{
-		"CHANNELS",
-		"ADMIN",
-		"SEARCH",
-	}
+	return []string{CapText, CapChannels, CapAdmin, CapSearch, CapBlocking, CapTyping}
 }
 
 // ---------------------------------------------------------------------------
@@ -5602,4 +5598,32 @@ func (c *IRCCore) CTCPErrMsg(nick, query, message string) {
 
 func (c *IRCCore) CTCPAvatar(nick, url string) {
 	c.sendRaw(fmt.Sprintf("NOTICE %s :\x01AVATAR %s\x01", nick, url))
+}
+
+func (c *IRCCore) MuteChat(chatID string, muted bool) error {
+	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, ircPlatform)
+}
+
+func (c *IRCCore) ArchiveChat(chatID string, archived bool) error {
+	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, ircPlatform)
+}
+
+func (c *IRCCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, ircPlatform)
+}
+
+func (c *IRCCore) UnpinAllMessages(chatID string) error {
+	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, ircPlatform)
+}
+
+func (c *IRCCore) AcceptCall(callID string) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, ircPlatform)
+}
+
+func (c *IRCCore) DeclineCall(callID string) error {
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, ircPlatform)
+}
+
+func (c *IRCCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, ircPlatform)
 }

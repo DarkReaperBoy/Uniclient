@@ -3653,13 +3653,7 @@ func MumbleServerPing(addr string) (version [4]byte, users, maxUsers, bandwidth 
 func (c *MumbleCore) Name() string { return mumblePlatform }
 
 func (c *MumbleCore) Capabilities() []string {
-	return []string{
-		"voice", "text", "channels", "whisper", "positional_audio",
-		"channel_links", "channel_listeners", "acl", "bans",
-		"user_registration", "priority_speaker", "recording",
-		"plugin_data", "context_actions", "server_query",
-		"certificate_auth", "self_mute", "self_deaf",
-	}
+	return []string{CapText, CapChannels, CapVoice, CapAdmin, CapBlocking, CapSearch}
 }
 
 func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
@@ -7783,6 +7777,34 @@ func MumbleResolveSRV(hostname string) (string, error) {
 	}
 	target := strings.TrimRight(addrs[0].Target, ".")
 	return net.JoinHostPort(target, strconv.Itoa(int(addrs[0].Port))), nil
+}
+
+func (c *MumbleCore) MuteChat(chatID string, muted bool) error {
+	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, mumblePlatform)
+}
+
+func (c *MumbleCore) ArchiveChat(chatID string, archived bool) error {
+	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, mumblePlatform)
+}
+
+func (c *MumbleCore) MarkUnread(chatID string, unread bool) error {
+	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, mumblePlatform)
+}
+
+func (c *MumbleCore) UnpinAllMessages(chatID string) error {
+	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, mumblePlatform)
+}
+
+func (c *MumbleCore) AcceptCall(callID string) (*CallSession, error) {
+	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, mumblePlatform)
+}
+
+func (c *MumbleCore) DeclineCall(callID string) error {
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, mumblePlatform)
+}
+
+func (c *MumbleCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
+	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, mumblePlatform)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
