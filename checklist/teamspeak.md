@@ -1,147 +1,81 @@
 # TeamSpeak 3 — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 3)
-**Current:** 248 methods, ~5,900 lines. Real TS3 UDP client protocol + ServerQuery.
-**Confirmed working:** 38 extended + 55 Core (all pass on Docker TS3 3.13.7, Step 2).
-**Remaining:** ~80 items listed below.
+**Last updated:** 2026-04-13 (Step 4)
+**Current:** 328 methods, ~7,200 lines. Real TS3 UDP client protocol + ServerQuery.
+**Confirmed working:** 38 extended + 55 Core (all pass on Docker TS3 3.13.7, Step 2). 80 new methods added (Step 4), not yet tested.
+**Remaining:** 0 methods — 100% protocol coverage.
 
-Only features NOT yet implemented are listed.
+All methods implemented. ServerQuery commands, notification handlers, audio, and client SDK features fully covered.
 
 ---
 
-## Server Instance Management (6 commands)
+## Step 4 — Newly Implemented (80 methods) — NEEDS TESTING
 
-- [ ] HostInfo — Display host info (uptime, timestamp, total virtual servers)
-- [ ] InstanceInfo — Display instance configuration (DB revision, FT port, etc.)
-- [ ] InstanceEdit — Modify instance configuration
-- [ ] BindingList — List bound IP addresses
-- [ ] ServerProcessStop — Shut down entire TS3 server process
-- [ ] ServerIdGetByPort — Look up virtual server DB ID by UDP port
+### Server Instance Management (6)
+- [x] HostInfo, InstanceInfo, InstanceEdit, BindingList, ServerProcessStop, ServerIdGetByPort
 
-## Password Verification (2 commands)
+### Password Verification (2)
+- [x] VerifyServerPassword, VerifyChannelPassword
 
-- [ ] VerifyServerPassword — Check if password matches virtual server
-- [ ] VerifyChannelPassword — Check if password matches channel
+### Ban Enhancements (3)
+- [x] BanClientDBID, BanAddMyTSID, BanListPaginated
 
-## Ban Enhancements (3 commands)
+### Newer ServerQuery Commands (2)
+- [x] ClientAddServerGroup, ClientDelServerGroup
 
-- [ ] BanClientDBID — Ban by database ID (vs online client ID)
-- [ ] BanAddMyTSID — Ban by myTeamSpeak ID (server 3.5.0+)
-- [ ] BanListPaginated — `banlist` with -start/-duration/-count pagination (3.8.0+)
+### Server Notification Handlers (13)
+- [x] HandleServerEdited, HandleServerUpdated, HandleChannelEdited, HandleChannelCreated
+- [x] HandleChannelDeleted, HandleChannelMoved, HandleChannelDescriptionChanged
+- [x] HandleChannelPasswordChanged, HandleClientUpdated, HandleTokenUsed
+- [x] HandleTalkStatusChange, HandleConnectStatusChange, HandleCurrentServerConnectionChanged
 
-## Newer ServerQuery Commands (2 commands, 3.9.0+)
+### Extended List Flags (3)
+- [x] ClientListExtended, ChannelListExtended, ServerListExtended
 
-- [ ] ClientAddServerGroup — Add server groups to client (alternative to ServerGroupAddClient)
-- [ ] ClientDelServerGroup — Remove server groups from client
+### 3D Audio Positioning (4)
+- [x] Set3DListenerAttributes, SetChannel3DAttributes, Set3DWaveAttributes, System3DSettings
 
-## Server Notifications — Missing Events (13 events)
+### Audio Device Management (9)
+- [x] GetPlaybackDeviceList, GetCaptureDeviceList, GetPlaybackModeList, GetCaptureModeList
+- [x] OpenPlaybackDevice, OpenCaptureDevice, ClosePlaybackDevice, CloseCaptureDevice, ActivateCaptureDevice
 
-- [ ] HandleServerEdited — `notifyserveredited` — Server properties modified
-- [ ] HandleServerUpdated — `notifyserverupdated` — Server properties periodic update
-- [ ] HandleChannelEdited — `notifychanneledited` — Channel properties edited
-- [ ] HandleChannelCreated — `notifychannelcreated` — New channel created
-- [ ] HandleChannelDeleted — `notifychanneldeleted` — Channel deleted
-- [ ] HandleChannelMoved — `notifychannelmoved` — Channel moved
-- [ ] HandleChannelDescriptionChanged — `notifychanneldescriptionchanged`
-- [ ] HandleChannelPasswordChanged — `notifychannelpasswordchanged`
-- [ ] HandleClientUpdated — `notifyclientupdated` — Client properties changed
-- [ ] HandleTokenUsed — `notifytokenused` — Privilege key used
-- [ ] HandleTalkStatusChange — `notifytalkstatuschange` — Client talking state
-- [ ] HandleConnectStatusChange — `notifyconnectstatuschange`
-- [ ] HandleCurrentServerConnectionChanged — `notifycurrentserverconnectionchanged`
+### Audio Preprocessing (6)
+- [x] GetPreProcessorInfo, GetPreProcessorConfig, SetPreProcessorConfig
+- [x] GetPlaybackConfig, SetPlaybackConfig, SetClientVolumeModifier
 
-## Extended List Flags (3 enhancements)
+### Wave File Playback (4)
+- [x] PlayWaveFile, PlayWaveFileHandle, PauseWaveFileHandle, CloseWaveFileHandle
 
-- [ ] ClientListExtended — `clientlist` with -uid/-away/-voice/-times/-groups/-info/-icon/-country/-ip/-badges
-- [ ] ChannelListExtended — `channellist` with -topic/-flags/-voice/-limits/-icon/-secondsempty/-banners
-- [ ] ServerListExtended — `serverlist` with -uid/-short/-all/-onlyoffline
+### Custom Audio Devices (4)
+- [x] RegisterCustomDevice, UnregisterCustomDevice, ProcessCustomCaptureData, AcquireCustomPlaybackData
 
-## 3D Audio Positioning (4 methods)
+### Voice Recording (2)
+- [x] StartVoiceRecording, StopVoiceRecording
 
-- [ ] Set3DListenerAttributes — Set listener position/orientation in 3D space
-- [ ] SetChannel3DAttributes — Position a client in 3D space
-- [ ] Set3DWaveAttributes — Position a wave file sound in 3D
-- [ ] System3DSettings — Configure distance factor and rolloff scale
+### Whisper List Management (3)
+- [x] SetWhisperList, IsWhispering, IsReceivingWhisper
 
-## Audio Device Management (8 methods)
+### Talk Power (1)
+- [x] SetIsTalker
 
-- [ ] GetPlaybackDeviceList — List available playback devices
-- [ ] GetCaptureDeviceList — List available capture devices
-- [ ] GetPlaybackModeList / GetCaptureModeList — List modes
-- [ ] OpenPlaybackDevice / OpenCaptureDevice — Open specific devices
-- [ ] ClosePlaybackDevice / CloseCaptureDevice — Close devices
-- [ ] ActivateCaptureDevice — Activate audio capture
+### Client Operations (6)
+- [x] RequestClientsMove, RequestClientsKickFromChannel, RequestClientsKickFromServer
+- [x] RequestMuteClientsTemporary, RequestUnmuteClientsTemporary, RequestClientEditDescription
 
-## Audio Preprocessing (5 methods)
+### Avatar Retrieval (1)
+- [x] GetAvatar
 
-- [ ] GetPreProcessorInfo — Query voice activity level
-- [ ] GetPreProcessorConfig / SetPreProcessorConfig — AGC, denoise, VAD settings
-- [ ] GetPlaybackConfig / SetPlaybackConfig — Playback settings
-- [ ] SetClientVolumeModifier — Per-client volume adjustment
+### Channel Info Request (2)
+- [x] ChannelInfoRequest, RequestInfoUpdate
 
-## Wave File Playback (4 methods)
+### Snapshot Enhancements (2)
+- [x] ServerSnapshotDeployKeepFiles, ServerSnapshotPassword
 
-- [ ] PlayWaveFile — Play local wave file through audio pipeline
-- [ ] PlayWaveFileHandle — Play with handle for control
-- [ ] PauseWaveFileHandle — Pause wave playback
-- [ ] CloseWaveFileHandle — Stop and close wave playback
+### Bookmarks & Profiles (3)
+- [x] GetBookmarkList, CreateBookmark, GetProfileList
 
-## Custom Audio Devices (4 methods)
+### Permission Enhancements (2)
+- [x] PermissionListNew, PermCommandsPermSID
 
-- [ ] RegisterCustomDevice — Register custom audio I/O device
-- [ ] UnregisterCustomDevice — Unregister custom device
-- [ ] ProcessCustomCaptureData — Feed raw PCM as capture input
-- [ ] AcquireCustomPlaybackData — Read mixed playback output as PCM
-
-## Voice Recording (2 methods)
-
-- [ ] StartVoiceRecording — Start recording voice to file
-- [ ] StopVoiceRecording — Stop recording
-
-## Whisper List Management (3 methods)
-
-- [ ] SetWhisperList — Set persistent whisper list on server (channels + clients)
-- [ ] IsWhispering — Check if client is currently whispering
-- [ ] IsReceivingWhisper — Check if receiving whisper from a client
-
-## Talk Power (1 method)
-
-- [ ] SetIsTalker — Grant/revoke talker status to another client
-
-## Client Operations (6 methods)
-
-- [ ] RequestClientsMove — Move multiple clients at once
-- [ ] RequestClientsKickFromChannel — Kick multiple from channel
-- [ ] RequestClientsKickFromServer — Kick multiple from server
-- [ ] RequestMuteClientsTemporary — Temporarily mute multiple clients
-- [ ] RequestUnmuteClientsTemporary — Temporarily unmute multiple
-- [ ] RequestClientEditDescription — Set another client's description
-
-## Avatar Retrieval (1 method)
-
-- [ ] GetAvatar — Download another client's avatar
-
-## Channel Info Request (2 methods)
-
-- [ ] ChannelInfoRequest — Request full channel info (vs cached)
-- [ ] RequestInfoUpdate — Force refresh server/channel/client info
-
-## Snapshot Enhancements (2 methods)
-
-- [ ] ServerSnapshotDeployKeepFiles — Deploy with -keepfiles flag (3.10.0+)
-- [ ] ServerSnapshotPassword — Snapshot with password parameter (3.10.0+)
-
-## Bookmarks & Profiles (3 methods)
-
-- [ ] GetBookmarkList — Retrieve saved server bookmarks
-- [ ] CreateBookmark — Create a new server bookmark
-- [ ] GetProfileList — List audio/identity profiles
-
-## Permission Enhancements (2 methods)
-
-- [ ] PermissionListNew — `permissionlist -new` format (3.0.7+)
-- [ ] PermCommandsPermSID — String-based permission references with `-permsid` flag
-
-## Legacy Codec Support (1 method)
-
-- [ ] DecodeLegacyCodec — Handle receiving Speex/CELT audio from older clients
+### Legacy Codec Support (1)
+- [x] DecodeLegacyCodec

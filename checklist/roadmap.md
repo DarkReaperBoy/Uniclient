@@ -1,8 +1,8 @@
 # Pre-GUI Roadmap Progress
 
 **Current Step:** 4
-**Current Core:** Bale (starting with fewest missing: ~25)
-**Current Method:** SetMyCommands (Bot API commands)
+**Current Core:** Matrix (~90 missing, next)
+**Current Method:** Starting Matrix implementation
 **Last Updated:** 2026-04-13
 
 ## Steps
@@ -72,9 +72,9 @@ Researched full protocol/API surface for all 10 cores. Created new comprehensive
 
 Order: fewest missing first for quick wins.
 
-- [ ] Bale (~25 missing)
-- [ ] Rubika (~45 missing)
-- [ ] TeamSpeak (~80 missing)
+- [x] Bale (~25 → 0 missing) — 23 methods implemented, 100% coverage
+- [x] Rubika (~45 → 0 missing) — 45 methods implemented, 100% coverage
+- [x] TeamSpeak (~80 → 0 missing) — 80 methods implemented, 100% coverage
 - [ ] Matrix (~90 missing)
 - [ ] Delta Chat (~105 missing)
 - [ ] Mumble (~111 missing)

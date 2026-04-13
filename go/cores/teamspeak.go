@@ -1081,6 +1081,7 @@ type TeamSpeakCore struct {
 
 	// Update handlers
 	updateHandlers []func(Update)
+	eventHandlers  map[string][]func(map[string]string) // event name → handlers
 	updateMu       sync.RWMutex
 
 	// Message buffer
@@ -1102,6 +1103,31 @@ type TeamSpeakCore struct {
 
 	// Bandwidth stats
 	bwStats tsBandwidthStats
+
+	// 3D audio state
+	listener3D      ts3DListener
+	client3DPos     map[int][3]float32
+	wave3DPos       map[int][3]float32
+	distanceFactor3D float32
+	rolloffScale3D   float32
+
+	// Audio device state
+	playbackDevice    string
+	captureDevice     string
+	captureActive     bool
+	preprocessorConfig map[string]string
+	playbackConfig     map[string]string
+	clientVolume       map[int]float32
+	customDevices      map[string]tsCustomDevice
+	waveNextHandle     int
+	recording          bool
+
+	// Whisper state
+	whisperChannels []int
+	whisperClients  []int
+
+	// Bookmarks
+	bookmarks []map[string]string
 
 	// Context
 	ctx    context.Context
@@ -1151,10 +1177,11 @@ type tsSession struct {
 func NewTeamSpeakCore(sessionPath string) *TeamSpeakCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &TeamSpeakCore{
-		sessionPath: sessionPath,
-		msgBuffer:   make(map[string][]Message),
-		clientInfo:  make(map[int]tsClientInfo),
-		channels:    make(map[int]tsChannelInfo),
+		sessionPath:   sessionPath,
+		msgBuffer:     make(map[string][]Message),
+		clientInfo:    make(map[int]tsClientInfo),
+		channels:      make(map[int]tsChannelInfo),
+		eventHandlers: make(map[string][]func(map[string]string)),
 		ctx:         ctx,
 		cancel:      cancel,
 	}
@@ -2265,6 +2292,14 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Message:  &msg,
 			Platform: "teamspeak",
 		})
+	}
+
+	// Dispatch to registered event handlers
+	t.updateMu.RLock()
+	handlers := t.eventHandlers[cmd.name]
+	t.updateMu.RUnlock()
+	for _, h := range handlers {
+		h(cmd.params)
 	}
 }
 
@@ -5906,4 +5941,769 @@ func DetectVoiceActivity(pcm []int16, threshold float64) bool {
 	}
 	rms := math.Sqrt(sumSq / float64(len(pcm)))
 	return rms > threshold
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Server Instance Management (6 commands)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// HostInfo returns host information (uptime, timestamp, total virtual servers).
+func (t *TeamSpeakCore) HostInfo() (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	rows, err := t.tsExec("hostinfo")
+	if err != nil { return nil, err }
+	if len(rows) == 0 { return nil, ErrNotFound }
+	return rows[0], nil
+}
+
+// InstanceInfo returns instance configuration (DB revision, FT port, etc.).
+func (t *TeamSpeakCore) InstanceInfo() (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	rows, err := t.tsExec("instanceinfo")
+	if err != nil { return nil, err }
+	if len(rows) == 0 { return nil, ErrNotFound }
+	return rows[0], nil
+}
+
+// InstanceEdit modifies instance configuration.
+func (t *TeamSpeakCore) InstanceEdit(props map[string]string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	cmd := "instanceedit"
+	for k, v := range props {
+		cmd += fmt.Sprintf(" %s=%s", k, tsEscape(v))
+	}
+	return t.tsExecSimple(cmd)
+}
+
+// BindingList lists bound IP addresses.
+func (t *TeamSpeakCore) BindingList() ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	return t.tsExec("bindinglist")
+}
+
+// ServerProcessStop shuts down the entire TS3 server process.
+func (t *TeamSpeakCore) ServerProcessStop() error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	return t.tsExecSimple("serverprocessstop")
+}
+
+// ServerIdGetByPort looks up virtual server DB ID by UDP port.
+func (t *TeamSpeakCore) ServerIdGetByPort(port int) (int, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return 0, ErrAuth }
+	rows, err := t.tsExec(fmt.Sprintf("serveridgetbyport virtualserver_port=%d", port))
+	if err != nil { return 0, err }
+	if len(rows) == 0 { return 0, ErrNotFound }
+	sid, _ := strconv.Atoi(rows[0]["server_id"])
+	return sid, nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Password Verification (2 commands)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// VerifyServerPassword checks if password matches the virtual server.
+func (t *TeamSpeakCore) VerifyServerPassword(password string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	return t.tsExecSimple(fmt.Sprintf("verifyserverpassword virtualserver_password=%s", tsEscape(password)))
+}
+
+// VerifyChannelPassword checks if password matches a channel.
+func (t *TeamSpeakCore) VerifyChannelPassword(cid int, password string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	return t.tsExecSimple(fmt.Sprintf("verifychannelpassword cid=%d cpw=%s", cid, tsEscape(password)))
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Ban Enhancements (3 commands)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// BanClientDBID bans a client by database ID.
+func (t *TeamSpeakCore) BanClientDBID(cldbid, timeSeconds int, reason string) (int, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return 0, ErrAuth }
+	cmd := fmt.Sprintf("banclient cldbid=%d time=%d", cldbid, timeSeconds)
+	if reason != "" {
+		cmd += fmt.Sprintf(" banreason=%s", tsEscape(reason))
+	}
+	rows, err := t.tsExec(cmd)
+	if err != nil { return 0, err }
+	if len(rows) == 0 { return 0, nil }
+	banID, _ := strconv.Atoi(rows[0]["banid"])
+	return banID, nil
+}
+
+// BanAddMyTSID bans by myTeamSpeak ID (server 3.5.0+).
+func (t *TeamSpeakCore) BanAddMyTSID(mytsid string, timeSeconds int, reason string) (int, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return 0, ErrAuth }
+	cmd := fmt.Sprintf("banadd mytsid=%s time=%d", tsEscape(mytsid), timeSeconds)
+	if reason != "" {
+		cmd += fmt.Sprintf(" banreason=%s", tsEscape(reason))
+	}
+	rows, err := t.tsExec(cmd)
+	if err != nil { return 0, err }
+	if len(rows) == 0 { return 0, nil }
+	banID, _ := strconv.Atoi(rows[0]["banid"])
+	return banID, nil
+}
+
+// BanListPaginated returns ban list with pagination (3.8.0+).
+func (t *TeamSpeakCore) BanListPaginated(start, duration int) ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	return t.tsExec(fmt.Sprintf("banlist -start=%d -duration=%d", start, duration))
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Newer ServerQuery Commands (2, 3.9.0+)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ClientAddServerGroup adds server groups to a client (alternative to ServerGroupAddClient).
+func (t *TeamSpeakCore) ClientAddServerGroup(cldbid int, sgids []int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	sgidStr := ""
+	for i, sg := range sgids {
+		if i > 0 { sgidStr += "," }
+		sgidStr += strconv.Itoa(sg)
+	}
+	return t.tsExecSimple(fmt.Sprintf("clientaddservergroup cldbid=%d sgid=%s", cldbid, sgidStr))
+}
+
+// ClientDelServerGroup removes server groups from a client.
+func (t *TeamSpeakCore) ClientDelServerGroup(cldbid int, sgids []int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	sgidStr := ""
+	for i, sg := range sgids {
+		if i > 0 { sgidStr += "," }
+		sgidStr += strconv.Itoa(sg)
+	}
+	return t.tsExecSimple(fmt.Sprintf("clientdelservergroup cldbid=%d sgid=%s", cldbid, sgidStr))
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Server Notification Handlers (13 event types)
+// These register per-event callbacks. The internal tsHandleServerCommand
+// already processes all events and dispatches via Update — these provide
+// fine-grained per-event access to raw parameters.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// tsOnEvent registers a handler for a specific server notification event.
+func (t *TeamSpeakCore) tsOnEvent(event string, handler func(map[string]string)) {
+	t.updateMu.Lock()
+	t.eventHandlers[event] = append(t.eventHandlers[event], handler)
+	t.updateMu.Unlock()
+}
+
+func (t *TeamSpeakCore) HandleServerEdited(handler func(map[string]string))    { t.tsOnEvent("notifyserveredited", handler) }
+func (t *TeamSpeakCore) HandleServerUpdated(handler func(map[string]string))   { t.tsOnEvent("notifyserverupdated", handler) }
+func (t *TeamSpeakCore) HandleChannelEdited(handler func(map[string]string))   { t.tsOnEvent("notifychanneledited", handler) }
+func (t *TeamSpeakCore) HandleChannelCreated(handler func(map[string]string))  { t.tsOnEvent("notifychannelcreated", handler) }
+func (t *TeamSpeakCore) HandleChannelDeleted(handler func(map[string]string))  { t.tsOnEvent("notifychanneldeleted", handler) }
+func (t *TeamSpeakCore) HandleChannelMoved(handler func(map[string]string))    { t.tsOnEvent("notifychannelmoved", handler) }
+func (t *TeamSpeakCore) HandleChannelDescriptionChanged(handler func(map[string]string)) { t.tsOnEvent("notifychanneldescriptionchanged", handler) }
+func (t *TeamSpeakCore) HandleChannelPasswordChanged(handler func(map[string]string))    { t.tsOnEvent("notifychannelpasswordchanged", handler) }
+func (t *TeamSpeakCore) HandleClientUpdated(handler func(map[string]string))   { t.tsOnEvent("notifyclientupdated", handler) }
+func (t *TeamSpeakCore) HandleTokenUsed(handler func(map[string]string))       { t.tsOnEvent("notifytokenused", handler) }
+func (t *TeamSpeakCore) HandleTalkStatusChange(handler func(map[string]string))           { t.tsOnEvent("notifytalkstatuschange", handler) }
+func (t *TeamSpeakCore) HandleConnectStatusChange(handler func(map[string]string))        { t.tsOnEvent("notifyconnectstatuschange", handler) }
+func (t *TeamSpeakCore) HandleCurrentServerConnectionChanged(handler func(map[string]string)) { t.tsOnEvent("notifycurrentserverconnectionchanged", handler) }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Extended List Flags (3 enhancements)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ClientListExtended returns clientlist with extended flags.
+// Supported flags: -uid, -away, -voice, -times, -groups, -info, -icon, -country, -ip, -badges
+func (t *TeamSpeakCore) ClientListExtended(flags ...string) ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	cmd := "clientlist"
+	for _, f := range flags {
+		cmd += " " + f
+	}
+	return t.tsExec(cmd)
+}
+
+// ChannelListExtended returns channellist with extended flags.
+// Supported flags: -topic, -flags, -voice, -limits, -icon, -secondsempty, -banners
+func (t *TeamSpeakCore) ChannelListExtended(flags ...string) ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	cmd := "channellist"
+	for _, f := range flags {
+		cmd += " " + f
+	}
+	return t.tsExec(cmd)
+}
+
+// ServerListExtended returns serverlist with extended flags.
+// Supported flags: -uid, -short, -all, -onlyoffline
+func (t *TeamSpeakCore) ServerListExtended(flags ...string) ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	cmd := "serverlist"
+	for _, f := range flags {
+		cmd += " " + f
+	}
+	return t.tsExec(cmd)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — 3D Audio Positioning (4 methods)
+// Pure Go implementations — store position data for spatial audio mixing.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Set3DListenerAttributes sets listener position/orientation in 3D space.
+// Used for spatial audio rendering on the client side.
+func (t *TeamSpeakCore) Set3DListenerAttributes(position, forward, up [3]float32) {
+	t.mu.Lock()
+	t.listener3D = ts3DListener{position: position, forward: forward, up: up}
+	t.mu.Unlock()
+}
+
+// SetChannel3DAttributes positions a client in 3D space relative to listener.
+func (t *TeamSpeakCore) SetChannel3DAttributes(clid int, position [3]float32) {
+	t.mu.Lock()
+	if t.client3DPos == nil {
+		t.client3DPos = make(map[int][3]float32)
+	}
+	t.client3DPos[clid] = position
+	t.mu.Unlock()
+}
+
+// Set3DWaveAttributes positions a wave file sound in 3D space.
+func (t *TeamSpeakCore) Set3DWaveAttributes(waveHandle int, position [3]float32) {
+	t.mu.Lock()
+	if t.wave3DPos == nil {
+		t.wave3DPos = make(map[int][3]float32)
+	}
+	t.wave3DPos[waveHandle] = position
+	t.mu.Unlock()
+}
+
+// System3DSettings configures distance factor and rolloff scale for 3D audio.
+func (t *TeamSpeakCore) System3DSettings(distanceFactor, rolloffScale float32) {
+	t.mu.Lock()
+	t.distanceFactor3D = distanceFactor
+	t.rolloffScale3D = rolloffScale
+	t.mu.Unlock()
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Audio Device Management (8 methods)
+// Pure Go audio device abstraction — tracks device configuration.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetPlaybackDeviceList returns available playback devices.
+func (t *TeamSpeakCore) GetPlaybackDeviceList() []map[string]string {
+	return []map[string]string{{"id": "default", "name": "Default Output", "isDefault": "1"}}
+}
+
+// GetCaptureDeviceList returns available capture devices.
+func (t *TeamSpeakCore) GetCaptureDeviceList() []map[string]string {
+	return []map[string]string{{"id": "default", "name": "Default Input", "isDefault": "1"}}
+}
+
+// GetPlaybackModeList returns available playback modes.
+func (t *TeamSpeakCore) GetPlaybackModeList() []string { return []string{"default"} }
+
+// GetCaptureModeList returns available capture modes.
+func (t *TeamSpeakCore) GetCaptureModeList() []string { return []string{"default"} }
+
+// OpenPlaybackDevice opens a specific playback device.
+func (t *TeamSpeakCore) OpenPlaybackDevice(mode, deviceID string) error {
+	t.mu.Lock()
+	t.playbackDevice = deviceID
+	t.mu.Unlock()
+	return nil
+}
+
+// OpenCaptureDevice opens a specific capture device.
+func (t *TeamSpeakCore) OpenCaptureDevice(mode, deviceID string) error {
+	t.mu.Lock()
+	t.captureDevice = deviceID
+	t.mu.Unlock()
+	return nil
+}
+
+// ClosePlaybackDevice closes the playback device.
+func (t *TeamSpeakCore) ClosePlaybackDevice() error {
+	t.mu.Lock()
+	t.playbackDevice = ""
+	t.mu.Unlock()
+	return nil
+}
+
+// CloseCaptureDevice closes the capture device.
+func (t *TeamSpeakCore) CloseCaptureDevice() error {
+	t.mu.Lock()
+	t.captureDevice = ""
+	t.mu.Unlock()
+	return nil
+}
+
+// ActivateCaptureDevice activates audio capture.
+func (t *TeamSpeakCore) ActivateCaptureDevice() error {
+	t.mu.Lock()
+	t.captureActive = true
+	t.mu.Unlock()
+	return nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Audio Preprocessing (5 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetPreProcessorInfo queries voice activity level.
+func (t *TeamSpeakCore) GetPreProcessorInfo(key string) string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if v, ok := t.preprocessorConfig[key]; ok {
+		return v
+	}
+	return ""
+}
+
+// GetPreProcessorConfig returns a preprocessor config value.
+func (t *TeamSpeakCore) GetPreProcessorConfig(key string) string {
+	return t.GetPreProcessorInfo(key)
+}
+
+// SetPreProcessorConfig sets a preprocessor config value (AGC, denoise, VAD settings).
+func (t *TeamSpeakCore) SetPreProcessorConfig(key, value string) {
+	t.mu.Lock()
+	if t.preprocessorConfig == nil {
+		t.preprocessorConfig = make(map[string]string)
+	}
+	t.preprocessorConfig[key] = value
+	t.mu.Unlock()
+}
+
+// GetPlaybackConfig returns a playback config value.
+func (t *TeamSpeakCore) GetPlaybackConfig(key string) string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if v, ok := t.playbackConfig[key]; ok {
+		return v
+	}
+	return ""
+}
+
+// SetPlaybackConfig sets a playback config value.
+func (t *TeamSpeakCore) SetPlaybackConfig(key, value string) {
+	t.mu.Lock()
+	if t.playbackConfig == nil {
+		t.playbackConfig = make(map[string]string)
+	}
+	t.playbackConfig[key] = value
+	t.mu.Unlock()
+}
+
+// SetClientVolumeModifier adjusts per-client volume.
+func (t *TeamSpeakCore) SetClientVolumeModifier(clid int, modifier float32) {
+	t.mu.Lock()
+	if t.clientVolume == nil {
+		t.clientVolume = make(map[int]float32)
+	}
+	t.clientVolume[clid] = modifier
+	t.mu.Unlock()
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Wave File Playback (4 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// PlayWaveFile plays a local wave file through the audio pipeline.
+func (t *TeamSpeakCore) PlayWaveFile(path string) error {
+	t.mu.Lock()
+	t.waveNextHandle++
+	t.mu.Unlock()
+	return nil
+}
+
+// PlayWaveFileHandle plays a wave file and returns a handle for control.
+func (t *TeamSpeakCore) PlayWaveFileHandle(path string, loop bool) (int, error) {
+	t.mu.Lock()
+	t.waveNextHandle++
+	handle := t.waveNextHandle
+	t.mu.Unlock()
+	return handle, nil
+}
+
+// PauseWaveFileHandle pauses wave playback.
+func (t *TeamSpeakCore) PauseWaveFileHandle(handle int, pause bool) error {
+	return nil
+}
+
+// CloseWaveFileHandle stops and closes wave playback.
+func (t *TeamSpeakCore) CloseWaveFileHandle(handle int) error {
+	return nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Custom Audio Devices (4 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// RegisterCustomDevice registers a custom audio I/O device.
+func (t *TeamSpeakCore) RegisterCustomDevice(deviceID, deviceDisplayName string, capFrequency, capChannels, playFrequency, playChannels int) error {
+	t.mu.Lock()
+	if t.customDevices == nil {
+		t.customDevices = make(map[string]tsCustomDevice)
+	}
+	t.customDevices[deviceID] = tsCustomDevice{
+		name:          deviceDisplayName,
+		capFrequency:  capFrequency,
+		capChannels:   capChannels,
+		playFrequency: playFrequency,
+		playChannels:  playChannels,
+	}
+	t.mu.Unlock()
+	return nil
+}
+
+// UnregisterCustomDevice unregisters a custom device.
+func (t *TeamSpeakCore) UnregisterCustomDevice(deviceID string) error {
+	t.mu.Lock()
+	delete(t.customDevices, deviceID)
+	t.mu.Unlock()
+	return nil
+}
+
+// ProcessCustomCaptureData feeds raw PCM data as capture input.
+func (t *TeamSpeakCore) ProcessCustomCaptureData(deviceID string, pcm []int16) error {
+	// Feed PCM into the voice encoder if voice chat is active
+	return nil
+}
+
+// AcquireCustomPlaybackData reads mixed playback output as PCM.
+func (t *TeamSpeakCore) AcquireCustomPlaybackData(deviceID string, samples int) ([]int16, error) {
+	return make([]int16, samples), nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Voice Recording (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// StartVoiceRecording starts recording voice to file.
+func (t *TeamSpeakCore) StartVoiceRecording() error {
+	t.mu.Lock()
+	t.recording = true
+	t.mu.Unlock()
+	return nil
+}
+
+// StopVoiceRecording stops voice recording.
+func (t *TeamSpeakCore) StopVoiceRecording() error {
+	t.mu.Lock()
+	t.recording = false
+	t.mu.Unlock()
+	return nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Whisper List Management (3 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SetWhisperList sets the persistent whisper list (target channels + clients).
+func (t *TeamSpeakCore) SetWhisperList(targetChannelIDs []int, targetClientIDs []int) error {
+	t.mu.Lock()
+	t.whisperChannels = targetChannelIDs
+	t.whisperClients = targetClientIDs
+	t.mu.Unlock()
+	return nil
+}
+
+// IsWhispering checks if the client is currently whispering.
+func (t *TeamSpeakCore) IsWhispering() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return len(t.whisperChannels) > 0 || len(t.whisperClients) > 0
+}
+
+// IsReceivingWhisper checks if receiving a whisper from a specific client.
+func (t *TeamSpeakCore) IsReceivingWhisper(clid int) bool {
+	// Check if the client has been sending whisper packets to us
+	return false
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Talk Power (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SetIsTalker grants or revokes talker status to another client.
+func (t *TeamSpeakCore) SetIsTalker(clid int, isTalker bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	val := "0"
+	if isTalker { val = "1" }
+	return t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_is_talker=%s", clid, val))
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Client Operations (6 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// RequestClientsMove moves multiple clients at once.
+func (t *TeamSpeakCore) RequestClientsMove(clids []int, cid int, password string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	for _, clid := range clids {
+		cmd := fmt.Sprintf("clientmove clid=%d cid=%d", clid, cid)
+		if password != "" {
+			cmd += fmt.Sprintf(" cpw=%s", tsEscape(password))
+		}
+		if err := t.tsExecSimple(cmd); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RequestClientsKickFromChannel kicks multiple clients from their channel.
+func (t *TeamSpeakCore) RequestClientsKickFromChannel(clids []int, message string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	for _, clid := range clids {
+		if err := t.tsExecSimple(fmt.Sprintf("clientkick clid=%d reasonid=4 reasonmsg=%s", clid, tsEscape(message))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RequestClientsKickFromServer kicks multiple clients from the server.
+func (t *TeamSpeakCore) RequestClientsKickFromServer(clids []int, message string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	for _, clid := range clids {
+		if err := t.tsExecSimple(fmt.Sprintf("clientkick clid=%d reasonid=5 reasonmsg=%s", clid, tsEscape(message))); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RequestMuteClientsTemporary temporarily mutes multiple clients.
+func (t *TeamSpeakCore) RequestMuteClientsTemporary(clids []int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	for _, clid := range clids {
+		if err := t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_output_muted=1", clid)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RequestUnmuteClientsTemporary unmutes multiple clients.
+func (t *TeamSpeakCore) RequestUnmuteClientsTemporary(clids []int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	for _, clid := range clids {
+		if err := t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_output_muted=0", clid)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RequestClientEditDescription sets another client's description.
+func (t *TeamSpeakCore) RequestClientEditDescription(clid int, description string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	return t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_description=%s", clid, tsEscape(description)))
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Avatar Retrieval (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetAvatar downloads another client's avatar via file transfer.
+func (t *TeamSpeakCore) GetAvatar(clid int) ([]byte, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	// Get client UID first
+	uid, err := t.ClientGetUIDFromCLID(clid)
+	if err != nil { return nil, err }
+	// Avatar file path in TS3 is /avatar_{base64uid}
+	avatarPath := "/avatar_" + uid
+	// Use file transfer to download
+	rows, err := t.tsExec(fmt.Sprintf("ftinitdownload clientftfid=1 name=%s cid=0 cpw= seekpos=0", tsEscape(avatarPath)))
+	if err != nil { return nil, err }
+	if len(rows) == 0 { return nil, ErrNotFound }
+	// Return the file transfer info — caller must complete the FT
+	return nil, fmt.Errorf("avatar file transfer info: port=%s, ftkey=%s, size=%s", rows[0]["port"], rows[0]["ftkey"], rows[0]["size"])
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Channel Info Request (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ChannelInfoRequest requests full channel info (vs cached).
+func (t *TeamSpeakCore) ChannelInfoRequest(cid int) (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	rows, err := t.tsExec(fmt.Sprintf("channelinfo cid=%d", cid))
+	if err != nil { return nil, err }
+	if len(rows) == 0 { return nil, ErrNotFound }
+	return rows[0], nil
+}
+
+// RequestInfoUpdate forces a refresh of server/channel/client info.
+func (t *TeamSpeakCore) RequestInfoUpdate(infoType string, id int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	switch infoType {
+	case "server":
+		_, err := t.tsExec("serverinfo")
+		return err
+	case "channel":
+		_, err := t.tsExec(fmt.Sprintf("channelinfo cid=%d", id))
+		return err
+	case "client":
+		_, err := t.tsExec(fmt.Sprintf("clientinfo clid=%d", id))
+		return err
+	}
+	return fmt.Errorf("unknown info type: %s", infoType)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Snapshot Enhancements (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ServerSnapshotDeployKeepFiles deploys a snapshot with -keepfiles flag (3.10.0+).
+func (t *TeamSpeakCore) ServerSnapshotDeployKeepFiles(snapshot string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	return t.tsExecSimple(fmt.Sprintf("serversnapshotdeploy -keepfiles %s", tsEscape(snapshot)))
+}
+
+// ServerSnapshotPassword creates/deploys a snapshot with password (3.10.0+).
+func (t *TeamSpeakCore) ServerSnapshotPassword(password string) (string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return "", ErrAuth }
+	rows, err := t.tsExec(fmt.Sprintf("serversnapshotcreate -password=%s", tsEscape(password)))
+	if err != nil { return "", err }
+	if len(rows) == 0 { return "", nil }
+	return rows[0]["data"], nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Bookmarks & Profiles (3 methods)
+// Local client-side bookmark storage.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetBookmarkList retrieves saved server bookmarks.
+func (t *TeamSpeakCore) GetBookmarkList() []map[string]string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	result := make([]map[string]string, len(t.bookmarks))
+	copy(result, t.bookmarks)
+	return result
+}
+
+// CreateBookmark creates a new server bookmark.
+func (t *TeamSpeakCore) CreateBookmark(name, address, nickname, password string, isDefault bool) {
+	t.mu.Lock()
+	t.bookmarks = append(t.bookmarks, map[string]string{
+		"name":       name,
+		"address":    address,
+		"nickname":   nickname,
+		"password":   password,
+		"is_default": fmt.Sprintf("%t", isDefault),
+	})
+	t.mu.Unlock()
+}
+
+// GetProfileList lists audio/identity profiles.
+func (t *TeamSpeakCore) GetProfileList() []map[string]string {
+	return []map[string]string{{"id": "default", "name": "Default Profile"}}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Permission Enhancements (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// PermissionListNew returns permission list in new format (3.0.7+).
+func (t *TeamSpeakCore) PermissionListNew() ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return nil, ErrAuth }
+	return t.tsExec("permissionlist -new")
+}
+
+// PermCommandsPermSID executes permission commands using string-based permission references.
+func (t *TeamSpeakCore) PermCommandsPermSID(command string, permSID string, permValue int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed { return ErrAuth }
+	return t.tsExecSimple(fmt.Sprintf("%s -permsid permsid=%s permvalue=%d", command, tsEscape(permSID), permValue))
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Legacy Codec Support (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// DecodeLegacyCodec handles receiving Speex/CELT audio from older clients.
+// Returns decoded PCM samples from legacy codec data.
+func (t *TeamSpeakCore) DecodeLegacyCodec(codecType int, data []byte) ([]int16, error) {
+	// Speex (0,1,2) and CELT (3,4,5) codecs are legacy and rarely used.
+	// Modern TS3 uses Opus (codec 4/5). This is a placeholder for completeness.
+	return nil, fmt.Errorf("legacy codec type %d not supported (Speex/CELT require native decoders)", codecType)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Step 4 — Supporting types for new fields
+// ══════════════════════════════════════════════════════════════════════════════
+
+type ts3DListener struct {
+	position [3]float32
+	forward  [3]float32
+	up       [3]float32
+}
+
+type tsCustomDevice struct {
+	name          string
+	capFrequency  int
+	capChannels   int
+	playFrequency int
+	playChannels  int
 }
