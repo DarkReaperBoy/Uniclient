@@ -75,7 +75,7 @@ Order: fewest missing first for quick wins.
 - [x] Bale (~25 → 0 missing) — 23 methods implemented, 100% coverage
 - [x] Rubika (~45 → 0 missing) — 45 methods implemented, 100% coverage
 - [x] TeamSpeak (~80 → 0 missing) — 80 methods implemented, 100% coverage
-- [ ] Matrix (~90 missing)
+- [x] Matrix (~90 → 0 missing) — 90 methods implemented, 100% coverage
 - [ ] Delta Chat (~105 missing)
 - [ ] Mumble (~111 missing)
 - [ ] XMPP (~120 missing)
