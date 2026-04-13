@@ -1,0 +1,37 @@
+# Credentials — never commit
+auth/
+*.vault
+
+# Go build output & binaries
+go/build/
+go/result*
+*.so
+*.dll
+*.dylib
+*.wasm
+*.exe
+
+# Test files — live API tests, not committed
+go/tests/
+
+# DC test account data (from Python deltachat-rpc-server)
+go/accounts/
+
+# Session files
+/tmp/uniclient_*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Extra standalone projects
+extra/
+
+# Private research
+research/rubika_vpn.md
+
+# Flutter
+dart/.dart_tool/
+dart/build/
+dart/.packages
