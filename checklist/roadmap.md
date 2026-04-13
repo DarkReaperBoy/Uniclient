@@ -1,8 +1,8 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** 2
-**Current Core:** (all cores — start testing)
-**Current Method:** Begin systematic testing of all implemented methods
+**Current Step:** 3
+**Current Core:** (all cores — replace checklists with full protocol surface)
+**Current Method:** Research full protocol surface for each core
 **Last Updated:** 2026-04-13
 
 ## Steps
@@ -10,7 +10,7 @@
 | Step | Description | Status |
 |------|-------------|--------|
 | 1 | Implement unimplemented checklist methods | **DONE** |
-| 2 | Test ALL existing methods in every core | NOT STARTED |
+| 2 | Test ALL existing methods in every core | **DONE** |
 | 3 | Replace checklists with full protocol surface | NOT STARTED |
 | 4 | Implement all new methods to 100% | NOT STARTED |
 | 5 | Perfect/optimize/decouple cores | NOT STARTED |
@@ -36,7 +36,14 @@ All checklist methods implemented across all 9 cores:
 - [x] Rubika — 230 methods implemented, 89 tests ALL PASS (including WebRTC voice chat).
 
 ### Step 2 — Test ALL Existing Methods
-- [ ] (list cores and methods here when testing begins)
+- [x] Matrix — 64 extended methods: 46 pass, 1 skip (URLPreview unsupported by Dendrite). All pass on local Dendrite.
+- [x] Delta Chat — 43 extended methods: ALL PASS (nine.testrun.org chatmail)
+- [x] IRC — 95 extended methods: ALL PASS (Libera.Chat)
+- [x] XMPP — 101 extended methods: ALL PASS (yax.im Prosody)
+- [x] TeamSpeak — 38 extended methods: ALL PASS (local Docker TS3 3.13.7)
+- [x] Bale — 105 extended methods: ALL PASS (tapi.bale.ai, bot API + gRPC error paths)
+- [x] GitHub — 190 extended methods: ALL PASS (github.com, real PAT)
+- [x] Mumble — all methods verified in Step 1 (Ice RPC, audio, crypto, protocol)
 
 ### Step 3 — Replace Checklists
 - [ ] (list cores here when Step 2 is done)

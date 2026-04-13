@@ -1990,9 +1990,8 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 
 	// ACK pID counter also starts at 1 (first ACK was for initivexpand2)
 	tc.pktState[tsPktAck].nextSendID = 1
-	// Incoming command counter: initivexpand2 was pID=0, initserver starts at pID=2
-	// (the server seems to reserve pID=1 or skip it in practice)
-	tc.pktState[tsPktCommand].nextRecvID = 2
+	// Incoming command counter: initivexpand2 was pID=0, next server command is pID=1
+	tc.pktState[tsPktCommand].nextRecvID = 1
 	// Incoming ACK counter: ACK for clientek will be pID=0
 	tc.pktState[tsPktAck].nextRecvID = 0
 

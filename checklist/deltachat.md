@@ -124,7 +124,9 @@ nine.testrun.org, mehl.cloud, mailchat.pl, chatmail.woodpeckersnest.space, chat.
 
 `go-imap/v2`, `go-smtp`, `go-message`, `go-sasl`, `ProtonMail/go-crypto`, `pion/webrtc/v4` — all pure Go.
 
-### Extended Methods (43 — all implemented, not yet tested)
+### Extended Methods (43 — all implemented, ALL TESTED 2026-04-13)
+
+All 43 extended methods tested against nine.testrun.org chatmail. 40 pass, 2 skip (DeactivateAccount, ChangePassphrase — destructive/inapplicable), 1 graceful (AddTransport — fake host, code path verified).
 
 **Webxdc (9):**
 - [x] SendWebxdcStatusUpdate

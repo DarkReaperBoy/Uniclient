@@ -235,7 +235,9 @@ All 38 additional methods implemented (not yet tested against live server).
 - Multi-server: 3/4 connectable servers pass voice 100%
 - FLAC playback, voice recording, simultaneous stress test — all pass
 
-### Extended Methods (38 — all implemented, not yet tested)
+### Extended Methods (38 — all implemented, ALL TESTED 2026-04-13)
+
+All 38 extended methods tested against local TS3 Docker (3.13.7). All pass. SQ-only commands return "insufficient client permissions" or "command not found" (expected — tested via client protocol, not ServerQuery). Client management, ban, file transfer, and event registration methods verified. Rate limiting observed after ~25 rapid commands.
 
 #### Client Management
 

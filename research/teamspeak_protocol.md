@@ -213,7 +213,7 @@ All commands and notifications listed below are implemented (189 methods). Voice
 ## Quirks & Gotchas
 
 <!-- Discovered 2026-04-09 -->
-- **Server command pIDs start at 2** after handshake, not 1. The initivexpand2 command counts as pID 0 or 1.
+- **Server command pIDs start at 1** after handshake. The initivexpand2 command is pID 0 (received during init, before receive loop starts). The next server command (initserver) arrives as pID 1. Fixed 2026-04-13: was incorrectly set to 2, causing initserver to be stuck in the reorder queue.
 - **channellist is NOT a queryable command** in client protocol -- it's automatically sent during connection setup. Use cached data from handshake.
 - **Unencrypted ACKs** (type 0x86 = Unencrypted|ACK) must not be decrypted -- check the Unencrypted flag before AES-EAX decrypt.
 - **Error 519** ("could not validate client identity") means the hashcash proof-of-work level is too low or key_offset is wrong. Recompute if session doesn't have it.

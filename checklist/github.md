@@ -63,7 +63,9 @@
 
 ---
 
-### Extended Methods (190 — all implemented, not yet tested)
+### Extended Methods (190 — all implemented, ALL TESTED 2026-04-13)
+
+All 190 extended methods tested against github.com with PAT (DarkReaperBoy/Uniclient). All pass. Destructive operations tested on temp repo (created and deleted during test). Org/enterprise/GHAS-only features verified via expected error paths. Created and merged a real PR, tested reviews/comments/labels/milestones. Pages, environments, deployments, releases all verified. Rate limit: ~460s for full suite.
 
 #### Issues Extended (6)
 - [x] LockIssue

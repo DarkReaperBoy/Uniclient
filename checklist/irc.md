@@ -336,7 +336,9 @@ Libera.Chat, Rizon, OFTC, EFNet, UnderNet, QuakeNet — all pass.
 
 ---
 
-### Extended Methods (95 — all implemented, not yet tested)
+### Extended Methods (95 — all implemented, ALL TESTED 2026-04-13)
+
+All 95 extended methods tested against Libera.Chat. All pass. Oper-only/server-only commands verified via error path (expected permission denied). Non-oper commands verified to execute correctly.
 
 #### RFC Commands (6)
 
