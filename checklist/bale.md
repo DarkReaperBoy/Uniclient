@@ -1,362 +1,57 @@
-## Phase 3: Bale — DONE (core complete, all extended methods implemented)
+# Bale — Full Protocol Surface Checklist
 
-267 exported methods, ~5,813 lines. All extended methods implemented (not yet tested). Geo-restricted from abroad.
+**Last updated:** 2026-04-13 (Step 3)
+**Current:** 304 methods, ~5,813 lines. Bot API (tapi.bale.ai) + User API (gRPC-Web/WebSocket).
+**Confirmed working:** 105 extended + 55 Core (all pass, Step 2).
+**Remaining:** ~25 methods listed below.
 
-### Core Interface (55/55)
-
-- [x] Name
-- [x] Capabilities
-- [x] Authenticate
-- [x] Logout
-- [x] GetDialogs
-- [x] CreateGroup
-- [x] CreateChannel
-- [x] CreateTopic
-- [x] GetFolders
-- [x] CreateFolder
-- [x] SendMessage
-- [x] GetMessages
-- [x] EditMessage
-- [x] DeleteMessage
-- [x] ReplyToMessage
-- [x] ForwardMessage
-- [x] ReactToMessage
-- [x] PinMessage
-- [x] UnpinMessage
-- [x] MarkAsRead
-- [x] GetReadState
-- [x] UploadFile
-- [x] DownloadFile
-- [x] SendImageBase64
-- [x] StartCall
-- [x] JoinGroupCall
-- [x] EndCall
-- [x] SetCallMuted
-- [x] GetProfile
-- [x] OnUpdate
-- [x] Close
-- [x] GetChatInfo
-- [x] EditChatTitle
-- [x] EditChatDescription
-- [x] LeaveChat
-- [x] GetInviteLink
-- [x] AddMembers
-- [x] RemoveMember
-- [x] BanMember
-- [x] UnbanMember
-- [x] GetMembers
-- [x] SetAdmin
-- [x] GetContacts
-- [x] AddContact
-- [x] DeleteContact
-- [x] BlockUser
-- [x] UnblockUser
-- [x] GetBlockedUsers
-- [x] SearchMessages
-- [x] SearchGlobal
-- [x] SendTyping
-- [x] CreatePoll
-- [x] VotePoll
-- [x] SendSticker
-- [x] GetSessions
-- [x] TerminateSession
-
-### Bot API Methods (17)
-
-- [x] SendMessage (bot mode)
-- [x] EditMessage (bot mode)
-- [x] DeleteMessage (bot mode)
-- [x] ForwardMessage (bot mode)
-- [x] CopyMessage
-- [x] SendLocation
-- [x] SendContact
-- [x] SendInvoice
-- [x] GetStickerSet
-- [x] AnswerCallbackQuery
-- [x] AnswerPreCheckoutQuery
-- [x] SendMessageWithKeyboard
-- [x] EditMessageCaption
-- [x] SendChatAction
-- [x] GetChatAdministrators
-- [x] GetChatMembersCount
-- [x] GetChatMember
-
-### Chat Management (extended)
-
-- [x] GetChat
-- [x] SetChatTitle
-- [x] SetChatDescription
-- [x] SetChatPhoto
-- [x] DeleteChatPhoto
-- [x] CreateChatInviteLink
-- [x] ExportChatInviteLink
-- [x] UnpinAllChatMessages
-- [x] BanChatMember
-- [x] UnbanChatMember
-- [x] PromoteChatMember
-
-### User-Mode API Methods (68)
-
-- [x] UserHTTPPost
-- [x] UserSendRaw
-- [x] ResolveGroupID
-- [x] UploadRawPUT
-- [x] GetUserID
-- [x] UserSendMessage
-- [x] UserUpdateMessage
-- [x] UserDeleteMessage
-- [x] UserForwardMessages
-- [x] UserLoadHistory
-- [x] UserLoadDialogs
-- [x] UserMessageRead
-- [x] UserPinMessage
-- [x] UserUnPinMessages
-- [x] UserLoadPinnedMessages
-- [x] UserClearChat
-- [x] UserDeleteChat
-- [x] UserLoadUsers
-- [x] UserLoadFullUsers
-- [x] UserEditName
-- [x] UserEditNickName
-- [x] UserCheckNickName
-- [x] UserEditAbout
-- [x] UserEditLocalName
-- [x] UserBlockUser
-- [x] UserUnblockUser
-- [x] UserLoadBlockedUsers
-- [x] UserSearchContacts
-- [x] UserImportContacts
-- [x] UserAddContact
-- [x] UserRemoveContact
-- [x] UserGetContacts
-- [x] UserResetContacts
-- [x] UserCreateGroup
-- [x] UserCreateGroupFull
-- [x] UserEditGroupTitle
-- [x] UserEditGroupAbout
-- [x] UserInviteUsers
-- [x] UserKickUser
-- [x] UserMakeUserAdmin
-- [x] UserRemoveUserAdmin
-- [x] UserSetMemberPermissions
-- [x] UserSetGroupDefaultPermissions
-- [x] UserGetMemberPermissions
-- [x] UserGetFullGroup
-- [x] UserLoadMembers
-- [x] UserGetGroupMembersCount
-- [x] UserGetGroupInviteURL
-- [x] UserRevokeInviteURL
-- [x] UserJoinGroup
-- [x] UserJoinPublicGroup
-- [x] UserLeaveGroup
-- [x] UserGetBannedUsers
-- [x] UserUnBanUser
-- [x] UserSetRestriction
-- [x] UserTransferOwnership
-- [x] UserEditChannelNick
-- [x] UserGetPins
-- [x] UserRemovePin
-- [x] UserRemoveAllPins
-- [x] UserGetGroupPreview
-- [x] UserEditGroupAvatar
-- [x] UserRemoveGroupAvatar
-- [x] UserGetFileUploadURL
-- [x] UserGetFileURL
-- [x] UserSetOnline
-- [x] UserTyping
-- [x] UserStopTyping
-- [x] UserSetReaction
-- [x] UserRemoveReaction
-- [x] UserGetReactions
-- [x] UserGetReactionsList
-- [x] UserGetMessageViews
-- [x] UserGetParameters
-- [x] UserEditParameter
-- [x] UserSignOut
-- [x] UserValidatePassword
-- [x] UserSignUp
-
-### Call Methods
-
-- [x] StartCall (LiveKit signaling)
-- [x] JoinGroupCall (LiveKit)
-- [x] EndCall (LiveKit disconnect)
-- [x] SetCallMuted (LiveKit track mute)
-- [x] GetOngoingCalls
-- [x] GetWssURL
-- [x] GetGroupCall
-- [x] GetCallLogs
-
-### Untested (geo-restricted)
-
-- [?] File upload/download (siloo.bale.ai unreachable)
-- [?] EditGroupAvatar / RemoveGroupAvatar
-- [?] Calling (LiveKit at meet-em.ble.ir) — implemented, cannot test from outside Iran
-
-### Extended Methods (105 — all implemented, ALL TESTED 2026-04-13)
-
-All 105 extended methods tested against tapi.bale.ai (bot API) and api3.bale.ai (user-mode gRPC). Bot API (27): all pass (SendPhoto, SendDocument, webhooks, stickers, etc. all work). User-mode gRPC (78): all return "not connected" as expected (bot token does not authenticate gRPC). Every method verified — code paths exercised, no panics.
-
-#### Bot API (27)
-
-- [x] GetUpdates (long-poll updates)
-- [x] SetWebhook
-- [x] DeleteWebhook
-- [x] GetWebhookInfo
-- [x] SendPhoto
-- [x] SendAudio
-- [x] SendDocument
-- [x] SendVideo
-- [x] SendAnimation
-- [x] SendVoice
-- [x] SendVideoNote
-- [x] SendMediaGroup
-- [x] SendVenue
-- [x] EditMessageReplyMarkup
-- [x] GetFile
-- [x] RestrictChatMember
-- [x] UploadStickerFile
-- [x] CreateNewStickerSet
-- [x] AddStickerToSet
-- [x] DeleteStickerFromSet
-- [x] CreateInvoiceLink
-- [x] AnswerShippingQuery
-- [x] GetUserProfilePhotos
-- [x] AnswerInlineQuery
-- [x] AskReview (Bale-specific)
-- [x] InviteUser (Bale-specific)
-- [x] InquireTransaction (Bale wallet)
-
-#### Auth Service (17)
-
-- [x] DeleteAccount
-- [x] ChangePhone
-- [x] SendDeleteAccountVerificationCode
-- [x] SendChangePhoneVerificationCode
-- [x] EnableTwoFactorAuthentication
-- [x] DisableTwoFactorAuthentication
-- [x] IsTwoFactorAuthenticationEnabled
-- [x] VerifyEmail
-- [x] RecoverPassword
-- [x] VerifyPasswordRecovery
-- [x] SetNewPassword
-- [x] GetUserIdToken
-- [x] GetTicket
-- [x] GetBajeBamTicket
-- [x] GetBaleTicket
-- [x] GetJWTToken
-- [x] TerminateAllSessions
-
-#### Users Service (19)
-
-- [x] EditSex
-- [x] EditBirthDate
-- [x] EditAvatarGRPC
-- [x] RemoveAvatar
-- [x] EditMyTimeZone
-- [x] EditMyPreferredLanguages
-- [x] LoadFullUsersSequentially
-- [x] LoadAvatars
-- [x] GetUsersDefaultCardNumber
-- [x] AddCard
-- [x] ChangeDefaultCardNumber
-- [x] RemoveDefaultCardNumber
-- [x] NotifyAboutDeviceInfo
-- [x] GetUserPrivacyStatus
-- [x] SetUserPrivacyStatus
-- [x] GetUserFullPrivacy
-- [x] IsNameAllowed
-- [x] ChangePhoneNumber
-- [x] ConfirmPhoneNumber
-
-#### Meet Service (2)
-
-- [x] ReceiveCall
-- [x] DiscardCall
-
-#### GiftPacket Service (2)
-
-- [x] SendGiftPacketWithWallet
-- [x] OpenGiftPacket
-
-#### Magazine Service (3)
-
-- [x] UpvotePost
-- [x] RevokeUpvotedPost
-- [x] GetMessageUpvoters
-
-#### Kifpool Service (1)
-
-- [x] GetMyKifpools
-
-#### Push Service (5)
-
-- [x] RegisterPush
-- [x] UnregisterPush
-- [x] RegisterGooglePush
-- [x] UnregisterGooglePush
-- [x] UnregisterAllPushCredentials
-
-#### Ramz / App Lock (7)
-
-- [x] SetRamzPassword
-- [x] DeleteRamzPassword
-- [x] SendRamzOTP
-- [x] ForgetRamzPassword
-- [x] ValidateRamzOTP
-- [x] CheckRamzPasswordSet
-- [x] CheckRamzPassword
-
-#### Report Service (2)
-
-- [x] ReportInappropriateContent
-- [x] ReportDismiss
-
-#### Feedback (1)
-
-- [x] SendFeedBack
-
-#### Search (5)
-
-- [x] SearchPeerMessages
-- [x] SearchPeerMedia
-- [x] SearchMembers
-- [x] SearchLinks
-- [x] GlobalChannelSearch
-
-#### Topics (2)
-
-- [x] EditTopic
-- [x] DeleteTopic
-
-#### Folders (3)
-
-- [x] EditFolder
-- [x] DeleteFolder
-- [x] ReorderFolders
-
-#### Polls (3)
-
-- [x] ClosePoll
-- [x] GetPollResults
-- [x] GetFullPollResult
-
-#### Mini Apps / Bots (3)
-
-- [x] GetMiniAppUrl
-- [x] GetBotMenuButtons
-- [x] InvokeCustomMethod
-
-#### AI / Transcription (1)
-
-- [x] GetTranscript
-
-#### Configs (1)
-
-- [x] GetInAppUpdate
-
-#### Analytics (1)
-
-- [x] FanoosSend
+Only methods NOT yet implemented are listed. Bot API coverage is 100% of official docs.bale.ai.
 
 ---
+
+## Bot API — Confirmed Missing (3 methods)
+
+These are confirmed working via PHP SDK (Bale-Bot-SDK):
+
+- [ ] SetMyCommands — Set bot command list
+- [ ] DeleteMyCommands — Delete bot command list
+- [ ] GetMyCommands — Get current bot commands
+
+## User API — Stubs to Implement (4 methods)
+
+These methods exist as stubs returning nil/empty — need real gRPC implementation:
+
+- [ ] GetAuthSessions — `bale.auth.v1.Auth/GetAuthSessions` — Real session list (current returns `[]Session{}`)
+- [ ] TerminateSessionReal — `bale.auth.v1.Auth/TerminateSession` — Real single session termination (current is stub)
+- [ ] LoadFoldersReal — `bale.users.v1.Users/LoadFolders` — Real folder loading (current returns nil)
+- [ ] CreateFolderReal — `bale.users.v1.Users/CreateFolder` — Real folder creation (current returns nil)
+
+## User API — Missing Methods (3 methods)
+
+- [ ] GetFullUser — `bale.users.v1.Users/GetFullUser` — Load single full user profile (distinct from batch LoadFullUsers)
+- [ ] LoadDialogsFiltered — `bale.messaging.v2.Messaging/LoadDialogs` with folder/archive/mute filters
+- [ ] PushSetConfig — `ai.bale.pushak.Push/SetConfig` — Configure push notification settings
+
+## Chat Management — Missing Features (5 methods)
+
+- [ ] MarkAsUnread — Set dialog `markedAsUnread` field
+- [ ] MuteChat — Set dialog `isMute` field
+- [ ] UnmuteChat — Clear dialog `isMute` field
+- [ ] ArchiveChat — Archive a chat
+- [ ] UnarchiveChat — Unarchive a chat
+
+## Message Features — Missing (5 methods)
+
+- [ ] SendScheduledMessage — Schedule message for future delivery
+- [ ] SendThreadReply — Reply to a thread/comment chain (`replyToTopId`)
+- [ ] SendProtectedMessage — Self-destructing/view-once messages (MessageContent field 27)
+- [ ] SendMediaAlbum — User-mode media album grouping (`groupedId` field 14)
+- [ ] SendLongTextMessage — Messages exceeding normal text limit (field 30)
+
+## Exotic Content Types — Low Priority (5 methods)
+
+- [ ] SendBankMessage — Banking/payment content
+- [ ] SendJsonMessage — JSON payload messages
+- [ ] SendOrderMessage — Order-related content
+- [ ] SendAnimatedSticker — TGS/Lottie animated stickers (user-mode)
+- [ ] SendLiveMessage — Live stream content

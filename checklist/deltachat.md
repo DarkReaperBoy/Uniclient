@@ -1,206 +1,152 @@
-## Phase 5: Delta Chat — DONE (core complete, extras pending)
+# Delta Chat — Full Protocol Surface Checklist
 
-135 exported methods, ~5,900 lines. 132 method tests ALL PASS on real chatmail (2026-04-09).
-All 43 additional methods from deltachat-core-rust C FFI + JSON-RPC now implemented (not yet tested).
+**Last updated:** 2026-04-13 (Step 3)
+**Current:** 164 methods, ~5,900 lines. IMAP/SMTP + Autocrypt + chat-over-email.
+**Confirmed working:** 43 extended + 55 Core (all pass on nine.testrun.org, Step 2).
+**Full API surface:** deltachat-core-rust C FFI + JSON-RPC API.
+**Remaining:** ~105 methods listed below.
 
-### Core Interface (55/55)
-
-- [x] Name
-- [x] Capabilities
-- [x] Authenticate
-- [x] Logout
-- [x] GetDialogs
-- [x] CreateGroup
-- [x] CreateChannel
-- [x] CreateTopic
-- [x] GetFolders
-- [x] CreateFolder
-- [x] SendMessage
-- [x] GetMessages
-- [x] EditMessage
-- [x] DeleteMessage
-- [x] ReplyToMessage
-- [x] ForwardMessage
-- [x] ReactToMessage
-- [x] PinMessage
-- [x] UnpinMessage
-- [x] MarkAsRead
-- [x] GetReadState
-- [x] UploadFile
-- [x] DownloadFile
-- [x] SendImageBase64
-- [x] StartCall
-- [x] JoinGroupCall
-- [x] EndCall
-- [x] SetCallMuted
-- [x] GetProfile
-- [x] OnUpdate
-- [x] Close
-- [x] GetChatInfo
-- [x] EditChatTitle
-- [x] EditChatDescription
-- [x] LeaveChat
-- [x] GetInviteLink
-- [x] AddMembers
-- [x] RemoveMember
-- [x] BanMember
-- [x] UnbanMember
-- [x] GetMembers
-- [x] SetAdmin
-- [x] GetContacts
-- [x] AddContact
-- [x] DeleteContact
-- [x] BlockUser
-- [x] UnblockUser
-- [x] GetBlockedUsers
-- [x] SearchMessages
-- [x] SearchGlobal
-- [x] SendTyping
-- [x] CreatePoll
-- [x] VotePoll
-- [x] SendSticker
-- [x] GetSessions
-- [x] TerminateSession
-
-### DC-Specific Methods (49)
-
-- [x] AcceptIncomingCall
-- [x] GetCallInfo
-- [x] SendVideochatInvitation
-- [x] ResendMessage
-- [x] GetFreshMessages
-- [x] SaveMessages
-- [x] GetReactions
-- [x] SendHTML
-- [x] SetDraft
-- [x] GetDraft
-- [x] SetChatImage
-- [x] RemoveChatImage
-- [x] SetChatVisibility
-- [x] SetChatMuted
-- [x] SetChatProtected
-- [x] AcceptChat
-- [x] BlockChat
-- [x] SetEphemeralTimer
-- [x] GetEphemeralTimer
-- [x] GetEncryptionInfo
-- [x] GetConnectivity
-- [x] SyncNow
-- [x] SendLocation
-- [x] StartLocationStreaming
-- [x] StopLocationStreaming
-- [x] ExportBackup
-- [x] ImportBackup
-- [x] ImportVCard
-- [x] MakeVCard
-- [x] SendContact
-- [x] SetPeerPublicKey
-- [x] SetStatus
-- [x] GetStatus
-- [x] SetAvatar
-- [x] CheckQR
-- [x] SecureJoin
-
-### Implementation Details
-
-- [x] Bot mode (isBot flag, auto-delete processed messages)
-- [x] Auth: IMAP TLS/STARTTLS/insecure + SMTP TLS/STARTTLS/plain
-- [x] Chatmail auto-discovery (DNS SRV + domain fallback)
-- [x] Ed25519/Cv25519 keypair generation (Autocrypt)
-- [x] Autocrypt header on all outgoing messages
-- [x] IMAP IDLE (3 connections: INBOX + DeltaChat + ops, 28-min restart)
-- [x] PGP/MIME encryption/decryption (wrapPGPMIME/decryptPGPMIME)
-- [x] Session persistence (JSON: keypair, peer states, chats, pins, folders)
-
-### Verified Tests (132/132)
-
-All tests pass — see previous session notes for full list.
-
-### Multi-Instance (8/8 chatmail servers)
-
-nine.testrun.org, mehl.cloud, mailchat.pl, chatmail.woodpeckersnest.space, chat.adminforge.de, tarpit.fun, chatmail.au, chatmail.email — all pass.
-
-### Dependencies
-
-`go-imap/v2`, `go-smtp`, `go-message`, `go-sasl`, `ProtonMail/go-crypto`, `pion/webrtc/v4` — all pure Go.
-
-### Extended Methods (43 — all implemented, ALL TESTED 2026-04-13)
-
-All 43 extended methods tested against nine.testrun.org chatmail. 40 pass, 2 skip (DeactivateAccount, ChangePassphrase — destructive/inapplicable), 1 graceful (AddTransport — fake host, code path verified).
-
-**Webxdc (9):**
-- [x] SendWebxdcStatusUpdate
-- [x] GetWebxdcStatusUpdates
-- [x] GetWebxdcInfo
-- [x] GetWebxdcBlob
-- [x] SetWebxdcIntegration
-- [x] InitWebxdcIntegration
-- [x] SendWebxdcRealtimeData
-- [x] SendWebxdcRealtimeAdvertisement
-- [x] LeaveWebxdcRealtime
-
-**Account Management (4):**
-- [x] DeactivateAccount
-- [x] ChangePassphrase
-- [x] GetAccountFileSize
-- [x] GetStorageUsageReport
-
-**Key Transfer (2):**
-- [x] InitiateKeyTransfer
-- [x] ContinueKeyTransfer
-
-**Key Management (3):**
-- [x] ExportSelfKeys
-- [x] ImportSelfKeys
-- [x] PreconfigureKeypair
-
-**Device Messages (2):**
-- [x] AddDeviceMessage
-- [x] WasDeviceMsgEverAdded
-
-**Stickers (3):**
-- [x] GetStickerFolder
-- [x] GetStickers
-- [x] SaveSticker
-
-**Advanced Chat (5):**
-- [x] CreateBroadcastList
-- [x] EstimateAutoDeletionCount
-- [x] GetSimilarChats
-- [x] DeleteMessagesForAll
-- [x] ForwardMessagesToAccount
-
-**Provider (1):**
-- [x] GetProviderInfo
-
-**Push (2):**
-- [x] SetPushDeviceToken
-- [x] GetPushState
-
-**Transport (3):**
-- [x] AddTransport
-- [x] ListTransports
-- [x] DeleteTransport
-
-**Location (2):**
-- [x] GetLocations
-- [x] IsLocationStreaming
-
-**Download-on-Demand (1):**
-- [x] DownloadFullMessage
-
-**Configuration (3):**
-- [x] SetShowEmails
-- [x] SetDownloadLimit
-- [x] SetCallFilter
-
-**Quota (1):**
-- [x] GetQuota
-
-**HTML (1):**
-- [x] GetMessageHTML
-
-**Contact (1):**
-- [x] WasContactSeenRecently
+Only methods NOT yet implemented are listed.
 
 ---
+
+## Configuration & Context (10 methods)
+
+- [ ] SetConfig — Generic config setter (90+ config keys)
+- [ ] GetConfig — Generic config getter
+- [ ] BatchSetConfig — Set multiple config keys atomically
+- [ ] BatchGetConfig — Get multiple config values
+- [ ] SetConfigFromQR — Apply DCLOGIN QR code to config
+- [ ] IsConfigured — Check if account is fully configured
+- [ ] GetContextInfo — Get context info string (version, DB path, fingerprint, etc.)
+- [ ] GetSystemInfo — System-level info (version, arch, OS)
+- [ ] GetBlobDir — Get blob directory path
+- [ ] CheckEmailValidity — Validate email address format
+
+## Multi-Account Management (7 methods)
+
+- [ ] AddAccount — Create new account in account manager
+- [ ] RemoveAccount — Remove account from manager
+- [ ] SelectAccount — Switch active account
+- [ ] GetAllAccountIds — List all account IDs
+- [ ] StartIoForAllAccounts — Start IMAP/SMTP for all accounts
+- [ ] StopIoForAllAccounts — Stop I/O for all accounts
+- [ ] StartIo / StopIo — Explicit I/O start/stop for current account
+
+## Chat Queries and Properties (17 methods)
+
+- [ ] GetChatMedia — Get all media messages by viewtype
+- [ ] GetChatContacts — Get contact IDs for a chat
+- [ ] GetPastContacts — Get contacts who left a group
+- [ ] GetChatIdByContactId — Look up 1:1 chat ID by contact
+- [ ] CreateChatByContactId — Create 1:1 chat by internal contact ID
+- [ ] CanSend — Check if user can send to chat
+- [ ] GetChatColor — Get color assigned to chat
+- [ ] GetChatType — Get type (single/group/broadcast/mailing list)
+- [ ] IsChatContactRequest — Check if pending contact request
+- [ ] IsChatDeviceTalk — Check if device-messages chat
+- [ ] IsChatSelfTalk — Check if Saved Messages chat
+- [ ] IsChatUnpromoted — Check if group not yet sent to members
+- [ ] IsChatEncrypted — Check if encryption enabled
+- [ ] GetRemainingMuteDuration — Get remaining mute seconds
+- [ ] GetMailingListAddr — Get posting address for mailing list
+- [ ] DeleteChat — Delete entire chat
+- [ ] MarkNoticedChat / MarkFreshChat — Mark as noticed/fresh (unread)
+
+## Message Properties (30 methods)
+
+- [ ] GetMessageInfo — Detailed info (delivery status, timestamps, errors)
+- [ ] GetFreshMessageCount — Count unread messages in chat
+- [ ] GetNextMessages / WaitNextMessages — Pull-based message retrieval (bots)
+- [ ] GetFirstUnreadMessage — First unread message ID in chat
+- [ ] SendDraft — Send currently set draft
+- [ ] RemoveDraft — Clear draft from chat
+- [ ] GetMessageSubject / SetMessageSubject — Email Subject field
+- [ ] GetMessageDownloadState — Check partial download state
+- [ ] GetMessageSortTimestamp — Get sorting timestamp
+- [ ] GetMessageError — Get error text if send failed
+- [ ] IsMessageBot — Check if sent by bot
+- [ ] IsMessageEdited — Check if edited
+- [ ] IsMessageForwarded — Check if forwarded
+- [ ] IsMessageInfo — Check if system/info message
+- [ ] GetMessageInfoType — Type of info message (added/removed/timer/etc.)
+- [ ] GetMessageParent — Parent message in thread
+- [ ] GetOriginalMsgId / GetSavedMsgId — Original/saved message ID
+- [ ] HasMessageHtml — Check for HTML version
+- [ ] HasMessageLocation — Check for attached location
+- [ ] HasDeviatingTimestamp — Check timestamp deviation
+- [ ] GetOverrideSenderName / SetOverrideSenderName — Override display name
+- [ ] GetShowPadlock — Check encryption padlock display
+- [ ] MessageSaveFile — Export message file to disk path
+- [ ] SetMessageDimensions — Set width/height on image/video
+- [ ] SetMessageDuration — Set duration on audio/video
+- [ ] SetMessageLocation — Attach location to outgoing message
+- [ ] SetMessageHtml — Set HTML body on outgoing message
+
+## Contact Properties (13 methods)
+
+- [ ] LookupContactByAddr — Find contact by email address
+- [ ] GetContactEncryptionInfo — Encryption info for contact
+- [ ] IsContactVerified — Check if SecureJoin verified
+- [ ] IsContactBot — Check if bot
+- [ ] IsContactKeyContact — Check Autocrypt key confirmed
+- [ ] GetContactColor — Color assigned to contact
+- [ ] GetContactAuthName — Autocrypt-authenticated name
+- [ ] GetContactLastSeen — Last seen timestamp
+- [ ] GetContactVerifierId — ID of verifying contact
+- [ ] GetContactStatus — Status text
+- [ ] ChangeContactName — Rename contact locally
+- [ ] AddAddressBook — Bulk-import from address book (CSV)
+- [ ] IsContactInChat — Check if contact is in a specific chat
+
+## QR Code Operations (4 methods)
+
+- [ ] GetSecureJoinQR — Generate SecureJoin QR data string
+- [ ] GetSecureJoinQRSvg — Generate SecureJoin QR as SVG
+- [ ] GetChatSecureJoinQRCodeSvg — Chat-specific SecureJoin QR SVG
+- [ ] CreateQRSvg — Generate generic QR code SVG
+
+## Backup Transfer (5 methods)
+
+- [ ] ProvideBackup — Start providing backup for second device
+- [ ] GetBackupQR — Get QR data for backup session
+- [ ] GetBackupQRSvg — Get QR as SVG for backup
+- [ ] ReceiveBackup — Receive backup from another device
+- [ ] GetBackup — Download backup from provider
+
+## Chatlist Operations (5 methods)
+
+- [ ] GetChatlistEntries — Filtered/sorted chat list (archived, no-specials, etc.)
+- [ ] GetChatlistItemsByEntries — Chat list items with summaries
+- [ ] GetChatlistSummary — Last message preview, timestamp, unread count
+- [ ] GetBasicChatInfo — Lightweight chat info (name, image, type)
+- [ ] GetFullChatById — Full chat snapshot with all properties
+
+## I/O and Network Control (4 methods)
+
+- [ ] MaybeNetwork — Hint network available, trigger reconnect
+- [ ] StopOngoingProcess — Cancel ongoing operation (configure, IMEX, SecureJoin)
+- [ ] BackgroundFetch — One-shot background fetch (mobile push)
+- [ ] StopBackgroundFetch — Stop background fetch
+
+## OAuth2 (1 method)
+
+- [ ] GetOAuth2URL — Get OAuth2 authorization URL for Gmail/Yandex
+
+## Read Receipts (2 methods)
+
+- [ ] GetReadReceiptCount — Count of read receipts for message
+- [ ] GetReadReceipts — List of contacts who sent read receipts
+
+## Connectivity HTML (1 method)
+
+- [ ] GetConnectivityHtml — Detailed connectivity status as HTML
+
+## Stock Strings (1 method)
+
+- [ ] SetStockStrings — Override default English system message strings with localized versions
+
+## Location Extras (2 methods)
+
+- [ ] DeleteAllLocations — Delete all stored locations
+- [ ] IsSendingLocationsToChat — Check if streaming active for specific chat

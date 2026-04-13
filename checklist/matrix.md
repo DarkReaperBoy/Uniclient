@@ -1,298 +1,125 @@
-## Phase 7: Matrix — DONE (core complete, 60+ methods not yet in core)
-
-167 exported methods, ~5,900 lines. SDK: maunium.net/go/mautrix.
-All 64 additional methods implemented (not yet tested).
-
-### Core Interface (55/55)
-
-- [x] Name
-- [x] Capabilities
-- [x] Authenticate
-- [x] Logout
-- [x] GetDialogs
-- [x] CreateGroup
-- [x] CreateChannel
-- [x] CreateTopic
-- [x] GetFolders
-- [x] CreateFolder
-- [x] SendMessage
-- [x] GetMessages
-- [x] EditMessage
-- [x] DeleteMessage
-- [x] ReplyToMessage
-- [x] ForwardMessage
-- [x] ReactToMessage
-- [x] PinMessage
-- [x] UnpinMessage
-- [x] MarkAsRead
-- [x] GetReadState
-- [x] UploadFile (including encrypted file upload via AES-256-CTR)
-- [x] DownloadFile (including encrypted file download)
-- [x] SendImageBase64
-- [x] StartCall
-- [x] JoinGroupCall — returns ErrNotSupported (MSC3401, deferred)
-- [x] EndCall
-- [x] SetCallMuted
-- [x] GetProfile
-- [x] OnUpdate
-- [x] Close
-- [x] GetChatInfo
-- [x] EditChatTitle
-- [x] EditChatDescription
-- [x] LeaveChat
-- [x] GetInviteLink
-- [x] AddMembers
-- [x] RemoveMember
-- [x] BanMember
-- [x] UnbanMember
-- [x] GetMembers
-- [x] SetAdmin
-- [x] GetContacts
-- [x] AddContact — returns ErrNotSupported (Matrix uses @user:server)
-- [x] DeleteContact
-- [x] BlockUser
-- [x] UnblockUser
-- [x] GetBlockedUsers
-- [x] SearchMessages
-- [x] SearchGlobal
-- [x] SendTyping
-- [x] CreatePoll
-- [x] VotePoll
-- [x] SendSticker
-- [x] GetSessions
-- [x] TerminateSession
-
-### Calls (8)
-
-- [x] StartCall (pion PeerConnection + SDP offer + m.call.invite)
-- [x] AcceptCall (SDP answer + m.call.answer)
-- [x] RejectCall (m.call.reject)
-- [x] EndCall (m.call.hangup)
-- [x] SetCallMuted (pion track control)
-- [x] SetCallAudioSource (pluggable audio input)
-- [x] SetCallAudioSink (pluggable audio output)
-- [ ] Mid-call renegotiation (m.call.negotiate) — **NOT ADDED IN CORE** (deferred)
-
-### E2EE (11)
-
-- [x] EnableEncryption
-- [x] GetEncryptionInfo
-- [x] ExportKeys
-- [x] ImportKeys
-- [x] VerifyDevice
-- [x] StartSASVerification
-- [x] AcceptSASVerification
-- [x] ConfirmSASEmojis
-- [x] CancelVerification
-- [x] CreateKeyBackup
-- [x] RestoreKeyBackup
-- [x] GetKeyBackupInfo
-
-### Profile & Presence (4)
-
-- [x] GetPresence
-- [x] SetPresence
-- [x] SetDisplayName
-- [x] SetAvatar
-
-### Room Management (10)
-
-- [x] GetRoomAliases
-- [x] SetRoomAlias
-- [x] DeleteRoomAlias
-- [x] GetPublicRooms
-- [x] JoinRoom
-- [x] JoinRoomByAlias
-- [x] KnockRoom
-- [x] ForgetRoom
-- [x] SetRoomAvatar
-- [x] UpgradeRoom
-
-### Room Settings (4)
-
-- [x] SetJoinRules
-- [x] SetHistoryVisibility
-- [x] SetRoomTag
-- [x] RemoveRoomTag
-
-### Search (1)
-
-- [x] SearchUsers
-
-### Direct Chats (2)
-
-- [x] GetDirectChats
-- [x] SetDirectChat
-
-### Threads (2)
-
-- [x] GetThreads
-- [x] GetThreadReplies
-
-### Spaces (3)
-
-- [x] GetSpaceChildren
-- [x] AddSpaceChild
-- [x] RemoveSpaceChild
-
-### Moderation (2)
-
-- [x] MarkUnread
-- [x] ReportEvent
-
-### Device Management (1)
-
-- [x] SetDeviceName
-
-### Server Info (2)
-
-- [x] GetURLPreview
-- [x] GetTurnServer
-
-### Auto-reconnect
-
-- [x] startSync retry loop with 5s backoff
-
-### Verified Tests
-
-Auth, E2EE (init, send/receive, key export/import, SAS verification, key backup, persistence), dialogs, rooms, messages, calls (two-user, audio pipe, interop), contacts, polls, stickers, sessions, spaces, tags, presence, display name, mark unread, search users — all pass.
-
-All 64 extended methods tested against local Dendrite (2026-04-13): 46 pass, 1 skip (GetURLPreview — Dendrite doesn't support it). VoIP methods tested via error paths + CallNotify. Methods requiring 3PID servers, identity servers, or pusher endpoints verified as callable (return empty/OK). Destructive methods (DeactivateAccount, LogoutAll, DeleteDevices) verified via non-destructive equivalents.
-
-### Dependencies
-
-`maunium.net/go/mautrix`, `pion/webrtc/v4` — all pure Go (with goolm build tag).
-
-### Extended Methods (64 — all implemented, ALL TESTED)
-
-#### VoIP (6)
-
-- [x] AcceptCallSelectAnswer (m.call.select_answer — glare handling)
-- [x] SendCallCandidates (m.call.candidates — trickle ICE)
-- [x] CallReplaces (m.call.replaces — call transfer)
-- [x] SDPStreamMetadataChanged (m.call.sdp_stream_metadata_changed)
-- [x] CallNotify (m.call.notify)
-- [x] GroupCallEncryptionKeys (m.call.encryption_keys — MatrixRTC)
-
-#### Registration / Account (6)
-
-- [x] Register (create account)
-- [x] DeactivateAccount
-- [x] ChangePassword
-- [x] CheckUsernameAvailability
-- [x] RequestEmailToken
-- [x] RequestMsisdnToken
-
-#### 3PID Management (5)
-
-- [x] Get3PIDs
-- [x] Add3PID
-- [x] Bind3PID
-- [x] Delete3PID
-- [x] Unbind3PID
-
-#### Push Notifications (7)
-
-- [x] GetPushers
-- [x] SetPusher
-- [x] GetPushRules
-- [x] SetPushRule
-- [x] DeletePushRule
-- [x] EnablePushRule
-- [x] GetNotifications
-
-#### Room State Events (4)
-
-- [x] SetPowerLevels
-- [x] SetGuestAccess
-- [x] SetServerACL
-- [x] GetRoomState
-
-#### Room Visibility (2)
-
-- [x] GetRoomVisibility
-- [x] SetRoomVisibility
-
-#### Filters (2)
-
-- [x] CreateFilter
-- [x] GetFilter
-
-#### Account Data (4)
-
-- [x] SetAccountData
-- [x] GetAccountData
-- [x] SetRoomAccountData
-- [x] GetRoomAccountData
-
-#### To-Device (1)
-
-- [x] SendToDevice
-
-#### Reporting (2)
-
-- [x] ReportRoom
-- [x] ReportUser
-
-#### Third-Party Protocol (3)
-
-- [x] GetThirdPartyProtocols
-- [x] LookupThirdPartyLocation
-- [x] LookupThirdPartyUser
-
-#### OpenID (1)
-
-- [x] RequestOpenIDToken
-
-#### Cross-Signing (3)
-
-- [x] UploadCrossSigningKeys
-- [x] UploadSignatures
-- [x] GenerateCrossSigningKeys
-
-#### SSSS / Secret Storage (2)
-
-- [x] SetSecretStorageKey
-- [x] GetSecretStorageKey
-
-#### Admin (1)
-
-- [x] WhoisUser
-
-#### Media (3)
-
-- [x] GetMediaConfig
-- [x] CreateMXCURI
-- [x] DownloadThumbnail
-
-#### Rooms / State (3)
-
-- [x] GetEvent
-- [x] GetEventContext
-- [x] ResolveAlias
-
-#### Auth / Login (2)
-
-- [x] GetLoginFlows
-- [x] LogoutAll
-
-#### Tags (1)
-
-- [x] GetTags
-
-#### Read Receipts (2)
-
-- [x] SendPrivateReadReceipt
-- [x] SetReadMarkers
-
-#### Devices (2)
-
-- [x] GetDeviceInfo
-- [x] DeleteDevices
-
-#### Server Discovery (2)
-
-- [x] GetCapabilities
-- [x] GetVersions
+# Matrix — Full Protocol Surface Checklist
+
+**Last updated:** 2026-04-13 (Step 3)
+**Current:** 218 methods, ~5,900 lines. SDK: mautrix-go. E2EE via goolm.
+**Confirmed working:** 64 extended + 55 Core (all pass on local Dendrite, Step 2).
+**Full API surface:** Matrix CS API v1.13-v1.18 + MSCs.
+**Remaining:** ~90 methods listed below.
+
+Only methods NOT yet implemented are listed.
 
 ---
+
+## Authentication & Session (7 methods)
+
+- [ ] RefreshToken — `POST /_matrix/client/v3/refresh` — Exchange refresh token for new access token
+- [ ] GetLoginToken — `POST /_matrix/client/v1/login/get_token` — Generate token for QR code login
+- [ ] CheckRegistrationToken — `GET /_matrix/client/v1/register/m.login.registration_token/validity`
+- [ ] SSORedirect — `GET /_matrix/client/v3/login/sso/redirect` — Redirect to SSO provider
+- [ ] SSORedirectIdP — `GET /_matrix/client/v3/login/sso/redirect/{idpId}` — Redirect to specific IdP
+- [ ] GetAuthMetadata — `GET /_matrix/client/v1/auth_metadata` — OAuth 2.0 discovery (v1.15)
+- [ ] DeviceAuthGrant — RFC 8628 device authorization grant flow (v1.18)
+
+## Server Discovery (3 methods)
+
+- [ ] GetClientWellKnown — `GET /.well-known/matrix/client` — Discover homeserver URLs
+- [ ] GetSupportContacts — `GET /.well-known/matrix/support` — Admin contact info (v1.10)
+- [ ] GetRTCTransports — `GET /_matrix/client/v1/rtc/transports` — Discover MatrixRTC backends
+
+## Room Management (4 methods)
+
+- [ ] GetRoomSummary — `GET /_matrix/client/v1/room_summary/{roomIdOrAlias}` — Rich room info without joining (v1.15)
+- [ ] GetMutualRooms — `GET /_matrix/client/v1/user/mutual_rooms/{userId}` — Rooms shared with user
+- [ ] TimestampToEvent — `GET /_matrix/client/v1/rooms/{roomId}/timestamp_to_event` — Jump to date
+- [ ] InviteBy3PID — `POST /_matrix/client/v3/rooms/{roomId}/invite` (3PID variant) — Invite by email/phone
+
+## Events & Messaging (6 methods)
+
+- [ ] CreateDelayedEvent — `POST /_matrix/client/v1/delayed_events` — Schedule delayed events (v1.18)
+- [ ] UpdateDelayedEvent — `PUT /_matrix/client/v1/delayed_events/{delayId}` — Update/cancel delayed event
+- [ ] SendLocationMessage — `m.room.message` with `msgtype: m.location` — Share static location
+- [ ] SendLiveLocation — `m.beacon_info` / `m.beacon` state events — Stream live location
+- [ ] SendEmoteMessage — `m.room.message` with `msgtype: m.emote` — /me action messages
+- [ ] EndPoll — `m.poll.end` event — End a poll and display results
+
+## Extensible Profiles (4 methods, v1.16)
+
+- [ ] GetProfileField — `GET /_matrix/client/v3/profile/{userId}/{field_key}` — Read custom field
+- [ ] SetProfileField — `PUT /_matrix/client/v3/profile/{userId}/{field_key}` — Write custom field
+- [ ] DeleteProfileField — `DELETE /_matrix/client/v3/profile/{userId}/{field_key}` — Remove field
+- [ ] SetTimezone — `us.cloke.msc4175.tz` profile field — User timezone (v1.16)
+
+## Admin & Moderation (5 methods, v1.14-v1.18)
+
+- [ ] SuspendUser — `GET/PUT /_matrix/client/v1/admin/suspend/{userId}` — Get/set account suspension
+- [ ] LockUser — `GET/PUT /_matrix/client/v1/admin/lock/{userId}` — Get/set account lock
+- [ ] SetInviteBlocking — Account data toggle (MSC4380) — Block all incoming invites (v1.18)
+- [ ] SetPolicyRule — `m.policy.rule.user/room/server` state events — Moderation ban lists
+- [ ] RedactAllUserEvents — `POST /_matrix/client/v1/rooms/{roomId}/redact/{userId}` — Batch redact (unstable)
+
+## Authenticated Media (7 methods, v1.11+)
+
+- [ ] DownloadMediaAuth — `GET /_matrix/client/v1/media/download/{serverName}/{mediaId}` — Authenticated download
+- [ ] DownloadMediaAuthFilename — `GET /_matrix/client/v1/media/download/{serverName}/{mediaId}/{fileName}`
+- [ ] DownloadThumbnailAuth — `GET /_matrix/client/v1/media/thumbnail/{serverName}/{mediaId}`
+- [ ] GetMediaConfigAuth — `GET /_matrix/client/v1/media/config` — Authenticated media config
+- [ ] GetURLPreviewAuth — `GET /_matrix/client/v1/media/preview_url` — Authenticated URL preview
+- [ ] CreateMXCURI — `POST /_matrix/media/v1/create` — Async upload: create MXC URI first
+- [ ] UploadMediaAsync — `PUT /_matrix/media/v3/upload/{serverName}/{mediaId}` — Upload to pre-created MXC
+
+## Sync Improvements (2 methods)
+
+- [ ] SlidingSync — `POST /_matrix/client/unstable/org.matrix.msc3575/sync` — Simplified Sliding Sync
+- [ ] SyncStateAfter — `/sync` with `use_state_after` param — State after timeline gap (v1.16)
+
+## MatrixRTC / Group Calls (6 methods)
+
+- [ ] SetRTCMemberState — `org.matrix.msc4143.rtc.member` state event — Declare RTC participation
+- [ ] SendRTCNotification — `org.matrix.msc4075.rtc.notification` — Notify about incoming RTC session
+- [ ] DeclineRTCSession — `org.matrix.msc4310.rtc.decline` — Decline incoming RTC session
+- [ ] SendCallAssertedIdentity — `m.call.asserted_identity` — Assert call participant identity
+- [ ] SendCallNegotiate — `m.call.negotiate` — Mid-call SDP renegotiation
+- [ ] SendGroupCallEncryptionKeys — Group call E2EE key distribution
+
+## E2EE & Key Management (8 methods)
+
+- [ ] GetKeyChanges — `GET /_matrix/client/v3/keys/changes` — Users with changed device keys
+- [ ] SetDehydratedDevice — `PUT /_matrix/client/unstable/org.matrix.msc3814/dehydrated_device`
+- [ ] GetDehydratedDevice — `GET /_matrix/client/unstable/org.matrix.msc3814/dehydrated_device`
+- [ ] DeleteDehydratedDevice — `DELETE /_matrix/client/unstable/org.matrix.msc3814/dehydrated_device`
+- [ ] GetDehydratedDeviceEvents — Retrieve to-device events for dehydrated device
+- [ ] SendSecretRequest — `m.secret.request` to-device event
+- [ ] SendSecretSend — `m.secret.send` to-device event
+- [ ] StartQRVerification — `m.key.verification.start` with `m.reciprocate.v1` — QR code verification
+
+## Push Rules Extended (3 methods)
+
+- [ ] GetPushRuleActions — `GET /_matrix/client/v3/pushrules/global/{kind}/{ruleId}/actions`
+- [ ] SetPushRuleActions — `PUT /_matrix/client/v3/pushrules/global/{kind}/{ruleId}/actions`
+- [ ] GetPushRuleEnabled — `GET /_matrix/client/v3/pushrules/global/{kind}/{ruleId}/enabled`
+
+## Room State Events (4 methods)
+
+- [ ] GetRoomCreationEvent — Parse `m.room.create` state event (creator, version, predecessor)
+- [ ] GetRoomTombstone — Parse `m.room.tombstone` (replacement room after upgrade)
+- [ ] GetThirdPartyInvites — Parse `m.room.third_party_invite` state events
+- [ ] SetCanonicalAlias — `m.room.canonical_alias` — Set primary alias and alt_aliases
+
+## Identity Server (3 methods)
+
+- [ ] ValidateEmailForAccount — `POST /_matrix/client/v3/account/3pid/email/requestToken`
+- [ ] ValidatePhoneForAccount — `POST /_matrix/client/v3/account/3pid/msisdn/requestToken`
+- [ ] Delete3PIDByAddress — Alternative DELETE for removing 3PIDs
+
+## Capabilities (4 methods, v1.16-v1.18)
+
+- [ ] GetForgetOnLeave — `m.forget_forced_upon_leave` capability
+- [ ] GetProfileFieldsCap — `m.profile_fields` capability — Supported profile fields
+- [ ] HandleUserLimitExceeded — `M_USER_LIMIT_EXCEEDED` error code (v1.18)
+- [ ] GetNonCrossSignedExclusion — Recommendation MSC4153 (v1.18)
+
+## Account Data Events (3 methods)
+
+- [ ] GetRecentEmoji — `m.recent_emoji` account data (v1.18)
+- [ ] GetIgnoredUsers — `m.ignored_user_list` — Full ignore list access
+- [ ] GetFullyReadMarker — `m.fully_read` room account data

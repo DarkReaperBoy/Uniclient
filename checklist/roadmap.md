@@ -11,7 +11,7 @@
 |------|-------------|--------|
 | 1 | Implement unimplemented checklist methods | **DONE** |
 | 2 | Test ALL existing methods in every core | **DONE** |
-| 3 | Replace checklists with full protocol surface | NOT STARTED |
+| 3 | Replace checklists with full protocol surface | **DONE** |
 | 4 | Implement all new methods to 100% | NOT STARTED |
 | 5 | Perfect/optimize/decouple cores | NOT STARTED |
 | 6 | Unify core APIs | NOT STARTED |
@@ -53,8 +53,20 @@ All checklist methods implemented across all 9 cores:
 **Bug fixed:** TS3 incoming command pID counter set to 2 instead of 1 after handshake, causing initserver to be stuck in reorder queue. Fixed in `go/cores/teamspeak.go`.
 **New credentials:** XMPP (yax.im `uctest1776076689`), TeamSpeak (Docker serveradmin), GitHub (PAT from git remote). All in `auth/auth.md`.
 
-### Step 3 — Replace Checklists
-- [ ] (list cores here when Step 2 is done)
+### Step 3 — Replace Checklists with Full Protocol Surface — DONE
+
+Researched full protocol/API surface for all 10 cores. Created new comprehensive checklists listing only missing methods. ~790 total missing methods identified.
+
+- [x] Telegram — already at full coverage (769 methods, all 685 gotd/td wrapped). No new checklist needed.
+- [x] Bale — ~25 missing (bot commands, stubs, user API, chat mgmt, messages, exotic types)
+- [x] Rubika — ~45 missing (auth, messages, groups, typed senders, Rubino, bot API, WS events)
+- [x] Delta Chat — ~105 missing (config, multi-account, chat/msg/contact props, QR, backup, chatlist)
+- [x] TeamSpeak — ~80 missing (instance mgmt, notifications, 3D audio, devices, preprocessing, wave)
+- [x] Matrix — ~90 missing (auth, rooms, profiles, admin, media, MatrixRTC, E2EE)
+- [x] Mumble — ~111 missing (Meta/Server Ice RPC, callbacks, authenticator, client protocol, audio)
+- [x] GitHub — ~800 missing (Actions, Repos, Apps, Codespaces, Copilot, Orgs, many more)
+- [x] IRC — ~130 missing (oper commands, IRCv3 extensions, SASL, DCC, extended bans, modes)
+- [x] XMPP — ~120 missing (connection XEPs, messaging, MUC, MIX, Jingle, PubSub, discovery)
 
 ### Step 4 — Implement New Methods to 100%
 - [ ] (populate from new checklists when Step 3 is done)

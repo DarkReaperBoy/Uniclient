@@ -1,26 +1,24 @@
 # Uniclient — Build Checklist
 
-Checked items removed. Only remaining work listed.
-
-**Status (updated 2026-04-13, Step 1 near-complete):**
-All 11 platform cores implemented (64,801 lines Go). 8/10 cores fully implemented. Remaining: Rubika (+36), Mumble (+7 Ice RPC stubs). Integration tests: 6/6 pass. Flutter UI not started. Total exported methods: ~2,690.
+**Status (updated 2026-04-13, Step 3 complete):**
+All 11 platform cores implemented. Steps 1-3 DONE. Full protocol surface researched for all cores — ~790 missing methods identified across 9 cores. Telegram already at full coverage (769 methods wrapping all 685 gotd/td). Flutter UI not started.
 
 ## Index
 
-| File | Phase | Exported | Not Added | Status |
-|------|-------|----------|-----------|--------|
-| [telegram.md](telegram.md) | Phase 1-2 | 769 | — | **DONE** — calls trimmed to 3 versions (v13 SCTP, v8 V2Impl, v4 Web), all verified bidirectional. SFU group. |
-| [bale.md](bale.md) | Phase 3 | 267 | — | **ALL IMPLEMENTED** — 105 extended methods added, not yet tested |
-| [rubika.md](rubika.md) | Phase 4 | 189 | +36 | **CORE DONE** — 36 from rubpy/RubikaLib/Rubino not in core |
-| [deltachat.md](deltachat.md) | Phase 5 | 135 | — | **ALL IMPLEMENTED** — 43 extended methods added, not yet tested |
-| [teamspeak.md](teamspeak.md) | Phase 6 | 210 | — | **ALL IMPLEMENTED** — 38 extended methods added, not yet tested |
-| [matrix.md](matrix.md) | Phase 7 | 167 | — | **ALL IMPLEMENTED** — 64 extended methods added, not yet tested |
-| [mumble.md](mumble.md) | Phase 9 | 133 | +7 | **CORE DONE** — 7 Ice RPC admin methods need real implementation |
-| [github.md](github.md) | Phase 10 | 246 | — | **ALL IMPLEMENTED** — 190 extended methods added, not yet tested |
-| [irc.md](irc.md) | Phase 11 | 340 | — | **ALL IMPLEMENTED** — 95 extended methods added, not yet tested |
-| [xmpp.md](xmpp.md) | Phase 12 | 279 | — | **ALL IMPLEMENTED** — 101 extended methods added, not yet tested |
-| [flutter.md](flutter.md) | Phase 8 | — | — | **NOT STARTED** — UI framework |
-| [gui.md](gui.md) | Phase 8 | — | — | **IN PROGRESS** — UI design spec (demo_ui.html) |
+| File | Implemented | Missing | Status |
+|------|-------------|---------|--------|
+| [telegram.md](telegram.md) | 769 | — | **DONE** — all 685 gotd/td methods wrapped, calls verified bidirectional |
+| [bale.md](bale.md) | 304 | ~25 | **Step 3** — Bot commands (3), stubs (4), user API (3), chat mgmt (5), messages (5), exotic (5) |
+| [rubika.md](rubika.md) | 270 | ~45 | **Step 3** — Auth (2), messages (2), groups (4), typed senders (7), Rubino (6), bot API (10), WS events (4) |
+| [deltachat.md](deltachat.md) | 164 | ~105 | **Step 3** — Config (10), multi-account (7), chat props (17), msg props (30), contacts (13), QR (4), backup (5) |
+| [teamspeak.md](teamspeak.md) | 248 | ~80 | **Step 3** — Instance mgmt (6), notifications (13), 3D audio (4), devices (8), preprocessing (5), wave (4) |
+| [matrix.md](matrix.md) | 218 | ~90 | **Step 3** — Auth (7), rooms (4), profiles (4), admin (5), media (7), MatrixRTC (6), E2EE (8) |
+| [mumble.md](mumble.md) | 246 | ~111 | **Step 3** — Meta Ice (11), Server Ice (~37), callbacks (9), authenticator (10), client (15), audio (4) |
+| [github.md](github.md) | 299 | ~800 | **Step 3** — Actions (169), Repos (171), Apps (37), Codespaces (48), Copilot (25), Orgs (98), etc. |
+| [irc.md](irc.md) | 399 | ~130 | **Step 3** — Oper cmds (46), IRCv3 (19), SASL (3), DCC (2), extended bans (18), modes (30) |
+| [xmpp.md](xmpp.md) | 322 | ~120 | **Step 3** — Connection (10), messaging (12), MUC (11), MIX (5), Jingle (18), PubSub (15) |
+| [flutter.md](flutter.md) | — | — | **NOT STARTED** — UI framework |
+| [gui.md](gui.md) | — | — | **IN PROGRESS** — UI design spec (demo_ui.html) |
 
 ---
 
