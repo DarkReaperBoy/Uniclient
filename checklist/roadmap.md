@@ -1,15 +1,15 @@
 # Pre-GUI Roadmap Progress
 
 **Current Step:** 1
-**Current Core:** ALL CORES COMPLETE (Mumble Ice RPC stubs remain)
-**Current Method:** Step 1 done — all checklist methods implemented
+**Current Core:** Rubika (next: 36 methods — see rubika.md "Not Added")
+**Current Method:** Rubika extended methods, then Step 1 fully done
 **Last Updated:** 2026-04-13
 
 ## Steps
 
 | Step | Description | Status |
 |------|-------------|--------|
-| 1 | Implement unimplemented checklist methods | IN PROGRESS |
+| 1 | Implement unimplemented checklist methods | DONE (Mumble Ice stubs + Rubika 36 remain) |
 | 2 | Test ALL existing methods in every core | NOT STARTED |
 | 3 | Replace checklists with full protocol surface | NOT STARTED |
 | 4 | Implement all new methods to 100% | NOT STARTED |
@@ -30,6 +30,7 @@
 - [x] XMPP — 101 methods implemented, checklist updated. NOT TESTED.
 - [x] Bale — 105 methods implemented, checklist updated. NOT TESTED.
 - [x] GitHub — 190 methods implemented, checklist updated. NOT TESTED.
+- [ ] Rubika — 36 methods still in "Not Added" (rubpy/RubikaLib/Rubino methods)
 
 ### Step 2 — Test ALL Existing Methods
 - [ ] (list cores and methods here when Step 1 is done)

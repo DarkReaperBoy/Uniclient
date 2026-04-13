@@ -2,8 +2,8 @@
 
 Checked items removed. Only remaining work listed.
 
-**Status (updated 2026-04-13, all extended methods implemented):**
-All 11 platform cores implemented (64,801 lines Go). All checklist methods implemented across all cores — 0 remaining "Not Added" items. Integration tests: 6/6 pass. Flutter UI not started. Total exported methods: ~2,690.
+**Status (updated 2026-04-13, Step 1 near-complete):**
+All 11 platform cores implemented (64,801 lines Go). 8/10 cores fully implemented. Remaining: Rubika (+36), Mumble (+7 Ice RPC stubs). Integration tests: 6/6 pass. Flutter UI not started. Total exported methods: ~2,690.
 
 ## Index
 
@@ -17,7 +17,7 @@ All 11 platform cores implemented (64,801 lines Go). All checklist methods imple
 | [matrix.md](matrix.md) | Phase 7 | 167 | — | **ALL IMPLEMENTED** — 64 extended methods added, not yet tested |
 | [mumble.md](mumble.md) | Phase 9 | 133 | +7 | **CORE DONE** — 7 Ice RPC admin methods need real implementation |
 | [github.md](github.md) | Phase 10 | 246 | — | **ALL IMPLEMENTED** — 190 extended methods added, not yet tested |
-| [irc.md](irc.md) | Phase 11 | 245 | +104 | **CORE DONE** — 104 from RFC/IRCv3/services not in core |
+| [irc.md](irc.md) | Phase 11 | 340 | — | **ALL IMPLEMENTED** — 95 extended methods added, not yet tested |
 | [xmpp.md](xmpp.md) | Phase 12 | 279 | — | **ALL IMPLEMENTED** — 101 extended methods added, not yet tested |
 | [flutter.md](flutter.md) | Phase 8 | — | — | **NOT STARTED** — UI framework |
 | [gui.md](gui.md) | Phase 8 | — | — | **IN PROGRESS** — UI design spec (demo_ui.html) |
