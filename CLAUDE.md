@@ -9,10 +9,13 @@ Operational guide for Claude Code. **Rules and build commands only** — no find
 **STOP. Before doing ANYTHING, read these files in order. Do not skip any.**
 
 1. This file (`CLAUDE.md`) — operational rules (YOU ARE HERE — read every rule)
-2. `SPEC.md` — full architecture and feature spec
-3. `checklist/` — per-platform checklists (see `checklist/README.md` for index)
-4. `auth/auth.md` — test credentials (bot token, chat IDs)
-5. `research/` — protocol specs, API quirks, debug findings
+2. `checklist/roadmap.md` — where you left off (current step, core, method)
+3. `SPEC.md` — full architecture and feature spec
+4. `checklist/` — per-platform checklists (see `checklist/README.md` for index)
+5. `auth/auth.md` — test credentials (bot token, chat IDs)
+6. `research/` — protocol specs, API quirks, debug findings
+
+**Auto-continue rule:** If the user does not give a specific task, read `checklist/roadmap.md` and continue the pre-GUI roadmap from where you left off. No asking, no confirming — just pick up and work.
 
 ## Architecture
 
@@ -50,7 +53,36 @@ source auth/auth.md && cd go/tests && go test -v -timeout 300s
 
 **Go version**: 1.26.1 · **CGO_ENABLED=0** everywhere. No CGo. Period.
 
-**Protobuf for FFI bridge**: Before starting Flutter GUI work, replace JSON bridge encoding with Protocol Buffers. Define `.proto` files for all bridge types, generate Go + Dart code from them. This makes the UI resilient to backend changes — schema changes break at compile time, not runtime.
+## Pre-GUI Roadmap — Session-by-Session Steps
+
+Progress is tracked in `checklist/roadmap.md`. On every context reset, read that file to know exactly where you left off — which step, which core, which method. At the end of every session (and after completing any substep), update `roadmap.md` with current status. NEVER ask the user what to do next — the answer is in `roadmap.md`. Do NOT skip steps. Do NOT start the GUI until ALL steps are complete.
+
+### Step 1: Complete Existing Checklist Methods
+Implement every method listed in the current `checklist/` files that isn't implemented yet. One core at a time.
+
+### Step 2: Test ALL Existing Methods
+Test every implemented method in every core against official harnesses and live APIs. Verify results using the official harness — never trust only your own test code. Mark results in `checklist/`. Prune passing tests. Fix failures. Do NOT nag the user — figure it out yourself via web search, reading existing libs, or replicating the official harness implementation.
+
+### Step 3: Replace Checklists with Full Protocol Surface
+Delete the old checklists. For every core, research the FULL protocol surface (every command, every API method, every feature — not just Core's 55 methods). Create new comprehensive checklists. Do not duplicate methods already confirmed working.
+
+### Step 4: Implement All New Methods to 100%
+Implement every new method from the updated checklists, one by one. Test each against the official harness and verify using the official harness — not just your own tests. For research: use web search, read existing libs' source, and/or replicate the official harness implementation. Never nag the user. Every core reaches 100% protocol coverage.
+
+### Step 5: Perfect, Optimize, and Decouple Cores
+Make it work → make it right → make it fast. Each core must be fully independent — no cross-core dependencies. Optimize for GUI readiness without building the GUI. Clean interfaces, consistent error handling, unified patterns.
+
+### Step 6: Unify Core APIs
+All cores expose the same unified interface where possible. Pythonic example: `cores.bale.SendMessage()`, `cores.rubika.SendMessage()`, `cores.telegram.SendMessage()` — same signatures, same return types, same behavior for shared operations. Platform-specific methods remain as extras. Speed over elegance, but don't break anything.
+
+### Step 7: Protobuf Bridge
+Replace JSON bridge encoding with Protocol Buffers. Define `.proto` files for all bridge types. Generate Go + Dart code. Schema changes break at compile time, not runtime.
+
+### Step 8: Write `/docs`
+Create a `/docs` folder documenting how to use each core independently as a standalone Go library. Usage examples, method reference, auth flows — as if someone is importing just one core into their own project.
+
+### Step 9: Build the GUI
+Only now: start Flutter GUI work. See `research/gui-idea.md` and `checklist/gui.md` for design.
 
 **HARD RULE: Pure Go + Flutter ONLY — ZERO CGo, ZERO C/C++ dependencies.** No CGo anywhere — not in cores, not in utils, not in bridge, not in tests, not anywhere. No libvpx, no libolm, no native codecs, no C compilers needed. If it can't be done in pure Go or Flutter, find a different approach or skip it. The FFI bridge uses `dart:ffi` on the Dart side calling into a Go shared lib built with `go build -buildmode=c-shared` — that's Go's own toolchain, NOT CGo linking against external C libs. The tgcalls C++ test harness is a SEPARATE binary outside this repo (built independently in /tmp/), never compiled as part of `go build`. This project compiles with `go build` alone, no C compiler, no pkg-config, no system libraries.
 
@@ -103,4 +135,5 @@ When the user says "add X", follow these steps in order:
 - `research/mumble_protocol.md` — Mumble protocol spec (TCP/UDP, OCB2 crypto)
 - `research/xmpp_protocol.md` — XMPP (RFC 6120/6121 + 30+ XEPs, Jingle)
 - `research/gui-idea.md` — UI/UX design exploration, Discord/Telegram hybrid rationale
+- `checklist/roadmap.md` — pre-GUI roadmap progress tracker (current step, core, method)
 - `checklist/gui.md` — GUI component checklist, current state of demo_ui.html

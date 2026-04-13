@@ -25,12 +25,6 @@ go/accounts/
 .vscode/
 *.swp
 
-# Extra standalone projects
-extra/
-
-# Private research
-research/rubika_vpn.md
-
 # Flutter
 dart/.dart_tool/
 dart/build/
