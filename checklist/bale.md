@@ -1,6 +1,6 @@
-## Phase 3: Bale — DONE
+## Phase 3: Bale — DONE (core complete, all extended methods implemented)
 
-Bot 17/17. User 68/68. 162 exported methods, ~4,778 lines. ~152 additional methods found in Balethon/aiobale/web client but not yet in core. Geo-restricted from abroad.
+267 exported methods, ~5,813 lines. All extended methods implemented (not yet tested). Geo-restricted from abroad.
 
 ### Core Interface (55/55)
 
@@ -193,152 +193,168 @@ Bot 17/17. User 68/68. 162 exported methods, ~4,778 lines. ~152 additional metho
 - [?] EditGroupAvatar / RemoveGroupAvatar
 - [?] Calling (LiveKit at meet-em.ble.ir) — implemented, cannot test from outside Iran
 
-### Not Added in Core
+### Extended Methods (105 — all implemented, not yet tested)
 
-Methods found in Balethon (bot SDK), aiobale (gRPC user API), and Bale web client JS but not yet implemented in `bale.go`.
+#### Bot API (27)
 
-**Bot API (not added):**
-- [ ] GetUpdates (long-poll updates)
-- [ ] SetWebhook
-- [ ] DeleteWebhook
-- [ ] GetWebhookInfo
-- [ ] SendPhoto
-- [ ] SendAudio
-- [ ] SendDocument
-- [ ] SendVideo
-- [ ] SendAnimation
-- [ ] SendVoice
-- [ ] SendVideoNote
-- [ ] SendMediaGroup
-- [ ] SendVenue
-- [ ] EditMessageReplyMarkup
-- [ ] GetFile
-- [ ] RestrictChatMember
-- [ ] UploadStickerFile
-- [ ] CreateNewStickerSet
-- [ ] AddStickerToSet
-- [ ] DeleteStickerFromSet
-- [ ] CreateInvoiceLink
-- [ ] AnswerShippingQuery
-- [ ] GetUserProfilePhotos
-- [ ] AnswerInlineQuery
-- [ ] AskReview (Bale-specific)
-- [ ] InviteUser (Bale-specific)
-- [ ] InquireTransaction (Bale wallet)
+- [x] GetUpdates (long-poll updates)
+- [x] SetWebhook
+- [x] DeleteWebhook
+- [x] GetWebhookInfo
+- [x] SendPhoto
+- [x] SendAudio
+- [x] SendDocument
+- [x] SendVideo
+- [x] SendAnimation
+- [x] SendVoice
+- [x] SendVideoNote
+- [x] SendMediaGroup
+- [x] SendVenue
+- [x] EditMessageReplyMarkup
+- [x] GetFile
+- [x] RestrictChatMember
+- [x] UploadStickerFile
+- [x] CreateNewStickerSet
+- [x] AddStickerToSet
+- [x] DeleteStickerFromSet
+- [x] CreateInvoiceLink
+- [x] AnswerShippingQuery
+- [x] GetUserProfilePhotos
+- [x] AnswerInlineQuery
+- [x] AskReview (Bale-specific)
+- [x] InviteUser (Bale-specific)
+- [x] InquireTransaction (Bale wallet)
 
-**Auth Service (not added):**
-- [ ] DeleteAccount
-- [ ] ChangePhone
-- [ ] SendDeleteAccountVerificationCode
-- [ ] SendChangePhoneVerificationCode
-- [ ] EnableTwoFactorAuthentication
-- [ ] DisableTwoFactorAuthentication
-- [ ] IsTwoFactorAuthenticationEnabled
-- [ ] VerifyEmail
-- [ ] RecoverPassword
-- [ ] VerifyPasswordRecovery
-- [ ] SetNewPassword
-- [ ] GetUserIdToken
-- [ ] GetTicket
-- [ ] GetBajeBamTicket
-- [ ] GetBaleTicket
-- [ ] GetJWTToken
-- [ ] TerminateAllSessions
+#### Auth Service (17)
 
-**Users Service (not added):**
-- [ ] EditSex
-- [ ] EditBirthDate
-- [ ] EditAvatar (gRPC)
-- [ ] RemoveAvatar
-- [ ] EditMyTimeZone
-- [ ] EditMyPreferredLanguages
-- [ ] LoadFullUsersSequentially
-- [ ] LoadAvatars
-- [ ] GetUsersDefaultCardNumber
-- [ ] AddCard
-- [ ] ChangeDefaultCardNumber
-- [ ] RemoveDefaultCardNumber
-- [ ] NotifyAboutDeviceInfo
-- [ ] GetUserPrivacyStatus
-- [ ] SetUserPrivacyStatus
-- [ ] GetUserFullPrivacy
-- [ ] IsNameAllowed
-- [ ] ChangePhoneNumber
-- [ ] ConfirmPhoneNumber
+- [x] DeleteAccount
+- [x] ChangePhone
+- [x] SendDeleteAccountVerificationCode
+- [x] SendChangePhoneVerificationCode
+- [x] EnableTwoFactorAuthentication
+- [x] DisableTwoFactorAuthentication
+- [x] IsTwoFactorAuthenticationEnabled
+- [x] VerifyEmail
+- [x] RecoverPassword
+- [x] VerifyPasswordRecovery
+- [x] SetNewPassword
+- [x] GetUserIdToken
+- [x] GetTicket
+- [x] GetBajeBamTicket
+- [x] GetBaleTicket
+- [x] GetJWTToken
+- [x] TerminateAllSessions
 
-**Meet Service (not added):**
-- [ ] ReceiveCall (accept incoming)
-- [ ] DiscardCall
+#### Users Service (19)
 
-**GiftPacket Service (not added):**
-- [ ] SendGiftPacketWithWallet
-- [ ] OpenGiftPacket
+- [x] EditSex
+- [x] EditBirthDate
+- [x] EditAvatarGRPC
+- [x] RemoveAvatar
+- [x] EditMyTimeZone
+- [x] EditMyPreferredLanguages
+- [x] LoadFullUsersSequentially
+- [x] LoadAvatars
+- [x] GetUsersDefaultCardNumber
+- [x] AddCard
+- [x] ChangeDefaultCardNumber
+- [x] RemoveDefaultCardNumber
+- [x] NotifyAboutDeviceInfo
+- [x] GetUserPrivacyStatus
+- [x] SetUserPrivacyStatus
+- [x] GetUserFullPrivacy
+- [x] IsNameAllowed
+- [x] ChangePhoneNumber
+- [x] ConfirmPhoneNumber
 
-**Magazine Service (not added):**
-- [ ] UpvotePost
-- [ ] RevokeUpvotedPost
-- [ ] GetMessageUpvoters
+#### Meet Service (2)
 
-**Kifpool Service (not added):**
-- [ ] GetMyKifpools
+- [x] ReceiveCall
+- [x] DiscardCall
 
-**Push Service (not added):**
-- [ ] RegisterPush
-- [ ] UnregisterPush
-- [ ] RegisterGooglePush
-- [ ] UnregisterGooglePush
-- [ ] UnregisterAllPushCredentials
+#### GiftPacket Service (2)
 
-**Ramz / App Lock (not added):**
-- [ ] SetPassword
-- [ ] DeletePassword
-- [ ] SendOTP
-- [ ] ForgetPassword
-- [ ] ValidateOTP
-- [ ] CheckPasswordSet
-- [ ] CheckPassword
+- [x] SendGiftPacketWithWallet
+- [x] OpenGiftPacket
 
-**Report Service (not added):**
-- [ ] ReportInappropriateContent
-- [ ] ReportDismiss
+#### Magazine Service (3)
 
-**Feedback (not added):**
-- [ ] SendFeedBack
+- [x] UpvotePost
+- [x] RevokeUpvotedPost
+- [x] GetMessageUpvoters
 
-**Search (not added — web client JS):**
-- [ ] SearchPeerMessages — search within a specific chat
-- [ ] SearchPeerMedia — search media in a specific chat
-- [ ] SearchMembers — search group members by name
-- [ ] SearchLinks — search shared links in a chat
-- [ ] GlobalChannelSearch — search public channels globally
+#### Kifpool Service (1)
 
-**Topics (not added — bale.messaging.v2):**
-- [ ] EditTopic
-- [ ] DeleteTopic
+- [x] GetMyKifpools
 
-**Folders (not added — bale.messaging.v2):**
-- [ ] EditFolder
-- [ ] DeleteFolder
-- [ ] ReorderFolders
+#### Push Service (5)
 
-**Polls (not added — user-mode):**
-- [ ] ClosePoll
-- [ ] GetPollResults
-- [ ] GetFullPollResult
+- [x] RegisterPush
+- [x] UnregisterPush
+- [x] RegisterGooglePush
+- [x] UnregisterGooglePush
+- [x] UnregisterAllPushCredentials
 
-**Mini Apps / Bots (not added):**
-- [ ] GetMiniAppUrl
-- [ ] GetBotMenuButtons
-- [ ] InvokeCustomMethod
+#### Ramz / App Lock (7)
 
-**AI / Transcription (not added):**
-- [ ] GetTranscript — voice-to-text
+- [x] SetRamzPassword
+- [x] DeleteRamzPassword
+- [x] SendRamzOTP
+- [x] ForgetRamzPassword
+- [x] ValidateRamzOTP
+- [x] CheckRamzPasswordSet
+- [x] CheckRamzPassword
 
-**Configs (not added):**
-- [ ] GetInAppUpdate — check for app updates
+#### Report Service (2)
 
-**Analytics (not added):**
-- [ ] FanoosSend — analytics event (bale.fanoos.v1)
+- [x] ReportInappropriateContent
+- [x] ReportDismiss
 
+#### Feedback (1)
+
+- [x] SendFeedBack
+
+#### Search (5)
+
+- [x] SearchPeerMessages
+- [x] SearchPeerMedia
+- [x] SearchMembers
+- [x] SearchLinks
+- [x] GlobalChannelSearch
+
+#### Topics (2)
+
+- [x] EditTopic
+- [x] DeleteTopic
+
+#### Folders (3)
+
+- [x] EditFolder
+- [x] DeleteFolder
+- [x] ReorderFolders
+
+#### Polls (3)
+
+- [x] ClosePoll
+- [x] GetPollResults
+- [x] GetFullPollResult
+
+#### Mini Apps / Bots (3)
+
+- [x] GetMiniAppUrl
+- [x] GetBotMenuButtons
+- [x] InvokeCustomMethod
+
+#### AI / Transcription (1)
+
+- [x] GetTranscript
+
+#### Configs (1)
+
+- [x] GetInAppUpdate
+
+#### Analytics (1)
+
+- [x] FanoosSend
 
 ---

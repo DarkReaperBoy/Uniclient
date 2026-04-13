@@ -1,6 +1,6 @@
 ## Phase 9: Mumble — DONE (core); missing protocol methods below
 
-111 exported methods, ~4,911 lines. Real Mumble client protocol. TLS+protobuf TCP + OCB2-AES128 UDP voice. Hand-coded protobuf (no protoc). Pure Go. ~25 additional methods from Mumble.proto / gumble / pymumble catalogued below.
+133 exported methods, ~5,200 lines. Real Mumble client protocol. TLS+protobuf TCP + OCB2-AES128 UDP voice. Hand-coded protobuf (no protoc). Pure Go. 15 client protocol methods added; 7 Ice RPC admin methods still need real implementation via Murmur Ice endpoint.
 
 ### Core Interface (55/55)
 
@@ -167,54 +167,52 @@
 - Public servers: contraclan (legacy 1.3.4) + voice.xts-clan.de (modern 1.5.517)
 - Version auto-detect, TCP tunnel fallback
 
-### Not Added in Core
+### Additional Protocol Methods (all implemented)
 
-Methods found in the official Mumble protocol (Mumble.proto, gumble SDK, pymumble) but not yet implemented.
+#### User State (3)
 
-#### User State
+- [x] SetPluginContext — set UserState.plugin_context (positional audio plugin coordination)
+- [x] SetPluginIdentity — set UserState.plugin_identity (plugin identity string)
+- [x] SetTemporaryAccessTokens — set UserState.temporary_access_tokens
 
-- [ ] SetPluginContext — set UserState.plugin_context (positional audio plugin coordination)
-- [ ] SetPluginIdentity — set UserState.plugin_identity (plugin identity string)
-- [ ] SetTemporaryAccessTokens — set UserState.temporary_access_tokens
+#### Voice (2)
 
-#### Voice
+- [x] SendPositionalAudio — voice packet with X,Y,Z float32 positional coordinates (protobuf + legacy)
+- [x] ServerLoopback — send voice with target=31 for server echo test
 
-- [ ] SendPositionalAudio — voice packet with X,Y,Z float32 positional coordinates
-- [ ] ServerLoopback — send voice with target=31 for server echo test
+#### Context Actions (2)
 
-#### Context Actions
+- [x] HandleContextActionModify — callback for server-defined context action add/remove notifications
+- [x] TriggerContextActionChannel — context action targeting a channel
 
-- [ ] HandleContextActionModify — receive server-defined context action add/remove notifications
-- [ ] TriggerContextActionChannel — context action targeting a channel (distinct from user-targeting TriggerContextAction)
+#### Ban Management (1)
 
-#### Ban Management
+- [x] RemoveBan — remove a single ban entry by address+mask
 
-- [ ] RemoveBan — modify ban list to remove a single entry (currently only full SetBanList)
+#### Connection (4)
 
-#### Connection
+- [x] SendVersion — explicit version announcement (Version message)
+- [x] HandleReject — callback for connection rejection (Reject message with reason/type)
+- [x] HandlePermissionDenied — callback for permission denial events (PermissionDenied message)
+- [x] HandleSuggestConfig — callback for server configuration suggestions (SuggestConfig message)
 
-- [ ] SendVersion — explicit version announcement (Version message)
-- [ ] HandleReject — handle connection rejection (Reject message with reason/type)
-- [ ] HandlePermissionDenied — handle permission denial events (PermissionDenied message)
-- [ ] HandleSuggestConfig — handle server configuration suggestions (SuggestConfig message)
+#### Codec (2)
 
-#### Codec
+- [x] HandleCodecVersion — callback for server codec negotiation (CodecVersion message)
+- [x] SetPreferredCodec — set Opus vs CELT preference for next connection
 
-- [ ] HandleCodecVersion — respond to server codec negotiation (CodecVersion message)
-- [ ] SetPreferredCodec — set Opus vs CELT preference announcement
+#### Admin Ice RPC (7 — need Murmur Ice RPC implementation)
 
-#### Admin Ice RPC (server-admin only, out-of-band — NOT part of normal client protocol)
+- [ ] GetServerLog — retrieve server log entries (Ice RPC)
+- [ ] GetServerUptime — query server uptime (Ice RPC)
+- [ ] UpdateCertificate — update server TLS certificate (Ice RPC)
+- [ ] SendWelcomeMessage — set/update server welcome message (Ice RPC)
+- [ ] RedirectWhisperGroup — redirect a whisper group (Ice RPC)
+- [ ] AddContextCallback — register server-side context action callback (Ice RPC)
+- [ ] RemoveContextCallback — unregister server-side context action callback (Ice RPC)
 
-- [ ] GetServerLog — retrieve server log entries
-- [ ] GetServerUptime — query server uptime
-- [ ] UpdateCertificate — update server TLS certificate
-- [ ] SendWelcomeMessage — set/update server welcome message
-- [ ] RedirectWhisperGroup — redirect a whisper group to another target
-- [ ] AddContextCallback — register server-side context action callback
-- [ ] RemoveContextCallback — unregister server-side context action callback
+#### DNS / Discovery (1)
 
-#### DNS / Discovery (not added)
-
-- [ ] ResolveSRV — DNS SRV record lookup for `_mumble._tcp.<hostname>` (protocol spec §18)
+- [x] MumbleResolveSRV — DNS SRV record lookup for `_mumble._tcp.<hostname>`
 
 ---

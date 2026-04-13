@@ -2845,3 +2845,1410 @@ func extractTrailingNumber(url string) string {
 	}
 	return ""
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Issues (6)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// LockIssue locks an issue conversation.
+func (g *GitHubCore) LockIssue(owner, repo string, number int, reason string) error {
+	payload := map[string]any{}
+	if reason != "" {
+		payload["lock_reason"] = reason
+	}
+	_, err := g.apiPut(fmt.Sprintf("/repos/%s/%s/issues/%d/lock", owner, repo, number), payload)
+	return err
+}
+
+// UnlockIssue unlocks an issue conversation.
+func (g *GitHubCore) UnlockIssue(owner, repo string, number int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/issues/%d/lock", owner, repo, number))
+	return err
+}
+
+// ListIssueEvents lists events for an issue.
+func (g *GitHubCore) ListIssueEvents(owner, repo string, number int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/issues/%d/events", owner, repo, number), nil)
+}
+
+// GetIssueTimeline gets the timeline of an issue.
+func (g *GitHubCore) GetIssueTimeline(owner, repo string, number int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/issues/%d/timeline", owner, repo, number), nil)
+}
+
+// ListSubIssues lists sub-issues of an issue.
+func (g *GitHubCore) ListSubIssues(owner, repo string, number int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/issues/%d/sub_issues", owner, repo, number), nil)
+}
+
+// AddSubIssue adds a sub-issue to a parent issue.
+func (g *GitHubCore) AddSubIssue(owner, repo string, number int, subIssueID int) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/issues/%d/sub_issues", owner, repo, number), map[string]any{
+		"sub_issue_id": subIssueID,
+	})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Labels (7)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListLabels lists all labels for a repository.
+func (g *GitHubCore) ListLabels(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/labels", owner, repo), map[string]string{"per_page": "100"})
+}
+
+// CreateLabel creates a label.
+func (g *GitHubCore) CreateLabel(owner, repo, name, color, description string) (json.RawMessage, error) {
+	payload := map[string]any{"name": name, "color": color}
+	if description != "" {
+		payload["description"] = description
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/labels", owner, repo), payload)
+}
+
+// UpdateLabel updates a label.
+func (g *GitHubCore) UpdateLabel(owner, repo, name string, updates map[string]any) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/repos/%s/%s/labels/%s", owner, repo, name), updates)
+}
+
+// DeleteLabel deletes a label.
+func (g *GitHubCore) DeleteLabel(owner, repo, name string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/labels/%s", owner, repo, name))
+	return err
+}
+
+// AddLabelsToIssue adds labels to an issue.
+func (g *GitHubCore) AddLabelsToIssue(owner, repo string, number int, labels []string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/issues/%d/labels", owner, repo, number), map[string]any{"labels": labels})
+}
+
+// RemoveLabel removes a label from an issue.
+func (g *GitHubCore) RemoveLabel(owner, repo string, number int, label string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/issues/%d/labels/%s", owner, repo, number, label))
+	return err
+}
+
+// SetLabels replaces all labels on an issue.
+func (g *GitHubCore) SetLabels(owner, repo string, number int, labels []string) (json.RawMessage, error) {
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/issues/%d/labels", owner, repo, number), map[string]any{"labels": labels})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Milestones (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListMilestones lists milestones for a repository.
+func (g *GitHubCore) ListMilestones(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/milestones", owner, repo), map[string]string{"per_page": "100"})
+}
+
+// CreateMilestone creates a milestone.
+func (g *GitHubCore) CreateMilestone(owner, repo, title, description string) (json.RawMessage, error) {
+	payload := map[string]any{"title": title}
+	if description != "" {
+		payload["description"] = description
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/milestones", owner, repo), payload)
+}
+
+// UpdateMilestone updates a milestone.
+func (g *GitHubCore) UpdateMilestone(owner, repo string, number int, updates map[string]any) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/repos/%s/%s/milestones/%d", owner, repo, number), updates)
+}
+
+// DeleteMilestone deletes a milestone.
+func (g *GitHubCore) DeleteMilestone(owner, repo string, number int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/milestones/%d", owner, repo, number))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Pull Requests (12)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListPullRequests lists pull requests for a repository.
+func (g *GitHubCore) ListPullRequests(owner, repo, state string, perPage int) (json.RawMessage, error) {
+	params := map[string]string{"per_page": strconv.Itoa(perPage)}
+	if state != "" {
+		params["state"] = state
+	}
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/pulls", owner, repo), params)
+}
+
+// CreatePullRequest creates a pull request.
+func (g *GitHubCore) CreatePullRequest(owner, repo, title, head, base, body string) (json.RawMessage, error) {
+	payload := map[string]any{
+		"title": title,
+		"head":  head,
+		"base":  base,
+	}
+	if body != "" {
+		payload["body"] = body
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/pulls", owner, repo), payload)
+}
+
+// GetPullRequest gets a pull request.
+func (g *GitHubCore) GetPullRequest(owner, repo string, number int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, repo, number), nil)
+}
+
+// UpdatePullRequest updates a pull request.
+func (g *GitHubCore) UpdatePullRequest(owner, repo string, number int, updates map[string]any) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/repos/%s/%s/pulls/%d", owner, repo, number), updates)
+}
+
+// MergePullRequest merges a pull request.
+func (g *GitHubCore) MergePullRequest(owner, repo string, number int, mergeMethod, commitTitle, commitMessage string) (json.RawMessage, error) {
+	payload := map[string]any{}
+	if mergeMethod != "" {
+		payload["merge_method"] = mergeMethod
+	}
+	if commitTitle != "" {
+		payload["commit_title"] = commitTitle
+	}
+	if commitMessage != "" {
+		payload["commit_message"] = commitMessage
+	}
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/pulls/%d/merge", owner, repo, number), payload)
+}
+
+// ListPRComments lists review comments on a pull request.
+func (g *GitHubCore) ListPRComments(owner, repo string, number int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/pulls/%d/comments", owner, repo, number), nil)
+}
+
+// CreatePRComment creates a review comment on a pull request.
+func (g *GitHubCore) CreatePRComment(owner, repo string, number int, body, path, commitID string, line int) (json.RawMessage, error) {
+	payload := map[string]any{"body": body}
+	if path != "" {
+		payload["path"] = path
+	}
+	if commitID != "" {
+		payload["commit_id"] = commitID
+	}
+	if line > 0 {
+		payload["line"] = line
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/pulls/%d/comments", owner, repo, number), payload)
+}
+
+// ListPRReviews lists reviews on a pull request.
+func (g *GitHubCore) ListPRReviews(owner, repo string, number int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", owner, repo, number), nil)
+}
+
+// CreatePRReview creates a review on a pull request.
+func (g *GitHubCore) CreatePRReview(owner, repo string, number int, body, event string) (json.RawMessage, error) {
+	payload := map[string]any{}
+	if body != "" {
+		payload["body"] = body
+	}
+	if event != "" {
+		payload["event"] = event
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews", owner, repo, number), payload)
+}
+
+// SubmitPRReview submits a pending review.
+func (g *GitHubCore) SubmitPRReview(owner, repo string, prNumber, reviewID int, body, event string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews/%d/events", owner, repo, prNumber, reviewID), map[string]any{
+		"body":  body,
+		"event": event,
+	})
+}
+
+// DismissPRReview dismisses a review.
+func (g *GitHubCore) DismissPRReview(owner, repo string, prNumber, reviewID int, message string) (json.RawMessage, error) {
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/pulls/%d/reviews/%d/dismissals", owner, repo, prNumber, reviewID), map[string]any{
+		"message": message,
+	})
+}
+
+// RequestReviewers requests reviewers for a pull request.
+func (g *GitHubCore) RequestReviewers(owner, repo string, number int, reviewers []string, teamReviewers []string) (json.RawMessage, error) {
+	payload := map[string]any{}
+	if len(reviewers) > 0 {
+		payload["reviewers"] = reviewers
+	}
+	if len(teamReviewers) > 0 {
+		payload["team_reviewers"] = teamReviewers
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/pulls/%d/requested_reviewers", owner, repo, number), payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Notifications (6)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListNotifications lists notifications for the authenticated user.
+func (g *GitHubCore) ListNotifications(all bool, perPage int) (json.RawMessage, error) {
+	params := map[string]string{"per_page": strconv.Itoa(perPage)}
+	if all {
+		params["all"] = "true"
+	}
+	return g.apiGet("/notifications", params)
+}
+
+// MarkAllNotificationsRead marks all notifications as read.
+func (g *GitHubCore) MarkAllNotificationsRead() error {
+	_, err := g.apiPut("/notifications", map[string]any{"last_read_at": time.Now().UTC().Format(time.RFC3339)})
+	return err
+}
+
+// GetNotificationThread gets a notification thread.
+func (g *GitHubCore) GetNotificationThread(threadID string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/notifications/threads/%s", threadID), nil)
+}
+
+// MarkThreadRead marks a notification thread as read.
+func (g *GitHubCore) MarkThreadRead(threadID string) error {
+	_, err := g.apiPatch(fmt.Sprintf("/notifications/threads/%s", threadID), nil)
+	return err
+}
+
+// SubscribeThread subscribes to a notification thread.
+func (g *GitHubCore) SubscribeThread(threadID string) (json.RawMessage, error) {
+	return g.apiPut(fmt.Sprintf("/notifications/threads/%s/subscription", threadID), map[string]any{"ignored": false})
+}
+
+// UnsubscribeThread unsubscribes from a notification thread.
+func (g *GitHubCore) UnsubscribeThread(threadID string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/notifications/threads/%s/subscription", threadID))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Repository Extended (7)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// DeleteRepo deletes a repository.
+func (g *GitHubCore) DeleteRepo(owner, repo string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s", owner, repo))
+	return err
+}
+
+// ForkRepo forks a repository.
+func (g *GitHubCore) ForkRepo(owner, repo string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/forks", owner, repo), nil)
+}
+
+// TransferRepo transfers a repository to another owner.
+func (g *GitHubCore) TransferRepo(owner, repo, newOwner string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/transfer", owner, repo), map[string]any{"new_owner": newOwner})
+}
+
+// GetRepoTopics gets repository topics.
+func (g *GitHubCore) GetRepoTopics(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/topics", owner, repo), nil)
+}
+
+// SetRepoTopics replaces all repository topics.
+func (g *GitHubCore) SetRepoTopics(owner, repo string, topics []string) (json.RawMessage, error) {
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/topics", owner, repo), map[string]any{"names": topics})
+}
+
+// ListContributors lists repository contributors.
+func (g *GitHubCore) ListContributors(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/contributors", owner, repo), map[string]string{"per_page": "100"})
+}
+
+// GetRepoActivity gets repository activity.
+func (g *GitHubCore) GetRepoActivity(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/activity", owner, repo), nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Repository Invitations (5)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListInvitations lists repository invitations.
+func (g *GitHubCore) ListInvitations(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/invitations", owner, repo), nil)
+}
+
+// UpdateInvitation updates a repository invitation.
+func (g *GitHubCore) UpdateInvitation(owner, repo string, invitationID int, permissions string) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/repos/%s/%s/invitations/%d", owner, repo, invitationID), map[string]any{"permissions": permissions})
+}
+
+// DeleteInvitation deletes a repository invitation.
+func (g *GitHubCore) DeleteInvitation(owner, repo string, invitationID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/invitations/%d", owner, repo, invitationID))
+	return err
+}
+
+// AcceptInvitation accepts a repository invitation.
+func (g *GitHubCore) AcceptInvitation(invitationID int) error {
+	_, err := g.apiPatch(fmt.Sprintf("/user/repository_invitations/%d", invitationID), nil)
+	return err
+}
+
+// DeclineInvitation declines a repository invitation.
+func (g *GitHubCore) DeclineInvitation(invitationID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/user/repository_invitations/%d", invitationID))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Gists (8)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListGists lists gists for the authenticated user.
+func (g *GitHubCore) ListGists(perPage int) (json.RawMessage, error) {
+	return g.apiGet("/gists", map[string]string{"per_page": strconv.Itoa(perPage)})
+}
+
+// CreateGist creates a gist.
+func (g *GitHubCore) CreateGist(description string, files map[string]map[string]string, public bool) (json.RawMessage, error) {
+	return g.apiPost("/gists", map[string]any{
+		"description": description,
+		"files":       files,
+		"public":      public,
+	})
+}
+
+// UpdateGist updates a gist.
+func (g *GitHubCore) UpdateGist(gistID string, description string, files map[string]map[string]string) (json.RawMessage, error) {
+	payload := map[string]any{}
+	if description != "" {
+		payload["description"] = description
+	}
+	if files != nil {
+		payload["files"] = files
+	}
+	return g.apiPatch(fmt.Sprintf("/gists/%s", gistID), payload)
+}
+
+// DeleteGist deletes a gist.
+func (g *GitHubCore) DeleteGist(gistID string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/gists/%s", gistID))
+	return err
+}
+
+// StarGist stars a gist.
+func (g *GitHubCore) StarGist(gistID string) error {
+	_, err := g.apiPut(fmt.Sprintf("/gists/%s/star", gistID), nil)
+	return err
+}
+
+// UnstarGist unstars a gist.
+func (g *GitHubCore) UnstarGist(gistID string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/gists/%s/star", gistID))
+	return err
+}
+
+// ListGistComments lists comments on a gist.
+func (g *GitHubCore) ListGistComments(gistID string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/gists/%s/comments", gistID), nil)
+}
+
+// CreateGistComment creates a comment on a gist.
+func (g *GitHubCore) CreateGistComment(gistID, body string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/gists/%s/comments", gistID), map[string]any{"body": body})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Releases (6)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListReleases lists releases for a repository.
+func (g *GitHubCore) ListReleases(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/releases", owner, repo), map[string]string{"per_page": "30"})
+}
+
+// CreateRelease creates a release.
+func (g *GitHubCore) CreateRelease(owner, repo, tagName, name, body string, draft, prerelease bool) (json.RawMessage, error) {
+	payload := map[string]any{
+		"tag_name":   tagName,
+		"name":       name,
+		"body":       body,
+		"draft":      draft,
+		"prerelease": prerelease,
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/releases", owner, repo), payload)
+}
+
+// UpdateRelease updates a release.
+func (g *GitHubCore) UpdateRelease(owner, repo string, releaseID int, updates map[string]any) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/repos/%s/%s/releases/%d", owner, repo, releaseID), updates)
+}
+
+// DeleteRelease deletes a release.
+func (g *GitHubCore) DeleteRelease(owner, repo string, releaseID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/releases/%d", owner, repo, releaseID))
+	return err
+}
+
+// UploadReleaseAsset uploads an asset to a release.
+func (g *GitHubCore) UploadReleaseAsset(owner, repo string, releaseID int, name string, data []byte, contentType string) (json.RawMessage, error) {
+	uploadURL := fmt.Sprintf("https://uploads.github.com/repos/%s/%s/releases/%d/assets?name=%s", owner, repo, releaseID, name)
+	body, status, _, err := g.doAPI("POST", uploadURL, data, map[string]string{"Content-Type": contentType})
+	if err != nil {
+		return nil, err
+	}
+	if status >= 400 {
+		return nil, fmt.Errorf("github upload error %d: %s", status, truncate(string(body), 200))
+	}
+	return body, nil
+}
+
+// ListReleaseAssets lists assets for a release.
+func (g *GitHubCore) ListReleaseAssets(owner, repo string, releaseID int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/releases/%d/assets", owner, repo, releaseID), nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Commit Comments (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListCommitComments lists comments for a commit.
+func (g *GitHubCore) ListCommitComments(owner, repo, sha string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/commits/%s/comments", owner, repo, sha), nil)
+}
+
+// CreateCommitComment creates a comment on a commit.
+func (g *GitHubCore) CreateCommitComment(owner, repo, sha, body string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/commits/%s/comments", owner, repo, sha), map[string]any{"body": body})
+}
+
+// UpdateCommitComment updates a commit comment.
+func (g *GitHubCore) UpdateCommitComment(owner, repo string, commentID int, body string) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/repos/%s/%s/comments/%d", owner, repo, commentID), map[string]any{"body": body})
+}
+
+// DeleteCommitComment deletes a commit comment.
+func (g *GitHubCore) DeleteCommitComment(owner, repo string, commentID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/comments/%d", owner, repo, commentID))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Organizations (9)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListOrgs lists organizations for the authenticated user.
+func (g *GitHubCore) ListOrgs() (json.RawMessage, error) {
+	return g.apiGet("/user/orgs", map[string]string{"per_page": "100"})
+}
+
+// GetOrg gets an organization.
+func (g *GitHubCore) GetOrg(org string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/orgs/%s", org), nil)
+}
+
+// ListOrgMembers lists organization members.
+func (g *GitHubCore) ListOrgMembers(org string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/orgs/%s/members", org), map[string]string{"per_page": "100"})
+}
+
+// ListOrgTeams lists organization teams.
+func (g *GitHubCore) ListOrgTeams(org string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/orgs/%s/teams", org), map[string]string{"per_page": "100"})
+}
+
+// CreateTeam creates a team in an organization.
+func (g *GitHubCore) CreateTeam(org, name, description, privacy string) (json.RawMessage, error) {
+	payload := map[string]any{"name": name}
+	if description != "" {
+		payload["description"] = description
+	}
+	if privacy != "" {
+		payload["privacy"] = privacy
+	}
+	return g.apiPost(fmt.Sprintf("/orgs/%s/teams", org), payload)
+}
+
+// UpdateTeam updates a team.
+func (g *GitHubCore) UpdateTeam(org, teamSlug string, updates map[string]any) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/orgs/%s/teams/%s", org, teamSlug), updates)
+}
+
+// DeleteTeam deletes a team.
+func (g *GitHubCore) DeleteTeam(org, teamSlug string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/orgs/%s/teams/%s", org, teamSlug))
+	return err
+}
+
+// AddTeamMember adds a member to a team.
+func (g *GitHubCore) AddTeamMember(org, teamSlug, username, role string) (json.RawMessage, error) {
+	payload := map[string]any{}
+	if role != "" {
+		payload["role"] = role
+	}
+	return g.apiPut(fmt.Sprintf("/orgs/%s/teams/%s/memberships/%s", org, teamSlug, username), payload)
+}
+
+// RemoveTeamMember removes a member from a team.
+func (g *GitHubCore) RemoveTeamMember(org, teamSlug, username string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/orgs/%s/teams/%s/memberships/%s", org, teamSlug, username))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Webhooks (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// CreateWebhook creates a webhook.
+func (g *GitHubCore) CreateWebhook(owner, repo, url, contentType, secret string, events []string) (json.RawMessage, error) {
+	config := map[string]any{"url": url, "content_type": contentType}
+	if secret != "" {
+		config["secret"] = secret
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/hooks", owner, repo), map[string]any{
+		"config": config,
+		"events": events,
+		"active": true,
+	})
+}
+
+// UpdateWebhook updates a webhook.
+func (g *GitHubCore) UpdateWebhook(owner, repo string, hookID int, updates map[string]any) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, repo, hookID), updates)
+}
+
+// DeleteWebhook deletes a webhook.
+func (g *GitHubCore) DeleteWebhook(owner, repo string, hookID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, repo, hookID))
+	return err
+}
+
+// PingWebhook pings a webhook.
+func (g *GitHubCore) PingWebhook(owner, repo string, hookID int) error {
+	_, err := g.apiPost(fmt.Sprintf("/repos/%s/%s/hooks/%d/pings", owner, repo, hookID), nil)
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Starring / Watching (6)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListStargazers lists stargazers for a repository.
+func (g *GitHubCore) ListStargazers(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/stargazers", owner, repo), map[string]string{"per_page": "100"})
+}
+
+// StarRepo stars a repository.
+func (g *GitHubCore) StarRepo(owner, repo string) error {
+	_, err := g.apiPut(fmt.Sprintf("/user/starred/%s/%s", owner, repo), nil)
+	return err
+}
+
+// UnstarRepo unstars a repository.
+func (g *GitHubCore) UnstarRepo(owner, repo string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/user/starred/%s/%s", owner, repo))
+	return err
+}
+
+// ListWatchers lists watchers for a repository.
+func (g *GitHubCore) ListWatchers(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/subscribers", owner, repo), map[string]string{"per_page": "100"})
+}
+
+// WatchRepo watches a repository.
+func (g *GitHubCore) WatchRepo(owner, repo string) (json.RawMessage, error) {
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/subscription", owner, repo), map[string]any{"subscribed": true})
+}
+
+// UnwatchRepo unwatches a repository.
+func (g *GitHubCore) UnwatchRepo(owner, repo string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/subscription", owner, repo))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Events (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListEvents lists public events.
+func (g *GitHubCore) ListEvents(perPage int) (json.RawMessage, error) {
+	return g.apiGet("/events", map[string]string{"per_page": strconv.Itoa(perPage)})
+}
+
+// ListRepoEvents lists events for a repository.
+func (g *GitHubCore) ListRepoEvents(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/events", owner, repo), map[string]string{"per_page": "30"})
+}
+
+// ListUserEvents lists events for a user.
+func (g *GitHubCore) ListUserEvents(username string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/users/%s/events", username), map[string]string{"per_page": "30"})
+}
+
+// GetFeeds lists feeds available to the authenticated user.
+func (g *GitHubCore) GetFeeds() (json.RawMessage, error) {
+	return g.apiGet("/feeds", nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Discussions (GraphQL) (8)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ghGraphQL executes a GraphQL query against GitHub's API.
+func (g *GitHubCore) ghGraphQL(query string, variables map[string]any) (json.RawMessage, error) {
+	payload := map[string]any{"query": query}
+	if variables != nil {
+		payload["variables"] = variables
+	}
+	data, _ := json.Marshal(payload)
+	body, status, _, err := g.doAPI("POST", "https://api.github.com/graphql", data, nil)
+	if err != nil {
+		return nil, err
+	}
+	if status >= 400 {
+		return nil, fmt.Errorf("github graphql error %d: %s", status, truncate(string(body), 200))
+	}
+	return body, nil
+}
+
+// ListDiscussions lists discussions in a repository.
+func (g *GitHubCore) ListDiscussions(owner, repo string, first int) (json.RawMessage, error) {
+	query := `query($owner:String!,$repo:String!,$first:Int!){repository(owner:$owner,name:$repo){discussions(first:$first,orderBy:{field:CREATED_AT,direction:DESC}){nodes{id number title body createdAt author{login}}}}}`
+	return g.ghGraphQL(query, map[string]any{"owner": owner, "repo": repo, "first": first})
+}
+
+// CreateDiscussion creates a discussion.
+func (g *GitHubCore) CreateDiscussion(repoID, categoryID, title, body string) (json.RawMessage, error) {
+	query := `mutation($repoId:ID!,$catId:ID!,$title:String!,$body:String!){createDiscussion(input:{repositoryId:$repoId,categoryId:$catId,title:$title,body:$body}){discussion{id number}}}`
+	return g.ghGraphQL(query, map[string]any{"repoId": repoID, "catId": categoryID, "title": title, "body": body})
+}
+
+// UpdateDiscussion updates a discussion.
+func (g *GitHubCore) UpdateDiscussion(discussionID, title, body string) (json.RawMessage, error) {
+	query := `mutation($id:ID!,$title:String,$body:String){updateDiscussion(input:{discussionId:$id,title:$title,body:$body}){discussion{id number}}}`
+	return g.ghGraphQL(query, map[string]any{"id": discussionID, "title": title, "body": body})
+}
+
+// DeleteDiscussion deletes a discussion.
+func (g *GitHubCore) DeleteDiscussion(discussionID string) (json.RawMessage, error) {
+	query := `mutation($id:ID!){deleteDiscussion(input:{id:$id}){discussion{id}}}`
+	return g.ghGraphQL(query, map[string]any{"id": discussionID})
+}
+
+// AddDiscussionComment adds a comment to a discussion.
+func (g *GitHubCore) AddDiscussionComment(discussionID, body string) (json.RawMessage, error) {
+	query := `mutation($id:ID!,$body:String!){addDiscussionComment(input:{discussionId:$id,body:$body}){comment{id}}}`
+	return g.ghGraphQL(query, map[string]any{"id": discussionID, "body": body})
+}
+
+// UpdateDiscussionComment updates a discussion comment.
+func (g *GitHubCore) UpdateDiscussionComment(commentID, body string) (json.RawMessage, error) {
+	query := `mutation($id:ID!,$body:String!){updateDiscussionComment(input:{commentId:$id,body:$body}){comment{id}}}`
+	return g.ghGraphQL(query, map[string]any{"id": commentID, "body": body})
+}
+
+// DeleteDiscussionComment deletes a discussion comment.
+func (g *GitHubCore) DeleteDiscussionComment(commentID string) (json.RawMessage, error) {
+	query := `mutation($id:ID!){deleteDiscussionComment(input:{id:$id}){comment{id}}}`
+	return g.ghGraphQL(query, map[string]any{"id": commentID})
+}
+
+// MarkDiscussionCommentAsAnswer marks a discussion comment as the answer.
+func (g *GitHubCore) MarkDiscussionCommentAsAnswer(commentID string) (json.RawMessage, error) {
+	query := `mutation($id:ID!){markDiscussionCommentAsAnswer(input:{id:$id}){discussion{id}}}`
+	return g.ghGraphQL(query, map[string]any{"id": commentID})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — User Extended (8)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// UpdateProfile updates the authenticated user's profile.
+func (g *GitHubCore) UpdateProfile(name, bio, blog, company, location string) (json.RawMessage, error) {
+	payload := map[string]any{}
+	if name != "" {
+		payload["name"] = name
+	}
+	if bio != "" {
+		payload["bio"] = bio
+	}
+	if blog != "" {
+		payload["blog"] = blog
+	}
+	if company != "" {
+		payload["company"] = company
+	}
+	if location != "" {
+		payload["location"] = location
+	}
+	return g.apiPatch("/user", payload)
+}
+
+// ListEmails lists email addresses for the authenticated user.
+func (g *GitHubCore) ListEmails() (json.RawMessage, error) {
+	return g.apiGet("/user/emails", nil)
+}
+
+// AddEmail adds email addresses.
+func (g *GitHubCore) AddEmail(emails []string) (json.RawMessage, error) {
+	return g.apiPost("/user/emails", map[string]any{"emails": emails})
+}
+
+// DeleteEmail removes email addresses.
+func (g *GitHubCore) DeleteEmail(emails []string) error {
+	data, _ := json.Marshal(map[string]any{"emails": emails})
+	body, status, _, err := g.doAPI("DELETE", ghAPIBase+"/user/emails", data, nil)
+	if err != nil {
+		return err
+	}
+	if status >= 400 {
+		return fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+	}
+	return nil
+}
+
+// ListSocialAccounts lists social accounts for the authenticated user.
+func (g *GitHubCore) ListSocialAccounts() (json.RawMessage, error) {
+	return g.apiGet("/user/social_accounts", nil)
+}
+
+// AddSocialAccount adds social account URLs.
+func (g *GitHubCore) AddSocialAccount(accountURLs []string) (json.RawMessage, error) {
+	return g.apiPost("/user/social_accounts", map[string]any{"account_urls": accountURLs})
+}
+
+// DeleteSocialAccount removes social account URLs.
+func (g *GitHubCore) DeleteSocialAccount(accountURLs []string) error {
+	data, _ := json.Marshal(map[string]any{"account_urls": accountURLs})
+	body, status, _, err := g.doAPI("DELETE", ghAPIBase+"/user/social_accounts", data, nil)
+	if err != nil {
+		return err
+	}
+	if status >= 400 {
+		return fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+	}
+	return nil
+}
+
+// GetUserHovercard gets hovercard info for a user.
+func (g *GitHubCore) GetUserHovercard(username string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/users/%s/hovercard", username), nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Search Extended (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SearchCode searches code.
+func (g *GitHubCore) SearchCode(query string, perPage int) (json.RawMessage, error) {
+	return g.apiGet("/search/code", map[string]string{"q": query, "per_page": strconv.Itoa(perPage)})
+}
+
+// SearchCommits searches commits.
+func (g *GitHubCore) SearchCommits(query string, perPage int) (json.RawMessage, error) {
+	return g.apiGet("/search/commits", map[string]string{"q": query, "per_page": strconv.Itoa(perPage)})
+}
+
+// SearchLabels searches labels.
+func (g *GitHubCore) SearchLabels(repoID int, query string) (json.RawMessage, error) {
+	return g.apiGet("/search/labels", map[string]string{"repository_id": strconv.Itoa(repoID), "q": query})
+}
+
+// SearchTopics searches topics.
+func (g *GitHubCore) SearchTopics(query string) (json.RawMessage, error) {
+	return g.apiGet("/search/topics", map[string]string{"q": query})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Utility (3)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListEmojis lists all GitHub emojis.
+func (g *GitHubCore) ListEmojis() (json.RawMessage, error) {
+	return g.apiGet("/emojis", nil)
+}
+
+// CheckRateLimit checks the current rate limit status.
+func (g *GitHubCore) CheckRateLimit() (json.RawMessage, error) {
+	return g.apiGet("/rate_limit", nil)
+}
+
+// RenderMarkdown renders markdown to HTML.
+func (g *GitHubCore) RenderMarkdown(text, mode, context string) (string, error) {
+	payload := map[string]any{"text": text}
+	if mode != "" {
+		payload["mode"] = mode
+	}
+	if context != "" {
+		payload["context"] = context
+	}
+	data, _ := json.Marshal(payload)
+	body, status, _, err := g.doAPI("POST", ghAPIBase+"/markdown", data, nil)
+	if err != nil {
+		return "", err
+	}
+	if status >= 400 {
+		return "", fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+	}
+	return string(body), nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Branches & Branch Protection (6)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListBranches lists branches for a repository.
+func (g *GitHubCore) ListBranches(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/branches", owner, repo), map[string]string{"per_page": "100"})
+}
+
+// GetBranch gets a branch.
+func (g *GitHubCore) GetBranch(owner, repo, branch string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/branches/%s", owner, repo, branch), nil)
+}
+
+// CreateBranchProtection creates branch protection rules.
+func (g *GitHubCore) CreateBranchProtection(owner, repo, branch string, rules map[string]any) (json.RawMessage, error) {
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", owner, repo, branch), rules)
+}
+
+// UpdateBranchProtection updates branch protection rules.
+func (g *GitHubCore) UpdateBranchProtection(owner, repo, branch string, rules map[string]any) (json.RawMessage, error) {
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", owner, repo, branch), rules)
+}
+
+// DeleteBranchProtection removes branch protection.
+func (g *GitHubCore) DeleteBranchProtection(owner, repo, branch string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", owner, repo, branch))
+	return err
+}
+
+// RenameBranch renames a branch.
+func (g *GitHubCore) RenameBranch(owner, repo, branch, newName string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/branches/%s/rename", owner, repo, branch), map[string]any{"new_name": newName})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Git References / Tags (6)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListTags lists tags for a repository.
+func (g *GitHubCore) ListTags(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/tags", owner, repo), map[string]string{"per_page": "100"})
+}
+
+// CreateTag creates a tag object.
+func (g *GitHubCore) CreateTag(owner, repo, tag, message, sha, objectType string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/git/tags", owner, repo), map[string]any{
+		"tag":     tag,
+		"message": message,
+		"object":  sha,
+		"type":    objectType,
+	})
+}
+
+// DeleteTag deletes a tag by deleting its reference.
+func (g *GitHubCore) DeleteTag(owner, repo, tag string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/git/refs/tags/%s", owner, repo, tag))
+	return err
+}
+
+// ListRefs lists git references.
+func (g *GitHubCore) ListRefs(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/git/refs", owner, repo), nil)
+}
+
+// CreateRef creates a git reference.
+func (g *GitHubCore) CreateRef(owner, repo, ref, sha string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/git/refs", owner, repo), map[string]any{"ref": ref, "sha": sha})
+}
+
+// DeleteRef deletes a git reference.
+func (g *GitHubCore) DeleteRef(owner, repo, ref string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/git/refs/%s", owner, repo, ref))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Commits (3)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListCommits lists commits for a repository.
+func (g *GitHubCore) ListCommits(owner, repo string, perPage int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/commits", owner, repo), map[string]string{"per_page": strconv.Itoa(perPage)})
+}
+
+// GetCommit gets a commit.
+func (g *GitHubCore) GetCommit(owner, repo, sha string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/commits/%s", owner, repo, sha), nil)
+}
+
+// CompareCommits compares two commits.
+func (g *GitHubCore) CompareCommits(owner, repo, base, head string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/compare/%s...%s", owner, repo, base, head), nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Actions / Workflows (10)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListWorkflows lists workflows for a repository.
+func (g *GitHubCore) ListWorkflows(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/actions/workflows", owner, repo), nil)
+}
+
+// ListWorkflowRuns lists workflow runs.
+func (g *GitHubCore) ListWorkflowRuns(owner, repo string, perPage int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/actions/runs", owner, repo), map[string]string{"per_page": strconv.Itoa(perPage)})
+}
+
+// GetWorkflowRun gets a workflow run.
+func (g *GitHubCore) GetWorkflowRun(owner, repo string, runID int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/actions/runs/%d", owner, repo, runID), nil)
+}
+
+// ReRunWorkflow re-runs a workflow.
+func (g *GitHubCore) ReRunWorkflow(owner, repo string, runID int) error {
+	_, err := g.apiPost(fmt.Sprintf("/repos/%s/%s/actions/runs/%d/rerun", owner, repo, runID), nil)
+	return err
+}
+
+// CancelWorkflowRun cancels a workflow run.
+func (g *GitHubCore) CancelWorkflowRun(owner, repo string, runID int) error {
+	_, err := g.apiPost(fmt.Sprintf("/repos/%s/%s/actions/runs/%d/cancel", owner, repo, runID), nil)
+	return err
+}
+
+// ListWorkflowRunArtifacts lists artifacts for a workflow run.
+func (g *GitHubCore) ListWorkflowRunArtifacts(owner, repo string, runID int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/actions/runs/%d/artifacts", owner, repo, runID), nil)
+}
+
+// DownloadArtifact gets the download URL for an artifact.
+func (g *GitHubCore) DownloadArtifact(owner, repo string, artifactID int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/actions/artifacts/%d/zip", owner, repo, artifactID), nil)
+}
+
+// ListRepositorySecrets lists repository secrets.
+func (g *GitHubCore) ListRepositorySecrets(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/actions/secrets", owner, repo), nil)
+}
+
+// CreateOrUpdateSecret creates or updates a repository secret.
+func (g *GitHubCore) CreateOrUpdateSecret(owner, repo, name, encryptedValue, keyID string) error {
+	_, err := g.apiPut(fmt.Sprintf("/repos/%s/%s/actions/secrets/%s", owner, repo, name), map[string]any{
+		"encrypted_value": encryptedValue,
+		"key_id":          keyID,
+	})
+	return err
+}
+
+// DeleteSecret deletes a repository secret.
+func (g *GitHubCore) DeleteSecret(owner, repo, name string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/actions/secrets/%s", owner, repo, name))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Checks / Statuses (6)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListCheckRuns lists check runs for a ref.
+func (g *GitHubCore) ListCheckRuns(owner, repo, ref string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, repo, ref), nil)
+}
+
+// GetCheckRun gets a check run.
+func (g *GitHubCore) GetCheckRun(owner, repo string, checkRunID int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/check-runs/%d", owner, repo, checkRunID), nil)
+}
+
+// ListCheckSuites lists check suites for a ref.
+func (g *GitHubCore) ListCheckSuites(owner, repo, ref string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/commits/%s/check-suites", owner, repo, ref), nil)
+}
+
+// CreateCheckRun creates a check run.
+func (g *GitHubCore) CreateCheckRun(owner, repo, name, headSHA string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/check-runs", owner, repo), map[string]any{
+		"name":     name,
+		"head_sha": headSHA,
+	})
+}
+
+// ListCommitStatuses lists statuses for a ref.
+func (g *GitHubCore) ListCommitStatuses(owner, repo, ref string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/commits/%s/statuses", owner, repo, ref), nil)
+}
+
+// CreateCommitStatus creates a commit status.
+func (g *GitHubCore) CreateCommitStatus(owner, repo, sha, state, targetURL, description, context string) (json.RawMessage, error) {
+	payload := map[string]any{"state": state}
+	if targetURL != "" {
+		payload["target_url"] = targetURL
+	}
+	if description != "" {
+		payload["description"] = description
+	}
+	if context != "" {
+		payload["context"] = context
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/statuses/%s", owner, repo, sha), payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Projects (7)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListProjects lists projects for a repository.
+func (g *GitHubCore) ListProjects(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/projects", owner, repo), nil)
+}
+
+// CreateProject creates a project.
+func (g *GitHubCore) CreateProject(owner, repo, name, body string) (json.RawMessage, error) {
+	payload := map[string]any{"name": name}
+	if body != "" {
+		payload["body"] = body
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/projects", owner, repo), payload)
+}
+
+// UpdateProject updates a project.
+func (g *GitHubCore) UpdateProject(projectID int, updates map[string]any) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/projects/%d", projectID), updates)
+}
+
+// DeleteProject deletes a project.
+func (g *GitHubCore) DeleteProject(projectID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/projects/%d", projectID))
+	return err
+}
+
+// ListProjectColumns lists columns for a project.
+func (g *GitHubCore) ListProjectColumns(projectID int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/projects/%d/columns", projectID), nil)
+}
+
+// CreateProjectCard creates a card in a project column.
+func (g *GitHubCore) CreateProjectCard(columnID int, note string) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/projects/columns/%d/cards", columnID), map[string]any{"note": note})
+}
+
+// MoveProjectCard moves a project card.
+func (g *GitHubCore) MoveProjectCard(cardID int, position string, columnID int) (json.RawMessage, error) {
+	payload := map[string]any{"position": position}
+	if columnID > 0 {
+		payload["column_id"] = columnID
+	}
+	return g.apiPost(fmt.Sprintf("/projects/columns/cards/%d/moves", cardID), payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Deployments (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListDeployments lists deployments for a repository.
+func (g *GitHubCore) ListDeployments(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/deployments", owner, repo), nil)
+}
+
+// CreateDeployment creates a deployment.
+func (g *GitHubCore) CreateDeployment(owner, repo, ref, environment, description string) (json.RawMessage, error) {
+	payload := map[string]any{"ref": ref}
+	if environment != "" {
+		payload["environment"] = environment
+	}
+	if description != "" {
+		payload["description"] = description
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/deployments", owner, repo), payload)
+}
+
+// ListDeploymentStatuses lists statuses for a deployment.
+func (g *GitHubCore) ListDeploymentStatuses(owner, repo string, deploymentID int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/deployments/%d/statuses", owner, repo, deploymentID), nil)
+}
+
+// CreateDeploymentStatus creates a deployment status.
+func (g *GitHubCore) CreateDeploymentStatus(owner, repo string, deploymentID int, state, logURL, description string) (json.RawMessage, error) {
+	payload := map[string]any{"state": state}
+	if logURL != "" {
+		payload["log_url"] = logURL
+	}
+	if description != "" {
+		payload["description"] = description
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/deployments/%d/statuses", owner, repo, deploymentID), payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Repository Contents (5)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetFileContents gets the contents of a file in a repository.
+func (g *GitHubCore) GetFileContents(owner, repo, path, ref string) (json.RawMessage, error) {
+	params := map[string]string{}
+	if ref != "" {
+		params["ref"] = ref
+	}
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/contents/%s", owner, repo, path), params)
+}
+
+// CreateOrUpdateFileContents creates or updates a file.
+func (g *GitHubCore) CreateOrUpdateFileContents(owner, repo, path, message, contentB64, sha, branch string) (json.RawMessage, error) {
+	payload := map[string]any{
+		"message": message,
+		"content": contentB64,
+	}
+	if sha != "" {
+		payload["sha"] = sha
+	}
+	if branch != "" {
+		payload["branch"] = branch
+	}
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/contents/%s", owner, repo, path), payload)
+}
+
+// DeleteFileContents deletes a file from a repository.
+func (g *GitHubCore) DeleteFileContents(owner, repo, path, message, sha, branch string) error {
+	payload := map[string]any{
+		"message": message,
+		"sha":     sha,
+	}
+	if branch != "" {
+		payload["branch"] = branch
+	}
+	data, _ := json.Marshal(payload)
+	body, status, _, err := g.doAPI("DELETE", ghAPIBase+fmt.Sprintf("/repos/%s/%s/contents/%s", owner, repo, path), data, nil)
+	if err != nil {
+		return err
+	}
+	if status >= 400 {
+		return fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+	}
+	return nil
+}
+
+// GetArchiveLink gets a tarball or zipball link for a repository.
+func (g *GitHubCore) GetArchiveLink(owner, repo, format, ref string) (string, error) {
+	if format == "" {
+		format = "tarball"
+	}
+	path := fmt.Sprintf("/repos/%s/%s/%s/%s", owner, repo, format, ref)
+	// The API returns a 302 redirect — we just want the URL
+	resp, err := g.apiGet(path, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(resp), nil
+}
+
+// ListRepositoryTree lists the git tree for a repository.
+func (g *GitHubCore) ListRepositoryTree(owner, repo, sha string, recursive bool) (json.RawMessage, error) {
+	params := map[string]string{}
+	if recursive {
+		params["recursive"] = "1"
+	}
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/git/trees/%s", owner, repo, sha), params)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Forks (1)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListForks lists forks for a repository.
+func (g *GitHubCore) ListForks(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/forks", owner, repo), map[string]string{"per_page": "30"})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Collaborator Permissions (2)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetCollaboratorPermission gets the permission level for a collaborator.
+func (g *GitHubCore) GetCollaboratorPermission(owner, repo, username string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/collaborators/%s/permission", owner, repo, username), nil)
+}
+
+// ListPendingInvitations lists pending repository invitations.
+func (g *GitHubCore) ListPendingInvitations(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/invitations", owner, repo), nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Code Scanning / Security (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListCodeScanningAlerts lists code scanning alerts.
+func (g *GitHubCore) ListCodeScanningAlerts(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/code-scanning/alerts", owner, repo), nil)
+}
+
+// GetCodeScanningAlert gets a code scanning alert.
+func (g *GitHubCore) GetCodeScanningAlert(owner, repo string, alertNumber int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/code-scanning/alerts/%d", owner, repo, alertNumber), nil)
+}
+
+// ListDependabotAlerts lists Dependabot alerts.
+func (g *GitHubCore) ListDependabotAlerts(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/dependabot/alerts", owner, repo), nil)
+}
+
+// ListSecretScanningAlerts lists secret scanning alerts.
+func (g *GitHubCore) ListSecretScanningAlerts(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/secret-scanning/alerts", owner, repo), nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Pages (3)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetPages gets GitHub Pages info for a repository.
+func (g *GitHubCore) GetPages(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/pages", owner, repo), nil)
+}
+
+// CreatePagesSite creates a GitHub Pages site.
+func (g *GitHubCore) CreatePagesSite(owner, repo, branch, path string) (json.RawMessage, error) {
+	source := map[string]any{"branch": branch}
+	if path != "" {
+		source["path"] = path
+	}
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/pages", owner, repo), map[string]any{"source": source})
+}
+
+// ListPagesBuilds lists Pages builds.
+func (g *GitHubCore) ListPagesBuilds(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/pages/builds", owner, repo), nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Packages (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListPackages lists packages for the authenticated user.
+func (g *GitHubCore) ListPackages(packageType string) (json.RawMessage, error) {
+	return g.apiGet("/user/packages", map[string]string{"package_type": packageType})
+}
+
+// GetPackage gets a package.
+func (g *GitHubCore) GetPackage(packageType, packageName string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/user/packages/%s/%s", packageType, packageName), nil)
+}
+
+// DeletePackage deletes a package.
+func (g *GitHubCore) DeletePackage(packageType, packageName string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/user/packages/%s/%s", packageType, packageName))
+	return err
+}
+
+// ListPackageVersions lists versions of a package.
+func (g *GitHubCore) ListPackageVersions(packageType, packageName string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/user/packages/%s/%s/versions", packageType, packageName), nil)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — SSH / GPG Keys (6)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListSSHKeys lists SSH keys for the authenticated user.
+func (g *GitHubCore) ListSSHKeys() (json.RawMessage, error) {
+	return g.apiGet("/user/keys", nil)
+}
+
+// CreateSSHKey adds an SSH key.
+func (g *GitHubCore) CreateSSHKey(title, key string) (json.RawMessage, error) {
+	return g.apiPost("/user/keys", map[string]any{"title": title, "key": key})
+}
+
+// DeleteSSHKey deletes an SSH key.
+func (g *GitHubCore) DeleteSSHKey(keyID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/user/keys/%d", keyID))
+	return err
+}
+
+// ListGPGKeys lists GPG keys for the authenticated user.
+func (g *GitHubCore) ListGPGKeys() (json.RawMessage, error) {
+	return g.apiGet("/user/gpg_keys", nil)
+}
+
+// CreateGPGKey adds a GPG key.
+func (g *GitHubCore) CreateGPGKey(armoredPublicKey string) (json.RawMessage, error) {
+	return g.apiPost("/user/gpg_keys", map[string]any{"armored_public_key": armoredPublicKey})
+}
+
+// DeleteGPGKey deletes a GPG key.
+func (g *GitHubCore) DeleteGPGKey(keyID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/user/gpg_keys/%d", keyID))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Rulesets (5)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListRulesets lists rulesets for a repository.
+func (g *GitHubCore) ListRulesets(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/rulesets", owner, repo), nil)
+}
+
+// CreateRuleset creates a ruleset.
+func (g *GitHubCore) CreateRuleset(owner, repo string, ruleset map[string]any) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/rulesets", owner, repo), ruleset)
+}
+
+// GetRuleset gets a ruleset.
+func (g *GitHubCore) GetRuleset(owner, repo string, rulesetID int) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/rulesets/%d", owner, repo, rulesetID), nil)
+}
+
+// UpdateRuleset updates a ruleset.
+func (g *GitHubCore) UpdateRuleset(owner, repo string, rulesetID int, updates map[string]any) (json.RawMessage, error) {
+	return g.apiPatch(fmt.Sprintf("/repos/%s/%s/rulesets/%d", owner, repo, rulesetID), updates)
+}
+
+// DeleteRuleset deletes a ruleset.
+func (g *GitHubCore) DeleteRuleset(owner, repo string, rulesetID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/rulesets/%d", owner, repo, rulesetID))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Autolinks (3)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListAutolinks lists autolinks for a repository.
+func (g *GitHubCore) ListAutolinks(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/autolinks", owner, repo), nil)
+}
+
+// CreateAutolink creates an autolink reference.
+func (g *GitHubCore) CreateAutolink(owner, repo, keyPrefix, urlTemplate string, isAlphanumeric bool) (json.RawMessage, error) {
+	return g.apiPost(fmt.Sprintf("/repos/%s/%s/autolinks", owner, repo), map[string]any{
+		"key_prefix":     keyPrefix,
+		"url_template":   urlTemplate,
+		"is_alphanumeric": isAlphanumeric,
+	})
+}
+
+// DeleteAutolink deletes an autolink.
+func (g *GitHubCore) DeleteAutolink(owner, repo string, autolinkID int) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/autolinks/%d", owner, repo, autolinkID))
+	return err
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Environments (4)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ListEnvironments lists environments for a repository.
+func (g *GitHubCore) ListEnvironments(owner, repo string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/environments", owner, repo), nil)
+}
+
+// GetEnvironment gets an environment.
+func (g *GitHubCore) GetEnvironment(owner, repo, envName string) (json.RawMessage, error) {
+	return g.apiGet(fmt.Sprintf("/repos/%s/%s/environments/%s", owner, repo, envName), nil)
+}
+
+// CreateOrUpdateEnvironment creates or updates an environment.
+func (g *GitHubCore) CreateOrUpdateEnvironment(owner, repo, envName string, config map[string]any) (json.RawMessage, error) {
+	return g.apiPut(fmt.Sprintf("/repos/%s/%s/environments/%s", owner, repo, envName), config)
+}
+
+// DeleteEnvironment deletes an environment.
+func (g *GitHubCore) DeleteEnvironment(owner, repo, envName string) error {
+	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/environments/%s", owner, repo, envName))
+	return err
+}

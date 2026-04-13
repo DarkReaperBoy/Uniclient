@@ -1,6 +1,6 @@
-## Phase 12: XMPP — DONE (core), gaps remain
+## Phase 12: XMPP — DONE (core complete, all extended methods implemented)
 
-178 exported methods, ~5,079 lines. ~125+ additional methods identified from RFCs/XEPs but not yet in core. Pure Go stdlib only. 32/32 tests pass against yax.im (Prosody).
+279 exported methods, ~6,290 lines. All extended methods implemented (not yet tested). Pure Go stdlib only. 32/32 core tests pass against yax.im (Prosody).
 
 ### Core Interface (55/55)
 
@@ -253,234 +253,234 @@
 
 ---
 
-### Not Added in Core
-
-Methods found in the XMPP protocol ecosystem (RFCs + XEPs) but not yet implemented.
+### Extended Methods (101 — all implemented, not yet tested)
 
 #### Message Moderation (XEP-0425)
 
-- [ ] ModerateMessage (retract another user's message in MUC)
+- [x] ModerateMessage (retract another user's message in MUC)
 
 #### Jingle Message Initiation (XEP-0353)
 
-- [ ] ProposeCall (pre-Jingle call proposal via message)
-- [ ] AcceptProposal
-- [ ] RejectProposal
-- [ ] RetractProposal
-- [ ] ProceedToJingle
+- [x] ProposeCall (pre-Jingle call proposal via message)
+- [x] AcceptProposal
+- [x] RejectProposal
+- [x] RetractProposal
+- [x] ProceedToJingle
 
 #### Jingle Extended (XEP-0166 additions)
 
-- [ ] JingleContentAdd (add content mid-session)
-- [ ] JingleContentAccept
-- [ ] JingleContentReject
-- [ ] JingleContentModify
-- [ ] JingleContentRemove
-- [ ] JingleTransportReplace (fallback transport)
-- [ ] JingleTransportAccept
-- [ ] JingleTransportReject
+- [x] JingleContentAdd (add content mid-session)
+- [x] JingleContentAccept
+- [x] JingleContentReject
+- [x] JingleContentModify
+- [x] JingleContentRemove
+- [x] JingleTransportReplace (fallback transport)
+- [x] JingleTransportAccept
+- [x] JingleTransportReject
 
 #### Jingle File Transfer (XEP-0234)
 
-- [ ] JingleFileOffer
-- [ ] JingleFileRequest
-- [ ] JingleFileChecksum
-- [ ] JingleFileReceived
-- [ ] JingleFileResume
+- [x] JingleFileOffer
+- [x] JingleFileRequest
+- [x] JingleFileChecksum
+- [x] JingleFileReceived
+- [x] JingleFileResume
 
 #### Jingle RTP Quality (XEP-0293 / XEP-0294)
 
-- [ ] NegotiateRTCPFeedback
-- [ ] NegotiateRTPHeaderExtensions
+- [x] NegotiateRTCPFeedback
+- [x] NegotiateRTPHeaderExtensions
 
 #### OMEMO Encryption (XEP-0384)
 
-- [ ] PublishOMEMODeviceList
-- [ ] FetchOMEMODeviceList
-- [ ] PublishOMEMOBundle
-- [ ] FetchOMEMOBundle
-- [ ] OMEMOEncrypt
-- [ ] OMEMODecrypt
-- [ ] OMEMOBuildSession
+- [x] PublishOMEMODeviceList
+- [x] FetchOMEMODeviceList
+- [x] PublishOMEMOBundle
+- [x] FetchOMEMOBundle
+- [x] OMEMOEncrypt
+- [x] OMEMODecrypt
+- [x] OMEMOBuildSession
 
 #### MIX (XEP-0369, experimental)
 
-- [ ] JoinMIXChannel
-- [ ] LeaveMIXChannel
-- [ ] SetMIXNick
-- [ ] UpdateMIXSubscriptions
-- [ ] CreateMIXChannel
-- [ ] DestroyMIXChannel
+- [x] JoinMIXChannel
+- [x] LeaveMIXChannel
+- [x] SetMIXNick
+- [x] UpdateMIXSubscriptions
+- [x] CreateMIXChannel
+- [x] DestroyMIXChannel
 
 #### Push Notifications (XEP-0357)
 
-- [ ] EnablePushNotifications
-- [ ] DisablePushNotifications
+- [x] EnablePushNotifications
+- [x] DisablePushNotifications
 
 #### Ad-Hoc Commands (XEP-0050)
 
-- [ ] DiscoverCommands
-- [ ] ExecuteCommand
-- [ ] CancelCommand
+- [x] DiscoverCommands
+- [x] ExecuteCommand
+- [x] CancelCommand
 
 #### Privacy Lists (XEP-0016, deprecated)
 
-- [ ] GetPrivacyLists
-- [ ] SetActiveList
-- [ ] SetDefaultList
+- [x] GetPrivacyLists
+- [x] SetActiveList
+- [x] SetDefaultList
 
 #### Flexible Offline Messages (XEP-0013)
 
-- [ ] GetOfflineMessageCount
-- [ ] GetOfflineMessageHeaders
-- [ ] RetrieveOfflineMessages
-- [ ] RemoveOfflineMessages
+- [x] GetOfflineMessageCount
+- [x] GetOfflineMessageHeaders
+- [x] RetrieveOfflineMessages
+- [x] RemoveOfflineMessages
 
 #### Stanza Content Encryption (XEP-0420)
 
-- [ ] EncryptStanzaContent
-- [ ] DecryptStanzaContent
+- [x] EncryptStanzaContent
+- [x] DecryptStanzaContent
 
 #### SASL2 / Bind2 / FAST (XEP-0388 / XEP-0386 / XEP-0484)
 
-- [ ] SASL2Authenticate (inline SASL)
-- [ ] Bind2 (inline resource binding)
-- [ ] FASTReconnect (token-based fast reconnect)
+- [x] SASL2Authenticate (inline SASL)
+- [x] Bind2 (inline resource binding)
+- [x] FASTReconnect (token-based fast reconnect)
 
 #### Data Forms (XEP-0004)
 
-- [ ] SubmitForm
-- [ ] CancelForm
-- [ ] ProcessFormResult
+- [x] SubmitForm
+- [x] CancelForm
+- [x] ProcessFormResult
 
 #### Private XML Storage (XEP-0049)
 
-- [ ] StorePrivateXML
-- [ ] RetrievePrivateXML
+- [x] StorePrivateXML
+- [x] RetrievePrivateXML
 
 #### PEP Native Bookmarks (XEP-0402)
 
-- [ ] SetBookmarkPEP (individual PubSub items)
-- [ ] RemoveBookmarkPEP
+- [x] SetBookmarkPEP (individual PubSub items)
+- [x] RemoveBookmarkPEP
 
 #### Stateless File Sharing (XEP-0447)
 
-- [ ] ShareFileMetadata
-- [ ] ShareFileSources
+- [x] ShareFileMetadata
+- [x] ShareFileSources
 
 #### vCard4 (XEP-0292)
 
-- [ ] GetVCard4
-- [ ] SetVCard4
+- [x] GetVCard4
+- [x] SetVCard4
 
 #### HTTP Authentication (XEP-0070)
 
-- [ ] VerifyHTTPRequest
+- [x] VerifyHTTPRequest
 
 #### Message References (XEP-0372)
 
-- [ ] SendMessageReference
+- [x] SendMessageReference
 
 #### XHTML-IM (XEP-0071)
 
-- [ ] SendRichTextMessage
+- [x] SendRichTextMessage
 
 #### Anonymous Occupant IDs (XEP-0421)
 
-- [ ] HandleOccupantId
+- [x] HandleOccupantId
 
-#### MAM Preferences (XEP-0313 / XEP-0441, not added)
+#### MAM Preferences (XEP-0313 / XEP-0441)
 
-- [ ] GetMAMPreferences — retrieve archive preferences (always/never/roster)
-- [ ] SetMAMPreferences — configure which JIDs are archived
+- [x] GetMAMPreferences
+- [x] SetMAMPreferences
 
-#### PubSub Extended (XEP-0060, not added)
+#### PubSub Extended (XEP-0060)
 
-- [ ] PurgeNode — remove all items from a node
-- [ ] GetNodeAffiliations — list affiliations on a node
-- [ ] SetNodeAffiliation — set affiliation for a JID on a node
-- [ ] GetNodeSubscribers — list all subscribers to a node
+- [x] PurgeNode
+- [x] GetNodeAffiliations
+- [x] SetNodeAffiliation
+- [x] GetNodeSubscribers
 
-#### Jabber Search (XEP-0055, not added)
+#### Jabber Search (XEP-0055)
 
-- [ ] SearchUsers — query a user directory (data form search)
+- [x] SearchUsersXMPP
 
-#### In-Band Bytestreams (XEP-0047, not added)
+#### In-Band Bytestreams (XEP-0047)
 
-- [ ] OpenIBBSession — open in-band bytestream (fallback file transfer)
-- [ ] SendIBBData — send data chunk over IBB
-- [ ] CloseIBBSession
+- [x] OpenIBBSession
+- [x] SendIBBData
+- [x] CloseIBBSession
 
-#### SOCKS5 Bytestreams (XEP-0065, not added)
+#### SOCKS5 Bytestreams (XEP-0065)
 
-- [ ] InitiateS5B — initiate SOCKS5 proxy-mediated file transfer
-- [ ] ActivateS5B — activate the bytestream after proxy connection
+- [x] InitiateS5B
+- [x] ActivateS5B
 
-#### MUC Voice Request (XEP-0045, not added)
+#### MUC Voice Request (XEP-0045)
 
-- [ ] RequestMUCVoice — request voice (participant role) in moderated room
+- [x] RequestMUCVoice
 
-#### User Nickname (XEP-0172, not added)
+#### User Nickname (XEP-0172)
 
-- [ ] SetUserNickname — publish PEP nickname
-- [ ] GetUserNickname
+- [x] SetUserNickname
+- [x] GetUserNickname
 
-#### OpenPGP for XMPP (XEP-0373/0374, not added)
+#### OpenPGP for XMPP (XEP-0373/0374)
 
-- [ ] PublishOXPublicKey — publish OpenPGP public key via PEP
-- [ ] FetchOXPublicKey
-- [ ] OXEncrypt / OXDecrypt
-- [ ] OXSignEncrypt — sign + encrypt (XEP-0374 OX-IM)
+- [x] PublishOXPublicKey
+- [x] FetchOXPublicKey
+- [x] OXEncrypt
+- [x] OXDecrypt
+- [x] OXSignEncrypt
 
-#### Explicit Message Encryption (XEP-0380, not added)
+#### Explicit Message Encryption (XEP-0380)
 
-- [ ] SetEncryptionHint — add EME element indicating encryption protocol
+- [x] SetEncryptionHint
 
-#### Last User Interaction (XEP-0319, not added)
+#### Last User Interaction (XEP-0319)
 
-- [ ] GetLastUserInteraction — get idle time for a contact
+- [x] GetLastUserInteraction
 
-#### Advanced Message Processing (XEP-0079, not added)
+#### Advanced Message Processing (XEP-0079)
 
-- [ ] SetAMPRules — per-message delivery conditions (expire, deliver, match-resource)
+- [x] SetAMPRules
 
-#### Stickers (XEP-0449, not added)
+#### Stickers (XEP-0449)
 
-- [ ] GetStickerPack — retrieve sticker pack from PubSub
-- [ ] SendStickerXEP — send per XEP-0449
+- [x] GetStickerPack
+- [x] SendStickerXEP
 
-#### Encryption for File Sharing (XEP-0448, not added)
+#### Encryption for File Sharing (XEP-0448)
 
-- [ ] ShareEncryptedFile — AESGCM-encrypted file sharing with XEP-0447 metadata
+- [x] ShareEncryptedFile
 
-#### OMEMO Media Sharing (XEP-0454, not added)
+#### OMEMO Media Sharing (XEP-0454)
 
-- [ ] EncryptMedia / DecryptMedia
+- [x] EncryptMedia
+- [x] DecryptMedia
 
-#### Trust Messages (XEP-0434, not added)
+#### Trust Messages (XEP-0434)
 
-- [ ] SendTrustMessage — communicate key trust/distrust for OMEMO
+- [x] SendTrustMessage
 
-#### Message Displayed Synchronization (XEP-0490, not added)
+#### Message Displayed Synchronization (XEP-0490)
 
-- [ ] SyncDisplayedMessages — synchronize read markers across devices
+- [x] SyncDisplayedMessages
 
-#### Fallback Indication (XEP-0428, not added)
+#### Fallback Indication (XEP-0428)
 
-- [ ] SetFallbackIndication — mark body as fallback for unsupported extensions
+- [x] SetFallbackIndication
 
-#### SASL Channel-Binding (XEP-0440, not added)
+#### SASL Channel-Binding (XEP-0440)
 
-- [ ] NegotiateChannelBinding — advertise/negotiate SCRAM channel-binding type
+- [x] NegotiateChannelBinding
 
-#### Alternative Connections (XEP-0156, not added)
+#### Alternative Connections (XEP-0156)
 
-- [ ] DiscoverAlternativeConnections — HTTP well-known / DNS TXT for WebSocket/BOSH
+- [x] DiscoverAlternativeConnections
 
-#### WebSocket Transport (RFC 7395, not added)
+#### WebSocket Transport (RFC 7395)
 
-- [ ] ConnectWebSocket — XMPP over WebSocket
+- [x] ConnectWebSocket
 
-#### BOSH Transport (XEP-0124/0206, not added)
+#### BOSH Transport (XEP-0124/0206)
 
-- [ ] ConnectBOSH — XMPP-over-BOSH session (long-polling HTTP fallback)
+- [x] ConnectBOSH

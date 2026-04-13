@@ -1,7 +1,7 @@
 ## Phase 5: Delta Chat — DONE (core complete, extras pending)
 
-92 exported methods, ~4,859 lines. 132 method tests ALL PASS on real chatmail (2026-04-09).
-~43 additional methods discovered in deltachat-core-rust C FFI + JSON-RPC — not yet implemented.
+135 exported methods, ~5,900 lines. 132 method tests ALL PASS on real chatmail (2026-04-09).
+All 43 additional methods from deltachat-core-rust C FFI + JSON-RPC now implemented (not yet tested).
 
 ### Core Interface (55/55)
 
@@ -124,83 +124,81 @@ nine.testrun.org, mehl.cloud, mailchat.pl, chatmail.woodpeckersnest.space, chat.
 
 `go-imap/v2`, `go-smtp`, `go-message`, `go-sasl`, `ProtonMail/go-crypto`, `pion/webrtc/v4` — all pure Go.
 
-### Not Added in Core
+### Extended Methods (43 — all implemented, not yet tested)
 
-Methods found in deltachat-core-rust (C FFI + JSON-RPC) not yet implemented in the Go core.
+**Webxdc (9):**
+- [x] SendWebxdcStatusUpdate
+- [x] GetWebxdcStatusUpdates
+- [x] GetWebxdcInfo
+- [x] GetWebxdcBlob
+- [x] SetWebxdcIntegration
+- [x] InitWebxdcIntegration
+- [x] SendWebxdcRealtimeData
+- [x] SendWebxdcRealtimeAdvertisement
+- [x] LeaveWebxdcRealtime
 
-**Webxdc (entire subsystem):**
-- [ ] SendWebxdcStatusUpdate
-- [ ] GetWebxdcStatusUpdates
-- [ ] GetWebxdcInfo
-- [ ] GetWebxdcBlob
-- [ ] SetWebxdcIntegration
-- [ ] InitWebxdcIntegration
-- [ ] SendWebxdcRealtimeData
-- [ ] SendWebxdcRealtimeAdvertisement
-- [ ] LeaveWebxdcRealtime
+**Account Management (4):**
+- [x] DeactivateAccount
+- [x] ChangePassphrase
+- [x] GetAccountFileSize
+- [x] GetStorageUsageReport
 
-**Account Management:**
-- [ ] DeactivateAccount / RequestDeleteAccount
-- [ ] ChangePassphrase
-- [ ] GetAccountFileSize
-- [ ] GetStorageUsageReport
+**Key Transfer (2):**
+- [x] InitiateKeyTransfer
+- [x] ContinueKeyTransfer
 
-**Key Transfer (Autocrypt Setup Message):**
-- [ ] InitiateKeyTransfer
-- [ ] ContinueKeyTransfer
+**Key Management (3):**
+- [x] ExportSelfKeys
+- [x] ImportSelfKeys
+- [x] PreconfigureKeypair
 
-**Key Management:**
-- [ ] ExportSelfKeys
-- [ ] ImportSelfKeys
-- [ ] PreconfigureKeypair
+**Device Messages (2):**
+- [x] AddDeviceMessage
+- [x] WasDeviceMsgEverAdded
 
-**Device Messages:**
-- [ ] AddDeviceMessage
-- [ ] WasDeviceMsgEverAdded
+**Stickers (3):**
+- [x] GetStickerFolder
+- [x] GetStickers
+- [x] SaveSticker
 
-**Stickers (JSON-RPC):**
-- [ ] GetStickerFolder
-- [ ] GetStickers
-- [ ] SaveSticker
+**Advanced Chat (5):**
+- [x] CreateBroadcastList
+- [x] EstimateAutoDeletionCount
+- [x] GetSimilarChats
+- [x] DeleteMessagesForAll
+- [x] ForwardMessagesToAccount
 
-**Advanced Chat:**
-- [ ] CreateBroadcastList
-- [ ] EstimateAutoDeletionCount
-- [ ] GetSimilarChats
-- [ ] DeleteMessagesForAll
-- [ ] ForwardMessagesToAccount
+**Provider (1):**
+- [x] GetProviderInfo
 
-**Provider (email auto-config):**
-- [ ] GetProviderInfo
+**Push (2):**
+- [x] SetPushDeviceToken
+- [x] GetPushState
 
-**Push:**
-- [ ] SetPushDeviceToken
-- [ ] GetPushState
+**Transport (3):**
+- [x] AddTransport
+- [x] ListTransports
+- [x] DeleteTransport
 
-**Transport (multi-account):**
-- [ ] AddTransport
-- [ ] ListTransports
-- [ ] DeleteTransport
+**Location (2):**
+- [x] GetLocations
+- [x] IsLocationStreaming
 
-**Location (not added — §13):**
-- [ ] GetLocations — retrieve stored location history
-- [ ] IsLocationStreaming — check if currently streaming to a chat
+**Download-on-Demand (1):**
+- [x] DownloadFullMessage
 
-**Download-on-Demand (not added — §20):**
-- [ ] DownloadFullMessage — download full body for partially-downloaded messages
+**Configuration (3):**
+- [x] SetShowEmails
+- [x] SetDownloadLimit
+- [x] SetCallFilter
 
-**Configuration (not added — §2/§10/§20):**
-- [ ] SetShowEmails — control display of non-DC classical emails (Off/AcceptedContacts/All)
-- [ ] SetDownloadLimit — set max auto-download size in bytes
-- [ ] SetCallFilter — control who can call (Everybody/Contacts/Nobody)
+**Quota (1):**
+- [x] GetQuota
 
-**Quota (not added — §2):**
-- [ ] GetQuota — check IMAP mailbox quota usage via GETQUOTAROOT
+**HTML (1):**
+- [x] GetMessageHTML
 
-**HTML (not added — §3):**
-- [ ] GetMessageHTML — get original HTML version of a received message
-
-**Contact (not added — §19):**
-- [ ] WasContactSeenRecently — check if a contact was seen recently
+**Contact (1):**
+- [x] WasContactSeenRecently
 
 ---

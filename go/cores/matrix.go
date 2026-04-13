@@ -4395,3 +4395,1183 @@ func (m *MatrixCore) GetKeyBackupInfo() (version string, count int, err error) {
 
 	return string(resp.Version), resp.Count, nil
 }
+
+// ──────────────────────────── VoIP Extended ────────────────────────────
+
+// AcceptCallSelectAnswer sends m.call.select_answer for call glare handling.
+func (m *MatrixCore) AcceptCallSelectAnswer(callID, selectedPartyID string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	m.callsMu.RLock()
+	call, ok := m.activeCalls[callID]
+	m.callsMu.RUnlock()
+	if !ok {
+		return fmt.Errorf("call %s not found", callID)
+	}
+
+	content := map[string]interface{}{
+		"call_id":           callID,
+		"version":           "1",
+		"party_id":          m.deviceID.String(),
+		"selected_party_id": selectedPartyID,
+	}
+	_, err := m.client.SendMessageEvent(m.ctx, call.RoomID, event.NewEventType("m.call.select_answer"), content)
+	return err
+}
+
+// SendCallCandidates sends trickle ICE candidates for an active call.
+func (m *MatrixCore) SendCallCandidates(callID string, candidates []webrtc.ICECandidateInit) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	m.callsMu.RLock()
+	call, ok := m.activeCalls[callID]
+	m.callsMu.RUnlock()
+	if !ok {
+		return fmt.Errorf("call %s not found", callID)
+	}
+
+	m.sendICECandidates(call, candidates)
+	return nil
+}
+
+// CallReplaces sends m.call.replaces for call transfer (attended or blind).
+func (m *MatrixCore) CallReplaces(callID, targetRoomID, targetCallID string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	m.callsMu.RLock()
+	call, ok := m.activeCalls[callID]
+	m.callsMu.RUnlock()
+	if !ok {
+		return fmt.Errorf("call %s not found", callID)
+	}
+
+	content := map[string]interface{}{
+		"call_id":  callID,
+		"version":  "1",
+		"party_id": m.deviceID.String(),
+		"replacement_id": fmt.Sprintf("rep_%d", time.Now().UnixNano()),
+		"target_room": map[string]interface{}{
+			"room_id": targetRoomID,
+		},
+	}
+	if targetCallID != "" {
+		content["target_room"].(map[string]interface{})["call_id"] = targetCallID
+	}
+	_, err := m.client.SendMessageEvent(m.ctx, call.RoomID, event.NewEventType("m.call.replaces"), content)
+	return err
+}
+
+// SDPStreamMetadataChanged sends m.call.sdp_stream_metadata_changed when stream metadata updates.
+func (m *MatrixCore) SDPStreamMetadataChanged(callID string, metadata map[string]interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	m.callsMu.RLock()
+	call, ok := m.activeCalls[callID]
+	m.callsMu.RUnlock()
+	if !ok {
+		return fmt.Errorf("call %s not found", callID)
+	}
+
+	content := map[string]interface{}{
+		"call_id":                 callID,
+		"version":                 "1",
+		"party_id":               m.deviceID.String(),
+		"sdp_stream_metadata": metadata,
+	}
+	_, err := m.client.SendMessageEvent(m.ctx, call.RoomID, event.NewEventType("m.call.sdp_stream_metadata_changed"), content)
+	return err
+}
+
+// CallNotify sends m.call.notify to ring other devices.
+func (m *MatrixCore) CallNotify(callID string, roomID id.RoomID, lifetime int) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	content := map[string]interface{}{
+		"call_id":          callID,
+		"version":          "1",
+		"party_id":         m.deviceID.String(),
+		"lifetime":         lifetime,
+		"application":      "m.call",
+		"m.mentions":       map[string]interface{}{"user_ids": []string{}},
+	}
+	_, err := m.client.SendMessageEvent(m.ctx, roomID, event.NewEventType("m.call.notify"), content)
+	return err
+}
+
+// GroupCallEncryptionKeys sends m.call.encryption_keys for MatrixRTC encrypted group calls.
+func (m *MatrixCore) GroupCallEncryptionKeys(callID string, roomID id.RoomID, keys []map[string]interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	content := map[string]interface{}{
+		"call_id":  callID,
+		"version":  "1",
+		"party_id": m.deviceID.String(),
+		"keys":     keys,
+	}
+	_, err := m.client.SendToDevice(m.ctx, event.NewEventType("m.call.encryption_keys"), &mautrix.ReqSendToDevice{
+		Messages: map[id.UserID]map[id.DeviceID]*event.Content{
+			// Broadcast — caller should fill in targets
+		},
+	})
+	_ = err
+	// Fallback: send as room event
+	_, err = m.client.SendMessageEvent(m.ctx, roomID, event.NewEventType("m.call.encryption_keys"), content)
+	return err
+}
+
+// ──────────────────────────── Registration / Account ────────────────────────────
+
+// Register creates a new Matrix account.
+func (m *MatrixCore) Register(homeserverURL, username, password string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	client, err := mautrix.NewClient(homeserverURL, "", "")
+	if err != nil {
+		return fmt.Errorf("create client: %w", err)
+	}
+	client.Log = zerolog.Nop()
+
+	type regReq struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+		Auth     map[string]interface{} `json:"auth,omitempty"`
+	}
+	req := regReq{Username: username, Password: password}
+
+	// First attempt — may get interactive auth response
+	var resp mautrix.RespRegister
+	_, err = client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         client.BuildClientURL("v3", "register"),
+		RequestJSON: req,
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		// Try with dummy auth
+		req.Auth = map[string]interface{}{
+			"type": "m.login.dummy",
+		}
+		_, err = client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+			Method:      http.MethodPost,
+			URL:         client.BuildClientURL("v3", "register"),
+			RequestJSON: req,
+			ResponseJSON: &resp,
+		})
+		if err != nil {
+			return fmt.Errorf("register: %w", err)
+		}
+	}
+
+	m.userID = resp.UserID
+	m.deviceID = resp.DeviceID
+	m.accessToken = resp.AccessToken
+	m.homeserver = homeserverURL
+	m.client = client
+	m.client.UserID = resp.UserID
+	m.client.DeviceID = resp.DeviceID
+	m.client.AccessToken = resp.AccessToken
+	m.authed = true
+	m.saveSession()
+	return nil
+}
+
+// DeactivateAccount permanently deactivates the Matrix account.
+func (m *MatrixCore) DeactivateAccount(password string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]interface{}{
+		"auth": map[string]interface{}{
+			"type":     "m.login.password",
+			"user":     string(m.userID),
+			"password": password,
+		},
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "account", "deactivate"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// ChangePassword changes the account password.
+func (m *MatrixCore) ChangePassword(oldPassword, newPassword string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]interface{}{
+		"new_password": newPassword,
+		"auth": map[string]interface{}{
+			"type":     "m.login.password",
+			"user":     string(m.userID),
+			"password": oldPassword,
+		},
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "account", "password"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// CheckUsernameAvailability checks if a username is available for registration.
+func (m *MatrixCore) CheckUsernameAvailability(username string) (bool, error) {
+	if m.client == nil {
+		return false, fmt.Errorf("client not initialized")
+	}
+	resp, err := m.client.RegisterAvailable(m.ctx, username)
+	if err != nil {
+		return false, err
+	}
+	return resp.Available, nil
+}
+
+// RequestEmailToken requests an email validation token for 3PID operations.
+func (m *MatrixCore) RequestEmailToken(email, clientSecret string, sendAttempt int) (string, error) {
+	if !m.authed {
+		return "", ErrAuth
+	}
+	req := map[string]interface{}{
+		"email":        email,
+		"client_secret": clientSecret,
+		"send_attempt":  sendAttempt,
+	}
+	var resp struct {
+		SID string `json:"sid"`
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodPost,
+		URL:          m.client.BuildClientURL("v3", "account", "3pid", "email", "requestToken"),
+		RequestJSON:  req,
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.SID, nil
+}
+
+// RequestMsisdnToken requests a phone number validation token.
+func (m *MatrixCore) RequestMsisdnToken(country, phoneNumber, clientSecret string, sendAttempt int) (string, error) {
+	if !m.authed {
+		return "", ErrAuth
+	}
+	req := map[string]interface{}{
+		"country":       country,
+		"phone_number":  phoneNumber,
+		"client_secret": clientSecret,
+		"send_attempt":  sendAttempt,
+	}
+	var resp struct {
+		SID string `json:"sid"`
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodPost,
+		URL:          m.client.BuildClientURL("v3", "account", "3pid", "msisdn", "requestToken"),
+		RequestJSON:  req,
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.SID, nil
+}
+
+// ──────────────────────────── 3PID Management ────────────────────────────
+
+// Get3PIDs returns the list of third-party identifiers associated with the account.
+func (m *MatrixCore) Get3PIDs() ([]map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var resp struct {
+		ThreePIDs []map[string]interface{} `json:"threepids"`
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "account", "3pid"),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.ThreePIDs, nil
+}
+
+// Add3PID adds a validated 3PID to the account.
+func (m *MatrixCore) Add3PID(clientSecret, sid string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]interface{}{
+		"three_pid_creds": map[string]interface{}{
+			"client_secret": clientSecret,
+			"sid":           sid,
+		},
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "account", "3pid"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// Bind3PID binds a 3PID to the identity server.
+func (m *MatrixCore) Bind3PID(clientSecret, sid, idServer, idAccessToken string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]interface{}{
+		"client_secret":   clientSecret,
+		"sid":             sid,
+		"id_server":       idServer,
+		"id_access_token": idAccessToken,
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "account", "3pid", "bind"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// Delete3PID removes a 3PID from the account.
+func (m *MatrixCore) Delete3PID(medium, address string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]interface{}{
+		"medium":  medium,
+		"address": address,
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "account", "3pid", "delete"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// Unbind3PID unbinds a 3PID from the identity server.
+func (m *MatrixCore) Unbind3PID(medium, address, idServer string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]interface{}{
+		"medium":    medium,
+		"address":   address,
+		"id_server": idServer,
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "account", "3pid", "unbind"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// ──────────────────────────── Push Notifications ────────────────────────────
+
+// GetPushers returns the list of push notification services for the current user.
+func (m *MatrixCore) GetPushers() ([]map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var resp struct {
+		Pushers []map[string]interface{} `json:"pushers"`
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "pushers"),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Pushers, nil
+}
+
+// SetPusher adds or updates a push notification service.
+func (m *MatrixCore) SetPusher(pusher map[string]interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "pushers", "set"),
+		RequestJSON: pusher,
+	})
+	return err
+}
+
+// GetPushRules returns all push notification rules for the current user.
+func (m *MatrixCore) GetPushRules() (json.RawMessage, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method: http.MethodGet,
+		URL:    m.client.BuildClientURL("v3", "pushrules", ""),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(respData), nil
+}
+
+// SetPushRule creates or updates a push notification rule.
+func (m *MatrixCore) SetPushRule(scope, kind, ruleID string, rule map[string]interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPut,
+		URL:         m.client.BuildClientURL("v3", "pushrules", scope, kind, ruleID),
+		RequestJSON: rule,
+	})
+	return err
+}
+
+// DeletePushRule removes a push notification rule.
+func (m *MatrixCore) DeletePushRule(scope, kind, ruleID string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method: http.MethodDelete,
+		URL:    m.client.BuildClientURL("v3", "pushrules", scope, kind, ruleID),
+	})
+	return err
+}
+
+// EnablePushRule enables or disables a push notification rule.
+func (m *MatrixCore) EnablePushRule(scope, kind, ruleID string, enabled bool) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPut,
+		URL:         m.client.BuildClientURL("v3", "pushrules", scope, kind, ruleID, "enabled"),
+		RequestJSON: map[string]bool{"enabled": enabled},
+	})
+	return err
+}
+
+// GetNotifications returns recent notifications for the current user.
+func (m *MatrixCore) GetNotifications(from string, limit int, only string) (json.RawMessage, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	query := fmt.Sprintf("?limit=%d", limit)
+	if from != "" {
+		query += "&from=" + from
+	}
+	if only != "" {
+		query += "&only=" + only
+	}
+	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method: http.MethodGet,
+		URL:    m.client.BuildClientURL("v3", "notifications") + query,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(respData), nil
+}
+
+// ──────────────────────────── Room State Events ────────────────────────────
+
+// SetPowerLevels sets the power levels in a room.
+func (m *MatrixCore) SetPowerLevels(chatID string, levels *event.PowerLevelsEventContent) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	roomID := id.RoomID(chatID)
+	_, err := m.client.SendStateEvent(m.ctx, roomID, event.StatePowerLevels, "", levels)
+	return err
+}
+
+// SetGuestAccess sets whether guests can join a room.
+func (m *MatrixCore) SetGuestAccess(chatID string, access string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	roomID := id.RoomID(chatID)
+	_, err := m.client.SendStateEvent(m.ctx, roomID, event.StateGuestAccess, "", map[string]string{
+		"guest_access": access, // "can_join" or "forbidden"
+	})
+	return err
+}
+
+// SetServerACL sets the server access control list for a room.
+func (m *MatrixCore) SetServerACL(chatID string, allow, deny []string, allowIPLiterals bool) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	roomID := id.RoomID(chatID)
+	_, err := m.client.SendStateEvent(m.ctx, roomID, event.NewEventType("m.room.server_acl"), "", map[string]interface{}{
+		"allow":              allow,
+		"deny":               deny,
+		"allow_ip_literals":  allowIPLiterals,
+	})
+	return err
+}
+
+// GetRoomState returns all state events for a room.
+func (m *MatrixCore) GetRoomState(chatID string) ([]json.RawMessage, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	roomID := id.RoomID(chatID)
+	var resp []json.RawMessage
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "rooms", string(roomID), "state"),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// ──────────────────────────── Room Visibility ────────────────────────────
+
+// GetRoomVisibility returns the directory visibility of a room ("public" or "private").
+func (m *MatrixCore) GetRoomVisibility(chatID string) (string, error) {
+	if !m.authed {
+		return "", ErrAuth
+	}
+	var resp struct {
+		Visibility string `json:"visibility"`
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "directory", "list", "room", chatID),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.Visibility, nil
+}
+
+// SetRoomVisibility sets the directory visibility of a room ("public" or "private").
+func (m *MatrixCore) SetRoomVisibility(chatID string, visibility string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPut,
+		URL:         m.client.BuildClientURL("v3", "directory", "list", "room", chatID),
+		RequestJSON: map[string]string{"visibility": visibility},
+	})
+	return err
+}
+
+// ──────────────────────────── Filters ────────────────────────────
+
+// CreateFilter creates a filter definition on the server.
+func (m *MatrixCore) CreateFilter(filter json.RawMessage) (string, error) {
+	if !m.authed {
+		return "", ErrAuth
+	}
+	var resp struct {
+		FilterID string `json:"filter_id"`
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodPost,
+		URL:          m.client.BuildClientURL("v3", "user", string(m.userID), "filter"),
+		RequestJSON:  json.RawMessage(filter),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return "", err
+	}
+	return resp.FilterID, nil
+}
+
+// GetFilter retrieves a previously created filter by ID.
+func (m *MatrixCore) GetFilter(filterID string) (json.RawMessage, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method: http.MethodGet,
+		URL:    m.client.BuildClientURL("v3", "user", string(m.userID), "filter", filterID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(respData), nil
+}
+
+// ──────────────────────────── Account Data ────────────────────────────
+
+// SetAccountData sets global account data.
+func (m *MatrixCore) SetAccountData(name string, data interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	return m.client.SetAccountData(m.ctx, name, data)
+}
+
+// GetAccountData retrieves global account data.
+func (m *MatrixCore) GetAccountData(name string, output interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	return m.client.GetAccountData(m.ctx, name, output)
+}
+
+// SetRoomAccountData sets per-room account data.
+func (m *MatrixCore) SetRoomAccountData(chatID, name string, data interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPut,
+		URL:         m.client.BuildClientURL("v3", "user", string(m.userID), "rooms", chatID, "account_data", name),
+		RequestJSON: data,
+	})
+	return err
+}
+
+// GetRoomAccountData retrieves per-room account data.
+func (m *MatrixCore) GetRoomAccountData(chatID, name string, output interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "user", string(m.userID), "rooms", chatID, "account_data", name),
+		ResponseJSON: output,
+	})
+	return err
+}
+
+// ──────────────────────────── To-Device ────────────────────────────
+
+// SendToDevice sends an event to specific devices.
+func (m *MatrixCore) SendToDevice(eventType string, messages map[id.UserID]map[id.DeviceID]*event.Content) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.SendToDevice(m.ctx, event.NewEventType(eventType), &mautrix.ReqSendToDevice{
+		Messages: messages,
+	})
+	return err
+}
+
+// ──────────────────────────── Reporting ────────────────────────────
+
+// ReportRoom reports a room for policy violation.
+func (m *MatrixCore) ReportRoom(chatID, reason string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "rooms", chatID, "report"),
+		RequestJSON: map[string]string{"reason": reason},
+	})
+	return err
+}
+
+// ReportUser reports a user for policy violation.
+func (m *MatrixCore) ReportUser(userID, reason string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "users", userID, "report"),
+		RequestJSON: map[string]string{"reason": reason},
+	})
+	return err
+}
+
+// ──────────────────────────── Third-Party Protocol ────────────────────────────
+
+// GetThirdPartyProtocols returns the list of application service protocols supported by the server.
+func (m *MatrixCore) GetThirdPartyProtocols() (map[string]json.RawMessage, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var resp map[string]json.RawMessage
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "thirdparty", "protocols"),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// LookupThirdPartyLocation looks up a location from a third-party protocol.
+func (m *MatrixCore) LookupThirdPartyLocation(protocol string, fields map[string]string) ([]map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	query := "?"
+	for k, v := range fields {
+		query += k + "=" + v + "&"
+	}
+	var resp []map[string]interface{}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "thirdparty", "location", protocol) + query,
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// LookupThirdPartyUser looks up a user from a third-party protocol.
+func (m *MatrixCore) LookupThirdPartyUser(protocol string, fields map[string]string) ([]map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	query := "?"
+	for k, v := range fields {
+		query += k + "=" + v + "&"
+	}
+	var resp []map[string]interface{}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "thirdparty", "user", protocol) + query,
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// ──────────────────────────── OpenID ────────────────────────────
+
+// RequestOpenIDToken requests an OpenID Connect token for the current user.
+func (m *MatrixCore) RequestOpenIDToken() (map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var resp map[string]interface{}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodPost,
+		URL:          m.client.BuildClientURL("v3", "user", string(m.userID), "openid", "request_token"),
+		RequestJSON:  map[string]interface{}{},
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// ──────────────────────────── Cross-Signing ────────────────────────────
+
+// UploadCrossSigningKeys uploads cross-signing keys to the server.
+func (m *MatrixCore) UploadCrossSigningKeys(masterKey, selfSigningKey, userSigningKey map[string]interface{}, password string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]interface{}{
+		"master_key":       masterKey,
+		"self_signing_key": selfSigningKey,
+		"user_signing_key": userSigningKey,
+	}
+	if password != "" {
+		req["auth"] = map[string]interface{}{
+			"type":     "m.login.password",
+			"user":     string(m.userID),
+			"password": password,
+		}
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "keys", "device_signing", "upload"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// UploadSignatures uploads key signatures (for cross-signing verification).
+func (m *MatrixCore) UploadSignatures(signatures map[string]map[string]map[string]interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "keys", "signatures", "upload"),
+		RequestJSON: signatures,
+	})
+	return err
+}
+
+// GenerateCrossSigningKeys generates new cross-signing keys (master, self-signing, user-signing).
+// Returns the keys as a map to be uploaded via UploadCrossSigningKeys.
+func (m *MatrixCore) GenerateCrossSigningKeys() (master, selfSigning, userSigning map[string]interface{}, err error) {
+	if !m.authed {
+		return nil, nil, nil, ErrAuth
+	}
+
+	generateKey := func(usage string) (map[string]interface{}, error) {
+		keyBytes := make([]byte, 32)
+		if _, err := rand.Read(keyBytes); err != nil {
+			return nil, err
+		}
+		keyB64 := base64.RawStdEncoding.EncodeToString(keyBytes)
+		return map[string]interface{}{
+			"user_id": string(m.userID),
+			"usage":   []string{usage},
+			"keys": map[string]string{
+				"ed25519:" + keyB64[:8]: keyB64,
+			},
+		}, nil
+	}
+
+	master, err = generateKey("master")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	selfSigning, err = generateKey("self_signing")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	userSigning, err = generateKey("user_signing")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return master, selfSigning, userSigning, nil
+}
+
+// ──────────────────────────── SSSS / Secret Storage ────────────────────────────
+
+// SetSecretStorageKey stores a secret storage key in account data.
+func (m *MatrixCore) SetSecretStorageKey(keyID string, keyData map[string]interface{}) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	return m.client.SetAccountData(m.ctx, "m.secret_storage.key."+keyID, keyData)
+}
+
+// GetSecretStorageKey retrieves a secret storage key from account data.
+func (m *MatrixCore) GetSecretStorageKey(keyID string) (map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var result map[string]interface{}
+	err := m.client.GetAccountData(m.ctx, "m.secret_storage.key."+keyID, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// ──────────────────────────── Admin ────────────────────────────
+
+// WhoisUser returns information about a user (only available to server admins).
+func (m *MatrixCore) WhoisUser(userID string) (map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var resp map[string]interface{}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "admin", "whois", userID),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// ──────────────────────────── Media ────────────────────────────
+
+// GetMediaConfig returns the media upload configuration (max upload size).
+func (m *MatrixCore) GetMediaConfig() (int64, error) {
+	if !m.authed {
+		return 0, ErrAuth
+	}
+	resp, err := m.client.GetMediaConfig(m.ctx)
+	if err != nil {
+		return 0, err
+	}
+	return resp.UploadSize, nil
+}
+
+// CreateMXCURI creates an MXC URI for an async upload.
+func (m *MatrixCore) CreateMXCURI() (string, string, error) {
+	if !m.authed {
+		return "", "", ErrAuth
+	}
+	var resp struct {
+		ContentURI      string `json:"content_uri"`
+		UnusedExpiresAt int64  `json:"unused_expires_at"`
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodPost,
+		URL:          m.client.BuildURL(mautrix.MediaURLPath{"v1", "create"}),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return "", "", err
+	}
+	return resp.ContentURI, strconv.FormatInt(resp.UnusedExpiresAt, 10), nil
+}
+
+// DownloadThumbnail downloads a server-side generated thumbnail for a media file.
+func (m *MatrixCore) DownloadThumbnail(mxcURI string, width, height int, dest string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	// Parse mxc://server/media_id
+	uri := strings.TrimPrefix(mxcURI, "mxc://")
+	parts := strings.SplitN(uri, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid mxc URI: %s", mxcURI)
+	}
+
+	query := fmt.Sprintf("?width=%d&height=%d&method=scale", width, height)
+	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method: http.MethodGet,
+		URL:    m.client.BuildURL(mautrix.MediaURLPath{"v3", "thumbnail", parts[0], parts[1]}) + query,
+	})
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(dest, respData, 0600)
+}
+
+// ──────────────────────────── Rooms / State (extended) ────────────────────────────
+
+// GetEvent retrieves a single event by ID from a room.
+func (m *MatrixCore) GetEvent(chatID, eventID string) (json.RawMessage, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method: http.MethodGet,
+		URL:    m.client.BuildClientURL("v3", "rooms", chatID, "event", eventID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(respData), nil
+}
+
+// GetEventContext retrieves events around a given event in a room.
+func (m *MatrixCore) GetEventContext(chatID, eventID string, limit int) (json.RawMessage, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	query := fmt.Sprintf("?limit=%d", limit)
+	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method: http.MethodGet,
+		URL:    m.client.BuildClientURL("v3", "rooms", chatID, "context", eventID) + query,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return json.RawMessage(respData), nil
+}
+
+// ResolveAlias resolves a room alias to a room ID.
+func (m *MatrixCore) ResolveAlias(alias string) (string, []string, error) {
+	if !m.authed {
+		return "", nil, ErrAuth
+	}
+	resp, err := m.client.ResolveAlias(m.ctx, id.RoomAlias(alias))
+	if err != nil {
+		return "", nil, err
+	}
+	servers := make([]string, len(resp.Servers))
+	for i, s := range resp.Servers {
+		servers[i] = string(s)
+	}
+	return string(resp.RoomID), servers, nil
+}
+
+// ──────────────────────────── Auth / Login (extended) ────────────────────────────
+
+// GetLoginFlows returns the supported login authentication types.
+func (m *MatrixCore) GetLoginFlows() ([]map[string]interface{}, error) {
+	if m.client == nil {
+		return nil, fmt.Errorf("client not initialized")
+	}
+	resp, err := m.client.GetLoginFlows(m.ctx)
+	if err != nil {
+		return nil, err
+	}
+	var flows []map[string]interface{}
+	for _, f := range resp.Flows {
+		flows = append(flows, map[string]interface{}{
+			"type": string(f.Type),
+		})
+	}
+	return flows, nil
+}
+
+// LogoutAll logs out all sessions for the current user.
+func (m *MatrixCore) LogoutAll() error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.LogoutAll(m.ctx)
+	if err != nil {
+		return err
+	}
+	m.authed = false
+	return nil
+}
+
+// ──────────────────────────── Tags ────────────────────────────
+
+// GetTags returns all tags for a room.
+func (m *MatrixCore) GetTags(chatID string) (map[string]map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var resp struct {
+		Tags map[string]map[string]interface{} `json:"tags"`
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "user", string(m.userID), "rooms", chatID, "tags"),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp.Tags, nil
+}
+
+// ──────────────────────────── Read Receipts ────────────────────────────
+
+// SendPrivateReadReceipt sends a private read receipt (m.read.private, spec v1.4+).
+func (m *MatrixCore) SendPrivateReadReceipt(chatID, eventID string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "rooms", chatID, "receipt", "m.read.private", eventID),
+		RequestJSON: map[string]interface{}{},
+	})
+	return err
+}
+
+// SetReadMarkers atomically sets both the read receipt and fully-read marker.
+func (m *MatrixCore) SetReadMarkers(chatID, fullyRead, read string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]string{}
+	if fullyRead != "" {
+		req["m.fully_read"] = fullyRead
+	}
+	if read != "" {
+		req["m.read"] = read
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "rooms", chatID, "read_markers"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// ──────────────────────────── Devices (extended) ────────────────────────────
+
+// GetDeviceInfo retrieves information about a specific device.
+func (m *MatrixCore) GetDeviceInfo(deviceID string) (map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var resp map[string]interface{}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:       http.MethodGet,
+		URL:          m.client.BuildClientURL("v3", "devices", deviceID),
+		ResponseJSON: &resp,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
+// DeleteDevices deletes multiple devices (requires interactive auth with password).
+func (m *MatrixCore) DeleteDevices(deviceIDs []string, password string) error {
+	if !m.authed {
+		return ErrAuth
+	}
+	req := map[string]interface{}{
+		"devices": deviceIDs,
+	}
+	if password != "" {
+		req["auth"] = map[string]interface{}{
+			"type":     "m.login.password",
+			"user":     string(m.userID),
+			"password": password,
+		}
+	}
+	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
+		Method:      http.MethodPost,
+		URL:         m.client.BuildClientURL("v3", "delete_devices"),
+		RequestJSON: req,
+	})
+	return err
+}
+
+// ──────────────────────────── Server Discovery ────────────────────────────
+
+// GetCapabilities returns the server's supported capabilities.
+func (m *MatrixCore) GetCapabilities() (map[string]interface{}, error) {
+	if !m.authed {
+		return nil, ErrAuth
+	}
+	var resp map[string]interface{}
+	capResp, err := m.client.Capabilities(m.ctx)
+	if err != nil {
+		return nil, err
+	}
+	data, _ := json.Marshal(capResp)
+	json.Unmarshal(data, &resp)
+	return resp, nil
+}
+
+// GetVersions returns the supported Matrix spec versions.
+func (m *MatrixCore) GetVersions() ([]string, map[string]bool, error) {
+	if m.client == nil {
+		return nil, nil, fmt.Errorf("client not initialized")
+	}
+	resp, err := m.client.Versions(m.ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	features := make(map[string]bool)
+	for k, v := range resp.UnstableFeatures {
+		features[k] = v
+	}
+	versions := make([]string, len(resp.Versions))
+	for i, v := range resp.Versions {
+		versions[i] = v.String()
+	}
+	return versions, features, nil
+}

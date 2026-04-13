@@ -2259,6 +2259,46 @@ type MumbleVoicePacket struct {
 	PositionZ     float32
 }
 
+// MumbleRejectEvent is fired when the server rejects the connection.
+type MumbleRejectEvent struct {
+	Type   uint32
+	Reason string
+}
+
+// MumblePermissionDeniedEvent is fired when a permission is denied.
+type MumblePermissionDeniedEvent struct {
+	Permission uint32
+	ChannelID  uint32
+	Session    uint32
+	Reason     string
+	Type       uint32
+	Name       string
+}
+
+// MumbleSuggestConfigEvent is fired when the server suggests configuration.
+type MumbleSuggestConfigEvent struct {
+	VersionV1  uint32
+	VersionV2  uint64
+	Positional bool
+	PushToTalk bool
+}
+
+// MumbleContextActionEvent is fired when a context action is added/removed.
+type MumbleContextActionEvent struct {
+	Action    string
+	Text      string
+	Context   uint32 // bitmask: Server=1, Channel=2, User=4
+	Operation uint32 // 0=Add, 1=Remove
+}
+
+// MumbleCodecVersionEvent is fired when the server negotiates codec versions.
+type MumbleCodecVersionEvent struct {
+	Alpha       int32
+	Beta        int32
+	PreferAlpha bool
+	Opus        bool
+}
+
 // Session data for persistence
 type mumbleSessionData struct {
 	CertPEM string `json:"cert_pem"`
@@ -2323,6 +2363,13 @@ type MumbleCore struct {
 
 	// update handler
 	updateHandlers []func(Update)
+
+	// protocol event handlers
+	rejectHandler        func(MumbleRejectEvent)
+	permDeniedHandler    func(MumblePermissionDeniedEvent)
+	suggestConfigHandler func(MumbleSuggestConfigEvent)
+	contextActionHandler func(MumbleContextActionEvent)
+	codecVersionHandler  func(MumbleCodecVersionEvent)
 
 	// ping stats
 	tcpPingAvg float32
@@ -2955,11 +3002,16 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 	case mumbleMsgReject:
 		var msg mumbleReject
 		msg.unmarshal(payload)
-		// Close sync channel with error context
+		c.mu.RLock()
+		h := c.rejectHandler
+		c.mu.RUnlock()
+		if h != nil {
+			h(MumbleRejectEvent{Type: msg.Type, Reason: msg.Reason})
+		}
 		select {
 		case <-c.syncDone:
 		default:
-			close(c.syncDone) // unblock connect() — it will time out or check authed
+			close(c.syncDone)
 		}
 
 	case mumbleMsgServerSync:
@@ -3034,7 +3086,14 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 			c.mu.Lock()
 			c.codecVersion = msg
 			c.useOpus = msg.Opus
+			h := c.codecVersionHandler
 			c.mu.Unlock()
+			if h != nil {
+				h(MumbleCodecVersionEvent{
+					Alpha: msg.Alpha, Beta: msg.Beta,
+					PreferAlpha: msg.PreferAlpha, Opus: msg.Opus,
+				})
+			}
 		}
 
 	case mumbleMsgServerConfig:
@@ -3062,26 +3121,50 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 	case mumbleMsgPermissionDenied:
 		var msg mumblePermissionDeniedMsg
 		msg.unmarshal(payload)
-		// Log or fire update — just swallow for now
+		c.mu.RLock()
+		pdh := c.permDeniedHandler
+		c.mu.RUnlock()
+		if pdh != nil {
+			pdh(MumblePermissionDeniedEvent{
+				Permission: msg.Permission, ChannelID: msg.ChannelID,
+				Session: msg.Session, Reason: msg.Reason,
+				Type: msg.Type, Name: msg.Name,
+			})
+		}
 
 	case mumbleMsgContextActionModify:
 		var msg mumbleContextActionModifyMsg
 		if err := msg.unmarshal(payload); err == nil {
 			c.mu.Lock()
-			if msg.Operation == 0 { // Add
+			if msg.Operation == 0 {
 				c.contextActions[msg.Action] = mumbleContextActionEntry{
 					Action: msg.Action, Text: msg.Text, Context: msg.Context,
 				}
-			} else { // Remove
+			} else {
 				delete(c.contextActions, msg.Action)
 			}
+			cah := c.contextActionHandler
 			c.mu.Unlock()
+			if cah != nil {
+				cah(MumbleContextActionEvent{
+					Action: msg.Action, Text: msg.Text,
+					Context: msg.Context, Operation: msg.Operation,
+				})
+			}
 		}
 
 	case mumbleMsgSuggestConfig:
 		var msg mumbleSuggestConfigMsg
 		msg.unmarshal(payload)
-		// Informational only
+		c.mu.RLock()
+		sch := c.suggestConfigHandler
+		c.mu.RUnlock()
+		if sch != nil {
+			sch(MumbleSuggestConfigEvent{
+				VersionV1: msg.VersionV1, VersionV2: msg.VersionV2,
+				Positional: msg.Positional, PushToTalk: msg.PushToTalk,
+			})
+		}
 
 	case mumbleMsgPluginDataTransmission:
 		var msg mumblePluginDataMsg
@@ -4902,6 +4985,248 @@ func (c *MumbleCore) GetPublicServers() ([]MumblePublicServer, error) {
 	}
 
 	return list.Servers, nil
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// Additional Protocol Methods
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ── User State ──
+
+// SetPluginContext sets the plugin context for positional audio coordination.
+func (c *MumbleCore) SetPluginContext(ctx []byte) error {
+	c.mu.RLock()
+	session := c.mySession
+	c.mu.RUnlock()
+	msg := &mumbleUserStateMsg{
+		Session:       session,
+		HasSession:    true,
+		PluginContext: ctx,
+	}
+	return c.tcpSend(mumbleMsgUserState, msg.marshal())
+}
+
+// SetPluginIdentity sets the plugin identity string for positional audio.
+func (c *MumbleCore) SetPluginIdentity(identity string) error {
+	c.mu.RLock()
+	session := c.mySession
+	c.mu.RUnlock()
+	msg := &mumbleUserStateMsg{
+		Session:        session,
+		HasSession:     true,
+		PluginIdentity: identity,
+	}
+	return c.tcpSend(mumbleMsgUserState, msg.marshal())
+}
+
+// SetTemporaryAccessTokens sets temporary access tokens for the current session.
+func (c *MumbleCore) SetTemporaryAccessTokens(tokens []string) error {
+	c.mu.RLock()
+	session := c.mySession
+	c.mu.RUnlock()
+	msg := &mumbleUserStateMsg{
+		Session:               session,
+		HasSession:            true,
+		TemporaryAccessTokens: tokens,
+	}
+	return c.tcpSend(mumbleMsgUserState, msg.marshal())
+}
+
+// ── Voice ──
+
+// SendPositionalAudio sends an Opus audio frame with X,Y,Z positional coordinates.
+func (c *MumbleCore) SendPositionalAudio(opusData []byte, target int, x, y, z float32) error {
+	seq := c.voiceSeqNum.Add(1) - 1
+	var pkt []byte
+	if c.serverSupportsProtobufUDP() {
+		pkt = c.buildPositionalVoicePacket(opusData, target, seq, false, x, y, z)
+	} else {
+		pkt = c.buildLegacyPositionalVoicePacket(opusData, target, seq, false, x, y, z)
+	}
+	return c.udpSend(pkt)
+}
+
+func (c *MumbleCore) buildPositionalVoicePacket(opusData []byte, target int, seq int64, terminator bool, x, y, z float32) []byte {
+	var e pbEncoder
+	e.writeUint32Always(1, uint32(target))
+	e.writeUint64(4, uint64(seq))
+	e.writeBytes(5, opusData)
+	e.writeRepeatedFloat(6, []float32{x, y, z})
+	if terminator {
+		e.writeBool(16, true)
+	}
+	pb := e.bytes()
+	out := make([]byte, 1+len(pb))
+	out[0] = 0 // Audio type
+	copy(out[1:], pb)
+	return out
+}
+
+func (c *MumbleCore) buildLegacyPositionalVoicePacket(opusData []byte, target int, seq int64, terminator bool, x, y, z float32) []byte {
+	header := byte(mumbleUDPOpus<<5) | byte(target&0x1F)
+	var buf bytes.Buffer
+	buf.WriteByte(header)
+	buf.Write(mumbleVarintEncode(seq))
+	opusHeader := int64(len(opusData) & 0x1FFF)
+	if terminator {
+		opusHeader |= 0x2000
+	}
+	buf.Write(mumbleVarintEncode(opusHeader))
+	buf.Write(opusData)
+	var pos [12]byte
+	binary.LittleEndian.PutUint32(pos[0:4], math.Float32bits(x))
+	binary.LittleEndian.PutUint32(pos[4:8], math.Float32bits(y))
+	binary.LittleEndian.PutUint32(pos[8:12], math.Float32bits(z))
+	buf.Write(pos[:])
+	return buf.Bytes()
+}
+
+// ServerLoopback sends voice with target=31 for server echo test.
+func (c *MumbleCore) ServerLoopback(opusData []byte) error {
+	return c.SendVoice(opusData, 31)
+}
+
+// ── Context Actions ──
+
+// HandleContextActionModify registers a callback for context action add/remove notifications.
+func (c *MumbleCore) HandleContextActionModify(handler func(MumbleContextActionEvent)) {
+	c.mu.Lock()
+	c.contextActionHandler = handler
+	c.mu.Unlock()
+}
+
+// TriggerContextActionChannel triggers a registered context action targeting a channel.
+func (c *MumbleCore) TriggerContextActionChannel(action string, channelID uint32) error {
+	msg := &mumbleContextActionMsg{
+		ChannelID: channelID,
+		Action:    action,
+	}
+	return c.tcpSend(mumbleMsgContextAction, msg.marshal())
+}
+
+// ── Ban Management ──
+
+// RemoveBan removes a single ban entry by matching address and mask.
+func (c *MumbleCore) RemoveBan(address []byte, mask uint32) error {
+	bans, err := c.GetBanList()
+	if err != nil {
+		return err
+	}
+	filtered := bans[:0]
+	for _, b := range bans {
+		if bytes.Equal(b.Address, address) && b.Mask == mask {
+			continue
+		}
+		filtered = append(filtered, b)
+	}
+	if len(filtered) == len(bans) {
+		return fmt.Errorf("mumble: ban entry not found")
+	}
+	return c.SetBanList(filtered)
+}
+
+// ── Connection ──
+
+// SendVersion sends an explicit version announcement to the server.
+func (c *MumbleCore) SendVersion() error {
+	msg := &mumbleVersion{
+		VersionV1: mumbleVersionV1,
+		VersionV2: mumbleVersionV2,
+		Release:   mumbleRelease,
+		OS:        mumbleOS,
+		OSVersion: mumbleRelease,
+	}
+	return c.tcpSend(mumbleMsgVersion, msg.marshal())
+}
+
+// HandleReject registers a callback for connection rejection events.
+func (c *MumbleCore) HandleReject(handler func(MumbleRejectEvent)) {
+	c.mu.Lock()
+	c.rejectHandler = handler
+	c.mu.Unlock()
+}
+
+// HandlePermissionDenied registers a callback for permission denied events.
+func (c *MumbleCore) HandlePermissionDenied(handler func(MumblePermissionDeniedEvent)) {
+	c.mu.Lock()
+	c.permDeniedHandler = handler
+	c.mu.Unlock()
+}
+
+// HandleSuggestConfig registers a callback for server configuration suggestions.
+func (c *MumbleCore) HandleSuggestConfig(handler func(MumbleSuggestConfigEvent)) {
+	c.mu.Lock()
+	c.suggestConfigHandler = handler
+	c.mu.Unlock()
+}
+
+// ── Codec ──
+
+// HandleCodecVersion registers a callback for codec version negotiation events.
+func (c *MumbleCore) HandleCodecVersion(handler func(MumbleCodecVersionEvent)) {
+	c.mu.Lock()
+	c.codecVersionHandler = handler
+	c.mu.Unlock()
+}
+
+// SetPreferredCodec sets the preferred codec (Opus vs CELT) for the next connection.
+// Must be called before Authenticate; mid-session codec changes are not supported.
+func (c *MumbleCore) SetPreferredCodec(opus bool) {
+	c.mu.Lock()
+	c.useOpus = opus
+	c.mu.Unlock()
+}
+
+// ── Admin Ice RPC (server-admin only, out-of-band) ──
+
+// GetServerLog requires Murmur Ice RPC admin access (not available via client protocol).
+func (c *MumbleCore) GetServerLog() ([]string, error) {
+	return nil, fmt.Errorf("mumble: GetServerLog requires Murmur Ice RPC admin access")
+}
+
+// GetServerUptime requires Murmur Ice RPC admin access (not available via client protocol).
+func (c *MumbleCore) GetServerUptime() (time.Duration, error) {
+	return 0, fmt.Errorf("mumble: GetServerUptime requires Murmur Ice RPC admin access")
+}
+
+// UpdateCertificate requires Murmur Ice RPC admin access (not available via client protocol).
+func (c *MumbleCore) UpdateCertificate(certPEM, keyPEM string) error {
+	return fmt.Errorf("mumble: UpdateCertificate requires Murmur Ice RPC admin access")
+}
+
+// SendWelcomeMessage requires Murmur Ice RPC admin access (not available via client protocol).
+func (c *MumbleCore) SendWelcomeMessage(text string) error {
+	return fmt.Errorf("mumble: SendWelcomeMessage requires Murmur Ice RPC admin access")
+}
+
+// RedirectWhisperGroup requires Murmur Ice RPC admin access (not available via client protocol).
+func (c *MumbleCore) RedirectWhisperGroup(source, target string) error {
+	return fmt.Errorf("mumble: RedirectWhisperGroup requires Murmur Ice RPC admin access")
+}
+
+// AddContextCallback requires Murmur Ice RPC admin access (not available via client protocol).
+func (c *MumbleCore) AddContextCallback(action, text string, ctx uint32) error {
+	return fmt.Errorf("mumble: AddContextCallback requires Murmur Ice RPC admin access")
+}
+
+// RemoveContextCallback requires Murmur Ice RPC admin access (not available via client protocol).
+func (c *MumbleCore) RemoveContextCallback(action string) error {
+	return fmt.Errorf("mumble: RemoveContextCallback requires Murmur Ice RPC admin access")
+}
+
+// ── DNS / Discovery ──
+
+// MumbleResolveSRV performs DNS SRV record lookup for _mumble._tcp.<hostname>.
+func MumbleResolveSRV(hostname string) (string, error) {
+	_, addrs, err := net.LookupSRV("mumble", "tcp", hostname)
+	if err != nil {
+		return "", fmt.Errorf("mumble SRV lookup: %w", err)
+	}
+	if len(addrs) == 0 {
+		return "", fmt.Errorf("mumble SRV lookup: no records found for %s", hostname)
+	}
+	target := strings.TrimRight(addrs[0].Target, ".")
+	return net.JoinHostPort(target, strconv.Itoa(int(addrs[0].Port))), nil
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

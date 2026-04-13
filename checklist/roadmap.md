@@ -1,15 +1,15 @@
 # Pre-GUI Roadmap Progress
 
 **Current Step:** 1
-**Current Core:** (not started)
-**Current Method:** (not started)
+**Current Core:** ALL CORES COMPLETE (Mumble Ice RPC stubs remain)
+**Current Method:** Step 1 done — all checklist methods implemented
 **Last Updated:** 2026-04-13
 
 ## Steps
 
 | Step | Description | Status |
 |------|-------------|--------|
-| 1 | Implement unimplemented checklist methods | NOT STARTED |
+| 1 | Implement unimplemented checklist methods | IN PROGRESS |
 | 2 | Test ALL existing methods in every core | NOT STARTED |
 | 3 | Replace checklists with full protocol surface | NOT STARTED |
 | 4 | Implement all new methods to 100% | NOT STARTED |
@@ -22,7 +22,14 @@
 ## Detailed Progress
 
 ### Step 1 — Implement Unimplemented Checklist Methods
-- [ ] (read checklists and list cores here on first session)
+- [ ] Mumble — 15 client protocol methods coded, NOT TESTED. 7 Ice RPC admin methods are ERROR STUBS — need real Ice RPC implementation.
+- [x] TeamSpeak — 38 methods implemented, checklist updated. NOT TESTED.
+- [x] Delta Chat — 43 methods implemented, checklist updated. NOT TESTED.
+- [x] Matrix — 64 methods implemented, checklist updated. NOT TESTED.
+- [x] IRC — 95 methods implemented, checklist updated. NOT TESTED.
+- [x] XMPP — 101 methods implemented, checklist updated. NOT TESTED.
+- [x] Bale — 105 methods implemented, checklist updated. NOT TESTED.
+- [x] GitHub — 190 methods implemented, checklist updated. NOT TESTED.
 
 ### Step 2 — Test ALL Existing Methods
 - [ ] (list cores and methods here when Step 1 is done)

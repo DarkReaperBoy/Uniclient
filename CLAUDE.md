@@ -114,6 +114,7 @@ When the user says "add X", follow these steps in order:
 - **Test paths** — `go test` runs from `go/tests/`, so session paths must use `../../auth/` not `../auth/`.
 - **OTP handling** — run tests via Bash tool. For OTP: run test in background, ask user for code, write to `auth/otp_code.txt` which the test polls.
 - **Don't invent protocols** — read the official client source and implement 1:1.
+- **No stubs — everything gets tested** — NEVER mark a method as "done" if it just returns an error stub. If a method requires a server, daemon, special privileges, or admin access (e.g. Murmur Ice RPC, TS3 ServerQuery), get the binary via NixOS package or download it, spin it up, and test against it. Every method must be a real implementation that works against a real endpoint.
 - **Replication discipline** — NEVER assume. ALWAYS read the original source or spec. When something doesn't work: (1) the bug is in YOUR code, (2) add surgical logging, (3) don't guess — read the code that produces/consumes the data, (4) make it work first, then right, then fast.
 - **One file per core** — all Telegram code in `telegram.go`, all Rubika in `rubika.go`, etc.
 - **NEVER use memory — everything in-project** — NEVER use Claude's memory system (`~/.claude/` memory files, MEMORY.md). All notes go in project files so the user can review and version-control them. On context reset, read project docs — that IS the memory.

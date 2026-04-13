@@ -1,6 +1,6 @@
-## Phase 10: GitHub — IN PROGRESS
+## Phase 10: GitHub — DONE (core complete, all extended methods implemented)
 
-56 exported methods, ~2,847 lines. REST API via net/http. Chat mapped to repos/issues/DMs. ~230 platform-specific methods pending.
+246 exported methods, ~4,254 lines. All extended methods implemented (not yet tested). REST API via net/http + GraphQL for Discussions.
 
 ### Core Interface (55/55)
 
@@ -63,266 +63,264 @@
 
 ---
 
-### Not Added in Core
+### Extended Methods (190 — all implemented, not yet tested)
 
-Platform-specific methods beyond the 55 Core interface. These map to GitHub REST API endpoints relevant to "GitHub as chat."
+#### Issues Extended (6)
+- [x] LockIssue
+- [x] UnlockIssue
+- [x] ListIssueEvents
+- [x] GetIssueTimeline
+- [x] ListSubIssues
+- [x] AddSubIssue
 
-**Issues Extended**
-- [ ] LockIssue (lock conversation)
-- [ ] UnlockIssue
-- [ ] ListIssueEvents
-- [ ] GetIssueTimeline
-- [ ] ListSubIssues
-- [ ] AddSubIssue
+#### Labels (7)
+- [x] ListLabels
+- [x] CreateLabel
+- [x] UpdateLabel
+- [x] DeleteLabel
+- [x] AddLabelsToIssue
+- [x] RemoveLabel
+- [x] SetLabels
 
-**Labels**
-- [ ] ListLabels
-- [ ] CreateLabel
-- [ ] UpdateLabel
-- [ ] DeleteLabel
-- [ ] AddLabelsToIssue
-- [ ] RemoveLabel
-- [ ] SetLabels
+#### Milestones (4)
+- [x] ListMilestones
+- [x] CreateMilestone
+- [x] UpdateMilestone
+- [x] DeleteMilestone
 
-**Milestones**
-- [ ] ListMilestones
-- [ ] CreateMilestone
-- [ ] UpdateMilestone
-- [ ] DeleteMilestone
+#### Pull Requests (12)
+- [x] ListPullRequests
+- [x] CreatePullRequest
+- [x] GetPullRequest
+- [x] UpdatePullRequest
+- [x] MergePullRequest
+- [x] ListPRComments
+- [x] CreatePRComment
+- [x] ListPRReviews
+- [x] CreatePRReview
+- [x] SubmitPRReview
+- [x] DismissPRReview
+- [x] RequestReviewers
 
-**Pull Requests**
-- [ ] ListPullRequests
-- [ ] CreatePullRequest
-- [ ] GetPullRequest
-- [ ] UpdatePullRequest
-- [ ] MergePullRequest
-- [ ] ListPRComments
-- [ ] CreatePRComment
-- [ ] ListPRReviews
-- [ ] CreatePRReview
-- [ ] SubmitPRReview
-- [ ] DismissPRReview
-- [ ] RequestReviewers
+#### Notifications (6)
+- [x] ListNotifications
+- [x] MarkAllNotificationsRead
+- [x] GetNotificationThread
+- [x] MarkThreadRead
+- [x] SubscribeThread
+- [x] UnsubscribeThread
 
-**Notifications**
-- [ ] ListNotifications
-- [ ] MarkAllNotificationsRead
-- [ ] GetNotificationThread
-- [ ] MarkThreadRead
-- [ ] SubscribeThread
-- [ ] UnsubscribeThread
+#### Repository Extended (7)
+- [x] DeleteRepo
+- [x] ForkRepo
+- [x] TransferRepo
+- [x] GetRepoTopics
+- [x] SetRepoTopics
+- [x] ListContributors
+- [x] GetRepoActivity
 
-**Repository Extended**
-- [ ] DeleteRepo
-- [ ] ForkRepo
-- [ ] TransferRepo
-- [ ] GetRepoTopics
-- [ ] SetRepoTopics
-- [ ] ListContributors
-- [ ] GetRepoActivity
+#### Repository Invitations (5)
+- [x] ListInvitations
+- [x] UpdateInvitation
+- [x] DeleteInvitation
+- [x] AcceptInvitation
+- [x] DeclineInvitation
 
-**Repository Invitations**
-- [ ] ListInvitations
-- [ ] UpdateInvitation
-- [ ] DeleteInvitation
-- [ ] AcceptInvitation
-- [ ] DeclineInvitation
+#### Gists (8)
+- [x] ListGists
+- [x] CreateGist
+- [x] UpdateGist
+- [x] DeleteGist
+- [x] StarGist
+- [x] UnstarGist
+- [x] ListGistComments
+- [x] CreateGistComment
 
-**Gists**
-- [ ] ListGists
-- [ ] CreateGist
-- [ ] UpdateGist
-- [ ] DeleteGist
-- [ ] StarGist
-- [ ] UnstarGist
-- [ ] ListGistComments
-- [ ] CreateGistComment
+#### Releases (6)
+- [x] ListReleases
+- [x] CreateRelease
+- [x] UpdateRelease
+- [x] DeleteRelease
+- [x] UploadReleaseAsset
+- [x] ListReleaseAssets
 
-**Releases**
-- [ ] ListReleases
-- [ ] CreateRelease
-- [ ] UpdateRelease
-- [ ] DeleteRelease
-- [ ] UploadReleaseAsset
-- [ ] ListReleaseAssets
+#### Commit Comments (4)
+- [x] ListCommitComments
+- [x] CreateCommitComment
+- [x] UpdateCommitComment
+- [x] DeleteCommitComment
 
-**Commit Comments**
-- [ ] ListCommitComments
-- [ ] CreateCommitComment
-- [ ] UpdateCommitComment
-- [ ] DeleteCommitComment
+#### Organizations (9)
+- [x] ListOrgs
+- [x] GetOrg
+- [x] ListOrgMembers
+- [x] ListOrgTeams
+- [x] CreateTeam
+- [x] UpdateTeam
+- [x] DeleteTeam
+- [x] AddTeamMember
+- [x] RemoveTeamMember
 
-**Organizations**
-- [ ] ListOrgs
-- [ ] GetOrg
-- [ ] ListOrgMembers
-- [ ] ListOrgTeams
-- [ ] CreateTeam
-- [ ] UpdateTeam
-- [ ] DeleteTeam
-- [ ] AddTeamMember
-- [ ] RemoveTeamMember
+#### Webhooks (4)
+- [x] CreateWebhook
+- [x] UpdateWebhook
+- [x] DeleteWebhook
+- [x] PingWebhook
 
-**Webhooks**
-- [ ] CreateWebhook
-- [ ] UpdateWebhook
-- [ ] DeleteWebhook
-- [ ] PingWebhook
+#### Starring/Watching (6)
+- [x] ListStargazers
+- [x] StarRepo
+- [x] UnstarRepo
+- [x] ListWatchers
+- [x] WatchRepo
+- [x] UnwatchRepo
 
-**Starring/Watching**
-- [ ] ListStargazers
-- [ ] StarRepo
-- [ ] UnstarRepo
-- [ ] ListWatchers
-- [ ] WatchRepo
-- [ ] UnwatchRepo
+#### Events (4)
+- [x] ListEvents
+- [x] ListRepoEvents
+- [x] ListUserEvents
+- [x] GetFeeds
 
-**Events**
-- [ ] ListEvents
-- [ ] ListRepoEvents
-- [ ] ListUserEvents
-- [ ] GetFeeds
+#### Discussions (GraphQL) (8)
+- [x] ListDiscussions
+- [x] CreateDiscussion
+- [x] UpdateDiscussion
+- [x] DeleteDiscussion
+- [x] AddDiscussionComment
+- [x] UpdateDiscussionComment
+- [x] DeleteDiscussionComment
+- [x] MarkDiscussionCommentAsAnswer
 
-**Discussions (GraphQL only)**
-- [ ] ListDiscussions
-- [ ] CreateDiscussion
-- [ ] UpdateDiscussion
-- [ ] DeleteDiscussion
-- [ ] AddDiscussionComment
-- [ ] UpdateDiscussionComment
-- [ ] DeleteDiscussionComment
-- [ ] MarkDiscussionCommentAsAnswer
+#### User Extended (8)
+- [x] UpdateProfile
+- [x] ListEmails
+- [x] AddEmail
+- [x] DeleteEmail
+- [x] ListSocialAccounts
+- [x] AddSocialAccount
+- [x] DeleteSocialAccount
+- [x] GetUserHovercard
 
-**User Extended**
-- [ ] UpdateProfile (name, bio, blog)
-- [ ] ListEmails
-- [ ] AddEmail
-- [ ] DeleteEmail
-- [ ] ListSocialAccounts
-- [ ] AddSocialAccount
-- [ ] DeleteSocialAccount
-- [ ] GetUserHovercard
+#### Search Extended (4)
+- [x] SearchCode
+- [x] SearchCommits
+- [x] SearchLabels
+- [x] SearchTopics
 
-**Search Extended**
-- [ ] SearchCode
-- [ ] SearchCommits
-- [ ] SearchLabels
-- [ ] SearchTopics
+#### Utility (3)
+- [x] ListEmojis
+- [x] CheckRateLimit
+- [x] RenderMarkdown
 
-**Utility**
-- [ ] ListEmojis
-- [ ] CheckRateLimit
-- [ ] RenderMarkdown
+#### Branches & Branch Protection (6)
+- [x] ListBranches
+- [x] GetBranch
+- [x] CreateBranchProtection
+- [x] UpdateBranchProtection
+- [x] DeleteBranchProtection
+- [x] RenameBranch
 
-**Branches & Branch Protection (not added)**
-- [ ] ListBranches
-- [ ] GetBranch
-- [ ] CreateBranchProtection
-- [ ] UpdateBranchProtection
-- [ ] DeleteBranchProtection
-- [ ] RenameBranch
+#### Git References / Tags (6)
+- [x] ListTags
+- [x] CreateTag
+- [x] DeleteTag
+- [x] ListRefs
+- [x] CreateRef
+- [x] DeleteRef
 
-**Git References / Tags (not added)**
-- [ ] ListTags
-- [ ] CreateTag
-- [ ] DeleteTag
-- [ ] ListRefs
-- [ ] CreateRef
-- [ ] DeleteRef
+#### Commits (3)
+- [x] ListCommits
+- [x] GetCommit
+- [x] CompareCommits
 
-**Commits (not added)**
-- [ ] ListCommits
-- [ ] GetCommit
-- [ ] CompareCommits
+#### Actions / Workflows (10)
+- [x] ListWorkflows
+- [x] ListWorkflowRuns
+- [x] GetWorkflowRun
+- [x] ReRunWorkflow
+- [x] CancelWorkflowRun
+- [x] ListWorkflowRunArtifacts
+- [x] DownloadArtifact
+- [x] ListRepositorySecrets
+- [x] CreateOrUpdateSecret
+- [x] DeleteSecret
 
-**Actions / Workflows (not added)**
-- [ ] ListWorkflows
-- [ ] ListWorkflowRuns
-- [ ] GetWorkflowRun
-- [ ] ReRunWorkflow
-- [ ] CancelWorkflowRun
-- [ ] ListWorkflowRunArtifacts
-- [ ] DownloadArtifact
-- [ ] ListRepositorySecrets
-- [ ] CreateOrUpdateSecret
-- [ ] DeleteSecret
+#### Checks / Statuses (6)
+- [x] ListCheckRuns
+- [x] GetCheckRun
+- [x] ListCheckSuites
+- [x] CreateCheckRun
+- [x] ListCommitStatuses
+- [x] CreateCommitStatus
 
-**Checks / Statuses (not added)**
-- [ ] ListCheckRuns
-- [ ] GetCheckRun
-- [ ] ListCheckSuites
-- [ ] CreateCheckRun
-- [ ] ListCommitStatuses
-- [ ] CreateCommitStatus
+#### Projects (7)
+- [x] ListProjects
+- [x] CreateProject
+- [x] UpdateProject
+- [x] DeleteProject
+- [x] ListProjectColumns
+- [x] CreateProjectCard
+- [x] MoveProjectCard
 
-**Projects (not added)**
-- [ ] ListProjects
-- [ ] CreateProject
-- [ ] UpdateProject
-- [ ] DeleteProject
-- [ ] ListProjectColumns
-- [ ] CreateProjectCard
-- [ ] MoveProjectCard
+#### Deployments (4)
+- [x] ListDeployments
+- [x] CreateDeployment
+- [x] ListDeploymentStatuses
+- [x] CreateDeploymentStatus
 
-**Deployments (not added)**
-- [ ] ListDeployments
-- [ ] CreateDeployment
-- [ ] ListDeploymentStatuses
-- [ ] CreateDeploymentStatus
+#### Repository Contents (5)
+- [x] GetFileContents
+- [x] CreateOrUpdateFileContents
+- [x] DeleteFileContents
+- [x] GetArchiveLink
+- [x] ListRepositoryTree
 
-**Repository Contents (not added)**
-- [ ] GetFileContents
-- [ ] CreateOrUpdateFileContents
-- [ ] DeleteFileContents
-- [ ] GetArchiveLink (tarball/zipball)
-- [ ] ListRepositoryTree (git trees)
+#### Forks (1)
+- [x] ListForks
 
-**Forks (not added)**
-- [ ] ListForks
+#### Collaborator Permissions (2)
+- [x] GetCollaboratorPermission
+- [x] ListPendingInvitations
 
-**Collaborator Permissions (not added)**
-- [ ] GetCollaboratorPermission
-- [ ] ListPendingInvitations
+#### Code Scanning / Security (4)
+- [x] ListCodeScanningAlerts
+- [x] GetCodeScanningAlert
+- [x] ListDependabotAlerts
+- [x] ListSecretScanningAlerts
 
-**Code Scanning / Security (not added)**
-- [ ] ListCodeScanningAlerts
-- [ ] GetCodeScanningAlert
-- [ ] ListDependabotAlerts
-- [ ] ListSecretScanningAlerts
+#### Pages (3)
+- [x] GetPages
+- [x] CreatePagesSite
+- [x] ListPagesBuilds
 
-**Pages (not added)**
-- [ ] GetPages
-- [ ] CreatePagesSite
-- [ ] ListPagesBuilds
+#### Packages (4)
+- [x] ListPackages
+- [x] GetPackage
+- [x] DeletePackage
+- [x] ListPackageVersions
 
-**Packages (not added)**
-- [ ] ListPackages
-- [ ] GetPackage
-- [ ] DeletePackage
-- [ ] ListPackageVersions
+#### SSH / GPG Keys (6)
+- [x] ListSSHKeys
+- [x] CreateSSHKey
+- [x] DeleteSSHKey
+- [x] ListGPGKeys
+- [x] CreateGPGKey
+- [x] DeleteGPGKey
 
-**SSH / GPG Keys (not added)**
-- [ ] ListSSHKeys
-- [ ] CreateSSHKey
-- [ ] DeleteSSHKey
-- [ ] ListGPGKeys
-- [ ] CreateGPGKey
-- [ ] DeleteGPGKey
+#### Rulesets (5)
+- [x] ListRulesets
+- [x] CreateRuleset
+- [x] GetRuleset
+- [x] UpdateRuleset
+- [x] DeleteRuleset
 
-**Rulesets (not added)**
-- [ ] ListRulesets
-- [ ] CreateRuleset
-- [ ] GetRuleset
-- [ ] UpdateRuleset
-- [ ] DeleteRuleset
+#### Autolinks (3)
+- [x] ListAutolinks
+- [x] CreateAutolink
+- [x] DeleteAutolink
 
-**Autolinks (not added)**
-- [ ] ListAutolinks
-- [ ] CreateAutolink
-- [ ] DeleteAutolink
-
-**Environments (not added)**
-- [ ] ListEnvironments
-- [ ] GetEnvironment
-- [ ] CreateOrUpdateEnvironment
-- [ ] DeleteEnvironment
+#### Environments (4)
+- [x] ListEnvironments
+- [x] GetEnvironment
+- [x] CreateOrUpdateEnvironment
+- [x] DeleteEnvironment

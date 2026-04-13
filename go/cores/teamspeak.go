@@ -5350,6 +5350,547 @@ func (t *TeamSpeakCore) GetBandwidthStats() TsBandwidthSnapshot {
 	return t.bwStats.snapshot()
 }
 
+// ──────────────────────────── Client Management (extended) ────────────────────────────
+
+// ClientKick kicks a client from channel (reasonid=4) or server (reasonid=5).
+func (t *TeamSpeakCore) ClientKick(clid, reasonID int, message string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	cmd := fmt.Sprintf("clientkick clid=%d reasonid=%d", clid, reasonID)
+	if message != "" {
+		cmd += fmt.Sprintf(" reasonmsg=%s", tsEscape(message))
+	}
+	return t.tsExecSimple(cmd)
+}
+
+// ClientMute locally mutes a client (suppresses their voice packets).
+func (t *TeamSpeakCore) ClientMute(clid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("clientmute clid=%d", clid))
+}
+
+// ClientUnmute removes the local mute from a client.
+func (t *TeamSpeakCore) ClientUnmute(clid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("clientunmute clid=%d", clid))
+}
+
+// ClientChatComposing sends a typing indicator to a client.
+func (t *TeamSpeakCore) ClientChatComposing(clid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("clientchatcomposing clid=%d", clid))
+}
+
+// ClientDBList lists all known client database entries.
+func (t *TeamSpeakCore) ClientDBList(start, duration int) ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	cmd := "clientdblist"
+	if start > 0 {
+		cmd += fmt.Sprintf(" start=%d", start)
+	}
+	if duration > 0 {
+		cmd += fmt.Sprintf(" duration=%d", duration)
+	}
+	return t.tsExec(cmd)
+}
+
+// ClientVariable gets a specific client variable by name.
+func (t *TeamSpeakCore) ClientVariable(clid int, varNames ...string) (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	cmd := fmt.Sprintf("clientvariable clid=%d", clid)
+	for _, v := range varNames {
+		cmd += " " + tsEscape(v)
+	}
+	rows, err := t.tsExec(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) > 0 {
+		return rows[0], nil
+	}
+	return map[string]string{}, nil
+}
+
+// ──────────────────────────── Ban Management (extended) ────────────────────────────
+
+// BanClient bans an online client directly by client ID.
+func (t *TeamSpeakCore) BanClient(clid, timeSeconds int, reason string) (int, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return 0, ErrAuth
+	}
+	cmd := fmt.Sprintf("banclient clid=%d", clid)
+	if timeSeconds > 0 {
+		cmd += fmt.Sprintf(" time=%d", timeSeconds)
+	}
+	if reason != "" {
+		cmd += fmt.Sprintf(" banreason=%s", tsEscape(reason))
+	}
+	rows, err := t.tsExec(cmd)
+	if err != nil {
+		return 0, err
+	}
+	banID := 0
+	if len(rows) > 0 {
+		banID, _ = strconv.Atoi(rows[0]["banid"])
+	}
+	return banID, nil
+}
+
+// BanDel deletes a specific ban rule by ban ID.
+func (t *TeamSpeakCore) BanDel(banID int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("bandel banid=%d", banID))
+}
+
+// ──────────────────────────── Server Management (SQ) ────────────────────────────
+
+// ServerList lists all virtual servers (ServerQuery only).
+func (t *TeamSpeakCore) ServerList() ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	return t.tsExec("serverlist")
+}
+
+// ServerCreate creates a virtual server (ServerQuery only).
+func (t *TeamSpeakCore) ServerCreate(name string, props map[string]string) (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	cmd := fmt.Sprintf("servercreate virtualserver_name=%s", tsEscape(name))
+	for k, v := range props {
+		cmd += fmt.Sprintf(" %s=%s", tsEscape(k), tsEscape(v))
+	}
+	rows, err := t.tsExec(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) > 0 {
+		return rows[0], nil
+	}
+	return map[string]string{}, nil
+}
+
+// ServerDelete deletes a virtual server (ServerQuery only).
+func (t *TeamSpeakCore) ServerDelete(sid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("serverdelete sid=%d", sid))
+}
+
+// ServerStart starts a virtual server (ServerQuery only).
+func (t *TeamSpeakCore) ServerStart(sid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("serverstart sid=%d", sid))
+}
+
+// ServerStop stops a virtual server (ServerQuery only).
+func (t *TeamSpeakCore) ServerStop(sid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("serverstop sid=%d", sid))
+}
+
+// ServerSnapshotCreate creates a snapshot of the virtual server (ServerQuery only).
+func (t *TeamSpeakCore) ServerSnapshotCreate() (string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return "", ErrAuth
+	}
+	rows, err := t.tsExec("serversnapshotcreate")
+	if err != nil {
+		return "", err
+	}
+	if len(rows) > 0 {
+		if v, ok := rows[0]["data"]; ok {
+			return v, nil
+		}
+		if v, ok := rows[0]["snapshot"]; ok {
+			return v, nil
+		}
+	}
+	return "", nil
+}
+
+// ServerSnapshotDeploy restores a server snapshot (ServerQuery only).
+func (t *TeamSpeakCore) ServerSnapshotDeploy(snapshot string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("serversnapshotdeploy %s", snapshot))
+}
+
+// ServerTempPasswordAdd creates a temporary server password.
+func (t *TeamSpeakCore) ServerTempPasswordAdd(password string, description string, duration int, targetCID int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	cmd := fmt.Sprintf("servertemppasswordadd pw=%s desc=%s duration=%d tcid=%d",
+		tsEscape(password), tsEscape(description), duration, targetCID)
+	return t.tsExecSimple(cmd)
+}
+
+// ServerTempPasswordDel deletes a temporary server password.
+func (t *TeamSpeakCore) ServerTempPasswordDel(password string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("servertemppassworddel pw=%s", tsEscape(password)))
+}
+
+// ServerTempPasswordList lists temporary server passwords.
+func (t *TeamSpeakCore) ServerTempPasswordList() ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	return t.tsExec("servertemppasswordlist")
+}
+
+// ──────────────────────────── File Transfer Init ────────────────────────────
+
+// FTInitUpload initializes a file upload and returns transfer params (port, ftkey, seekpos, etc).
+func (t *TeamSpeakCore) FTInitUpload(clientftfid, cid int, name string, cpw string, size int64, overwrite, resume bool) (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	ow := 0
+	if overwrite {
+		ow = 1
+	}
+	res := 0
+	if resume {
+		res = 1
+	}
+	cmd := fmt.Sprintf("ftinitupload clientftfid=%d name=%s cid=%d cpw=%s size=%d overwrite=%d resume=%d",
+		clientftfid, tsEscape(name), cid, tsEscape(cpw), size, ow, res)
+	rows, err := t.tsExec(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) > 0 {
+		return rows[0], nil
+	}
+	return map[string]string{}, nil
+}
+
+// FTInitDownload initializes a file download and returns transfer params (port, ftkey, size, etc).
+func (t *TeamSpeakCore) FTInitDownload(clientftfid, cid int, name string, cpw string, seekpos int64) (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	cmd := fmt.Sprintf("ftinitdownload clientftfid=%d name=%s cid=%d cpw=%s seekpos=%d",
+		clientftfid, tsEscape(name), cid, tsEscape(cpw), seekpos)
+	rows, err := t.tsExec(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) > 0 {
+		return rows[0], nil
+	}
+	return map[string]string{}, nil
+}
+
+// ──────────────────────────── Event Registration ────────────────────────────
+
+// ServerNotifyRegister registers for server event notifications.
+// event: "server", "channel", "textserver", "textchannel", "textprivate".
+func (t *TeamSpeakCore) ServerNotifyRegister(event string, cid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	cmd := fmt.Sprintf("servernotifyregister event=%s", tsEscape(event))
+	if cid > 0 {
+		cmd += fmt.Sprintf(" id=%d", cid)
+	}
+	return t.tsExecSimple(cmd)
+}
+
+// ServerNotifyUnregister unregisters from server event notifications.
+func (t *TeamSpeakCore) ServerNotifyUnregister() error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple("servernotifyunregister")
+}
+
+// ──────────────────────────── Logging (SQ) ────────────────────────────
+
+// LogView retrieves server log entries (ServerQuery only).
+func (t *TeamSpeakCore) LogView(lines, reverse, instance int, beginPos uint64) ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	cmd := fmt.Sprintf("logview lines=%d reverse=%d instance=%d begin_pos=%d",
+		lines, reverse, instance, beginPos)
+	return t.tsExec(cmd)
+}
+
+// LogAdd adds a custom entry to the server log (ServerQuery only).
+func (t *TeamSpeakCore) LogAdd(logLevel int, logMsg string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("logadd loglevel=%d logmsg=%s", logLevel, tsEscape(logMsg)))
+}
+
+// ──────────────────────────── Query Login Management ────────────────────────────
+
+// QueryLoginAdd creates a ServerQuery login (SQ 3.6.0+).
+func (t *TeamSpeakCore) QueryLoginAdd(name string, cldbid int) (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	cmd := fmt.Sprintf("queryloginadd client_login_name=%s", tsEscape(name))
+	if cldbid > 0 {
+		cmd += fmt.Sprintf(" cldbid=%d", cldbid)
+	}
+	rows, err := t.tsExec(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) > 0 {
+		return rows[0], nil
+	}
+	return map[string]string{}, nil
+}
+
+// QueryLoginDel deletes a ServerQuery login.
+func (t *TeamSpeakCore) QueryLoginDel(cldbid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("querylogindel cldbid=%d", cldbid))
+}
+
+// QueryLoginList lists all ServerQuery logins.
+func (t *TeamSpeakCore) QueryLoginList() ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	return t.tsExec("queryloginlist")
+}
+
+// ──────────────────────────── API Key Management ────────────────────────────
+
+// ApiKeyAdd creates a new API key (SQ 3.12.0+).
+func (t *TeamSpeakCore) ApiKeyAdd(scope string, lifetime int, cldbid int) (map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	cmd := fmt.Sprintf("apikeyadd scope=%s", tsEscape(scope))
+	if lifetime > 0 {
+		cmd += fmt.Sprintf(" lifetime=%d", lifetime)
+	}
+	if cldbid > 0 {
+		cmd += fmt.Sprintf(" cldbid=%d", cldbid)
+	}
+	rows, err := t.tsExec(cmd)
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) > 0 {
+		return rows[0], nil
+	}
+	return map[string]string{}, nil
+}
+
+// ApiKeyDel deletes an API key.
+func (t *TeamSpeakCore) ApiKeyDel(id int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("apikeydel id=%d", id))
+}
+
+// ApiKeyList lists all API keys.
+func (t *TeamSpeakCore) ApiKeyList(cldbid int, start, duration int) ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	cmd := "apikeylist"
+	if cldbid > 0 {
+		cmd += fmt.Sprintf(" cldbid=%d", cldbid)
+	}
+	if start > 0 {
+		cmd += fmt.Sprintf(" start=%d", start)
+	}
+	if duration > 0 {
+		cmd += fmt.Sprintf(" duration=%d", duration)
+	}
+	return t.tsExec(cmd)
+}
+
+// ──────────────────────────── Server Permissions ────────────────────────────
+
+// ServerAddPerm adds a server-level permission.
+func (t *TeamSpeakCore) ServerAddPerm(permID, permValue int, permNegated, permSkip bool) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	n := 0
+	if permNegated {
+		n = 1
+	}
+	s := 0
+	if permSkip {
+		s = 1
+	}
+	return t.tsExecSimple(fmt.Sprintf("serveraddperm permid=%d permvalue=%d permnegated=%d permskip=%d",
+		permID, permValue, n, s))
+}
+
+// ServerDelPerm removes a server-level permission.
+func (t *TeamSpeakCore) ServerDelPerm(permID int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("serverdelperm permid=%d", permID))
+}
+
+// ServerPermList lists all server-level permissions.
+func (t *TeamSpeakCore) ServerPermList() ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	return t.tsExec("serverpermlist")
+}
+
+// ──────────────────────────── Global Message (SQ) ────────────────────────────
+
+// GlobalMessage broadcasts a text message to all virtual servers (ServerQuery only).
+func (t *TeamSpeakCore) GlobalMessage(message string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("gm msg=%s", tsEscape(message)))
+}
+
+// ──────────────────────────── Exported Wrappers ────────────────────────────
+
+// ServerGroupList lists all server groups.
+func (t *TeamSpeakCore) ServerGroupList() ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	return t.tsExec("servergrouplist")
+}
+
+// ServerGroupAddClient adds a client to a server group.
+func (t *TeamSpeakCore) ServerGroupAddClient(sgid, cldbid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("servergroupaddclient sgid=%d cldbid=%d", sgid, cldbid))
+}
+
+// ServerGroupDelClient removes a client from a server group.
+func (t *TeamSpeakCore) ServerGroupDelClient(sgid, cldbid int) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	return t.tsExecSimple(fmt.Sprintf("servergroupdelclient sgid=%d cldbid=%d", sgid, cldbid))
+}
+
+// ChannelGroupsByClientID lists channel groups for a specific client.
+func (t *TeamSpeakCore) ChannelGroupsByClientID(cldbid int) ([]map[string]string, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return nil, ErrAuth
+	}
+	return t.tsExec(fmt.Sprintf("channelgroupclientlist cldbid=%d", cldbid))
+}
+
 // ──────────────────────────── Voice Activity Detection ────────────────────────────
 
 // DetectVoiceActivity checks if PCM audio samples contain voice (energy-based).

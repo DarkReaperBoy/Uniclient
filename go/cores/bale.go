@@ -4776,3 +4776,1038 @@ func (b *BaleCore) GetSessions() ([]Session, error) {
 func (b *BaleCore) TerminateSession(sessionID string) error {
 	return ErrNotSupported
 }
+
+// mapBotMessage extracts "result" from an apiRequest response and maps it to a Message.
+func (b *BaleCore) mapBotMessage(resp map[string]interface{}) *Message {
+	result, ok := resp["result"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	m := b.mapMessage(result)
+	return &m
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Bot API (27 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetUpdates fetches updates via long-polling (bot mode).
+func (b *BaleCore) GetUpdates(offset int64, limit int, timeout int) ([]map[string]interface{}, error) {
+	params := map[string]interface{}{
+		"offset":  offset,
+		"limit":   limit,
+		"timeout": timeout,
+	}
+	resp, err := b.apiRequest("getUpdates", params)
+	if err != nil {
+		return nil, err
+	}
+	results, _ := resp["result"].([]interface{})
+	var out []map[string]interface{}
+	for _, r := range results {
+		if m, ok := r.(map[string]interface{}); ok {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
+// SetWebhook sets a webhook URL for receiving updates.
+func (b *BaleCore) SetWebhook(url string, maxConnections int) error {
+	params := map[string]interface{}{"url": url}
+	if maxConnections > 0 {
+		params["max_connections"] = maxConnections
+	}
+	_, err := b.apiRequest("setWebhook", params)
+	return err
+}
+
+// DeleteWebhook removes the webhook integration.
+func (b *BaleCore) DeleteWebhook() error {
+	_, err := b.apiRequest("deleteWebhook", nil)
+	return err
+}
+
+// GetWebhookInfo returns current webhook status.
+func (b *BaleCore) GetWebhookInfo() (map[string]interface{}, error) {
+	resp, err := b.apiRequest("getWebhookInfo", nil)
+	if err != nil {
+		return nil, err
+	}
+	result, _ := resp["result"].(map[string]interface{})
+	return result, nil
+}
+
+// SendPhoto sends a photo by file_id or URL (bot mode).
+func (b *BaleCore) SendPhoto(chatID string, photo string, caption string) (*Message, error) {
+	params := map[string]interface{}{
+		"chat_id": chatID,
+		"photo":   photo,
+	}
+	if caption != "" {
+		params["caption"] = caption
+	}
+	resp, err := b.apiRequest("sendPhoto", params)
+	if err != nil {
+		return nil, err
+	}
+	return b.mapBotMessage(resp), nil
+}
+
+// SendAudio sends an audio file by file_id or URL (bot mode).
+func (b *BaleCore) SendAudio(chatID string, audio string, caption string, duration int) (*Message, error) {
+	params := map[string]interface{}{
+		"chat_id": chatID,
+		"audio":   audio,
+	}
+	if caption != "" {
+		params["caption"] = caption
+	}
+	if duration > 0 {
+		params["duration"] = duration
+	}
+	resp, err := b.apiRequest("sendAudio", params)
+	if err != nil {
+		return nil, err
+	}
+	return b.mapBotMessage(resp), nil
+}
+
+// SendDocument sends a document by file_id or URL (bot mode).
+func (b *BaleCore) SendDocument(chatID string, document string, caption string) (*Message, error) {
+	params := map[string]interface{}{
+		"chat_id":  chatID,
+		"document": document,
+	}
+	if caption != "" {
+		params["caption"] = caption
+	}
+	resp, err := b.apiRequest("sendDocument", params)
+	if err != nil {
+		return nil, err
+	}
+	return b.mapBotMessage(resp), nil
+}
+
+// SendVideo sends a video by file_id or URL (bot mode).
+func (b *BaleCore) SendVideo(chatID string, video string, caption string, duration int) (*Message, error) {
+	params := map[string]interface{}{
+		"chat_id": chatID,
+		"video":   video,
+	}
+	if caption != "" {
+		params["caption"] = caption
+	}
+	if duration > 0 {
+		params["duration"] = duration
+	}
+	resp, err := b.apiRequest("sendVideo", params)
+	if err != nil {
+		return nil, err
+	}
+	return b.mapBotMessage(resp), nil
+}
+
+// SendAnimation sends an animation (GIF) by file_id or URL (bot mode).
+func (b *BaleCore) SendAnimation(chatID string, animation string, caption string) (*Message, error) {
+	params := map[string]interface{}{
+		"chat_id":   chatID,
+		"animation": animation,
+	}
+	if caption != "" {
+		params["caption"] = caption
+	}
+	resp, err := b.apiRequest("sendAnimation", params)
+	if err != nil {
+		return nil, err
+	}
+	return b.mapBotMessage(resp), nil
+}
+
+// SendVoice sends a voice message by file_id or URL (bot mode).
+func (b *BaleCore) SendVoice(chatID string, voice string, caption string, duration int) (*Message, error) {
+	params := map[string]interface{}{
+		"chat_id": chatID,
+		"voice":   voice,
+	}
+	if caption != "" {
+		params["caption"] = caption
+	}
+	if duration > 0 {
+		params["duration"] = duration
+	}
+	resp, err := b.apiRequest("sendVoice", params)
+	if err != nil {
+		return nil, err
+	}
+	return b.mapBotMessage(resp), nil
+}
+
+// SendVideoNote sends a video note (round video) by file_id or URL (bot mode).
+func (b *BaleCore) SendVideoNote(chatID string, videoNote string, duration int, length int) (*Message, error) {
+	params := map[string]interface{}{
+		"chat_id":    chatID,
+		"video_note": videoNote,
+	}
+	if duration > 0 {
+		params["duration"] = duration
+	}
+	if length > 0 {
+		params["length"] = length
+	}
+	resp, err := b.apiRequest("sendVideoNote", params)
+	if err != nil {
+		return nil, err
+	}
+	return b.mapBotMessage(resp), nil
+}
+
+// SendMediaGroup sends a group of photos or videos as an album (bot mode).
+func (b *BaleCore) SendMediaGroup(chatID string, media []map[string]interface{}) ([]map[string]interface{}, error) {
+	mediaJSON, err := json.Marshal(media)
+	if err != nil {
+		return nil, fmt.Errorf("marshal media: %w", err)
+	}
+	params := map[string]interface{}{
+		"chat_id": chatID,
+		"media":   string(mediaJSON),
+	}
+	resp, err := b.apiRequest("sendMediaGroup", params)
+	if err != nil {
+		return nil, err
+	}
+	results, _ := resp["result"].([]interface{})
+	var out []map[string]interface{}
+	for _, r := range results {
+		if m, ok := r.(map[string]interface{}); ok {
+			out = append(out, m)
+		}
+	}
+	return out, nil
+}
+
+// SendVenue sends a venue with location (bot mode).
+func (b *BaleCore) SendVenue(chatID string, lat, lon float64, title, address string) (*Message, error) {
+	params := map[string]interface{}{
+		"chat_id":   chatID,
+		"latitude":  lat,
+		"longitude": lon,
+		"title":     title,
+		"address":   address,
+	}
+	resp, err := b.apiRequest("sendVenue", params)
+	if err != nil {
+		return nil, err
+	}
+	return b.mapBotMessage(resp), nil
+}
+
+// EditMessageReplyMarkup edits the reply markup of a message (bot mode).
+func (b *BaleCore) EditMessageReplyMarkup(chatID string, msgID int64, replyMarkup interface{}) error {
+	params := map[string]interface{}{
+		"chat_id":    chatID,
+		"message_id": msgID,
+	}
+	if replyMarkup != nil {
+		markupJSON, err := json.Marshal(replyMarkup)
+		if err != nil {
+			return fmt.Errorf("marshal reply_markup: %w", err)
+		}
+		params["reply_markup"] = string(markupJSON)
+	}
+	_, err := b.apiRequest("editMessageReplyMarkup", params)
+	return err
+}
+
+// GetFile gets info about a file by file_id (bot mode).
+func (b *BaleCore) GetFile(fileID string) (map[string]interface{}, error) {
+	resp, err := b.apiRequest("getFile", map[string]interface{}{"file_id": fileID})
+	if err != nil {
+		return nil, err
+	}
+	result, _ := resp["result"].(map[string]interface{})
+	return result, nil
+}
+
+// RestrictChatMember restricts a user in a supergroup (bot mode).
+func (b *BaleCore) RestrictChatMember(chatID string, userID int64, permissions map[string]bool) error {
+	params := map[string]interface{}{
+		"chat_id":     chatID,
+		"user_id":     userID,
+		"permissions": permissions,
+	}
+	_, err := b.apiRequest("restrictChatMember", params)
+	return err
+}
+
+// UploadStickerFile uploads a sticker file (bot mode).
+func (b *BaleCore) UploadStickerFile(userID int64, sticker io.Reader, stickerFormat string) (map[string]interface{}, error) {
+	fields := map[string]string{
+		"user_id":        strconv.FormatInt(userID, 10),
+		"sticker_format": stickerFormat,
+	}
+	resp, err := b.apiRequestMultipart("uploadStickerFile", fields, "sticker", "sticker.webp", sticker)
+	if err != nil {
+		return nil, err
+	}
+	result, _ := resp["result"].(map[string]interface{})
+	return result, nil
+}
+
+// CreateNewStickerSet creates a new sticker set (bot mode).
+func (b *BaleCore) CreateNewStickerSet(userID int64, name, title string, stickers []map[string]interface{}) error {
+	stickersJSON, _ := json.Marshal(stickers)
+	params := map[string]interface{}{
+		"user_id":  userID,
+		"name":     name,
+		"title":    title,
+		"stickers": string(stickersJSON),
+	}
+	_, err := b.apiRequest("createNewStickerSet", params)
+	return err
+}
+
+// AddStickerToSet adds a sticker to an existing set (bot mode).
+func (b *BaleCore) AddStickerToSet(userID int64, name string, sticker map[string]interface{}) error {
+	stickerJSON, _ := json.Marshal(sticker)
+	params := map[string]interface{}{
+		"user_id": userID,
+		"name":    name,
+		"sticker": string(stickerJSON),
+	}
+	_, err := b.apiRequest("addStickerToSet", params)
+	return err
+}
+
+// DeleteStickerFromSet deletes a sticker from a set (bot mode).
+func (b *BaleCore) DeleteStickerFromSet(sticker string) error {
+	_, err := b.apiRequest("deleteStickerFromSet", map[string]interface{}{"sticker": sticker})
+	return err
+}
+
+// CreateInvoiceLink creates a payment invoice link (bot mode).
+func (b *BaleCore) CreateInvoiceLink(title, description, payload, providerToken, currency string, prices []map[string]interface{}) (string, error) {
+	params := map[string]interface{}{
+		"title":          title,
+		"description":    description,
+		"payload":        payload,
+		"provider_token": providerToken,
+		"currency":       currency,
+		"prices":         prices,
+	}
+	resp, err := b.apiRequest("createInvoiceLink", params)
+	if err != nil {
+		return "", err
+	}
+	link, _ := resp["result"].(string)
+	return link, nil
+}
+
+// AnswerShippingQuery responds to a shipping query (bot mode).
+func (b *BaleCore) AnswerShippingQuery(shippingQueryID string, ok bool, shippingOptions []map[string]interface{}, errorMessage string) error {
+	params := map[string]interface{}{
+		"shipping_query_id": shippingQueryID,
+		"ok":                ok,
+	}
+	if ok && shippingOptions != nil {
+		params["shipping_options"] = shippingOptions
+	}
+	if !ok && errorMessage != "" {
+		params["error_message"] = errorMessage
+	}
+	_, err := b.apiRequest("answerShippingQuery", params)
+	return err
+}
+
+// GetUserProfilePhotos gets a user's profile photos (bot mode).
+func (b *BaleCore) GetUserProfilePhotos(userID int64, offset, limit int) (map[string]interface{}, error) {
+	params := map[string]interface{}{
+		"user_id": userID,
+	}
+	if offset > 0 {
+		params["offset"] = offset
+	}
+	if limit > 0 {
+		params["limit"] = limit
+	}
+	resp, err := b.apiRequest("getUserProfilePhotos", params)
+	if err != nil {
+		return nil, err
+	}
+	result, _ := resp["result"].(map[string]interface{})
+	return result, nil
+}
+
+// AnswerInlineQuery answers an inline query with results (bot mode).
+func (b *BaleCore) AnswerInlineQuery(inlineQueryID string, results []map[string]interface{}, cacheTime int) error {
+	params := map[string]interface{}{
+		"inline_query_id": inlineQueryID,
+		"results":         results,
+	}
+	if cacheTime >= 0 {
+		params["cache_time"] = cacheTime
+	}
+	_, err := b.apiRequest("answerInlineQuery", params)
+	return err
+}
+
+// AskReview sends a review request to a user (Bale-specific bot method).
+func (b *BaleCore) AskReview(chatID string) error {
+	_, err := b.apiRequest("askReview", map[string]interface{}{"chat_id": chatID})
+	return err
+}
+
+// InviteUser sends an invite to a user (Bale-specific bot method).
+func (b *BaleCore) InviteUser(chatID string, userID int64) error {
+	params := map[string]interface{}{
+		"chat_id": chatID,
+		"user_id": userID,
+	}
+	_, err := b.apiRequest("inviteUser", params)
+	return err
+}
+
+// InquireTransaction queries a wallet transaction (Bale-specific bot method).
+func (b *BaleCore) InquireTransaction(invoicePayload string) (map[string]interface{}, error) {
+	resp, err := b.apiRequest("inquireTransaction", map[string]interface{}{"invoice_payload": invoicePayload})
+	if err != nil {
+		return nil, err
+	}
+	result, _ := resp["result"].(map[string]interface{})
+	return result, nil
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Auth Service (17 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// DeleteAccount permanently deletes the user's account.
+func (b *BaleCore) DeleteAccount(reason string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "DeleteAccount", map[string]interface{}{"1": reason})
+}
+
+// ChangePhone initiates a phone number change.
+func (b *BaleCore) ChangePhone(newPhone string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "ChangePhone", map[string]interface{}{"1": newPhone})
+}
+
+// SendDeleteAccountVerificationCode requests a verification code for account deletion.
+func (b *BaleCore) SendDeleteAccountVerificationCode() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "SendDeleteAccountVerificationCode", map[string]interface{}{})
+}
+
+// SendChangePhoneVerificationCode requests a verification code for phone change.
+func (b *BaleCore) SendChangePhoneVerificationCode(newPhone string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "SendChangePhoneVerificationCode", map[string]interface{}{"1": newPhone})
+}
+
+// EnableTwoFactorAuthentication enables 2FA with a password.
+func (b *BaleCore) EnableTwoFactorAuthentication(password string, hint string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{"1": password}
+	if hint != "" {
+		payload["2"] = hint
+	}
+	return b.userSend(baleServiceAuth, "EnableTwoFactorAuthentication", payload)
+}
+
+// DisableTwoFactorAuthentication disables 2FA.
+func (b *BaleCore) DisableTwoFactorAuthentication(password string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "DisableTwoFactorAuthentication", map[string]interface{}{"1": password})
+}
+
+// IsTwoFactorAuthenticationEnabled checks if 2FA is enabled.
+func (b *BaleCore) IsTwoFactorAuthenticationEnabled() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "IsTwoFactorAuthenticationEnabled", map[string]interface{}{})
+}
+
+// VerifyEmail verifies an email address.
+func (b *BaleCore) VerifyEmail(email string, code string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "VerifyEmail", map[string]interface{}{"1": email, "2": code})
+}
+
+// RecoverPassword initiates password recovery.
+func (b *BaleCore) RecoverPassword() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "RecoverPassword", map[string]interface{}{})
+}
+
+// VerifyPasswordRecovery verifies a password recovery code.
+func (b *BaleCore) VerifyPasswordRecovery(code string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "VerifyPasswordRecovery", map[string]interface{}{"1": code})
+}
+
+// SetNewPassword sets a new password after recovery.
+func (b *BaleCore) SetNewPassword(transactionHash, newPassword, hint string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{"1": transactionHash, "2": newPassword}
+	if hint != "" {
+		payload["3"] = hint
+	}
+	return b.userSend(baleServiceAuth, "SetNewPassword", payload)
+}
+
+// GetUserIdToken gets an ID token for the current user.
+func (b *BaleCore) GetUserIdToken() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "GetUserIdToken", map[string]interface{}{})
+}
+
+// GetTicket gets a session ticket.
+func (b *BaleCore) GetTicket() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "GetTicket", map[string]interface{}{})
+}
+
+// GetBajeBamTicket gets a BajeBam service ticket.
+func (b *BaleCore) GetBajeBamTicket() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "GetBajeBamTicket", map[string]interface{}{})
+}
+
+// GetBaleTicket gets a Bale-specific service ticket.
+func (b *BaleCore) GetBaleTicket() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "GetBaleTicket", map[string]interface{}{})
+}
+
+// GetJWTToken gets a JWT token.
+func (b *BaleCore) GetJWTToken() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "GetJWTToken", map[string]interface{}{})
+}
+
+// TerminateAllSessions terminates all other sessions.
+func (b *BaleCore) TerminateAllSessions() (map[string]interface{}, error) {
+	return b.userSend(baleServiceAuth, "TerminateAllSessions", map[string]interface{}{})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Users Service (19 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// EditSex changes the user's gender. Values: 1=male, 2=female, 3=other.
+func (b *BaleCore) EditSex(sex int) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "EditSex", map[string]interface{}{"1": int64(sex)})
+}
+
+// EditBirthDate changes the user's birth date. Format: "YYYY-MM-DD".
+func (b *BaleCore) EditBirthDate(birthDate string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "EditBirthDate", map[string]interface{}{"1": birthDate})
+}
+
+// EditAvatarGRPC changes the user's avatar via gRPC user API.
+// fileID is from a prior file upload.
+func (b *BaleCore) EditAvatarGRPC(fileID int64, accessHash int64) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": map[string]interface{}{"1": fileID, "2": accessHash},
+	}
+	return b.userSend(baleServiceUsers, "EditAvatar", payload)
+}
+
+// RemoveAvatar removes the user's avatar.
+func (b *BaleCore) RemoveAvatar() (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "RemoveAvatar", map[string]interface{}{})
+}
+
+// EditMyTimeZone changes the user's timezone.
+func (b *BaleCore) EditMyTimeZone(timezone string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "EditMyTimeZone", map[string]interface{}{"1": timezone})
+}
+
+// EditMyPreferredLanguages changes the user's preferred languages.
+func (b *BaleCore) EditMyPreferredLanguages(langs []string) (map[string]interface{}, error) {
+	// Repeated string field
+	langList := make([]interface{}, len(langs))
+	for i, l := range langs {
+		langList[i] = l
+	}
+	return b.userSend(baleServiceUsers, "EditMyPreferredLanguages", map[string]interface{}{"1": langList})
+}
+
+// LoadFullUsersSequentially loads full user info for multiple users one by one.
+func (b *BaleCore) LoadFullUsersSequentially(userIDs []int64) (map[string]interface{}, error) {
+	peers := make([]interface{}, len(userIDs))
+	for i, uid := range userIDs {
+		peers[i] = baleUserOutPeer(uid)
+	}
+	return b.userSend(baleServiceUsers, "LoadFullUsers", map[string]interface{}{"1": peers})
+}
+
+// LoadAvatars loads avatars for a user.
+func (b *BaleCore) LoadAvatars(userID int64) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "LoadAvatars", map[string]interface{}{"1": baleUserOutPeer(userID)})
+}
+
+// GetUsersDefaultCardNumber gets the user's default card number (Bale wallet).
+func (b *BaleCore) GetUsersDefaultCardNumber() (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "GetUsersDefaultCardNumber", map[string]interface{}{})
+}
+
+// AddCard adds a bank card to the user's wallet.
+func (b *BaleCore) AddCard(cardNumber string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "AddCard", map[string]interface{}{"1": cardNumber})
+}
+
+// ChangeDefaultCardNumber changes the default card.
+func (b *BaleCore) ChangeDefaultCardNumber(cardNumber string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "ChangeDefaultCardNumber", map[string]interface{}{"1": cardNumber})
+}
+
+// RemoveDefaultCardNumber removes the default card.
+func (b *BaleCore) RemoveDefaultCardNumber() (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "RemoveDefaultCardNumber", map[string]interface{}{})
+}
+
+// NotifyAboutDeviceInfo sends device info to the server.
+func (b *BaleCore) NotifyAboutDeviceInfo(deviceModel, osVersion, appVersion string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": deviceModel,
+		"2": osVersion,
+		"3": appVersion,
+	}
+	return b.userSend(baleServiceUsers, "NotifyAboutDeviceInfo", payload)
+}
+
+// GetUserPrivacyStatus gets privacy settings status.
+func (b *BaleCore) GetUserPrivacyStatus() (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "GetUserPrivacyStatus", map[string]interface{}{})
+}
+
+// SetUserPrivacyStatus sets a privacy setting. key: "phone", "about", "avatar", etc.
+// value: 1=everyone, 2=contacts, 3=nobody.
+func (b *BaleCore) SetUserPrivacyStatus(key string, value int) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "SetUserPrivacyStatus", map[string]interface{}{"1": key, "2": int64(value)})
+}
+
+// GetUserFullPrivacy gets all privacy settings.
+func (b *BaleCore) GetUserFullPrivacy() (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "GetUserFullPrivacy", map[string]interface{}{})
+}
+
+// IsNameAllowed checks if a display name is allowed.
+func (b *BaleCore) IsNameAllowed(name string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "IsNameAllowed", map[string]interface{}{"1": name})
+}
+
+// ChangePhoneNumber initiates phone number change (user service).
+func (b *BaleCore) ChangePhoneNumber(newPhone string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "ChangePhoneNumber", map[string]interface{}{"1": newPhone})
+}
+
+// ConfirmPhoneNumber confirms a phone number change with verification code.
+func (b *BaleCore) ConfirmPhoneNumber(transactionHash, code string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceUsers, "ConfirmPhoneNumber", map[string]interface{}{"1": transactionHash, "2": code})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Meet Service (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ReceiveCall accepts an incoming call.
+func (b *BaleCore) ReceiveCall(callID int64) (map[string]interface{}, error) {
+	return b.userSend(baleServiceMeet, "ReceiveCall", map[string]interface{}{"1": callID})
+}
+
+// DiscardCall rejects/discards a call.
+func (b *BaleCore) DiscardCall(callID int64) (map[string]interface{}, error) {
+	return b.userSend(baleServiceMeet, "DiscardCall", map[string]interface{}{"1": callID})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — GiftPacket Service (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServiceGiftPacket = "bale.gift_packet.v1.GiftPacket"
+
+// SendGiftPacketWithWallet sends a gift packet using the wallet.
+func (b *BaleCore) SendGiftPacketWithWallet(chatID string, amount int64, count int, message string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": amount,
+		"3": int64(count),
+	}
+	if message != "" {
+		payload["4"] = message
+	}
+	return b.userSend(baleServiceGiftPacket, "SendGiftPacketWithWallet", payload)
+}
+
+// OpenGiftPacket opens a gift packet.
+func (b *BaleCore) OpenGiftPacket(packetID int64) (map[string]interface{}, error) {
+	return b.userSend(baleServiceGiftPacket, "OpenGiftPacket", map[string]interface{}{"1": packetID})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Magazine Service (3 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServiceMagazine = "bale.magazine.v1.Magazine"
+
+// UpvotePost upvotes a post.
+func (b *BaleCore) UpvotePost(chatID string, rid int64, date int64) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": date,
+	}
+	return b.userSend(baleServiceMagazine, "UpvotePost", payload)
+}
+
+// RevokeUpvotedPost removes an upvote from a post.
+func (b *BaleCore) RevokeUpvotedPost(chatID string, rid int64, date int64) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": date,
+	}
+	return b.userSend(baleServiceMagazine, "RevokeUpvotedPost", payload)
+}
+
+// GetMessageUpvoters gets the list of upvoters for a post.
+func (b *BaleCore) GetMessageUpvoters(chatID string, rid int64, date int64) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": date,
+	}
+	return b.userSend(baleServiceMagazine, "GetMessageUpvoters", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Kifpool Service (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServiceKifpool = "bale.kifpool.v1.Kifpool"
+
+// GetMyKifpools gets the user's kifpools (savings pools).
+func (b *BaleCore) GetMyKifpools() (map[string]interface{}, error) {
+	return b.userSend(baleServiceKifpool, "GetMyKifpools", map[string]interface{}{})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Push Service (5 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServicePush = "bale.push.v1.Push"
+
+// RegisterPush registers for push notifications (generic).
+func (b *BaleCore) RegisterPush(token string, platform int) (map[string]interface{}, error) {
+	return b.userSend(baleServicePush, "RegisterPush", map[string]interface{}{"1": token, "2": int64(platform)})
+}
+
+// UnregisterPush unregisters from push notifications.
+func (b *BaleCore) UnregisterPush(token string) (map[string]interface{}, error) {
+	return b.userSend(baleServicePush, "UnregisterPush", map[string]interface{}{"1": token})
+}
+
+// RegisterGooglePush registers for Google/FCM push notifications.
+func (b *BaleCore) RegisterGooglePush(token string) (map[string]interface{}, error) {
+	return b.userSend(baleServicePush, "RegisterGooglePush", map[string]interface{}{"1": token})
+}
+
+// UnregisterGooglePush unregisters from Google/FCM push notifications.
+func (b *BaleCore) UnregisterGooglePush(token string) (map[string]interface{}, error) {
+	return b.userSend(baleServicePush, "UnregisterGooglePush", map[string]interface{}{"1": token})
+}
+
+// UnregisterAllPushCredentials removes all push notification registrations.
+func (b *BaleCore) UnregisterAllPushCredentials() (map[string]interface{}, error) {
+	return b.userSend(baleServicePush, "UnregisterAllPushCredentials", map[string]interface{}{})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Ramz / App Lock (7 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServiceRamz = "bale.ramz.v1.Ramz"
+
+// SetRamzPassword sets the app lock password.
+func (b *BaleCore) SetRamzPassword(password string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceRamz, "SetPassword", map[string]interface{}{"1": password})
+}
+
+// DeleteRamzPassword removes the app lock password.
+func (b *BaleCore) DeleteRamzPassword(password string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceRamz, "DeletePassword", map[string]interface{}{"1": password})
+}
+
+// SendRamzOTP sends an OTP for app lock recovery.
+func (b *BaleCore) SendRamzOTP() (map[string]interface{}, error) {
+	return b.userSend(baleServiceRamz, "SendOTP", map[string]interface{}{})
+}
+
+// ForgetRamzPassword initiates password forget flow.
+func (b *BaleCore) ForgetRamzPassword(otp string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceRamz, "ForgetPassword", map[string]interface{}{"1": otp})
+}
+
+// ValidateRamzOTP validates an OTP.
+func (b *BaleCore) ValidateRamzOTP(otp string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceRamz, "ValidateOTP", map[string]interface{}{"1": otp})
+}
+
+// CheckRamzPasswordSet checks if app lock password is set.
+func (b *BaleCore) CheckRamzPasswordSet() (map[string]interface{}, error) {
+	return b.userSend(baleServiceRamz, "CheckPasswordSet", map[string]interface{}{})
+}
+
+// CheckRamzPassword checks if the provided password is correct.
+func (b *BaleCore) CheckRamzPassword(password string) (map[string]interface{}, error) {
+	return b.userSend(baleServiceRamz, "CheckPassword", map[string]interface{}{"1": password})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Report Service (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServiceReport = "bale.report.v1.Report"
+
+// ReportInappropriateContent reports content as inappropriate.
+func (b *BaleCore) ReportInappropriateContent(chatID string, rid int64, reason string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": reason,
+	}
+	return b.userSend(baleServiceReport, "ReportInappropriateContent", payload)
+}
+
+// ReportDismiss dismisses a report prompt.
+func (b *BaleCore) ReportDismiss(chatID string) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	return b.userSend(baleServiceReport, "ReportDismiss", map[string]interface{}{"1": balePeer(peerType, peerID)})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Feedback (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServiceFeedback = "bale.feedback.v1.Feedback"
+
+// SendFeedBack sends user feedback to Bale.
+func (b *BaleCore) SendFeedBack(text string, rating int) (map[string]interface{}, error) {
+	payload := map[string]interface{}{"1": text}
+	if rating > 0 {
+		payload["2"] = int64(rating)
+	}
+	return b.userSend(baleServiceFeedback, "SendFeedBack", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Search (5 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// SearchPeerMessages searches messages within a specific chat.
+func (b *BaleCore) SearchPeerMessages(chatID string, query string, limit int) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": query,
+		"3": int64(limit),
+	}
+	return b.userSend(baleServiceMessaging, "SearchPeerMessages", payload)
+}
+
+// SearchPeerMedia searches media in a specific chat.
+func (b *BaleCore) SearchPeerMedia(chatID string, mediaType int, limit int) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": int64(mediaType),
+		"3": int64(limit),
+	}
+	return b.userSend(baleServiceMessaging, "SearchPeerMedia", payload)
+}
+
+// SearchMembers searches group members by name.
+func (b *BaleCore) SearchMembers(chatID string, query string) (map[string]interface{}, error) {
+	peerID, _ := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": baleGroupOutPeer(peerID),
+		"2": query,
+	}
+	return b.userSend(baleServiceGroups, "SearchMembers", payload)
+}
+
+// SearchLinks searches shared links in a chat.
+func (b *BaleCore) SearchLinks(chatID string, limit int) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": int64(limit),
+	}
+	return b.userSend(baleServiceMessaging, "SearchLinks", payload)
+}
+
+// GlobalChannelSearch searches public channels globally.
+func (b *BaleCore) GlobalChannelSearch(query string, limit int) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": query,
+		"2": int64(limit),
+	}
+	return b.userSend(baleServiceMessaging, "GlobalChannelSearch", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Topics (2 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// EditTopic edits a topic in a group.
+func (b *BaleCore) EditTopic(chatID string, topicID int64, title string) (map[string]interface{}, error) {
+	peerID, _ := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": baleGroupOutPeer(peerID),
+		"2": topicID,
+		"3": title,
+	}
+	return b.userSend(baleServiceMessaging, "EditTopic", payload)
+}
+
+// DeleteTopic deletes a topic from a group.
+func (b *BaleCore) DeleteTopic(chatID string, topicID int64) (map[string]interface{}, error) {
+	peerID, _ := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": baleGroupOutPeer(peerID),
+		"2": topicID,
+	}
+	return b.userSend(baleServiceMessaging, "DeleteTopic", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Folders (3 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// EditFolder edits a dialog folder.
+func (b *BaleCore) EditFolder(folderID int64, title string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": folderID,
+		"2": title,
+	}
+	return b.userSend(baleServiceMessaging, "EditFolder", payload)
+}
+
+// DeleteFolder deletes a dialog folder.
+func (b *BaleCore) DeleteFolder(folderID int64) (map[string]interface{}, error) {
+	return b.userSend(baleServiceMessaging, "DeleteFolder", map[string]interface{}{"1": folderID})
+}
+
+// ReorderFolders reorders dialog folders.
+func (b *BaleCore) ReorderFolders(folderIDs []int64) (map[string]interface{}, error) {
+	ids := make([]interface{}, len(folderIDs))
+	for i, id := range folderIDs {
+		ids[i] = id
+	}
+	return b.userSend(baleServiceMessaging, "ReorderFolders", map[string]interface{}{"1": ids})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Polls (3 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ClosePoll closes an active poll.
+func (b *BaleCore) ClosePoll(chatID string, rid int64, date int64) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": date,
+	}
+	return b.userSend(baleServiceMessaging, "ClosePoll", payload)
+}
+
+// GetPollResults gets results summary for a poll.
+func (b *BaleCore) GetPollResults(chatID string, rid int64, date int64) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": date,
+	}
+	return b.userSend(baleServiceMessaging, "GetPollResults", payload)
+}
+
+// GetFullPollResult gets detailed poll results including per-option voters.
+func (b *BaleCore) GetFullPollResult(chatID string, rid int64, date int64, optionIndex int) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": date,
+		"4": int64(optionIndex),
+	}
+	return b.userSend(baleServiceMessaging, "GetFullPollResult", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Mini Apps / Bots (3 methods)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetMiniAppUrl gets the URL for a mini app (web app inside Bale).
+func (b *BaleCore) GetMiniAppUrl(botID int64, shortName string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": shortName,
+	}
+	return b.userSend(baleServiceMessaging, "GetMiniAppUrl", payload)
+}
+
+// GetBotMenuButtons gets a bot's menu buttons.
+func (b *BaleCore) GetBotMenuButtons(botID int64) (map[string]interface{}, error) {
+	return b.userSend(baleServiceMessaging, "GetBotMenuButtons", map[string]interface{}{"1": baleUserOutPeer(botID)})
+}
+
+// InvokeCustomMethod invokes a custom bot method.
+func (b *BaleCore) InvokeCustomMethod(botID int64, method string, params string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": method,
+		"3": params,
+	}
+	return b.userSend(baleServiceMessaging, "InvokeCustomMethod", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — AI / Transcription (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServiceAI = "bale.ai.v1.AI"
+
+// GetTranscript gets a voice-to-text transcription.
+func (b *BaleCore) GetTranscript(chatID string, rid int64, date int64) (map[string]interface{}, error) {
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": date,
+	}
+	return b.userSend(baleServiceAI, "GetTranscript", payload)
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Configs (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GetInAppUpdate checks for app updates.
+func (b *BaleCore) GetInAppUpdate() (map[string]interface{}, error) {
+	return b.userSend(baleServiceConfigs, "GetInAppUpdate", map[string]interface{}{})
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Extended Methods — Analytics (1 method)
+// ══════════════════════════════════════════════════════════════════════════════
+
+const baleServiceFanoos = "bale.fanoos.v1.Fanoos"
+
+// FanoosSend sends an analytics event.
+func (b *BaleCore) FanoosSend(eventName string, eventData map[string]string) (map[string]interface{}, error) {
+	payload := map[string]interface{}{
+		"1": eventName,
+	}
+	if len(eventData) > 0 {
+		// Convert to repeated key-value pairs
+		pairs := make([]interface{}, 0, len(eventData))
+		for k, v := range eventData {
+			pairs = append(pairs, map[string]interface{}{"1": k, "2": v})
+		}
+		payload["2"] = pairs
+	}
+	return b.userSend(baleServiceFanoos, "FanoosSend", payload)
+}

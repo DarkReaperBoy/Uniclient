@@ -1,6 +1,7 @@
 ## Phase 7: Matrix — DONE (core complete, 60+ methods not yet in core)
 
-103 exported methods, ~4,397 lines. SDK: maunium.net/go/mautrix.
+167 exported methods, ~5,900 lines. SDK: maunium.net/go/mautrix.
+All 64 additional methods implemented (not yet tested).
 
 ### Core Interface (55/55)
 
@@ -160,139 +161,136 @@ Auth, E2EE (init, send/receive, key export/import, SAS verification, key backup,
 
 `maunium.net/go/mautrix`, `pion/webrtc/v4` — all pure Go (with goolm build tag).
 
-### Not Added in Core
-
-Methods/endpoints found in the official Matrix Client-Server API spec and mautrix-go SDK but not yet implemented.
+### Extended Methods (64 — all implemented, not yet tested)
 
 #### VoIP (6)
 
-- [ ] AcceptCallSelectAnswer (m.call.select_answer — glare handling)
-- [ ] SendCallCandidates (m.call.candidates — trickle ICE)
-- [ ] CallReplaces (m.call.replaces — call transfer)
-- [ ] SDPStreamMetadataChanged (m.call.sdp_stream_metadata_changed)
-- [ ] CallNotify (m.call.notify)
-- [ ] GroupCallEncryptionKeys (m.call.encryption_keys — MatrixRTC)
+- [x] AcceptCallSelectAnswer (m.call.select_answer — glare handling)
+- [x] SendCallCandidates (m.call.candidates — trickle ICE)
+- [x] CallReplaces (m.call.replaces — call transfer)
+- [x] SDPStreamMetadataChanged (m.call.sdp_stream_metadata_changed)
+- [x] CallNotify (m.call.notify)
+- [x] GroupCallEncryptionKeys (m.call.encryption_keys — MatrixRTC)
 
-#### Registration / Account (5)
+#### Registration / Account (6)
 
-- [ ] Register (create account)
-- [ ] DeactivateAccount
-- [ ] ChangePassword
-- [ ] CheckUsernameAvailability
-- [ ] RequestEmailToken / RequestMsisdnToken
+- [x] Register (create account)
+- [x] DeactivateAccount
+- [x] ChangePassword
+- [x] CheckUsernameAvailability
+- [x] RequestEmailToken
+- [x] RequestMsisdnToken
 
 #### 3PID Management (5)
 
-- [ ] Get3PIDs
-- [ ] Add3PID
-- [ ] Bind3PID
-- [ ] Delete3PID
-- [ ] Unbind3PID
+- [x] Get3PIDs
+- [x] Add3PID
+- [x] Bind3PID
+- [x] Delete3PID
+- [x] Unbind3PID
 
-#### Push Notifications (6)
+#### Push Notifications (7)
 
-- [ ] GetPushers
-- [ ] SetPusher
-- [ ] GetPushRules
-- [ ] SetPushRule / DeletePushRule
-- [ ] EnablePushRule
-- [ ] GetNotifications
+- [x] GetPushers
+- [x] SetPusher
+- [x] GetPushRules
+- [x] SetPushRule
+- [x] DeletePushRule
+- [x] EnablePushRule
+- [x] GetNotifications
 
 #### Room State Events (4)
 
-- [ ] SetPowerLevels (m.room.power_levels)
-- [ ] SetGuestAccess (m.room.guest_access)
-- [ ] SetServerACL (m.room.server_acl)
-- [ ] GetRoomState (all state)
+- [x] SetPowerLevels
+- [x] SetGuestAccess
+- [x] SetServerACL
+- [x] GetRoomState
 
-#### Room Aliases — Visibility (2)
+#### Room Visibility (2)
 
-- [ ] GetRoomVisibility
-- [ ] SetRoomVisibility
+- [x] GetRoomVisibility
+- [x] SetRoomVisibility
 
 #### Filters (2)
 
-- [ ] CreateFilter
-- [ ] GetFilter
+- [x] CreateFilter
+- [x] GetFilter
 
 #### Account Data (4)
 
-- [ ] SetAccountData (global)
-- [ ] GetAccountData (global)
-- [ ] SetRoomAccountData
-- [ ] GetRoomAccountData
+- [x] SetAccountData
+- [x] GetAccountData
+- [x] SetRoomAccountData
+- [x] GetRoomAccountData
 
 #### To-Device (1)
 
-- [ ] SendToDevice
+- [x] SendToDevice
 
 #### Reporting (2)
 
-- [ ] ReportRoom
-- [ ] ReportUser
+- [x] ReportRoom
+- [x] ReportUser
 
 #### Third-Party Protocol (3)
 
-- [ ] GetThirdPartyProtocols
-- [ ] LookupThirdPartyLocation
-- [ ] LookupThirdPartyUser
+- [x] GetThirdPartyProtocols
+- [x] LookupThirdPartyLocation
+- [x] LookupThirdPartyUser
 
 #### OpenID (1)
 
-- [ ] RequestOpenIDToken
+- [x] RequestOpenIDToken
 
 #### Cross-Signing (3)
 
-- [ ] UploadCrossSigningKeys
-- [ ] UploadSignatures
-- [ ] GenerateCrossSigningKeys
+- [x] UploadCrossSigningKeys
+- [x] UploadSignatures
+- [x] GenerateCrossSigningKeys
 
 #### SSSS / Secret Storage (2)
 
-- [ ] SetSecretStorageKey
-- [ ] GetSecretStorageKey
+- [x] SetSecretStorageKey
+- [x] GetSecretStorageKey
 
 #### Admin (1)
 
-- [ ] WhoisUser
+- [x] WhoisUser
 
-#### Media (2)
+#### Media (3)
 
-- [ ] GetMediaConfig (max upload size)
-- [ ] CreateMXCURI (async upload)
+- [x] GetMediaConfig
+- [x] CreateMXCURI
+- [x] DownloadThumbnail
 
-#### Rooms / State (not added — CS API)
+#### Rooms / State (3)
 
-- [ ] GetEvent(chatID, eventID) — `GET /rooms/{roomId}/event/{eventId}`
-- [ ] GetEventContext(chatID, eventID) — `GET /rooms/{roomId}/context/{eventId}`
-- [ ] ResolveAlias(alias) — `GET /directory/room/{alias}`
+- [x] GetEvent
+- [x] GetEventContext
+- [x] ResolveAlias
 
-#### Auth / Login (not added)
+#### Auth / Login (2)
 
-- [ ] GetLoginFlows() — `GET /login` (list supported auth types)
-- [ ] LogoutAll() — `POST /logout/all`
+- [x] GetLoginFlows
+- [x] LogoutAll
 
-#### Media (not added)
+#### Tags (1)
 
-- [ ] DownloadThumbnail(mxcURI, width, height) — server-side thumbnailing
+- [x] GetTags
 
-#### Tags (not added)
+#### Read Receipts (2)
 
-- [ ] GetTags(chatID) — `GET /user/{userId}/rooms/{roomId}/tags` (read side of SetRoomTag)
+- [x] SendPrivateReadReceipt
+- [x] SetReadMarkers
 
-#### Read Receipts (not added)
+#### Devices (2)
 
-- [ ] SendPrivateReadReceipt(chatID, eventID) — `m.read.private` (v1.4+)
-- [ ] SetReadMarkers(chatID, fullyRead, read) — atomic read marker update
+- [x] GetDeviceInfo
+- [x] DeleteDevices
 
-#### Devices (not added)
+#### Server Discovery (2)
 
-- [ ] GetDeviceInfo(deviceID) — `GET /devices/{deviceId}`
-- [ ] DeleteDevices(deviceIDs) — `POST /delete_devices` (bulk)
-
-#### Server Discovery (not added)
-
-- [ ] GetCapabilities() — `GET /capabilities` (room versions, features)
-- [ ] GetVersions() — `GET /versions` (supported spec versions)
+- [x] GetCapabilities
+- [x] GetVersions
 
 ---

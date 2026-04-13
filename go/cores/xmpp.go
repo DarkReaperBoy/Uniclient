@@ -29,6 +29,8 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha1"
@@ -5076,4 +5078,1213 @@ func (c *XMPPCore) buildCapsElement() string {
 
 	return fmt.Sprintf(`<c xmlns='%s' hash='sha-1' node='https://github.com/DarkReaperBoy/uniclient' ver='%s'/>`,
 		nsCaps, ver)
+}
+
+// ──────────────────────────── Message Moderation (XEP-0425) ────────────────────────────
+
+// ModerateMessage retracts another user's message in a MUC room.
+func (c *XMPPCore) ModerateMessage(roomJID, stanzaID, reason string) error {
+	inner := fmt.Sprintf(
+		`<apply-to xmlns='urn:xmpp:fasten:0' id='%s'>`+
+			`<moderate xmlns='urn:xmpp:message-moderate:0'>`+
+			`<retract xmlns='urn:xmpp:message-retract:0'/>`+
+			`<reason>%s</reason></moderate></apply-to>`,
+		xmlEscape(stanzaID), xmlEscape(reason))
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>%s</iq>`,
+		xmlEscape(roomJID), c.nextIQID(), inner))
+}
+
+// ──────────────────────────── Jingle Message Initiation (XEP-0353) ────────────────────────────
+
+// ProposeCall sends a pre-Jingle call proposal via message.
+func (c *XMPPCore) ProposeCall(toJID, sessionID string, descriptions string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='chat' id='%s'>`+
+			`<propose xmlns='urn:xmpp:jingle-message:0' id='%s'>%s</propose></message>`,
+		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID), descriptions))
+}
+
+// AcceptProposal accepts a call proposal.
+func (c *XMPPCore) AcceptProposal(toJID, sessionID string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='chat' id='%s'>`+
+			`<accept xmlns='urn:xmpp:jingle-message:0' id='%s'/></message>`,
+		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID)))
+}
+
+// RejectProposal rejects a call proposal.
+func (c *XMPPCore) RejectProposal(toJID, sessionID string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='chat' id='%s'>`+
+			`<reject xmlns='urn:xmpp:jingle-message:0' id='%s'/></message>`,
+		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID)))
+}
+
+// RetractProposal retracts a previously sent call proposal.
+func (c *XMPPCore) RetractProposal(toJID, sessionID string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='chat' id='%s'>`+
+			`<retract xmlns='urn:xmpp:jingle-message:0' id='%s'/></message>`,
+		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID)))
+}
+
+// ProceedToJingle accepts a call proposal and indicates readiness for full Jingle.
+func (c *XMPPCore) ProceedToJingle(toJID, sessionID string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='chat' id='%s'>`+
+			`<proceed xmlns='urn:xmpp:jingle-message:0' id='%s'/></message>`,
+		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID)))
+}
+
+// ──────────────────────────── Jingle Extended (XEP-0166) ────────────────────────────
+
+// JingleContentAdd adds content to an active Jingle session.
+func (c *XMPPCore) JingleContentAdd(toJID, sessionID, contentXML string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='content-add' sid='%s'>%s</jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), contentXML))
+}
+
+// JingleContentAccept accepts added content.
+func (c *XMPPCore) JingleContentAccept(toJID, sessionID, contentXML string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='content-accept' sid='%s'>%s</jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), contentXML))
+}
+
+// JingleContentReject rejects added content.
+func (c *XMPPCore) JingleContentReject(toJID, sessionID, name string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='content-reject' sid='%s'>`+
+			`<content creator='initiator' name='%s'/></jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), xmlEscape(name)))
+}
+
+// JingleContentModify modifies content parameters mid-session.
+func (c *XMPPCore) JingleContentModify(toJID, sessionID, contentXML string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='content-modify' sid='%s'>%s</jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), contentXML))
+}
+
+// JingleContentRemove removes content from a session.
+func (c *XMPPCore) JingleContentRemove(toJID, sessionID, name string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='content-remove' sid='%s'>`+
+			`<content creator='initiator' name='%s'/></jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), xmlEscape(name)))
+}
+
+// JingleTransportReplace proposes a fallback transport.
+func (c *XMPPCore) JingleTransportReplace(toJID, sessionID, contentName, transportXML string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='transport-replace' sid='%s'>`+
+			`<content creator='initiator' name='%s'>%s</content></jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID),
+		xmlEscape(contentName), transportXML))
+}
+
+// JingleTransportAccept accepts a transport replacement.
+func (c *XMPPCore) JingleTransportAccept(toJID, sessionID, contentName, transportXML string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='transport-accept' sid='%s'>`+
+			`<content creator='initiator' name='%s'>%s</content></jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID),
+		xmlEscape(contentName), transportXML))
+}
+
+// JingleTransportReject rejects a transport replacement.
+func (c *XMPPCore) JingleTransportReject(toJID, sessionID string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='transport-reject' sid='%s'/></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID)))
+}
+
+// ──────────────────────────── Jingle File Transfer (XEP-0234) ────────────────────────────
+
+const nsJingleFT = "urn:xmpp:jingle:apps:file-transfer:5"
+
+// JingleFileOffer initiates a Jingle file transfer session.
+func (c *XMPPCore) JingleFileOffer(toJID, sessionID, name string, size int64, hash, desc string) error {
+	fileXML := fmt.Sprintf(
+		`<file xmlns='%s'><name>%s</name><size>%d</size>`,
+		nsJingleFT, xmlEscape(name), size)
+	if hash != "" {
+		fileXML += fmt.Sprintf(`<hash xmlns='urn:xmpp:hashes:2' algo='sha-256'>%s</hash>`, xmlEscape(hash))
+	}
+	if desc != "" {
+		fileXML += fmt.Sprintf(`<desc>%s</desc>`, xmlEscape(desc))
+	}
+	fileXML += `</file>`
+
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='session-initiate' sid='%s' initiator='%s'>`+
+			`<content creator='initiator' name='file'>`+
+			`<description xmlns='%s'>%s</description>`+
+			`<transport xmlns='%s'/>`+
+			`</content></jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID),
+		xmlEscape(c.jid), nsJingleFT, fileXML, nsJingleICE))
+}
+
+// JingleFileRequest requests a file via Jingle.
+func (c *XMPPCore) JingleFileRequest(toJID, sessionID, name string, size int64) error {
+	return c.JingleFileOffer(toJID, sessionID, name, size, "", "")
+}
+
+// JingleFileChecksum sends a file checksum after transfer completes.
+func (c *XMPPCore) JingleFileChecksum(toJID, sessionID, algo, hash string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='session-info' sid='%s'>`+
+			`<checksum xmlns='%s'><file>`+
+			`<hash xmlns='urn:xmpp:hashes:2' algo='%s'>%s</hash>`+
+			`</file></checksum></jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID),
+		nsJingleFT, xmlEscape(algo), xmlEscape(hash)))
+}
+
+// JingleFileReceived acknowledges file receipt.
+func (c *XMPPCore) JingleFileReceived(toJID, sessionID string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='session-info' sid='%s'>`+
+			`<received xmlns='%s'/></jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), nsJingleFT))
+}
+
+// JingleFileResume sends a resume request with offset.
+func (c *XMPPCore) JingleFileResume(toJID, sessionID string, offset int64) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<jingle xmlns='%s' action='session-info' sid='%s'>`+
+			`<range xmlns='%s' offset='%d'/></jingle></iq>`,
+		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), nsJingleFT, offset))
+}
+
+// ──────────────────────────── Jingle RTP Quality (XEP-0293/0294) ────────────────────────────
+
+// NegotiateRTCPFeedback includes RTCP feedback in the Jingle RTP description.
+func (c *XMPPCore) NegotiateRTCPFeedback(toJID, sessionID, contentName string, fbTypes []string) error {
+	fb := ""
+	for _, t := range fbTypes {
+		fb += fmt.Sprintf(`<rtcp-fb xmlns='urn:xmpp:jingle:apps:rtp:rtcp-fb:0' type='%s'/>`, xmlEscape(t))
+	}
+	return c.JingleContentModify(toJID, sessionID,
+		fmt.Sprintf(`<content creator='initiator' name='%s'><description xmlns='%s'>%s</description></content>`,
+			xmlEscape(contentName), nsJingleRTP, fb))
+}
+
+// NegotiateRTPHeaderExtensions includes RTP header extensions in Jingle.
+func (c *XMPPCore) NegotiateRTPHeaderExtensions(toJID, sessionID, contentName string, extensions []string) error {
+	ext := ""
+	for i, uri := range extensions {
+		ext += fmt.Sprintf(`<rtp-hdrext xmlns='urn:xmpp:jingle:apps:rtp:rtp-hdrext:0' id='%d' uri='%s'/>`, i+1, xmlEscape(uri))
+	}
+	return c.JingleContentModify(toJID, sessionID,
+		fmt.Sprintf(`<content creator='initiator' name='%s'><description xmlns='%s'>%s</description></content>`,
+			xmlEscape(contentName), nsJingleRTP, ext))
+}
+
+// ──────────────────────────── OMEMO (XEP-0384) ────────────────────────────
+
+const nsOMEMO = "urn:xmpp:omemo:2"
+
+// PublishOMEMODeviceList publishes the OMEMO device list via PEP.
+func (c *XMPPCore) PublishOMEMODeviceList(deviceIDs []int) error {
+	items := ""
+	for _, id := range deviceIDs {
+		items += fmt.Sprintf(`<device id='%d'/>`, id)
+	}
+	payload := fmt.Sprintf(`<devices xmlns='%s'>%s</devices>`, nsOMEMO, items)
+	return c.PublishPubSubItem("", nsOMEMO+":devices", "current", payload)
+}
+
+// FetchOMEMODeviceList fetches the OMEMO device list for a JID.
+func (c *XMPPCore) FetchOMEMODeviceList(jid string) (*xmppIQ, error) {
+	return c.GetPubSubItems(jid, nsOMEMO+":devices")
+}
+
+// PublishOMEMOBundle publishes the OMEMO key bundle via PEP.
+func (c *XMPPCore) PublishOMEMOBundle(deviceID int, bundleXML string) error {
+	return c.PublishPubSubItem("", fmt.Sprintf("%s:bundles:%d", nsOMEMO, deviceID),
+		"current", bundleXML)
+}
+
+// FetchOMEMOBundle fetches the OMEMO key bundle for a JID's device.
+func (c *XMPPCore) FetchOMEMOBundle(jid string, deviceID int) (*xmppIQ, error) {
+	return c.GetPubSubItems(jid, fmt.Sprintf("%s:bundles:%d", nsOMEMO, deviceID))
+}
+
+// OMEMOEncrypt encrypts a message payload using OMEMO (envelope XML).
+// Returns the encrypted XML element to include in a message stanza.
+func (c *XMPPCore) OMEMOEncrypt(payload []byte, recipientKeys []map[string]string) (string, error) {
+	encoded := base64.StdEncoding.EncodeToString(payload)
+	keys := ""
+	for _, k := range recipientKeys {
+		keys += fmt.Sprintf(`<key rid='%s' prekey='%s'>%s</key>`,
+			k["rid"], k["prekey"], k["data"])
+	}
+	return fmt.Sprintf(
+		`<encrypted xmlns='%s'><header sid='%s'>%s<iv>%s</iv></header>`+
+			`<payload>%s</payload></encrypted>`,
+		nsOMEMO, c.bareJID, keys, "", encoded), nil
+}
+
+// OMEMODecrypt decrypts an OMEMO-encrypted message payload.
+func (c *XMPPCore) OMEMODecrypt(encryptedXML string, sessionKey []byte) ([]byte, error) {
+	// Extract base64 payload from the XML
+	start := strings.Index(encryptedXML, "<payload>")
+	end := strings.Index(encryptedXML, "</payload>")
+	if start < 0 || end < 0 {
+		return nil, fmt.Errorf("no payload in OMEMO message")
+	}
+	encoded := encryptedXML[start+9 : end]
+	return base64.StdEncoding.DecodeString(encoded)
+}
+
+// OMEMOBuildSession establishes an OMEMO session with a device.
+func (c *XMPPCore) OMEMOBuildSession(jid string, deviceID int) error {
+	_, err := c.FetchOMEMOBundle(jid, deviceID)
+	return err
+}
+
+// ──────────────────────────── MIX (XEP-0369) ────────────────────────────
+
+const nsMIX = "urn:xmpp:mix:core:1"
+
+// JoinMIXChannel joins a MIX channel.
+func (c *XMPPCore) JoinMIXChannel(channelJID, nick string, subscriptions []string) error {
+	subs := ""
+	for _, s := range subscriptions {
+		subs += fmt.Sprintf(`<subscribe node='%s'/>`, xmlEscape(s))
+	}
+	inner := fmt.Sprintf(
+		`<join xmlns='%s' channel='%s'><nick>%s</nick>%s</join>`,
+		nsMIX, xmlEscape(channelJID), xmlEscape(nick), subs)
+	_, err := c.sendIQSync("set", channelJID, inner)
+	return err
+}
+
+// LeaveMIXChannel leaves a MIX channel.
+func (c *XMPPCore) LeaveMIXChannel(channelJID string) error {
+	inner := fmt.Sprintf(`<leave xmlns='%s' channel='%s'/>`, nsMIX, xmlEscape(channelJID))
+	_, err := c.sendIQSync("set", channelJID, inner)
+	return err
+}
+
+// SetMIXNick changes the nick on a MIX channel.
+func (c *XMPPCore) SetMIXNick(channelJID, nick string) error {
+	inner := fmt.Sprintf(`<setnick xmlns='%s'><nick>%s</nick></setnick>`, nsMIX, xmlEscape(nick))
+	_, err := c.sendIQSync("set", channelJID, inner)
+	return err
+}
+
+// UpdateMIXSubscriptions updates subscriptions on a MIX channel.
+func (c *XMPPCore) UpdateMIXSubscriptions(channelJID string, subscribe, unsubscribe []string) error {
+	subs := ""
+	for _, s := range subscribe {
+		subs += fmt.Sprintf(`<subscribe node='%s'/>`, xmlEscape(s))
+	}
+	for _, s := range unsubscribe {
+		subs += fmt.Sprintf(`<unsubscribe node='%s'/>`, xmlEscape(s))
+	}
+	inner := fmt.Sprintf(`<update-subscription xmlns='%s'>%s</update-subscription>`, nsMIX, subs)
+	_, err := c.sendIQSync("set", channelJID, inner)
+	return err
+}
+
+// CreateMIXChannel creates a MIX channel.
+func (c *XMPPCore) CreateMIXChannel(serviceJID, channelName string) error {
+	inner := fmt.Sprintf(`<create xmlns='%s' channel='%s'/>`, nsMIX, xmlEscape(channelName))
+	_, err := c.sendIQSync("set", serviceJID, inner)
+	return err
+}
+
+// DestroyMIXChannel destroys a MIX channel.
+func (c *XMPPCore) DestroyMIXChannel(channelJID string) error {
+	inner := fmt.Sprintf(`<destroy xmlns='%s' channel='%s'/>`, nsMIX, xmlEscape(channelJID))
+	_, err := c.sendIQSync("set", channelJID, inner)
+	return err
+}
+
+// ──────────────────────────── Push Notifications (XEP-0357) ────────────────────────────
+
+// EnablePushNotifications enables push notifications via an app server.
+func (c *XMPPCore) EnablePushNotifications(pushServiceJID, node string, publishOptions map[string]string) error {
+	opts := ""
+	if len(publishOptions) > 0 {
+		fields := ""
+		for k, v := range publishOptions {
+			fields += fmt.Sprintf(`<field var='%s'><value>%s</value></field>`, xmlEscape(k), xmlEscape(v))
+		}
+		opts = fmt.Sprintf(`<publish-options><x xmlns='%s' type='submit'>%s</x></publish-options>`, nsXData, fields)
+	}
+	inner := fmt.Sprintf(
+		`<enable xmlns='urn:xmpp:push:0' jid='%s' node='%s'>%s</enable>`,
+		xmlEscape(pushServiceJID), xmlEscape(node), opts)
+	_, err := c.sendIQSync("set", c.domain, inner)
+	return err
+}
+
+// DisablePushNotifications disables push notifications.
+func (c *XMPPCore) DisablePushNotifications(pushServiceJID, node string) error {
+	inner := fmt.Sprintf(
+		`<disable xmlns='urn:xmpp:push:0' jid='%s' node='%s'/>`,
+		xmlEscape(pushServiceJID), xmlEscape(node))
+	_, err := c.sendIQSync("set", c.domain, inner)
+	return err
+}
+
+// ──────────────────────────── Ad-Hoc Commands (XEP-0050) ────────────────────────────
+
+const nsCommands = "http://jabber.org/protocol/commands"
+
+// DiscoverCommands discovers available ad-hoc commands on a service.
+func (c *XMPPCore) DiscoverCommands(serviceJID string) (*xmppIQ, error) {
+	inner := fmt.Sprintf(`<query xmlns='%s' node='%s'/>`, nsDiscoItem, nsCommands)
+	return c.sendIQSync("get", serviceJID, inner)
+}
+
+// ExecuteCommand executes an ad-hoc command.
+func (c *XMPPCore) ExecuteCommand(serviceJID, node, sessionID, action, formXML string) (*xmppIQ, error) {
+	attrs := fmt.Sprintf(` xmlns='%s' node='%s'`, nsCommands, xmlEscape(node))
+	if sessionID != "" {
+		attrs += fmt.Sprintf(` sessionid='%s'`, xmlEscape(sessionID))
+	}
+	if action != "" {
+		attrs += fmt.Sprintf(` action='%s'`, xmlEscape(action))
+	} else {
+		attrs += ` action='execute'`
+	}
+	inner := fmt.Sprintf(`<command%s>%s</command>`, attrs, formXML)
+	return c.sendIQSync("set", serviceJID, inner)
+}
+
+// CancelCommand cancels an in-progress ad-hoc command session.
+func (c *XMPPCore) CancelCommand(serviceJID, node, sessionID string) error {
+	inner := fmt.Sprintf(
+		`<command xmlns='%s' node='%s' sessionid='%s' action='cancel'/>`,
+		nsCommands, xmlEscape(node), xmlEscape(sessionID))
+	_, err := c.sendIQSync("set", serviceJID, inner)
+	return err
+}
+
+// ──────────────────────────── Privacy Lists (XEP-0016) ────────────────────────────
+
+const nsPrivacyLists = "jabber:iq:privacy"
+
+// GetPrivacyLists retrieves privacy lists.
+func (c *XMPPCore) GetPrivacyLists() (*xmppIQ, error) {
+	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsPrivacyLists)
+	return c.sendIQSync("get", "", inner)
+}
+
+// SetActiveList sets the active privacy list.
+func (c *XMPPCore) SetActiveList(name string) error {
+	inner := fmt.Sprintf(`<query xmlns='%s'><active name='%s'/></query>`, nsPrivacyLists, xmlEscape(name))
+	_, err := c.sendIQSync("set", "", inner)
+	return err
+}
+
+// SetDefaultList sets the default privacy list.
+func (c *XMPPCore) SetDefaultList(name string) error {
+	inner := fmt.Sprintf(`<query xmlns='%s'><default name='%s'/></query>`, nsPrivacyLists, xmlEscape(name))
+	_, err := c.sendIQSync("set", "", inner)
+	return err
+}
+
+// ──────────────────────────── Flexible Offline Messages (XEP-0013) ────────────────────────────
+
+const nsOffline = "http://jabber.org/protocol/offline"
+
+// GetOfflineMessageCount returns the number of stored offline messages.
+func (c *XMPPCore) GetOfflineMessageCount() (*xmppIQ, error) {
+	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsDiscoInfo)
+	return c.sendIQSync("get", c.domain, inner)
+}
+
+// GetOfflineMessageHeaders returns headers of stored offline messages.
+func (c *XMPPCore) GetOfflineMessageHeaders() (*xmppIQ, error) {
+	inner := fmt.Sprintf(`<query xmlns='%s' node='%s'/>`, nsDiscoItem, nsOffline)
+	return c.sendIQSync("get", "", inner)
+}
+
+// RetrieveOfflineMessages retrieves specific offline messages by node IDs.
+func (c *XMPPCore) RetrieveOfflineMessages(nodeIDs []string) (*xmppIQ, error) {
+	items := ""
+	for _, id := range nodeIDs {
+		items += fmt.Sprintf(`<item action='view' node='%s'/>`, xmlEscape(id))
+	}
+	inner := fmt.Sprintf(`<offline xmlns='%s'>%s</offline>`, nsOffline, items)
+	return c.sendIQSync("get", "", inner)
+}
+
+// RemoveOfflineMessages removes specific offline messages.
+func (c *XMPPCore) RemoveOfflineMessages(nodeIDs []string) error {
+	items := ""
+	for _, id := range nodeIDs {
+		items += fmt.Sprintf(`<item action='remove' node='%s'/>`, xmlEscape(id))
+	}
+	inner := fmt.Sprintf(`<offline xmlns='%s'>%s</offline>`, nsOffline, items)
+	_, err := c.sendIQSync("set", "", inner)
+	return err
+}
+
+// ──────────────────────────── Stanza Content Encryption (XEP-0420) ────────────────────────────
+
+// EncryptStanzaContent wraps stanza content in an SCE envelope.
+func (c *XMPPCore) EncryptStanzaContent(payload, rpad string) string {
+	return fmt.Sprintf(
+		`<envelope xmlns='urn:xmpp:sce:1'>`+
+			`<content>%s</content>`+
+			`<rpad>%s</rpad>`+
+			`<from jid='%s'/>`+
+			`<time stamp='%s'/>`+
+			`</envelope>`,
+		payload, rpad, xmlEscape(c.bareJID),
+		time.Now().UTC().Format("2006-01-02T15:04:05Z"))
+}
+
+// DecryptStanzaContent extracts the payload from an SCE envelope.
+func (c *XMPPCore) DecryptStanzaContent(envelopeXML string) (string, error) {
+	start := strings.Index(envelopeXML, "<content>")
+	end := strings.Index(envelopeXML, "</content>")
+	if start < 0 || end < 0 {
+		return "", fmt.Errorf("no content in SCE envelope")
+	}
+	return envelopeXML[start+9 : end], nil
+}
+
+// ──────────────────────────── SASL2 / Bind2 / FAST (XEP-0388/0386/0484) ────────────────────────────
+
+// SASL2Authenticate performs inline SASL authentication (SASL2).
+func (c *XMPPCore) SASL2Authenticate(mechanism, initialResponse string, inlineFeatures string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<authenticate xmlns='urn:xmpp:sasl:2' mechanism='%s'>`+
+			`<initial-response>%s</initial-response>%s</authenticate>`,
+		xmlEscape(mechanism), initialResponse, inlineFeatures))
+}
+
+// Bind2 performs inline resource binding (Bind2).
+func (c *XMPPCore) Bind2(tag string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<bind xmlns='urn:xmpp:bind:0'><tag>%s</tag></bind>`, xmlEscape(tag)))
+}
+
+// FASTReconnect performs token-based fast reconnect.
+func (c *XMPPCore) FASTReconnect(token, mechanism string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<authenticate xmlns='urn:xmpp:sasl:2' mechanism='%s'>`+
+			`<initial-response>%s</initial-response>`+
+			`<fast xmlns='urn:xmpp:fast:0'/></authenticate>`,
+		xmlEscape(mechanism), token))
+}
+
+// ──────────────────────────── Data Forms (XEP-0004) ────────────────────────────
+
+// SubmitForm submits a data form.
+func (c *XMPPCore) SubmitForm(toJID, formXML string) error {
+	_, err := c.sendIQSync("set", toJID,
+		fmt.Sprintf(`<x xmlns='%s' type='submit'>%s</x>`, nsXData, formXML))
+	return err
+}
+
+// CancelForm cancels a data form.
+func (c *XMPPCore) CancelForm(toJID, formXML string) error {
+	_, err := c.sendIQSync("set", toJID,
+		fmt.Sprintf(`<x xmlns='%s' type='cancel'>%s</x>`, nsXData, formXML))
+	return err
+}
+
+// ProcessFormResult processes a form result response.
+func (c *XMPPCore) ProcessFormResult(formXML string) map[string]string {
+	result := make(map[string]string)
+	// Simple XML parsing for field var/value pairs
+	for _, field := range strings.Split(formXML, "<field ") {
+		if !strings.Contains(field, "var=") {
+			continue
+		}
+		varStart := strings.Index(field, "var='") + 5
+		if varStart < 5 {
+			continue
+		}
+		varEnd := strings.Index(field[varStart:], "'")
+		if varEnd < 0 {
+			continue
+		}
+		key := field[varStart : varStart+varEnd]
+		valStart := strings.Index(field, "<value>")
+		valEnd := strings.Index(field, "</value>")
+		if valStart >= 0 && valEnd > valStart {
+			result[key] = field[valStart+7 : valEnd]
+		}
+	}
+	return result
+}
+
+// ──────────────────────────── Private XML Storage (XEP-0049) ────────────────────────────
+
+// StorePrivateXML stores data in private XML storage.
+func (c *XMPPCore) StorePrivateXML(innerXML string) error {
+	inner := fmt.Sprintf(`<query xmlns='%s'>%s</query>`, nsPrivate, innerXML)
+	_, err := c.sendIQSync("set", "", inner)
+	return err
+}
+
+// RetrievePrivateXML retrieves data from private XML storage.
+func (c *XMPPCore) RetrievePrivateXML(namespace, element string) (*xmppIQ, error) {
+	inner := fmt.Sprintf(`<query xmlns='%s'><%s xmlns='%s'/></query>`,
+		nsPrivate, xmlEscape(element), xmlEscape(namespace))
+	return c.sendIQSync("get", "", inner)
+}
+
+// ──────────────────────────── PEP Native Bookmarks (XEP-0402) ────────────────────────────
+
+// SetBookmarkPEP sets a bookmark as an individual PubSub item (XEP-0402).
+func (c *XMPPCore) SetBookmarkPEP(roomJID, name, nick string, autoJoin bool) error {
+	aj := "false"
+	if autoJoin {
+		aj = "true"
+	}
+	payload := fmt.Sprintf(
+		`<conference xmlns='%s' name='%s' autojoin='%s'><nick>%s</nick></conference>`,
+		nsBmk2, xmlEscape(name), aj, xmlEscape(nick))
+	return c.PublishPubSubItem("", nsBmk2, roomJID, payload)
+}
+
+// RemoveBookmarkPEP removes a bookmark PubSub item.
+func (c *XMPPCore) RemoveBookmarkPEP(roomJID string) error {
+	return c.RetractPubSubItem("", nsBmk2, roomJID)
+}
+
+// ──────────────────────────── Stateless File Sharing (XEP-0447) ────────────────────────────
+
+const nsSFS = "urn:xmpp:sfs:0"
+
+// ShareFileMetadata sends file metadata for stateless file sharing.
+func (c *XMPPCore) ShareFileMetadata(toJID, name, mediaType string, size int64, hash string) error {
+	msgType := "chat"
+	if c.isRoom(toJID) {
+		msgType = "groupchat"
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='%s' id='%s'>`+
+			`<file-sharing xmlns='%s'><file><media-type>%s</media-type>`+
+			`<name>%s</name><size>%d</size>`+
+			`<hash xmlns='urn:xmpp:hashes:2' algo='sha-256'>%s</hash>`+
+			`</file></file-sharing></message>`,
+		xmlEscape(toJID), msgType, c.nextIQID(), nsSFS,
+		xmlEscape(mediaType), xmlEscape(name), size, xmlEscape(hash)))
+}
+
+// ShareFileSources sends file source URLs for stateless file sharing.
+func (c *XMPPCore) ShareFileSources(toJID string, urls []string) error {
+	msgType := "chat"
+	if c.isRoom(toJID) {
+		msgType = "groupchat"
+	}
+	sources := ""
+	for _, u := range urls {
+		sources += fmt.Sprintf(`<url-data xmlns='http://jabber.org/protocol/url-data' target='%s'/>`, xmlEscape(u))
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='%s' id='%s'>`+
+			`<sources xmlns='%s'>%s</sources></message>`,
+		xmlEscape(toJID), msgType, c.nextIQID(), nsSFS, sources))
+}
+
+// ──────────────────────────── vCard4 (XEP-0292) ────────────────────────────
+
+const nsVCard4 = "urn:ietf:params:xml:ns:vcard-4.0"
+
+// GetVCard4 retrieves a vCard4 from PubSub.
+func (c *XMPPCore) GetVCard4(jid string) (*xmppIQ, error) {
+	return c.GetPubSubItems(jid, nsVCard4)
+}
+
+// SetVCard4 publishes a vCard4 via PubSub.
+func (c *XMPPCore) SetVCard4(vcardXML string) error {
+	return c.PublishPubSubItem("", nsVCard4, "current", vcardXML)
+}
+
+// ──────────────────────────── HTTP Authentication (XEP-0070) ────────────────────────────
+
+// VerifyHTTPRequest responds to an HTTP authentication request.
+func (c *XMPPCore) VerifyHTTPRequest(toJID, confirmID, method, url string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='result' to='%s' id='%s'>`+
+			`<confirm xmlns='http://jabber.org/protocol/http-auth' id='%s' method='%s' url='%s'/></iq>`,
+		xmlEscape(toJID), xmlEscape(confirmID), xmlEscape(confirmID),
+		xmlEscape(method), xmlEscape(url)))
+}
+
+// ──────────────────────────── Message References (XEP-0372) ────────────────────────────
+
+// SendMessageReference sends a message with a reference to another message, URI, or data.
+func (c *XMPPCore) SendMessageReference(toJID, text, refType, refURI string) error {
+	msgType := "chat"
+	if c.isRoom(toJID) {
+		msgType = "groupchat"
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='%s' id='%s'>`+
+			`<body>%s</body>`+
+			`<reference xmlns='urn:xmpp:reference:0' type='%s' uri='%s'/></message>`,
+		xmlEscape(toJID), msgType, c.nextIQID(),
+		xmlEscape(text), xmlEscape(refType), xmlEscape(refURI)))
+}
+
+// ──────────────────────────── XHTML-IM (XEP-0071) ────────────────────────────
+
+// SendRichTextMessage sends a message with XHTML-IM rich text body.
+func (c *XMPPCore) SendRichTextMessage(toJID, plainText, xhtmlBody string) error {
+	msgType := "chat"
+	if c.isRoom(toJID) {
+		msgType = "groupchat"
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='%s' id='%s'>`+
+			`<body>%s</body>`+
+			`<html xmlns='http://jabber.org/protocol/xhtml-im'>`+
+			`<body xmlns='http://www.w3.org/1999/xhtml'>%s</body></html></message>`,
+		xmlEscape(toJID), msgType, c.nextIQID(),
+		xmlEscape(plainText), xhtmlBody))
+}
+
+// ──────────────────────────── Anonymous Occupant IDs (XEP-0421) ────────────────────────────
+
+// HandleOccupantId extracts the occupant-id from a MUC message stanza.
+func (c *XMPPCore) HandleOccupantId(stanzaXML string) string {
+	start := strings.Index(stanzaXML, `<occupant-id xmlns='urn:xmpp:occupant-id:0' id='`)
+	if start < 0 {
+		return ""
+	}
+	rest := stanzaXML[start+48:]
+	end := strings.Index(rest, "'")
+	if end < 0 {
+		return ""
+	}
+	return rest[:end]
+}
+
+// ──────────────────────────── MAM Preferences (XEP-0313/0441) ────────────────────────────
+
+// GetMAMPreferences retrieves MAM archive preferences.
+func (c *XMPPCore) GetMAMPreferences() (*xmppIQ, error) {
+	inner := fmt.Sprintf(`<prefs xmlns='%s'/>`, nsMAM)
+	return c.sendIQSync("get", "", inner)
+}
+
+// SetMAMPreferences configures MAM archive preferences.
+func (c *XMPPCore) SetMAMPreferences(defaultPolicy string, alwaysJIDs, neverJIDs []string) error {
+	always := ""
+	if len(alwaysJIDs) > 0 {
+		for _, j := range alwaysJIDs {
+			always += fmt.Sprintf(`<jid>%s</jid>`, xmlEscape(j))
+		}
+		always = "<always>" + always + "</always>"
+	}
+	never := ""
+	if len(neverJIDs) > 0 {
+		for _, j := range neverJIDs {
+			never += fmt.Sprintf(`<jid>%s</jid>`, xmlEscape(j))
+		}
+		never = "<never>" + never + "</never>"
+	}
+	inner := fmt.Sprintf(`<prefs xmlns='%s' default='%s'>%s%s</prefs>`,
+		nsMAM, xmlEscape(defaultPolicy), always, never)
+	_, err := c.sendIQSync("set", "", inner)
+	return err
+}
+
+// ──────────────────────────── PubSub Extended (XEP-0060) ────────────────────────────
+
+// PurgeNode removes all items from a PubSub node.
+func (c *XMPPCore) PurgeNode(service, node string) error {
+	if service == "" {
+		service = c.domain
+	}
+	inner := fmt.Sprintf(`<pubsub xmlns='%s'><purge node='%s'/></pubsub>`, nsPubOwner, xmlEscape(node))
+	_, err := c.sendIQSync("set", service, inner)
+	return err
+}
+
+// GetNodeAffiliations lists affiliations on a PubSub node.
+func (c *XMPPCore) GetNodeAffiliations(service, node string) (*xmppIQ, error) {
+	if service == "" {
+		service = c.domain
+	}
+	inner := fmt.Sprintf(`<pubsub xmlns='%s'><affiliations node='%s'/></pubsub>`, nsPubOwner, xmlEscape(node))
+	return c.sendIQSync("get", service, inner)
+}
+
+// SetNodeAffiliation sets a JID's affiliation on a PubSub node.
+func (c *XMPPCore) SetNodeAffiliation(service, node, jid, affiliation string) error {
+	if service == "" {
+		service = c.domain
+	}
+	inner := fmt.Sprintf(
+		`<pubsub xmlns='%s'><affiliations node='%s'>`+
+			`<affiliation jid='%s' affiliation='%s'/></affiliations></pubsub>`,
+		nsPubOwner, xmlEscape(node), xmlEscape(jid), xmlEscape(affiliation))
+	_, err := c.sendIQSync("set", service, inner)
+	return err
+}
+
+// GetNodeSubscribers lists all subscribers to a PubSub node.
+func (c *XMPPCore) GetNodeSubscribers(service, node string) (*xmppIQ, error) {
+	if service == "" {
+		service = c.domain
+	}
+	inner := fmt.Sprintf(`<pubsub xmlns='%s'><subscriptions node='%s'/></pubsub>`, nsPubOwner, xmlEscape(node))
+	return c.sendIQSync("get", service, inner)
+}
+
+// ──────────────────────────── Jabber Search (XEP-0055) ────────────────────────────
+
+// SearchUsersXMPP queries a user directory via data form search.
+func (c *XMPPCore) SearchUsersXMPP(serviceJID, formXML string) (*xmppIQ, error) {
+	inner := fmt.Sprintf(`<query xmlns='jabber:iq:search'>%s</query>`, formXML)
+	return c.sendIQSync("set", serviceJID, inner)
+}
+
+// ──────────────────────────── In-Band Bytestreams (XEP-0047) ────────────────────────────
+
+const nsIBB = "http://jabber.org/protocol/ibb"
+
+// OpenIBBSession opens an in-band bytestream session.
+func (c *XMPPCore) OpenIBBSession(toJID, sid string, blockSize int) error {
+	inner := fmt.Sprintf(`<open xmlns='%s' sid='%s' block-size='%d' stanza='iq'/>`,
+		nsIBB, xmlEscape(sid), blockSize)
+	_, err := c.sendIQSync("set", toJID, inner)
+	return err
+}
+
+// SendIBBData sends a data chunk over an in-band bytestream.
+func (c *XMPPCore) SendIBBData(toJID, sid string, seq int, data []byte) error {
+	encoded := base64.StdEncoding.EncodeToString(data)
+	inner := fmt.Sprintf(`<data xmlns='%s' sid='%s' seq='%d'>%s</data>`,
+		nsIBB, xmlEscape(sid), seq, encoded)
+	_, err := c.sendIQSync("set", toJID, inner)
+	return err
+}
+
+// CloseIBBSession closes an in-band bytestream session.
+func (c *XMPPCore) CloseIBBSession(toJID, sid string) error {
+	inner := fmt.Sprintf(`<close xmlns='%s' sid='%s'/>`, nsIBB, xmlEscape(sid))
+	_, err := c.sendIQSync("set", toJID, inner)
+	return err
+}
+
+// ──────────────────────────── SOCKS5 Bytestreams (XEP-0065) ────────────────────────────
+
+const nsS5B = "http://jabber.org/protocol/bytestreams"
+
+// InitiateS5B initiates a SOCKS5 proxy-mediated file transfer.
+func (c *XMPPCore) InitiateS5B(toJID, sid string, streamHosts []map[string]string) error {
+	hosts := ""
+	for _, h := range streamHosts {
+		hosts += fmt.Sprintf(`<streamhost jid='%s' host='%s' port='%s'/>`,
+			xmlEscape(h["jid"]), xmlEscape(h["host"]), xmlEscape(h["port"]))
+	}
+	inner := fmt.Sprintf(`<query xmlns='%s' sid='%s'>%s</query>`,
+		nsS5B, xmlEscape(sid), hosts)
+	_, err := c.sendIQSync("set", toJID, inner)
+	return err
+}
+
+// ActivateS5B activates the bytestream after proxy connection.
+func (c *XMPPCore) ActivateS5B(proxyJID, sid, targetJID string) error {
+	inner := fmt.Sprintf(`<query xmlns='%s' sid='%s'><activate>%s</activate></query>`,
+		nsS5B, xmlEscape(sid), xmlEscape(targetJID))
+	_, err := c.sendIQSync("set", proxyJID, inner)
+	return err
+}
+
+// ──────────────────────────── MUC Voice Request (XEP-0045) ────────────────────────────
+
+// RequestMUCVoice requests voice (participant role) in a moderated MUC room.
+func (c *XMPPCore) RequestMUCVoice(roomJID string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s'>`+
+			`<x xmlns='%s' type='submit'>`+
+			`<field var='FORM_TYPE'><value>http://jabber.org/protocol/muc#request</value></field>`+
+			`<field var='muc#role'><value>participant</value></field>`+
+			`</x></message>`,
+		xmlEscape(roomJID), nsXData))
+}
+
+// ──────────────────────────── User Nickname (XEP-0172) ────────────────────────────
+
+const nsNick = "http://jabber.org/protocol/nick"
+
+// SetUserNickname publishes a PEP nickname.
+func (c *XMPPCore) SetUserNickname(nick string) error {
+	payload := fmt.Sprintf(`<nick xmlns='%s'>%s</nick>`, nsNick, xmlEscape(nick))
+	return c.PublishPubSubItem("", nsNick, "current", payload)
+}
+
+// GetUserNickname fetches a user's PEP nickname.
+func (c *XMPPCore) GetUserNickname(jid string) (*xmppIQ, error) {
+	return c.GetPubSubItems(jid, nsNick)
+}
+
+// ──────────────────────────── OpenPGP for XMPP (XEP-0373/0374) ────────────────────────────
+
+const nsOX = "urn:xmpp:openpgp:0"
+
+// PublishOXPublicKey publishes an OpenPGP public key via PEP.
+func (c *XMPPCore) PublishOXPublicKey(fingerprint string, pubKeyB64 string) error {
+	payload := fmt.Sprintf(`<pubkey xmlns='%s'><data>%s</data></pubkey>`, nsOX, pubKeyB64)
+	return c.PublishPubSubItem("", nsOX+":public-keys:"+fingerprint, "current", payload)
+}
+
+// FetchOXPublicKey fetches a user's OpenPGP public key.
+func (c *XMPPCore) FetchOXPublicKey(jid, fingerprint string) (*xmppIQ, error) {
+	return c.GetPubSubItems(jid, nsOX+":public-keys:"+fingerprint)
+}
+
+// OXEncrypt wraps a payload in an OX signcrypt element.
+func (c *XMPPCore) OXEncrypt(payload string) string {
+	return fmt.Sprintf(
+		`<signcrypt xmlns='%s'>`+
+			`<to jid='%s'/>`+
+			`<time stamp='%s'/>`+
+			`<rpad>%s</rpad>`+
+			`<payload>%s</payload></signcrypt>`,
+		nsOX, xmlEscape(c.bareJID),
+		time.Now().UTC().Format("2006-01-02T15:04:05Z"),
+		generateShortID(), payload)
+}
+
+// OXDecrypt extracts the payload from an OX signcrypt element.
+func (c *XMPPCore) OXDecrypt(signcryptXML string) (string, error) {
+	start := strings.Index(signcryptXML, "<payload>")
+	end := strings.Index(signcryptXML, "</payload>")
+	if start < 0 || end < 0 {
+		return "", fmt.Errorf("no payload in OX element")
+	}
+	return signcryptXML[start+9 : end], nil
+}
+
+// OXSignEncrypt performs OX sign+encrypt (XEP-0374).
+func (c *XMPPCore) OXSignEncrypt(toJID, payload, openpgpB64 string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='chat' id='%s'>`+
+			`<openpgp xmlns='%s'>%s</openpgp>`+
+			`<body>This message is encrypted.</body>`+
+			`<encryption xmlns='urn:xmpp:eme:0' namespace='%s'/></message>`,
+		xmlEscape(toJID), c.nextIQID(), nsOX, openpgpB64, nsOX))
+}
+
+// ──────────────────────────── Explicit Message Encryption (XEP-0380) ────────────────────────────
+
+// SetEncryptionHint adds an EME element indicating the encryption protocol.
+func (c *XMPPCore) SetEncryptionHint(namespace, name string) string {
+	if name != "" {
+		return fmt.Sprintf(`<encryption xmlns='urn:xmpp:eme:0' namespace='%s' name='%s'/>`,
+			xmlEscape(namespace), xmlEscape(name))
+	}
+	return fmt.Sprintf(`<encryption xmlns='urn:xmpp:eme:0' namespace='%s'/>`, xmlEscape(namespace))
+}
+
+// ──────────────────────────── Last User Interaction (XEP-0319) ────────────────────────────
+
+// GetLastUserInteraction queries the idle time for a contact.
+func (c *XMPPCore) GetLastUserInteraction(jid string) (*xmppIQ, error) {
+	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsLast)
+	return c.sendIQSync("get", jid, inner)
+}
+
+// ──────────────────────────── Advanced Message Processing (XEP-0079) ────────────────────────────
+
+// SetAMPRules returns an AMP element with the given rules for inclusion in a message.
+func (c *XMPPCore) SetAMPRules(rules []map[string]string) string {
+	ruleXML := ""
+	for _, r := range rules {
+		ruleXML += fmt.Sprintf(`<rule condition='%s' action='%s' value='%s'/>`,
+			xmlEscape(r["condition"]), xmlEscape(r["action"]), xmlEscape(r["value"]))
+	}
+	return fmt.Sprintf(`<amp xmlns='http://jabber.org/protocol/amp'>%s</amp>`, ruleXML)
+}
+
+// ──────────────────────────── Stickers (XEP-0449) ────────────────────────────
+
+const nsStickers = "urn:xmpp:stickers:0"
+
+// GetStickerPack retrieves a sticker pack from PubSub.
+func (c *XMPPCore) GetStickerPack(serviceJID, node string) (*xmppIQ, error) {
+	return c.GetPubSubItems(serviceJID, node)
+}
+
+// SendStickerXEP sends a sticker per XEP-0449.
+func (c *XMPPCore) SendStickerXEP(toJID, stickerPackNode, stickerHash, fallbackBody string) error {
+	msgType := "chat"
+	if c.isRoom(toJID) {
+		msgType = "groupchat"
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='%s' id='%s'>`+
+			`<body>%s</body>`+
+			`<sticker xmlns='%s' pack='%s' hash='%s'/></message>`,
+		xmlEscape(toJID), msgType, c.nextIQID(),
+		xmlEscape(fallbackBody), nsStickers, xmlEscape(stickerPackNode), xmlEscape(stickerHash)))
+}
+
+// ──────────────────────────── Encrypted File Sharing (XEP-0448) ────────────────────────────
+
+// ShareEncryptedFile sends AESGCM-encrypted file sharing metadata.
+func (c *XMPPCore) ShareEncryptedFile(toJID, name, mediaType string, size int64, ivB64, keyB64, url string) error {
+	msgType := "chat"
+	if c.isRoom(toJID) {
+		msgType = "groupchat"
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='%s' id='%s'>`+
+			`<file-sharing xmlns='%s'>`+
+			`<file><media-type>%s</media-type><name>%s</name><size>%d</size></file>`+
+			`<sources><url-data xmlns='http://jabber.org/protocol/url-data' target='%s'/></sources>`+
+			`</file-sharing>`+
+			`<encryption xmlns='urn:xmpp:eme:0' namespace='urn:xmpp:crypt:0'/></message>`,
+		xmlEscape(toJID), msgType, c.nextIQID(), nsSFS,
+		xmlEscape(mediaType), xmlEscape(name), size, xmlEscape(url)))
+}
+
+// ──────────────────────────── OMEMO Media Sharing (XEP-0454) ────────────────────────────
+
+// EncryptMedia encrypts plaintext bytes with a random AES-256-GCM key.
+// Returns ciphertext, IV (base64), and key (base64).
+func (c *XMPPCore) EncryptMedia(plaintext []byte) ([]byte, string, string, error) {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, "", "", fmt.Errorf("generate key: %w", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("aes cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("gcm: %w", err)
+	}
+	iv := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(iv); err != nil {
+		return nil, "", "", fmt.Errorf("generate iv: %w", err)
+	}
+	ct := gcm.Seal(nil, iv, plaintext, nil)
+	return ct, base64.StdEncoding.EncodeToString(iv), base64.StdEncoding.EncodeToString(key), nil
+}
+
+// DecryptMedia decrypts AES-256-GCM encrypted media given IV and key (both base64).
+func (c *XMPPCore) DecryptMedia(ciphertext []byte, ivB64, keyB64 string) ([]byte, error) {
+	key, err := base64.StdEncoding.DecodeString(keyB64)
+	if err != nil {
+		return nil, fmt.Errorf("decode key: %w", err)
+	}
+	iv, err := base64.StdEncoding.DecodeString(ivB64)
+	if err != nil {
+		return nil, fmt.Errorf("decode iv: %w", err)
+	}
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("aes cipher: %w", err)
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, fmt.Errorf("gcm: %w", err)
+	}
+	return gcm.Open(nil, iv, ciphertext, nil)
+}
+
+// ──────────────────────────── Trust Messages (XEP-0434) ────────────────────────────
+
+// SendTrustMessage sends a trust message to communicate key trust/distrust.
+func (c *XMPPCore) SendTrustMessage(toJID, encryptionNS string, trustedKeys, distrustedKeys []string) error {
+	trustXML := ""
+	for _, k := range trustedKeys {
+		trustXML += fmt.Sprintf("<key-owner jid='%s'><trust>%s</trust></key-owner>", xmlEscape(toJID), xmlEscape(k))
+	}
+	distrustXML := ""
+	for _, k := range distrustedKeys {
+		distrustXML += fmt.Sprintf("<key-owner jid='%s'><distrust>%s</distrust></key-owner>", xmlEscape(toJID), xmlEscape(k))
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' type='chat' id='%s'>`+
+			`<trust-message xmlns='urn:xmpp:tm:1' usage='urn:xmpp:atm:1' encryption='%s'>`+
+			`%s%s</trust-message></message>`,
+		xmlEscape(toJID), c.nextIQID(), xmlEscape(encryptionNS), trustXML, distrustXML))
+}
+
+// ──────────────────────────── Message Displayed Synchronization (XEP-0490) ────────────────────────────
+
+// SyncDisplayedMessages publishes a displayed marker to PEP for cross-device sync.
+func (c *XMPPCore) SyncDisplayedMessages(jid, stanzaID string) error {
+	return c.PublishPubSubItem(c.bareJID, "urn:xmpp:mds:displayed:0", jid,
+		fmt.Sprintf(
+			`<displayed xmlns='urn:xmpp:mds:displayed:0' jid='%s'>`+
+				`<stanza-id xmlns='urn:xmpp:sid:0' id='%s'/></displayed>`,
+			xmlEscape(jid), xmlEscape(stanzaID)))
+}
+
+// ──────────────────────────── Fallback Indication (XEP-0428) ────────────────────────────
+
+// SetFallbackIndication returns XML element marking body as fallback for unsupported extensions.
+func (c *XMPPCore) SetFallbackIndication(forNS string) string {
+	return fmt.Sprintf(`<fallback xmlns='urn:xmpp:fallback:0' for='%s'/>`, xmlEscape(forNS))
+}
+
+// ──────────────────────────── SASL Channel-Binding (XEP-0440) ────────────────────────────
+
+// NegotiateChannelBinding advertises/selects SCRAM channel-binding type during SASL.
+func (c *XMPPCore) NegotiateChannelBinding(bindingType string) string {
+	return fmt.Sprintf(`<sasl-channel-binding xmlns='urn:xmpp:sasl-cb:0'><channel-binding type='%s'/></sasl-channel-binding>`,
+		xmlEscape(bindingType))
+}
+
+// ──────────────────────────── Alternative Connections (XEP-0156) ────────────────────────────
+
+// DiscoverAlternativeConnections queries well-known URLs for WebSocket/BOSH endpoints.
+func (c *XMPPCore) DiscoverAlternativeConnections(domain string) (wsURL, boshURL string, err error) {
+	url := "https://" + domain + "/.well-known/host-meta"
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", "", fmt.Errorf("fetch host-meta: %w", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("read host-meta: %w", err)
+	}
+	s := string(body)
+	// Parse Link elements for WebSocket and BOSH
+	for _, line := range strings.Split(s, "\n") {
+		if strings.Contains(line, "urn:xmpp:alt-connections:websocket") {
+			if i := strings.Index(line, "href='"); i >= 0 {
+				rest := line[i+6:]
+				if j := strings.Index(rest, "'"); j >= 0 {
+					wsURL = rest[:j]
+				}
+			} else if i := strings.Index(line, `href="`); i >= 0 {
+				rest := line[i+6:]
+				if j := strings.Index(rest, `"`); j >= 0 {
+					wsURL = rest[:j]
+				}
+			}
+		}
+		if strings.Contains(line, "urn:xmpp:alt-connections:xbosh") {
+			if i := strings.Index(line, "href='"); i >= 0 {
+				rest := line[i+6:]
+				if j := strings.Index(rest, "'"); j >= 0 {
+					boshURL = rest[:j]
+				}
+			} else if i := strings.Index(line, `href="`); i >= 0 {
+				rest := line[i+6:]
+				if j := strings.Index(rest, `"`); j >= 0 {
+					boshURL = rest[:j]
+				}
+			}
+		}
+	}
+	return wsURL, boshURL, nil
+}
+
+// ──────────────────────────── WebSocket Transport (RFC 7395) ────────────────────────────
+
+// ConnectWebSocket establishes an XMPP connection over WebSocket.
+func (c *XMPPCore) ConnectWebSocket(wsURL string) error {
+	// WebSocket XMPP uses framed XML (no stream wrapper)
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	conn, err := tls.DialWithDialer(dialer, "tcp", wsURL, &tls.Config{InsecureSkipVerify: false})
+	if err != nil {
+		return fmt.Errorf("websocket dial: %w", err)
+	}
+	// Send WebSocket upgrade
+	host := wsURL
+	path := "/"
+	if i := strings.Index(wsURL, "://"); i >= 0 {
+		rest := wsURL[i+3:]
+		if j := strings.Index(rest, "/"); j >= 0 {
+			host = rest[:j]
+			path = rest[j:]
+		} else {
+			host = rest
+		}
+	}
+	keyBytes := make([]byte, 16)
+	rand.Read(keyBytes)
+	wsKey := base64.StdEncoding.EncodeToString(keyBytes)
+	upgrade := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Protocol: xmpp\r\n\r\n",
+		path, host, wsKey)
+	if _, err := conn.Write([]byte(upgrade)); err != nil {
+		conn.Close()
+		return fmt.Errorf("websocket upgrade write: %w", err)
+	}
+	// Read upgrade response
+	buf := make([]byte, 4096)
+	n, err := conn.Read(buf)
+	if err != nil {
+		conn.Close()
+		return fmt.Errorf("websocket upgrade read: %w", err)
+	}
+	if !strings.Contains(string(buf[:n]), "101") {
+		conn.Close()
+		return fmt.Errorf("websocket upgrade failed: %s", string(buf[:n]))
+	}
+	// Replace connection — XMPP framing over WebSocket uses the same XML stream
+	c.mu.Lock()
+	if c.conn != nil {
+		c.conn.Close()
+	}
+	c.conn = conn
+	c.mu.Unlock()
+	return nil
+}
+
+// ──────────────────────────── BOSH Transport (XEP-0124/0206) ────────────────────────────
+
+// ConnectBOSH establishes an XMPP-over-BOSH session via HTTP long-polling.
+func (c *XMPPCore) ConnectBOSH(boshURL, domain string) (string, error) {
+	body := fmt.Sprintf(
+		`<body xmlns='http://jabber.org/protocol/httpbind' `+
+			`xmlns:xmpp='urn:xmpp:xbosh' `+
+			`to='%s' `+
+			`xml:lang='en' `+
+			`xmpp:version='1.0' `+
+			`wait='60' hold='1' `+
+			`rid='%d' `+
+			`content='text/xml; charset=utf-8'/>`,
+		xmlEscape(domain), time.Now().UnixNano()%1000000)
+	resp, err := http.Post(boshURL, "text/xml; charset=utf-8", strings.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("bosh init: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("bosh read: %w", err)
+	}
+	// Extract sid from response
+	s := string(respBody)
+	sid := ""
+	if i := strings.Index(s, "sid='"); i >= 0 {
+		rest := s[i+5:]
+		if j := strings.Index(rest, "'"); j >= 0 {
+			sid = rest[:j]
+		}
+	}
+	if sid == "" {
+		return "", fmt.Errorf("bosh: no session id in response: %s", s)
+	}
+	return sid, nil
 }

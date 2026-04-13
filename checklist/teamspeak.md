@@ -1,7 +1,7 @@
 ## Phase 6: TeamSpeak 3 — DONE (core); missing methods listed below
 
-172 exported methods, ~5,369 lines. Real TS3 UDP client protocol (port 9987).
-Additional ~43 client-accessible and SQ commands identified but not yet in core.
+210 exported methods, ~5,900 lines. Real TS3 UDP client protocol (port 9987).
+All 38 additional methods implemented (not yet tested against live server).
 
 ### Core Interface (55/55)
 
@@ -235,77 +235,77 @@ Additional ~43 client-accessible and SQ commands identified but not yet in core.
 - Multi-server: 3/4 connectable servers pass voice 100%
 - FLAC playback, voice recording, simultaneous stress test — all pass
 
-### Not Added in Core
+### Extended Methods (38 — all implemented, not yet tested)
 
 #### Client Management
 
-- [ ] ClientKick — kick from channel or server (distinct from RemoveMember)
-- [ ] ClientMute — local mute (ClientQuery)
-- [ ] ClientUnmute — local unmute (ClientQuery)
-- [ ] ClientChatComposing — typing indicator
-- [ ] ClientDBList — list all known clients in server DB
-- [ ] ClientVariable — get a specific client variable
+- [x] ClientKick — kick from channel or server (distinct from RemoveMember)
+- [x] ClientMute — local mute (ClientQuery)
+- [x] ClientUnmute — local unmute (ClientQuery)
+- [x] ClientChatComposing — typing indicator
+- [x] ClientDBList — list all known clients in server DB
+- [x] ClientVariable — get a specific client variable
 
 #### Ban Management
 
-- [ ] BanClient — ban an online client directly (by clid)
-- [ ] BanDel — delete a specific ban rule by ID
+- [x] BanClient — ban an online client directly (by clid)
+- [x] BanDel — delete a specific ban rule by ID
 
 #### Server Management (SQ-only)
 
-- [ ] ServerList — list virtual servers
-- [ ] ServerCreate — create a virtual server
-- [ ] ServerDelete — delete a virtual server
-- [ ] ServerStart — start a virtual server
-- [ ] ServerStop — stop a virtual server
-- [ ] ServerSnapshotCreate — create server snapshot
-- [ ] ServerSnapshotDeploy — deploy/restore server snapshot
-- [ ] ServerTempPasswordAdd — add a temporary server password
-- [ ] ServerTempPasswordDel — delete a temporary server password
-- [ ] ServerTempPasswordList — list temporary server passwords
+- [x] ServerList — list virtual servers
+- [x] ServerCreate — create a virtual server
+- [x] ServerDelete — delete a virtual server
+- [x] ServerStart — start a virtual server
+- [x] ServerStop — stop a virtual server
+- [x] ServerSnapshotCreate — create server snapshot
+- [x] ServerSnapshotDeploy — deploy/restore server snapshot
+- [x] ServerTempPasswordAdd — add a temporary server password
+- [x] ServerTempPasswordDel — delete a temporary server password
+- [x] ServerTempPasswordList — list temporary server passwords
 
 #### File Transfer
 
-- [ ] FTInitUpload — initialize a file upload transfer
-- [ ] FTInitDownload — initialize a file download transfer
+- [x] FTInitUpload — initialize a file upload transfer
+- [x] FTInitDownload — initialize a file download transfer
 
 #### Event Registration
 
-- [ ] ServerNotifyRegister — register for server event notifications
-- [ ] ServerNotifyUnregister — unregister from server event notifications
+- [x] ServerNotifyRegister — register for server event notifications
+- [x] ServerNotifyUnregister — unregister from server event notifications
 
 #### Logging (SQ-only)
 
-- [ ] LogView — view server log entries
-- [ ] LogAdd — add a custom entry to the server log
+- [x] LogView — view server log entries
+- [x] LogAdd — add a custom entry to the server log
 
 #### Query Login Management (SQ 3.6.0+)
 
-- [ ] QueryLoginAdd — create a ServerQuery login
-- [ ] QueryLoginDel — delete a ServerQuery login
-- [ ] QueryLoginList — list ServerQuery logins
+- [x] QueryLoginAdd — create a ServerQuery login
+- [x] QueryLoginDel — delete a ServerQuery login
+- [x] QueryLoginList — list ServerQuery logins
 
 #### API Key Management (SQ 3.12.0+)
 
-- [ ] ApiKeyAdd — create an API key
-- [ ] ApiKeyDel — delete an API key
-- [ ] ApiKeyList — list API keys
+- [x] ApiKeyAdd — create an API key
+- [x] ApiKeyDel — delete an API key
+- [x] ApiKeyList — list API keys
 
 #### Server Permissions
 
-- [ ] ServerAddPerm — add server-level permissions
-- [ ] ServerDelPerm — remove server-level permissions
-- [ ] ServerPermList — list server-level permissions
+- [x] ServerAddPerm — add server-level permissions
+- [x] ServerDelPerm — remove server-level permissions
+- [x] ServerPermList — list server-level permissions
 
 #### Global Message (SQ-only)
 
-- [ ] GlobalMessage — broadcast message to all virtual servers (gm)
+- [x] GlobalMessage — broadcast message to all virtual servers (gm)
 
-#### Exported Wrappers Needed (used internally but not exposed)
+#### Exported Wrappers
 
-- [ ] ServerGroupList() — `servergrouplist`: list all server groups
-- [ ] ServerGroupAddClient(sgid, cldbid) — `servergroupaddclient`
-- [ ] ServerGroupDelClient(sgid, cldbid) — `servergroupdelclient`
-- [ ] ChannelGroupsByClientID(cldbid) — `channelgroupsbyclientid`: list channel groups for a client
+- [x] ServerGroupList() — `servergrouplist`: list all server groups
+- [x] ServerGroupAddClient(sgid, cldbid) — `servergroupaddclient`
+- [x] ServerGroupDelClient(sgid, cldbid) — `servergroupdelclient`
+- [x] ChannelGroupsByClientID(cldbid) — `channelgroupsbyclientid`: list channel groups for a client
 
 ---

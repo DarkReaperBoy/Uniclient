@@ -4471,3 +4471,555 @@ func (c *IRCCore) saveSession() {
 	}
 	os.WriteFile(c.sessionPath, data, 0600)
 }
+
+// ──────────────────────────── RFC Commands (Oper) ────────────────────────────
+
+// Connect requests the server to link to another server (oper only).
+func (c *IRCCore) Connect(target string, port int, remote string) {
+	if remote != "" {
+		c.sendRaw(fmt.Sprintf("CONNECT %s %d %s", target, port, remote))
+	} else {
+		c.sendRaw(fmt.Sprintf("CONNECT %s %d", target, port))
+	}
+}
+
+// Die requests the server to shut down (oper only).
+func (c *IRCCore) Die() {
+	c.sendRaw("DIE")
+}
+
+// Rehash requests the server to reload its configuration (oper only).
+func (c *IRCCore) Rehash() {
+	c.sendRaw("REHASH")
+}
+
+// Restart requests the server to restart (oper only).
+func (c *IRCCore) Restart() {
+	c.sendRaw("RESTART")
+}
+
+// Service registers a new service on the network.
+func (c *IRCCore) Service(nick, distribution, serviceType, info string) {
+	c.sendRaw(fmt.Sprintf("SERVICE %s * %s %s 0 :%s", nick, distribution, serviceType, info))
+}
+
+// Njoin sends an NJOIN message for server-to-server channel burst.
+func (c *IRCCore) Njoin(channel string, members []string) {
+	c.sendRaw(fmt.Sprintf("NJOIN %s :%s", channel, strings.Join(members, ",")))
+}
+
+// ──────────────────────────── IRCv3 Extensions ────────────────────────────
+
+// Setname changes the realname without reconnecting (requires setname capability).
+func (c *IRCCore) Setname(realname string) {
+	c.sendRaw("SETNAME :" + realname)
+}
+
+// ChatHistoryBetween fetches messages between two timestamps or message IDs.
+func (c *IRCCore) ChatHistoryBetween(target, startRef, endRef string, limit int) {
+	c.sendRaw(fmt.Sprintf("CHATHISTORY BETWEEN %s %s %s %d", target, startRef, endRef, limit))
+}
+
+// BatchStart starts a batch processing context.
+func (c *IRCCore) BatchStart(refTag, batchType string, params ...string) {
+	cmd := fmt.Sprintf("BATCH +%s %s", refTag, batchType)
+	if len(params) > 0 {
+		cmd += " " + strings.Join(params, " ")
+	}
+	c.sendRaw(cmd)
+}
+
+// BatchEnd ends a batch processing context.
+func (c *IRCCore) BatchEnd(refTag string) {
+	c.sendRaw("BATCH -" + refTag)
+}
+
+// Starttls requests TLS upgrade on a plain connection.
+func (c *IRCCore) Starttls() {
+	c.sendRaw("STARTTLS")
+}
+
+// ──────────────────────────── DCC Extended ────────────────────────────
+
+// DCCSecureSend sends a DCC SSEND (TLS file transfer) request.
+func (c *IRCCore) DCCSecureSend(nick, filename string, port int, size int64) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC SSEND %s 0 %d %d\x01", nick, filename, port, size))
+}
+
+// DCCSecureChat sends a DCC SCHAT (TLS chat) request.
+func (c *IRCCore) DCCSecureChat(nick string, port int) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC SCHAT chat 0 %d\x01", nick, port))
+}
+
+// XDCCSend requests a file from an XDCC bot.
+func (c *IRCCore) XDCCSend(botNick string, packNum int) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC SEND #%d", botNick, packNum))
+}
+
+// XDCCList requests the pack list from an XDCC bot.
+func (c *IRCCore) XDCCList(botNick string) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC LIST", botNick))
+}
+
+// XDCCBatch requests multiple packs from an XDCC bot.
+func (c *IRCCore) XDCCBatch(botNick string, packNums []int) {
+	packs := make([]string, len(packNums))
+	for i, n := range packNums {
+		packs[i] = fmt.Sprintf("#%d", n)
+	}
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC BATCH %s", botNick, strings.Join(packs, ",")))
+}
+
+// XDCCCancel cancels the current XDCC transfer.
+func (c *IRCCore) XDCCCancel(botNick string) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC CANCEL", botNick))
+}
+
+// XDCCRemove removes a pack (bot owner only).
+func (c *IRCCore) XDCCRemove(botNick string, packNum int) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC REMOVE #%d", botNick, packNum))
+}
+
+// XDCCInfo shows details about a specific pack.
+func (c *IRCCore) XDCCInfo(botNick string, packNum int) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC INFO #%d", botNick, packNum))
+}
+
+// XDCCSearch searches packs on an XDCC bot.
+func (c *IRCCore) XDCCSearch(botNick, query string) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC SEARCH %s", botNick, query))
+}
+
+// ──────────────────────────── CTCP Extended ────────────────────────────
+
+// CTCPFinger sends a CTCP FINGER query.
+func (c *IRCCore) CTCPFinger(target string) {
+	c.SendCTCP(target, "FINGER", "")
+}
+
+// CTCPSource sends a CTCP SOURCE query.
+func (c *IRCCore) CTCPSource(target string) {
+	c.SendCTCP(target, "SOURCE", "")
+}
+
+// CTCPUserinfo sends a CTCP USERINFO query.
+func (c *IRCCore) CTCPUserinfo(target string) {
+	c.SendCTCP(target, "USERINFO", "")
+}
+
+// ──────────────────────────── NickServ Extended ────────────────────────────
+
+// NickServRegain recovers and changes to a nick in one step.
+func (c *IRCCore) NickServRegain(nick, password string) {
+	c.sendRaw("PRIVMSG NickServ :REGAIN " + nick + " " + password)
+}
+
+// NickServGList lists nicks in the current nick group.
+func (c *IRCCore) NickServGList() {
+	c.sendRaw("PRIVMSG NickServ :GLIST")
+}
+
+// NickServConfirm completes email verification for registration.
+func (c *IRCCore) NickServConfirm(code string) {
+	c.sendRaw("PRIVMSG NickServ :CONFIRM " + code)
+}
+
+// NickServSuspend suspends a nick (oper only).
+func (c *IRCCore) NickServSuspend(nick, reason string) {
+	c.sendRaw("PRIVMSG NickServ :SUSPEND " + nick + " " + reason)
+}
+
+// NickServUnsuspend lifts a nick suspension (oper only).
+func (c *IRCCore) NickServUnsuspend(nick string) {
+	c.sendRaw("PRIVMSG NickServ :UNSUSPEND " + nick)
+}
+
+// NickServForbid forbids a nick from being registered (oper only).
+func (c *IRCCore) NickServForbid(nick, reason string) {
+	c.sendRaw("PRIVMSG NickServ :FORBID " + nick + " " + reason)
+}
+
+// NickServList searches registered nicks (oper only).
+func (c *IRCCore) NickServList(pattern string) {
+	c.sendRaw("PRIVMSG NickServ :LIST " + pattern)
+}
+
+// NickServSaSet admin-sets a nick option (oper only).
+func (c *IRCCore) NickServSaSet(nick, option, value string) {
+	c.sendRaw("PRIVMSG NickServ :SASET " + nick + " " + option + " " + value)
+}
+
+// ──────────────────────────── ChanServ Extended ────────────────────────────
+
+// ChanServAppendTopic appends text to the channel topic.
+func (c *IRCCore) ChanServAppendTopic(channel, text string) {
+	c.sendRaw("PRIVMSG ChanServ :APPENDTOPIC " + channel + " " + text)
+}
+
+// ChanServLevels manages access level definitions for a channel.
+func (c *IRCCore) ChanServLevels(channel, action, level, value string) {
+	cmd := "PRIVMSG ChanServ :LEVELS " + channel + " " + action
+	if level != "" {
+		cmd += " " + level
+	}
+	if value != "" {
+		cmd += " " + value
+	}
+	c.sendRaw(cmd)
+}
+
+// ChanServLog views the action log for a channel.
+func (c *IRCCore) ChanServLog(channel string) {
+	c.sendRaw("PRIVMSG ChanServ :LOG " + channel)
+}
+
+// ChanServCount counts access list entries for a channel.
+func (c *IRCCore) ChanServCount(channel string) {
+	c.sendRaw("PRIVMSG ChanServ :COUNT " + channel)
+}
+
+// ChanServSuspend suspends a channel (oper only).
+func (c *IRCCore) ChanServSuspend(channel, reason string) {
+	c.sendRaw("PRIVMSG ChanServ :SUSPEND " + channel + " " + reason)
+}
+
+// ChanServUnsuspend lifts a channel suspension (oper only).
+func (c *IRCCore) ChanServUnsuspend(channel string) {
+	c.sendRaw("PRIVMSG ChanServ :UNSUSPEND " + channel)
+}
+
+// ChanServForbid forbids a channel from being registered (oper only).
+func (c *IRCCore) ChanServForbid(channel, reason string) {
+	c.sendRaw("PRIVMSG ChanServ :FORBID " + channel + " " + reason)
+}
+
+// ──────────────────────────── MemoServ Extended ────────────────────────────
+
+// MemoServSendGroup sends a memo to a nick group.
+func (c *IRCCore) MemoServSendGroup(group, text string) {
+	c.sendRaw("PRIVMSG MemoServ :SENDGROUP " + group + " " + text)
+}
+
+// MemoServSendOps sends a memo to channel operators.
+func (c *IRCCore) MemoServSendOps(channel, text string) {
+	c.sendRaw("PRIVMSG MemoServ :SENDOPS " + channel + " " + text)
+}
+
+// MemoServForward forwards a memo to another user.
+func (c *IRCCore) MemoServForward(memoID, target string) {
+	c.sendRaw("PRIVMSG MemoServ :FORWARD " + target + " " + memoID)
+}
+
+// MemoServStaff sends a memo to all staff (oper only).
+func (c *IRCCore) MemoServStaff(text string) {
+	c.sendRaw("PRIVMSG MemoServ :STAFF " + text)
+}
+
+// ──────────────────────────── HostServ Extended ────────────────────────────
+
+// HostServList lists own vhosts.
+func (c *IRCCore) HostServList() {
+	c.sendRaw("PRIVMSG HostServ :LIST")
+}
+
+// HostServSet assigns a vhost to a nick (oper only).
+func (c *IRCCore) HostServSet(nick, vhost string) {
+	c.sendRaw("PRIVMSG HostServ :SET " + nick + " " + vhost)
+}
+
+// HostServSetAll assigns a vhost to a nick group (oper only).
+func (c *IRCCore) HostServSetAll(nick, vhost string) {
+	c.sendRaw("PRIVMSG HostServ :SETALL " + nick + " " + vhost)
+}
+
+// HostServDel removes a vhost from a nick (oper only).
+func (c *IRCCore) HostServDel(nick string) {
+	c.sendRaw("PRIVMSG HostServ :DEL " + nick)
+}
+
+// HostServDelAll removes a vhost from a nick group (oper only).
+func (c *IRCCore) HostServDelAll(nick string) {
+	c.sendRaw("PRIVMSG HostServ :DELALL " + nick)
+}
+
+// HostServActivate approves a pending vhost request (oper only).
+func (c *IRCCore) HostServActivate(nick string) {
+	c.sendRaw("PRIVMSG HostServ :ACTIVATE " + nick)
+}
+
+// HostServReject rejects a pending vhost request (oper only).
+func (c *IRCCore) HostServReject(nick, reason string) {
+	cmd := "PRIVMSG HostServ :REJECT " + nick
+	if reason != "" {
+		cmd += " " + reason
+	}
+	c.sendRaw(cmd)
+}
+
+// HostServWaiting lists pending vhost requests (oper only).
+func (c *IRCCore) HostServWaiting() {
+	c.sendRaw("PRIVMSG HostServ :WAITING")
+}
+
+// ──────────────────────────── BotServ Extended ────────────────────────────
+
+// BotServBotAdd creates a bot (oper only).
+func (c *IRCCore) BotServBotAdd(nick, ident, host, realname string) {
+	c.sendRaw("PRIVMSG BotServ :BOT ADD " + nick + " " + ident + " " + host + " " + realname)
+}
+
+// BotServBotDel deletes a bot (oper only).
+func (c *IRCCore) BotServBotDel(nick string) {
+	c.sendRaw("PRIVMSG BotServ :BOT DEL " + nick)
+}
+
+// BotServBotChange modifies a bot's nick/ident/host (oper only).
+func (c *IRCCore) BotServBotChange(oldNick, newNick, ident, host, realname string) {
+	c.sendRaw("PRIVMSG BotServ :BOT CHANGE " + oldNick + " " + newNick + " " + ident + " " + host + " " + realname)
+}
+
+// BotServBadwords manages the bad word filter list.
+func (c *IRCCore) BotServBadwords(channel, action, word string) {
+	cmd := "PRIVMSG BotServ :BADWORDS " + channel + " " + action
+	if word != "" {
+		cmd += " " + word
+	}
+	c.sendRaw(cmd)
+}
+
+// BotServKickConfig configures auto-kick triggers for a channel bot.
+func (c *IRCCore) BotServKickConfig(channel, option, value string) {
+	c.sendRaw("PRIVMSG BotServ :KICK " + channel + " " + option + " " + value)
+}
+
+// BotServSet configures bot settings for a channel.
+func (c *IRCCore) BotServSet(channel, option, value string) {
+	c.sendRaw("PRIVMSG BotServ :SET " + channel + " " + option + " " + value)
+}
+
+// ──────────────────────────── OperServ (all oper only) ────────────────────────────
+
+// OperServAkill manages network-wide K-lines.
+func (c *IRCCore) OperServAkill(action, mask, reason string) {
+	cmd := "PRIVMSG OperServ :AKILL " + action + " " + mask
+	if reason != "" {
+		cmd += " " + reason
+	}
+	c.sendRaw(cmd)
+}
+
+// OperServSqline manages nick/channel quarantines.
+func (c *IRCCore) OperServSqline(action, mask, reason string) {
+	cmd := "PRIVMSG OperServ :SQLINE " + action + " " + mask
+	if reason != "" {
+		cmd += " " + reason
+	}
+	c.sendRaw(cmd)
+}
+
+// OperServSnline manages realname bans.
+func (c *IRCCore) OperServSnline(action, mask, reason string) {
+	cmd := "PRIVMSG OperServ :SNLINE " + action + " " + mask
+	if reason != "" {
+		cmd += " " + reason
+	}
+	c.sendRaw(cmd)
+}
+
+// OperServSession views/manages session limits.
+func (c *IRCCore) OperServSession(action, host string) {
+	c.sendRaw("PRIVMSG OperServ :SESSION " + action + " " + host)
+}
+
+// OperServNoop disables O-lines on a server.
+func (c *IRCCore) OperServNoop(server, action string) {
+	c.sendRaw("PRIVMSG OperServ :NOOP " + server + " " + action)
+}
+
+// OperServJupe fakes/quarantines a server.
+func (c *IRCCore) OperServJupe(server, reason string) {
+	c.sendRaw("PRIVMSG OperServ :JUPE " + server + " " + reason)
+}
+
+// OperServGlobal sends a global notice to all users.
+func (c *IRCCore) OperServGlobal(message string) {
+	c.sendRaw("PRIVMSG OperServ :GLOBAL " + message)
+}
+
+// OperServDefcon sets the network defense level (1-5).
+func (c *IRCCore) OperServDefcon(level int) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG OperServ :DEFCON %d", level))
+}
+
+// OperServStats shows services statistics.
+func (c *IRCCore) OperServStats(what string) {
+	if what == "" {
+		c.sendRaw("PRIVMSG OperServ :STATS")
+	} else {
+		c.sendRaw("PRIVMSG OperServ :STATS " + what)
+	}
+}
+
+// OperServReload reloads services configuration modules.
+func (c *IRCCore) OperServReload(module string) {
+	if module == "" {
+		c.sendRaw("PRIVMSG OperServ :RELOAD")
+	} else {
+		c.sendRaw("PRIVMSG OperServ :RELOAD " + module)
+	}
+}
+
+// OperServShutdown shuts down services.
+func (c *IRCCore) OperServShutdown() {
+	c.sendRaw("PRIVMSG OperServ :SHUTDOWN")
+}
+
+// OperServRestart restarts services.
+func (c *IRCCore) OperServRestart() {
+	c.sendRaw("PRIVMSG OperServ :RESTART")
+}
+
+// ──────────────────────────── Server Extensions (oper commands) ────────────────────────────
+
+// SetHost sets own virtual host (oper only).
+func (c *IRCCore) SetHost(vhost string) {
+	c.sendRaw("SETHOST " + vhost)
+}
+
+// ChgHost changes another user's host (oper only).
+func (c *IRCCore) ChgHost(nick, newHost string) {
+	c.sendRaw("CHGHOST " + nick + " " + newHost)
+}
+
+// ChgIdent changes another user's ident (oper only).
+func (c *IRCCore) ChgIdent(nick, newIdent string) {
+	c.sendRaw("CHGIDENT " + nick + " " + newIdent)
+}
+
+// ChgName changes another user's realname (oper only).
+func (c *IRCCore) ChgName(nick, newName string) {
+	c.sendRaw("CHGNAME " + nick + " :" + newName)
+}
+
+// SaJoin forces a user to join a channel (oper only).
+func (c *IRCCore) SaJoin(nick, channel string) {
+	c.sendRaw("SAJOIN " + nick + " " + channel)
+}
+
+// SaPart forces a user to part a channel (oper only).
+func (c *IRCCore) SaPart(nick, channel string) {
+	c.sendRaw("SAPART " + nick + " " + channel)
+}
+
+// SaNick forces a user to change nick (oper only).
+func (c *IRCCore) SaNick(oldNick, newNick string) {
+	c.sendRaw("SANICK " + oldNick + " " + newNick)
+}
+
+// SaMode forces a mode change on a channel or user (oper only).
+func (c *IRCCore) SaMode(target, modes string) {
+	c.sendRaw("SAMODE " + target + " " + modes)
+}
+
+// Globops sends an oper-only global broadcast message.
+func (c *IRCCore) Globops(message string) {
+	c.sendRaw("GLOBOPS :" + message)
+}
+
+// Vhost sets own virtual host (user command, UnrealIRCd).
+func (c *IRCCore) Vhost(username, password string) {
+	c.sendRaw("VHOST " + username + " " + password)
+}
+
+// ──────────────────────────── IRCv3 Draft Extensions ────────────────────────────
+
+// BounceListNetworks lists networks available via a bouncer.
+func (c *IRCCore) BounceListNetworks() {
+	c.sendRaw("BOUNCER LISTNETWORKS")
+}
+
+// BouncerBind binds the current connection to a bouncer network.
+func (c *IRCCore) BouncerBind(networkID string) {
+	c.sendRaw("BOUNCER BIND " + networkID)
+}
+
+// Resume attempts to resume a disconnected session (draft/resume).
+func (c *IRCCore) Resume(token string, timestamp time.Time) {
+	c.sendRaw(fmt.Sprintf("RESUME %s %s", token, timestamp.UTC().Format("2006-01-02T15:04:05.000Z")))
+}
+
+// WebPushRegister registers for web push notifications.
+func (c *IRCCore) WebPushRegister(endpoint, vapidKey, p256dh, auth string) {
+	c.sendRaw(fmt.Sprintf("WEBPUSH REGISTER %s %s %s %s", endpoint, vapidKey, p256dh, auth))
+}
+
+// WebPushUnregister unregisters from web push notifications.
+func (c *IRCCore) WebPushUnregister(endpoint string) {
+	c.sendRaw("WEBPUSH UNREGISTER " + endpoint)
+}
+
+// ──────────────────────────── IRCd-Specific Oper Commands ────────────────────────────
+
+// GLine adds a network-wide IP ban (UnrealIRCd/InspIRCd).
+func (c *IRCCore) GLine(mask, duration, reason string) {
+	c.sendRaw("GLINE " + mask + " " + duration + " :" + reason)
+}
+
+// GZLine adds a network-wide IP ban without ident (UnrealIRCd).
+func (c *IRCCore) GZLine(ip, duration, reason string) {
+	c.sendRaw("GZLINE " + ip + " " + duration + " :" + reason)
+}
+
+// ZLine adds a server-local IP ban.
+func (c *IRCCore) ZLine(ip, duration, reason string) {
+	c.sendRaw("ZLINE " + ip + " " + duration + " :" + reason)
+}
+
+// Shun silences a user network-wide (UnrealIRCd).
+func (c *IRCCore) Shun(mask, duration, reason string) {
+	c.sendRaw("SHUN " + mask + " " + duration + " :" + reason)
+}
+
+// KLine adds a server-local ban.
+func (c *IRCCore) KLine(mask, duration, reason string) {
+	c.sendRaw("KLINE " + mask + " " + duration + " :" + reason)
+}
+
+// Check inspects user/channel details (InspIRCd oper).
+func (c *IRCCore) Check(target string) {
+	c.sendRaw("CHECK " + target)
+}
+
+// ──────────────────────────── GroupServ (Atheme) ────────────────────────────
+
+// GroupServInfo shows info about a group.
+func (c *IRCCore) GroupServInfo(group string) {
+	c.sendRaw("PRIVMSG GroupServ :INFO " + group)
+}
+
+// GroupServJoin joins a group.
+func (c *IRCCore) GroupServJoin(group string) {
+	c.sendRaw("PRIVMSG GroupServ :JOIN " + group)
+}
+
+// GroupServLeave leaves a group.
+func (c *IRCCore) GroupServLeave(group string) {
+	c.sendRaw("PRIVMSG GroupServ :LEAVE " + group)
+}
+
+// GroupServFlags manages group flags.
+func (c *IRCCore) GroupServFlags(group, target, flags string) {
+	c.sendRaw("PRIVMSG GroupServ :FLAGS " + group + " " + target + " " + flags)
+}
+
+// ──────────────────────────── StatServ ────────────────────────────
+
+// StatServInfo shows network statistics.
+func (c *IRCCore) StatServInfo() {
+	c.sendRaw("PRIVMSG StatServ :INFO")
+}
+
+// StatServAkill shows akill statistics.
+func (c *IRCCore) StatServAkill() {
+	c.sendRaw("PRIVMSG StatServ :AKILL")
+}

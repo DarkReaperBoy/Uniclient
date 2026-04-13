@@ -1,6 +1,6 @@
 ## Phase 11: IRC — DONE (core), NOT ADDED list below
 
-245 exported methods, ~4,473 lines. ~104 more identified but not added. Pure Go IRC client (RFC 1459/2812 + IRCv3 + CTCP + DCC + services). No external deps.
+340 exported methods, ~5,700 lines. All 95 additional methods implemented (not yet tested). Pure Go IRC client (RFC 1459/2812 + IRCv3 + CTCP + DCC + services). No external deps.
 
 ### Core Interface (55/55)
 
@@ -336,141 +336,139 @@ Libera.Chat, Rizon, OFTC, EFNet, UnderNet, QuakeNet — all pass.
 
 ---
 
-### Not Added in Core
-
-Methods found in the IRC protocol ecosystem (RFC 1459/2812, IRCv3, services, extensions) but not yet implemented. ~90 methods total.
+### Extended Methods (95 — all implemented, not yet tested)
 
 #### RFC Commands (6)
 
-- [ ] CONNECT — request server link (oper only)
-- [ ] DIE — shutdown server (oper only)
-- [ ] REHASH — reload server config (oper only)
-- [ ] RESTART — restart server (oper only)
-- [ ] SERVICE — register a service
-- [ ] NJOIN — server-to-server channel burst (server-only)
+- [x] CONNECT — request server link (oper only)
+- [x] DIE — shutdown server (oper only)
+- [x] REHASH — reload server config (oper only)
+- [x] RESTART — restart server (oper only)
+- [x] SERVICE — register a service
+- [x] NJOIN — server-to-server channel burst (server-only)
 
 #### IRCv3 Extensions (5)
 
-- [ ] SETNAME — change realname without reconnect
-- [ ] ChatHistoryBetween — CHATHISTORY BETWEEN two timestamps/msgids
-- [ ] BATCH — start/end batch processing
-- [ ] RENAME — handle channel rename events
-- [ ] STARTTLS — upgrade plain connection to TLS
+- [x] SETNAME — change realname without reconnect
+- [x] ChatHistoryBetween — CHATHISTORY BETWEEN two timestamps/msgids
+- [x] BATCH — start/end batch processing
+- [x] RENAME — handle channel rename events
+- [x] STARTTLS — upgrade plain connection to TLS
 
 #### DCC Extended (9)
 
-- [ ] DCCSecureSend — DCC SSEND (TLS file transfer)
-- [ ] DCCSecureChat — DCC SCHAT (TLS chat)
-- [ ] XDCCSend — XDCC SEND (request file from bot)
-- [ ] XDCCList — XDCC LIST (list available packs)
-- [ ] XDCCBatch — XDCC BATCH (request multiple packs)
-- [ ] XDCCCancel — XDCC CANCEL (cancel transfer)
-- [ ] XDCCRemove — XDCC REMOVE (remove pack — bot owner)
-- [ ] XDCCInfo — XDCC INFO (pack details)
-- [ ] XDCCSearch — XDCC SEARCH (search packs)
+- [x] DCCSecureSend — DCC SSEND (TLS file transfer)
+- [x] DCCSecureChat — DCC SCHAT (TLS chat)
+- [x] XDCCSend — XDCC SEND (request file from bot)
+- [x] XDCCList — XDCC LIST (list available packs)
+- [x] XDCCBatch — XDCC BATCH (request multiple packs)
+- [x] XDCCCancel — XDCC CANCEL (cancel transfer)
+- [x] XDCCRemove — XDCC REMOVE (remove pack — bot owner)
+- [x] XDCCInfo — XDCC INFO (pack details)
+- [x] XDCCSearch — XDCC SEARCH (search packs)
 
 #### CTCP Extended (3)
 
-- [ ] CTCPFinger — CTCP FINGER query/reply
-- [ ] CTCPSource — CTCP SOURCE query/reply
-- [ ] CTCPUserinfo — CTCP USERINFO query/reply
+- [x] CTCPFinger — CTCP FINGER query/reply
+- [x] CTCPSource — CTCP SOURCE query/reply
+- [x] CTCPUserinfo — CTCP USERINFO query/reply
 
 #### NickServ Extended (8)
 
-- [ ] NickServRegain — recover + change nick in one step
-- [ ] NickServGList — list nicks in group
-- [ ] NickServConfirm — email verification
-- [ ] NickServSuspend — suspend nick (oper only)
-- [ ] NickServUnsuspend — unsuspend nick (oper only)
-- [ ] NickServForbid — forbid nick registration (oper only)
-- [ ] NickServList — search registered nicks (oper only)
-- [ ] NickServSaSet — admin-set nick options (oper only)
+- [x] NickServRegain — recover + change nick in one step
+- [x] NickServGList — list nicks in group
+- [x] NickServConfirm — email verification
+- [x] NickServSuspend — suspend nick (oper only)
+- [x] NickServUnsuspend — unsuspend nick (oper only)
+- [x] NickServForbid — forbid nick registration (oper only)
+- [x] NickServList — search registered nicks (oper only)
+- [x] NickServSaSet — admin-set nick options (oper only)
 
 #### ChanServ Extended (7)
 
-- [ ] ChanServAppendTopic — append to channel topic
-- [ ] ChanServLevels — manage access level definitions
-- [ ] ChanServLog — view channel action log
-- [ ] ChanServCount — count access list entries
-- [ ] ChanServSuspend — suspend channel (oper only)
-- [ ] ChanServUnsuspend — unsuspend channel (oper only)
-- [ ] ChanServForbid — forbid channel registration (oper only)
+- [x] ChanServAppendTopic — append to channel topic
+- [x] ChanServLevels — manage access level definitions
+- [x] ChanServLog — view channel action log
+- [x] ChanServCount — count access list entries
+- [x] ChanServSuspend — suspend channel (oper only)
+- [x] ChanServUnsuspend — unsuspend channel (oper only)
+- [x] ChanServForbid — forbid channel registration (oper only)
 
 #### MemoServ Extended (4)
 
-- [ ] MemoServSendGroup — send memo to nick group
-- [ ] MemoServSendOps — send memo to channel ops
-- [ ] MemoServForward — forward memo to another user
-- [ ] MemoServStaff — send memo to all staff (oper only)
+- [x] MemoServSendGroup — send memo to nick group
+- [x] MemoServSendOps — send memo to channel ops
+- [x] MemoServForward — forward memo to another user
+- [x] MemoServStaff — send memo to all staff (oper only)
 
 #### HostServ Extended (8)
 
-- [ ] HostServList — list own vhosts
-- [ ] HostServSet — assign vhost to nick (oper only)
-- [ ] HostServSetAll — assign vhost to nick group (oper only)
-- [ ] HostServDel — remove vhost from nick (oper only)
-- [ ] HostServDelAll — remove vhost from nick group (oper only)
-- [ ] HostServActivate — approve vhost request (oper only)
-- [ ] HostServReject — reject vhost request (oper only)
-- [ ] HostServWaiting — list pending vhost requests (oper only)
+- [x] HostServList — list own vhosts
+- [x] HostServSet — assign vhost to nick (oper only)
+- [x] HostServSetAll — assign vhost to nick group (oper only)
+- [x] HostServDel — remove vhost from nick (oper only)
+- [x] HostServDelAll — remove vhost from nick group (oper only)
+- [x] HostServActivate — approve vhost request (oper only)
+- [x] HostServReject — reject vhost request (oper only)
+- [x] HostServWaiting — list pending vhost requests (oper only)
 
 #### BotServ Extended (5)
 
-- [ ] BotServBotAdd — create a bot (oper only)
-- [ ] BotServBotDel — delete a bot (oper only)
-- [ ] BotServBotChange — modify bot nick/ident/host (oper only)
-- [ ] BotServBadwords — manage bad word filter list
-- [ ] BotServKickConfig — configure auto-kick triggers
-- [ ] BotServSet — configure bot channel settings
+- [x] BotServBotAdd — create a bot (oper only)
+- [x] BotServBotDel — delete a bot (oper only)
+- [x] BotServBotChange — modify bot nick/ident/host (oper only)
+- [x] BotServBadwords — manage bad word filter list
+- [x] BotServKickConfig — configure auto-kick triggers
+- [x] BotServSet — configure bot channel settings
 
 #### OperServ (12) — all oper only
 
-- [ ] OperServAkill — network-wide K-line (ban)
-- [ ] OperServSqline — nick/channel quarantine
-- [ ] OperServSnline — realname ban
-- [ ] OperServSession — view/manage session limits
-- [ ] OperServNoop — disable O-lines on a server
-- [ ] OperServJupe — fake/quarantine a server
-- [ ] OperServGlobal — send global notice to all users
-- [ ] OperServDefcon — set network defense level
-- [ ] OperServStats — services statistics
-- [ ] OperServReload — reload services config
-- [ ] OperServShutdown — shutdown services
-- [ ] OperServRestart — restart services
+- [x] OperServAkill — network-wide K-line (ban)
+- [x] OperServSqline — nick/channel quarantine
+- [x] OperServSnline — realname ban
+- [x] OperServSession — view/manage session limits
+- [x] OperServNoop — disable O-lines on a server
+- [x] OperServJupe — fake/quarantine a server
+- [x] OperServGlobal — send global notice to all users
+- [x] OperServDefcon — set network defense level
+- [x] OperServStats — services statistics
+- [x] OperServReload — reload services config
+- [x] OperServShutdown — shutdown services
+- [x] OperServRestart — restart services
 
 #### Server Extensions (10)
 
-- [ ] SETHOST — set own virtual host (oper only)
-- [ ] CHGHOST — change another user's host (oper only)
-- [ ] CHGIDENT — change another user's ident (oper only)
-- [ ] CHGNAME — change another user's realname (oper only)
-- [ ] SAJOIN — force a user to join a channel (oper only)
-- [ ] SAPART — force a user to part a channel (oper only)
-- [ ] SANICK — force a user to change nick (oper only)
-- [ ] SAMODE — force a mode change on channel/user (oper only)
-- [ ] GLOBOPS / CHATOPS / LOCOPS — oper-only broadcast messages
-- [ ] VHOST — set own virtual host (user command, UnrealIRCd)
+- [x] SETHOST — set own virtual host (oper only)
+- [x] CHGHOST — change another user's host (oper only)
+- [x] CHGIDENT — change another user's ident (oper only)
+- [x] CHGNAME — change another user's realname (oper only)
+- [x] SAJOIN — force a user to join a channel (oper only)
+- [x] SAPART — force a user to part a channel (oper only)
+- [x] SANICK — force a user to change nick (oper only)
+- [x] SAMODE — force a mode change on channel/user (oper only)
+- [x] GLOBOPS / CHATOPS / LOCOPS — oper-only broadcast messages
+- [x] VHOST — set own virtual host (user command, UnrealIRCd)
 
-#### IRCv3 Draft Extensions (not added)
+#### IRCv3 Draft Extensions (3)
 
-- [ ] BounceListNetworks / BouncerBind — IRCv3 draft/bouncer for multi-network bouncers
-- [ ] Resume — IRCv3 draft/resume, reconnect without losing state
-- [ ] WebPushRegister / WebPushUnregister — IRCv3 draft/webpush notifications
+- [x] BounceListNetworks / BouncerBind — IRCv3 draft/bouncer for multi-network bouncers
+- [x] Resume — IRCv3 draft/resume, reconnect without losing state
+- [x] WebPushRegister / WebPushUnregister — IRCv3 draft/webpush notifications
 
-#### IRCd-Specific Oper Commands (not added)
+#### IRCd-Specific Oper Commands (4)
 
-- [ ] GLine / GZLine / ZLine — network-wide IP bans (UnrealIRCd/InspIRCd)
-- [ ] Shun — silence a user network-wide (UnrealIRCd)
-- [ ] KLine — server-local ban (distinct from AKILL)
-- [ ] Check — inspect user/channel details (InspIRCd oper)
+- [x] GLine / GZLine / ZLine — network-wide IP bans (UnrealIRCd/InspIRCd)
+- [x] Shun — silence a user network-wide (UnrealIRCd)
+- [x] KLine — server-local ban (distinct from AKILL)
+- [x] Check — inspect user/channel details (InspIRCd oper)
 
-#### Services: GroupServ (not added — Atheme)
+#### Services: GroupServ (3 — Atheme)
 
-- [ ] GroupServInfo — info about a group
-- [ ] GroupServJoin / GroupServLeave — join/leave a group
-- [ ] GroupServFlags — manage group flags
+- [x] GroupServInfo — info about a group
+- [x] GroupServJoin / GroupServLeave — join/leave a group
+- [x] GroupServFlags — manage group flags
 
-#### Services: StatServ (not added)
+#### Services: StatServ (2)
 
-- [ ] StatServInfo — network statistics
-- [ ] StatServAkill — akill statistics
+- [x] StatServInfo — network statistics
+- [x] StatServAkill — akill statistics
