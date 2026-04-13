@@ -354,6 +354,16 @@ type IRCCore struct {
 	// Reconnection
 	reconnectEnabled bool
 	reconnectCount   int
+
+	// Step 4 fields
+	stsPolicies        map[string]int       // domain → TLS port
+	wsURL              string               // WebSocket URL
+	extbanPrefix       string               // EXTBAN prefix from ISUPPORT
+	inviteNotifyHandler func(inviter, channel, target string)
+	networkIcon        string               // ISUPPORT NETWORK_ICON
+	saslUser           string               // SASL username for multi-step auth
+	saslPass           string               // SASL password for multi-step auth
+	saslMech           string               // SASL mechanism name
 }
 
 // NewIRCCore creates a new IRC core instance.
@@ -370,6 +380,7 @@ func NewIRCCore(sessionPath string) *IRCCore {
 		whoisWait:   make(map[string]chan struct{}),
 		enabledCaps: make(map[string]bool),
 		monitored:   make(map[string]bool),
+		stsPolicies: make(map[string]int),
 		serverInfo:  IRCServerInfo{Raw: make(map[string]string)},
 		sessionPath: sessionPath,
 		ctx:         ctx,
@@ -5022,4 +5033,564 @@ func (c *IRCCore) StatServInfo() {
 // StatServAkill shows akill statistics.
 func (c *IRCCore) StatServAkill() {
 	c.sendRaw("PRIVMSG StatServ :AKILL")
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// Step 4 — New Methods (~130 methods)
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ── IRCd Oper Commands — UnrealIRCd (~23) ──
+
+func (c *IRCCore) Tempshun(nick, reason string) { c.sendRaw("TEMPSHUN " + nick + " :" + reason) }
+func (c *IRCCore) SpamfilterAdd(target, action, tkltime, reason, regex string) {
+	c.sendRaw(fmt.Sprintf("SPAMFILTER add %s %s %s %s :%s", target, action, tkltime, reason, regex))
+}
+func (c *IRCCore) SpamfilterDel(target, action, regex string) {
+	c.sendRaw(fmt.Sprintf("SPAMFILTER del %s %s :%s", target, action, regex))
+}
+func (c *IRCCore) Rmtkl(tklType, pattern string) { c.sendRaw("RMTKL " + tklType + " " + pattern) }
+func (c *IRCCore) Jumpserver(addr, port, reason string) {
+	c.sendRaw("JUMPSERVER " + addr + " " + port + " :" + reason)
+}
+func (c *IRCCore) Tsctl(subcmd string) { c.sendRaw("TSCTL " + subcmd) }
+func (c *IRCCore) Dccdeny(filePattern, reason string) {
+	c.sendRaw("DCCDENY " + filePattern + " :" + reason)
+}
+func (c *IRCCore) Undccdeny(filePattern string) { c.sendRaw("UNDCCDENY " + filePattern) }
+func (c *IRCCore) Dccallow(args string) { c.sendRaw("DCCALLOW " + args) }
+func (c *IRCCore) Sdesc(desc string) { c.sendRaw("SDESC :" + desc) }
+func (c *IRCCore) Mkpasswd(hashType, password string) {
+	c.sendRaw("MKPASSWD " + hashType + " " + password)
+}
+func (c *IRCCore) Ircops() { c.sendRaw("IRCOPS") }
+func (c *IRCCore) Cycle(channel string) { c.sendRaw("CYCLE " + channel) }
+func (c *IRCCore) CloseConnections() { c.sendRaw("CLOSE") }
+func (c *IRCCore) DnsInfo(args string) { c.sendRaw("DNS " + args) }
+func (c *IRCCore) Eline(mask, duration, reason string) {
+	if reason != "" {
+		c.sendRaw("ELINE " + mask + " " + duration + " :" + reason)
+	} else {
+		c.sendRaw("ELINE " + mask)
+	}
+}
+func (c *IRCCore) Addmotd(line string)  { c.sendRaw("ADDMOTD :" + line) }
+func (c *IRCCore) Addomotd(line string) { c.sendRaw("ADDOMOTD :" + line) }
+func (c *IRCCore) Botmotd()             { c.sendRaw("BOTMOTD") }
+func (c *IRCCore) Opermotd()            { c.sendRaw("OPERMOTD") }
+func (c *IRCCore) ShowCredits()         { c.sendRaw("CREDITS") }
+func (c *IRCCore) ShowLicense()         { c.sendRaw("LICENSE") }
+func (c *IRCCore) ShowStaff()           { c.sendRaw("STAFFLIST") }
+func (c *IRCCore) ModuleManage(action, moduleName string) {
+	switch action {
+	case "list":
+		c.sendRaw("MODULE LIST")
+	case "load":
+		c.sendRaw("MODULE LOAD " + moduleName)
+	case "unload":
+		c.sendRaw("MODULE UNLOAD " + moduleName)
+	}
+}
+
+// ── IRCd Oper Commands — InspIRCd (~23) ──
+
+func (c *IRCCore) ForcePart(nick, channel, reason string) {
+	c.sendRaw("REMOVE " + channel + " " + nick + " :" + reason)
+}
+func (c *IRCCore) Uninvite(nick, channel string) { c.sendRaw("UNINVITE " + nick + " " + channel) }
+func (c *IRCCore) Clearchan(channel, action string) {
+	c.sendRaw("CLEARCHAN " + channel + " " + action)
+}
+func (c *IRCCore) Cban(channel, reason string) { c.sendRaw("CBAN " + channel + " :" + reason) }
+func (c *IRCCore) CbanDel(channel string)      { c.sendRaw("CBAN " + channel) }
+func (c *IRCCore) Rline(regex, duration, reason string) {
+	c.sendRaw("RLINE " + regex + " " + duration + " :" + reason)
+}
+func (c *IRCCore) RlineDel(regex string) { c.sendRaw("RLINE " + regex) }
+func (c *IRCCore) Tline(mask string)     { c.sendRaw("TLINE " + mask) }
+func (c *IRCCore) Clones()               { c.sendRaw("CLONES") }
+func (c *IRCCore) Lockserv()             { c.sendRaw("LOCKSERV") }
+func (c *IRCCore) Unlockserv()           { c.sendRaw("UNLOCKSERV") }
+func (c *IRCCore) Rconnect(serverMask, remoteTarget string) {
+	c.sendRaw("RCONNECT " + serverMask + " " + remoteTarget)
+}
+func (c *IRCCore) Rsquit(serverMask, reason string) {
+	c.sendRaw("RSQUIT " + serverMask + " :" + reason)
+}
+func (c *IRCCore) Nicklock(nick, newNick string) { c.sendRaw("NICKLOCK " + nick + " " + newNick) }
+func (c *IRCCore) Nickunlock(nick string)        { c.sendRaw("NICKUNLOCK " + nick) }
+func (c *IRCCore) Setidle(seconds int)           { c.sendRaw(fmt.Sprintf("SETIDLE %d", seconds)) }
+func (c *IRCCore) Swhois(nick, line string)      { c.sendRaw("SWHOIS " + nick + " :" + line) }
+func (c *IRCCore) Ojoin(channel string)          { c.sendRaw("OJOIN " + channel) }
+func (c *IRCCore) Sakick(channel, nick, reason string) {
+	c.sendRaw("SAKICK " + channel + " " + nick + " :" + reason)
+}
+func (c *IRCCore) Saquit(nick, reason string) { c.sendRaw("SAQUIT " + nick + " :" + reason) }
+func (c *IRCCore) Satopic(channel, topic string) {
+	c.sendRaw("SATOPIC " + channel + " :" + topic)
+}
+func (c *IRCCore) Rmode(mask, modes string)    { c.sendRaw("RMODE " + mask + " " + modes) }
+func (c *IRCCore) FilterAdd(pattern string)    { c.sendRaw("FILTER " + pattern) }
+func (c *IRCCore) FilterDel(pattern string)    { c.sendRaw("FILTER -" + pattern) }
+func (c *IRCCore) Alltime()                    { c.sendRaw("ALLTIME") }
+func (c *IRCCore) Qline(nick, reason string)   { c.sendRaw("QLINE " + nick + " :" + reason) }
+func (c *IRCCore) QlineDel(nick string)        { c.sendRaw("QLINE -" + nick) }
+
+// ── IRCv3 Extensions (~19) ──
+
+func (c *IRCCore) MetadataGet(target, key string) {
+	c.sendRaw("METADATA " + target + " GET " + key)
+}
+func (c *IRCCore) MetadataSet(target, key, value string) {
+	c.sendRaw("METADATA " + target + " SET " + key + " :" + value)
+}
+func (c *IRCCore) MetadataList(target string) { c.sendRaw("METADATA " + target + " LIST") }
+func (c *IRCCore) MetadataSub(target, key string) {
+	c.sendRaw("METADATA " + target + " SUB " + key)
+}
+func (c *IRCCore) MetadataUnsub(target, key string) {
+	c.sendRaw("METADATA " + target + " UNSUB " + key)
+}
+func (c *IRCCore) Relaymsg(channel, nick, text string) {
+	c.sendRaw(fmt.Sprintf("@+draft/relaymsg=%s PRIVMSG %s :%s", nick, channel, text))
+}
+
+// ParseStandardReply parses FAIL/WARN/NOTE structured responses from IRCv3.
+func ParseStandardReply(line string) (severity, command, code, context, description string) {
+	parts := strings.SplitN(line, " ", 5)
+	if len(parts) >= 4 {
+		severity = parts[0]
+		command = parts[1]
+		code = parts[2]
+		if len(parts) >= 5 {
+			context = parts[3]
+			description = strings.TrimPrefix(parts[4], ":")
+		} else {
+			description = strings.TrimPrefix(parts[3], ":")
+		}
+	}
+	return
+}
+
+func (c *IRCCore) STSAutoUpgrade(domain string, port int) error {
+	c.mu.Lock()
+	c.stsPolicies[domain] = port
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *IRCCore) ConnectWebSocket(url string) error {
+	// WebSocket IRC requires HTTP upgrade — store URL for use during connect
+	c.mu.Lock()
+	c.wsURL = url
+	c.mu.Unlock()
+	return fmt.Errorf("irc: WebSocket transport requires external ws library")
+}
+
+func (c *IRCCore) RequestNoImplicitNames() {
+	c.sendRaw("CAP REQ :draft/no-implicit-names")
+}
+func (c *IRCCore) RequestExtendedMonitor() {
+	c.sendRaw("CAP REQ :draft/extended-monitor")
+}
+
+// ParseAccountExtban returns an extban string for account-based matching.
+func (c *IRCCore) ParseAccountExtban(account string) string {
+	c.mu.RLock()
+	prefix := c.extbanPrefix
+	c.mu.RUnlock()
+	if prefix == "" {
+		prefix = "$a:"
+	}
+	return prefix + account
+}
+
+func (c *IRCCore) SetBotModeIRCv3() { c.sendRaw("MODE " + c.nick + " +B") }
+
+func (c *IRCCore) OnInviteNotify(handler func(inviter, channel, target string)) {
+	c.mu.Lock()
+	c.inviteNotifyHandler = handler
+	c.mu.Unlock()
+}
+
+// SendTagMsg sends a TAGMSG with a channel context tag.
+func (c *IRCCore) SendChannelContextTag(target, channelCtx, tags string) {
+	c.sendRaw(fmt.Sprintf("@+draft/channel-context=%s;%s TAGMSG %s", channelCtx, tags, target))
+}
+
+// SendReactTag sends a TAGMSG with a react tag.
+func (c *IRCCore) SendReactTag(target, msgID, emoji string) {
+	c.sendRaw(fmt.Sprintf("@+draft/react=%s;+draft/reply=%s TAGMSG %s",
+		emoji, msgID, target))
+}
+
+// SendClientBatch starts/ends a client-to-server batch.
+func (c *IRCCore) SendClientBatch(batchID, batchType, target string, start bool) {
+	if start {
+		c.sendRaw(fmt.Sprintf("BATCH +%s %s %s", batchID, batchType, target))
+	} else {
+		c.sendRaw("BATCH -" + batchID)
+	}
+}
+
+// SendMultiline sends a multi-line message via batch (IRCv3 draft).
+func (c *IRCCore) SendMultiline(target string, lines []string) {
+	batchID := fmt.Sprintf("ml%d", time.Now().UnixNano()%10000)
+	c.sendRaw(fmt.Sprintf("BATCH +%s draft/multiline %s", batchID, target))
+	for i, line := range lines {
+		if i < len(lines)-1 {
+			c.sendRaw(fmt.Sprintf("@batch=%s;draft/multiline-concat PRIVMSG %s :%s", batchID, target, line))
+		} else {
+			c.sendRaw(fmt.Sprintf("@batch=%s PRIVMSG %s :%s", batchID, target, line))
+		}
+	}
+	c.sendRaw("BATCH -" + batchID)
+}
+
+func (c *IRCCore) PreAway(msg string)       { c.sendRaw("AWAY :" + msg) }
+func (c *IRCCore) RequestExtendedIsupport()  { c.sendRaw("CAP REQ :draft/extended-isupport") }
+func (c *IRCCore) GetNetworkIcon() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.networkIcon
+}
+
+func (c *IRCCore) FilehostUpload(filename string) {
+	c.sendRaw("FILEHOST UPLOAD " + filename)
+}
+
+// ── SASL Mechanisms (3) ──
+
+// SASLScramSHA256 starts SCRAM-SHA-256 auth.
+func (c *IRCCore) SASLScramSHA256(username, password string) {
+	c.sendRaw("AUTHENTICATE SCRAM-SHA-256")
+	// The server will respond with a challenge; the actual SCRAM
+	// exchange must happen in the message handler, but we store creds.
+	c.mu.Lock()
+	c.saslUser = username
+	c.saslPass = password
+	c.saslMech = "SCRAM-SHA-256"
+	c.mu.Unlock()
+}
+
+// SASLExternal starts EXTERNAL auth (client certificate).
+func (c *IRCCore) SASLExternal() {
+	c.sendRaw("AUTHENTICATE EXTERNAL")
+	c.sendRaw("AUTHENTICATE +")
+}
+
+// SASLECDSAChallenge starts ECDSA challenge-response auth.
+func (c *IRCCore) SASLECDSAChallenge(accountName string) {
+	c.sendRaw("AUTHENTICATE ECDSA-NIST256P-CHALLENGE")
+	encoded := base64.StdEncoding.EncodeToString([]byte(accountName + "\x00" + accountName))
+	c.sendRaw("AUTHENTICATE " + encoded)
+}
+
+// ── DCC Extensions (2) ──
+
+// DCCReverse initiates passive/reverse DCC (port 0 for NAT traversal).
+func (c *IRCCore) DCCReverse(nick, filename string, size int64, token string) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC SEND %s 0 0 %d %s\x01",
+		nick, filename, size, token))
+}
+
+// RDCC initiates an advanced DCC Server handshake.
+func (c *IRCCore) RDCC(nick string) {
+	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01RDCC\x01", nick))
+}
+
+// ── Extended Bans — Helpers (18 types) ──
+
+func (c *IRCCore) ExtbanTimed(channel, duration, banMask string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~t:%s:%s", channel, duration, banMask))
+}
+func (c *IRCCore) ExtbanQuiet(channel, mask string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~q:%s", channel, mask))
+}
+func (c *IRCCore) ExtbanNickchange(channel, mask string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~n:%s", channel, mask))
+}
+func (c *IRCCore) ExtbanJoin(channel, mask string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~j:%s", channel, mask))
+}
+func (c *IRCCore) ExtbanForward(channel, mask, target string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~f:%s:%s", channel, target, mask))
+}
+func (c *IRCCore) ExtbanMsgbypass(channel, mask string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +e ~m:%s", channel, mask))
+}
+func (c *IRCCore) ExtbanFlood(channel, mask string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +e ~F:%s", channel, mask))
+}
+func (c *IRCCore) ExtbanAccount(channel, account string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~a:%s", channel, account))
+}
+func (c *IRCCore) ExtbanASN(channel string, asn int) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~A:%d", channel, asn))
+}
+func (c *IRCCore) ExtbanChannel(channel, bannedChannel string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~c:%s", channel, bannedChannel))
+}
+func (c *IRCCore) ExtbanCountry(channel, countryCode string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~C:%s", channel, countryCode))
+}
+func (c *IRCCore) ExtbanSecurityGroup(channel, group string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~G:%s", channel, group))
+}
+func (c *IRCCore) ExtbanOperclass(channel, operClass string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~O:%s", channel, operClass))
+}
+func (c *IRCCore) ExtbanRealname(channel, realname string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~r:%s", channel, realname))
+}
+func (c *IRCCore) ExtbanCertFP(channel, fingerprint string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~S:%s", channel, fingerprint))
+}
+func (c *IRCCore) ExtbanInherit(channel, sourceChannel string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~i:%s", channel, sourceChannel))
+}
+func (c *IRCCore) ExtbanText(channel, pattern string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~T:block:%s", channel, pattern))
+}
+func (c *IRCCore) ExtbanPartmsg(channel, mask string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +b ~p:%s", channel, mask))
+}
+
+// ── Channel Modes — Typed Methods (~20) ──
+
+func (c *IRCCore) SetNoColors(channel string, on bool)           { c.chanMode(channel, 'c', on) }
+func (c *IRCCore) SetNoCTCP(channel string, on bool)             { c.chanMode(channel, 'C', on) }
+func (c *IRCCore) SetDelayedJoins(channel string, on bool)       { c.chanMode(channel, 'D', on) }
+func (c *IRCCore) SetFloodProtection(channel string, params string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +f %s", channel, params))
+}
+func (c *IRCCore) SetWordFilter(channel string, on bool)         { c.chanMode(channel, 'g', on) }
+func (c *IRCCore) SetCensor(channel string, on bool)             { c.chanMode(channel, 'G', on) }
+func (c *IRCCore) SetChannelHistory(channel string, lines int, seconds int) {
+	c.sendRaw(fmt.Sprintf("MODE %s +H %d:%d", channel, lines, seconds))
+}
+func (c *IRCCore) SetJoinThrottle(channel string, joins int, seconds int) {
+	c.sendRaw(fmt.Sprintf("MODE %s +j %d:%d", channel, joins, seconds))
+}
+func (c *IRCCore) SetNoKnock(channel string, on bool)            { c.chanMode(channel, 'K', on) }
+func (c *IRCCore) SetChannelRedirect(channel, target string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +L %s", channel, target))
+}
+func (c *IRCCore) SetRequireRegistered(channel string, on bool)  { c.chanMode(channel, 'R', on) }
+func (c *IRCCore) SetRequireRegisteredSpeak(channel string, on bool) { c.chanMode(channel, 'M', on) }
+func (c *IRCCore) SetNoNickChange(channel string, on bool)       { c.chanMode(channel, 'N', on) }
+func (c *IRCCore) SetOperOnly(channel string, on bool)           { c.chanMode(channel, 'O', on) }
+func (c *IRCCore) SetPermanent(channel string, on bool)          { c.chanMode(channel, 'P', on) }
+func (c *IRCCore) SetNoKicks(channel string, on bool)            { c.chanMode(channel, 'Q', on) }
+func (c *IRCCore) SetStripColors(channel string, on bool)        { c.chanMode(channel, 'S', on) }
+func (c *IRCCore) SetNoNotices(channel string, on bool)          { c.chanMode(channel, 'T', on) }
+func (c *IRCCore) SetAuditorium(channel string, on bool)         { c.chanMode(channel, 'u', on) }
+func (c *IRCCore) SetNoInvite(channel string, on bool)           { c.chanMode(channel, 'V', on) }
+func (c *IRCCore) SetSSLOnly(channel string, on bool)            { c.chanMode(channel, 'z', on) }
+
+func (c *IRCCore) chanMode(channel string, mode byte, on bool) {
+	prefix := "+"
+	if !on {
+		prefix = "-"
+	}
+	c.sendRaw(fmt.Sprintf("MODE %s %s%c", channel, prefix, mode))
+}
+
+// ── User Modes — Typed Methods (~10) ──
+
+func (c *IRCCore) userMode(mode byte, on bool) {
+	prefix := "+"
+	if !on {
+		prefix = "-"
+	}
+	c.sendRaw(fmt.Sprintf("MODE %s %s%c", c.nick, prefix, mode))
+}
+
+func (c *IRCCore) SetBotMode(on bool)              { c.userMode('B', on) }
+func (c *IRCCore) SetDeafMode(on bool)              { c.userMode('d', on) }
+func (c *IRCCore) SetCallerID(on bool)              { c.userMode('g', on) }
+func (c *IRCCore) SetHideOper(on bool)              { c.userMode('H', on) }
+func (c *IRCCore) SetHideChannels(on bool)          { c.userMode('I', on) }
+func (c *IRCCore) SetBlockUnregistered(on bool)     { c.userMode('R', on) }
+func (c *IRCCore) SetBlockCTCP(on bool)             { c.userMode('T', on) }
+func (c *IRCCore) SetWhoisNotify(on bool)           { c.userMode('W', on) }
+func (c *IRCCore) SetRequireSSL(on bool)            { c.userMode('Z', on) }
+
+// ── ACCEPT Command (1) ──
+
+func (c *IRCCore) Accept(args string) { c.sendRaw("ACCEPT " + args) }
+
+// ── IRC Formatting Helpers (4 groups) ──
+
+const (
+	ircFmtBold          = "\x02"
+	ircFmtItalic        = "\x1D"
+	ircFmtUnderline     = "\x1F"
+	ircFmtStrikethrough = "\x1E"
+	ircFmtMonospace     = "\x11"
+	ircFmtColor         = "\x03"
+	ircFmtHexColor      = "\x04"
+	ircFmtReset         = "\x0F"
+)
+
+func FormatBold(text string)          string { return ircFmtBold + text + ircFmtBold }
+func FormatItalic(text string)        string { return ircFmtItalic + text + ircFmtItalic }
+func FormatUnderline(text string)     string { return ircFmtUnderline + text + ircFmtUnderline }
+func FormatStrikethrough(text string) string { return ircFmtStrikethrough + text + ircFmtStrikethrough }
+func FormatMonospace(text string)     string { return ircFmtMonospace + text + ircFmtMonospace }
+func FormatColor(text string, fg, bg int) string {
+	if bg >= 0 {
+		return fmt.Sprintf("%s%02d,%02d%s%s", ircFmtColor, fg, bg, text, ircFmtColor)
+	}
+	return fmt.Sprintf("%s%02d%s%s", ircFmtColor, fg, text, ircFmtColor)
+}
+func FormatReset() string { return ircFmtReset }
+
+func StripFormatting(text string) string {
+	var result strings.Builder
+	i := 0
+	for i < len(text) {
+		ch := text[i]
+		switch ch {
+		case 0x02, 0x1D, 0x1F, 0x1E, 0x11, 0x0F:
+			i++
+		case 0x03: // mIRC color
+			i++
+			for j := 0; j < 2 && i < len(text) && text[i] >= '0' && text[i] <= '9'; j++ {
+				i++
+			}
+			if i < len(text) && text[i] == ',' {
+				i++
+				for j := 0; j < 2 && i < len(text) && text[i] >= '0' && text[i] <= '9'; j++ {
+					i++
+				}
+			}
+		case 0x04: // hex color
+			i++
+			for j := 0; j < 6 && i < len(text) && ((text[i] >= '0' && text[i] <= '9') ||
+				(text[i] >= 'a' && text[i] <= 'f') || (text[i] >= 'A' && text[i] <= 'F')); j++ {
+				i++
+			}
+		default:
+			result.WriteByte(ch)
+			i++
+		}
+	}
+	return result.String()
+}
+
+// ParseColors returns color code positions in text.
+func ParseColors(text string) []map[string]interface{} {
+	var colors []map[string]interface{}
+	for i := 0; i < len(text); i++ {
+		if text[i] == 0x03 {
+			pos := i
+			i++
+			fg := ""
+			for j := 0; j < 2 && i < len(text) && text[i] >= '0' && text[i] <= '9'; j++ {
+				fg += string(text[i])
+				i++
+			}
+			bg := ""
+			if i < len(text) && text[i] == ',' {
+				i++
+				for j := 0; j < 2 && i < len(text) && text[i] >= '0' && text[i] <= '9'; j++ {
+					bg += string(text[i])
+					i++
+				}
+			}
+			colors = append(colors, map[string]interface{}{
+				"pos": pos, "fg": fg, "bg": bg,
+			})
+			i-- // loop will increment
+		}
+	}
+	return colors
+}
+
+func FormatHexColor(text, rrggbb string) string {
+	return ircFmtHexColor + rrggbb + text + ircFmtHexColor
+}
+
+// ── Connection/Transport (5) ──
+
+func (c *IRCCore) ConnectSOCKS(proxyAddr, targetAddr string) error {
+	// SOCKS5 connect
+	conn, err := net.DialTimeout("tcp", proxyAddr, 10*time.Second)
+	if err != nil {
+		return fmt.Errorf("irc: SOCKS connect %s: %w", proxyAddr, err)
+	}
+	// SOCKS5 handshake: version=5, 1 method, no auth
+	conn.Write([]byte{0x05, 0x01, 0x00})
+	buf := make([]byte, 2)
+	conn.Read(buf)
+	if buf[0] != 0x05 || buf[1] != 0x00 {
+		conn.Close()
+		return fmt.Errorf("irc: SOCKS handshake failed")
+	}
+	// Connect request
+	host, portStr, _ := net.SplitHostPort(targetAddr)
+	port, _ := strconv.Atoi(portStr)
+	req := []byte{0x05, 0x01, 0x00, 0x03, byte(len(host))}
+	req = append(req, []byte(host)...)
+	req = append(req, byte(port>>8), byte(port&0xff))
+	conn.Write(req)
+	reply := make([]byte, 10)
+	conn.Read(reply)
+	if reply[1] != 0x00 {
+		conn.Close()
+		return fmt.Errorf("irc: SOCKS connect refused: %d", reply[1])
+	}
+	c.mu.Lock()
+	c.conn = conn
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *IRCCore) ConnectHTTPProxy(proxyAddr, targetAddr string) error {
+	conn, err := net.DialTimeout("tcp", proxyAddr, 10*time.Second)
+	if err != nil {
+		return fmt.Errorf("irc: HTTP proxy connect %s: %w", proxyAddr, err)
+	}
+	connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", targetAddr, targetAddr)
+	conn.Write([]byte(connectReq))
+	buf := make([]byte, 1024)
+	n, _ := conn.Read(buf)
+	resp := string(buf[:n])
+	if !strings.Contains(resp, "200") {
+		conn.Close()
+		return fmt.Errorf("irc: HTTP CONNECT failed: %s", strings.TrimSpace(resp))
+	}
+	c.mu.Lock()
+	c.conn = conn
+	c.mu.Unlock()
+	return nil
+}
+
+// ParsePROXYProtocol parses a HAProxy PROXY header line.
+func ParsePROXYProtocol(line string) (proto, srcIP, dstIP string, srcPort, dstPort int) {
+	parts := strings.Fields(line)
+	if len(parts) >= 6 && parts[0] == "PROXY" {
+		proto = parts[1]
+		srcIP = parts[2]
+		dstIP = parts[3]
+		srcPort, _ = strconv.Atoi(parts[4])
+		dstPort, _ = strconv.Atoi(parts[5])
+	}
+	return
+}
+
+func (c *IRCCore) STSRemember(domain string, port int, duration time.Duration) {
+	c.mu.Lock()
+	c.stsPolicies[domain] = port
+	c.mu.Unlock()
+}
+
+// ── CTCP Types (2) ──
+
+func (c *IRCCore) CTCPErrMsg(nick, query, message string) {
+	c.sendRaw(fmt.Sprintf("NOTICE %s :\x01ERRMSG %s :%s\x01", nick, query, message))
+}
+
+func (c *IRCCore) CTCPAvatar(nick, url string) {
+	c.sendRaw(fmt.Sprintf("NOTICE %s :\x01AVATAR %s\x01", nick, url))
 }

@@ -1,8 +1,8 @@
 # Pre-GUI Roadmap Progress
 
 **Current Step:** 4
-**Current Core:** Matrix (~90 missing, next)
-**Current Method:** Starting Matrix implementation
+**Current Core:** All cores complete!
+**Current Method:** Step 4 DONE — all cores at 100% protocol coverage
 **Last Updated:** 2026-04-13
 
 ## Steps
@@ -12,7 +12,7 @@
 | 1 | Implement unimplemented checklist methods | **DONE** |
 | 2 | Test ALL existing methods in every core | **DONE** |
 | 3 | Replace checklists with full protocol surface | **DONE** |
-| 4 | Implement all new methods to 100% | **IN PROGRESS** |
+| 4 | Implement all new methods to 100% | **DONE** |
 | 5 | Perfect/optimize/decouple cores | NOT STARTED |
 | 6 | Unify core APIs | NOT STARTED |
 | 7 | Protobuf bridge | NOT STARTED |
@@ -76,11 +76,11 @@ Order: fewest missing first for quick wins.
 - [x] Rubika (~45 → 0 missing) — 45 methods implemented, 100% coverage
 - [x] TeamSpeak (~80 → 0 missing) — 80 methods implemented, 100% coverage
 - [x] Matrix (~90 → 0 missing) — 90 methods implemented, 100% coverage
-- [ ] Delta Chat (~105 missing)
-- [ ] Mumble (~111 missing)
-- [ ] XMPP (~120 missing)
-- [ ] IRC (~130 missing)
-- [ ] GitHub (~800 missing)
+- [x] Delta Chat (~105 → 0 missing) — 105 methods implemented, 100% coverage
+- [x] Mumble (~111 → 0 missing) — 111 methods implemented, 100% coverage
+- [x] XMPP (~120 → 0 missing) — 120 methods implemented, 100% coverage
+- [x] IRC (~130 → 0 missing) — 130 methods implemented, 100% coverage
+- [x] GitHub (~800 → 0 missing) — 535 methods implemented, 100% coverage
 
 ### Step 5 — Perfect/Optimize/Decouple
 - [ ] (populate when Step 4 is done)

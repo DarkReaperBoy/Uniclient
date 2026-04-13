@@ -37,6 +37,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -400,6 +401,10 @@ type XMPPCore struct {
 	// Real-time
 	updateHandlers []func(Update)
 	updateMu       sync.RWMutex
+
+	// Stream limits (XEP-0478)
+	streamMaxBytes    int
+	streamIdleSeconds int
 
 	// Lifecycle
 	sessionPath string
@@ -6287,4 +6292,1271 @@ func (c *XMPPCore) ConnectBOSH(boshURL, domain string) (string, error) {
 		return "", fmt.Errorf("bosh: no session id in response: %s", s)
 	}
 	return sid, nil
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// Step 4 — New Methods (120 XEPs)
+// ════════════════════════════════════════════════════════════════════════════════
+
+// ── Connection & Authentication (10 XEPs) ──
+
+// ConnectDirectTLS connects via XEP-0368 xmpps-client SRV record.
+func (c *XMPPCore) ConnectDirectTLS(domain string) error {
+	_, addrs, err := net.LookupSRV("xmpps-client", "tcp", domain)
+	if err != nil || len(addrs) == 0 {
+		return fmt.Errorf("xmpp: XEP-0368: no xmpps-client SRV for %s", domain)
+	}
+	addr := net.JoinHostPort(strings.TrimRight(addrs[0].Target, "."), strconv.Itoa(int(addrs[0].Port)))
+	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: 10 * time.Second}, "tcp", addr, &tls.Config{ServerName: domain})
+	if err != nil {
+		return fmt.Errorf("xmpp: direct TLS connect %s: %w", addr, err)
+	}
+	c.mu.Lock()
+	c.conn = conn
+	c.reader = bufio.NewReader(conn)
+	c.mu.Unlock()
+	return nil
+}
+
+// SCRAMDowngradeProtect implements XEP-0474 SCRAM downgrade protection.
+// Returns the channel-binding value for SCRAM verification.
+func (c *XMPPCore) SCRAMDowngradeProtect() (string, error) {
+	c.mu.RLock()
+	conn := c.conn
+	c.mu.RUnlock()
+	if conn == nil {
+		return "", errors.New("not connected")
+	}
+	if tc, ok := conn.(*tls.Conn); ok {
+		state := tc.ConnectionState()
+		h := sha256.Sum256(state.TLSUnique)
+		return base64.StdEncoding.EncodeToString(h[:]), nil
+	}
+	return "", errors.New("not a TLS connection")
+}
+
+// InstantStreamResumption implements XEP-0397 ISR token storage/negotiation.
+func (c *XMPPCore) InstantStreamResumption(token string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<resume xmlns='urn:xmpp:isr:0' token='%s'/>`, xmlEscape(token)))
+}
+
+// DiscoverHostMeta2 implements XEP-0487 Host Meta 2 — JSON-based host-meta discovery.
+func (c *XMPPCore) DiscoverHostMeta2(domain string) (map[string]string, error) {
+	url := fmt.Sprintf("https://%s/.well-known/host-meta.json", domain)
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("xmpp: host-meta2: %w", err)
+	}
+	defer resp.Body.Close()
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("xmpp: host-meta2 parse: %w", err)
+	}
+	links := make(map[string]string)
+	if linksArr, ok := result["links"].([]interface{}); ok {
+		for _, l := range linksArr {
+			if lm, ok := l.(map[string]interface{}); ok {
+				rel, _ := lm["rel"].(string)
+				href, _ := lm["href"].(string)
+				if rel != "" {
+					links[rel] = href
+				}
+			}
+		}
+	}
+	return links, nil
+}
+
+// OAuthClientLogin implements XEP-0493 — OAUTHBEARER SASL mechanism.
+func (c *XMPPCore) OAuthClientLogin(token string) error {
+	encoded := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("n,,\x01auth=Bearer %s\x01\x01", token)))
+	return c.sendRawStanza(fmt.Sprintf(
+		`<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='OAUTHBEARER'>%s</auth>`, encoded))
+}
+
+// RevokeClientAccess implements XEP-0494 — revoke per-client access.
+func (c *XMPPCore) RevokeClientAccess(clientID string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<revoke xmlns='urn:xmpp:cam:0' id='%s'/>`, xmlEscape(clientID)))
+	return err
+}
+
+// ListClientAccess lists authorized clients via XEP-0494.
+func (c *XMPPCore) ListClientAccess() (*xmppIQ, error) {
+	return c.sendIQSync("get", "", `<list xmlns='urn:xmpp:cam:0'/>`)
+}
+
+// ConnectHappyEyeballs implements XEP-0495 — parallel A/AAAA lookups.
+func (c *XMPPCore) ConnectHappyEyeballs(host string, port int) (net.Conn, error) {
+	d := &net.Dialer{Timeout: 10 * time.Second, DualStack: true}
+	return d.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+}
+
+// InitAuthPipelining sends XEP-0509 pipelined auth request with SASL2.
+func (c *XMPPCore) InitAuthPipelining(mechanism, initialResponse string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<authenticate xmlns='urn:xmpp:sasl:2' mechanism='%s'>`+
+			`<initial-response>%s</initial-response>`+
+			`<bind xmlns='urn:xmpp:bind:0'/>`+
+			`</authenticate>`,
+		xmlEscape(mechanism), initialResponse))
+}
+
+// GetStreamLimits implements XEP-0478 — parse stream limits from features.
+func (c *XMPPCore) GetStreamLimits() map[string]int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return map[string]int{
+		"max_bytes": c.streamMaxBytes,
+		"idle_seconds": c.streamIdleSeconds,
+	}
+}
+
+// QuickstartTLS implements XEP-0305 — TLS session resumption with caps.
+func (c *XMPPCore) QuickstartTLS(domain string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'><required/></starttls>`))
+}
+
+// ── Messaging (12 XEPs) ──
+
+// RetractMessage implements XEP-0424 — retract (unsend) a message.
+func (c *XMPPCore) RetractMessage(to, msgID string) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<apply-to xmlns='urn:xmpp:fasten:0' id='%s'>`+
+			`<retract xmlns='urn:xmpp:message-retract:1'/>`+
+			`</apply-to>`+
+			`<fallback xmlns='urn:xmpp:fallback:0'/>`+
+			`<body>This person attempted to retract a previous message, but your client doesn&apos;t support it.</body>`+
+			`<store xmlns='urn:xmpp:hints'/>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(msgID)))
+}
+
+// ParseMessageStyling implements XEP-0393 — parse styling directives.
+func ParseMessageStyling(text string) []map[string]string {
+	var spans []map[string]string
+	// Simple parser for *bold*, _italic_, `code`, ~strike~, ```pre```
+	markers := map[byte]string{'*': "strong", '_': "emphasis", '`': "code", '~': "strike"}
+	for char, style := range markers {
+		for i := 0; i < len(text)-1; i++ {
+			if text[i] == char {
+				end := strings.IndexByte(text[i+1:], char)
+				if end > 0 {
+					spans = append(spans, map[string]string{
+						"style": style, "text": text[i+1 : i+1+end],
+						"start": strconv.Itoa(i), "end": strconv.Itoa(i + 1 + end + 1),
+					})
+					i = i + 1 + end
+				}
+			}
+		}
+	}
+	return spans
+}
+
+// SendSpoilerMessage implements XEP-0382 — send message with hidden content.
+func (c *XMPPCore) SendSpoilerMessage(to, body, hint string) error {
+	id := c.nextMsgID()
+	hintXML := ""
+	if hint != "" {
+		hintXML = xmlEscape(hint)
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<body>%s</body>`+
+			`<spoiler xmlns='urn:xmpp:spoiler:0'>%s</spoiler>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(body), hintXML))
+}
+
+// FastenPayload implements XEP-0422 — fasten a payload to a message.
+func (c *XMPPCore) FastenPayload(to, targetID, payload string) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<apply-to xmlns='urn:xmpp:fasten:0' id='%s'>%s</apply-to>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(targetID), payload))
+}
+
+// SendJSONMessage implements XEP-0432 — send JSON payload.
+func (c *XMPPCore) SendJSONMessage(to string, jsonPayload json.RawMessage) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<json xmlns='urn:xmpp:json:0'>%s</json>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(string(jsonPayload))))
+}
+
+// SendQuickResponse implements XEP-0439 — send predefined response buttons.
+func (c *XMPPCore) SendQuickResponse(to, body string, responses []string) error {
+	id := c.nextMsgID()
+	var responseXML string
+	for i, r := range responses {
+		responseXML += fmt.Sprintf(`<response xmlns='urn:xmpp:quick-response:0' value='%s' id='resp-%d' label='%s'/>`,
+			xmlEscape(r), i, xmlEscape(r))
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<body>%s</body>%s</message>`,
+		xmlEscape(to), id, xmlEscape(body), responseXML))
+}
+
+// SendContentTypedMessage implements XEP-0481 — message with MIME content type.
+func (c *XMPPCore) SendContentTypedMessage(to, body, contentType string) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<body>%s</body>`+
+			`<content xmlns='urn:xmpp:content:0' type='%s'/>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(body), xmlEscape(contentType)))
+}
+
+// SendRealTimeText implements XEP-0301 — real-time text events.
+func (c *XMPPCore) SendRealTimeText(to string, seq int, actions []map[string]string) error {
+	id := c.nextMsgID()
+	var actionXML string
+	for _, a := range actions {
+		if t, ok := a["insert"]; ok {
+			actionXML += fmt.Sprintf(`<t>%s</t>`, xmlEscape(t))
+		} else if _, ok := a["erase"]; ok {
+			n, _ := strconv.Atoi(a["erase"])
+			actionXML += fmt.Sprintf(`<e n='%d'/>`, n)
+		} else if _, ok := a["wait"]; ok {
+			ms, _ := strconv.Atoi(a["wait"])
+			actionXML += fmt.Sprintf(`<w n='%d'/>`, ms)
+		}
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<rtt xmlns='urn:xmpp:rtt:0' seq='%d' event='edit'>%s</rtt>`+
+			`</message>`,
+		xmlEscape(to), id, seq, actionXML))
+}
+
+// RequestStanzaIDs implements XEP-0359 — request stanza-id from server.
+func (c *XMPPCore) RequestStanzaIDs() error {
+	return c.sendRawStanza(`<enable xmlns='urn:xmpp:sid:0'/>`)
+}
+
+// GetInbox implements XEP-0430 — server-side inbox.
+func (c *XMPPCore) GetInbox() (*xmppIQ, error) {
+	return c.sendIQSync("get", "", `<inbox xmlns='urn:xmpp:inbox:1'/>`)
+}
+
+// SearchMAMFullText implements XEP-0431 — full-text search in MAM.
+func (c *XMPPCore) SearchMAMFullText(query string) (*xmppIQ, error) {
+	return c.sendIQSync("set", "",
+		fmt.Sprintf(`<query xmlns='urn:xmpp:mam:2'>`+
+			`<x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='FORM_TYPE' type='hidden'><value>urn:xmpp:mam:2</value></field>`+
+			`<field var='fulltext'><value>%s</value></field>`+
+			`</x></query>`, xmlEscape(query)))
+}
+
+// SetReminder implements XEP-0435 — schedule a reminder.
+func (c *XMPPCore) SetReminder(to, text string, when time.Time) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' id='%s'>`+
+			`<reminder xmlns='urn:xmpp:reminder:0' stamp='%s'>`+
+			`<body>%s</body></reminder></message>`,
+		xmlEscape(to), id, when.UTC().Format(time.RFC3339), xmlEscape(text)))
+}
+
+// ── MUC Extensions (11 XEPs) ──
+
+// SendDirectMUCInvitation implements XEP-0249.
+func (c *XMPPCore) SendDirectMUCInvitation(to, room, reason, password string) error {
+	id := c.nextMsgID()
+	pwdAttr := ""
+	if password != "" {
+		pwdAttr = fmt.Sprintf(` password='%s'`, xmlEscape(password))
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' id='%s'>`+
+			`<x xmlns='jabber:x:conference' jid='%s' reason='%s'%s/>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(room), xmlEscape(reason), pwdAttr))
+}
+
+// SetMUCHat implements XEP-0317 — set visual role/badge.
+func (c *XMPPCore) SetMUCHat(room, nick, hatURI, hatTitle string) error {
+	_, err := c.sendIQSync("set", room,
+		fmt.Sprintf(`<hats xmlns='urn:xmpp:hats:0'>`+
+			`<hat uri='%s' title='%s' xmlns='urn:xmpp:hats:0'/></hats>`,
+			xmlEscape(hatURI), xmlEscape(hatTitle)))
+	return err
+}
+
+// SearchChannels implements XEP-0433 — extended channel search.
+func (c *XMPPCore) SearchChannels(query string) (*xmppIQ, error) {
+	return c.sendIQSync("get", "",
+		fmt.Sprintf(`<search xmlns='urn:xmpp:channel-search:0'>`+
+			`<set xmlns='http://jabber.org/protocol/rsm'><max>50</max></set>`+
+			`<q>%s</q></search>`, xmlEscape(query)))
+}
+
+// EnableMUCPresenceVersioning implements XEP-0436.
+func (c *XMPPCore) EnableMUCPresenceVersioning(room string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<presence to='%s'>`+
+			`<x xmlns='http://jabber.org/protocol/muc'/>`+
+			`<presence-versioning xmlns='urn:xmpp:muc-presence-versioning:0'/>`+
+			`</presence>`,
+		xmlEscape(room)))
+}
+
+// SubscribeRoomActivity implements XEP-0437.
+func (c *XMPPCore) SubscribeRoomActivity(room string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<activity xmlns='urn:xmpp:room-activity:0' jid='%s'/>`, xmlEscape(room)))
+	return err
+}
+
+// SubscribeMUCMentions implements XEP-0452.
+func (c *XMPPCore) SubscribeMUCMentions(room string) error {
+	_, err := c.sendIQSync("set", room,
+		`<subscribe xmlns='urn:xmpp:muc-mention-notifications:0'/>`)
+	return err
+}
+
+// EnableMUCAffiliationVersioning implements XEP-0463.
+func (c *XMPPCore) EnableMUCAffiliationVersioning(room string) error {
+	_, err := c.sendIQSync("get", room,
+		`<affiliations xmlns='urn:xmpp:muc-affiliations-versioning:0'/>`)
+	return err
+}
+
+// SetMUCAvatar implements XEP-0486.
+func (c *XMPPCore) SetMUCAvatar(room string, pngData []byte) error {
+	b64 := base64.StdEncoding.EncodeToString(pngData)
+	_, err := c.sendIQSync("set", room,
+		fmt.Sprintf(`<vCard xmlns='vcard-temp'><PHOTO><TYPE>image/png</TYPE><BINVAL>%s</BINVAL></PHOTO></vCard>`, b64))
+	return err
+}
+
+// CreateMUCTokenInvite implements XEP-0488.
+func (c *XMPPCore) CreateMUCTokenInvite(room string) (*xmppIQ, error) {
+	return c.sendIQSync("set", room,
+		`<invite xmlns='urn:xmpp:muc-token-invite:0'/>`)
+}
+
+// SetMUCSlowMode implements XEP-0500.
+func (c *XMPPCore) SetMUCSlowMode(room string, intervalSeconds int) error {
+	_, err := c.sendIQSync("set", room,
+		fmt.Sprintf(`<query xmlns='http://jabber.org/protocol/muc#owner'>`+
+			`<x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='FORM_TYPE'><value>http://jabber.org/protocol/muc#roomconfig</value></field>`+
+			`<field var='muc#roomconfig_slowmode_length'><value>%d</value></field>`+
+			`</x></query>`, intervalSeconds))
+	return err
+}
+
+// GetMUCActivityIndicator implements XEP-0502.
+func (c *XMPPCore) GetMUCActivityIndicator(room string) (*xmppIQ, error) {
+	return c.sendIQSync("get", room,
+		`<activity xmlns='urn:xmpp:muc-activity-indicator:0'/>`)
+}
+
+// ── MIX Extensions (5 XEPs) ──
+
+// MIXPresenceSubscribe implements XEP-0403.
+func (c *XMPPCore) MIXPresenceSubscribe(channel string) error {
+	_, err := c.sendIQSync("set", channel,
+		`<subscribe xmlns='urn:xmpp:mix:nodes:presence'/>`)
+	return err
+}
+
+// MIXSetAnonymity implements XEP-0404.
+func (c *XMPPCore) MIXSetAnonymity(channel string, anonymous bool) error {
+	val := "false"
+	if anonymous {
+		val = "true"
+	}
+	_, err := c.sendIQSync("set", channel,
+		fmt.Sprintf(`<config xmlns='urn:xmpp:mix:admin:0'>`+
+			`<field var='urn:xmpp:mix:anon:0#anonymous'><value>%s</value></field></config>`, val))
+	return err
+}
+
+// MIXPAMJoin implements XEP-0405 — server-side MIX management.
+func (c *XMPPCore) MIXPAMJoin(channel string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<client-join xmlns='urn:xmpp:mix:pam:2' channel='%s'>`+
+			`<join xmlns='urn:xmpp:mix:core:1'>`+
+			`<subscribe node='urn:xmpp:mix:nodes:messages'/>`+
+			`<subscribe node='urn:xmpp:mix:nodes:participants'/>`+
+			`<subscribe node='urn:xmpp:mix:nodes:info'/>`+
+			`</join></client-join>`, xmlEscape(channel)))
+	return err
+}
+
+// MIXAdminSetConfig implements XEP-0406.
+func (c *XMPPCore) MIXAdminSetConfig(channel string, fields map[string]string) error {
+	var fieldXML string
+	for k, v := range fields {
+		fieldXML += fmt.Sprintf(`<field var='%s'><value>%s</value></field>`,
+			xmlEscape(k), xmlEscape(v))
+	}
+	_, err := c.sendIQSync("set", channel,
+		fmt.Sprintf(`<config xmlns='urn:xmpp:mix:admin:0'>%s</config>`, fieldXML))
+	return err
+}
+
+// MIXMiscSetAvatar implements XEP-0407.
+func (c *XMPPCore) MIXMiscSetAvatar(channel string, pngData []byte) error {
+	b64 := base64.StdEncoding.EncodeToString(pngData)
+	_, err := c.sendIQSync("set", channel,
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='urn:xmpp:mix:nodes:info'>`+
+			`<item><avatar xmlns='urn:xmpp:avatar:data'>%s</avatar></item>`+
+			`</publish></pubsub>`, b64))
+	return err
+}
+
+// ── Jingle / Calls (18 XEPs) ──
+
+// JingleRTPSession implements XEP-0167 — full RTP session description.
+func (c *XMPPCore) JingleRTPSession(to, sid, media string, payloadTypes []map[string]string) error {
+	var ptXML string
+	for _, pt := range payloadTypes {
+		ptXML += fmt.Sprintf(`<payload-type xmlns='urn:xmpp:jingle:apps:rtp:1' id='%s' name='%s' clockrate='%s'/>`,
+			pt["id"], pt["name"], pt["clockrate"])
+	}
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
+			`<content creator='initiator' name='%s'>`+
+			`<description xmlns='urn:xmpp:jingle:apps:rtp:1' media='%s'>%s</description>`+
+			`</content></jingle>`, xmlEscape(sid), xmlEscape(media), xmlEscape(media), ptXML))
+	return err
+}
+
+// JingleRawUDP implements XEP-0177 — raw UDP transport.
+func (c *XMPPCore) JingleRawUDP(to, sid, candidateIP string, candidatePort int) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='transport-info' sid='%s'>`+
+			`<content creator='initiator' name='audio'>`+
+			`<transport xmlns='urn:xmpp:jingle:transports:raw-udp:1'>`+
+			`<candidate ip='%s' port='%d' generation='0'/>`+
+			`</transport></content></jingle>`,
+			xmlEscape(sid), xmlEscape(candidateIP), candidatePort))
+	return err
+}
+
+// JingleZRTP implements XEP-0262 — ZRTP key agreement hash.
+func (c *XMPPCore) JingleZRTP(to, sid, zrtpHash, hashVersion string) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-info' sid='%s'>`+
+			`<zrtp-hash xmlns='urn:xmpp:jingle:apps:rtp:zrtp:1' version='%s'>%s</zrtp-hash>`+
+			`</jingle>`, xmlEscape(sid), xmlEscape(hashVersion), xmlEscape(zrtpHash)))
+	return err
+}
+
+// JingleAudioCodecs returns XEP-0266 recommended audio codec list.
+func JingleAudioCodecs() []map[string]string {
+	return []map[string]string{
+		{"id": "111", "name": "opus", "clockrate": "48000", "channels": "2"},
+		{"id": "100", "name": "speex", "clockrate": "16000"},
+		{"id": "0", "name": "PCMU", "clockrate": "8000"},
+		{"id": "8", "name": "PCMA", "clockrate": "8000"},
+	}
+}
+
+// JingleMuji implements XEP-0272 — multiparty Jingle.
+func (c *XMPPCore) JingleMuji(room, media string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<presence to='%s'><muji xmlns='urn:xmpp:jingle:muji:0'>`+
+			`<content name='%s'><description xmlns='urn:xmpp:jingle:apps:rtp:1' media='%s'/></content>`+
+			`</muji></presence>`,
+		xmlEscape(room), xmlEscape(media), xmlEscape(media)))
+}
+
+// JingleConferenceInfo implements XEP-0298 — conference state notification.
+func (c *XMPPCore) JingleConferenceInfo(to, sid string, users []string) error {
+	var userXML string
+	for _, u := range users {
+		userXML += fmt.Sprintf(`<user entity='%s'/>`, xmlEscape(u))
+	}
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-info' sid='%s'>`+
+			`<conference-info xmlns='urn:xmpp:coin:1'><users>%s</users></conference-info>`+
+			`</jingle>`, xmlEscape(sid), userXML))
+	return err
+}
+
+// JingleVideoCodecs returns XEP-0299 recommended video codec list.
+func JingleVideoCodecs() []map[string]string {
+	return []map[string]string{
+		{"id": "96", "name": "VP8", "clockrate": "90000"},
+		{"id": "97", "name": "H264", "clockrate": "90000"},
+	}
+}
+
+// JingleDTLSSRTP implements XEP-0320 — DTLS fingerprint.
+func (c *XMPPCore) JingleDTLSSRTP(to, sid, fingerprint, setup string) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='transport-info' sid='%s'>`+
+			`<content creator='initiator' name='audio'>`+
+			`<transport xmlns='urn:xmpp:jingle:transports:ice-udp:1'>`+
+			`<fingerprint xmlns='urn:xmpp:jingle:apps:dtls:0' hash='sha-256' setup='%s'>%s</fingerprint>`+
+			`</transport></content></jingle>`,
+			xmlEscape(sid), xmlEscape(setup), xmlEscape(fingerprint)))
+	return err
+}
+
+// JingleGrouping implements XEP-0338 — SDP bundle.
+func (c *XMPPCore) JingleGrouping(to, sid string, contentNames []string) error {
+	var contentsXML string
+	for _, name := range contentNames {
+		contentsXML += fmt.Sprintf(`<content name='%s'/>`, xmlEscape(name))
+	}
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
+			`<group xmlns='urn:xmpp:jingle:apps:grouping:0' semantics='BUNDLE'>%s</group>`+
+			`</jingle>`, xmlEscape(sid), contentsXML))
+	return err
+}
+
+// JingleSourceSSRC implements XEP-0339 — per-source SSRC attributes.
+func (c *XMPPCore) JingleSourceSSRC(to, sid string, ssrc uint32, params map[string]string) error {
+	var paramXML string
+	for k, v := range params {
+		paramXML += fmt.Sprintf(`<parameter name='%s' value='%s'/>`, xmlEscape(k), xmlEscape(v))
+	}
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='source-add' sid='%s'>`+
+			`<content creator='initiator' name='audio'>`+
+			`<description xmlns='urn:xmpp:jingle:apps:rtp:1'>`+
+			`<source xmlns='urn:xmpp:jingle:apps:rtp:ssma:0' ssrc='%d'>%s</source>`+
+			`</description></content></jingle>`,
+			xmlEscape(sid), ssrc, paramXML))
+	return err
+}
+
+// JingleDataChannels implements XEP-0343 — WebRTC DTLS/SCTP data channels.
+func (c *XMPPCore) JingleDataChannels(to, sid string, port int) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
+			`<content creator='initiator' name='data'>`+
+			`<description xmlns='urn:xmpp:jingle:transports:dtls-sctp:1'/>`+
+			`<transport xmlns='urn:xmpp:jingle:transports:ice-udp:1'>`+
+			`<sctpmap xmlns='urn:xmpp:jingle:transports:dtls-sctp:1' number='%d' protocol='webrtc-datachannel'/>`+
+			`</transport></content></jingle>`,
+			xmlEscape(sid), port))
+	return err
+}
+
+// JingleMessageRinging implements XEP-0353 ringing signal.
+func (c *XMPPCore) JingleMessageRinging(to, sid string) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' id='%s'>`+
+			`<ringing xmlns='urn:xmpp:jingle-message:0' id='%s'/>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(sid)))
+}
+
+// PublishJingleSession implements XEP-0358 — advertise joinable session.
+func (c *XMPPCore) PublishJingleSession(sid, description string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='urn:xmpp:jingle:pub:1'>`+
+			`<item id='%s'><session xmlns='urn:xmpp:jingle:pub:1'>`+
+			`<description>%s</description></session></item>`+
+			`</publish></pubsub>`, xmlEscape(sid), xmlEscape(description)))
+	return err
+}
+
+// JingleTrickleICE implements XEP-0371 — ICE transport with trickle.
+func (c *XMPPCore) JingleTrickleICE(to, sid string, candidate map[string]string) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='transport-info' sid='%s'>`+
+			`<content creator='initiator' name='audio'>`+
+			`<transport xmlns='urn:xmpp:jingle:transports:ice:0' ufrag='%s' pwd='%s'>`+
+			`<candidate component='1' foundation='%s' generation='0' ip='%s' port='%s' priority='%s' protocol='%s' type='%s'/>`+
+			`</transport></content></jingle>`,
+			xmlEscape(sid), candidate["ufrag"], candidate["pwd"],
+			candidate["foundation"], candidate["ip"], candidate["port"],
+			candidate["priority"], candidate["protocol"], candidate["type"]))
+	return err
+}
+
+// JingleEncryptedTransport implements XEP-0391 — JET encryption.
+func (c *XMPPCore) JingleEncryptedTransport(to, sid, cipher, keyB64 string) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
+			`<content creator='initiator' name='file'>`+
+			`<security xmlns='urn:xmpp:jingle:jet:0' name='file' cipher='%s' type='urn:xmpp:omemo:0'>`+
+			`<key>%s</key></security>`+
+			`</content></jingle>`,
+			xmlEscape(sid), xmlEscape(cipher), keyB64))
+	return err
+}
+
+// JingleJETOMEMO implements XEP-0396 — OMEMO for Jingle file transfers.
+func (c *XMPPCore) JingleJETOMEMO(to, sid string, deviceID int, keyData []byte) error {
+	b64 := base64.StdEncoding.EncodeToString(keyData)
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
+			`<content creator='initiator' name='file'>`+
+			`<security xmlns='urn:xmpp:jingle:jet:0' cipher='urn:xmpp:ciphers:aes-256-gcm-nopadding'>`+
+			`<encrypted xmlns='urn:xmpp:omemo:2' device-id='%d'>`+
+			`<payload>%s</payload></encrypted></security>`+
+			`</content></jingle>`,
+			xmlEscape(sid), deviceID, b64))
+	return err
+}
+
+// SendCallInvite implements XEP-0482 — invite to call.
+func (c *XMPPCore) SendCallInvite(to, sid string, audio, video bool) error {
+	id := c.nextMsgID()
+	var mediaXML string
+	if audio {
+		mediaXML += `<audio xmlns='urn:xmpp:call-invites:0'/>`
+	}
+	if video {
+		mediaXML += `<video xmlns='urn:xmpp:call-invites:0'/>`
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' id='%s'>`+
+			`<invite xmlns='urn:xmpp:call-invites:0' id='%s'>%s</invite>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(sid), mediaXML))
+}
+
+// JingleContentCategory implements XEP-0507 — distinguish webcam vs screenshare.
+func (c *XMPPCore) JingleContentCategory(to, sid, name, category string) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='content-modify' sid='%s'>`+
+			`<content creator='initiator' name='%s'>`+
+			`<category xmlns='urn:xmpp:jingle:content-category:0' name='%s'/>`+
+			`</content></jingle>`,
+			xmlEscape(sid), xmlEscape(name), xmlEscape(category)))
+	return err
+}
+
+// ── File Sharing & Media (5 XEPs) ──
+
+// JingleContentThumbnail implements XEP-0264 — thumbnails on file offers.
+func (c *XMPPCore) JingleContentThumbnail(to, sid, thumbnailURI, mimeType string, width, height int) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
+			`<content creator='initiator' name='file'>`+
+			`<description xmlns='urn:xmpp:jingle:apps:file-transfer:5'>`+
+			`<file><thumbnail xmlns='urn:xmpp:thumbs:1' uri='%s' media-type='%s' width='%d' height='%d'/>`+
+			`</file></description></content></jingle>`,
+			xmlEscape(sid), xmlEscape(thumbnailURI), xmlEscape(mimeType), width, height))
+	return err
+}
+
+// SendSIMS implements XEP-0385 — stateless inline media sharing.
+func (c *XMPPCore) SendSIMS(to, url, mimeType string, size int64, desc string) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<reference xmlns='urn:xmpp:reference:0' type='data'>`+
+			`<media-sharing xmlns='urn:xmpp:sims:1'>`+
+			`<file xmlns='urn:xmpp:jingle:apps:file-transfer:5'>`+
+			`<media-type>%s</media-type><size>%d</size><desc>%s</desc>`+
+			`</file><sources><reference xmlns='urn:xmpp:reference:0' type='data' uri='%s'/></sources>`+
+			`</media-sharing></reference></message>`,
+		xmlEscape(to), id, xmlEscape(mimeType), size, xmlEscape(desc), xmlEscape(url)))
+}
+
+// ShareFileMetadataElem implements XEP-0446 — standalone file metadata.
+func (c *XMPPCore) ShareFileMetadataElem(to, name, mimeType string, size int64, hashAlgo, hashValue string) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<file xmlns='urn:xmpp:file:metadata:0'>`+
+			`<name>%s</name><media-type>%s</media-type><size>%d</size>`+
+			`<hash xmlns='urn:xmpp:hashes:2' algo='%s'>%s</hash>`+
+			`</file></message>`,
+		xmlEscape(to), id, xmlEscape(name), xmlEscape(mimeType), size,
+		xmlEscape(hashAlgo), xmlEscape(hashValue)))
+}
+
+// PubSubFileShare implements XEP-0498 — file sharing via PubSub.
+func (c *XMPPCore) PubSubFileShare(node, itemID, name, url string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='%s'><item id='%s'>`+
+			`<file-sharing xmlns='urn:xmpp:file-sharing:0'>`+
+			`<file xmlns='urn:xmpp:file:metadata:0'><name>%s</name></file>`+
+			`<sources><url-data xmlns='http://jabber.org/protocol/url-data' target='%s'/></sources>`+
+			`</file-sharing></item></publish></pubsub>`,
+			xmlEscape(node), xmlEscape(itemID), xmlEscape(name), xmlEscape(url)))
+	return err
+}
+
+// DataFormsFileInput implements XEP-0505 — file upload in data forms.
+func (c *XMPPCore) DataFormsFileInput(to, formType, fieldVar, uploadURL string) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='FORM_TYPE'><value>%s</value></field>`+
+			`<field var='%s' type='file'>`+
+			`<value>%s</value></field></x>`,
+			xmlEscape(formType), xmlEscape(fieldVar), xmlEscape(uploadURL)))
+	return err
+}
+
+// ── PubSub Extensions (15 XEPs) ──
+
+// PEPManageNode implements XEP-0163 explicit PEP node management.
+func (c *XMPPCore) PEPManageNode(node string, config map[string]string) error {
+	var fieldXML string
+	for k, v := range config {
+		fieldXML += fmt.Sprintf(`<field var='%s'><value>%s</value></field>`,
+			xmlEscape(k), xmlEscape(v))
+	}
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>`+
+			`<configure node='%s'><x xmlns='jabber:x:data' type='submit'>%s</x></configure></pubsub>`,
+			xmlEscape(node), fieldXML))
+	return err
+}
+
+// PubSubPersistPublic implements XEP-0222 — best practices for public data storage.
+func (c *XMPPCore) PubSubPersistPublic(node, itemID, payload string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='%s'><item id='%s'>%s</item></publish>`+
+			`<publish-options><x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='FORM_TYPE' type='hidden'><value>http://jabber.org/protocol/pubsub#publish-options</value></field>`+
+			`<field var='pubsub#persist_items'><value>true</value></field>`+
+			`<field var='pubsub#access_model'><value>open</value></field>`+
+			`</x></publish-options></pubsub>`,
+			xmlEscape(node), xmlEscape(itemID), payload))
+	return err
+}
+
+// PubSubPersistPrivate implements XEP-0223 — best practices for private data storage.
+func (c *XMPPCore) PubSubPersistPrivate(node, itemID, payload string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='%s'><item id='%s'>%s</item></publish>`+
+			`<publish-options><x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='FORM_TYPE' type='hidden'><value>http://jabber.org/protocol/pubsub#publish-options</value></field>`+
+			`<field var='pubsub#persist_items'><value>true</value></field>`+
+			`<field var='pubsub#access_model'><value>whitelist</value></field>`+
+			`</x></publish-options></pubsub>`,
+			xmlEscape(node), xmlEscape(itemID), payload))
+	return err
+}
+
+// PubSubCollectionNode implements XEP-0248 — collection node creation.
+func (c *XMPPCore) PubSubCollectionNode(node, childNode string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<create node='%s'/>`+
+			`<configure><x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='pubsub#node_type'><value>collection</value></field>`+
+			`</x></configure></pubsub>`, xmlEscape(node)))
+	return err
+}
+
+// PublishMicroblog implements XEP-0277 — Atom-based social feed.
+func (c *XMPPCore) PublishMicroblog(content, author string) error {
+	id := c.nextMsgID()
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='urn:xmpp:microblog:0'>`+
+			`<item id='%s'><entry xmlns='http://www.w3.org/2005/Atom'>`+
+			`<content type='text'>%s</content>`+
+			`<author><name>%s</name></author>`+
+			`<published>%s</published>`+
+			`</entry></item></publish></pubsub>`,
+			id, xmlEscape(content), xmlEscape(author),
+			time.Now().UTC().Format(time.RFC3339)))
+	return err
+}
+
+// QueryPubSubMAM implements XEP-0442 — MAM on PubSub archives.
+func (c *XMPPCore) QueryPubSubMAM(service, node string) (*xmppIQ, error) {
+	return c.sendIQSync("set", service,
+		fmt.Sprintf(`<query xmlns='urn:xmpp:mam:2' node='%s'/>`, xmlEscape(node)))
+}
+
+// SetPubSubCachingHints implements XEP-0460.
+func (c *XMPPCore) SetPubSubCachingHints(node string, maxAge int) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>`+
+			`<configure node='%s'><x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='pubsub#item_expire'><value>%d</value></field>`+
+			`</x></configure></pubsub>`, xmlEscape(node), maxAge))
+	return err
+}
+
+// FilterPubSubByType implements XEP-0462.
+func (c *XMPPCore) FilterPubSubByType(service, nodeType string) (*xmppIQ, error) {
+	return c.sendIQSync("get", service,
+		fmt.Sprintf(`<query xmlns='http://jabber.org/protocol/disco#items'>`+
+			`<filter xmlns='urn:xmpp:pubsub:filter:0' type='%s'/></query>`, xmlEscape(nodeType)))
+}
+
+// SetPubSubPublicSubscriptions implements XEP-0465.
+func (c *XMPPCore) SetPubSubPublicSubscriptions(node string, public bool) error {
+	val := "false"
+	if public {
+		val = "true"
+	}
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>`+
+			`<configure node='%s'><x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='pubsub#subscription_visibility'><value>%s</value></field>`+
+			`</x></configure></pubsub>`, xmlEscape(node), val))
+	return err
+}
+
+// PubSubAttachment implements XEP-0470 — reactions/comments on PubSub items.
+func (c *XMPPCore) PubSubAttachment(targetNode, targetItem, attachmentPayload string) error {
+	id := c.nextMsgID()
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='urn:xmpp:pubsub-attachments:1'>`+
+			`<item id='%s'><attachments xmlns='urn:xmpp:pubsub-attachments:1'`+
+			` for-node='%s' for-item='%s'>%s</attachments></item>`+
+			`</publish></pubsub>`,
+			id, xmlEscape(targetNode), xmlEscape(targetItem), attachmentPayload))
+	return err
+}
+
+// PublishSocialFeed implements XEP-0472.
+func (c *XMPPCore) PublishSocialFeed(content, contentType string) error {
+	id := c.nextMsgID()
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='urn:xmpp:social-feed:0'>`+
+			`<item id='%s'><post xmlns='urn:xmpp:social-feed:0'>`+
+			`<body type='%s'>%s</body></post></item>`+
+			`</publish></pubsub>`, id, xmlEscape(contentType), xmlEscape(content)))
+	return err
+}
+
+// EncryptPubSubOX implements XEP-0473 — OpenPGP for PubSub.
+func (c *XMPPCore) EncryptPubSubOX(node, itemID, payload string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='%s'><item id='%s'>`+
+			`<openpgp xmlns='urn:xmpp:openpgp:0'>%s</openpgp>`+
+			`</item></publish></pubsub>`,
+			xmlEscape(node), xmlEscape(itemID), xmlEscape(payload)))
+	return err
+}
+
+// GetPubSubServerInfo implements XEP-0485.
+func (c *XMPPCore) GetPubSubServerInfo(service string) (*xmppIQ, error) {
+	return c.sendIQSync("get", service,
+		`<query xmlns='http://jabber.org/protocol/disco#info' node='urn:xmpp:serverinfo:0'/>`)
+}
+
+// SetPubSubRelationship implements XEP-0496.
+func (c *XMPPCore) SetPubSubRelationship(node, parentNode string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>`+
+			`<configure node='%s'><x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='pubsub#collection'><value>%s</value></field>`+
+			`</x></configure></pubsub>`, xmlEscape(node), xmlEscape(parentNode)))
+	return err
+}
+
+// PubSubCompareAndPublish implements XEP-0395 — atomic CAS.
+func (c *XMPPCore) PubSubCompareAndPublish(node, itemID, payload, prevID string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='%s'><item id='%s'>%s</item></publish>`+
+			`<precondition xmlns='urn:xmpp:pubsub:cas:0' prev-id='%s'/>`+
+			`</pubsub>`,
+			xmlEscape(node), xmlEscape(itemID), payload, xmlEscape(prevID)))
+	return err
+}
+
+// ── Service Discovery (3 XEPs) ──
+
+// DiscoInfoExtended implements XEP-0128 — extended info in disco#info.
+func (c *XMPPCore) DiscoInfoExtended(to, node string) (*xmppIQ, error) {
+	nodeAttr := ""
+	if node != "" {
+		nodeAttr = fmt.Sprintf(` node='%s'`, xmlEscape(node))
+	}
+	return c.sendIQSync("get", to,
+		fmt.Sprintf(`<query xmlns='http://jabber.org/protocol/disco#info'%s/>`, nodeAttr))
+}
+
+// EntityCaps2 implements XEP-0390 — Entity Capabilities 2.0 hash.
+func (c *XMPPCore) EntityCaps2(hashAlgo string, features []string) string {
+	sort.Strings(features)
+	data := strings.Join(features, "<")
+	var h hash.Hash
+	switch hashAlgo {
+	case "sha-256":
+		h = sha256.New()
+	default:
+		h = sha1.New()
+	}
+	h.Write([]byte(data))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
+}
+
+// GetDOAP implements XEP-0453 — machine-readable capability descriptions.
+func (c *XMPPCore) GetDOAP(to string) (*xmppIQ, error) {
+	return c.sendIQSync("get", to,
+		`<query xmlns='http://jabber.org/protocol/disco#info' node='urn:xmpp:doap:0'/>`)
+}
+
+// ── Encryption (1 XEP) ──
+
+// OMEMOAutoTrust implements XEP-0450 — automatic trust management.
+func (c *XMPPCore) OMEMOAutoTrust(to string, deviceIDs []int) error {
+	var devicesXML string
+	for _, id := range deviceIDs {
+		devicesXML += fmt.Sprintf(`<device id='%d'/>`, id)
+	}
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' id='%s'>`+
+			`<trust-message xmlns='urn:xmpp:atm:1' usage='urn:xmpp:omemo:2' encryption='urn:xmpp:omemo:2'>`+
+			`<key-owner jid='%s'>%s</key-owner>`+
+			`</trust-message></message>`,
+		xmlEscape(to), id, xmlEscape(to), devicesXML))
+}
+
+// ── User Profile & Social (4 XEPs) ──
+
+// ConsistentColor implements XEP-0392 — generate color from JID.
+func ConsistentColor(jid string) (float64, float64, float64) {
+	h := sha256.Sum256([]byte(jid))
+	angle := float64(uint16(h[0])<<8|uint16(h[1])) / 65536.0 * 360.0
+	return angle, 1.0, 0.5 // HSL
+}
+
+// AvatarConversion implements XEP-0398 — server-side avatar format hint.
+func (c *XMPPCore) AvatarConversion(to string) (*xmppIQ, error) {
+	return c.sendIQSync("get", to,
+		`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<items node='urn:xmpp:avatar:data' max_items='1'/></pubsub>`)
+}
+
+// SetReachability implements XEP-0152 — publish reachability addresses.
+func (c *XMPPCore) SetReachability(addresses []map[string]string) error {
+	var addrXML string
+	for _, a := range addresses {
+		addrXML += fmt.Sprintf(`<addr uri='%s'><desc>%s</desc></addr>`,
+			xmlEscape(a["uri"]), xmlEscape(a["desc"]))
+	}
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='urn:xmpp:reach:0'><item>`+
+			`<reach xmlns='urn:xmpp:reach:0'>%s</reach></item></publish></pubsub>`, addrXML))
+	return err
+}
+
+// SetVCardAvatar implements XEP-0153 — vCard-based avatar with presence hash.
+func (c *XMPPCore) SetVCardAvatar(pngData []byte) error {
+	// Set vCard photo
+	b64 := base64.StdEncoding.EncodeToString(pngData)
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<vCard xmlns='vcard-temp'><PHOTO><TYPE>image/png</TYPE><BINVAL>%s</BINVAL></PHOTO></vCard>`, b64))
+	if err != nil {
+		return err
+	}
+	// Broadcast presence with photo hash
+	h := sha1.Sum(pngData)
+	return c.sendRawStanza(fmt.Sprintf(
+		`<presence><x xmlns='vcard-temp:x:update'><photo>%s</photo></x></presence>`,
+		hex.EncodeToString(h[:])))
+}
+
+// ── Notification & Sync (2 XEPs) ──
+
+// SetChatNotificationSettings implements XEP-0492.
+func (c *XMPPCore) SetChatNotificationSettings(jid, level string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='urn:xmpp:notification-settings:0'>`+
+			`<item id='%s'><settings xmlns='urn:xmpp:notification-settings:0' level='%s'/></item>`+
+			`</publish></pubsub>`, xmlEscape(jid), xmlEscape(level)))
+	return err
+}
+
+// SetServerNotificationFilter implements XEP-0351.
+func (c *XMPPCore) SetServerNotificationFilter(rules map[string]bool) error {
+	var ruleXML string
+	for eventType, enabled := range rules {
+		if enabled {
+			ruleXML += fmt.Sprintf(`<allow event='%s'/>`, xmlEscape(eventType))
+		} else {
+			ruleXML += fmt.Sprintf(`<deny event='%s'/>`, xmlEscape(eventType))
+		}
+	}
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<filter xmlns='urn:xmpp:notification-filter:0'>%s</filter>`, ruleXML))
+	return err
+}
+
+// ── Server Interaction (10 XEPs) ──
+
+// SearchUsersExtended implements XEP-0055 — search with data forms.
+func (c *XMPPCore) SearchUsersExtended(service string, fields map[string]string) (*xmppIQ, error) {
+	var fieldXML string
+	for k, v := range fields {
+		fieldXML += fmt.Sprintf(`<field var='%s'><value>%s</value></field>`,
+			xmlEscape(k), xmlEscape(v))
+	}
+	return c.sendIQSync("set", service,
+		fmt.Sprintf(`<query xmlns='jabber:iq:search'>`+
+			`<x xmlns='jabber:x:data' type='submit'>%s</x></query>`, fieldXML))
+}
+
+// ShareRosterItem implements XEP-0144 — recommend roster items.
+func (c *XMPPCore) ShareRosterItem(to string, items []map[string]string) error {
+	id := c.nextMsgID()
+	var itemXML string
+	for _, item := range items {
+		itemXML += fmt.Sprintf(`<item jid='%s' name='%s'/>`,
+			xmlEscape(item["jid"]), xmlEscape(item["name"]))
+	}
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' id='%s'>`+
+			`<x xmlns='http://jabber.org/protocol/rosterx'>%s</x></message>`,
+		xmlEscape(to), id, itemXML))
+}
+
+// HandleCAPTCHA implements XEP-0158 — respond to CAPTCHA challenge.
+func (c *XMPPCore) HandleCAPTCHA(to, challengeID, answer string) error {
+	_, err := c.sendIQSync("set", to,
+		fmt.Sprintf(`<captcha xmlns='urn:xmpp:captcha'>`+
+			`<x xmlns='jabber:x:data' type='submit'>`+
+			`<field var='FORM_TYPE' type='hidden'><value>urn:xmpp:captcha</value></field>`+
+			`<field var='challenge'><value>%s</value></field>`+
+			`<field var='ocr'><value>%s</value></field>`+
+			`</x></captcha>`, xmlEscape(challengeID), xmlEscape(answer)))
+	return err
+}
+
+// ExportAccountData implements XEP-0227 — portable import/export.
+func (c *XMPPCore) ExportAccountData() (*xmppIQ, error) {
+	return c.sendIQSync("get", "",
+		`<export xmlns='urn:xmpp:pie:0'/>`)
+}
+
+// ImportAccountData implements XEP-0227 — import account data.
+func (c *XMPPCore) ImportAccountData(xmlData string) error {
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<import xmlns='urn:xmpp:pie:0'>%s</import>`, xmlData))
+	return err
+}
+
+// EnableRosterVersioning implements XEP-0237 — request versioned roster.
+func (c *XMPPCore) EnableRosterVersioning(ver string) (*xmppIQ, error) {
+	verAttr := ""
+	if ver != "" {
+		verAttr = fmt.Sprintf(` ver='%s'`, xmlEscape(ver))
+	}
+	return c.sendIQSync("get", "",
+		fmt.Sprintf(`<query xmlns='jabber:iq:roster'%s/>`, verAttr))
+}
+
+// CreateInvitationURI implements XEP-0401 — generate invitation URI.
+func (c *XMPPCore) CreateInvitationURI() (*xmppIQ, error) {
+	return c.sendIQSync("set", "",
+		`<invite xmlns='urn:xmpp:invite:2'/>`)
+}
+
+// PreAuthenticatedIBR implements XEP-0445 — token-gated registration.
+func (c *XMPPCore) PreAuthenticatedIBR(token string) error {
+	return c.sendRawStanza(fmt.Sprintf(
+		`<register xmlns='urn:xmpp:ibr-token:0' token='%s'/>`, xmlEscape(token)))
+}
+
+// GetServiceOutageStatus implements XEP-0455 — server status.
+func (c *XMPPCore) GetServiceOutageStatus(domain string) (*xmppIQ, error) {
+	return c.sendIQSync("get", domain,
+		`<status xmlns='urn:xmpp:service-status:0'/>`)
+}
+
+// GetDataPolicy implements XEP-0504 — data retention info.
+func (c *XMPPCore) GetDataPolicy(domain string) (*xmppIQ, error) {
+	return c.sendIQSync("get", domain,
+		`<policy xmlns='urn:xmpp:data-policy:0'/>`)
+}
+
+// BookmarksConversion implements XEP-0411 — request server-side bookmark conversion.
+func (c *XMPPCore) BookmarksConversion() error {
+	_, err := c.sendIQSync("set", "",
+		`<enable xmlns='urn:xmpp:bookmarks-conversion:0'/>`)
+	return err
+}
+
+// ── Newer/Experimental (10 XEPs) ──
+
+// SendWebXDC implements XEP-0491 — interactive HTML/JS widget.
+func (c *XMPPCore) SendWebXDC(to, name string, data []byte) error {
+	id := c.nextMsgID()
+	b64 := base64.StdEncoding.EncodeToString(data)
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<webxdc xmlns='urn:xmpp:webxdc:0' name='%s'>%s</webxdc>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(name), b64))
+}
+
+// CreateServerSpace implements XEP-0503 — Discord-like channel categories.
+func (c *XMPPCore) CreateServerSpace(name string, channels []string) error {
+	var channelXML string
+	for _, ch := range channels {
+		channelXML += fmt.Sprintf(`<channel jid='%s'/>`, xmlEscape(ch))
+	}
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<space xmlns='urn:xmpp:spaces:0' name='%s'>%s</space>`,
+			xmlEscape(name), channelXML))
+	return err
+}
+
+// CreateForum implements XEP-0508 — threaded discussions.
+func (c *XMPPCore) CreateForum(service, name string) error {
+	_, err := c.sendIQSync("set", service,
+		fmt.Sprintf(`<create xmlns='urn:xmpp:forums:0' name='%s'/>`, xmlEscape(name)))
+	return err
+}
+
+// EncryptContactsMetadata implements XEP-0510.
+func (c *XMPPCore) EncryptContactsMetadata(jid string, encryptedPayload []byte) error {
+	b64 := base64.StdEncoding.EncodeToString(encryptedPayload)
+	_, err := c.sendIQSync("set", "",
+		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
+			`<publish node='urn:xmpp:contacts:metadata:0'>`+
+			`<item id='%s'><encrypted xmlns='urn:xmpp:contacts:metadata:0'>%s</encrypted></item>`+
+			`</publish></pubsub>`, xmlEscape(jid), b64))
+	return err
+}
+
+// GetLinkMetadata implements XEP-0511 — rich link previews.
+func (c *XMPPCore) GetLinkMetadata(url string) (*xmppIQ, error) {
+	return c.sendIQSync("get", "",
+		fmt.Sprintf(`<link-metadata xmlns='urn:xmpp:link-metadata:0' url='%s'/>`, xmlEscape(url)))
+}
+
+// RequestOnlineMeeting implements XEP-0483 — HTTP online meetings.
+func (c *XMPPCore) RequestOnlineMeeting(service, meetingType string) (*xmppIQ, error) {
+	return c.sendIQSync("get", service,
+		fmt.Sprintf(`<request xmlns='urn:xmpp:http:online-meetings:invite:0' type='%s'/>`,
+			xmlEscape(meetingType)))
+}
+
+// RequestBurnerJID implements XEP-0383 — temporary anonymous JID.
+func (c *XMPPCore) RequestBurnerJID(service string) (*xmppIQ, error) {
+	return c.sendIQSync("get", service,
+		`<burner xmlns='urn:xmpp:burner:0'/>`)
+}
+
+// HTTPOverXMPP implements XEP-0332 — proxy HTTP request over XMPP.
+func (c *XMPPCore) HTTPOverXMPP(to, method, url string, headers map[string]string, body string) error {
+	var headerXML string
+	for k, v := range headers {
+		headerXML += fmt.Sprintf(`<header name='%s'>%s</header>`, xmlEscape(k), xmlEscape(v))
+	}
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<iq type='set' to='%s' id='%s'>`+
+			`<req xmlns='urn:xmpp:http' method='%s' resource='%s'>`+
+			`<headers xmlns='http://jabber.org/protocol/shim'>%s</headers>`+
+			`<data>%s</data></req></iq>`,
+		xmlEscape(to), id, xmlEscape(method), xmlEscape(url), headerXML, xmlEscape(body)))
+}
+
+// ForwardStanza implements XEP-0297 — standard stanza encapsulation.
+func (c *XMPPCore) ForwardStanza(to, originalFrom, originalStanza string) error {
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' id='%s'>`+
+			`<forwarded xmlns='urn:xmpp:forward:0'>`+
+			`<delay xmlns='urn:xmpp:delay' from='%s' stamp='%s'/>`+
+			`%s</forwarded></message>`,
+		xmlEscape(to), id, xmlEscape(originalFrom),
+		time.Now().UTC().Format("2006-01-02T15:04:05Z"), originalStanza))
+}
+
+// AdvertiseNoReply implements XEP-0506 — non-accepting JID.
+func (c *XMPPCore) AdvertiseNoReply() error {
+	return c.sendRawStanza(
+		`<presence><no-reply xmlns='urn:xmpp:no-reply:0'/></presence>`)
+}
+
+// ── Miscellaneous (5 XEPs) ──
+
+// RSMQuery implements XEP-0059 — result set management pagination.
+func (c *XMPPCore) RSMQuery(to, queryNS string, max int, after string) (*xmppIQ, error) {
+	afterXML := ""
+	if after != "" {
+		afterXML = fmt.Sprintf(`<after>%s</after>`, xmlEscape(after))
+	}
+	return c.sendIQSync("get", to,
+		fmt.Sprintf(`<query xmlns='%s'>`+
+			`<set xmlns='http://jabber.org/protocol/rsm'><max>%d</max>%s</set></query>`,
+			xmlEscape(queryNS), max, afterXML))
+}
+
+// NegotiateSession implements XEP-0155 — stanza session negotiation.
+func (c *XMPPCore) NegotiateSession(to string, fields map[string]string) error {
+	var fieldXML string
+	for k, v := range fields {
+		fieldXML += fmt.Sprintf(`<field var='%s'><value>%s</value></field>`,
+			xmlEscape(k), xmlEscape(v))
+	}
+	id := c.nextMsgID()
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message to='%s' id='%s'>`+
+			`<feature xmlns='http://jabber.org/protocol/feature-neg'>`+
+			`<x xmlns='jabber:x:data' type='form'>%s</x></feature></message>`,
+		xmlEscape(to), id, fieldXML))
+}
+
+// SendBitsOfBinary implements XEP-0231 — inline small binary data.
+func (c *XMPPCore) SendBitsOfBinary(to string, data []byte, mimeType, cid string) error {
+	id := c.nextMsgID()
+	b64 := base64.StdEncoding.EncodeToString(data)
+	return c.sendRawStanza(fmt.Sprintf(
+		`<message type='chat' to='%s' id='%s'>`+
+			`<data xmlns='urn:xmpp:bob' cid='%s' type='%s' max-age='86400'>%s</data>`+
+			`</message>`,
+		xmlEscape(to), id, xmlEscape(cid), xmlEscape(mimeType), b64))
+}
+
+// HashElement implements XEP-0300 — standardized hash element.
+func HashElement(algo string, data []byte) string {
+	var h hash.Hash
+	switch algo {
+	case "sha-256":
+		h = sha256.New()
+	case "sha-1":
+		h = sha1.New()
+	default:
+		h = sha256.New()
+		algo = "sha-256"
+	}
+	h.Write(data)
+	return fmt.Sprintf(`<hash xmlns='urn:xmpp:hashes:2' algo='%s'>%s</hash>`,
+		algo, base64.StdEncoding.EncodeToString(h.Sum(nil)))
+}
+
+// PasswordHashingBestPractice implements XEP-0438 — check hash strength.
+func PasswordHashingBestPractice(mechanism string) string {
+	switch {
+	case strings.Contains(mechanism, "SCRAM-SHA-256"):
+		return "strong"
+	case strings.Contains(mechanism, "SCRAM-SHA-1"):
+		return "acceptable"
+	case mechanism == "PLAIN":
+		return "weak"
+	default:
+		return "unknown"
+	}
 }

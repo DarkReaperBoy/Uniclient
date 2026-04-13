@@ -135,14 +135,16 @@ type Message struct {
 	DecryptFailed bool          `json:"decrypt_failed"`
 	Attachments   []FileRef     `json:"attachments,omitempty"`
 	Reactions     []Reaction    `json:"reactions,omitempty"`
-	IsPinned      bool          `json:"is_pinned"`
-	Platform      string        `json:"platform"`
+	IsPinned      bool                   `json:"is_pinned"`
+	Platform      string                 `json:"platform"`
+	Extra         map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
 }
 
 type OutgoingMessage struct {
-	Text        string     `json:"text"`
-	ReplyToID   string     `json:"reply_to_id,omitempty"`
-	Attachments []FileRef  `json:"attachments,omitempty"`
+	Text        string                 `json:"text"`
+	ReplyToID   string                 `json:"reply_to_id,omitempty"`
+	Attachments []FileRef              `json:"attachments,omitempty"`
+	Extra       map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
 }
 
 type FileRef struct {
