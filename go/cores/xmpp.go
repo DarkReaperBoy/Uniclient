@@ -545,6 +545,14 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 	c.wg.Add(1)
 	go c.pingLoop()
 
+	c.postAuthSetup()
+
+	return nil
+}
+
+// postAuthSetup runs post-authentication setup: roster, carbons, SM, presence, etc.
+// Called both on initial auth and after reconnection.
+func (c *XMPPCore) postAuthSetup() {
 	// Request roster
 	c.requestRoster()
 
@@ -564,8 +572,6 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 
 	// Auto-join bookmarked rooms
 	go c.autoJoinBookmarks()
-
-	return nil
 }
 
 func (c *XMPPCore) Logout() error {
@@ -1227,7 +1233,11 @@ func (c *XMPPCore) readLoop() {
 			if c.ctx.Err() != nil {
 				return
 			}
-			// Connection lost — could reconnect here
+			// Connection lost — attempt auto-reconnect
+			if c.attemptReconnect() {
+				// Reconnected successfully, continue reading with new decoder
+				continue
+			}
 			return
 		}
 
@@ -1283,6 +1293,67 @@ func (c *XMPPCore) readLoop() {
 			c.decoder.Skip()
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Auto-reconnect on connection loss
+// ---------------------------------------------------------------------------
+
+// attemptReconnect tries to re-establish the XMPP connection with exponential
+// backoff (5s, 10s, 20s, …, max 60s). Returns true if reconnection succeeded.
+// Called from readLoop when a connection-loss error is detected.
+func (c *XMPPCore) attemptReconnect() bool {
+	const maxRetries = 10
+	const maxDelay = 60 * time.Second
+
+	// Notify GUI of disconnection
+	c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "disconnected"})
+
+	// Close stale connection
+	c.mu.Lock()
+	if c.conn != nil {
+		c.conn.Close()
+	}
+	c.authed = false
+	c.mu.Unlock()
+
+	delay := xmppReconnectDelay
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		select {
+		case <-c.ctx.Done():
+			// Intentional shutdown (Logout called), don't reconnect
+			return false
+		case <-time.After(delay):
+		}
+
+		// Attempt reconnection
+		err := c.connectAndAuth()
+		if err != nil {
+			// Increase delay with exponential backoff, cap at maxDelay
+			delay *= 2
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+			continue
+		}
+
+		// Reconnected successfully
+		c.mu.Lock()
+		c.authed = true
+		c.mu.Unlock()
+
+		// Re-run post-auth setup (roster, carbons, presence, etc.)
+		c.postAuthSetup()
+
+		// Notify GUI of reconnection
+		c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "connected"})
+
+		return true
+	}
+
+	// All retries exhausted
+	c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "disconnected"})
+	return false
 }
 
 // ---------------------------------------------------------------------------
@@ -6609,22 +6680,6 @@ func (c *XMPPCore) ConnectDirectTLS(domain string) error {
 	return nil
 }
 
-// SCRAMDowngradeProtect implements XEP-0474 SCRAM downgrade protection.
-// Returns the channel-binding value for SCRAM verification.
-func (c *XMPPCore) SCRAMDowngradeProtect() (string, error) {
-	c.mu.RLock()
-	conn := c.conn
-	c.mu.RUnlock()
-	if conn == nil {
-		return "", errors.New("not connected")
-	}
-	if tc, ok := conn.(*tls.Conn); ok {
-		state := tc.ConnectionState()
-		h := sha256.Sum256(state.TLSUnique)
-		return base64.StdEncoding.EncodeToString(h[:]), nil
-	}
-	return "", errors.New("not a TLS connection")
-}
 
 // InstantStreamResumption implements XEP-0397 ISR token storage/negotiation.
 func (c *XMPPCore) InstantStreamResumption(token string) error {
@@ -7606,19 +7661,6 @@ func (c *XMPPCore) SearchUsersExtended(service string, fields map[string]string)
 			`<x xmlns='jabber:x:data' type='submit'>%s</x></query>`, fieldXML))
 }
 
-// ShareRosterItem implements XEP-0144 — recommend roster items.
-func (c *XMPPCore) ShareRosterItem(to string, items []map[string]string) error {
-	id := c.nextMsgID()
-	var itemXML string
-	for _, item := range items {
-		itemXML += fmt.Sprintf(`<item jid='%s' name='%s'/>`,
-			xmlEscape(item["jid"]), xmlEscape(item["name"]))
-	}
-	return c.sendRawStanza(fmt.Sprintf(
-		`<message to='%s' id='%s'>`+
-			`<x xmlns='http://jabber.org/protocol/rosterx'>%s</x></message>`,
-		xmlEscape(to), id, itemXML))
-}
 
 // HandleCAPTCHA implements XEP-0158 — respond to CAPTCHA challenge.
 func (c *XMPPCore) HandleCAPTCHA(to, challengeID, answer string) error {
@@ -7632,18 +7674,6 @@ func (c *XMPPCore) HandleCAPTCHA(to, challengeID, answer string) error {
 	return err
 }
 
-// ExportAccountData implements XEP-0227 — portable import/export.
-func (c *XMPPCore) ExportAccountData() (*xmppIQ, error) {
-	return c.sendIQSync("get", "",
-		`<export xmlns='urn:xmpp:pie:0'/>`)
-}
-
-// ImportAccountData implements XEP-0227 — import account data.
-func (c *XMPPCore) ImportAccountData(xmlData string) error {
-	_, err := c.sendIQSync("set", "",
-		fmt.Sprintf(`<import xmlns='urn:xmpp:pie:0'>%s</import>`, xmlData))
-	return err
-}
 
 // EnableRosterVersioning implements XEP-0237 — request versioned roster.
 func (c *XMPPCore) EnableRosterVersioning(ver string) (*xmppIQ, error) {
@@ -7748,20 +7778,6 @@ func (c *XMPPCore) RequestBurnerJID(service string) (*xmppIQ, error) {
 		`<burner xmlns='urn:xmpp:burner:0'/>`)
 }
 
-// HTTPOverXMPP implements XEP-0332 — proxy HTTP request over XMPP.
-func (c *XMPPCore) HTTPOverXMPP(to, method, url string, headers map[string]string, body string) error {
-	var headerXML string
-	for k, v := range headers {
-		headerXML += fmt.Sprintf(`<header name='%s'>%s</header>`, xmlEscape(k), xmlEscape(v))
-	}
-	id := c.nextMsgID()
-	return c.sendRawStanza(fmt.Sprintf(
-		`<iq type='set' to='%s' id='%s'>`+
-			`<req xmlns='urn:xmpp:http' method='%s' resource='%s'>`+
-			`<headers xmlns='http://jabber.org/protocol/shim'>%s</headers>`+
-			`<data>%s</data></req></iq>`,
-		xmlEscape(to), id, xmlEscape(method), xmlEscape(url), headerXML, xmlEscape(body)))
-}
 
 // ForwardStanza implements XEP-0297 — standard stanza encapsulation.
 func (c *XMPPCore) ForwardStanza(to, originalFrom, originalStanza string) error {
@@ -7775,11 +7791,6 @@ func (c *XMPPCore) ForwardStanza(to, originalFrom, originalStanza string) error 
 		time.Now().UTC().Format("2006-01-02T15:04:05Z"), originalStanza))
 }
 
-// AdvertiseNoReply implements XEP-0506 — non-accepting JID.
-func (c *XMPPCore) AdvertiseNoReply() error {
-	return c.sendRawStanza(
-		`<presence><no-reply xmlns='urn:xmpp:no-reply:0'/></presence>`)
-}
 
 // ── Miscellaneous (5 XEPs) ──
 

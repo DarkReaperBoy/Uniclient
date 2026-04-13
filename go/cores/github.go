@@ -4071,11 +4071,6 @@ func (g *GitHubCore) GetCollaboratorPermission(owner, repo, username string) (js
 	return g.apiGet(fmt.Sprintf("/repos/%s/%s/collaborators/%s/permission", owner, repo, username), nil)
 }
 
-// ListPendingInvitations lists pending repository invitations.
-func (g *GitHubCore) ListPendingInvitations(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/repos/%s/%s/invitations", owner, repo), nil)
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Code Scanning / Security (4)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -4439,30 +4434,6 @@ func (g *GitHubCore) UpdateOrgHostedRunner(org string, runnerID int, payload map
 func (g *GitHubCore) DeleteOrgHostedRunner(org string, runnerID int) error {
 	_, err := g.apiDelete(fmt.Sprintf("/orgs/%s/actions/hosted-runners/%d", org, runnerID))
 	return err
-}
-
-func (g *GitHubCore) ListHostedRunnerCustomImages(org string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/orgs/%s/actions/hosted-runners/images/custom", org), nil)
-}
-
-func (g *GitHubCore) ListHostedRunnerGitHubImages(org string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/orgs/%s/actions/hosted-runners/images/github-owned", org), nil)
-}
-
-func (g *GitHubCore) ListHostedRunnerPartnerImages(org string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/orgs/%s/actions/hosted-runners/images/partner", org), nil)
-}
-
-func (g *GitHubCore) GetHostedRunnerLimits(org string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/orgs/%s/actions/hosted-runners/limits", org), nil)
-}
-
-func (g *GitHubCore) ListHostedRunnerMachineSizes(org string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/orgs/%s/actions/hosted-runners/machine-sizes", org), nil)
-}
-
-func (g *GitHubCore) ListHostedRunnerPlatforms(org string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/orgs/%s/actions/hosted-runners/platforms", org), nil)
 }
 
 // ── Actions — Permissions ────────────────────────────────────────────────────
@@ -4911,18 +4882,6 @@ func (g *GitHubCore) RevokeInstallationAccessToken() error {
 	return err
 }
 
-func (g *GitHubCore) GetMarketplaceSubscription(accountID int) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/marketplace_listing/accounts/%d", accountID), nil)
-}
-
-func (g *GitHubCore) ListMarketplacePlans() (json.RawMessage, error) {
-	return g.apiGet("/marketplace_listing/plans", nil)
-}
-
-func (g *GitHubCore) ListMarketplacePlanAccounts(planID int) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/marketplace_listing/plans/%d/accounts", planID), nil)
-}
-
 func (g *GitHubCore) GetOrgInstallation(org string) (json.RawMessage, error) {
 	return g.apiGet(fmt.Sprintf("/orgs/%s/installation", org), nil)
 }
@@ -4946,10 +4905,6 @@ func (g *GitHubCore) AddRepoToInstallation(installationID, repoID int) (json.Raw
 func (g *GitHubCore) RemoveRepoFromInstallation(installationID, repoID int) error {
 	_, err := g.apiDelete(fmt.Sprintf("/user/installations/%d/repositories/%d", installationID, repoID))
 	return err
-}
-
-func (g *GitHubCore) ListUserMarketplacePurchases() (json.RawMessage, error) {
-	return g.apiGet("/user/marketplace_purchases", nil)
 }
 
 func (g *GitHubCore) GetUserInstallation(username string) (json.RawMessage, error) {
@@ -5090,14 +5045,6 @@ func (g *GitHubCore) ListRepoLanguages(owner, repo string) (json.RawMessage, err
 
 func (g *GitHubCore) ListRepoTeams(owner, repo string) (json.RawMessage, error) {
 	return g.apiGet(fmt.Sprintf("/repos/%s/%s/teams", owner, repo), nil)
-}
-
-func (g *GitHubCore) DownloadTarArchive(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/repos/%s/%s/tarball/%s", owner, repo, ref), nil)
-}
-
-func (g *GitHubCore) DownloadZipArchive(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/repos/%s/%s/zipball/%s", owner, repo, ref), nil)
 }
 
 func (g *GitHubCore) CreateRepoFromTemplate(templateOwner, templateRepo string, payload map[string]any) (json.RawMessage, error) {

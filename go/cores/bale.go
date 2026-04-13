@@ -2173,41 +2173,6 @@ func (b *BaleCore) SendContact(chatID string, phone string, firstName string, la
 	return &parsed, nil
 }
 
-// SendInvoice sends a payment invoice.
-func (b *BaleCore) SendInvoice(chatID string, title string, description string, payload string, providerToken string, prices []map[string]interface{}) (*Message, error) {
-	params := map[string]interface{}{
-		"chat_id":        chatID,
-		"title":          title,
-		"description":    description,
-		"payload":        payload,
-		"provider_token": providerToken,
-		"prices":         prices,
-	}
-	resp, err := b.apiRequest("sendInvoice", params)
-	if err != nil {
-		return nil, err
-	}
-	result, ok := resp["result"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("unexpected sendInvoice response")
-	}
-	parsed := b.mapMessage(result)
-	return &parsed, nil
-}
-
-// AnswerPreCheckoutQuery responds to a pre-checkout query.
-func (b *BaleCore) AnswerPreCheckoutQuery(preCheckoutQueryID string, ok bool, errorMessage string) error {
-	params := map[string]interface{}{
-		"pre_checkout_query_id": preCheckoutQueryID,
-		"ok":                    ok,
-	}
-	if !ok && errorMessage != "" {
-		params["error_message"] = errorMessage
-	}
-	_, err := b.apiRequest("answerPreCheckoutQuery", params)
-	return err
-}
-
 // --- Sticker Methods ---
 
 // GetStickerSet gets a sticker set by name.
@@ -2880,6 +2845,26 @@ const (
 	baleServiceConfigs   = "bale.v1.Configs"
 	baleServiceAbacus    = "bale.abacus.v1.Abacus"
 
+	// New services from web.bale.ai v4.17.0 JS scrape (2026-04-13)
+	baleServicePoll          = "bale.poll.v1.Poll"
+	baleServiceSearch        = "bale.search.v1.Search"
+	baleServiceStory         = "bale.story.v1.Story"
+	baleServiceMsgStream     = "bale.message_stream.v1.MessageStream"
+	baleServiceScheduler     = "bale.schedule.v1.Scheduler"
+	baleServiceTLDR          = "bale.tldr.v1.TLDR"
+	baleServiceAnonContact   = "bale.anonymous_contact.v1.AnonymousContact"
+	baleServiceMaviz         = "bale.maviz.v1.MavizStream"
+	baleServiceFalake        = "bale.falake.v1.Falake"
+	baleServiceNegah         = "bale.negah.v1.Negah"
+	baleServiceLLMAuth       = "bale.llm_auth.v1.LLMAuthService"
+	baleServiceAppzar        = "bale.appzar.v1.Appzar"
+	baleServiceTopPeer       = "bale.top_peer.v1.TopPeer"
+	baleServiceOrgs          = "bale.organizations.v1.Organizations"
+	baleServiceRecommender   = "bale.recommender.v1.Recommender"
+	baleServiceSharedMedia   = "bale.shared_media.v1.SharedMediaService"
+	baleServiceKetf          = "bale.ketf.v1.Ketf"
+	baleServiceTuringAI      = "bale.turing.v1.AI"
+
 	baleWSURL   = "wss://next-ws.bale.ai/ws/"
 	balePostURL = "https://next-ws.bale.ai"
 
@@ -2960,14 +2945,42 @@ func (b *BaleCore) wsRecvLoop() {
 			if b.wsCtx.Err() != nil {
 				return // context cancelled, shutting down
 			}
-			// Connection lost — try reconnect after delay
-			time.Sleep(3 * time.Second)
-			if err := b.wsConnect(); err == nil {
-				return // reconnected, new loop started
+			// Connection lost — exponential backoff reconnect
+			b.fireConnState("disconnected")
+			backoff := 3 * time.Second
+			const maxBackoff = 60 * time.Second
+			const maxRetries = 10
+			for attempt := 0; attempt < maxRetries; attempt++ {
+				if b.ctx.Err() != nil {
+					return // main context cancelled
+				}
+				b.fireConnState("reconnecting")
+				time.Sleep(backoff)
+				if err := b.wsConnect(); err == nil {
+					b.fireConnState("connected")
+					return // reconnected, new loop started
+				}
+				backoff *= 2
+				if backoff > maxBackoff {
+					backoff = maxBackoff
+				}
 			}
+			// All retries exhausted
+			b.fireConnState("disconnected")
 			return
 		}
 		go b.wsHandleMessage(data)
+	}
+}
+
+func (b *BaleCore) fireConnState(state string) {
+	b.updateMu.RLock()
+	handlers := make([]func(Update), len(b.updateHandlers))
+	copy(handlers, b.updateHandlers)
+	b.updateMu.RUnlock()
+	u := Update{Type: UpdateConnectivity, ConnState: state, Platform: "bale"}
+	for _, h := range handlers {
+		go h(u)
 	}
 }
 
@@ -5137,40 +5150,6 @@ func (b *BaleCore) DeleteStickerFromSet(sticker string) error {
 	return err
 }
 
-// CreateInvoiceLink creates a payment invoice link (bot mode).
-func (b *BaleCore) CreateInvoiceLink(title, description, payload, providerToken, currency string, prices []map[string]interface{}) (string, error) {
-	params := map[string]interface{}{
-		"title":          title,
-		"description":    description,
-		"payload":        payload,
-		"provider_token": providerToken,
-		"currency":       currency,
-		"prices":         prices,
-	}
-	resp, err := b.apiRequest("createInvoiceLink", params)
-	if err != nil {
-		return "", err
-	}
-	link, _ := resp["result"].(string)
-	return link, nil
-}
-
-// AnswerShippingQuery responds to a shipping query (bot mode).
-func (b *BaleCore) AnswerShippingQuery(shippingQueryID string, ok bool, shippingOptions []map[string]interface{}, errorMessage string) error {
-	params := map[string]interface{}{
-		"shipping_query_id": shippingQueryID,
-		"ok":                ok,
-	}
-	if ok && shippingOptions != nil {
-		params["shipping_options"] = shippingOptions
-	}
-	if !ok && errorMessage != "" {
-		params["error_message"] = errorMessage
-	}
-	_, err := b.apiRequest("answerShippingQuery", params)
-	return err
-}
-
 // GetUserProfilePhotos gets a user's profile photos (bot mode).
 func (b *BaleCore) GetUserProfilePhotos(userID int64, offset, limit int) (map[string]interface{}, error) {
 	params := map[string]interface{}{
@@ -5203,12 +5182,6 @@ func (b *BaleCore) AnswerInlineQuery(inlineQueryID string, results []map[string]
 	return err
 }
 
-// AskReview sends a review request to a user (Bale-specific bot method).
-func (b *BaleCore) AskReview(chatID string) error {
-	_, err := b.apiRequest("askReview", map[string]interface{}{"chat_id": chatID})
-	return err
-}
-
 // InviteUser sends an invite to a user (Bale-specific bot method).
 func (b *BaleCore) InviteUser(chatID string, userID int64) error {
 	params := map[string]interface{}{
@@ -5217,16 +5190,6 @@ func (b *BaleCore) InviteUser(chatID string, userID int64) error {
 	}
 	_, err := b.apiRequest("inviteUser", params)
 	return err
-}
-
-// InquireTransaction queries a wallet transaction (Bale-specific bot method).
-func (b *BaleCore) InquireTransaction(invoicePayload string) (map[string]interface{}, error) {
-	resp, err := b.apiRequest("inquireTransaction", map[string]interface{}{"invoice_payload": invoicePayload})
-	if err != nil {
-		return nil, err
-	}
-	result, _ := resp["result"].(map[string]interface{})
-	return result, nil
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5296,31 +5259,6 @@ func (b *BaleCore) SetNewPassword(transactionHash, newPassword, hint string) (ma
 	return b.userSend(baleServiceAuth, "SetNewPassword", payload)
 }
 
-// GetUserIdToken gets an ID token for the current user.
-func (b *BaleCore) GetUserIdToken() (map[string]interface{}, error) {
-	return b.userSend(baleServiceAuth, "GetUserIdToken", map[string]interface{}{})
-}
-
-// GetTicket gets a session ticket.
-func (b *BaleCore) GetTicket() (map[string]interface{}, error) {
-	return b.userSend(baleServiceAuth, "GetTicket", map[string]interface{}{})
-}
-
-// GetBajeBamTicket gets a BajeBam service ticket.
-func (b *BaleCore) GetBajeBamTicket() (map[string]interface{}, error) {
-	return b.userSend(baleServiceAuth, "GetBajeBamTicket", map[string]interface{}{})
-}
-
-// GetBaleTicket gets a Bale-specific service ticket.
-func (b *BaleCore) GetBaleTicket() (map[string]interface{}, error) {
-	return b.userSend(baleServiceAuth, "GetBaleTicket", map[string]interface{}{})
-}
-
-// GetJWTToken gets a JWT token.
-func (b *BaleCore) GetJWTToken() (map[string]interface{}, error) {
-	return b.userSend(baleServiceAuth, "GetJWTToken", map[string]interface{}{})
-}
-
 // TerminateAllSessions terminates all other sessions.
 func (b *BaleCore) TerminateAllSessions() (map[string]interface{}, error) {
 	return b.userSend(baleServiceAuth, "TerminateAllSessions", map[string]interface{}{})
@@ -5369,38 +5307,9 @@ func (b *BaleCore) EditMyPreferredLanguages(langs []string) (map[string]interfac
 	return b.userSend(baleServiceUsers, "EditMyPreferredLanguages", map[string]interface{}{"1": langList})
 }
 
-// LoadFullUsersSequentially loads full user info for multiple users one by one.
-func (b *BaleCore) LoadFullUsersSequentially(userIDs []int64) (map[string]interface{}, error) {
-	peers := make([]interface{}, len(userIDs))
-	for i, uid := range userIDs {
-		peers[i] = baleUserOutPeer(uid)
-	}
-	return b.userSend(baleServiceUsers, "LoadFullUsers", map[string]interface{}{"1": peers})
-}
-
 // LoadAvatars loads avatars for a user.
 func (b *BaleCore) LoadAvatars(userID int64) (map[string]interface{}, error) {
 	return b.userSend(baleServiceUsers, "LoadAvatars", map[string]interface{}{"1": baleUserOutPeer(userID)})
-}
-
-// GetUsersDefaultCardNumber gets the user's default card number (Bale wallet).
-func (b *BaleCore) GetUsersDefaultCardNumber() (map[string]interface{}, error) {
-	return b.userSend(baleServiceUsers, "GetUsersDefaultCardNumber", map[string]interface{}{})
-}
-
-// AddCard adds a bank card to the user's wallet.
-func (b *BaleCore) AddCard(cardNumber string) (map[string]interface{}, error) {
-	return b.userSend(baleServiceUsers, "AddCard", map[string]interface{}{"1": cardNumber})
-}
-
-// ChangeDefaultCardNumber changes the default card.
-func (b *BaleCore) ChangeDefaultCardNumber(cardNumber string) (map[string]interface{}, error) {
-	return b.userSend(baleServiceUsers, "ChangeDefaultCardNumber", map[string]interface{}{"1": cardNumber})
-}
-
-// RemoveDefaultCardNumber removes the default card.
-func (b *BaleCore) RemoveDefaultCardNumber() (map[string]interface{}, error) {
-	return b.userSend(baleServiceUsers, "RemoveDefaultCardNumber", map[string]interface{}{})
 }
 
 // NotifyAboutDeviceInfo sends device info to the server.
@@ -5462,27 +5371,6 @@ func (b *BaleCore) DiscardCall(callID int64) (map[string]interface{}, error) {
 // Extended Methods — GiftPacket Service (2 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
-const baleServiceGiftPacket = "bale.gift_packet.v1.GiftPacket"
-
-// SendGiftPacketWithWallet sends a gift packet using the wallet.
-func (b *BaleCore) SendGiftPacketWithWallet(chatID string, amount int64, count int, message string) (map[string]interface{}, error) {
-	peerID, peerType := parsePeerID(chatID)
-	payload := map[string]interface{}{
-		"1": balePeer(peerType, peerID),
-		"2": amount,
-		"3": int64(count),
-	}
-	if message != "" {
-		payload["4"] = message
-	}
-	return b.userSend(baleServiceGiftPacket, "SendGiftPacketWithWallet", payload)
-}
-
-// OpenGiftPacket opens a gift packet.
-func (b *BaleCore) OpenGiftPacket(packetID int64) (map[string]interface{}, error) {
-	return b.userSend(baleServiceGiftPacket, "OpenGiftPacket", map[string]interface{}{"1": packetID})
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Magazine Service (3 methods)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5525,13 +5413,6 @@ func (b *BaleCore) GetMessageUpvoters(chatID string, rid int64, date int64) (map
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Kifpool Service (1 method)
 // ══════════════════════════════════════════════════════════════════════════════
-
-const baleServiceKifpool = "bale.kifpool.v1.Kifpool"
-
-// GetMyKifpools gets the user's kifpools (savings pools).
-func (b *BaleCore) GetMyKifpools() (map[string]interface{}, error) {
-	return b.userSend(baleServiceKifpool, "GetMyKifpools", map[string]interface{}{})
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Push Service (5 methods)
@@ -5631,17 +5512,6 @@ func (b *BaleCore) ReportDismiss(chatID string) (map[string]interface{}, error) 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Feedback (1 method)
 // ══════════════════════════════════════════════════════════════════════════════
-
-const baleServiceFeedback = "bale.feedback.v1.Feedback"
-
-// SendFeedBack sends user feedback to Bale.
-func (b *BaleCore) SendFeedBack(text string, rating int) (map[string]interface{}, error) {
-	payload := map[string]interface{}{"1": text}
-	if rating > 0 {
-		payload["2"] = int64(rating)
-	}
-	return b.userSend(baleServiceFeedback, "SendFeedBack", payload)
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Search (5 methods)
@@ -6005,45 +5875,31 @@ func (b *BaleCore) PushSetConfig(config map[string]interface{}) (map[string]inte
 // Extended Methods — Chat Management (5 methods, user mode)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// MarkAsUnread marks a dialog as unread (markedAsUnread field).
-// Service: bale.messaging.v2.Messaging/MarkDialogAsUnread
+// MarkAsUnread — Bale server returns "unknown method" for MarkAsUnread.
+// The web client has stub code for it but the server doesn't implement it.
 func (b *BaleCore) MarkAsUnread(chatID string) (map[string]interface{}, error) {
-	peerID, peerType := parsePeerID(chatID)
-	payload := map[string]interface{}{
-		"1": balePeer(peerType, peerID),
-		"2": int64(1), // mark_as_unread = true
-	}
-	return b.userSend(baleServiceMessaging, "MarkDialogAsUnread", payload)
+	return nil, fmt.Errorf("%w: %s server does not implement MarkAsUnread", ErrNotSupported, balePlatform)
 }
 
-// MuteChat mutes a dialog (sets isMute field).
-// Service: bale.messaging.v2.Messaging/MuteDialog
+// MuteChat mutes/unmutes a dialog via ArchiveDialogs (Bale has no separate mute RPC).
+// Uses the MentionRead approach: setting "2" field as mute duration.
 func (b *BaleCore) MuteChat(chatID string, muted bool) error {
-	peerID, peerType := parsePeerID(chatID)
-	muteVal := int64(0)
-	if muted {
-		muteVal = 1
-	}
-	payload := map[string]interface{}{
-		"1": balePeer(peerType, peerID),
-		"2": muteVal,
-	}
-	_, err := b.userSend(baleServiceMessaging, "MuteDialog", payload)
-	return err
+	// Bale doesn't have a dedicated MuteDialog RPC.
+	// The web client handles mute via client-side notification settings.
+	return fmt.Errorf("%w: %s does not support server-side mute", ErrNotSupported, balePlatform)
 }
 
-// ArchiveChat archives a dialog.
-// Service: bale.messaging.v2.Messaging/ArchiveDialog
+// ArchiveChat archives/unarchives a dialog.
+// Service: bale.messaging.v2.Messaging/ArchiveDialogs or UnArchiveDialogs
 func (b *BaleCore) ArchiveChat(chatID string, archived bool) error {
 	peerID, peerType := parsePeerID(chatID)
-	payload := map[string]interface{}{
-		"1": balePeer(peerType, peerID),
-	}
-	method := "ArchiveDialog"
+	peer := balePeer(peerType, peerID)
+	peers := []map[string]interface{}{peer}
+	method := "ArchiveDialogs"
 	if !archived {
-		method = "UnarchiveDialog"
+		method = "UnArchiveDialogs"
 	}
-	_, err := b.userSend(baleServiceMessaging, method, payload)
+	_, err := b.userSend(baleServiceMessaging, method, map[string]interface{}{"1": peers})
 	return err
 }
 
@@ -6191,4 +6047,1939 @@ func (b *BaleCore) AcceptCall(callID string) (*CallSession, error) {
 
 func (b *BaleCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, balePlatform)
+}
+
+// =============================================================================
+// Missing Messaging methods (bale.messaging.v2.Messaging)
+// Discovered from web.bale.ai v4.17.0+151668 JS scrape, 2026-04-13
+// =============================================================================
+
+func (b *BaleCore) UserSendMultiMediaMessage(chatID string, mediaMessages []map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": mediaMessages,
+	}
+	return b.userSend(baleServiceMessaging, "SendMultiMediaMessage", payload)
+}
+
+func (b *BaleCore) UserLoadFolderDialogs(folderID int64, offsetDate int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	payload := map[string]interface{}{
+		"1": folderID,
+		"2": offsetDate,
+		"3": int64(limit),
+	}
+	return b.userSend(baleServiceMessaging, "LoadFolderDialogs", payload)
+}
+
+func (b *BaleCore) UserLoadGroupedDialogs(offsetDate int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	payload := map[string]interface{}{
+		"1": offsetDate,
+		"2": int64(limit),
+	}
+	return b.userSend(baleServiceMessaging, "LoadGroupedDialogs", payload)
+}
+
+func (b *BaleCore) UserLoadPeerDialogs(peerIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(peerIDs))
+	for i, pid := range peerIDs {
+		id, pt := parsePeerID(pid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "LoadPeerDialogs", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserLoadPeers(peerIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(peerIDs))
+	for i, pid := range peerIDs {
+		id, pt := parsePeerID(pid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "LoadPeers", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserLoadPinnedDialogs() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMessaging, "LoadPinnedDialogs", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserLoadReplies(chatID string, msgID string, offsetDate int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	payload := map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+		"3": offsetDate,
+		"4": int64(limit),
+	}
+	return b.userSend(baleServiceMessaging, "LoadReplies", payload)
+}
+
+func (b *BaleCore) UserCreateReservedFolder(title string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMessaging, "CreateReservedFolder", map[string]interface{}{"1": title})
+}
+
+func (b *BaleCore) UserArchiveDialogs(chatIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(chatIDs))
+	for i, cid := range chatIDs {
+		id, pt := parsePeerID(cid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "ArchiveDialogs", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserUnArchiveDialogs(chatIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(chatIDs))
+	for i, cid := range chatIDs {
+		id, pt := parsePeerID(cid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "UnArchiveDialogs", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserPinDialogs(chatIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(chatIDs))
+	for i, cid := range chatIDs {
+		id, pt := parsePeerID(cid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "PinDialogs", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserUnpinDialogs(chatIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(chatIDs))
+	for i, cid := range chatIDs {
+		id, pt := parsePeerID(cid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "UnpinDialogs", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserReorderPinnedDialogs(chatIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(chatIDs))
+	for i, cid := range chatIDs {
+		id, pt := parsePeerID(cid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "ReorderPinnedDialogs", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserMarkDialogsAsRead(chatIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(chatIDs))
+	for i, cid := range chatIDs {
+		id, pt := parsePeerID(cid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "MarkDialogsAsRead", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserMentionRead(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServiceMessaging, "MentionRead", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+	})
+}
+
+func (b *BaleCore) UserMessageReceived(chatID string, dateMs int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	return b.userSend(baleServiceMessaging, "MessageReceived", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": dateMs,
+	})
+}
+
+func (b *BaleCore) UserFetchProtectedMessage(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServiceMessaging, "FetchProtectedMessage", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+	})
+}
+
+func (b *BaleCore) UserGetMessagesRepliesInfo(chatID string, msgIDs []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	msgs := make([]map[string]interface{}, len(msgIDs))
+	for i, mid := range msgIDs {
+		rid, dateMs := parseMsgIDWithDate(mid)
+		msgs[i] = map[string]interface{}{"1": dateMs, "2": rid}
+	}
+	return b.userSend(baleServiceMessaging, "GetMessagesRepliesInfo", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": msgs,
+	})
+}
+
+func (b *BaleCore) UserGetDiscussionMessage(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServiceMessaging, "GetDiscussionMessage", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+	})
+}
+
+func (b *BaleCore) UserCreateThread(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServiceMessaging, "CreateThread", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+	})
+}
+
+func (b *BaleCore) UserCreateTopic(chatID string, title string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	return b.userSend(baleServiceMessaging, "CreateTopic", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": title,
+	})
+}
+
+func (b *BaleCore) UserGetTopics(chatID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	return b.userSend(baleServiceMessaging, "GetTopics", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+	})
+}
+
+func (b *BaleCore) UserGetTopicByID(chatID string, topicID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	return b.userSend(baleServiceMessaging, "GetTopicByID", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": topicID,
+	})
+}
+
+// =============================================================================
+// Missing Groups methods (bale.groups.v1.Groups)
+// =============================================================================
+
+func (b *BaleCore) UserLoadFullGroups(groupIDs []int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(groupIDs))
+	for i, gid := range groupIDs {
+		peers[i] = baleGroupOutPeer(gid)
+	}
+	return b.userSend(baleServiceGroups, "LoadFullGroups", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserGetMyGroups() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceGroups, "GetMyGroups", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserLoadGroupAvatars(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceGroups, "LoadGroupAvatars", map[string]interface{}{
+		"1": baleGroupOutPeer(groupID),
+	})
+}
+
+func (b *BaleCore) UserEditGroupDefaultCardNumber(groupID int64, cardNumber string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "EditGroupDefaultCardNumber", map[string]interface{}{
+		"1": baleShortPeer(gid),
+		"2": cardNumber,
+	})
+}
+
+func (b *BaleCore) UserGetGroupDefaultCardNumber(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "GetGroupDefaultCardNumber", map[string]interface{}{
+		"1": baleShortPeer(gid),
+	})
+}
+
+func (b *BaleCore) UserInviteUser(groupID int64, userID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "InviteUser", map[string]interface{}{
+		"1": baleShortPeer(gid),
+		"2": baleUserOutPeer(userID),
+	})
+}
+
+func (b *BaleCore) UserSetCanSeeMessages(groupID int64, canSee bool) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "SetCanSeeMessages", map[string]interface{}{
+		"1": baleShortPeer(gid),
+		"2": canSee,
+	})
+}
+
+func (b *BaleCore) UserGetCanSeeMessages(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "GetCanSeeMessages", map[string]interface{}{
+		"1": baleShortPeer(gid),
+	})
+}
+
+func (b *BaleCore) UserFetchGroupAdmins(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "FetchGroupAdmins", map[string]interface{}{
+		"1": baleShortPeer(gid),
+	})
+}
+
+func (b *BaleCore) UserLoadGroups(groupIDs []int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peers := make([]map[string]interface{}, len(groupIDs))
+	for i, gid := range groupIDs {
+		peers[i] = baleGroupOutPeer(gid)
+	}
+	return b.userSend(baleServiceGroups, "LoadGroups", map[string]interface{}{"1": peers})
+}
+
+func (b *BaleCore) UserSetAvailableReactions(groupID int64, reactions []string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "SetAvailableReactions", map[string]interface{}{
+		"1": baleShortPeer(gid),
+		"2": reactions,
+	})
+}
+
+func (b *BaleCore) UserGetMutualGroups(userID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceGroups, "GetMutualGroups", map[string]interface{}{
+		"1": baleUserOutPeer(userID),
+	})
+}
+
+func (b *BaleCore) UserSetDiscussionGroup(channelID int64, groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	chID, err := b.resolveGroupInternalID(channelID)
+	if err != nil {
+		return nil, err
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "SetDiscussionGroup", map[string]interface{}{
+		"1": baleShortPeer(chID),
+		"2": baleShortPeer(gid),
+	})
+}
+
+func (b *BaleCore) UserRemoveDiscussionGroup(channelID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	chID, err := b.resolveGroupInternalID(channelID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "RemoveDiscussionGroup", map[string]interface{}{
+		"1": baleShortPeer(chID),
+	})
+}
+
+func (b *BaleCore) UserAddDiscussionGroupAdmin(channelID int64, userID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	chID, err := b.resolveGroupInternalID(channelID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "AddDiscussionGroupAdmin", map[string]interface{}{
+		"1": baleShortPeer(chID),
+		"2": baleUserOutPeer(userID),
+	})
+}
+
+func (b *BaleCore) UserSetCanSeeHistory(groupID int64, canSee bool) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "SetCanSeeHistory", map[string]interface{}{
+		"1": baleShortPeer(gid),
+		"2": canSee,
+	})
+}
+
+func (b *BaleCore) UserGetGroupRecommendations(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceGroups, "GetGroupRecommendations", map[string]interface{}{
+		"1": baleGroupOutPeer(groupID),
+	})
+}
+
+func (b *BaleCore) UserSetMemberCustomTitle(groupID int64, userID int64, title string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	gid, err := b.resolveGroupInternalID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	return b.userSend(baleServiceGroups, "SetMemberCustomTitle", map[string]interface{}{
+		"1": baleShortPeer(gid),
+		"2": baleUserOutPeer(userID),
+		"3": title,
+	})
+}
+
+// =============================================================================
+// Missing Meet methods (bale.meet.v1.Meet)
+// =============================================================================
+
+func (b *BaleCore) UserAcceptCallMeet(callID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "AcceptCall", map[string]interface{}{"1": callID})
+}
+
+func (b *BaleCore) UserGetCallState(callID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "GetCallState", map[string]interface{}{"1": callID})
+}
+
+func (b *BaleCore) UserDeleteCallLogs(callIDs []int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "DeleteCallLogs", map[string]interface{}{"1": callIDs})
+}
+
+func (b *BaleCore) UserInviteToCall(callID int64, userIDs []int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	users := make([]map[string]interface{}, len(userIDs))
+	for i, uid := range userIDs {
+		users[i] = baleUserOutPeer(uid)
+	}
+	return b.userSend(baleServiceMeet, "InviteToCall", map[string]interface{}{
+		"1": callID,
+		"2": users,
+	})
+}
+
+func (b *BaleCore) UserAskToJoinCall(callID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "AskToJoinCall", map[string]interface{}{"1": callID})
+}
+
+func (b *BaleCore) UserAnswerCallJoinRequest(callID int64, userID int64, accept bool) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "AnswerCallJoinRequest", map[string]interface{}{
+		"1": callID,
+		"2": baleUserOutPeer(userID),
+		"3": accept,
+	})
+}
+
+func (b *BaleCore) UserSendCallReaction(callID int64, reaction string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "SendCallReaction", map[string]interface{}{
+		"1": callID,
+		"2": reaction,
+	})
+}
+
+func (b *BaleCore) UserSubmitCallFeedback(callID int64, rating int, comment string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "SubmitCallFeedback", map[string]interface{}{
+		"1": callID,
+		"2": int64(rating),
+		"3": comment,
+	})
+}
+
+func (b *BaleCore) UserMuteCallParticipant(callID int64, userID int64, muted bool) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "MuteParticipant", map[string]interface{}{
+		"1": callID,
+		"2": baleUserOutPeer(userID),
+		"3": muted,
+	})
+}
+
+func (b *BaleCore) UserRemoveCallParticipant(callID int64, userID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "RemoveParticipant", map[string]interface{}{
+		"1": callID,
+		"2": baleUserOutPeer(userID),
+	})
+}
+
+func (b *BaleCore) UserStartRecording(callID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "StartRecording", map[string]interface{}{"1": callID})
+}
+
+func (b *BaleCore) UserStopRecording(callID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "StopRecording", map[string]interface{}{"1": callID})
+}
+
+func (b *BaleCore) UserStartStream(callID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "StartStream", map[string]interface{}{"1": callID})
+}
+
+func (b *BaleCore) UserDeleteStream(callID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "DeleteStream", map[string]interface{}{"1": callID})
+}
+
+func (b *BaleCore) UserUpdateCallLayout(callID int64, layout int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "UpdateLayout", map[string]interface{}{
+		"1": callID,
+		"2": int64(layout),
+	})
+}
+
+func (b *BaleCore) UserGenerateCallLink(callID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "GenerateCallLink", map[string]interface{}{"1": callID})
+}
+
+func (b *BaleCore) UserGetCallLinkDetails(link string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "GetCallLinkDetails", map[string]interface{}{"1": link})
+}
+
+func (b *BaleCore) UserSetCallLinkTitle(callID int64, title string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "SetLinkTitle", map[string]interface{}{
+		"1": callID,
+		"2": title,
+	})
+}
+
+func (b *BaleCore) UserSendCallFanoosEvent(callID int64, eventName string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "SendFanoosEvent", map[string]interface{}{
+		"1": callID,
+		"2": eventName,
+	})
+}
+
+func (b *BaleCore) UserTakeCallAction(callID int64, action int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMeet, "TakeCallAction", map[string]interface{}{
+		"1": callID,
+		"2": int64(action),
+	})
+}
+
+// =============================================================================
+// Missing Presence methods (bale.presence.v1.Presence)
+// =============================================================================
+
+func (b *BaleCore) UserGetContactsPresences() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServicePresence, "GetContactsPresences", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetGroupMembersPresences(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServicePresence, "GetGroupMembersPresences", map[string]interface{}{
+		"1": baleGroupOutPeer(groupID),
+	})
+}
+
+func (b *BaleCore) UserGetGroupOnlineCount(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServicePresence, "GetGroupOnlineCount", map[string]interface{}{
+		"1": baleGroupOutPeer(groupID),
+	})
+}
+
+func (b *BaleCore) UserGetUsersPresence(userIDs []int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	users := make([]map[string]interface{}, len(userIDs))
+	for i, uid := range userIDs {
+		users[i] = baleUserOutPeer(uid)
+	}
+	return b.userSend(baleServicePresence, "GetUsersPresence", map[string]interface{}{"1": users})
+}
+
+func (b *BaleCore) UserSubscribeToOnline(userIDs []int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	users := make([]map[string]interface{}, len(userIDs))
+	for i, uid := range userIDs {
+		users[i] = baleUserOutPeer(uid)
+	}
+	return b.userSend(baleServicePresence, "SubscribeToOnline", map[string]interface{}{"1": users})
+}
+
+func (b *BaleCore) UserSubscribeFromOnline(userIDs []int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	users := make([]map[string]interface{}, len(userIDs))
+	for i, uid := range userIDs {
+		users[i] = baleUserOutPeer(uid)
+	}
+	return b.userSend(baleServicePresence, "SubscribeFromOnline", map[string]interface{}{"1": users})
+}
+
+func (b *BaleCore) UserSubscribeToGroupOnline(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServicePresence, "SubscribeToGroupOnline", map[string]interface{}{
+		"1": baleGroupOutPeer(groupID),
+	})
+}
+
+func (b *BaleCore) UserSubscribeFromGroupOnline(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServicePresence, "SubscribeFromGroupOnline", map[string]interface{}{
+		"1": baleGroupOutPeer(groupID),
+	})
+}
+
+// =============================================================================
+// Missing Abacus methods (bale.abacus.v1.Abacus)
+// =============================================================================
+
+func (b *BaleCore) UserEnableShowReactionFlag(enabled bool) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceAbacus, "EnableShowReactionFlag", map[string]interface{}{"1": enabled})
+}
+
+func (b *BaleCore) UserGetShowReactionFlag() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceAbacus, "GetShowReactionFlag", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserLoadReactions() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceAbacus, "LoadReactions", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserMessageReactionsRead(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServiceAbacus, "MessageReactionsRead", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+	})
+}
+
+// =============================================================================
+// New service: Poll (bale.poll.v1.Poll)
+// =============================================================================
+
+func (b *BaleCore) UserCreatePoll(chatID string, question string, options []string, multipleChoice bool, anonymous bool) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	optionMsgs := make([]map[string]interface{}, len(options))
+	for i, opt := range options {
+		optionMsgs[i] = map[string]interface{}{"1": opt}
+	}
+	return b.userSend(baleServicePoll, "CreatePoll", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": question,
+		"3": optionMsgs,
+		"4": multipleChoice,
+		"5": anonymous,
+		"6": baleRID(),
+	})
+}
+
+func (b *BaleCore) UserClosePollService(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServicePoll, "ClosePoll", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": dateMs,
+	})
+}
+
+func (b *BaleCore) UserVotePollService(chatID string, msgID string, optionIndices []int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	indices := make([]int64, len(optionIndices))
+	for i, idx := range optionIndices {
+		indices[i] = int64(idx)
+	}
+	return b.userSend(baleServicePoll, "Vote", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": dateMs,
+		"4": indices,
+	})
+}
+
+func (b *BaleCore) UserGetPollResultsService(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServicePoll, "GetPollResults", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": dateMs,
+	})
+}
+
+func (b *BaleCore) UserGetFullPollResultService(chatID string, msgID string, optionIndex int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	peerID, peerType := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServicePoll, "GetFullPollResult", map[string]interface{}{
+		"1": balePeer(peerType, peerID),
+		"2": rid,
+		"3": dateMs,
+		"4": int64(optionIndex),
+	})
+}
+
+// =============================================================================
+// New service: Search (bale.search.v1.Search)
+// =============================================================================
+
+func (b *BaleCore) UserSearchMessages(query string, chatID string, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	payload := map[string]interface{}{
+		"1": query,
+		"3": int64(limit),
+	}
+	if chatID != "" {
+		id, pt := parsePeerID(chatID)
+		payload["2"] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceSearch, "SearchMessages", payload)
+}
+
+func (b *BaleCore) UserSearchMessageMore(query string, chatID string, offset int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	payload := map[string]interface{}{
+		"1": query,
+		"3": int64(limit),
+		"4": offset,
+	}
+	if chatID != "" {
+		id, pt := parsePeerID(chatID)
+		payload["2"] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceSearch, "SearchMessageMore", payload)
+}
+
+func (b *BaleCore) UserSearchPeer(query string, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceSearch, "SearchPeer", map[string]interface{}{
+		"1": query,
+		"2": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserSearchMediaService(chatID string, mediaType int, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	return b.userSend(baleServiceSearch, "SearchMedia", map[string]interface{}{
+		"1": balePeer(pt, id),
+		"2": int64(mediaType),
+		"3": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserSearchMembersService(chatID string, query string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	return b.userSend(baleServiceSearch, "SearchMembers", map[string]interface{}{
+		"1": balePeer(pt, id),
+		"2": query,
+	})
+}
+
+func (b *BaleCore) UserSearchDialog(query string, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceSearch, "SearchDialog", map[string]interface{}{
+		"1": query,
+		"2": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserSearchContent(query string, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceSearch, "SearchContent", map[string]interface{}{
+		"1": query,
+		"2": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserUpdateSearchContentClick(contentID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceSearch, "UpdateSearchContentClick", map[string]interface{}{"1": contentID})
+}
+
+// =============================================================================
+// New service: Story (bale.story.v1.Story)
+// =============================================================================
+
+func (b *BaleCore) UserAddStory(content map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "AddStory", content)
+}
+
+func (b *BaleCore) UserAddChannelStory(channelID int64, content map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	content["1"] = baleGroupOutPeer(channelID)
+	return b.userSend(baleServiceStory, "AddChannelStory", content)
+}
+
+func (b *BaleCore) UserAddBotStory(botID int64, content map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	content["1"] = baleUserOutPeer(botID)
+	return b.userSend(baleServiceStory, "AddBotStory", content)
+}
+
+func (b *BaleCore) UserCanAddBotStory(botID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "CanAddBotStory", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+	})
+}
+
+func (b *BaleCore) UserRemoveStory(storyID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "RemoveStory", map[string]interface{}{"1": storyID})
+}
+
+func (b *BaleCore) UserGetStoryViewers(storyID int64, offset int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetViewers", map[string]interface{}{
+		"1": storyID,
+		"2": offset,
+		"3": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserGetStoryViewersCount(storyID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetViewersCount", map[string]interface{}{"1": storyID})
+}
+
+func (b *BaleCore) UserGetStories(peerID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetStories", map[string]interface{}{
+		"1": baleUserOutPeer(peerID),
+	})
+}
+
+func (b *BaleCore) UserGetChannelStories(channelID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetChannelStories", map[string]interface{}{
+		"1": baleGroupOutPeer(channelID),
+	})
+}
+
+func (b *BaleCore) UserGetBotStories(botID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetBotStories", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+	})
+}
+
+func (b *BaleCore) UserReactToStory(storyID int64, reaction string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "ReactToStory", map[string]interface{}{
+		"1": storyID,
+		"2": reaction,
+	})
+}
+
+func (b *BaleCore) UserGetStoryByID(storyID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetStoryById", map[string]interface{}{"1": storyID})
+}
+
+func (b *BaleCore) UserGetStoryPrivacyConfig() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetUserPrivacyConfig", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserSetStoryPrivacyConfig(config map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "SetUserPrivacyConfig", config)
+}
+
+func (b *BaleCore) UserGetDefaultStoryBackgrounds() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetDefaultStoryBackgrounds", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetMostPopularStories() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetMostPopularStories", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetStoryWidgets() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetStoryWidgets", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetUserStoryConfig() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetUserStoryConfig", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserSetUserStoryConfig(config map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "SetUserStoryConfig", config)
+}
+
+func (b *BaleCore) UserGetStoriesByList(storyIDs []int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetStoriesByList", map[string]interface{}{"1": storyIDs})
+}
+
+func (b *BaleCore) UserGetStoryReactionEmojis() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetStoryReactionEmojis", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetStoryTags() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "GetStoryTags", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserCheckStoryLinkValidity(link string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceStory, "CheckLinkValidity", map[string]interface{}{"1": link})
+}
+
+// =============================================================================
+// New service: Ketf/Bots (bale.ketf.v1.Ketf)
+// =============================================================================
+
+func (b *BaleCore) UserAddGif(fileID int64, accessHash int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "AddGif", map[string]interface{}{
+		"1": fileID, "2": accessHash,
+	})
+}
+
+func (b *BaleCore) UserRemoveGif(fileID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "RemoveGif", map[string]interface{}{"1": fileID})
+}
+
+func (b *BaleCore) UserUseGif(fileID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "UseGif", map[string]interface{}{"1": fileID})
+}
+
+func (b *BaleCore) UserGetSavedGifs() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetSavedGifs", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserAddStickerCollection(collectionID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "AddStickerCollection", map[string]interface{}{"1": collectionID})
+}
+
+func (b *BaleCore) UserRemoveStickerCollection(collectionID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "RemoveStickerCollection", map[string]interface{}{"1": collectionID})
+}
+
+func (b *BaleCore) UserAddStickerPack(packID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "AddStickerPack", map[string]interface{}{"1": packID})
+}
+
+func (b *BaleCore) UserRemoveStickerPack(packID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "RemoveStickerPack", map[string]interface{}{"1": packID})
+}
+
+func (b *BaleCore) UserLoadOwnStickers() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "LoadOwnStickers", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserLoadStickerCollection(collectionID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "LoadStickerCollection", map[string]interface{}{"1": collectionID})
+}
+
+func (b *BaleCore) UserSendInlineCallBackData(botID int64, queryID string, data string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "SendInlineCallBackData", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": queryID,
+		"3": data,
+	})
+}
+
+func (b *BaleCore) UserSendInlineCallback(botID int64, queryID string, data string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "SendInlineCallback", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": queryID,
+		"3": data,
+	})
+}
+
+func (b *BaleCore) UserSendAuthenticatedInlineCallBackData(botID int64, queryID string, data string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "SendAuthenticatedInlineCallBackData", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": queryID,
+		"3": data,
+	})
+}
+
+func (b *BaleCore) UserSendMiniAppData(botID int64, data string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "SendMiniAppData", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": data,
+	})
+}
+
+func (b *BaleCore) UserGetBotWhiteList() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetBotWhiteList", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetUserContext(botID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetUserContext", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+	})
+}
+
+func (b *BaleCore) UserGetWebappHash(botID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetWebappHash", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+	})
+}
+
+func (b *BaleCore) UserGetBots() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetBots", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetBotInfo(botID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetBotInfo", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+	})
+}
+
+func (b *BaleCore) UserGetInlineBotResults(botID int64, query string, offset string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetInlineBotResults", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": query,
+		"3": offset,
+	})
+}
+
+func (b *BaleCore) UserGetBotGroupPermissions(botID int64, groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetBotGroupPermissions", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": baleGroupOutPeer(groupID),
+	})
+}
+
+func (b *BaleCore) UserGetPaymentDetails(paymentID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "GetPaymentDetails", map[string]interface{}{"1": paymentID})
+}
+
+func (b *BaleCore) UserMakePayment(paymentID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "MakePayment", map[string]interface{}{"1": paymentID})
+}
+
+func (b *BaleCore) UserInvokeCustomAction(botID int64, action string, data string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceKetf, "InvokeCustomAction", map[string]interface{}{
+		"1": baleUserOutPeer(botID),
+		"2": action,
+		"3": data,
+	})
+}
+
+// =============================================================================
+// New service: MavizStream (bale.maviz.v1.MavizStream)
+// =============================================================================
+
+func (b *BaleCore) UserSubscribeToUpdates() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMaviz, "SubscribeToUpdates", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetDifference(seq int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMaviz, "GetDifference", map[string]interface{}{"1": seq})
+}
+
+func (b *BaleCore) UserSubscribeToThreadUpdates(chatID string, threadID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	return b.userSend(baleServiceMaviz, "SubscribeToThreadUpdates", map[string]interface{}{
+		"1": balePeer(pt, id),
+		"2": threadID,
+	})
+}
+
+func (b *BaleCore) UserUnsubscribeFromThreadUpdates(chatID string, threadID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	return b.userSend(baleServiceMaviz, "UnsubscribeFromThreadUpdates", map[string]interface{}{
+		"1": balePeer(pt, id),
+		"2": threadID,
+	})
+}
+
+// =============================================================================
+// New service: MessageStream (bale.message_stream.v1.MessageStream)
+// =============================================================================
+
+func (b *BaleCore) UserCancelMessageStream(streamID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMsgStream, "CancelMessageStream", map[string]interface{}{"1": streamID})
+}
+
+func (b *BaleCore) UserReceiveMessageStream(streamID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMsgStream, "ReceiveMessageStream", map[string]interface{}{"1": streamID})
+}
+
+// =============================================================================
+// New service: Scheduler (bale.schedule.v1.Scheduler)
+// =============================================================================
+
+func (b *BaleCore) UserScheduleTask(chatID string, task map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	task["1"] = balePeer(pt, id)
+	return b.userSend(baleServiceScheduler, "ScheduleTask", task)
+}
+
+func (b *BaleCore) UserUnScheduleTask(taskID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceScheduler, "UnScheduleTask", map[string]interface{}{"1": taskID})
+}
+
+func (b *BaleCore) UserListScheduledTasks(chatID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	return b.userSend(baleServiceScheduler, "ListTasks", map[string]interface{}{
+		"1": balePeer(pt, id),
+	})
+}
+
+func (b *BaleCore) UserExecuteTaskNow(taskID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceScheduler, "ExecuteTaskNow", map[string]interface{}{"1": taskID})
+}
+
+func (b *BaleCore) UserReScheduleTask(taskID int64, newDate int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceScheduler, "ReScheduleTask", map[string]interface{}{
+		"1": taskID,
+		"2": newDate,
+	})
+}
+
+func (b *BaleCore) UserPeersWithScheduleTask() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceScheduler, "PeersWithScheduleTask", map[string]interface{}{})
+}
+
+// =============================================================================
+// New service: TLDR (bale.tldr.v1.TLDR)
+// =============================================================================
+
+func (b *BaleCore) UserGetLinkSummary(url string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceTLDR, "GetLinkSummary", map[string]interface{}{"1": url})
+}
+
+func (b *BaleCore) UserGetLinkPreview(url string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceTLDR, "GetLinkPreview", map[string]interface{}{"1": url})
+}
+
+// =============================================================================
+// New service: Negah (bale.negah.v1.Negah)
+// =============================================================================
+
+func (b *BaleCore) UserGetMessageSeenList(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServiceNegah, "GetMessageSeenList", map[string]interface{}{
+		"1": balePeer(pt, id),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+	})
+}
+
+// =============================================================================
+// New service: SharedMedia (bale.shared_media.v1.SharedMediaService)
+// =============================================================================
+
+func (b *BaleCore) UserLoadSharedMedia(chatID string, mediaType int, offset int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	return b.userSend(baleServiceSharedMedia, "LoadMedia", map[string]interface{}{
+		"1": balePeer(pt, id),
+		"2": int64(mediaType),
+		"3": offset,
+		"4": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserGetActiveSharedMedia(chatID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	return b.userSend(baleServiceSharedMedia, "GetActiveSharedMedia", map[string]interface{}{
+		"1": balePeer(pt, id),
+	})
+}
+
+// =============================================================================
+// New service: TopPeer (bale.top_peer.v1.TopPeer)
+// =============================================================================
+
+func (b *BaleCore) UserGetTopPeer() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceTopPeer, "GetTopPeer", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserRemoveTopPeer(peerID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(peerID)
+	return b.userSend(baleServiceTopPeer, "RemovePeer", map[string]interface{}{
+		"1": balePeer(pt, id),
+	})
+}
+
+// =============================================================================
+// New service: Recommender (bale.recommender.v1.Recommender)
+// =============================================================================
+
+func (b *BaleCore) UserGetChannelRecommendations(channelID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceRecommender, "GetChannelRecommendations", map[string]interface{}{
+		"1": baleGroupOutPeer(channelID),
+	})
+}
+
+func (b *BaleCore) UserGetRelatedChannels(channelID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceRecommender, "GetRelatedChannels", map[string]interface{}{
+		"1": baleGroupOutPeer(channelID),
+	})
+}
+
+func (b *BaleCore) UserGetGroupsRecommendation() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceRecommender, "GetGroupsRecommendation", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetRelatedGroups(groupID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceRecommender, "GetRelatedGroups", map[string]interface{}{
+		"1": baleGroupOutPeer(groupID),
+	})
+}
+
+// =============================================================================
+// New service: AnonymousContact (bale.anonymous_contact.v1.AnonymousContact)
+// =============================================================================
+
+func (b *BaleCore) UserGetAnonymousContactPage() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceAnonContact, "GetUserAnonymousContactPage", map[string]interface{}{})
+}
+
+// =============================================================================
+// New service: Falake (bale.falake.v1.Falake)
+// =============================================================================
+
+func (b *BaleCore) UserGetLinkStatus(link string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceFalake, "GetLinkStatus", map[string]interface{}{"1": link})
+}
+
+// =============================================================================
+// New service: LLMAuth (bale.llm_auth.v1.LLMAuthService)
+// =============================================================================
+
+func (b *BaleCore) UserGetLLMAuthToken() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceLLMAuth, "GetAuthToken", map[string]interface{}{})
+}
+
+// =============================================================================
+// New service: Organizations (bale.organizations.v1.Organizations)
+// =============================================================================
+
+func (b *BaleCore) UserGetOrganizationalContacts() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceOrgs, "GetUserOrganizationalContacts", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetOrganizationInfo() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceOrgs, "GetUserOrganizationInfo", map[string]interface{}{})
+}
+
+// =============================================================================
+// New service: Appzar (bale.appzar.v1.Appzar)
+// =============================================================================
+
+func (b *BaleCore) UserGetMiniAppUrlAppzar(botID int64, shortName string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceAppzar, "GetMiniAppUrl", map[string]interface{}{
+		"1": botID,
+		"2": shortName,
+	})
+}
+
+func (b *BaleCore) UserGetMenuButton(botID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceAppzar, "GetMenuButton", map[string]interface{}{"1": botID})
+}
+
+func (b *BaleCore) UserInvokeCustomMethodAppzar(botID int64, method string, params string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceAppzar, "InvokeCustomMethod", map[string]interface{}{
+		"1": botID,
+		"2": method,
+		"3": params,
+	})
+}
+
+// =============================================================================
+// New service: AI (bale.turing.v1.AI)
+// =============================================================================
+
+func (b *BaleCore) UserAISendEvent(eventData map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceTuringAI, "SendEvent", eventData)
+}
+
+func (b *BaleCore) UserAIGetTranscript(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServiceTuringAI, "GetTranscript", map[string]interface{}{
+		"1": balePeer(pt, id),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+	})
+}
+
+// =============================================================================
+// New service: CrowdFunding (bale.crowdfunding.v1.CrowdFunding)
+// =============================================================================
+
+// =============================================================================
+// Missing GiftPacket method
+// =============================================================================
+
+// =============================================================================
+// Missing Magazine methods
+// =============================================================================
+
+func (b *BaleCore) UserGetMyUpvotes(offset int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMagazine, "GetMyUpvotes", map[string]interface{}{
+		"1": offset, "2": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserLoadFeedMessages(offset int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMagazine, "LoadFeedMessages", map[string]interface{}{
+		"1": offset, "2": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserLoadInternalFeedMessages(offset int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMagazine, "LoadInternalFeedMessages", map[string]interface{}{
+		"1": offset, "2": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserLoadCategoryFeedMessages(categoryID int64, offset int64, limit int) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMagazine, "LoadCategoryFeedMessages", map[string]interface{}{
+		"1": categoryID, "2": offset, "3": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserLoadMagazineCategories() (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceMagazine, "LoadCategories", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetSimilarPosts(chatID string, msgID string) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	id, pt := parsePeerID(chatID)
+	rid, dateMs := parseMsgIDWithDate(msgID)
+	return b.userSend(baleServiceMagazine, "GetSimilarPosts", map[string]interface{}{
+		"1": balePeer(pt, id),
+		"2": map[string]interface{}{"1": dateMs, "2": rid},
+	})
+}
+
+// =============================================================================
+// Missing Files methods
+// =============================================================================
+
+func (b *BaleCore) UserGetNasimFileUrls(fileIDs []map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceFiles, "GetNasimFileUrls", map[string]interface{}{"1": fileIDs})
+}
+
+func (b *BaleCore) UserGetNasimFileUploadResume(fileID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceFiles, "GetNasimFileUploadResume", map[string]interface{}{"1": fileID})
+}
+
+func (b *BaleCore) UserFileUploadCancel(fileID int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceFiles, "FileUploadCancel", map[string]interface{}{"1": fileID})
+}
+
+func (b *BaleCore) UserGetNasimFilePublicUrl(fileID int64, accessHash int64) (map[string]interface{}, error) {
+	if !b.authed {
+		return nil, ErrAuth
+	}
+	return b.userSend(baleServiceFiles, "GetNasimFilePublicUrl", map[string]interface{}{
+		"1": fileID, "2": accessHash,
+	})
+}
+
+// =============================================================================
+// Advertisement — bale.advertisement.v1.Advertisement (108 methods)
+// =============================================================================
+
+// =============================================================================
+// Arbaeen — bale.arbaeen.v1.Arbaeen (19 methods)
+// =============================================================================
+
+// =============================================================================
+// Evex — bale.evex.v1.Evex (8 methods)
+// =============================================================================
+
+// =============================================================================
+// Exchange — bale.exchange.v1.Exchange (10 methods)
+// =============================================================================
+
+// =============================================================================
+// Sarrafi — bale.sarrafi.v1.Sarrafi (9 methods)
+// =============================================================================
+
+// =============================================================================
+// Miscellaneous missing from existing services
+// =============================================================================
+
+func (b *BaleCore) UserSetMyCommands(commands []map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	return b.userSend(baleServiceMessaging, "SetMyCommands", map[string]interface{}{"1": commands})
+}
+
+func (b *BaleCore) UserDeleteMyCommands() (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	return b.userSend(baleServiceMessaging, "DeleteMyCommands", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserGetMyCommands() (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	return b.userSend(baleServiceMessaging, "GetMyCommands", map[string]interface{}{})
+}
+
+func (b *BaleCore) UserTerminateSession(sessionID int64) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	return b.userSend(baleServiceMessaging, "TerminateSession", map[string]interface{}{"1": sessionID})
+}
+
+func (b *BaleCore) UserCreateFolder(title string, peerIDs []string) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peers := make([]map[string]interface{}, len(peerIDs))
+	for i, pid := range peerIDs {
+		id, pt := parsePeerID(pid)
+		peers[i] = balePeer(pt, id)
+	}
+	return b.userSend(baleServiceMessaging, "CreateFolder", map[string]interface{}{"1": title, "2": peers})
+}
+
+func (b *BaleCore) UserLoadDialogsFiltered(filterType int, offset int64, limit int) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	return b.userSend(baleServiceMessaging, "LoadDialogsFiltered", map[string]interface{}{
+		"1": int64(filterType), "2": offset, "3": int64(limit),
+	})
+}
+
+func (b *BaleCore) UserPushSetConfig(config map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	return b.userSend(baleServiceMessaging, "PushSetConfig", config)
+}
+
+func (b *BaleCore) UserMarkAsUnread(chatID string, unread bool) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	return b.userSend(baleServiceMessaging, "MarkAsUnread", map[string]interface{}{
+		"1": balePeer(peerType, peerID), "2": unread,
+	})
+}
+
+func (b *BaleCore) UserSendScheduledMessage(chatID string, date int64, msg map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	msg["1"] = balePeer(peerType, peerID)
+	msg["2"] = date
+	return b.userSend(baleServiceMessaging, "SendScheduledMessage", msg)
+}
+
+func (b *BaleCore) UserSendProtectedMessage(chatID string, msg map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	msg["1"] = balePeer(peerType, peerID)
+	return b.userSend(baleServiceMessaging, "SendProtectedMessage", msg)
+}
+
+func (b *BaleCore) UserSendLongTextMessage(chatID string, text string) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	return b.userSend(baleServiceMessaging, "SendLongTextMessage", map[string]interface{}{
+		"1": balePeer(peerType, peerID), "2": text,
+	})
+}
+
+func (b *BaleCore) UserSendBankMessage(chatID string, bankMsg map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	bankMsg["1"] = balePeer(peerType, peerID)
+	return b.userSend(baleServiceMessaging, "SendBankMessage", bankMsg)
+}
+
+func (b *BaleCore) UserSendJsonMessage(chatID string, jsonData string) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	return b.userSend(baleServiceMessaging, "SendJsonMessage", map[string]interface{}{
+		"1": balePeer(peerType, peerID), "2": jsonData,
+	})
+}
+
+func (b *BaleCore) UserSendOrderMessage(chatID string, order map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	order["1"] = balePeer(peerType, peerID)
+	return b.userSend(baleServiceMessaging, "SendOrderMessage", order)
+}
+
+func (b *BaleCore) UserSendAnimatedSticker(chatID string, stickerData map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	stickerData["1"] = balePeer(peerType, peerID)
+	return b.userSend(baleServiceMessaging, "SendAnimatedSticker", stickerData)
+}
+
+func (b *BaleCore) UserSendLiveMessage(chatID string, liveData map[string]interface{}) (map[string]interface{}, error) {
+	if !b.authed { return nil, ErrAuth }
+	peerID, peerType := parsePeerID(chatID)
+	liveData["1"] = balePeer(peerType, peerID)
+	return b.userSend(baleServiceMessaging, "SendLiveMessage", liveData)
 }

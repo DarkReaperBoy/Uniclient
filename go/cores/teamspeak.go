@@ -1130,6 +1130,10 @@ type TeamSpeakCore struct {
 	// Bookmarks
 	bookmarks []map[string]string
 
+	// Auto-reconnect
+	autoReconnect bool
+	authCfg       AuthConfig // stored credentials for reconnection
+
 	// Context
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -1389,6 +1393,10 @@ func (tc *tsConnection) tsReceiveLoop(ctx context.Context) {
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				continue
+			}
+			// Connection lost — attempt auto-reconnect if enabled
+			if tc.owner != nil {
+				tc.owner.tsHandleConnectionLost(fmt.Errorf("%w: %v", ErrDisconnected, err))
 			}
 			return
 		}
@@ -2565,6 +2573,121 @@ func (t *TeamSpeakCore) fireUpdate(u Update) {
 	}
 }
 
+// tsHandleConnectionLost is called when the recv loop exits due to a non-timeout
+// error. If autoReconnect is enabled, it attempts to re-establish the connection
+// with exponential backoff (3s, 6s, 12s, ..., max 60s, up to 10 retries).
+func (t *TeamSpeakCore) tsHandleConnectionLost(connErr error) {
+	t.mu.Lock()
+	shouldReconnect := t.autoReconnect && t.authed
+	t.mu.Unlock()
+
+	// Fire disconnected update
+	t.fireUpdate(Update{
+		Type:     UpdateUserStatus,
+		Platform: ts3Platform,
+		ChatID:   "connection",
+		UserID:   "self",
+		IsOnline: func() *bool { b := false; return &b }(),
+	})
+
+	if !shouldReconnect {
+		return
+	}
+
+	go t.tsReconnectLoop()
+}
+
+func (t *TeamSpeakCore) tsReconnectLoop() {
+	const maxRetries = 10
+	const maxDelay = 60 * time.Second
+	baseDelay := 3 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		t.mu.RLock()
+		shouldStop := !t.autoReconnect
+		t.mu.RUnlock()
+		if shouldStop {
+			return
+		}
+
+		delay := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt)))
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+
+		t.fireUpdate(Update{
+			Type:      UpdateUserStatus,
+			Platform:  ts3Platform,
+			ChatID:    "connection",
+			UserID:    "self",
+			MessageID: fmt.Sprintf("reconnecting attempt %d/%d in %s", attempt+1, maxRetries, delay),
+		})
+
+		time.Sleep(delay)
+
+		t.mu.RLock()
+		shouldStop = !t.autoReconnect
+		t.mu.RUnlock()
+		if shouldStop {
+			return
+		}
+
+		// Cancel old context to stop stale goroutines, then wait for them
+		t.mu.Lock()
+		t.cancel()
+		t.mu.Unlock()
+		t.wg.Wait()
+
+		// Clean up old connection
+		t.mu.Lock()
+		if t.tsConn != nil {
+			t.tsConn.conn.Close()
+			t.tsConn = nil
+		}
+		t.authed = false
+		addr := t.serverAddr
+		nickname := t.nickname
+		cfg := t.authCfg
+
+		// Create fresh context for the new connection
+		ctx, cancel := context.WithCancel(context.Background())
+		t.ctx = ctx
+		t.cancel = cancel
+		t.mu.Unlock()
+
+		// Force address and nickname from stored state
+		if cfg.Extra == nil {
+			cfg.Extra = make(map[string]string)
+		}
+		cfg.Extra["server_address"] = addr
+		cfg.Extra["nickname"] = nickname
+
+		err := t.Authenticate(cfg)
+		if err == nil {
+			// Reconnected successfully
+			t.fireUpdate(Update{
+				Type:     UpdateUserStatus,
+				Platform: ts3Platform,
+				ChatID:   "connection",
+				UserID:   "self",
+				IsOnline: func() *bool { b := true; return &b }(),
+			})
+			return
+		}
+
+		fmt.Printf("[TS3] reconnect attempt %d/%d failed: %v\n", attempt+1, maxRetries, err)
+	}
+
+	// All retries exhausted
+	t.fireUpdate(Update{
+		Type:      UpdateUserStatus,
+		Platform:  ts3Platform,
+		ChatID:    "connection",
+		UserID:    "self",
+		MessageID: "reconnect failed after 10 attempts",
+	})
+}
+
 func (t *TeamSpeakCore) tsNextMsgID() string {
 	return fmt.Sprintf("ts_%d", t.msgCounter.Add(1))
 }
@@ -2746,6 +2869,8 @@ func (t *TeamSpeakCore) Authenticate(cfg AuthConfig) error {
 	}
 
 	t.authed = true
+	t.autoReconnect = true
+	t.authCfg = cfg
 
 	// Start command processing loop first (needed for tsExec routing)
 	t.wg.Add(1)
@@ -2774,6 +2899,9 @@ func (t *TeamSpeakCore) Logout() error {
 	if !t.authed {
 		return nil
 	}
+
+	// Disable auto-reconnect before disconnecting
+	t.autoReconnect = false
 
 	// Send disconnect
 	if t.tsConn != nil {
@@ -3256,6 +3384,7 @@ func (t *TeamSpeakCore) OnUpdate(handler func(Update)) {
 
 func (t *TeamSpeakCore) Close() error {
 	t.mu.Lock()
+	t.autoReconnect = false
 	t.tsSaveSession()
 	t.cancel()
 	if t.tsConn != nil {

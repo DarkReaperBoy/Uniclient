@@ -1,29 +1,337 @@
-# Matrix — Full Protocol Surface Checklist
+# Matrix — Fresh Checklist
 
-**Last updated:** 2026-04-13 (Steps 4-6)
-**Current:** 293 methods, ~6,400 lines. SDK: mautrix-go. E2EE via goolm.
-**Confirmed working:** 64 extended + 55 Core (all pass on local Dendrite, Step 2). 90 new methods added (Step 4), not yet tested.
-**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
-**Remaining:** 0 methods — 100% protocol coverage (CS API v1.13-v1.18 + MSCs).
+**Methods:** 240 exported | **Lines:** 6,409 | **File:** `go/cores/matrix.go`
+**Protocol:** Matrix (CS API v1.13-v1.18, E2EE via goolm, mautrix-go SDK)
+**Last updated:** 2026-04-13
 
-All methods implemented.
+## Categories
 
----
+### Authentication & Registration (14)
+- [ ] Authenticate
+- [ ] Register
+- [ ] Logout
+- [ ] LogoutAll
+- [ ] ChangePassword
+- [ ] DeactivateAccount
+- [ ] CheckUsernameAvailability
+- [ ] CheckRegistrationToken
+- [ ] GetLoginFlows
+- [ ] GetLoginToken
+- [ ] RefreshToken
+- [ ] SSORedirect
+- [ ] SSORedirectIdP
+- [ ] DeviceAuthGrant
 
-## Step 4 — Newly Implemented (90 methods) — NEEDS TESTING
+### Server Discovery & Capabilities (7)
+- [ ] GetVersions
+- [ ] GetCapabilities
+- [ ] Capabilities
+- [ ] GetClientWellKnown
+- [ ] GetSupportContacts
+- [ ] GetAuthMetadata
+- [ ] GetMediaConfig
 
-### Auth & Session (7): RefreshToken, GetLoginToken, CheckRegistrationToken, SSORedirect, SSORedirectIdP, GetAuthMetadata, DeviceAuthGrant
-### Server Discovery (3): GetClientWellKnown, GetSupportContacts, GetRTCTransports
-### Room Management (4): GetRoomSummary, GetMutualRooms, TimestampToEvent, InviteBy3PID
-### Events & Messaging (6): CreateDelayedEvent, UpdateDelayedEvent, SendLocationMessage, SendLiveLocation, SendEmoteMessage, EndPoll
-### Extensible Profiles (4): GetProfileField, SetProfileField, DeleteProfileField, SetTimezone
-### Admin & Moderation (5): SuspendUser, LockUser, SetInviteBlocking, SetPolicyRule, RedactAllUserEvents
-### Authenticated Media (6): DownloadMediaAuth, DownloadMediaAuthFilename, DownloadThumbnailAuth, GetMediaConfigAuth, GetURLPreviewAuth, UploadMediaAsync (CreateMXCURI already existed)
-### Sync (2): SlidingSync, SyncStateAfter
-### MatrixRTC (6): SetRTCMemberState, SendRTCNotification, DeclineRTCSession, SendCallAssertedIdentity, SendCallNegotiate, SendGroupCallEncryptionKeys
-### E2EE & Keys (8): GetKeyChanges, SetDehydratedDevice, GetDehydratedDevice, DeleteDehydratedDevice, GetDehydratedDeviceEvents, SendSecretRequest, SendSecretSend, StartQRVerification
-### Push Rules (3): GetPushRuleActions, SetPushRuleActions, GetPushRuleEnabled
-### Room State (4): GetRoomCreationEvent, GetRoomTombstone, GetThirdPartyInvites, SetCanonicalAlias
-### Identity Server (3): ValidateEmailForAccount, ValidatePhoneForAccount, Delete3PIDByAddress
-### Capabilities (4): GetForgetOnLeave, GetProfileFieldsCap, HandleUserLimitExceeded, GetNonCrossSignedExclusion
-### Account Data (3): GetRecentEmoji, GetIgnoredUsers, GetFullyReadMarker
+### Profile & User Settings (12)
+- [ ] GetProfile
+- [ ] SetDisplayName
+- [ ] SetAvatar
+- [ ] GetProfileField
+- [ ] SetProfileField
+- [ ] DeleteProfileField
+- [ ] GetProfileFieldsCap
+- [ ] SetTimezone
+- [ ] SetPresence
+- [ ] GetPresence
+- [ ] GetIgnoredUsers
+- [ ] GetRecentEmoji
+
+### Messaging (13)
+- [ ] SendMessage
+- [ ] EditMessage
+- [ ] DeleteMessage
+- [ ] ReplyToMessage
+- [ ] ForwardMessage
+- [ ] ReactToMessage
+- [ ] SendEmoteMessage
+- [ ] SendLocationMessage
+- [ ] SendLiveLocation
+- [ ] SendLocation
+- [ ] GetMessages
+- [ ] GetEvent
+- [ ] GetEventContext
+
+### Polls (3)
+- [ ] CreatePoll
+- [ ] VotePoll
+- [ ] EndPoll
+
+### Stickers (1)
+- [ ] SendSticker
+
+### Media & Files (12)
+- [ ] UploadFile
+- [ ] DownloadFile
+- [ ] SendImageBase64
+- [ ] DownloadThumbnail
+- [ ] GetURLPreview
+- [ ] GetURLPreviewAuth
+- [ ] CreateMXCURI
+- [ ] GetMediaConfigAuth
+- [ ] DownloadMediaAuth
+- [ ] DownloadMediaAuthFilename
+- [ ] DownloadThumbnailAuth
+- [ ] UploadMediaAsync
+
+### Read Receipts & Markers (6)
+- [ ] MarkAsRead
+- [ ] MarkUnread
+- [ ] GetReadState
+- [ ] SendPrivateReadReceipt
+- [ ] SetReadMarkers
+- [ ] GetFullyReadMarker
+
+### Typing Indicators (1)
+- [ ] SendTyping
+
+### Pinning (3)
+- [ ] PinMessage
+- [ ] UnpinMessage
+- [ ] UnpinAllMessages
+
+### Room Management (18)
+- [ ] CreateGroup
+- [ ] CreateChannel
+- [ ] CreateTopic
+- [ ] GetChatInfo
+- [ ] EditChatTitle
+- [ ] EditChatDescription
+- [ ] GetInviteLink
+- [ ] LeaveChat
+- [ ] JoinRoom
+- [ ] JoinRoomByAlias
+- [ ] KnockRoom
+- [ ] ForgetRoom
+- [ ] UpgradeRoom
+- [ ] ArchiveChat
+- [ ] MuteChat
+- [ ] GetDialogs
+- [ ] GetDirectChats
+- [ ] SetDirectChat
+
+### Room State & Configuration (12)
+- [ ] GetRoomState
+- [ ] GetRoomVisibility
+- [ ] SetRoomVisibility
+- [ ] SetRoomAvatar
+- [ ] SetJoinRules
+- [ ] SetHistoryVisibility
+- [ ] SetGuestAccess
+- [ ] SetCanonicalAlias
+- [ ] GetRoomAliases
+- [ ] SetRoomAlias
+- [ ] DeleteRoomAlias
+- [ ] ResolveAlias
+
+### Room Metadata (4)
+- [ ] GetRoomCreationEvent
+- [ ] GetRoomTombstone
+- [ ] GetRoomSummary
+- [ ] GetForgetOnLeave
+
+### Members & Permissions (8)
+- [ ] GetMembers
+- [ ] AddMembers
+- [ ] RemoveMember
+- [ ] BanMember
+- [ ] UnbanMember
+- [ ] SetAdmin
+- [ ] SetPowerLevels
+- [ ] InviteBy3PID
+
+### Contacts & Blocking (6)
+- [ ] GetContacts
+- [ ] AddContact
+- [ ] DeleteContact
+- [ ] BlockUser
+- [ ] UnblockUser
+- [ ] GetBlockedUsers
+
+### Folders & Tags (5)
+- [ ] GetFolders
+- [ ] CreateFolder
+- [ ] SetRoomTag
+- [ ] RemoveRoomTag
+- [ ] GetTags
+
+### Spaces (3)
+- [ ] GetSpaceChildren
+- [ ] AddSpaceChild
+- [ ] RemoveSpaceChild
+
+### Threads (2)
+- [ ] GetThreads
+- [ ] GetThreadReplies
+
+### Search (3)
+- [ ] SearchMessages
+- [ ] SearchGlobal
+- [ ] SearchUsers
+
+### Public Rooms (2)
+- [ ] GetPublicRooms
+- [ ] GetMutualRooms
+
+### 1:1 Calls (VoIP) (12)
+- [ ] StartCall
+- [ ] AcceptCall
+- [ ] RejectCall
+- [ ] DeclineCall
+- [ ] EndCall
+- [ ] SetCallMuted
+- [ ] SetCallAudioSource
+- [ ] SetCallAudioSink
+- [ ] AcceptCallSelectAnswer
+- [ ] SendCallCandidates
+- [ ] SendCallNegotiate
+- [ ] SendCallAssertedIdentity
+
+### Call Signaling (3)
+- [ ] CallReplaces
+- [ ] SDPStreamMetadataChanged
+- [ ] CallNotify
+
+### Group Calls & RTC (7)
+- [ ] JoinGroupCall
+- [ ] GroupCallEncryptionKeys
+- [ ] SendGroupCallEncryptionKeys
+- [ ] GetRTCTransports
+- [ ] SetRTCMemberState
+- [ ] SendRTCNotification
+- [ ] DeclineRTCSession
+
+### E2EE & Key Management (10)
+- [ ] ExportKeys
+- [ ] ImportKeys
+- [ ] EnableEncryption
+- [ ] GetEncryptionInfo
+- [ ] CreateKeyBackup
+- [ ] RestoreKeyBackup
+- [ ] GetKeyBackupInfo
+- [ ] GetKeyChanges
+- [ ] SetSecretStorageKey
+- [ ] GetSecretStorageKey
+
+### Cross-Signing & Verification (8)
+- [ ] VerifyDevice
+- [ ] StartSASVerification
+- [ ] AcceptSASVerification
+- [ ] ConfirmSASEmojis
+- [ ] CancelVerification
+- [ ] StartQRVerification
+- [ ] GenerateCrossSigningKeys
+- [ ] UploadCrossSigningKeys
+
+### Signatures (1)
+- [ ] UploadSignatures
+
+### Secret Sharing (2)
+- [ ] SendSecretRequest
+- [ ] SendSecretSend
+
+### Dehydrated Devices (4)
+- [ ] SetDehydratedDevice
+- [ ] GetDehydratedDevice
+- [ ] DeleteDehydratedDevice
+- [ ] GetDehydratedDeviceEvents
+
+### Device Management (5)
+- [ ] GetSessions
+- [ ] TerminateSession
+- [ ] GetDeviceInfo
+- [ ] SetDeviceName
+- [ ] DeleteDevices
+
+### Push Notifications (10)
+- [ ] GetPushers
+- [ ] SetPusher
+- [ ] GetPushRules
+- [ ] SetPushRule
+- [ ] DeletePushRule
+- [ ] EnablePushRule
+- [ ] GetPushRuleActions
+- [ ] SetPushRuleActions
+- [ ] GetPushRuleEnabled
+- [ ] GetNotifications
+
+### Third-Party Identifiers (10)
+- [ ] Get3PIDs
+- [ ] Add3PID
+- [ ] Bind3PID
+- [ ] Delete3PID
+- [ ] Delete3PIDByAddress
+- [ ] Unbind3PID
+- [ ] RequestEmailToken
+- [ ] RequestMsisdnToken
+- [ ] ValidateEmailForAccount
+- [ ] ValidatePhoneForAccount
+
+### Third-Party Protocols (3)
+- [ ] GetThirdPartyProtocols
+- [ ] LookupThirdPartyLocation
+- [ ] LookupThirdPartyUser
+
+### Third-Party Invites (1)
+- [ ] GetThirdPartyInvites
+
+### Account Data (4)
+- [ ] SetAccountData
+- [ ] GetAccountData
+- [ ] SetRoomAccountData
+- [ ] GetRoomAccountData
+
+### Filters (2)
+- [ ] CreateFilter
+- [ ] GetFilter
+
+### Delayed Events (2)
+- [ ] CreateDelayedEvent
+- [ ] UpdateDelayedEvent
+
+### Sync (2)
+- [ ] SlidingSync
+- [ ] SyncStateAfter
+
+### To-Device Messaging (1)
+- [ ] SendToDevice
+
+### Moderation & Reporting (5)
+- [ ] ReportEvent
+- [ ] ReportRoom
+- [ ] ReportUser
+- [ ] RedactAllUserEvents
+- [ ] SetPolicyRule
+
+### Server Administration (4)
+- [ ] WhoisUser
+- [ ] SuspendUser
+- [ ] LockUser
+- [ ] HandleUserLimitExceeded
+
+### Privacy & Safety (2)
+- [ ] SetInviteBlocking
+- [ ] GetNonCrossSignedExclusion
+
+### Room ACL (1)
+- [ ] SetServerACL
+
+### TURN Server (1)
+- [ ] GetTurnServer
+
+### Tokens & Identity (2)
+- [ ] RequestOpenIDToken
+- [ ] TimestampToEvent
+
+### Lifecycle (3)
+- [ ] Name
+- [ ] OnUpdate
+- [ ] Close

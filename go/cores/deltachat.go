@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
@@ -4155,7 +4156,10 @@ func (d *DeltaChatCore) syncFolder(folder string) error {
 	selectCmd := d.imapOps.Select(folder, nil)
 	mbox, err := selectCmd.Wait()
 	if err != nil {
-		return nil // folder doesn't exist, skip
+		if isIMAPConnError(err) {
+			return fmt.Errorf("%w: IMAP sync %s: %v", ErrDisconnected, folder, err)
+		}
+		return nil // folder doesn't exist or other non-fatal error, skip
 	}
 
 	if mbox.NumMessages == 0 {
@@ -4582,6 +4586,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 
 // idleLoop runs IMAP IDLE on a folder, restarting every 28 minutes.
 func (d *DeltaChatCore) idleLoop(client *imapclient.Client, folder string, label string) {
+	currentClient := client
 	for {
 		select {
 		case <-d.ctx.Done():
@@ -4590,16 +4595,23 @@ func (d *DeltaChatCore) idleLoop(client *imapclient.Client, folder string, label
 		}
 
 		// Select the folder
-		selectCmd := client.Select(folder, nil)
+		selectCmd := currentClient.Select(folder, nil)
 		if _, err := selectCmd.Wait(); err != nil {
-			time.Sleep(5 * time.Second)
+			// Connection likely dropped — attempt reconnect
+			reconnected := d.reconnectIDLE(&currentClient, folder, label)
+			if !reconnected {
+				return // context cancelled or max retries exceeded
+			}
 			continue
 		}
 
 		// Start IDLE
-		idleCmd, err := client.Idle()
+		idleCmd, err := currentClient.Idle()
 		if err != nil {
-			time.Sleep(5 * time.Second)
+			reconnected := d.reconnectIDLE(&currentClient, folder, label)
+			if !reconnected {
+				return
+			}
 			continue
 		}
 
@@ -4612,14 +4624,23 @@ func (d *DeltaChatCore) idleLoop(client *imapclient.Client, folder string, label
 			idleCmd.Wait()
 			return
 		case <-timer.C:
-			// Restart IDLE
+			// Restart IDLE (normal refresh)
 		}
 		timer.Stop()
 
 		if err := idleCmd.Close(); err != nil {
+			// IDLE close failed — connection probably dropped
+			reconnected := d.reconnectIDLE(&currentClient, folder, label)
+			if !reconnected {
+				return
+			}
 			continue
 		}
 		if err := idleCmd.Wait(); err != nil {
+			reconnected := d.reconnectIDLE(&currentClient, folder, label)
+			if !reconnected {
+				return
+			}
 			continue
 		}
 
@@ -4630,6 +4651,114 @@ func (d *DeltaChatCore) idleLoop(client *imapclient.Client, folder string, label
 		}
 		d.mu.RUnlock()
 	}
+}
+
+// reconnectIDLE attempts to re-establish an IMAP connection with exponential backoff.
+// It updates the client pointer in-place and swaps the corresponding struct field.
+// Returns true if reconnected, false if context was cancelled or retries exhausted.
+func (d *DeltaChatCore) reconnectIDLE(clientPtr **imapclient.Client, folder string, label string) bool {
+	const maxRetries = 10
+	backoff := 5 * time.Second
+
+	d.fireUpdate(Update{
+		Type:      UpdateConnectivity,
+		Platform:  "deltachat",
+		ChatID:    label,
+		ConnState: "disconnected",
+	})
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		select {
+		case <-d.ctx.Done():
+			return false
+		default:
+		}
+
+		// Wait with backoff
+		timer := time.NewTimer(backoff)
+		select {
+		case <-d.ctx.Done():
+			timer.Stop()
+			return false
+		case <-timer.C:
+		}
+
+		// Attempt reconnect — connectIMAP reads from struct fields (no lock needed for reads of immutable config)
+		newClient, err := d.connectIMAP()
+		if err != nil {
+			// Double backoff, cap at 120s
+			backoff *= 2
+			if backoff > 120*time.Second {
+				backoff = 120 * time.Second
+			}
+			continue
+		}
+
+		// Success — close old client (ignore errors, it's likely dead)
+		if *clientPtr != nil {
+			(*clientPtr).Close()
+		}
+		*clientPtr = newClient
+
+		// Update the struct field so Logout can close the right client
+		d.mu.Lock()
+		switch label {
+		case "inbox-idle":
+			d.idleInbox = newClient
+		case "dc-idle":
+			d.idleDC = newClient
+		}
+		d.mu.Unlock()
+
+		d.fireUpdate(Update{
+			Type:      UpdateConnectivity,
+			Platform:  "deltachat",
+			ChatID:    label,
+			ConnState: "connected",
+		})
+
+		// Sync messages after reconnect
+		d.mu.RLock()
+		if d.authed {
+			d.syncMessages()
+		}
+		d.mu.RUnlock()
+
+		return true
+	}
+
+	// All retries exhausted — fire permanent disconnect
+	d.fireUpdate(Update{
+		Type:      UpdateConnectivity,
+		Platform:  "deltachat",
+		ChatID:    label,
+		ConnState: "disconnected",
+	})
+	return false
+}
+
+// isIMAPConnError returns true if the error indicates a dropped IMAP connection
+// (I/O timeout, connection reset, EOF, broken pipe, etc.).
+func isIMAPConnError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		return true
+	}
+	s := err.Error()
+	return strings.Contains(s, "connection reset") ||
+		strings.Contains(s, "broken pipe") ||
+		strings.Contains(s, "use of closed network connection") ||
+		strings.Contains(s, "i/o timeout")
 }
 
 // --- Autocrypt helpers ---
@@ -7242,10 +7371,6 @@ func (d *DeltaChatCore) GetSecureJoinQRSvg(chatID string) (string, error) {
 	return d.CreateQRSvg(data), nil
 }
 
-func (d *DeltaChatCore) GetChatSecureJoinQRCodeSvg(chatID string) (string, error) {
-	return d.GetSecureJoinQRSvg(chatID)
-}
-
 // CreateQRSvg generates a minimal SVG QR code representation.
 func (d *DeltaChatCore) CreateQRSvg(data string) string {
 	// Simple SVG with text representation — real QR encoding would need a library
@@ -7353,7 +7478,26 @@ func (d *DeltaChatCore) GetFullChatById(chatID string) (map[string]interface{}, 
 // Step 4 — I/O and Network Control (4 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
-func (d *DeltaChatCore) MaybeNetwork() { /* Hint that network is available — trigger reconnect */ }
+func (d *DeltaChatCore) MaybeNetwork() {
+	// Hint that network is available — trigger reconnect of IDLE clients if they're dead.
+	// Test each IDLE connection by attempting a NOOP; if it fails, close it so the
+	// idleLoop's next iteration detects the error and triggers reconnectIDLE.
+	d.mu.RLock()
+	idleInbox := d.idleInbox
+	idleDC := d.idleDC
+	d.mu.RUnlock()
+
+	if idleInbox != nil {
+		if noop := idleInbox.Noop(); noop.Wait() != nil {
+			idleInbox.Close()
+		}
+	}
+	if idleDC != nil {
+		if noop := idleDC.Noop(); noop.Wait() != nil {
+			idleDC.Close()
+		}
+	}
+}
 
 func (d *DeltaChatCore) StopOngoingProcess() error {
 	if d.cancel != nil { d.cancel() }

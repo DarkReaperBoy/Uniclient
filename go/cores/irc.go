@@ -356,7 +356,8 @@ type IRCCore struct {
 
 	// Reconnection
 	reconnectEnabled bool
-	reconnectCount   int
+	reconnectCount   int // max retries (default 10)
+	reconnecting     bool // true while reconnect loop is active
 
 	// Step 4 fields
 	stsPolicies        map[string]int       // domain → TLS port
@@ -438,6 +439,10 @@ func (c *IRCCore) Authenticate(cfg AuthConfig) error {
 
 	c.mu.Lock()
 	c.authed = true
+	c.reconnectEnabled = true
+	if c.reconnectCount <= 0 {
+		c.reconnectCount = 10
+	}
 	c.mu.Unlock()
 	c.saveSession()
 	return nil
@@ -560,6 +565,7 @@ func (c *IRCCore) Logout() error {
 	if !c.authed {
 		return nil
 	}
+	c.reconnectEnabled = false // prevent reconnect on intentional logout
 	c.sendRaw("QUIT :Goodbye")
 	c.authed = false
 	c.cancel()
@@ -572,6 +578,36 @@ func (c *IRCCore) Logout() error {
 // ---------------------------------------------------------------------------
 // Raw send with flood protection
 // ---------------------------------------------------------------------------
+
+// sendRawErr sends a raw IRC line and returns an error if the connection is down.
+func (c *IRCCore) sendRawErr(line string) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	if c.writer == nil {
+		return fmt.Errorf("%w: IRC connection lost", ErrDisconnected)
+	}
+
+	c.lastSendMu.Lock()
+	since := time.Since(c.lastSend)
+	if since < ircSendDelay {
+		time.Sleep(ircSendDelay - since)
+	}
+	c.lastSend = time.Now()
+	c.lastSendMu.Unlock()
+
+	if len(line) > ircMaxMsgLen-2 {
+		line = line[:ircMaxMsgLen-2]
+	}
+
+	if _, err := c.writer.WriteString(line + "\r\n"); err != nil {
+		return fmt.Errorf("%w: %v", ErrDisconnected, err)
+	}
+	if err := c.writer.Flush(); err != nil {
+		return fmt.Errorf("%w: %v", ErrDisconnected, err)
+	}
+	return nil
+}
 
 func (c *IRCCore) sendRaw(line string) {
 	c.writeMu.Lock()
@@ -627,6 +663,187 @@ func (c *IRCCore) readLoop() {
 
 		c.handleMessage(msg)
 	}
+
+	// Connection lost — scanner.Scan() returned false.
+	// Check if this is a clean shutdown or an unexpected disconnect.
+	select {
+	case <-c.ctx.Done():
+		return // clean shutdown via Logout/cancel, no reconnect
+	default:
+	}
+
+	// Fire disconnected update
+	offline := false
+	c.fireUpdate(Update{
+		Type:     UpdateConnectivity,
+		IsOnline: &offline,
+		Platform: ircPlatform,
+	})
+
+	c.mu.RLock()
+	shouldReconnect := c.reconnectEnabled
+	maxRetries := c.reconnectCount
+	c.mu.RUnlock()
+
+	if !shouldReconnect {
+		return
+	}
+	if maxRetries <= 0 {
+		maxRetries = 10
+	}
+
+	go c.reconnectLoop(maxRetries)
+}
+
+// reconnectLoop attempts to re-establish the IRC connection with exponential backoff.
+func (c *IRCCore) reconnectLoop(maxRetries int) {
+	c.mu.Lock()
+	if c.reconnecting {
+		c.mu.Unlock()
+		return // another reconnect already in progress
+	}
+	c.reconnecting = true
+	c.mu.Unlock()
+
+	defer func() {
+		c.mu.Lock()
+		c.reconnecting = false
+		c.mu.Unlock()
+	}()
+
+	delay := 3 * time.Second
+	const maxDelay = 60 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+
+		// Close old connection if still open
+		c.mu.Lock()
+		if c.conn != nil {
+			c.conn.Close()
+			c.conn = nil
+		}
+		c.writer = nil
+		c.mu.Unlock()
+
+		// Snapshot channels to rejoin after reconnect
+		c.channelsMu.RLock()
+		var rejoinChannels []string
+		for _, ch := range c.channels {
+			rejoinChannels = append(rejoinChannels, ch.Name)
+		}
+		c.channelsMu.RUnlock()
+
+		// Attempt TCP/TLS connection
+		var conn net.Conn
+		var err error
+		dialer := &net.Dialer{Timeout: 15 * time.Second}
+
+		c.mu.RLock()
+		server := c.server
+		useTLS := c.useTLS
+		c.mu.RUnlock()
+
+		if useTLS {
+			host, _, _ := net.SplitHostPort(server)
+			conn, err = tls.DialWithDialer(dialer, "tcp", server, &tls.Config{
+				ServerName: host,
+			})
+		} else {
+			conn, err = dialer.DialContext(c.ctx, "tcp", server)
+		}
+
+		if err != nil {
+			// Exponential backoff
+			delay *= 2
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+			continue
+		}
+
+		// Connection established — set up state for re-registration
+		c.mu.Lock()
+		c.conn = conn
+		c.writer = bufio.NewWriter(conn)
+		c.registered = make(chan struct{})
+		c.saslDone = make(chan struct{})
+		c.capDone = make(chan struct{})
+		nick := c.nick
+		username := c.username
+		realname := c.realname
+		password := c.password
+		serverPassword := c.serverPassword
+		useSASL := c.useSASL
+		c.mu.Unlock()
+
+		// Start new read loop (in this goroutine's scope, we add to wg)
+		c.wg.Add(1)
+		go c.readLoop()
+
+		// Re-send IRC registration sequence
+		if useSASL {
+			c.sendRaw("CAP LS 302")
+		}
+		if serverPassword != "" {
+			c.sendRaw("PASS " + serverPassword)
+		}
+		c.sendRaw("NICK " + nick)
+		c.sendRaw("USER " + username + " 0 * :" + realname)
+
+		// Wait for registration or timeout
+		select {
+		case <-c.registered:
+			// Success
+		case <-time.After(30 * time.Second):
+			c.mu.Lock()
+			if c.conn != nil {
+				c.conn.Close()
+				c.conn = nil
+			}
+			c.mu.Unlock()
+			delay *= 2
+			if delay > maxDelay {
+				delay = maxDelay
+			}
+			continue
+		case <-c.ctx.Done():
+			return
+		}
+
+		// NickServ auth if needed
+		if password != "" && !useSASL {
+			c.sendRaw("PRIVMSG NickServ :IDENTIFY " + password)
+			time.Sleep(2 * time.Second)
+		}
+
+		// Rejoin channels
+		for _, ch := range rejoinChannels {
+			if ch != "" {
+				c.sendRaw("JOIN " + ch)
+			}
+		}
+
+		// Restart ping loop
+		c.wg.Add(1)
+		go c.pingLoop()
+
+		// Fire reconnected update
+		online := true
+		c.fireUpdate(Update{
+			Type:     UpdateConnectivity,
+			IsOnline: &online,
+			Platform: ircPlatform,
+		})
+
+		return // reconnected successfully
+	}
+
+	// All retries exhausted — remain disconnected
 }
 
 func (c *IRCCore) handleMessage(msg *ircMsg) {
@@ -1805,7 +2022,9 @@ func (c *IRCCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, err
 			} else {
 				line = ""
 			}
-			c.sendRaw("PRIVMSG " + chatID + " :" + chunk)
+			if err := c.sendRawErr("PRIVMSG " + chatID + " :" + chunk); err != nil {
+				return nil, err
+			}
 
 			c.mu.RLock()
 			myNick := c.nick
@@ -3735,25 +3954,6 @@ func (c *IRCCore) RequestRules() {
 	c.sendRaw("RULES")
 }
 
-// --- Service queries ---
-
-// ServList queries the list of services connected to the network.
-func (c *IRCCore) ServList(mask, svcType string) {
-	cmd := "SERVLIST"
-	if mask != "" {
-		cmd += " " + mask
-		if svcType != "" {
-			cmd += " " + svcType
-		}
-	}
-	c.sendRaw(cmd)
-}
-
-// SQuery sends a message to a network service.
-func (c *IRCCore) SQuery(service, text string) {
-	c.sendRaw("SQUERY " + service + " :" + text)
-}
-
 // --- DCC ---
 
 // IRCDCCOffer represents an incoming DCC request.
@@ -3961,20 +4161,6 @@ func (c *IRCCore) RequestUsers(target string) {
 	} else {
 		c.sendRaw("USERS")
 	}
-}
-
-// --- SUMMON command ---
-
-// Summon invites a user on the server host to join IRC.
-func (c *IRCCore) Summon(user, target, channel string) {
-	cmd := "SUMMON " + user
-	if target != "" {
-		cmd += " " + target
-	}
-	if channel != "" {
-		cmd += " " + channel
-	}
-	c.sendRaw(cmd)
 }
 
 // --- USERIP command (non-RFC) ---
@@ -4514,22 +4700,7 @@ func (c *IRCCore) Restart() {
 	c.sendRaw("RESTART")
 }
 
-// Service registers a new service on the network.
-func (c *IRCCore) Service(nick, distribution, serviceType, info string) {
-	c.sendRaw(fmt.Sprintf("SERVICE %s * %s %s 0 :%s", nick, distribution, serviceType, info))
-}
-
-// Njoin sends an NJOIN message for server-to-server channel burst.
-func (c *IRCCore) Njoin(channel string, members []string) {
-	c.sendRaw(fmt.Sprintf("NJOIN %s :%s", channel, strings.Join(members, ",")))
-}
-
 // ──────────────────────────── IRCv3 Extensions ────────────────────────────
-
-// Setname changes the realname without reconnecting (requires setname capability).
-func (c *IRCCore) Setname(realname string) {
-	c.sendRaw("SETNAME :" + realname)
-}
 
 // ChatHistoryBetween fetches messages between two timestamps or message IDs.
 func (c *IRCCore) ChatHistoryBetween(target, startRef, endRef string, limit int) {
@@ -5113,8 +5284,6 @@ func (c *IRCCore) Rline(regex, duration, reason string) {
 func (c *IRCCore) RlineDel(regex string) { c.sendRaw("RLINE " + regex) }
 func (c *IRCCore) Tline(mask string)     { c.sendRaw("TLINE " + mask) }
 func (c *IRCCore) Clones()               { c.sendRaw("CLONES") }
-func (c *IRCCore) Lockserv()             { c.sendRaw("LOCKSERV") }
-func (c *IRCCore) Unlockserv()           { c.sendRaw("UNLOCKSERV") }
 func (c *IRCCore) Rconnect(serverMask, remoteTarget string) {
 	c.sendRaw("RCONNECT " + serverMask + " " + remoteTarget)
 }
@@ -5251,7 +5420,6 @@ func (c *IRCCore) SendMultiline(target string, lines []string) {
 	c.sendRaw("BATCH -" + batchID)
 }
 
-func (c *IRCCore) PreAway(msg string)       { c.sendRaw("AWAY :" + msg) }
 func (c *IRCCore) RequestExtendedIsupport()  { c.sendRaw("CAP REQ :draft/extended-isupport") }
 func (c *IRCCore) GetNetworkIcon() string {
 	c.mu.RLock()

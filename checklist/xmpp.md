@@ -1,28 +1,502 @@
-# XMPP — Full Protocol Surface Checklist
+# XMPP — Fresh Checklist
 
-**Last updated:** 2026-04-13 (Steps 4-6)
-**Current:** 467 methods, ~7,900 lines. Pure Go stdlib. SASL2/FAST, OMEMO, MUC, MIX, Jingle, MAM.
-**Confirmed working:** 101 extended + 55 Core (all pass on yax.im Prosody, Step 2). 120 new methods added (Step 4), not yet tested.
-**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
-**Remaining:** 0 methods — 100% protocol coverage (RFC 6120/6121 + ~200 XEPs).
+**Methods:** 387 exported | **Lines:** 7,892 | **File:** `go/cores/xmpp.go`
+**Protocol:** XMPP (RFC 6120/6121 + 30+ XEPs, Jingle, OMEMO, MUC, MIX, PubSub)
+**Last updated:** 2026-04-13
 
-All methods implemented.
+## Connection & Transport (11)
+- [ ] Close
+- [ ] ConnectBOSH
+- [ ] ConnectDirectTLS
+- [ ] ConnectHappyEyeballs
+- [ ] ConnectWebSocket
+- [ ] DiscoverAlternativeConnections
+- [ ] DiscoverHostMeta2
+- [ ] EnableStreamManagement
+- [ ] GetStreamLimits
+- [ ] InstantStreamResumption
+- [ ] ResumeStream
 
----
+## Authentication & Registration (12)
+- [ ] Authenticate
+- [ ] Bind2
+- [ ] ChangePassword
+- [ ] FASTReconnect
+- [ ] InitAuthPipelining
+- [ ] Logout
+- [ ] NegotiateChannelBinding
+- [ ] OAuthClientLogin
+- [ ] PreAuthenticatedIBR
+- [ ] QuickstartTLS
+- [ ] RegisterAccount
+- [ ] SASL2Authenticate
+- [ ] SCRAMDowngradeProtect
+- [ ] UnregisterAccount
 
-## Step 4 — Newly Implemented (120 XEPs) — NEEDS TESTING
+## Session & Stream (8)
+- [ ] GetSessions
+- [ ] NegotiateSession
+- [ ] RequestAck
+- [ ] SendAck
+- [ ] SetClientStateActive
+- [ ] SetClientStateInactive
+- [ ] TerminateSession
+- [ ] Name
 
-### Connection & Auth (10): ConnectDirectTLS (XEP-0368), SCRAMDowngradeProtect (XEP-0474), InstantStreamResumption (XEP-0397), DiscoverHostMeta2 (XEP-0487), OAuthClientLogin (XEP-0493), RevokeClientAccess/ListClientAccess (XEP-0494), ConnectHappyEyeballs (XEP-0495), InitAuthPipelining (XEP-0509), GetStreamLimits (XEP-0478), QuickstartTLS (XEP-0305)
-### Messaging (12): RetractMessage (XEP-0424), ParseMessageStyling (XEP-0393), SendSpoilerMessage (XEP-0382), FastenPayload (XEP-0422), SendJSONMessage (XEP-0432), SendQuickResponse (XEP-0439), SendContentTypedMessage (XEP-0481), SendRealTimeText (XEP-0301), RequestStanzaIDs (XEP-0359), GetInbox (XEP-0430), SearchMAMFullText (XEP-0431), SetReminder (XEP-0435)
-### MUC Extensions (11): SendDirectMUCInvitation (XEP-0249), SetMUCHat (XEP-0317), SearchChannels (XEP-0433), EnableMUCPresenceVersioning (XEP-0436), SubscribeRoomActivity (XEP-0437), SubscribeMUCMentions (XEP-0452), EnableMUCAffiliationVersioning (XEP-0463), SetMUCAvatar (XEP-0486), CreateMUCTokenInvite (XEP-0488), SetMUCSlowMode (XEP-0500), GetMUCActivityIndicator (XEP-0502)
-### MIX Extensions (5): MIXPresenceSubscribe (XEP-0403), MIXSetAnonymity (XEP-0404), MIXPAMJoin (XEP-0405), MIXAdminSetConfig (XEP-0406), MIXMiscSetAvatar (XEP-0407)
-### Jingle / Calls (18): JingleRTPSession (XEP-0167), JingleRawUDP (XEP-0177), JingleZRTP (XEP-0262), JingleAudioCodecs (XEP-0266), JingleMuji (XEP-0272), JingleConferenceInfo (XEP-0298), JingleVideoCodecs (XEP-0299), JingleDTLSSRTP (XEP-0320), JingleGrouping (XEP-0338), JingleSourceSSRC (XEP-0339), JingleDataChannels (XEP-0343), JingleMessageRinging (XEP-0353), PublishJingleSession (XEP-0358), JingleTrickleICE (XEP-0371), JingleEncryptedTransport (XEP-0391), JingleJETOMEMO (XEP-0396), SendCallInvite (XEP-0482), JingleContentCategory (XEP-0507)
-### File Sharing (5): JingleContentThumbnail (XEP-0264), SendSIMS (XEP-0385), ShareFileMetadataElem (XEP-0446), PubSubFileShare (XEP-0498), DataFormsFileInput (XEP-0505)
-### PubSub (15): PEPManageNode (XEP-0163), PubSubPersistPublic (XEP-0222), PubSubPersistPrivate (XEP-0223), PubSubCollectionNode (XEP-0248), PublishMicroblog (XEP-0277), QueryPubSubMAM (XEP-0442), SetPubSubCachingHints (XEP-0460), FilterPubSubByType (XEP-0462), SetPubSubPublicSubscriptions (XEP-0465), PubSubAttachment (XEP-0470), PublishSocialFeed (XEP-0472), EncryptPubSubOX (XEP-0473), GetPubSubServerInfo (XEP-0485), SetPubSubRelationship (XEP-0496), PubSubCompareAndPublish (XEP-0395)
-### Service Discovery (3): DiscoInfoExtended (XEP-0128), EntityCaps2 (XEP-0390), GetDOAP (XEP-0453)
-### Encryption (1): OMEMOAutoTrust (XEP-0450)
-### User Profile (4): ConsistentColor (XEP-0392), AvatarConversion (XEP-0398), SetReachability (XEP-0152), SetVCardAvatar (XEP-0153)
-### Notification (2): SetChatNotificationSettings (XEP-0492), SetServerNotificationFilter (XEP-0351)
-### Server Interaction (10): SearchUsersExtended (XEP-0055), ShareRosterItem (XEP-0144), HandleCAPTCHA (XEP-0158), ExportAccountData/ImportAccountData (XEP-0227), EnableRosterVersioning (XEP-0237), CreateInvitationURI (XEP-0401), PreAuthenticatedIBR (XEP-0445), GetServiceOutageStatus (XEP-0455), GetDataPolicy (XEP-0504), BookmarksConversion (XEP-0411)
-### Newer/Experimental (10): SendWebXDC (XEP-0491), CreateServerSpace (XEP-0503), CreateForum (XEP-0508), EncryptContactsMetadata (XEP-0510), GetLinkMetadata (XEP-0511), RequestOnlineMeeting (XEP-0483), RequestBurnerJID (XEP-0383), HTTPOverXMPP (XEP-0332), ForwardStanza (XEP-0297), AdvertiseNoReply (XEP-0506)
-### Miscellaneous (5): RSMQuery (XEP-0059), NegotiateSession (XEP-0155), SendBitsOfBinary (XEP-0231), HashElement (XEP-0300), PasswordHashingBestPractice (XEP-0438)
+## Presence (16)
+- [ ] ProbePresence
+- [ ] SendDirectedPresence
+- [ ] SendPresenceAvailable
+- [ ] SendPresenceAway
+- [ ] SendPresenceChat
+- [ ] SendPresenceDND
+- [ ] SendPresenceSubscribe
+- [ ] SendPresenceSubscribed
+- [ ] SendPresenceUnavailable
+- [ ] SendPresenceUnsubscribe
+- [ ] SendPresenceUnsubscribed
+- [ ] SendPresenceXA
+- [ ] SetPresencePriority
+- [ ] SetPresenceStatus
+- [ ] SetReachability
+- [ ] SetUserActivity
+
+## Messaging — Core (17)
+- [ ] CorrectMessage
+- [ ] DeleteMessage
+- [ ] EditMessage
+- [ ] ForwardMessage
+- [ ] ForwardStanza
+- [ ] ModerateMessage
+- [ ] ReplyToMessage
+- [ ] RetractMessage
+- [ ] SendChatMessage
+- [ ] SendGroupchatMessage
+- [ ] SendHeadlineMessage
+- [ ] SendMessage
+- [ ] SendNormalMessage
+- [ ] SendReply
+- [ ] SendRichTextMessage
+- [ ] SendSpoilerMessage
+- [ ] SendContentTypedMessage
+
+## Messaging — Chat States (5)
+- [ ] SendChatStateActive
+- [ ] SendChatStateComposing
+- [ ] SendChatStateGone
+- [ ] SendChatStateInactive
+- [ ] SendChatStatePaused
+
+## Messaging — Markers & Receipts (7)
+- [ ] MarkAsRead
+- [ ] MarkUnread
+- [ ] RequestReceipt
+- [ ] SendDisplayedMarker
+- [ ] SendReceivedMarker
+- [ ] SendReceipt
+- [ ] SyncDisplayedMessages
+
+## Messaging — Reactions & References (5)
+- [ ] ReactToMessage
+- [ ] SendMessageReference
+- [ ] SendQuickResponse
+- [ ] SendReaction
+- [ ] SendRealTimeText
+
+## Messaging — Stickers & Media Messages (6)
+- [ ] SendImageBase64
+- [ ] SendLocation
+- [ ] SendOOBURL
+- [ ] SendSticker
+- [ ] SendStickerXEP
+- [ ] SendBitsOfBinary
+
+## Messaging — Typing & Hints (4)
+- [ ] SendTyping
+- [ ] SetEncryptionHint
+- [ ] SetFallbackIndication
+- [ ] SetMessageHint
+
+## Messaging — Advanced (10)
+- [ ] AdvertiseNoReply
+- [ ] FastenPayload
+- [ ] PinMessage
+- [ ] RequestBurnerJID
+- [ ] RequestStanzaIDs
+- [ ] SendJSONMessage
+- [ ] SendWebXDC
+- [ ] SetAMPRules
+- [ ] UnpinAllMessages
+- [ ] UnpinMessage
+
+## Message Archive Management (MAM) (8)
+- [ ] GetMAMPreferences
+- [ ] QueryMAM
+- [ ] QueryMAMByDateRange
+- [ ] QueryMAMByJID
+- [ ] QueryMAMPage
+- [ ] QueryPubSubMAM
+- [ ] SearchMAMFullText
+- [ ] SetMAMPreferences
+
+## Roster & Contacts (12)
+- [ ] AddContact
+- [ ] DeleteContact
+- [ ] GetBlockedUsers
+- [ ] GetBlocklist
+- [ ] GetContacts
+- [ ] GetRoster
+- [ ] RemoveRosterItem
+- [ ] AddRosterItem
+- [ ] SetRosterItemGroups
+- [ ] SetRosterItemName
+- [ ] ShareRosterItem
+- [ ] EnableRosterVersioning
+
+## Blocking (4)
+- [ ] BlockJID
+- [ ] BlockUser
+- [ ] UnblockJID
+- [ ] UnblockUser
+
+## Profile & Identity (18)
+- [ ] GetAvatarPEP
+- [ ] GetProfile
+- [ ] GetUserNickname
+- [ ] GetVCard
+- [ ] GetVCard4
+- [ ] GetVCardField
+- [ ] SetAvatarPEP
+- [ ] SetAvatarVCard
+- [ ] SetUserLocation
+- [ ] SetUserMood
+- [ ] SetUserNickname
+- [ ] SetUserTune
+- [ ] SetVCard
+- [ ] SetVCard4
+- [ ] SetVCardAvatar
+- [ ] AvatarConversion
+- [ ] GetDOAP
+- [ ] GetSoftwareVersion
+
+## MUC — Multi-User Chat (29)
+- [ ] BanFromMUC
+- [ ] ConfigureMUC
+- [ ] CreateInstantMUC
+- [ ] CreateMUCTokenInvite
+- [ ] DeclineMUCInvitation
+- [ ] DestroyMUC
+- [ ] EnableMUCAffiliationVersioning
+- [ ] EnableMUCPresenceVersioning
+- [ ] GetMUCActivityIndicator
+- [ ] GetMUCConfig
+- [ ] GetMUCInfo
+- [ ] GetMUCOccupants
+- [ ] HandleOccupantId
+- [ ] JoinMUC
+- [ ] KickFromMUC
+- [ ] LeaveMUC
+- [ ] MUCSelfPing
+- [ ] RequestMUCHistory
+- [ ] RequestMUCVoice
+- [ ] SendDirectMUCInvitation
+- [ ] SendMUCInvitation
+- [ ] SendMUCMediatedInvite
+- [ ] SetMUCAffiliation
+- [ ] SetMUCAvatar
+- [ ] SetMUCHat
+- [ ] SetMUCNick
+- [ ] SetMUCRole
+- [ ] SetMUCSlowMode
+- [ ] SetMUCSubject
+- [ ] SubscribeMUCMentions
+- [ ] SubscribeRoomActivity
+- [ ] UnbanFromMUC
+
+## MUC — Voice (3)
+- [ ] GrantVoice
+- [ ] RevokeVoice
+- [ ] BanMember
+
+## MIX — Mediated Information eXchange (10)
+- [ ] CreateMIXChannel
+- [ ] DestroyMIXChannel
+- [ ] JoinMIXChannel
+- [ ] LeaveMIXChannel
+- [ ] MIXAdminSetConfig
+- [ ] MIXMiscSetAvatar
+- [ ] MIXPAMJoin
+- [ ] MIXPresenceSubscribe
+- [ ] MIXSetAnonymity
+- [ ] SetMIXNick
+- [ ] UpdateMIXSubscriptions
+
+## PubSub (22)
+- [ ] ConfigurePubSubNode
+- [ ] CreatePubSubNode
+- [ ] DeletePubSubNode
+- [ ] FilterPubSubByType
+- [ ] GetPubSubItems
+- [ ] GetPubSubServerInfo
+- [ ] GetPubSubSubscriptions
+- [ ] PEPManageNode
+- [ ] PublishPubSubItem
+- [ ] PubSubAttachment
+- [ ] PubSubCollectionNode
+- [ ] PubSubCompareAndPublish
+- [ ] PubSubFileShare
+- [ ] PubSubPersistPrivate
+- [ ] PubSubPersistPublic
+- [ ] PurgeNode
+- [ ] RetractPubSubItem
+- [ ] SetPubSubCachingHints
+- [ ] SetPubSubPublicSubscriptions
+- [ ] SetPubSubRelationship
+- [ ] SubscribePubSub
+- [ ] UnsubscribePubSub
+- [ ] GetNodeAffiliations
+- [ ] GetNodeSubscribers
+- [ ] SetNodeAffiliation
+
+## Jingle — Session Management (14)
+- [ ] AcceptJingle
+- [ ] InitiateJingle
+- [ ] JingleContentAccept
+- [ ] JingleContentAdd
+- [ ] JingleContentCategory
+- [ ] JingleContentModify
+- [ ] JingleContentReject
+- [ ] JingleContentRemove
+- [ ] JingleContentThumbnail
+- [ ] JingleGrouping
+- [ ] PublishJingleSession
+- [ ] RejectJingle
+- [ ] SendJingleTransportInfo
+- [ ] TerminateJingle
+
+## Jingle — Transport (8)
+- [ ] ActivateS5B
+- [ ] InitiateS5B
+- [ ] JingleRawUDP
+- [ ] JingleTransportAccept
+- [ ] JingleTransportReject
+- [ ] JingleTransportReplace
+- [ ] JingleTrickleICE
+- [ ] JingleEncryptedTransport
+
+## Jingle — RTP & Media (6)
+- [ ] JingleDTLSSRTP
+- [ ] JingleRTPSession
+- [ ] JingleSourceSSRC
+- [ ] JingleZRTP
+- [ ] NegotiateRTCPFeedback
+- [ ] NegotiateRTPHeaderExtensions
+
+## Jingle — File Transfer (6)
+- [ ] JingleFileChecksum
+- [ ] JingleFileOffer
+- [ ] JingleFileReceived
+- [ ] JingleFileRequest
+- [ ] JingleFileResume
+- [ ] JingleJETOMEMO
+
+## Jingle — Conferencing (3)
+- [ ] JingleConferenceInfo
+- [ ] JingleDataChannels
+- [ ] JingleMuji
+
+## Jingle — Message Initiation (2)
+- [ ] JingleMessageRinging
+- [ ] ProceedToJingle
+
+## Calls (10)
+- [ ] AcceptCall
+- [ ] AcceptProposal
+- [ ] DeclineCall
+- [ ] EndCall
+- [ ] JoinGroupCall
+- [ ] ProposeCall
+- [ ] RejectProposal
+- [ ] RetractProposal
+- [ ] SendCallInvite
+- [ ] SetCallMuted
+- [ ] StartCall
+
+## OMEMO (8)
+- [ ] FetchOMEMOBundle
+- [ ] FetchOMEMODeviceList
+- [ ] OMEMOAutoTrust
+- [ ] OMEMOBuildSession
+- [ ] OMEMODecrypt
+- [ ] OMEMOEncrypt
+- [ ] PublishOMEMOBundle
+- [ ] PublishOMEMODeviceList
+
+## OpenPGP for XMPP (OX) (5)
+- [ ] EncryptPubSubOX
+- [ ] FetchOXPublicKey
+- [ ] OXDecrypt
+- [ ] OXEncrypt
+- [ ] OXSignEncrypt
+- [ ] PublishOXPublicKey
+
+## Encryption — General (4)
+- [ ] DecryptMedia
+- [ ] DecryptStanzaContent
+- [ ] EncryptMedia
+- [ ] EncryptStanzaContent
+- [ ] EncryptContactsMetadata
+- [ ] SendTrustMessage
+
+## Service Discovery (9)
+- [ ] Capabilities
+- [ ] DiscoInfo
+- [ ] DiscoInfoExtended
+- [ ] DiscoItems
+- [ ] DiscoverMUCService
+- [ ] EntityCaps2
+- [ ] GetEntityCapabilities
+- [ ] QueryFeatures
+- [ ] QueryIdentity
+
+## File Transfer (9)
+- [ ] CloseIBBSession
+- [ ] DownloadFile
+- [ ] DownloadFileHTTP
+- [ ] OpenIBBSession
+- [ ] SendIBBData
+- [ ] ShareEncryptedFile
+- [ ] ShareFileMetadata
+- [ ] ShareFileMetadataElem
+- [ ] ShareFileSources
+
+## HTTP Upload (4)
+- [ ] DiscoverHTTPUploadService
+- [ ] RequestHTTPUploadSlot
+- [ ] UploadFile
+- [ ] UploadFileHTTP
+
+## HTTP Over XMPP (2)
+- [ ] HTTPOverXMPP
+- [ ] VerifyHTTPRequest
+
+## Ad-Hoc Commands (4)
+- [ ] CancelCommand
+- [ ] DiscoverCommands
+- [ ] ExecuteCommand
+- [ ] ListClientAccess
+- [ ] RevokeClientAccess
+
+## Data Forms (4)
+- [ ] CancelForm
+- [ ] DataFormsFileInput
+- [ ] ProcessFormResult
+- [ ] SubmitForm
+
+## Bookmarks (6)
+- [ ] BookmarksConversion
+- [ ] GetBookmarks
+- [ ] RemoveBookmark
+- [ ] RemoveBookmarkPEP
+- [ ] SetBookmark
+- [ ] SetBookmarkAutoJoin
+- [ ] SetBookmarkPEP
+
+## Chat Management (9)
+- [ ] ArchiveChat
+- [ ] EditChatDescription
+- [ ] EditChatTitle
+- [ ] GetChatInfo
+- [ ] GetDialogs
+- [ ] GetInbox
+- [ ] LeaveChat
+- [ ] MuteChat
+- [ ] SetChatNotificationSettings
+
+## Group & Channel Management (9)
+- [ ] AddMembers
+- [ ] CreateChannel
+- [ ] CreateGroup
+- [ ] CreateServerSpace
+- [ ] GetInviteLink
+- [ ] GetMembers
+- [ ] RemoveMember
+- [ ] SearchChannels
+- [ ] SetAdmin
+- [ ] UnbanMember
+
+## Forum & Topics (2)
+- [ ] CreateForum
+- [ ] CreateTopic
+
+## Polls (2)
+- [ ] CreatePoll
+- [ ] VotePoll
+
+## Search (3)
+- [ ] SearchGlobal
+- [ ] SearchMessages
+- [ ] SearchUsersExtended
+- [ ] SearchUsersXMPP
+
+## File URL Sharing (2)
+- [ ] SendFileURL
+- [ ] SendSIMS
+
+## Push Notifications (2)
+- [ ] DisablePushNotifications
+- [ ] EnablePushNotifications
+
+## Carbons (2)
+- [ ] DisableCarbons
+- [ ] EnableCarbons
+
+## Privacy Lists (3)
+- [ ] GetPrivacyLists
+- [ ] SetActiveList
+- [ ] SetDefaultList
+
+## Private XML Storage (2)
+- [ ] RetrievePrivateXML
+- [ ] StorePrivateXML
+
+## Offline Messages (3)
+- [ ] GetOfflineMessageCount
+- [ ] GetOfflineMessageHeaders
+- [ ] RemoveOfflineMessages
+- [ ] RetrieveOfflineMessages
+
+## External Services (3)
+- [ ] DiscoverExternalServices
+- [ ] GetTURNCredentials
+- [ ] RequestOnlineMeeting
+
+## Microblogging & Social (2)
+- [ ] PublishMicroblog
+- [ ] PublishSocialFeed
+
+## Account Management (3)
+- [ ] ExportAccountData
+- [ ] ImportAccountData
+- [ ] HandleCAPTCHA
+
+## Miscellaneous (12)
+- [ ] CreateFolder
+- [ ] CreateInvitationURI
+- [ ] GetDataPolicy
+- [ ] GetEntityTime
+- [ ] GetFolders
+- [ ] GetLastActivity
+- [ ] GetLastUserInteraction
+- [ ] GetLinkMetadata
+- [ ] GetReadState
+- [ ] GetServiceOutageStatus
+- [ ] GetStickerPack
+- [ ] OnUpdate
+- [ ] RSMQuery
+- [ ] SendPing
+- [ ] SetReminder
+- [ ] SetServerNotificationFilter
+
+## Core Interface (1)
+- [ ] GetMessages

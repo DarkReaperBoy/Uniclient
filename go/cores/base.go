@@ -21,6 +21,8 @@ var (
 	ErrAlreadyExists  = errors.New("already exists")
 	ErrInvalidInput   = errors.New("invalid input")
 	ErrSessionExpired = errors.New("session expired")
+	ErrDisconnected   = errors.New("disconnected")
+	ErrTimeout        = errors.New("operation timed out")
 )
 
 // --- Enums ---
@@ -56,6 +58,7 @@ const (
 	UpdateCallState      UpdateType = "call_state"
 	UpdateGroupMembers   UpdateType = "group_members"
 	UpdateVerification   UpdateType = "verification"
+	UpdateConnectivity   UpdateType = "connectivity"
 )
 
 type CallState string
@@ -251,6 +254,7 @@ type Update struct {
 	Call         *CallSession      `json:"call,omitempty"`
 	IsOnline     *bool             `json:"is_online,omitempty"`
 	Verification *VerificationInfo `json:"verification,omitempty"`
+	ConnState    string            `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
 	Platform     string            `json:"platform"`
 }
 

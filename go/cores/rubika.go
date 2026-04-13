@@ -307,7 +307,8 @@ func (r *RubikaCore) getDCs() error {
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("get DCs: %w", err)
+		// DC discovery failed (DNS blocked outside Iran) — use hardcoded fallbacks
+		return r.useFallbackDCs()
 	}
 	defer resp.Body.Close()
 
@@ -322,7 +323,7 @@ func (r *RubikaCore) getDCs() error {
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("decode DC response: %w", err)
+		return r.useFallbackDCs()
 	}
 
 	r.apiMap = make(map[string]string)
@@ -390,8 +391,81 @@ func (r *RubikaCore) getDCs() error {
 	}
 
 	if r.apiURL == "" || r.wssURL == "" {
-		return fmt.Errorf("incomplete DC data: api=%q wss=%q", r.apiURL, r.wssURL)
+		// Incomplete DC data — try fallbacks
+		return r.useFallbackDCs()
 	}
+	return nil
+}
+
+// useFallbackDCs sets hardcoded API and WebSocket endpoints for when DC discovery
+// DNS (getdcmess.iranlms.ir) is blocked outside Iran.
+func (r *RubikaCore) useFallbackDCs() error {
+	// Known Rubika messenger API subdomains (messenger1-10.iranlms.ir)
+	fallbackAPIs := []string{
+		"https://messengerg2c1.iranlms.ir/",
+		"https://messengerg2c2.iranlms.ir/",
+		"https://messengerg2c3.iranlms.ir/",
+		"https://messengerg2c4.iranlms.ir/",
+		"https://messengerg2c5.iranlms.ir/",
+		"https://messengerg2c6.iranlms.ir/",
+		"https://messengerg2c7.iranlms.ir/",
+		"https://messengerg2c8.iranlms.ir/",
+		"https://messengerg2c9.iranlms.ir/",
+		"https://messengerg2c10.iranlms.ir/",
+	}
+	fallbackSockets := []string{
+		"wss://nsocket1.iranlms.ir/",
+		"wss://nsocket2.iranlms.ir/",
+		"wss://nsocket3.iranlms.ir/",
+		"wss://nsocket4.iranlms.ir/",
+		"wss://nsocket5.iranlms.ir/",
+	}
+	fallbackStorages := []string{
+		"https://shadow1.iranlms.ir/",
+		"https://shadow2.iranlms.ir/",
+		"https://shadow3.iranlms.ir/",
+		"https://shadow4.iranlms.ir/",
+	}
+
+	// Try each API endpoint until one responds
+	for i, url := range fallbackAPIs {
+		ctx, cancel := context.WithTimeout(r.ctx, 5*time.Second)
+		req, err := http.NewRequestWithContext(ctx, "HEAD", url, nil)
+		if err != nil {
+			cancel()
+			continue
+		}
+		req.Header.Set("User-Agent", r.userAgent)
+		resp, err := r.httpClient.Do(req)
+		cancel()
+		if err == nil {
+			resp.Body.Close()
+			r.apiURL = url
+			r.apiMap = make(map[string]string)
+			r.apiMap[fmt.Sprintf("%d", i+1)] = url
+			r.apiPriority = []string{fmt.Sprintf("%d", i+1)}
+			break
+		}
+	}
+	if r.apiURL == "" {
+		// None reachable — set first as default, will fail on actual use
+		r.apiURL = fallbackAPIs[0]
+		r.apiMap = map[string]string{"1": fallbackAPIs[0]}
+		r.apiPriority = []string{"1"}
+	}
+
+	// Set WebSocket URL — try first available
+	for _, url := range fallbackSockets {
+		r.wssURL = url
+		break
+	}
+
+	// Set storage URLs
+	r.storageMap = make(map[string]string)
+	for i, url := range fallbackStorages {
+		r.storageMap[fmt.Sprintf("%d", i+1)] = url
+	}
+
 	return nil
 }
 
@@ -2713,6 +2787,10 @@ func (r *RubikaCore) StartWebSocket() error {
 
 func (r *RubikaCore) wsLoop() {
 	defer r.wg.Done()
+	backoff := 3 * time.Second
+	const maxBackoff = 60 * time.Second
+	const maxRetries = 10
+	retries := 0
 	for {
 		select {
 		case <-r.ctx.Done():
@@ -2722,9 +2800,40 @@ func (r *RubikaCore) wsLoop() {
 
 		err := r.wsConnect()
 		if err != nil {
-			time.Sleep(3 * time.Second)
+			if r.ctx.Err() != nil {
+				return
+			}
+			retries++
+			if retries == 1 {
+				r.fireConnState("disconnected")
+			}
+			if retries > maxRetries {
+				r.fireConnState("disconnected")
+				return
+			}
+			r.fireConnState("reconnecting")
+			time.Sleep(backoff)
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
 			continue
 		}
+		// Connected successfully — reset backoff
+		backoff = 3 * time.Second
+		retries = 0
+		r.fireConnState("connected")
+	}
+}
+
+func (r *RubikaCore) fireConnState(state string) {
+	r.updateMu.RLock()
+	handlers := make([]func(Update), len(r.updateHandlers))
+	copy(handlers, r.updateHandlers)
+	r.updateMu.RUnlock()
+	u := Update{Type: UpdateConnectivity, ConnState: state, Platform: "rubika"}
+	for _, h := range handlers {
+		go h(u)
 	}
 }
 
@@ -3376,11 +3485,6 @@ func (r *RubikaCore) GetLinkFromAppUrl(appURL string) (map[string]interface{}, e
 	return r.api("getLinkFromAppUrl", map[string]interface{}{
 		"app_url": appURL,
 	})
-}
-
-// GetTime retrieves server time.
-func (r *RubikaCore) GetTime() (map[string]interface{}, error) {
-	return r.api("getTime", map[string]interface{}{})
 }
 
 // --- Groups (extended) ---
@@ -5017,17 +5121,6 @@ func (r *RubikaCore) GetSessions() ([]Session, error) {
 // Step 4 — Auth / Device (2 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// RegisterDevice registers the device with Rubika servers.
-func (r *RubikaCore) RegisterDevice(token string, langCode string, appVersion string, deviceModel string, deviceHash string) (map[string]interface{}, error) {
-	return r.api("registerDevice", map[string]interface{}{
-		"token":        token,
-		"lang_code":    langCode,
-		"app_version":  appVersion,
-		"device_model": deviceModel,
-		"device_hash":  deviceHash,
-	})
-}
-
 // LoginDisableTwoStep bypasses 2FA when the password is forgotten (phone + phone_code_hash).
 func (r *RubikaCore) LoginDisableTwoStep(phoneNumber string, phoneCodeHash string) (map[string]interface{}, error) {
 	return r.api("loginDisableTwoStep", map[string]interface{}{
@@ -5054,25 +5147,9 @@ func (r *RubikaCore) SearchGlobalMessages(text string, startID string, limit int
 	return r.api("searchGlobalMessages", input)
 }
 
-// ClickMessageUrl reports a URL click within a message (link analytics).
-func (r *RubikaCore) ClickMessageUrl(chatGUID string, messageID string, url string) (map[string]interface{}, error) {
-	return r.api("clickMessageUrl", map[string]interface{}{
-		"object_guid": chatGUID,
-		"message_id":  messageID,
-		"link":        url,
-	})
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Chat Management (3 methods)
+// Step 4 — Chat Management
 // ══════════════════════════════════════════════════════════════════════════════
-
-// GetChatAds retrieves advertisement messages in chats.
-func (r *RubikaCore) GetChatAds(chatGUID string) (map[string]interface{}, error) {
-	return r.api("getChatAds", map[string]interface{}{
-		"object_guid": chatGUID,
-	})
-}
 
 // SetPrivacySetting sets an individual privacy setting with granular control.
 func (r *RubikaCore) SetPrivacySetting(settingType string, value string) (map[string]interface{}, error) {
@@ -5102,10 +5179,10 @@ func (r *RubikaCore) EditFolder(folderID string, name string, includedChatGUIDs 
 		input["name"] = name
 	}
 	if len(includedChatGUIDs) > 0 {
-		input["included_chat_types"] = includedChatGUIDs
+		input["include_object_guids"] = includedChatGUIDs
 	}
 	if len(excludedTypes) > 0 {
-		input["excluded_chat_types"] = excludedTypes
+		input["exclude_chat_types"] = excludedTypes
 	}
 	return r.api("editFolder", input)
 }

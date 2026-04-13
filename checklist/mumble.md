@@ -1,20 +1,332 @@
-# Mumble — Full Protocol Surface Checklist
+# Mumble — Fresh Checklist
 
-**Last updated:** 2026-04-13 (Steps 4-6)
-**Current:** 381 methods, ~7,800 lines. Pure Go. TCP+TLS control, OCB2-AES128 UDP voice, hand-coded protobuf, Ice RPC admin.
-**Confirmed working:** All Core interface + extended methods (Step 1/2). 111 new methods added (Step 4), not yet tested.
-**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
-**Remaining:** 0 methods — 100% protocol coverage.
+**Methods:** 235 exported | **Lines:** 7,867 | **File:** `go/cores/mumble.go`
+**Protocol:** Mumble (TCP control + UDP voice, Protobuf messages, OCB2-AES crypto)
+**Last updated:** 2026-04-13
 
-All methods implemented.
+## Categories
 
----
+### Core Interface — Lifecycle & Identity (6)
+- Name
+- Capabilities
+- Authenticate
+- Close
+- Logout
+- OnUpdate
 
-## Step 4 — Newly Implemented (111 methods) — NEEDS TESTING
+### Core Interface — Dialogs & Organization (6)
+- GetDialogs
+- CreateGroup
+- CreateChannel
+- CreateTopic
+- GetFolders
+- CreateFolder
 
-### Ice RPC — Meta Interface (11): MetaGetServer, MetaNewServer, MetaGetBootedServers, MetaGetAllServers, MetaGetDefaultConf, MetaGetVersion, MetaAddCallback, MetaRemoveCallback, MetaGetUptime, MetaGetSlice, MetaGetSliceChecksums
-### Ice RPC — Server Interface (37): IceServerIsRunning, IceServerStart, IceServerStop, IceServerDelete, IceServerID, IceGetConf, IceGetAllConf, IceSetSuperuserPassword, IceGetLogLen, IceGetUsers, IceGetChannels, IceGetCertificateList, IceGetTree, IceGetBans, IceSetBans, IceKickUser, IceGetState, IceSetState, IceSendMessage, IceHasPermission, IceEffectivePermissions, IceGetChannelState, IceSetChannelState, IceRemoveChannel, IceAddChannel, IceSendMessageChannel, IceGetACL, IceSetACL, IceAddUserToGroup, IceRemoveUserFromGroup, IceGetUserNames, IceGetUserIds, IceRegisterUser, IceUnregisterUser, IceUpdateRegistration, IceGetRegistration, IceVerifyPassword, IceGetTexture, IceSetTexture, IceStartListening, IceStopListening, IceIsListening, IceGetListeningChannels, IceGetListeningUsers, IceSendWelcomeMessage
-### Ice RPC — Callbacks (9): IceServerCallbackUserConnected, IceServerCallbackUserDisconnected, IceServerCallbackUserStateChanged, IceServerCallbackUserTextMessage, IceServerCallbackChannelCreated, IceServerCallbackChannelRemoved, IceServerCallbackChannelStateChanged, IceMetaCallbackStarted, IceMetaCallbackStopped
-### Ice RPC — Authenticator (10): IceSetAuthenticator, AuthenticatorAuthenticate, AuthenticatorGetInfo, AuthenticatorNameToId, AuthenticatorIdToName, AuthenticatorIdToTexture, UpdatingAuthRegisterUser, UpdatingAuthUnregisterUser, UpdatingAuthSetInfo, UpdatingAuthSetTexture
-### Client Protocol (15): RenameChannel, GetChannelDescription, GetUserComment, GetUserTexture, ParseMumbleURL, ConnectFromURL, HandleUserStats, LoadCertificate, GetCertificateHash, GetServerCertificate, FlushPermissions, GetCachedPermissions, GetChannelTree, Reconnect, SetAutoReconnect
-### Audio (4): SetAudioBitrate, SetAudioFrameSize, GetAudioStats, OnAudioStream
+### Core Interface — Messaging (12)
+- SendMessage
+- GetMessages
+- EditMessage
+- DeleteMessage
+- ReplyToMessage
+- ForwardMessage
+- ReactToMessage
+- PinMessage
+- UnpinMessage
+- MarkAsRead
+- GetReadState
+- SendTyping
+
+### Core Interface — Files & Media (4)
+- UploadFile
+- DownloadFile
+- SendImageBase64
+- SendSticker
+
+### Core Interface — Calls (4)
+- StartCall
+- JoinGroupCall
+- EndCall
+- SetCallMuted
+
+### Core Interface — User & Profile (1)
+- GetProfile
+
+### Core Interface — Chat Management (5)
+- GetChatInfo
+- EditChatTitle
+- EditChatDescription
+- LeaveChat
+- GetInviteLink
+
+### Core Interface — Members & Moderation (6)
+- AddMembers
+- RemoveMember
+- BanMember
+- UnbanMember
+- GetMembers
+- SetAdmin
+
+### Core Interface — Contacts & Blocking (6)
+- GetContacts
+- AddContact
+- DeleteContact
+- BlockUser
+- UnblockUser
+- GetBlockedUsers
+
+### Core Interface — Search (2)
+- SearchMessages
+- SearchGlobal
+
+### Core Interface — Polls (2)
+- CreatePoll
+- VotePoll
+
+### Core Interface — Sessions & Misc (6)
+- GetSessions
+- TerminateSession
+- MuteChat
+- ArchiveChat
+- MarkUnread
+- UnpinAllMessages
+
+### Core Interface — Location (1)
+- SendLocation
+
+### Client Protocol — Connection & Auth (5)
+- ConnectFromURL
+- Reconnect
+- SetAutoReconnect
+- LoadCertificate
+- UpdateCertificate
+
+### Client Protocol — Channel Operations (11)
+- CreateTemporaryChannel
+- DeleteChannel
+- RenameChannel
+- MoveChannel
+- SetChannelMaxUsers
+- SetChannelPosition
+- GetChannelDescription
+- GetChannelTree
+- LinkChannels
+- UnlinkChannels
+- FlushPermissions
+
+### Client Protocol — User Operations (8)
+- MoveToChannel
+- MoveUser
+- RegisterSelf
+- RegisterUser
+- UnregisterUser
+- QueryUsers
+- GetRegisteredUsers
+- SetComment
+
+### Client Protocol — Server Interaction (8)
+- SendVersion
+- RequestBlob
+- RequestNonceResync
+- GetPublicServers
+- SendPluginData
+- SetPluginContext
+- SetPluginIdentity
+- SendWelcomeMessage
+
+### Client Protocol — Permissions & ACL (5)
+- GetACL
+- SetACL
+- GetPermissions
+- GetCachedPermissions
+- SetAccessTokens
+
+### Client Protocol — Ban Management (4)
+- GetBanList
+- SetBanList
+- AddBan
+- RemoveBan
+
+### Client Protocol — User State Modifiers (7)
+- SelfMute
+- SelfDeaf
+- ServerMute
+- ServerDeaf
+- Suppress
+- SetPrioritySpeaker
+- SetRecording
+
+### Client Protocol — Texture & Certificates (3)
+- SetTexture
+- GetUserTexture
+- GetCertificateHash
+
+### Client Protocol — Listeners (4)
+- AddChannelListener
+- RemoveChannelListener
+- SetListenerVolume
+- SetTemporaryAccessTokens
+
+### Client Protocol — Context Actions (4)
+- AddContextCallback
+- RemoveContextCallback
+- TriggerContextAction
+- TriggerContextActionChannel
+
+### Client Protocol — Whisper & Targets (3)
+- SendVoiceWhisper
+- RedirectWhisperGroup
+- SetVoiceTarget
+
+### Client Protocol — Message Handlers (6)
+- HandleCodecVersion
+- HandleContextActionModify
+- HandlePermissionDenied
+- HandleReject
+- HandleSuggestConfig
+- HandleUserStats
+
+### Client Protocol — User Stats & Info (3)
+- GetUserStats
+- GetUserComment
+- GetServerConfig
+
+### Client Protocol — Call Flow (2)
+- AcceptCall
+- DeclineCall
+
+### Client Protocol — Tree Messages (1)
+- SendTreeMessage
+
+### Audio / Voice (12)
+- SendVoice
+- SendVoiceTCP
+- SendPositionalAudio
+- SendVoiceTerminator
+- OnVoice
+- OnAudioStream
+- SetAudioBitrate
+- SetAudioFrameSize
+- SetPreferredCodec
+- GetAudioStats
+- ServerLoopback
+- GetServerCertificate
+
+### Ice Admin RPC — Server Management (10)
+- ConnectAdmin
+- DisconnectAdmin
+- IceServerID
+- IceServerIsRunning
+- IceServerStart
+- IceServerStop
+- IceServerDelete
+- IceIsListening
+- IceStartListening
+- IceStopListening
+
+### Ice Admin RPC — User Management (9)
+- IceGetUsers
+- IceGetUserIds
+- IceGetUserNames
+- IceGetRegistration
+- IceRegisterUser
+- IceUnregisterUser
+- IceUpdateRegistration
+- IceKickUser
+- IceVerifyPassword
+
+### Ice Admin RPC — Channel Management (5)
+- IceGetChannels
+- IceGetChannelState
+- IceSetChannelState
+- IceAddChannel
+- IceRemoveChannel
+
+### Ice Admin RPC — State & Config (5)
+- IceGetState
+- IceSetState
+- IceGetConf
+- IceGetAllConf
+- IceSetSuperuserPassword
+
+### Ice Admin RPC — ACL & Permissions (4)
+- IceGetACL
+- IceSetACL
+- IceEffectivePermissions
+- IceHasPermission
+
+### Ice Admin RPC — Bans & Log (3)
+- IceGetBans
+- IceSetBans
+- IceGetLogLen
+
+### Ice Admin RPC — Groups & Listeners (4)
+- IceAddUserToGroup
+- IceRemoveUserFromGroup
+- IceGetListeningChannels
+- IceGetListeningUsers
+
+### Ice Admin RPC — Messaging (3)
+- IceSendMessage
+- IceSendMessageChannel
+- IceSendWelcomeMessage
+
+### Ice Admin RPC — Textures & Certificates (3)
+- IceGetTexture
+- IceSetTexture
+- IceGetCertificateList
+
+### Ice Admin RPC — Tree (1)
+- IceGetTree
+
+### Ice Admin RPC — Callbacks (11)
+- IceMetaCallbackStarted
+- IceMetaCallbackStopped
+- IceServerCallbackChannelCreated
+- IceServerCallbackChannelRemoved
+- IceServerCallbackChannelStateChanged
+- IceServerCallbackUserConnected
+- IceServerCallbackUserDisconnected
+- IceServerCallbackUserStateChanged
+- IceServerCallbackUserTextMessage
+- IceSetAuthenticator
+- OnIceContextAction
+
+### Ice Admin RPC — Authenticator (5)
+- AuthenticatorAuthenticate
+- AuthenticatorGetInfo
+- AuthenticatorIdToName
+- AuthenticatorIdToTexture
+- AuthenticatorNameToId
+
+### Ice Admin RPC — Updating Authenticator (4)
+- UpdatingAuthRegisterUser
+- UpdatingAuthSetInfo
+- UpdatingAuthSetTexture
+- UpdatingAuthUnregisterUser
+
+### Ice Admin RPC — Meta (11)
+- MetaAddCallback
+- MetaRemoveCallback
+- MetaGetAllServers
+- MetaGetBootedServers
+- MetaGetDefaultConf
+- MetaGetServer
+- MetaGetSlice
+- MetaGetSliceChecksums
+- MetaGetUptime
+- MetaGetVersion
+- MetaNewServer
+
+### Ice Admin RPC — Server Info (2)
+- GetServerUptime
+- GetServerLog
+
+### Debug (8)
+- DebugBuildLegacyVoicePacket
+- DebugBuildVoicePacket
+- DebugCodecVersion
+- DebugMySession
+- DebugServerVersion
+- DebugState
+- DebugUserFlags
+- DebugVoiceTunnelCount

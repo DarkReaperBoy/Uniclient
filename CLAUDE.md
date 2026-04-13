@@ -75,13 +75,28 @@ Make it work → make it right → make it fast. Each core must be fully indepen
 ### Step 6: Unify Core APIs
 All cores expose the same unified interface where possible. Pythonic example: `cores.bale.SendMessage()`, `cores.rubika.SendMessage()`, `cores.telegram.SendMessage()` — same signatures, same return types, same behavior for shared operations. Platform-specific methods remain as extras. Speed over elegance, but don't break anything.
 
-### Step 7: Protobuf Bridge
+### Step 7: Complete Telegram & Matrix Method Coverage
+Find every method from gotd/td (Telegram) and mautrix-go (Matrix) libraries. Add ALL missing methods to checklists, excluding payment/ads/useless methods. These two cores were grandfathered in from early development and may be missing methods that the libs expose.
+
+### Step 8: Fresh Checklists for All Cores
+Remove ALL existing checklists. Create brand-new checklists for every core with every method listed. Each checklist should reflect the actual current state of every exported method in the core file. Then: find every method from every core's upstream lib/protocol that's missing, implement every non-existing method, and verify each one works. Deduplicate only methods that do the exact same thing (true duplicates). Merge methods that are meant to be chained together into single cohesive operations. Optimize methods that aren't optimized. Remove methods that serve no purpose — not even niche. If nobody would ever call it, delete it. Ensure every core handles connection drops gracefully and reconnects without GUI intervention. Add consistent error types across all cores — the GUI needs predictable error categories (auth failed, network down, rate limited, not supported, permission denied), not raw strings. For Rubika: add full backend IP + subdomain fallback list (like the user's existing approach) so it works even when domains are blocked outside Iran. Document any important discoveries (protocol quirks, API gotchas, undocumented behavior) in `research/` as you go. When this step is done, every core has 100% useful coverage with zero dead weight.
+
+### Step 9: Test Every Core
+Test every method in every core against their official harnesses and live APIs — including previously tested ones from earlier steps. Test everything: messaging, media, groups, channels, calls (audio/video where supported), file transfers, admin ops, the lot. Use multiple accounts per platform to verify cross-account behavior (sending between accounts, group operations, permissions). Fix failures. Prune passing tests. Every method must work end-to-end, not just "no error returned." Once a method passes, never re-run it again within this step — test everything once, not twice.
+
+### Step 10: Unify Every Core
+All cores expose the same unified interface where possible — same Go signatures, same return types, same behavior for shared operations. Pythonic logic in Go: `cores.bale.SendMessage()` and `cores.telegram.SendMessage()` behave the same for the ease of the GUI. The GUI should never need to know which core it's talking to for common operations. Platform-specific methods remain as extras but the shared surface must be identical in behavior.
+
+### Step 11: Test Every Unified Method
+Test every method again after unification — full pass, including ones that passed in Step 9. Once a method passes here, don't re-run it.
+
+### Step 12: Protobuf Bridge
 Replace JSON bridge encoding with Protocol Buffers. Define `.proto` files for all bridge types. Generate Go + Dart code. Schema changes break at compile time, not runtime.
 
-### Step 8: Write `/docs`
+### Step 13: Write `/docs`
 Create a `/docs` folder documenting how to use each core independently as a standalone Go library. Usage examples, method reference, auth flows — as if someone is importing just one core into their own project.
 
-### Step 9: Build the GUI
+### Step 14: Build the GUI
 Only now: start Flutter GUI work. See `research/gui-idea.md` and `checklist/gui.md` for design.
 
 **HARD RULE: Pure Go + Flutter ONLY — ZERO CGo, ZERO C/C++ dependencies.** No CGo anywhere — not in cores, not in utils, not in bridge, not in tests, not anywhere. No libvpx, no libolm, no native codecs, no C compilers needed. If it can't be done in pure Go or Flutter, find a different approach or skip it. The FFI bridge uses `dart:ffi` on the Dart side calling into a Go shared lib built with `go build -buildmode=c-shared` — that's Go's own toolchain, NOT CGo linking against external C libs. The tgcalls C++ test harness is a SEPARATE binary outside this repo (built independently in /tmp/), never compiled as part of `go build`. This project compiles with `go build` alone, no C compiler, no pkg-config, no system libraries.

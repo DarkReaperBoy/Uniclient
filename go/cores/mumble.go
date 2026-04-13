@@ -2975,6 +2975,7 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 
 	c.mu.Lock()
 	c.authed = true
+	c.autoReconnect = true
 	c.mu.Unlock()
 
 	return nil
@@ -2995,14 +2996,66 @@ func (c *MumbleCore) tcpRecvLoop() {
 			case <-c.ctx.Done():
 				return
 			default:
-				// Connection lost
-				c.fireUpdate(Update{Type: UpdateCallState, Platform: "mumble"})
+				// Connection lost — notify listeners
+				c.fireUpdate(Update{Type: UpdateCallState, Platform: "mumble", ChatID: "disconnected"})
+
+				// Attempt auto-reconnect if enabled (in separate goroutine
+				// because Reconnect calls Close which waits on wg)
+				c.mu.RLock()
+				shouldReconnect := c.autoReconnect
+				c.mu.RUnlock()
+
+				if shouldReconnect {
+					go c.attemptAutoReconnect()
+				}
 				return
 			}
 		}
 
 		c.handleTCPMessage(msgType, payload)
 	}
+}
+
+// attemptAutoReconnect tries to reconnect with exponential backoff.
+// Backoff: 3s, 6s, 12s, 24s, 48s, 60s (capped), up to 10 retries.
+// Must be called in its own goroutine (not from tcpRecvLoop) because
+// Reconnect -> Close -> wg.Wait would deadlock otherwise.
+func (c *MumbleCore) attemptAutoReconnect() {
+	const maxRetries = 10
+	const maxDelay = 60 * time.Second
+	baseDelay := 3 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		delay := baseDelay * time.Duration(1<<uint(attempt))
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+
+		c.fireUpdate(Update{
+			Type:     UpdateCallState,
+			Platform: "mumble",
+			ChatID:   fmt.Sprintf("reconnecting:%d/%d", attempt+1, maxRetries),
+		})
+
+		time.Sleep(delay)
+
+		err := c.Reconnect()
+		if err == nil {
+			c.fireUpdate(Update{
+				Type:     UpdateCallState,
+				Platform: "mumble",
+				ChatID:   "reconnected",
+			})
+			return
+		}
+	}
+
+	// All retries exhausted
+	c.fireUpdate(Update{
+		Type:     UpdateCallState,
+		Platform: "mumble",
+		ChatID:   "reconnect_failed",
+	})
 }
 
 func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {

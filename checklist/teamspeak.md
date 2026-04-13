@@ -1,82 +1,419 @@
-# TeamSpeak 3 — Full Protocol Surface Checklist
+# TeamSpeak — Fresh Checklist
 
-**Last updated:** 2026-04-13 (Steps 4-6)
-**Current:** 369 methods, ~6,800 lines. Real TS3 UDP client protocol + ServerQuery.
-**Confirmed working:** 38 extended + 55 Core (all pass on Docker TS3 3.13.7, Step 2). 80 new methods added (Step 4), not yet tested.
-**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
-**Remaining:** 0 methods — 100% protocol coverage.
+**Methods:** 296 exported | **Lines:** 6,883 | **File:** `go/cores/teamspeak.go`
+**Protocol:** TeamSpeak 3 (UDP client protocol, ServerQuery)
+**Last updated:** 2026-04-13
 
-All methods implemented. ServerQuery commands, notification handlers, audio, and client SDK features fully covered.
+## Categories
 
----
+### Connection & Authentication (5)
+- [ ] Authenticate
+- [ ] Close
+- [ ] Logout
+- [ ] Name
+- [ ] WhoAmI
 
-## Step 4 — Newly Implemented (80 methods) — NEEDS TESTING
+### Server Management (27)
+- [ ] GlobalMessage
+- [ ] HostInfo
+- [ ] InstanceEdit
+- [ ] InstanceInfo
+- [ ] ServerCreate
+- [ ] ServerDelete
+- [ ] ServerEdit
+- [ ] ServerIdGetByPort
+- [ ] ServerInfo
+- [ ] ServerList
+- [ ] ServerListExtended
+- [ ] ServerProcessStop
+- [ ] ServerRequestConnectionInfo
+- [ ] ServerSnapshotCreate
+- [ ] ServerSnapshotDeploy
+- [ ] ServerSnapshotDeployKeepFiles
+- [ ] ServerSnapshotPassword
+- [ ] ServerStart
+- [ ] ServerStop
+- [ ] ServerTempPasswordAdd
+- [ ] ServerTempPasswordDel
+- [ ] ServerTempPasswordList
+- [ ] ServerVersion
+- [ ] VerifyServerPassword
+- [ ] GetBandwidthStats
+- [ ] GetConnectionInfo
+- [ ] SetConnectionInfo
 
-### Server Instance Management (6)
-- [x] HostInfo, InstanceInfo, InstanceEdit, BindingList, ServerProcessStop, ServerIdGetByPort
+### Server Permissions (8)
+- [ ] ServerAddPerm
+- [ ] ServerDelPerm
+- [ ] ServerPermList
+- [ ] PermCommandsPermSID
+- [ ] PermFind
+- [ ] PermGet
+- [ ] PermIDGetByName
+- [ ] PermissionList
 
-### Password Verification (2)
-- [x] VerifyServerPassword, VerifyChannelPassword
+### Permission Management — Extended (3)
+- [ ] PermissionListNew
+- [ ] PermOverview
+- [ ] PermReset
 
-### Ban Enhancements (3)
-- [x] BanClientDBID, BanAddMyTSID, BanListPaginated
+### Channel Management (13)
+- [ ] CreateChannel
+- [ ] CreateChannelFull
+- [ ] DeleteChannel
+- [ ] EditChannel
+- [ ] FindChannel
+- [ ] MoveChannel
+- [ ] ChannelInfoRequest
+- [ ] ChannelListExtended
+- [ ] GetChannelDescription
+- [ ] JoinChannel
+- [ ] VerifyChannelPassword
+- [ ] SubscribeChannel
+- [ ] UnsubscribeChannel
 
-### Newer ServerQuery Commands (2)
-- [x] ClientAddServerGroup, ClientDelServerGroup
+### Channel Subscriptions (2)
+- [ ] SubscribeAllChannels
+- [ ] UnsubscribeAllChannels
 
-### Server Notification Handlers (13)
-- [x] HandleServerEdited, HandleServerUpdated, HandleChannelEdited, HandleChannelCreated
-- [x] HandleChannelDeleted, HandleChannelMoved, HandleChannelDescriptionChanged
-- [x] HandleChannelPasswordChanged, HandleClientUpdated, HandleTokenUsed
-- [x] HandleTalkStatusChange, HandleConnectStatusChange, HandleCurrentServerConnectionChanged
+### Channel Permissions (4)
+- [ ] ChannelAddPerm
+- [ ] ChannelDelPerm
+- [ ] ChannelPermList
+- [ ] SetChannel3DAttributes
 
-### Extended List Flags (3)
-- [x] ClientListExtended, ChannelListExtended, ServerListExtended
+### Channel Client Permissions (3)
+- [ ] ChannelClientAddPerm
+- [ ] ChannelClientDelPerm
+- [ ] ChannelClientPermList
 
-### 3D Audio Positioning (4)
-- [x] Set3DListenerAttributes, SetChannel3DAttributes, Set3DWaveAttributes, System3DSettings
+### Channel Groups (8)
+- [ ] ChannelGroupAdd
+- [ ] ChannelGroupAddPerm
+- [ ] ChannelGroupClientList
+- [ ] ChannelGroupCopy
+- [ ] ChannelGroupDel
+- [ ] ChannelGroupDelPerm
+- [ ] ChannelGroupList
+- [ ] ChannelGroupPermList
 
-### Audio Device Management (9)
-- [x] GetPlaybackDeviceList, GetCaptureDeviceList, GetPlaybackModeList, GetCaptureModeList
-- [x] OpenPlaybackDevice, OpenCaptureDevice, ClosePlaybackDevice, CloseCaptureDevice, ActivateCaptureDevice
+### Channel Group Extras (2)
+- [ ] ChannelGroupRename
+- [ ] ChannelGroupsByClientID
 
-### Audio Preprocessing (6)
-- [x] GetPreProcessorInfo, GetPreProcessorConfig, SetPreProcessorConfig
-- [x] GetPlaybackConfig, SetPlaybackConfig, SetClientVolumeModifier
+### Server Groups (14)
+- [ ] ServerGroupAdd
+- [ ] ServerGroupAddClient
+- [ ] ServerGroupAddPerm
+- [ ] ServerGroupAutoAddPerm
+- [ ] ServerGroupAutoDelPerm
+- [ ] ServerGroupClientList
+- [ ] ServerGroupCopy
+- [ ] ServerGroupDel
+- [ ] ServerGroupDelClient
+- [ ] ServerGroupDelPerm
+- [ ] ServerGroupList
+- [ ] ServerGroupPermList
+- [ ] ServerGroupRename
+- [ ] ServerGroupsByClientID
 
-### Wave File Playback (4)
-- [x] PlayWaveFile, PlayWaveFileHandle, PauseWaveFileHandle, CloseWaveFileHandle
+### Client Management (20)
+- [ ] ClientAddPerm
+- [ ] ClientDBDelete
+- [ ] ClientDBEdit
+- [ ] ClientDBFind
+- [ ] ClientDBInfo
+- [ ] ClientDBList
+- [ ] ClientDelPerm
+- [ ] ClientEdit
+- [ ] ClientFind
+- [ ] ClientGetDBIDFromUID
+- [ ] ClientGetIDs
+- [ ] ClientGetNameFromDBID
+- [ ] ClientGetNameFromUID
+- [ ] ClientGetUIDFromCLID
+- [ ] ClientListExtended
+- [ ] ClientPermList
+- [ ] ClientUpdate
+- [ ] ClientVariable
+- [ ] ClientAddServerGroup
+- [ ] ClientDelServerGroup
 
-### Custom Audio Devices (4)
-- [x] RegisterCustomDevice, UnregisterCustomDevice, ProcessCustomCaptureData, AcquireCustomPlaybackData
+### Client Actions (10)
+- [ ] ClientKick
+- [ ] ClientMute
+- [ ] ClientPoke
+- [ ] ClientUnmute
+- [ ] ClientChatClosed
+- [ ] ClientChatComposing
+- [ ] RequestClientEditDescription
+- [ ] RequestClientsKickFromChannel
+- [ ] RequestClientsKickFromServer
+- [ ] RequestClientsMove
 
-### Voice Recording (2)
-- [x] StartVoiceRecording, StopVoiceRecording
+### Client Settings (10)
+- [ ] SetAvatar
+- [ ] SetAway
+- [ ] SetBadges
+- [ ] SetChannelCommander
+- [ ] SetClientChannelGroup
+- [ ] SetClientVolumeModifier
+- [ ] SetDescription
+- [ ] SetMetaData
+- [ ] SetNickname
+- [ ] SetPhoneticNickname
 
-### Whisper List Management (3)
-- [x] SetWhisperList, IsWhispering, IsReceivingWhisper
+### Muting & Talk Power (6)
+- [ ] RequestMuteClientsTemporary
+- [ ] RequestUnmuteClientsTemporary
+- [ ] RequestTalkPower
+- [ ] CancelTalkPowerRequest
+- [ ] SetIsTalker
+- [ ] SetRecording
 
-### Talk Power (1)
-- [x] SetIsTalker
+### Ban Management (7)
+- [ ] BanAdd
+- [ ] BanAddMyTSID
+- [ ] BanClient
+- [ ] BanClientDBID
+- [ ] BanDel
+- [ ] BanDelAll
+- [ ] BanListPaginated
 
-### Client Operations (6)
-- [x] RequestClientsMove, RequestClientsKickFromChannel, RequestClientsKickFromServer
-- [x] RequestMuteClientsTemporary, RequestUnmuteClientsTemporary, RequestClientEditDescription
+### Complain System (4)
+- [ ] ComplainAdd
+- [ ] ComplainDel
+- [ ] ComplainDelAll
+- [ ] ComplainList
 
-### Avatar Retrieval (1)
-- [x] GetAvatar
+### Privilege Keys (Tokens) (4)
+- [ ] PrivilegeKeyAdd
+- [ ] PrivilegeKeyDelete
+- [ ] PrivilegeKeyList
+- [ ] PrivilegeKeyUse
 
-### Channel Info Request (2)
-- [x] ChannelInfoRequest, RequestInfoUpdate
+### Offline Messages (5)
+- [ ] MessageAdd
+- [ ] MessageDel
+- [ ] MessageGet
+- [ ] MessageList
+- [ ] MessageUpdateFlag
 
-### Snapshot Enhancements (2)
-- [x] ServerSnapshotDeployKeepFiles, ServerSnapshotPassword
+### Logging (2)
+- [ ] LogAdd
+- [ ] LogView
 
-### Bookmarks & Profiles (3)
-- [x] GetBookmarkList, CreateBookmark, GetProfileList
+### Custom Properties (4)
+- [ ] CustomDelete
+- [ ] CustomInfo
+- [ ] CustomSearch
+- [ ] CustomSet
 
-### Permission Enhancements (2)
-- [x] PermissionListNew, PermCommandsPermSID
+### Server Notifications (2)
+- [ ] ServerNotifyRegister
+- [ ] ServerNotifyUnregister
 
-### Legacy Codec Support (1)
-- [x] DecodeLegacyCodec
+### Query Login Management (3)
+- [ ] QueryLoginAdd
+- [ ] QueryLoginDel
+- [ ] QueryLoginList
+
+### API Key Management (3)
+- [ ] ApiKeyAdd
+- [ ] ApiKeyDel
+- [ ] ApiKeyList
+
+### File Transfer (10)
+- [ ] DownloadFile
+- [ ] UploadFile
+- [ ] FTCreateDir
+- [ ] FTDeleteFile
+- [ ] FTGetFileInfo
+- [ ] FTGetFileList
+- [ ] FTInitDownload
+- [ ] FTInitUpload
+- [ ] FTList
+- [ ] FTRenameFile
+
+### File Transfer Control (1)
+- [ ] FTStop
+
+### Voice & Audio — Capture (5)
+- [ ] ActivateCaptureDevice
+- [ ] CloseCaptureDevice
+- [ ] OpenCaptureDevice
+- [ ] GetCaptureDeviceList
+- [ ] GetCaptureModeList
+
+### Voice & Audio — Playback (6)
+- [ ] ClosePlaybackDevice
+- [ ] OpenPlaybackDevice
+- [ ] GetPlaybackConfig
+- [ ] GetPlaybackDeviceList
+- [ ] GetPlaybackModeList
+- [ ] SetPlaybackConfig
+
+### Voice & Audio — Wave Files (4)
+- [ ] CloseWaveFileHandle
+- [ ] PauseWaveFileHandle
+- [ ] PlayWaveFile
+- [ ] PlayWaveFileHandle
+
+### Voice & Audio — Preprocessor (3)
+- [ ] GetPreProcessorConfig
+- [ ] GetPreProcessorInfo
+- [ ] SetPreProcessorConfig
+
+### Voice & Audio — Input/Output (4)
+- [ ] SetInputHardware
+- [ ] SetInputMuted
+- [ ] SetOutputHardware
+- [ ] SetOutputMuted
+
+### Voice & Audio — 3D Sound (2)
+- [ ] Set3DListenerAttributes
+- [ ] Set3DWaveAttributes
+
+### Voice & Audio — 3D System (1)
+- [ ] System3DSettings
+
+### Voice & Audio — Custom Devices (3)
+- [ ] AcquireCustomPlaybackData
+- [ ] ProcessCustomCaptureData
+- [ ] RegisterCustomDevice
+
+### Voice & Audio — Custom Device Cleanup (1)
+- [ ] UnregisterCustomDevice
+
+### Voice & Audio — Whisper (4)
+- [ ] IsReceivingWhisper
+- [ ] IsWhispering
+- [ ] SendVoiceGroupWhisper
+- [ ] SendVoiceWhisper
+
+### Voice & Audio — Whisper List (1)
+- [ ] SetWhisperList
+
+### Voice & Audio — Recording & Codec (4)
+- [ ] StartVoiceRecording
+- [ ] StopVoiceRecording
+- [ ] DecodeLegacyCodec
+- [ ] SendVoice
+
+### Voice & Audio — Callbacks (2)
+- [ ] OnVoice
+- [ ] HandleTalkStatusChange
+
+### Calls (6)
+- [ ] AcceptCall
+- [ ] DeclineCall
+- [ ] EndCall
+- [ ] JoinGroupCall
+- [ ] StartCall
+- [ ] SetCallMuted
+
+### Messaging (11)
+- [ ] SendMessage
+- [ ] EditMessage
+- [ ] DeleteMessage
+- [ ] ForwardMessage
+- [ ] ReplyToMessage
+- [ ] ReactToMessage
+- [ ] PinMessage
+- [ ] UnpinMessage
+- [ ] UnpinAllMessages
+- [ ] SendImageBase64
+- [ ] SendSticker
+
+### Messaging — Extras (3)
+- [ ] SendLocation
+- [ ] SendTyping
+- [ ] SendPluginCommand
+
+### Chat Management (9)
+- [ ] ArchiveChat
+- [ ] EditChatDescription
+- [ ] EditChatTitle
+- [ ] GetChatInfo
+- [ ] GetReadState
+- [ ] LeaveChat
+- [ ] MarkAsRead
+- [ ] MarkUnread
+- [ ] MuteChat
+
+### Contacts & Users (6)
+- [ ] AddContact
+- [ ] DeleteContact
+- [ ] GetContacts
+- [ ] BlockUser
+- [ ] UnblockUser
+- [ ] GetBlockedUsers
+
+### Groups & Members (6)
+- [ ] AddMembers
+- [ ] BanMember
+- [ ] CreateGroup
+- [ ] GetMembers
+- [ ] RemoveMember
+- [ ] UnbanMember
+
+### Group Extras (3)
+- [ ] SetAdmin
+- [ ] GetInviteLink
+- [ ] GetDialogs
+
+### Folders & Topics (3)
+- [ ] CreateFolder
+- [ ] GetFolders
+- [ ] CreateTopic
+
+### Polls (2)
+- [ ] CreatePoll
+- [ ] VotePoll
+
+### Profile & Bookmarks (4)
+- [ ] GetProfile
+- [ ] GetProfileList
+- [ ] CreateBookmark
+- [ ] GetBookmarkList
+
+### Search (2)
+- [ ] SearchGlobal
+- [ ] SearchMessages
+
+### Messages — Fetching (1)
+- [ ] GetMessages
+
+### Sessions (2)
+- [ ] GetSessions
+- [ ] TerminateSession
+
+### Avatars (1)
+- [ ] GetAvatar
+
+### Binding & Info (2)
+- [ ] BindingList
+- [ ] Capabilities
+
+### Raw Execution (1)
+- [ ] RawExec
+
+### Request & Info Updates (2)
+- [ ] OnUpdate
+- [ ] RequestInfoUpdate
+
+### Event Handlers (10)
+- [ ] HandleChannelCreated
+- [ ] HandleChannelDeleted
+- [ ] HandleChannelDescriptionChanged
+- [ ] HandleChannelEdited
+- [ ] HandleChannelMoved
+- [ ] HandleChannelPasswordChanged
+- [ ] HandleClientUpdated
+- [ ] HandleConnectStatusChange
+- [ ] HandleCurrentServerConnectionChanged
+- [ ] HandleServerEdited
+
+### Event Handlers — Extras (2)
+- [ ] HandleServerUpdated
+- [ ] HandleTokenUsed

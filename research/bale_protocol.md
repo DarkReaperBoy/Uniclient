@@ -252,22 +252,72 @@ Bale uses Markdown for all messages:
 - 1=NUMBER_BANNED, 2=AUTH_LIMIT, 3=WRONG_CODE, 4=PASSWORD_NEEDED
 - 5=SIGN_UP_NEEDED, 6=WRONG_PASSWORD, 7=RATE_LIMIT, 8=INVALID
 
-### Services (12 Total — 92 Methods)
+### Services (56 Total — ~646 Methods)
 
+<!-- Updated 2026-04-13 from web.bale.ai v4.17.0+151668 JS scrape -->
+<!-- All services use gRPC-over-WebSocket except Auth which uses grpc-web HTTP -->
+
+#### Core Services (implemented)
 | Service | gRPC Service Name | Methods |
 |---------|------------------|---------|
-| Auth | `bale.auth.v1.Auth` | StartPhoneAuth, ValidateCode, ValidatePassword, SignUp, SignOut |
-| Messaging | `bale.messaging.v2.Messaging` | SendMessage, UpdateMessage, DeleteMessage, ForwardMessages, MessageRead, LoadHistory, LoadDialogs, ClearChat, DeleteChat, PinMessage, UnPinMessages, LoadPinnedMessages |
-| Users | `bale.users.v1.Users` | EditName, EditNickName, CheckNickName, EditAbout, EditUserLocalName, LoadFullUsers, LoadUsers, BlockUser, UnblockUser, LoadBlockedUsers, SearchContacts, ImportContacts, AddContact, RemoveContact, GetContacts, ResetContacts |
-| Groups | `bale.groups.v1.Groups` | CreateGroup, EditGroupTitle, EditGroupAbout, EditGroupAvatar, RemoveGroupAvatar, InviteUsers, KickUser, MakeUserAdmin, RemoveUserAdmin, SetMemberPermissions, SetGroupDefaultPermissions, GetMemberPermissions, GetFullGroup, LoadMembers, GetGroupMembersCount, GetGroupInviteURL, RevokeInviteURL, JoinGroup, JoinPublicGroup, LeaveGroup, GetBannedUsers, UnBanUser, SetRestriction, TransferOwnership, EditChannelNick, GetPins, RemoveSinglePin, RemovePin, GetGroupPreview |
-| Files | `ai.bale.server.Files` | GetNasimFileUploadUrl, GetNasimFileUrl |
-| Presence | `bale.presence.v1.Presence` | SetOnline, Typing, StopTyping |
-| Configs | `bale.v1.Configs` | GetParameters, EditParameter |
-| Abacus | `bale.abacus.v1.Abacus` | MessageSetReaction, MessageRemoveReaction, GetMessagesReactions, GetMessageReactionsList, GetMessagesViews |
-| GiftPacket | `bale.giftpacket.v1.GiftPacket` | SendGiftPacketWithWallet, OpenGiftPacket |
-| Magazine | `bale.magazine.v1.Magazine` | UpvotePost, RevokeUpvotedPost, GetMessageUpvoters |
-| Kifpool | `bale.kifpool.v1.Kifpool` | GetMyKifpools |
-| **Meet** | `bale.meet.v1.Meet` | StartGroupCall, JoinGroupCall, LeaveGroupCall, GetWssURL, GetOngoingCalls, GetCallLogs, StartCall, ReceiveCall, DiscardCall, GetGroupCall |
+| Auth (26) | `bale.auth.v1.Auth` | StartPhoneAuth, ValidateCode, ValidatePassword, SignUp, SignOut, LogOut, GetAuthSessions, TerminateSession, TerminateAllSessions, DeleteAccount, ChangePhone, SendDeleteAccountVerificationCode, SendChangePhoneVerificationCode, GetUserIdToken, GetTicket, GetBajeBamTicket, GetBaleTicket, GetJWTToken, EnableTwoFactorAuthentication, IsTwoFactorAuthenticationEnabled, VerifyEmail, RecoverPassword, VerifyPasswordRecovery, SetNewPassword, VerifyPassword, DisableTwoFactorAuthentication |
+| Messaging (43) | `bale.messaging.v2.Messaging` | SendMessage, SendMultiMediaMessage, UpdateMessage, DeleteMessage, ForwardMessages, ClearChat, DeleteChat, LoadDialogs, LoadFolderDialogs, LoadGroupedDialogs, LoadPeerDialogs, LoadPeers, LoadHistory, LoadPinnedDialogs, LoadPinnedMessages, LoadReplies, LoadFolders, CreateFolder, EditFolder, DeleteFolder, ReorderFolders, CreateReservedFolder, ArchiveDialogs, UnArchiveDialogs, PinDialogs, UnpinDialogs, ReorderPinnedDialogs, PinMessage, UnPinMessages, MarkDialogsAsRead, MarkDialogsAsUnread, MentionRead, MessageRead, MessageReceived, FetchProtectedMessage, GetMessagesRepliesInfo, GetDiscussionMessage, CreateThread, CreateTopic, EditTopic, GetTopics, GetTopicByID, DeleteTopic |
+| Users (38) | `bale.users.v1.Users` | EditName, EditNickName, CheckNickName, EditAbout, EditSex, EditBirthDate, EditAvatar, RemoveAvatar, EditMyTimeZone, EditMyPreferredLanguages, EditUserLocalName, LoadFullUsers, GetFullUser, GetUsersDefaultCardNumber, LoadFullUsersSequentially, LoadAvatars, AddCard, BlockUser, UnblockUser, LoadBlockedUsers, NotifyAboutDeviceInfo, ChangeDefaultCardNumber, RemoveDefaultCardNumber, ImportContacts, GetContacts, RemoveContact, AddContact, SearchContacts, LoadUsers, GetUserPrivacyStatus, SetUserPrivacyStatus, GetUserFullPrivacy, ResetContacts, IsNameAllowed, ChangePhoneNumber, ConfirmPhoneNumber |
+| Groups (48) | `bale.groups.v1.Groups` | LoadFullGroups, GetFullGroup, LoadMembers, GetMyGroups, LoadGroupAvatars, CreateGroup, InviteUsers, EditGroupTitle, EditGroupDefaultCardNumber, GetGroupDefaultCardNumber, EditGroupAvatar, RemoveGroupAvatar, EditGroupAbout, EditChannelNick, InviteUser, LeaveGroup, KickUser, MakeUserAdmin, RemoveUserAdmin, TransferOwnership, GetGroupInviteURL, RevokeInviteURL, JoinGroup, JoinPublicGroup, PinMessage, RemovePin, RemoveSinglePin, GetPins, SetCanSeeMessages, GetCanSeeMessages, GetMemberPermissions, SetMemberPermissions, SetGroupDefaultPermissions, SetRestriction, FetchGroupAdmins, LoadGroups, GetGroupMembersCount, SetAvailableReactions, GetMutualGroups, SetDiscussionGroup, RemoveDiscussionGroup, AddDiscussionGroupAdmin, UnBanUser, GetBannedUsers, SetCanSeeHistory, GetGroupPreview, GetGroupRecommendations, SetMemberCustomTitle |
+| Meet (30) | `bale.meet.v1.Meet` | StartCall, DiscardCall, AcceptCall, ReceiveCall, GetCallState, GetCallLogs, DeleteCallLogs, InviteToCall, AskToJoinCall, AnswerCallJoinRequest, SendCallReaction, SubmitCallFeedback, StartGroupCall, JoinGroupCall, LeaveGroupCall, GetGroupCall, GetOngoingCalls, MuteParticipant, RemoveParticipant, StartRecording, StopRecording, StartStream, DeleteStream, UpdateLayout, GenerateCallLink, GetCallLinkDetails, SetLinkTitle, GetWssURL, SendFanoosEvent, TakeCallAction |
+| Presence (11) | `bale.presence.v1.Presence` | GetContactsPresences, GetGroupMembersPresences, GetGroupOnlineCount, GetUsersPresence, SetOnline, StopTyping, Typing, SubscribeToOnline, SubscribeFromOnline, SubscribeToGroupOnline, SubscribeFromGroupOnline |
+| Abacus (9) | `bale.abacus.v1.Abacus` | EnableShowReactionFlag, GetShowReactionFlag, GetMessageReactionsList, GetMessagesReactions, GetMessagesViews, LoadReactions, MessageReactionsRead, MessageSetReaction, MessageRemoveReaction |
+| Files (6) | `ai.bale.server.Files` | GetNasimFileUploadUrl, GetNasimFileUrls, GetNasimFileUrl, GetNasimFileUploadResume, FileUploadCancel, GetNasimFilePublicUrl |
+| Configs (3) | `bale.v1.Configs` | GetParameters, EditParameter, GetInAppUpdate |
+| Push (6) | `ai.bale.pushak.Push` | RegisterPush, UnregisterPush, RegisterGooglePush, UnregisterGooglePush, UnregisterAllPushCredentials, SetConfig |
+| Ramz (7) | `bale.ramz.v1.Ramz` | SetPassword, DeletePassword, SendOTP, ForgetPassword, ValidateOTP, CheckPasswordSet, CheckPassword |
+| Report (2) | `bale.report.v1.Report` | ReportInappropriateContent, ReportDismiss |
+| Fanoos (1) | `bale.fanoos.v1.fanoos` | Send |
+| Feedback (1) | `bale.feedback.v1.FeedBack` | SendFeedBack |
+| GiftPacket (3) | `bale.giftpacket.v1.GiftPacket` | SendGiftPacketWithWallet, OpenGiftPacket, GetGiftPacketPaymentToken |
+| Magazine (9) | `bale.magazine.v1.Magazine` | UpvotePost, RevokeUpvotedPost, GetMyUpvotes, GetMessageUpvoters, LoadFeedMessages, LoadInternalFeedMessages, LoadCategoryFeedMessages, LoadCategories, GetSimilarPosts |
+| Kifpool (32) | `bale.kifpool.v1.Kifpool` | GetMyKifpools, UpgradeKifpool, CreateKifpool, GetChargePaymentToken, VerifyCashOutKifpool, CashOut, Invoice, Transfer, CheckChargePermission, Charge, VerifyPurchaseMessage, PurchaseMessage, PurchaseMessageWithCharge, GetKifpoolOwner, GetKifpoolPointBalance, GetKifpoolPointSummery, GetKifpoolPointDetails, GetKifpoolTransactionPoint, Purchase, PurchaseWithCharge, GetCryptoChargePaymentToken, CryptoTransfer, GetCryptoWallets, CryptoCashOut, CryptoInvoice, CryptoPurchase, CryptoRefund, GetCredit, PayForMessage |
+
+#### New Services (not yet implemented)
+| Service | gRPC Service Name | Methods |
+|---------|------------------|---------|
+| Poll (5) | `bale.poll.v1.Poll` | CreatePoll, ClosePoll, Vote, GetPollResults, GetFullPollResult |
+| Search (11) | `bale.search.v1.Search` | SearchMessages, SearchMessageMore, SearchPeer, SearchMedia, SearchMembers, SearchMarket, SearchProduct, SearchMarketPopular, SearchDialog, SearchContent, UpdateSearchContentClick |
+| Story (23) | `bale.story.v1.Story` | AddStory, AddChannelStory, AddBotStory, CanAddBotStory, RemoveStory, GetViewers, GetViewersCount, GetStories, GetChannelStories, GetBotStories, ReactToStory, GetStoryById, GetUserPrivacyConfig, SetUserPrivacyConfig, GetDefaultStoryBackgrounds, GetMostPopularStories, GetStoryWidgets, GetUserStoryConfig, SetUserStoryConfig, GetStoriesByList, GetStoryReactionEmojis, GetStoryTags, CheckLinkValidity |
+| Advertisement (108) | `bale.advertisement.v1.Advertisement` | (see checklist/bale.md for full list) |
+| Charnet (11) | `bale.charnet.v1.CharnetService` | GetInternetBundlePaymentToken, GetInternetBundleList, GetRecentInternetBundleOrders, DeleteRecentInternetBundleOrder, GetRecentChargeOrders, DeleteRecentChargeOrder, BuyCharge, BuyInternetBundle, GetTopUpChargePaymentToken, GetVoucherChargePaymentToken, GetAvailableCharges |
+| Sap (16) | `bale.sap.v1.Sap` | EnrollNewCard, ReactivateApp, GetCardInfo, GetDestinationCardInfo, DeliverOtp, TransferMoneyByCard, GetCards, RemoveCard, AddNewCards, EditCardExpirationDate, SetDefaultCard, GetDefaultCard, RemoveDefaultCard, GetDestinationCards, AddDestinationCards, RemoveDestinationCards |
+| Bank (19) | `bale.bank.v1.Bank` | BuyFastCharge, GetCardRemain, GetCardTransferToken, GetOrganizationPaymentToken, GetOTPToken, GetOTPTokenV2, GetPaymentToken, GetPayMoneyRequestToken, GetPayvandCard, GetPayvandCardList, GetPSProxyPaymentToken, GetPSProxyToken, GetRecentCharges, GetRemainToken, GetSadadPSPPaymentToken, GetTokenInvoice, GrantBankiAccess, GetPreferences, EditPreference |
+| Wallet (13) | `bale.wallet.v1.Wallet` | ActivateWallet, CashOutFromWallet, GetMoneyRequestPaymentTokenByCard, GetMyWallets, GetPaymentTokenByCard, GetWalletChargeToken, GetWalletContracts, GetWalletInvoice, PayByWallet, PayMoneyRequestByWallet, VerifyCashOut, VerifyPeer, VerifyQRCode |
+| Premium (7) | `bale.premium.v1.Premium` | CalculateDiscountedPrice, GetBadges, GetPackages, IsPremium, IsPremiumBatch, PurchasePackage, SetUserBadge |
+| AI (2) | `bale.turing.v1.AI` | SendEvent, GetTranscript |
+| MessageStream (2) | `bale.message_stream.v1.MessageStream` | CancelMessageStream, ReceiveMessageStream |
+| Timche (5) | `bale.timche.v1.Timche` | AskBotReviewCallback, GetBotPage, GetHomePage, GetSectionPage, SubmitReview |
+| Scheduler (6) | `bale.schedule.v1.Scheduler` | ScheduleTask, UnScheduleTask, ListTasks, ExecuteTaskNow, ReScheduleTask, PeersWithScheduleTask |
+| TLDR (2) | `bale.tldr.v1.TLDR` | GetLinkSummary, GetLinkPreview |
+| AnonymousContact (1) | `bale.anonymous_contact.v1.AnonymousContact` | GetUserAnonymousContactPage |
+| MavizStream (4) | `bale.maviz.v1.MavizStream` | SubscribeToUpdates, GetDifference, SubscribeToThreadUpdates, UnsubscribeFromThreadUpdates |
+| Arbaeen (19) | `bale.arbaeen.v1.Arbaeen` | LoadArbaeenHistory, GetValidArbaeenBanks, VerifyUserArbaeenAuthority, VerifyUserArbaeenExtraInfo, GetListOfArbaeenDeliveryStations, GetArbaeenCurrenciesList, GetArbaeenCurrencyPrice, GetArbaeenPaymentToken, GetListOfBoxOffice, GetListOfBranches, GetListOfStates, UserHasAccess, CashPaymentCallback, GetAdminStationList, SendOTP, VerifyOTP, GetSuggestedGroups, GetRate, StartBot |
+| Evex (8) | `bale.evex.v1.Evex` | LoadEvexHistory, GetValidBanks, VerifyUserEvexAuthority, VerifyUserEvexExtraInfo, GetListOfEvexDeliveryStations, GetEvexCurrenciesList, GetEvexCurrencyPrice, GetEvexPaymentToken |
+| Exchange (10) | `bale.exchange.v1.Exchange` | LoadExchangeHistory, GetUserIcmsInfo, VerifyUserExchangeAuthority, GetListOfDeliveryStations, GetCurrenciesList, GetCurrencyPrice, GetExchangePaymentToken, GetExchangeOrderInfo, GetInitialConfig, GetTravelCurrencyOrderInDetail |
+| Sarrafi (9) | `bale.sarrafi.v1.Sarrafi` | AuthenticateUser, GetTickers, GetWallet, GetDepth, GetSession, CreateOrder, GetOrders, GetOrder, GetChargeToken |
+| BankAccountPreferences (3) | `bale.BankAccountPreferences.v1.BankAccountPreferences` | ActivateYaraMessaging, EditPreference, GetPreferences |
+| Bill (7) | `bale.bill.v1.Bill` | InquiryBill, PayBill, GetBillHistory, CreateSavedBill, GetSavedBills, RenameSavedBill, DeleteSavedBills |
+| Falake (1) | `bale.falake.v1.Falake` | GetLinkStatus |
+| Negah (1) | `bale.negah.v1.Negah` | GetMessageSeenList |
+| LLMAuth (1) | `bale.llm_auth.v1.LLMAuthService` | GetAuthToken |
+| MyBank (1) | `bale.my_bank.v1.MyBank` | GetMyBank |
+| Appzar (3) | `bale.appzar.v1.Appzar` | GetMiniAppUrl, GetMenuButton, InvokeCustomMethod |
+| TopPeer (2) | `bale.top_peer.v1.TopPeer` | GetTopPeer, RemovePeer |
+| Organizations (2) | `bale.organizations.v1.Organizations` | GetUserOrganizationalContacts, GetUserOrganizationInfo |
+| PFM (15) | `bale.pfm.v1.Pfm` | GetUserAccounts, LoadTransactions, AddTransactionTags, RemoveTransactionTags, GetTransactionTags, AddUserTags, RemoveUserTags, GetUserTags, FilterTaggedTransactions, AddDetailToTransaction, RemoveTransaction, SplitTransaction, LoadTransactionsByIDs, GetSubTransactions, ReviveTransaction |
+| MicroBanki (3) | `bale.microbanki.v1.MicroBanki` | GetMoneyRequestDetails, GetMoneyRequestPaymentList, GetBamServiceToken |
+| CrowdFunding (2) | `bale.crowdfunding.v1.CrowdFunding` | GetParticipants, GetTotalPaidAmount |
+| Recommender (4) | `bale.recommender.v1.Recommender` | GetChannelRecommendations, GetRelatedChannels, GetGroupsRecommendation, GetRelatedGroups |
+| Ghasedak (2) | `bale.ghasedak.v1.GhasedakService` | GetRoutesStates, GetDiff |
+| SharedMedia (2) | `bale.shared_media.v1.SharedMediaService` | LoadMedia, GetActiveSharedMedia |
+| Market (26) | `bale.market.v1.Market` | GetStores, GetCategoriesList, GetYaldaStores, CreateTag, GetTags, CreateMarketJoinRequest, GetMarketJoinRequests, GetCategoryMarkets, GetCategoryProducts, SetOnboardingData, GetOnboardingStatus, GetIndexedProducts, GetNumberOfSales, GetTopMarkets, SubmitMarketFeedback, AcceptMarketJoinRequest, RejectMarketJoinRequest, GetMarketsPendingJoinRequest, GetMarket, UpdateMarketInfo, SetMarketBanners, GetPendingCampaignMarkets, AcceptCampaignMarket, RejectCampaignMarket, SetPopularSearches, SetGenericDeepLinks |
+| Ketf/Bots (24) | `bale.v1.Images` / `bale.ketf.v1.Ketf` | AddGif, RemoveGif, UseGif, GetSavedGifs, AddStickerCollection, RemoveStickerCollection, AddStickerPack, RemoveStickerPack, LoadOwnStickers, LoadStickerCollection, SendInlineCallBackData, SendInlineCallback, SendAuthenticatedInlineCallBackData, SendMiniAppData, GetBotWhiteList, GetUserContext, GetWebappHash, GetBots, GetBotInfo, GetInlineBotResults, GetBotGroupPermissions, GetPaymentDetails, MakePayment, InvokeCustomAction |
 
 ### File Upload (User Mode)
 
