@@ -1,6 +1,7 @@
 ## Phase 1: Telegram — DONE
 
-769 exported methods, ~15,142 lines. All 685 gotd/td methods wrapped. 208 tested via automated two-user tests. 4 bugs fixed.
+893 exported methods, ~15,300 lines. All 685 gotd/td methods wrapped. 208 tested via automated two-user tests. 4 bugs fixed.
+Steps 5-6: auth guards, unified dispatch, capability constants, 7 new Core methods.
 
 ### Calling — V2Reference SDP-based (updated 2026-04-07)
 

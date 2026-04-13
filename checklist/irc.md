@@ -1,8 +1,9 @@
 # IRC — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 4)
-**Current:** 529 methods, ~7,300 lines. RFC 1459/2812 + IRCv3 + CTCP + DCC + services. Pure Go.
+**Last updated:** 2026-04-13 (Steps 4-6)
+**Current:** 553 methods, ~5,600 lines. RFC 1459/2812 + IRCv3 + CTCP + DCC + services. Pure Go.
 **Confirmed working:** 95 extended + 55 Core (all pass on Libera.Chat, Step 2). 130 new methods added (Step 4), not yet tested.
+**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
 **Remaining:** 0 methods — 100% protocol coverage.
 
 All methods implemented.

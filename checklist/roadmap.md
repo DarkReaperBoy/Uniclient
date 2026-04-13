@@ -68,7 +68,7 @@ Researched full protocol/API surface for all 10 cores. Created new comprehensive
 - [x] IRC — ~130 missing (oper commands, IRCv3 extensions, SASL, DCC, extended bans, modes)
 - [x] XMPP — ~120 missing (connection XEPs, messaging, MUC, MIX, Jingle, PubSub, discovery)
 
-### Step 4 — Implement New Methods to 100% — IN PROGRESS
+### Step 4 — Implement New Methods to 100% — DONE
 
 Order: fewest missing first for quick wins.
 
@@ -113,8 +113,35 @@ Order: fewest missing first for quick wins.
 - [x] 6.5 Implement new methods: adapted existing methods with different signatures (Telegram ArchiveChat, Bale MuteChat/ArchiveChat, Rubika SendLocation, DeltaChat SendLocation/MuteChat/AcceptCall, Matrix DeclineCall)
 - [x] 6.6 Added ErrNotSupported stubs for cores that don't support the new operations
 
+### Testing — Retest All Step 4-6 Methods (NEXT SESSION)
+
+All Step 4 methods (~1,239) and Step 6 new Core methods (7×10=70) need live testing.
+Step 2 already tested the original methods — this tests ONLY the new ones.
+
+**Test infrastructure:**
+- Docker containers: `dendrite-test` (Matrix), `mumble-test` (Mumble), `ts3-test` (TeamSpeak)
+- Live servers: Libera.Chat (IRC), yax.im (XMPP), nine.testrun.org (DeltaChat), tapi.bale.ai (Bale), github.com (GitHub)
+- Credentials: `auth/auth.md`
+
+**Order (fewest new methods first):**
+- [ ] Bale — 23 + 7 new Core methods
+- [ ] Rubika — 45 + 7 new Core methods
+- [ ] TeamSpeak — 80 + 7 new Core methods (Docker ts3-test)
+- [ ] Matrix — 90 + 7 new Core methods (Docker dendrite-test)
+- [ ] Delta Chat — 105 + 7 new Core methods (nine.testrun.org)
+- [ ] Mumble — 111 + 7 new Core methods (Docker mumble-test)
+- [ ] XMPP — 120 + 7 new Core methods (yax.im)
+- [ ] IRC — 130 + 7 new Core methods (Libera.Chat)
+- [ ] GitHub — 535 + 7 new Core methods (github.com PAT)
+
+**Testing rules (from CLAUDE.md):**
+- All tests hit live APIs with real credentials
+- Delete test files after user confirms they pass
+- Prune passing tests from test file, document in checklist
+- Fix failures, don't re-run confirmed passing tests
+
 ### Step 7 — Protobuf Bridge
-- [ ] (populate when Step 6 is done)
+- [ ] (populate after testing)
 
 ### Step 8 — Write /docs
 - [ ] (populate when Step 7 is done)

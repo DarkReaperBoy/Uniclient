@@ -1,8 +1,9 @@
 # TeamSpeak 3 — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 4)
-**Current:** 328 methods, ~7,200 lines. Real TS3 UDP client protocol + ServerQuery.
+**Last updated:** 2026-04-13 (Steps 4-6)
+**Current:** 369 methods, ~6,800 lines. Real TS3 UDP client protocol + ServerQuery.
 **Confirmed working:** 38 extended + 55 Core (all pass on Docker TS3 3.13.7, Step 2). 80 new methods added (Step 4), not yet tested.
+**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
 **Remaining:** 0 methods — 100% protocol coverage.
 
 All methods implemented. ServerQuery commands, notification handlers, audio, and client SDK features fully covered.

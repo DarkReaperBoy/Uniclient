@@ -1,8 +1,9 @@
 # Bale — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 4)
-**Current:** 327 methods, ~6,100 lines. Bot API (tapi.bale.ai) + User API (gRPC-Web/WebSocket).
+**Last updated:** 2026-04-13 (Steps 4-6)
+**Current:** 368 methods, ~6,200 lines. Bot API (tapi.bale.ai) + User API (gRPC-Web/WebSocket).
 **Confirmed working:** 105 extended + 55 Core (all pass, Step 2). 23 new methods added (Step 4), not yet tested.
+**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
 **Remaining:** 0 methods — 100% protocol coverage.
 
 All methods implemented. Bot API coverage is 100% of official docs.bale.ai. User API covers all known gRPC services.

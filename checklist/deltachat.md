@@ -1,8 +1,9 @@
 # Delta Chat — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 4)
-**Current:** 269 methods, ~7,800 lines. IMAP/SMTP + Autocrypt + chat-over-email.
+**Last updated:** 2026-04-13 (Steps 4-6)
+**Current:** 283 methods, ~7,500 lines. IMAP/SMTP + Autocrypt + chat-over-email.
 **Confirmed working:** 43 extended + 55 Core (all pass on nine.testrun.org, Step 2). 105 new methods added (Step 4), not yet tested.
+**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
 **Remaining:** 0 methods — 100% protocol coverage.
 
 All methods implemented.

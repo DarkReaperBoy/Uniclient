@@ -1,8 +1,9 @@
 # Matrix — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 4)
-**Current:** 308 methods, ~7,100 lines. SDK: mautrix-go. E2EE via goolm.
+**Last updated:** 2026-04-13 (Steps 4-6)
+**Current:** 293 methods, ~6,400 lines. SDK: mautrix-go. E2EE via goolm.
 **Confirmed working:** 64 extended + 55 Core (all pass on local Dendrite, Step 2). 90 new methods added (Step 4), not yet tested.
+**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
 **Remaining:** 0 methods — 100% protocol coverage (CS API v1.13-v1.18 + MSCs).
 
 All methods implemented.

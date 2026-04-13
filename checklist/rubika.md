@@ -1,8 +1,9 @@
 # Rubika — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 4)
-**Current:** 315 methods, ~5,500 lines. REST/WebSocket API + Bot API + Rubino social layer.
+**Last updated:** 2026-04-13 (Steps 4-6)
+**Current:** 329 methods, ~5,700 lines. REST/WebSocket API + Bot API + Rubino social layer.
 **Confirmed working:** 89 tests ALL PASS (including WebRTC voice chat, Step 1/2). 45 new methods added (Step 4), not yet tested.
+**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
 **Remaining:** 0 methods — 100% protocol coverage.
 
 All methods implemented. User API, Bot API, Rubino social, and WebSocket events fully covered.

@@ -1,8 +1,9 @@
 # Mumble — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 4)
-**Current:** 357 methods, ~7,700 lines. Pure Go. TCP+TLS control, OCB2-AES128 UDP voice, hand-coded protobuf, Ice RPC admin.
+**Last updated:** 2026-04-13 (Steps 4-6)
+**Current:** 381 methods, ~7,800 lines. Pure Go. TCP+TLS control, OCB2-AES128 UDP voice, hand-coded protobuf, Ice RPC admin.
 **Confirmed working:** All Core interface + extended methods (Step 1/2). 111 new methods added (Step 4), not yet tested.
+**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
 **Remaining:** 0 methods — 100% protocol coverage.
 
 All methods implemented.

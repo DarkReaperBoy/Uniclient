@@ -158,23 +158,25 @@ Each messenger is a **core** — a Go struct that implements the `Core` interfac
 
 ### Core Interface (`cores/base.go`)
 
+62 methods. Every core implements this interface. Platform-specific extended methods exist beyond these 62 but are not part of the interface contract.
+
 ```go
 type Core interface {
     // Identity
-    Name() string                    // "telegram", "bale", "rubika"
-    Capabilities() []string          // ["CALLS", "REACTIONS", "TOPICS", ...]
+    Name() string               // "telegram", "bale", "rubika", etc.
+    Capabilities() []string     // []string{CapCalls, CapReactions, CapTopics, ...}
 
     // Auth
     Authenticate(cfg AuthConfig) error
-    Logout() error                     // full logout: clear session from vault, disconnect, invalidate server-side token
+    Logout() error
 
     // Dialogs
     GetDialogs(opts PaginationOpts) ([]Dialog, error)
     CreateGroup(name string, members []string) (*Dialog, error)
-    CreateChannel(name string, description string) (*Dialog, error)        // CHANNELS capability
-    CreateTopic(chatID string, name string) (*Dialog, error)               // TOPICS capability
-    GetFolders() ([]Folder, error)                                         // FOLDERS capability
-    CreateFolder(name string, chatIDs []string) (*Folder, error)           // FOLDERS capability
+    CreateChannel(name string, description string) (*Dialog, error)
+    CreateTopic(chatID string, name string) (*Dialog, error)
+    GetFolders() ([]Folder, error)
+    CreateFolder(name string, chatIDs []string) (*Folder, error)
 
     // Messages
     SendMessage(chatID string, msg OutgoingMessage) (*Message, error)
@@ -183,119 +185,91 @@ type Core interface {
     DeleteMessage(chatID string, msgID string) error
     ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error)
     ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error)
-    ReactToMessage(chatID string, msgID string, emoji string) error           // REACTIONS capability
+    ReactToMessage(chatID string, msgID string, emoji string) error
     PinMessage(chatID string, msgID string) error
     UnpinMessage(chatID string, msgID string) error
 
     // Read state
-    MarkAsRead(chatID string, upToMsgID string) error    // marks messages as read up to this ID
-    GetReadState(chatID string) (*ReadState, error)      // who has read up to where
+    MarkAsRead(chatID string, upToMsgID string) error
+    GetReadState(chatID string) (*ReadState, error)
 
     // Files
     UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error)
     DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error
 
     // Media
-    SendImageBase64(chatID string, b64 string, caption string) (*Message, error)  // optional, check Capabilities
+    SendImageBase64(chatID string, b64 string, caption string) (*Message, error)
 
-    // Calls — 1:1 (CALLS capability)
+    // Calls
     StartCall(chatID string, video bool) (*CallSession, error)
-    AcceptCall(callID string) (*CallSession, error)
-    EndCall(callID string) error
-    DeclineCall(callID string) error                          // reject with "busy"
-    SetCallMuted(callID string, muted bool) error
-    SetCallVideo(callID string, enabled bool) error
-    StartScreenShare(callID string) error
-    StopScreenShare(callID string) error
-    SendAudioFrame(callID string, opusData []byte) error
-    SetOnAudioFrame(callID string, handler func([]byte))
-    SendVideoFrame(callID string, vp8Data []byte) error      // raw VP8 bitstream
-    SendVideoFrameYUV(callID string, yuv []byte, w, h int) error  // encode YUV420P → VP8
-    SendScreenFrame(callID string, vp8Data []byte) error
-    SendScreenFrameYUV(callID string, yuv []byte, w, h int) error
-    SetOnVideoFrame(callID string, handler func([]byte))
-    SetOnDecodedVideoFrame(callID string, handler func(yuv []byte, w, h int))
-    SetOnDecodedScreenFrame(callID string, handler func(yuv []byte, w, h int))
-    SetVideoEncoderFactory(factory func() VideoEncoder)
-    SetVideoDecoderFactory(factory func() VideoDecoder)
-    StartCallRecording(callID string, filePath string) error
-    StopCallRecording(callID string) (int, error)             // returns frame count
-    SetAudioFrameDuration(callID string, ms int) error        // 20 or 40
-    SetEchoMode(callID string, enabled bool) error
-    SendCallRating(callID string, rating int, comment string) error
-
-    // Calls — Group (GROUP_CALLS capability)
-    CreateGroupCall(chatID string, title string) (*CallSession, error)
-    CreateScheduledGroupCall(chatID string, title string, scheduleDate int) (*CallSession, error)
-    StartScheduledGroupCall(callID string) error
     JoinGroupCall(chatID string) (*CallSession, error)
-    JoinGroupCallWithVideo(chatID string, video bool) (*CallSession, error)
-    LeaveGroupCall(callID string) error
-    GetGroupCall(chatID string) (*GroupCallInfo, error)
-    SetGroupCallMuted(callID string, muted bool) error
-    ToggleGroupCallVideo(callID string, enabled bool) error
-    SetGroupCallParticipantVolume(callID string, userID string, volume int) error
-    StartGroupCallScreenShare(callID string) error
-    StopGroupCallScreenShare(callID string) error
-    GetGroupCallStreamRtmpURL(chatID string, revoke bool) (url, key string, err error)
-    GetGroupCallStreamChannels(callID string) ([]map[string]int64, error)
+    EndCall(callID string) error
+    SetCallMuted(callID string, muted bool) error
+    AcceptCall(callID string) (*CallSession, error)
+    DeclineCall(callID string) error
 
     // Profile
     GetProfile(userID string) (*User, error)
 
     // Real-time
-    OnUpdate(handler func(Update))   // registers callback, runs in background goroutine
+    OnUpdate(handler func(Update))
     Close() error
+
+    // Chat info & settings
+    GetChatInfo(chatID string) (*Dialog, error)
+    EditChatTitle(chatID string, title string) error
+    EditChatDescription(chatID string, description string) error
+    LeaveChat(chatID string) error
+    GetInviteLink(chatID string) (string, error)
+
+    // Member management
+    AddMembers(chatID string, userIDs []string) error
+    RemoveMember(chatID string, userID string) error
+    BanMember(chatID string, userID string) error
+    UnbanMember(chatID string, userID string) error
+    GetMembers(chatID string, opts PaginationOpts) ([]User, error)
+    SetAdmin(chatID string, userID string, admin bool) error
+
+    // Contacts
+    GetContacts() ([]User, error)
+    AddContact(phone string, firstName string, lastName string) error
+    DeleteContact(userID string) error
+    BlockUser(userID string) error
+    UnblockUser(userID string) error
+    GetBlockedUsers() ([]User, error)
+
+    // Search
+    SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error)
+    SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error)
+
+    // Typing
+    SendTyping(chatID string) error
+
+    // Polls
+    CreatePoll(chatID string, question string, options []string) (*Message, error)
+    VotePoll(chatID string, msgID string, optionIndex int) error
+
+    // Stickers
+    SendSticker(chatID string, stickerID string) (*Message, error)
+
+    // Sessions
+    GetSessions() ([]Session, error)
+    TerminateSession(sessionID string) error
+
+    // Chat state
+    MuteChat(chatID string, muted bool) error
+    ArchiveChat(chatID string, archived bool) error
+    MarkUnread(chatID string, unread bool) error
+    UnpinAllMessages(chatID string) error
+
+    // Location
+    SendLocation(chatID string, lat float64, lon float64) (*Message, error)
 }
 ```
 
-The `ReadState` model:
-```go
-type ReadState struct {
-    MyLastRead    string            // message ID I've read up to
-    PeerLastRead  map[string]string // userID → message ID they've read up to (DMs: just the peer)
-}
-```
+Platform-specific call methods (video encoding, screen share, recording, group calls, etc.) are exported as extended methods on individual cores (e.g., `TelegramCore.SendVideoFrame()`, `TelegramCore.StartScreenShare()`), not part of the Core interface. The GUI accesses these via type assertions when the capability is advertised.
 
-The `CallSession` model:
-```go
-type CallSession struct {
-    ID          string
-    ChatID      string
-    IsVideo     bool
-    IsGroup     bool
-    Participants []CallParticipant
-    State       CallState          // Ringing, Active, Ended
-}
-
-type GroupCallInfo struct {
-    ID              string
-    Title           string
-    ParticipantCount int
-    Participants    []CallParticipant
-}
-```
-
-The `VideoEncoder` / `VideoDecoder` interfaces (pure Go, injected from Flutter):
-```go
-type VideoEncoder interface {
-    Encode(yuv420p []byte, width, height int) ([]byte, error) // → VP8 bitstream
-    ForceKeyframe()
-    Close()
-}
-
-type VideoDecoder interface {
-    Decode(vp8Frame []byte) (yuv420p []byte, width, height int, err error)
-    Close()
-}
-```
-
-A built-in pure Go VP8 keyframe encoder (`go/utils/vp8enc.go`) serves as the default fallback
-when no external factory is set. It produces valid RFC 6386 keyframes (14μs per frame, zero CGo)
-but with empty image data — sufficient for RTP pipeline testing and PLI response. Production
-quality VP8 will come from Flutter platform codecs injected via `SetVideoEncoderFactory`.
-
-**Every core implements the exact same interface.** No core adds public methods outside this contract. Platform-specific features are guarded by `Capabilities()` — Dart checks `capabilities.contains("CALLS")` before showing call UI.
+**Every core implements the exact same 62-method interface.** Platform-specific features are guarded by `Capabilities()` — Dart checks `capabilities.contains(CapCalls)` before showing call UI. Methods that a platform doesn't support return `ErrNotSupported` with a descriptive message.
 
 ### Shared Models (`cores/base.go`)
 
@@ -305,26 +279,36 @@ Dart mirrors these models in `dart/lib/models/models.dart` (generated from the G
 
 ### Capabilities
 
-| Capability | Description | Platforms |
-|---|---|---|
-| `CALLS` | 1:1 voice/video calls (audio frames, mute, recording) | All (implement if platform supports it) |
-| `VIDEO_CALLS` | Camera video in calls (VP8 — pure Go encoder, pixel-accurate) | Telegram (3 versions: v13/v8/v4, bidirectional verified) |
-| `SCREEN_SHARE` | Screen sharing in calls (separate track from video) | Telegram (V2Ref+V2Impl) |
-| `CALL_RECORDING` | Client-side call recording (binary Opus file) | Telegram |
-| `GROUP_CALLS` | Group voice/video calls via SFU (bidirectional video+audio, data channel subscription) | Telegram, Matrix |
-| `CHANNELS` | Create/manage channels | All (implement if platform supports it) |
-| `REACTIONS` | Message reactions | All (implement if platform supports it) |
-| `READ_RECEIPTS` | Per-user read state (who read what) | All (implement if platform supports it) |
-| `POLLS` | Create/vote on polls | All (implement if platform supports it) |
-| `STICKERS` | Sticker packs | All (implement if platform supports it) |
-| `TOPICS` | Forum-style topic threads in groups | **Telegram only** |
-| `SCHEDULED` | Scheduled messages | All (implement if platform supports it) |
-| `FOLDERS` | Chat folder/filter organization | All (implement if platform supports it) |
-| `ADMIN` | Group/channel admin controls | All (implement if platform supports it) |
-| `SESSIONS` | Active sessions management | All (implement if platform supports it) |
-| `BASE64_IMAGE` | Send images as Base64 strings | All (optional) |
+24 canonical constants defined in `base.go`. Cores return these from `Capabilities()`.
 
-Features like replying, forwarding, pinning, editing, deleting, and marking as read are part of the **base `Core` interface** — not capabilities. Every core must implement them. If a platform doesn't support one, the core returns `ErrNotSupported` and the UI gracefully hides the option.
+| Constant | Value | Description | Cores |
+|---|---|---|---|
+| `CapText` | `TEXT` | Basic text messaging | All 10 |
+| `CapChannels` | `CHANNELS` | Create/manage channels | Telegram, Bale, Rubika, Matrix, DeltaChat, TS3, Mumble, GitHub, IRC, XMPP |
+| `CapTopics` | `TOPICS` | Forum-style topic threads | Telegram |
+| `CapThreads` | `THREADS` | Message threads | Matrix |
+| `CapCalls` | `CALLS` | 1:1 voice/video calls | Telegram, Matrix, DeltaChat, XMPP |
+| `CapGroupCalls` | `GROUP_CALLS` | Group voice/video calls | Telegram |
+| `CapVoice` | `VOICE` | Voice chat / audio channels | TeamSpeak, Mumble |
+| `CapReactions` | `REACTIONS` | Message reactions | Telegram, Bale, Rubika, Matrix, DeltaChat, GitHub, XMPP |
+| `CapReadReceipts` | `READ_RECEIPTS` | Per-user read state | Telegram, Bale, Matrix, DeltaChat, GitHub, XMPP |
+| `CapTyping` | `TYPING` | Typing indicators | Telegram, Bale, Rubika, Matrix, DeltaChat, TS3, IRC, XMPP |
+| `CapPolls` | `POLLS` | Create/vote on polls | Telegram, Bale, Rubika, Matrix, GitHub |
+| `CapStickers` | `STICKERS` | Sticker packs | Telegram, Bale, Rubika, Matrix |
+| `CapFolders` | `FOLDERS` | Chat folder/filter organization | Telegram, Bale, Rubika, Matrix, GitHub |
+| `CapAdmin` | `ADMIN` | Group/channel admin controls | Telegram, Bale, Rubika, Matrix, TS3, Mumble, GitHub, IRC |
+| `CapSessions` | `SESSIONS` | Active sessions management | Telegram, Rubika, TS3 |
+| `CapSearch` | `SEARCH` | Message/global search | Telegram, Bale, Matrix, DeltaChat, Mumble, GitHub, IRC, XMPP |
+| `CapE2EE` | `E2EE` | End-to-end encryption | Matrix, DeltaChat, XMPP |
+| `CapPresence` | `PRESENCE` | Online/offline presence | Matrix, XMPP |
+| `CapBase64Image` | `BASE64_IMAGE` | Send images as base64 | Telegram, Matrix, DeltaChat |
+| `CapBlocking` | `BLOCKING` | User blocking | Telegram, DeltaChat, Mumble, IRC, XMPP |
+| `CapLocation` | `LOCATION` | Send location messages | Bale, Rubika, DeltaChat |
+| `CapScheduled` | `SCHEDULED` | Scheduled messages | Telegram |
+| `CapSpaces` | `SPACES` | Matrix Spaces | Matrix |
+| `CapFileTransfer` | `FILE_TRANSFER` | File upload/download | Telegram, Bale, Rubika, Matrix, DeltaChat, XMPP |
+
+Features like replying, forwarding, pinning, editing, deleting, and marking as read are part of the **base Core interface** — not capabilities. Every core must implement them. If a platform doesn't support one, the core returns `ErrNotSupported` and the UI gracefully hides the option.
 
 ### Uniform API Contract
 

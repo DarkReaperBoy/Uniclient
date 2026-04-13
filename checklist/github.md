@@ -1,8 +1,9 @@
 # GitHub — Full Protocol Surface Checklist
 
-**Last updated:** 2026-04-13 (Step 4 complete)
-**Current:** 825 exported methods, ~6,625 lines. REST API v3 + GraphQL v4.
+**Last updated:** 2026-04-13 (Steps 4-6 complete)
+**Current:** 855 exported methods, ~6,700 lines. REST API v3 + GraphQL v4.
 **Confirmed working:** 290 methods (55 Core interface + 190 extended + 45 tested in Step 2).
+**Steps 5-6:** Auth guards, unified dispatch, capability constants, 7 new Core methods.
 **Full API surface:** ~1,112 endpoint-method combinations across 44 categories.
 **Remaining:** 0 — all methods implemented.
 
