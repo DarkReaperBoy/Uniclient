@@ -9269,39 +9269,8 @@ func (f *telegramAuthFlow) SignUp(_ context.Context) (auth.UserInfo, error) {
 
 // --- User-mode extended methods (not in Core interface) ---
 
-// SearchMessages searches for messages in a chat matching the query.
-func (t *TelegramCore) searchMessagesRaw(chatID, query string, limit int) ([]Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
-	}
-
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, _ := t.toInputPeer(peer)
-
-	if limit <= 0 {
-		limit = 20
-	}
-
-	result, err := t.api.MessagesSearch(t.ctx, &tg.MessagesSearchRequest{
-		Peer:   inputPeer,
-		Q:      query,
-		Filter: &tg.InputMessagesFilterEmpty{},
-		Limit:  limit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("search: %w", err)
-	}
-
-	return t.convertMessages(result), nil
-}
-
-// GlobalSearch searches messages across all chats.
-func (t *TelegramCore) GlobalSearch(query string, limit int) ([]Message, error) {
+// SearchMessagesGlobal searches messages across all chats.
+func (t *TelegramCore) SearchMessagesGlobal(query string, limit int) ([]Message, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -9384,45 +9353,6 @@ func (t *TelegramCore) UnblockUser(userID string) error {
 		ID: &tg.InputPeerUser{UserID: id, AccessHash: hash},
 	})
 	return err
-}
-
-// GetBlockedUsers returns the list of blocked users.
-func (t *TelegramCore) getBlockedUsersRaw(limit int) ([]User, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
-	}
-
-	if limit <= 0 {
-		limit = 50
-	}
-
-	result, err := t.api.ContactsGetBlocked(t.ctx, &tg.ContactsGetBlockedRequest{
-		Limit: limit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("get blocked: %w", err)
-	}
-
-	var users []User
-	switch r := result.(type) {
-	case *tg.ContactsBlocked:
-		t.cacheEntities(r.Users, nil)
-		for _, u := range r.Users {
-			if user, ok := u.(*tg.User); ok {
-				users = append(users, *t.convertUser(user))
-			}
-		}
-	case *tg.ContactsBlockedSlice:
-		t.cacheEntities(r.Users, nil)
-		for _, u := range r.Users {
-			if user, ok := u.(*tg.User); ok {
-				users = append(users, *t.convertUser(user))
-			}
-		}
-	}
-	return users, nil
 }
 
 // ArchiveChat moves a chat to the archive folder.
@@ -9593,18 +9523,6 @@ func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
 	return sessions, nil
 }
 
-// terminateSessionRaw terminates a specific session by hash.
-func (t *TelegramCore) terminateSessionRaw(hash int64) error {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return ErrAuth
-	}
-
-	_, err := t.api.AccountResetAuthorization(t.ctx, hash)
-	return err
-}
-
 // SetGroupPermissions sets default permissions for a group/supergroup.
 func (t *TelegramCore) SetGroupPermissions(chatID string, rights tg.ChatBannedRights) error {
 	t.mu.RLock()
@@ -9747,39 +9665,6 @@ func (t *TelegramCore) GetAdminLog(chatID string, limit int) (int, error) {
 	}
 
 	return len(result.Events), nil
-}
-
-// sendStickerRaw sends a sticker by its InputDocument reference.
-func (t *TelegramCore) sendStickerRaw(chatID string, stickerID int64, accessHash int64, fileRef []byte) (*Message, error) {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if !t.authed || t.api == nil {
-		return nil, ErrAuth
-	}
-
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, _ := t.toInputPeer(peer)
-
-	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
-		Peer: inputPeer,
-		Media: &tg.InputMediaDocument{
-			ID: &tg.InputDocument{
-				ID:            stickerID,
-				AccessHash:    accessHash,
-				FileReference: fileRef,
-			},
-		},
-		RandomID: time.Now().UnixNano(),
-		Message:  "",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("send sticker: %w", err)
-	}
-
-	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
 // GetStickerSet retrieves a sticker set by short name.
@@ -11268,18 +11153,6 @@ func (t *TelegramCore) ReorderDialogFilters(ids []int) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }
 	_, err := t.api.MessagesUpdateDialogFiltersOrder(t.ctx, ids)
-	return err
-}
-
-func (t *TelegramCore) addContactByUserID(userID string, firstName, lastName, phone string) error {
-	t.mu.RLock(); defer t.mu.RUnlock()
-	if !t.authed || t.api == nil { return ErrAuth }
-	uid, _ := strconv.ParseInt(userID, 10, 64)
-	uhash := t.getCachedUserHash(uid)
-	_, err := t.api.ContactsAddContact(t.ctx, &tg.ContactsAddContactRequest{
-		ID: &tg.InputUser{UserID: uid, AccessHash: uhash},
-		FirstName: firstName, LastName: lastName, Phone: phone,
-	})
 	return err
 }
 
@@ -15300,15 +15173,65 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 }
 
 func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
-	return fmt.Errorf("%w: telegram mute not yet implemented", ErrNotSupported)
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return err
+	}
+	inputPeer, _ := t.toInputPeer(peer)
+
+	settings := tg.InputPeerNotifySettings{}
+	if muted {
+		settings.SetMuteUntil(2147483647) // max int32 — mute forever
+	} else {
+		settings.SetMuteUntil(0) // unmute
+	}
+
+	_, err = t.api.AccountUpdateNotifySettings(t.ctx, &tg.AccountUpdateNotifySettingsRequest{
+		Peer:     &tg.InputNotifyPeer{Peer: inputPeer},
+		Settings: settings,
+	})
+	return err
 }
 
 func (t *TelegramCore) MarkUnread(chatID string, unread bool) error {
-	return fmt.Errorf("%w: telegram mark unread not yet implemented", ErrNotSupported)
+	return t.MarkDialogUnread(chatID, unread)
 }
 
 func (t *TelegramCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
-	return nil, fmt.Errorf("%w: telegram send location not yet implemented", ErrNotSupported)
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, _ := t.toInputPeer(peer)
+
+	result, err := t.api.MessagesSendMedia(t.ctx, &tg.MessagesSendMediaRequest{
+		Peer: inputPeer,
+		Media: &tg.InputMediaGeoPoint{
+			GeoPoint: &tg.InputGeoPoint{
+				Lat:  lat,
+				Long: lon,
+			},
+		},
+		RandomID: time.Now().UnixNano(),
+		Message:  "",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("send location: %w", err)
+	}
+
+	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
 func (t *TelegramCore) TerminateSession(sessionID string) error {
