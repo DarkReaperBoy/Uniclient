@@ -84,19 +84,22 @@ Remove ALL existing checklists. Create brand-new checklists for every core with 
 ### Step 9: Test Every Core
 Test every method in every core against their official harnesses and live APIs — including previously tested ones from earlier steps. Test everything: messaging, media, groups, channels, calls (audio/video where supported), file transfers, admin ops, the lot. Use multiple accounts per platform to verify cross-account behavior (sending between accounts, group operations, permissions). Fix failures. Prune passing tests. Every method must work end-to-end, not just "no error returned." Once a method passes, never re-run it again within this step — test everything once, not twice.
 
-### Step 10: Unify Every Core
+### Step 10: Fresh Checklists + Optimize Every Core + Retest Modified
+Delete all existing per-core checklists. Create fresh checklists reflecting every exported method per core (everything marked done since it's all implemented). Then performance-optimize every core: reduce allocations, optimize hot paths, simplify complex methods, improve concurrency patterns, eliminate unnecessary copies. Track every modified method in the checklist (mark as needs-retest). Test every modified method against live APIs to confirm no regressions. Fix any failures, prune passing tests.
+
+### Step 11: Unify Every Core
 All cores expose the same unified interface where possible — same Go signatures, same return types, same behavior for shared operations. Pythonic logic in Go: `cores.bale.SendMessage()` and `cores.telegram.SendMessage()` behave the same for the ease of the GUI. The GUI should never need to know which core it's talking to for common operations. Platform-specific methods remain as extras but the shared surface must be identical in behavior.
 
-### Step 11: Test Every Unified Method
+### Step 12: Test Every Unified Method
 Test every method again after unification — full pass, including ones that passed in Step 9. Once a method passes here, don't re-run it.
 
-### Step 12: Protobuf Bridge
+### Step 13: Protobuf Bridge
 Replace JSON bridge encoding with Protocol Buffers. Define `.proto` files for all bridge types. Generate Go + Dart code. Schema changes break at compile time, not runtime.
 
-### Step 13: Write `/docs`
+### Step 14: Write `/docs`
 Create a `/docs` folder documenting how to use each core independently as a standalone Go library. Usage examples, method reference, auth flows — as if someone is importing just one core into their own project.
 
-### Step 14: Build the GUI
+### Step 15: Build the GUI
 Only now: start Flutter GUI work. See `research/gui-idea.md` and `checklist/gui.md` for design.
 
 **HARD RULE: Pure Go + Flutter ONLY — ZERO CGo, ZERO C/C++ dependencies.** No CGo anywhere — not in cores, not in utils, not in bridge, not in tests, not anywhere. No libvpx, no libolm, no native codecs, no C compilers needed. If it can't be done in pure Go or Flutter, find a different approach or skip it. The FFI bridge uses `dart:ffi` on the Dart side calling into a Go shared lib built with `go build -buildmode=c-shared` — that's Go's own toolchain, NOT CGo linking against external C libs. The tgcalls C++ test harness is a SEPARATE binary outside this repo (built independently in /tmp/), never compiled as part of `go build`. This project compiles with `go build` alone, no C compiler, no pkg-config, no system libraries.

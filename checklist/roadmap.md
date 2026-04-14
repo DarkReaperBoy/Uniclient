@@ -18,11 +18,12 @@
 | 7 | Complete Telegram & Matrix method coverage | **DONE** |
 | 8 | Fresh checklists + deduplicate + implement missing + optimize | **DONE** |
 | 9 | Test every core (official harnesses, multi-account) | NOT STARTED |
-| 10 | Unify every core (identical behavior for shared ops) | NOT STARTED |
-| 11 | Test every unified method | NOT STARTED |
-| 12 | Protobuf bridge | NOT STARTED |
-| 13 | Write /docs | NOT STARTED |
-| 14 | Build GUI | NOT STARTED |
+| 10 | Fresh checklists + optimize every core + retest modified | NOT STARTED |
+| 11 | Unify every core (identical behavior for shared ops) | NOT STARTED |
+| 12 | Test every unified method | NOT STARTED |
+| 13 | Protobuf bridge | NOT STARTED |
+| 14 | Write /docs | NOT STARTED |
+| 15 | Build GUI | NOT STARTED |
 
 ## Detailed Progress
 
@@ -225,19 +226,27 @@ Added `ErrDisconnected` and `ErrTimeout` to base.go. Added `UpdateConnectivity` 
 - [ ] Use multiple accounts per platform to verify cross-account behavior
 - [ ] Fix failures, prune passing tests
 
-### Step 10 — Unify Every Core (Identical Behavior for Shared Ops)
+### Step 10 — Fresh Checklists + Optimize Every Core + Retest Modified
+- [ ] Delete all existing per-core checklists
+- [ ] Create fresh checklists reflecting every exported method per core (everything marked done since it's all implemented)
+- [ ] Performance-optimize every core: reduce allocations, optimize hot paths, simplify complex methods, improve concurrency patterns
+- [ ] Track every modified method in the checklist (mark as needs-retest)
+- [ ] Test every modified method against live APIs to confirm no regressions
+- [ ] Fix any failures, prune passing tests
+
+### Step 11 — Unify Every Core (Identical Behavior for Shared Ops)
 - [ ] Unified interface: cores.X.SendMessage() behaves the same across all cores
 - [ ] GUI should never need to know which core for common operations
 - [ ] Platform-specific methods remain as extras
 
-### Step 11 — Test Every Unified Method
+### Step 12 — Test Every Unified Method
 - [ ] Full regression pass after unification
 
-### Step 12 — Protobuf Bridge
+### Step 13 — Protobuf Bridge
 - [ ] Replace JSON bridge with protobuf, generate Go + Dart code
 
-### Step 13 — Write /docs
+### Step 14 — Write /docs
 - [ ] Document each core as standalone Go library
 
-### Step 14 — Build GUI
+### Step 15 — Build GUI
 - [ ] Flutter GUI (see research/gui-idea.md, checklist/gui.md)
