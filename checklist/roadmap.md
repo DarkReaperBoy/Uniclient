@@ -1,9 +1,9 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 11 — Unify Every Core
+**Current Step:** Step 12 — Test Every Unified Method
 **Current Core:** Not started
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 4 — Step 10 COMPLETE)
+**Last Updated:** 2026-04-14 (session 4 — Step 11 COMPLETE)
 
 ## Steps
 
@@ -19,8 +19,8 @@
 | 8 | Fresh checklists + deduplicate + implement missing + optimize | **DONE** |
 | 9 | Test every core (official harnesses, multi-account) | **DONE** — 10/10 cores, 0 failures |
 | 10 | Fresh checklists + optimize every core + retest modified | **DONE** |
-| 11 | Unify every core (identical behavior for shared ops) | **IN PROGRESS** |
-| 12 | Test every unified method | NOT STARTED |
+| 11 | Unify every core (identical behavior for shared ops) | **DONE** |
+| 12 | Test every unified method | **IN PROGRESS** |
 | 13 | Protobuf bridge | NOT STARTED |
 | 14 | Write /docs | NOT STARTED |
 | 15 | Build GUI | NOT STARTED |
@@ -328,10 +328,20 @@ All 10 per-core checklists recreated with every exported method, grouped by cate
 **10.3 Retest — DONE (0 regressions)**
 All 10 cores retested against live APIs after optimizations. Results: all pass with same SKIP counts as Step 9.
 
-### Step 11 — Unify Every Core (Identical Behavior for Shared Ops)
-- [ ] Unified interface: cores.X.SendMessage() behaves the same across all cores
-- [ ] GUI should never need to know which core for common operations
-- [ ] Platform-specific methods remain as extras
+### Step 11 — Unify Every Core (Identical Behavior for Shared Ops) — DONE
+
+Audited all 10 cores for behavioral consistency of the 55 Core interface methods. Fixed 10 categories of inconsistencies:
+
+1. **SendMessage return values**: Telegram now sets SenderName (cached user lookup), Bale sets SenderID/SenderName in user mode, Rubika sets Status on null responses
+2. **Telegram SenderName**: Added userNames cache populated by cacheEntities(), self ID/name cached on auth
+3. **IRC MessageStatus**: Set on all 10 message construction sites (Sent for outgoing, Delivered for received)
+4. **Sentinel errors**: Telegram 7 ErrNotSupported, Bale 5 ErrNetwork, IRC 1 ErrTimeout, Mumble ErrTimeout+ErrInvalidInput
+5. **GetDialogs pagination**: Added Offset support to Telegram, IRC, XMPP, DeltaChat, GitHub; Limit to Rubika, XMPP
+6. **Default limits**: Rubika GetMessages changed from 20→50 to match other cores
+7. **Platform constants**: All 10 cores now use named constants instead of inline strings (~200 replacements)
+8. **Empty slice returns**: All list-returning methods return `[]Type{}` instead of nil
+9. **Telegram extractMessageFromUpdates**: Sparse fallback paths now populate Timestamp, SenderID, SenderName
+10. **Platform-specific methods remain as extras** (unchanged — each core still has its full protocol surface)
 
 ### Step 12 — Test Every Unified Method
 - [ ] Full regression pass after unification
