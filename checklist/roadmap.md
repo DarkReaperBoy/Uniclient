@@ -490,7 +490,7 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
 ### Step 14 — Write /docs — IN PROGRESS
 - [x] `docs/README.md` — overview, quick start, core comparison table, shared types, build requirements
 - [x] 10 per-core docs (brief): telegram.md, github.md, bale.md, irc.md, xmpp.md, teamspeak.md, deltachat.md, rubika.md, matrix.md, mumble.md
-- [ ] **14.1 — REWRITE 8 docs as full Telethon-style tutorials** (SKIP Telegram & Matrix) — every exported method with signature, params, return types, usage examples. By category.
+- [ ] **14.1 — REWRITE 8 docs as full Telethon-style tutorials** (SKIP Telegram & Matrix — they wrap gotd/td and mautrix-go which have their own docs; the other 8 are custom implementations with no external docs) — every exported method with signature, params, return types, usage examples. By category.
 - [ ] **14.2 — Add Go docstrings** to every exported method that needs one across all core files, for new contributors
 
 ### Step 15 — Build GUI
