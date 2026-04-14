@@ -5289,17 +5289,29 @@ func (c *IRCCore) Relaymsg(channel, nick, text string) {
 }
 
 // ParseStandardReply parses FAIL/WARN/NOTE structured responses from IRCv3.
+// Input format: ":source FAIL command code [context] :description"
 func ParseStandardReply(line string) (severity, command, code, context, description string) {
-	parts := strings.SplitN(line, " ", 5)
-	if len(parts) >= 4 {
+	// Strip the :source prefix if present
+	if strings.HasPrefix(line, ":") {
+		if idx := strings.IndexByte(line, ' '); idx >= 0 {
+			line = line[idx+1:]
+		}
+	}
+	parts := strings.SplitN(line, " ", 4)
+	if len(parts) >= 3 {
 		severity = parts[0]
 		command = parts[1]
 		code = parts[2]
-		if len(parts) >= 5 {
-			context = parts[3]
-			description = strings.TrimPrefix(parts[4], ":")
-		} else {
-			description = strings.TrimPrefix(parts[3], ":")
+		if len(parts) >= 4 {
+			rest := parts[3]
+			if strings.HasPrefix(rest, ":") {
+				description = rest[1:]
+			} else if idx := strings.Index(rest, " :"); idx >= 0 {
+				context = rest[:idx]
+				description = rest[idx+2:]
+			} else {
+				context = rest
+			}
 		}
 	}
 	return

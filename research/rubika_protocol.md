@@ -569,6 +569,10 @@ Resolves username to user/group/channel info.
 ```
 Batch resolve GUIDs to their info.
 
+<!-- Note 2026-04-14: rubpy uses "object_guids" (no 's' on 'object') but
+     "objects_guids" is what the actual API accepts. Tested both variants.
+     Works with user GUIDs; group GUIDs may return INVALID_INPUT. -->
+
 ### getTime
 <!-- Server time -->
 
@@ -903,6 +907,16 @@ Types: `bold`, `italic`, `mono`, `underline`, `strikethrough`, `link`
 12. **App version** — current official PWA version is `2.5.4` (rubpy uses `2.4.6` which is outdated).
 
 13. **DC response has 3 sections**: `API` (53 endpoints), `socket` (20 WSS endpoints), `storage` (800+ file storage endpoints). Use `storage` URLs for file download instead of hardcoded patterns.
+
+14. **Non-existent API methods** (discovered 2026-04-14): The following method names do NOT exist in the Rubika API and return INVALID_INPUT: `getChatInfoByUsername` (use `getObjectByUsername`), `searchGlobalMessages` (use `searchGlobalObjects`), `getGroupMemberCount` (use `getGroupInfo` and read `count_members`), `searchContacts` (use `getContacts` and filter client-side), `getMyStickers` (use `getMyStickerSets`), `userIsAdmin` (not an API method — must page through `getGroupAdminMembers`/`getChannelAdminMembers` and check if self is in the list).
+
+15. **file_inline requirements for Image type** (discovered 2026-04-14): Sending an Image via `sendMessage` with `file_inline` REQUIRES `thumb_inline` (base64-encoded thumbnail), `width` (>0, default 200), and `height` (>0, default 200). Without `thumb_inline` or with width/height=0, the API returns INVALID_INPUT. Video/Gif types also need width/height (default 200) and time (default 1).
+
+16. **getStickersByEmoji** (discovered 2026-04-14): Uses `emoji_character` (not `emoji`) and requires `suggest_by: "All"`.
+
+17. **addGroup requires members** (discovered 2026-04-14): `addGroup` with empty `member_guids` returns INVALID_INPUT. Must include at least the creator's own GUID.
+
+18. **Bot upload domain** (discovered 2026-04-14): The bot `requestSendFile` returns upload URLs on `messengerg2f*.rubika.ir` which may be unreachable outside Iran (returns nginx HTML error page).
 
 14. **Auth methods skip signing** — sendCode, signIn, registerDevice, loginTwoStepForgetPassword, loginDisableTwoStep all use `disableSign: true` in the JS client. Only authenticated (post-login) requests include the RSA signature.
 

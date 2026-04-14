@@ -970,8 +970,18 @@ func (r *RubikaCore) BotUploadFile(fileType string, fileName string, data []byte
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read upload response: %w", err)
+	}
+
+	// Check for HTML error responses (upload domain may be unreachable from outside Iran)
+	if len(bodyBytes) > 0 && bodyBytes[0] == '<' {
+		return "", fmt.Errorf("upload endpoint returned HTML (upload domain %s may be unreachable)", uploadURL)
+	}
+
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
 		return "", fmt.Errorf("decode upload response: %w", err)
 	}
 
@@ -1515,6 +1525,13 @@ func (r *RubikaCore) CreateGroup(name string, members []string) (*Dialog, error)
 		return nil, ErrAuth
 	}
 
+	if members == nil {
+		members = []string{}
+	}
+	// Rubika may require at least the creator's GUID in member_guids
+	if len(members) == 0 && r.guid != "" {
+		members = []string{r.guid}
+	}
 	input := map[string]interface{}{
 		"title":        name,
 		"member_guids": members,
@@ -2078,21 +2095,35 @@ func (r *RubikaCore) UploadFile(chatID string, file FileUpload, progress func(se
 		fileType = "Music"
 	}
 
+	fileInline := map[string]interface{}{
+		"file_id":         fileID,
+		"dc_id":           dcIDInt,
+		"size":            fileSize,
+		"type":            fileType,
+		"mime":            mime,
+		"access_hash_rec": accessHashRec,
+		"file_name":       file.Name,
+	}
+	// Rubika requires width/height for Image/Video/Gif, time for Video/Music/Voice
+	// rubpy defaults: width=200, height=200, time=1
+	// For Image/Video/Gif: thumb_inline (base64 thumbnail) is required
+	if fileType == "Image" || fileType == "Video" || fileType == "Gif" {
+		fileInline["width"] = 200
+		fileInline["height"] = 200
+		thumbData := fileData
+		if len(thumbData) > 40960 {
+			thumbData = thumbData[:40960]
+		}
+		fileInline["thumb_inline"] = base64.StdEncoding.EncodeToString(thumbData)
+	}
+	if fileType == "Video" || fileType == "Music" || fileType == "Voice" {
+		fileInline["time"] = 1
+	}
+
 	sendInput := map[string]interface{}{
 		"object_guid": chatID,
 		"rnd":         mrand.Intn(1000000) + 1,
-		"file_inline": map[string]interface{}{
-			"file_id":         fileID,
-			"dc_id":           dcIDInt,
-			"size":            fileSize,
-			"type":            fileType,
-			"mime":            mime,
-			"access_hash_rec": accessHashRec,
-			"width":           0,
-			"height":          0,
-			"time":            0,
-			"is_spoil":        false,
-		},
+		"file_inline": fileInline,
 	}
 
 	data, err := r.api("sendMessage", sendInput)
@@ -3872,7 +3903,8 @@ func (r *RubikaCore) GetStickerSetByID(stickerSetID string) (map[string]interfac
 // GetStickersByEmoji retrieves stickers matching an emoji.
 func (r *RubikaCore) GetStickersByEmoji(emoji string) (map[string]interface{}, error) {
 	return r.api("getStickersByEmoji", map[string]interface{}{
-		"emoji": emoji,
+		"emoji_character": emoji,
+		"suggest_by":      "All",
 	})
 }
 
@@ -4162,14 +4194,56 @@ func (r *RubikaCore) GetRelatedObjects(objectGUID string) (map[string]interface{
 
 // UserIsAdmin checks if the current user is admin in a chat.
 func (r *RubikaCore) UserIsAdmin(chatID string) (map[string]interface{}, error) {
-	return r.api("userIsAdmin", map[string]interface{}{
-		"object_guid": chatID,
-	})
+	// userIsAdmin is not a real Rubika API method — it's a helper in rubpy
+	// that pages through admin members and checks if self is in the list.
+	var method string
+	if strings.HasPrefix(chatID, "c0") {
+		method = "getChannelAdminMembers"
+	} else {
+		method = "getGroupAdminMembers"
+	}
+
+	selfGUID := r.guid
+	startID := ""
+	for {
+		input := map[string]interface{}{"group_guid": chatID}
+		if strings.HasPrefix(chatID, "c0") {
+			input = map[string]interface{}{"channel_guid": chatID}
+		}
+		if startID != "" {
+			input["start_id"] = startID
+		}
+		data, err := r.api(method, input)
+		if err != nil {
+			return nil, err
+		}
+		members, _ := data["in_chat_members"].([]interface{})
+		for _, m := range members {
+			mm, _ := m.(map[string]interface{})
+			if mm != nil {
+				guid, _ := mm["member_guid"].(string)
+				if guid == selfGUID {
+					return map[string]interface{}{"is_admin": true}, nil
+				}
+			}
+		}
+		hasContinue, _ := data["has_continue"].(bool)
+		if !hasContinue {
+			break
+		}
+		nextID, _ := mapGetString(data, "next_start_id")
+		if nextID == "" {
+			break
+		}
+		startID = nextID
+	}
+	return map[string]interface{}{"is_admin": false}, nil
 }
 
 // GetMyStickers retrieves the user's stickers.
+// Uses getMyStickerSets under the hood (getMyStickers doesn't exist in Rubika API).
 func (r *RubikaCore) GetMyStickers() (map[string]interface{}, error) {
-	return r.api("getMyStickers", map[string]interface{}{})
+	return r.api("getMyStickerSets", map[string]interface{}{})
 }
 
 // --- Settings (extended) ---
@@ -5135,16 +5209,15 @@ func (r *RubikaCore) LoginDisableTwoStep(phoneNumber string, phoneCodeHash strin
 
 // SearchGlobalMessages searches messages across all chats.
 func (r *RubikaCore) SearchGlobalMessages(text string, startID string, limit int) (map[string]interface{}, error) {
+	// searchGlobalMessages doesn't exist in Rubika API.
+	// Use searchGlobalObjects which searches users/groups/channels globally.
 	input := map[string]interface{}{
 		"search_text": text,
 	}
 	if startID != "" {
 		input["start_id"] = startID
 	}
-	if limit > 0 {
-		input["limit"] = limit
-	}
-	return r.api("searchGlobalMessages", input)
+	return r.api("searchGlobalObjects", input)
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5160,8 +5233,9 @@ func (r *RubikaCore) SetPrivacySetting(settingType string, value string) (map[st
 }
 
 // GetChatInfoByUsername resolves a chat by username and returns full info.
+// Uses getObjectByUsername under the hood (getChatInfoByUsername doesn't exist in Rubika API).
 func (r *RubikaCore) GetChatInfoByUsername(username string) (map[string]interface{}, error) {
-	return r.api("getChatInfoByUsername", map[string]interface{}{
+	return r.api("getObjectByUsername", map[string]interface{}{
 		"username": username,
 	})
 }
@@ -5226,10 +5300,21 @@ func (r *RubikaCore) GetNewGroupLink(groupGUID string) (map[string]interface{}, 
 }
 
 // GetGroupMemberCount returns the lightweight member count without fetching all members.
+// Uses getGroupInfo under the hood (getGroupMemberCount doesn't exist in Rubika API).
 func (r *RubikaCore) GetGroupMemberCount(groupGUID string) (map[string]interface{}, error) {
-	return r.api("getGroupMemberCount", map[string]interface{}{
+	data, err := r.api("getGroupInfo", map[string]interface{}{
 		"group_guid": groupGUID,
 	})
+	if err != nil {
+		return nil, err
+	}
+	// Extract count_members from the group sub-object
+	group, _ := data["group"].(map[string]interface{})
+	if group == nil {
+		return data, nil
+	}
+	count, _ := group["count_members"]
+	return map[string]interface{}{"count_members": count, "group": group}, nil
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5244,10 +5329,35 @@ func (r *RubikaCore) ImportContacts(contacts []map[string]string) (map[string]in
 }
 
 // SearchContacts searches within the user's contact list by name or phone.
+// searchContacts doesn't exist in Rubika API — falls back to getContacts and filters client-side.
 func (r *RubikaCore) SearchContacts(query string) (map[string]interface{}, error) {
-	return r.api("searchContacts", map[string]interface{}{
-		"search_text": query,
-	})
+	data, err := r.api("getContacts", map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	if query == "" {
+		return data, nil
+	}
+	q := strings.ToLower(query)
+	users, _ := data["users"].([]interface{})
+	var matched []interface{}
+	for _, u := range users {
+		um, _ := u.(map[string]interface{})
+		if um == nil {
+			continue
+		}
+		fn, _ := um["first_name"].(string)
+		ln, _ := um["last_name"].(string)
+		ph, _ := um["phone"].(string)
+		un, _ := um["username"].(string)
+		if strings.Contains(strings.ToLower(fn), q) ||
+			strings.Contains(strings.ToLower(ln), q) ||
+			strings.Contains(strings.ToLower(ph), q) ||
+			strings.Contains(strings.ToLower(un), q) {
+			matched = append(matched, u)
+		}
+	}
+	return map[string]interface{}{"users": matched}, nil
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5335,18 +5445,38 @@ func (r *RubikaCore) rubikaUploadAndSend(chatID string, data []byte, fileName st
 		}
 	}
 
+	fileInline := map[string]interface{}{
+		"file_id":         fileID,
+		"dc_id":           dcID,
+		"size":            fileSize,
+		"type":            fileType,
+		"mime":            mime,
+		"access_hash_rec": accessHashRec,
+		"file_name":       fileName,
+	}
+	// Rubika requires width/height for Image/Video/Gif, time for Video/Music/Voice
+	// rubpy defaults: width=200, height=200, time=1
+	// For Image/Video/Gif: thumb_inline is required (base64 of image data as thumbnail)
+	switch fileType {
+	case "Image", "Video", "Gif":
+		fileInline["width"] = 200
+		fileInline["height"] = 200
+		// Generate a minimal base64 thumbnail from the data itself (Rubika requires thumb_inline for images)
+		thumbData := data
+		if len(thumbData) > 40960 { // cap thumbnail at ~40KB
+			thumbData = thumbData[:40960]
+		}
+		fileInline["thumb_inline"] = base64.StdEncoding.EncodeToString(thumbData)
+	}
+	switch fileType {
+	case "Video", "Music", "Voice":
+		fileInline["time"] = 1
+	}
+
 	sendInput := map[string]interface{}{
 		"object_guid": chatID,
 		"rnd":         mrand.Intn(1000000) + 1,
-		"file_inline": map[string]interface{}{
-			"file_id":         fileID,
-			"dc_id":           dcID,
-			"size":            fileSize,
-			"type":            fileType,
-			"mime":            mime,
-			"access_hash_rec": accessHashRec,
-			"file_name":       fileName,
-		},
+		"file_inline": fileInline,
 	}
 	if caption != "" {
 		sendInput["text"] = caption
