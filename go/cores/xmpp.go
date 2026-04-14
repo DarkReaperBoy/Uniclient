@@ -2199,7 +2199,45 @@ func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Messa
 		return nil, ErrAuth
 	}
 	c.mu.RUnlock()
-	return c.CorrectMessage(chatID, msgID, text)
+
+	// XEP-0308: Message Correction
+	msgType := "chat"
+	if c.isRoom(chatID) {
+		msgType = "groupchat"
+	}
+	id := c.nextMsgID()
+	err := c.sendRawStanza(fmt.Sprintf(
+		`<message type='%s' to='%s' id='%s'><body>%s</body><replace xmlns='%s' id='%s'/></message>`,
+		msgType, xmlEscape(chatID), id, xmlEscape(text), nsCorrect, xmlEscape(msgID),
+	))
+	if err != nil {
+		return nil, err
+	}
+
+	// Update local buffer
+	c.messagesMu.Lock()
+	if msgs, ok := c.messages[chatID]; ok {
+		for _, m := range msgs {
+			if m.ID == msgID {
+				m.Text = text
+				now := time.Now()
+				m.EditedAt = &now
+				c.messagesMu.Unlock()
+				return m, nil
+			}
+		}
+	}
+	c.messagesMu.Unlock()
+
+	return &Message{
+		ID:        id,
+		ChatID:    chatID,
+		SenderID:  c.bareJID,
+		Text:      text,
+		Timestamp: time.Now(),
+		Status:    MessageStatusSent,
+		Platform:  "xmpp",
+	}, nil
 }
 
 func (c *XMPPCore) DeleteMessage(chatID string, msgID string) error {
@@ -3037,25 +3075,7 @@ func (c *XMPPCore) SendPresenceUnavailable(status string) error {
 	return c.sendRawStanza(fmt.Sprintf(`<presence type='unavailable'>%s</presence>`, inner))
 }
 
-func (c *XMPPCore) SendPresenceAway(status string) error {
-	return c.SendPresenceAvailable("away", status)
-}
 
-func (c *XMPPCore) SendPresenceDND(status string) error {
-	return c.SendPresenceAvailable("dnd", status)
-}
-
-func (c *XMPPCore) SendPresenceXA(status string) error {
-	return c.SendPresenceAvailable("xa", status)
-}
-
-func (c *XMPPCore) SendPresenceChat(status string) error {
-	return c.SendPresenceAvailable("chat", status)
-}
-
-func (c *XMPPCore) SetPresenceStatus(status string) error {
-	return c.SendPresenceAvailable("", status)
-}
 
 func (c *XMPPCore) SetPresencePriority(priority int) error {
 	return c.sendRawStanza(fmt.Sprintf(
@@ -3233,13 +3253,6 @@ func (c *XMPPCore) SendChatStateGone(chatID string) error {
 // XMPP-specific: Message extensions
 // ---------------------------------------------------------------------------
 
-func (c *XMPPCore) SendChatMessage(to, body string) error {
-	id := c.nextMsgID()
-	return c.sendRawStanza(fmt.Sprintf(
-		`<message type='chat' to='%s' id='%s'><body>%s</body></message>`,
-		xmlEscape(to), id, xmlEscape(body),
-	))
-}
 
 func (c *XMPPCore) SendGroupchatMessage(to, body string) error {
 	id := c.nextMsgID()
@@ -3284,45 +3297,7 @@ func (c *XMPPCore) SendReceipt(to, msgID string) error {
 	))
 }
 
-func (c *XMPPCore) CorrectMessage(chatID, originalID, newText string) (*Message, error) {
-	msgType := "chat"
-	if c.isRoom(chatID) {
-		msgType = "groupchat"
-	}
-	id := c.nextMsgID()
-	err := c.sendRawStanza(fmt.Sprintf(
-		`<message type='%s' to='%s' id='%s'><body>%s</body><replace xmlns='%s' id='%s'/></message>`,
-		msgType, xmlEscape(chatID), id, xmlEscape(newText), nsCorrect, xmlEscape(originalID),
-	))
-	if err != nil {
-		return nil, err
-	}
 
-	// Update local buffer
-	c.messagesMu.Lock()
-	if msgs, ok := c.messages[chatID]; ok {
-		for _, m := range msgs {
-			if m.ID == originalID {
-				m.Text = newText
-				now := time.Now()
-				m.EditedAt = &now
-				c.messagesMu.Unlock()
-				return m, nil
-			}
-		}
-	}
-	c.messagesMu.Unlock()
-
-	return &Message{
-		ID:        id,
-		ChatID:    chatID,
-		SenderID:  c.bareJID,
-		Text:      newText,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		Platform:  "xmpp",
-	}, nil
-}
 
 func (c *XMPPCore) EnableCarbons() error {
 	inner := fmt.Sprintf(`<enable xmlns='%s'/>`, nsCarbons)
@@ -3382,12 +3357,6 @@ func (c *XMPPCore) SetMessageHint(chatID, msgID, hint string) error {
 	return fmt.Errorf("%w: xmpp message hints can only be set at send time", ErrNotSupported)
 }
 
-func (c *XMPPCore) SendReply(chatID, replyToJID, replyToID, body string) (*Message, error) {
-	return c.SendMessage(chatID, OutgoingMessage{
-		Text:      body,
-		ReplyToID: replyToID,
-	})
-}
 
 func (c *XMPPCore) SendReaction(chatID, msgID string, emojis []string) error {
 	id := c.nextMsgID()
@@ -7877,16 +7846,3 @@ func (c *XMPPCore) SendLocation(chatID string, lat float64, lon float64) (*Messa
 	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, xmppPlatform)
 }
 
-// PasswordHashingBestPractice implements XEP-0438 — check hash strength.
-func PasswordHashingBestPractice(mechanism string) string {
-	switch {
-	case strings.Contains(mechanism, "SCRAM-SHA-256"):
-		return "strong"
-	case strings.Contains(mechanism, "SCRAM-SHA-1"):
-		return "acceptable"
-	case mechanism == "PLAIN":
-		return "weak"
-	default:
-		return "unknown"
-	}
-}

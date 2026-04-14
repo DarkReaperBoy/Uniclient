@@ -1,10 +1,16 @@
 # Rubika — Fresh Checklist
 
-**Methods:** 277 exported | **Lines:** 5,775 | **File:** `go/cores/rubika.go`
+**Methods:** 273 exported | **Lines:** 5,775 | **File:** `go/cores/rubika.go`
 **Protocol:** Rubika (JSON-RPC over HTTPS, WebSocket, Iranian messenger)
 **Last updated:** 2026-04-13
 
-## Authentication & Session (10)
+### Audit Notes (2026-04-13)
+**Unexported (4):** `searchChatMessages` (wrapped by SearchMessages), `searchGlobalObjects` (wrapped by SearchGlobal), `getMySessions` (wrapped by GetSessions), `addAddressBook` (wrapped by AddContact) — only called internally, no external callers.
+**Kept exported:** SendChatActivity (accepts activity type beyond Typing), SetBlockUser/BanGroupMember/BanChannelMember (accept bool param), AddGroupMembers/AddChannelMembers/SetGroupAdmin/GetGroupLink/GetChannelLink/GetGroupAllMembers/GetChannelAllMembers (platform-specific direct APIs with richer signatures than unified wrappers).
+**Fixed:** GetInviteLink channel branch now calls GetChannelLink() instead of inline r.api().
+**Stubs (ErrNotSupported, 10):** SendSticker, CreateTopic, GetReadState, SendImageBase64, MuteChat, ArchiveChat, MarkUnread, UnpinAllMessages, AcceptCall, DeclineCall — Core interface obligations Rubika genuinely doesn't support.
+
+## Authentication & Session (9)
 - [ ] Authenticate
 - [ ] SendCode
 - [ ] SignIn
@@ -14,7 +20,6 @@
 - [ ] LoginTwoStepForgetPassword
 - [ ] GetTwoPasscodeStatus
 - [ ] Logout
-- [ ] GetMySessions
 
 ## Core Interface (4)
 - [ ] Capabilities
@@ -34,8 +39,7 @@
 - [ ] SetPrivacySetting
 - [ ] RegisterDevice
 
-## Contacts (8)
-- [ ] AddAddressBook
+## Contacts (7)
 - [ ] AddContact
 - [ ] DeleteContact
 - [ ] GetContacts
@@ -83,12 +87,11 @@
 - [ ] GetMessageReactions
 - [ ] ClickMessageUrl
 
-## Messaging — Pin & Search (6)
+## Messaging — Pin & Search (5)
 - [ ] PinMessage
 - [ ] UnpinMessage
 - [ ] UnpinAllMessages
 - [ ] SearchMessages
-- [ ] SearchChatMessages
 - [ ] GetMessageShareURL
 
 ## Messaging — Activity & Typing (2)
@@ -236,10 +239,9 @@
 - [ ] GetChatsUpdates
 - [ ] GetMessagesUpdates
 
-## Search — Global (3)
+## Search — Global (2)
 - [ ] SearchGlobal
 - [ ] SearchGlobalMessages
-- [ ] SearchGlobalObjects
 
 ## Object / Username Lookup (5)
 - [ ] GetObjectByUsername

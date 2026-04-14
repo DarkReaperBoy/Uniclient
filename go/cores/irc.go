@@ -1,6 +1,6 @@
 // IRC core — pure Go IRC client implementing the Core interface.
 // Protocol: RFC 1459/2812 + IRCv3 + CTCP + DCC + IRC services.
-// 302 methods (55 Core + 247 IRC-specific).
+// 418 exported methods (55 Core + 363 IRC-specific).
 // No external dependencies — stdlib only (net, crypto/tls, bufio).
 //
 // Chat IDs:
@@ -2181,6 +2181,8 @@ func (c *IRCCore) MarkAsRead(chatID string, upToMsgID string) error {
 	}
 	c.readState[chatID].MyLastRead = upToMsgID
 	c.readStateMu.Unlock()
+	// Also send IRCv3 MARKREAD to server if msgid is provided
+	c.MarkRead(chatID, upToMsgID)
 	return nil
 }
 
@@ -2594,9 +2596,9 @@ func (c *IRCCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, err
 // Core interface — Typing
 // ---------------------------------------------------------------------------
 
-func (c *IRCCore) SendTyping(_ string) error {
-	// IRC has no native typing indicator
-	// (IRCv3 draft/typing exists but very few servers support it)
+func (c *IRCCore) SendTyping(chatID string) error {
+	// Use IRCv3 draft/typing if the server supports it, otherwise no-op.
+	c.SendTypingIndicator(chatID, true)
 	return nil
 }
 
@@ -3647,34 +3649,11 @@ func (c *IRCCore) NickServSetPassword(newPassword string) {
 
 // --- ChanServ ---
 
-// ChanServOp gives operator status via ChanServ.
-func (c *IRCCore) ChanServOp(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :OP " + channel + " " + nick)
-}
-
-// ChanServDeop removes operator status via ChanServ.
-func (c *IRCCore) ChanServDeop(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :DEOP " + channel + " " + nick)
-}
-
-// ChanServVoice gives voice status via ChanServ.
-func (c *IRCCore) ChanServVoice(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :VOICE " + channel + " " + nick)
-}
-
-// ChanServDevoice removes voice status via ChanServ.
-func (c *IRCCore) ChanServDevoice(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :DEVOICE " + channel + " " + nick)
-}
-
-// ChanServHalfop gives half-operator status via ChanServ.
-func (c *IRCCore) ChanServHalfop(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :HALFOP " + channel + " " + nick)
-}
-
-// ChanServDehalfop removes half-operator status via ChanServ.
-func (c *IRCCore) ChanServDehalfop(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :DEHALFOP " + channel + " " + nick)
+// ChanServModeCmd sends a ChanServ mode command (OP, DEOP, VOICE, DEVOICE,
+// HALFOP, DEHALFOP, OWNER, DEOWNER, PROTECT, DEPROTECT) for a nick on a channel.
+// Example: ChanServModeCmd("#chan", "nick", "OP")
+func (c *IRCCore) ChanServModeCmd(channel, nick, command string) {
+	c.sendRaw("PRIVMSG ChanServ :" + strings.ToUpper(command) + " " + channel + " " + nick)
 }
 
 // ChanServRegister registers a channel with ChanServ.
@@ -4398,25 +4377,6 @@ func (c *IRCCore) ChanServClone(source, target string) {
 	c.sendRaw("PRIVMSG ChanServ :CLONE " + source + " " + target)
 }
 
-// ChanServOwner gives channel owner status via ChanServ.
-func (c *IRCCore) ChanServOwner(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :OWNER " + channel + " " + nick)
-}
-
-// ChanServDeowner removes channel owner status via ChanServ.
-func (c *IRCCore) ChanServDeowner(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :DEOWNER " + channel + " " + nick)
-}
-
-// ChanServProtect gives channel protect/admin status via ChanServ.
-func (c *IRCCore) ChanServProtect(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :PROTECT " + channel + " " + nick)
-}
-
-// ChanServDeprotect removes channel protect/admin status via ChanServ.
-func (c *IRCCore) ChanServDeprotect(channel, nick string) {
-	c.sendRaw("PRIVMSG ChanServ :DEPROTECT " + channel + " " + nick)
-}
 
 // ChanServIdentify authenticates as channel founder.
 func (c *IRCCore) ChanServIdentify(channel, password string) {
@@ -5378,8 +5338,6 @@ func (c *IRCCore) ParseAccountExtban(account string) string {
 	return prefix + account
 }
 
-func (c *IRCCore) SetBotModeIRCv3() { c.sendRaw("MODE " + c.nick + " +B") }
-
 func (c *IRCCore) OnInviteNotify(handler func(inviter, channel, target string)) {
 	c.mu.Lock()
 	c.inviteNotifyHandler = handler
@@ -5471,94 +5429,56 @@ func (c *IRCCore) RDCC(nick string) {
 	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01RDCC\x01", nick))
 }
 
-// ── Extended Bans — Helpers (18 types) ──
+// ── Extended Bans ──
 
-func (c *IRCCore) ExtbanTimed(channel, duration, banMask string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~t:%s:%s", channel, duration, banMask))
-}
-func (c *IRCCore) ExtbanQuiet(channel, mask string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~q:%s", channel, mask))
-}
-func (c *IRCCore) ExtbanNickchange(channel, mask string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~n:%s", channel, mask))
-}
-func (c *IRCCore) ExtbanJoin(channel, mask string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~j:%s", channel, mask))
-}
-func (c *IRCCore) ExtbanForward(channel, mask, target string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~f:%s:%s", channel, target, mask))
-}
-func (c *IRCCore) ExtbanMsgbypass(channel, mask string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +e ~m:%s", channel, mask))
-}
-func (c *IRCCore) ExtbanFlood(channel, mask string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +e ~F:%s", channel, mask))
-}
-func (c *IRCCore) ExtbanAccount(channel, account string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~a:%s", channel, account))
-}
-func (c *IRCCore) ExtbanASN(channel string, asn int) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~A:%d", channel, asn))
-}
-func (c *IRCCore) ExtbanChannel(channel, bannedChannel string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~c:%s", channel, bannedChannel))
-}
-func (c *IRCCore) ExtbanCountry(channel, countryCode string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~C:%s", channel, countryCode))
-}
-func (c *IRCCore) ExtbanSecurityGroup(channel, group string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~G:%s", channel, group))
-}
-func (c *IRCCore) ExtbanOperclass(channel, operClass string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~O:%s", channel, operClass))
-}
-func (c *IRCCore) ExtbanRealname(channel, realname string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~r:%s", channel, realname))
-}
-func (c *IRCCore) ExtbanCertFP(channel, fingerprint string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~S:%s", channel, fingerprint))
-}
-func (c *IRCCore) ExtbanInherit(channel, sourceChannel string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~i:%s", channel, sourceChannel))
-}
-func (c *IRCCore) ExtbanText(channel, pattern string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~T:block:%s", channel, pattern))
-}
-func (c *IRCCore) ExtbanPartmsg(channel, mask string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +b ~p:%s", channel, mask))
+// SetExtban sets an extended ban (or exception) on a channel.
+// modeChar is the mode letter: 'b' for ban, 'e' for exception, etc.
+// extbanType is the extban prefix (e.g. "~q:", "~a:", "~t:300:", "~T:block:").
+// value is the mask/account/pattern to apply.
+//
+// Examples:
+//
+//	c.SetExtban("#ch", 'b', "~q:", "nick!*@*")     // quiet
+//	c.SetExtban("#ch", 'b', "~a:", "accountname")   // account ban
+//	c.SetExtban("#ch", 'e', "~m:", "nick!*@*")      // message bypass exception
+//	c.SetExtban("#ch", 'b', "~t:300:", "nick!*@*")  // timed ban (300s)
+//	c.SetExtban("#ch", 'b', "~T:block:", "badword")  // text filter
+//	c.SetExtban("#ch", 'b', "~f:nick!*@*:", "#target") // forward
+func (c *IRCCore) SetExtban(channel string, modeChar byte, extbanType, value string) {
+	c.sendRaw(fmt.Sprintf("MODE %s +%c %s%s", channel, modeChar, extbanType, value))
 }
 
-// ── Channel Modes — Typed Methods (~20) ──
+// ── Channel Modes ──
 
-func (c *IRCCore) SetNoColors(channel string, on bool)           { c.chanMode(channel, 'c', on) }
-func (c *IRCCore) SetNoCTCP(channel string, on bool)             { c.chanMode(channel, 'C', on) }
-func (c *IRCCore) SetDelayedJoins(channel string, on bool)       { c.chanMode(channel, 'D', on) }
+// SetChannelModeFlag sets or unsets a simple boolean channel mode flag.
+// Common mode chars: c=noColors, C=noCTCP, D=delayedJoins, g=wordFilter,
+// G=censor, K=noKnock, M=requireRegisteredSpeak, N=noNickChange,
+// O=operOnly, P=permanent, Q=noKicks, R=requireRegistered, S=stripColors,
+// T=noNotices, u=auditorium, V=noInvite, z=sslOnly.
+func (c *IRCCore) SetChannelModeFlag(channel string, mode byte, on bool) {
+	c.chanMode(channel, mode, on)
+}
+
+// SetFloodProtection sets channel flood protection mode (+f).
+// params is server-specific (e.g. "[10j#R5,40m#M5,3n#N1]:15 on UnrealIRCd).
 func (c *IRCCore) SetFloodProtection(channel string, params string) {
 	c.sendRaw(fmt.Sprintf("MODE %s +f %s", channel, params))
 }
-func (c *IRCCore) SetWordFilter(channel string, on bool)         { c.chanMode(channel, 'g', on) }
-func (c *IRCCore) SetCensor(channel string, on bool)             { c.chanMode(channel, 'G', on) }
+
+// SetChannelHistory sets the channel history mode (+H lines:seconds).
 func (c *IRCCore) SetChannelHistory(channel string, lines int, seconds int) {
 	c.sendRaw(fmt.Sprintf("MODE %s +H %d:%d", channel, lines, seconds))
 }
+
+// SetJoinThrottle sets the join throttle mode (+j joins:seconds).
 func (c *IRCCore) SetJoinThrottle(channel string, joins int, seconds int) {
 	c.sendRaw(fmt.Sprintf("MODE %s +j %d:%d", channel, joins, seconds))
 }
-func (c *IRCCore) SetNoKnock(channel string, on bool)            { c.chanMode(channel, 'K', on) }
+
+// SetChannelRedirect sets the channel redirect mode (+L target).
 func (c *IRCCore) SetChannelRedirect(channel, target string) {
 	c.sendRaw(fmt.Sprintf("MODE %s +L %s", channel, target))
 }
-func (c *IRCCore) SetRequireRegistered(channel string, on bool)  { c.chanMode(channel, 'R', on) }
-func (c *IRCCore) SetRequireRegisteredSpeak(channel string, on bool) { c.chanMode(channel, 'M', on) }
-func (c *IRCCore) SetNoNickChange(channel string, on bool)       { c.chanMode(channel, 'N', on) }
-func (c *IRCCore) SetOperOnly(channel string, on bool)           { c.chanMode(channel, 'O', on) }
-func (c *IRCCore) SetPermanent(channel string, on bool)          { c.chanMode(channel, 'P', on) }
-func (c *IRCCore) SetNoKicks(channel string, on bool)            { c.chanMode(channel, 'Q', on) }
-func (c *IRCCore) SetStripColors(channel string, on bool)        { c.chanMode(channel, 'S', on) }
-func (c *IRCCore) SetNoNotices(channel string, on bool)          { c.chanMode(channel, 'T', on) }
-func (c *IRCCore) SetAuditorium(channel string, on bool)         { c.chanMode(channel, 'u', on) }
-func (c *IRCCore) SetNoInvite(channel string, on bool)           { c.chanMode(channel, 'V', on) }
-func (c *IRCCore) SetSSLOnly(channel string, on bool)            { c.chanMode(channel, 'z', on) }
 
 func (c *IRCCore) chanMode(channel string, mode byte, on bool) {
 	prefix := "+"
@@ -5578,15 +5498,10 @@ func (c *IRCCore) userMode(mode byte, on bool) {
 	c.sendRaw(fmt.Sprintf("MODE %s %s%c", c.nick, prefix, mode))
 }
 
-func (c *IRCCore) SetBotMode(on bool)              { c.userMode('B', on) }
-func (c *IRCCore) SetDeafMode(on bool)              { c.userMode('d', on) }
-func (c *IRCCore) SetCallerID(on bool)              { c.userMode('g', on) }
-func (c *IRCCore) SetHideOper(on bool)              { c.userMode('H', on) }
-func (c *IRCCore) SetHideChannels(on bool)          { c.userMode('I', on) }
-func (c *IRCCore) SetBlockUnregistered(on bool)     { c.userMode('R', on) }
-func (c *IRCCore) SetBlockCTCP(on bool)             { c.userMode('T', on) }
-func (c *IRCCore) SetWhoisNotify(on bool)           { c.userMode('W', on) }
-func (c *IRCCore) SetRequireSSL(on bool)            { c.userMode('Z', on) }
+// SetUserModeFlag sets or unsets a user mode flag.
+// Common mode chars: B=bot, d=deaf, g=callerID, H=hideOper, I=hideChannels,
+// R=blockUnregistered, T=blockCTCP, W=whoisNotify, Z=requireSSL.
+func (c *IRCCore) SetUserModeFlag(mode byte, on bool) { c.userMode(mode, on) }
 
 // ── ACCEPT Command (1) ──
 

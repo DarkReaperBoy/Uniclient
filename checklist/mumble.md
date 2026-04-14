@@ -1,6 +1,6 @@
 # Mumble — Fresh Checklist
 
-**Methods:** 235 exported | **Lines:** 7,867 | **File:** `go/cores/mumble.go`
+**Methods:** 233 exported | **Lines:** 7,846 | **File:** `go/cores/mumble.go`
 **Protocol:** Mumble (TCP control + UDP voice, Protobuf messages, OCB2-AES crypto)
 **Last updated:** 2026-04-13
 
@@ -166,14 +166,12 @@
 - SetListenerVolume
 - SetTemporaryAccessTokens
 
-### Client Protocol — Context Actions (4)
+### Client Protocol — Context Actions (3)
 - AddContextCallback
 - RemoveContextCallback
 - TriggerContextAction
-- TriggerContextActionChannel
 
-### Client Protocol — Whisper & Targets (3)
-- SendVoiceWhisper
+### Client Protocol — Whisper & Targets (2)
 - RedirectWhisperGroup
 - SetVoiceTarget
 

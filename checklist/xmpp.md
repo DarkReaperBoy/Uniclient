@@ -1,6 +1,6 @@
 # XMPP — Fresh Checklist
 
-**Methods:** 387 exported | **Lines:** 7,892 | **File:** `go/cores/xmpp.go`
+**Methods:** 379 exported | **Lines:** 7,848 | **File:** `go/cores/xmpp.go`
 **Protocol:** XMPP (RFC 6120/6121 + 30+ XEPs, Jingle, OMEMO, MUC, MIX, PubSub)
 **Last updated:** 2026-04-13
 
@@ -43,26 +43,20 @@
 - [ ] TerminateSession
 - [ ] Name
 
-## Presence (16)
+## Presence (11)
 - [ ] ProbePresence
 - [ ] SendDirectedPresence
 - [ ] SendPresenceAvailable
-- [ ] SendPresenceAway
-- [ ] SendPresenceChat
-- [ ] SendPresenceDND
 - [ ] SendPresenceSubscribe
 - [ ] SendPresenceSubscribed
 - [ ] SendPresenceUnavailable
 - [ ] SendPresenceUnsubscribe
 - [ ] SendPresenceUnsubscribed
-- [ ] SendPresenceXA
 - [ ] SetPresencePriority
-- [ ] SetPresenceStatus
 - [ ] SetReachability
 - [ ] SetUserActivity
 
-## Messaging — Core (17)
-- [ ] CorrectMessage
+## Messaging — Core (14)
 - [ ] DeleteMessage
 - [ ] EditMessage
 - [ ] ForwardMessage
@@ -70,12 +64,10 @@
 - [ ] ModerateMessage
 - [ ] ReplyToMessage
 - [ ] RetractMessage
-- [ ] SendChatMessage
 - [ ] SendGroupchatMessage
 - [ ] SendHeadlineMessage
 - [ ] SendMessage
 - [ ] SendNormalMessage
-- [ ] SendReply
 - [ ] SendRichTextMessage
 - [ ] SendSpoilerMessage
 - [ ] SendContentTypedMessage

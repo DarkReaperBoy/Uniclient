@@ -3712,11 +3712,6 @@ func (g *GitHubCore) CreateBranchProtection(owner, repo, branch string, rules ma
 	return g.apiPut(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", owner, repo, branch), rules)
 }
 
-// UpdateBranchProtection updates branch protection rules.
-func (g *GitHubCore) UpdateBranchProtection(owner, repo, branch string, rules map[string]any) (json.RawMessage, error) {
-	return g.apiPut(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", owner, repo, branch), rules)
-}
-
 // DeleteBranchProtection removes branch protection.
 func (g *GitHubCore) DeleteBranchProtection(owner, repo, branch string) error {
 	_, err := g.apiDelete(fmt.Sprintf("/repos/%s/%s/branches/%s/protection", owner, repo, branch))
@@ -6199,15 +6194,6 @@ func (g *GitHubCore) DeleteSSHSigningKey(keyID int) error {
 	return err
 }
 
-func (g *GitHubCore) FollowUser(username string) (json.RawMessage, error) {
-	return g.apiPut(fmt.Sprintf("/user/following/%s", username), nil)
-}
-
-func (g *GitHubCore) UnfollowUser(username string) error {
-	_, err := g.apiDelete(fmt.Sprintf("/user/following/%s", username))
-	return err
-}
-
 // ── Search — Extended ────────────────────────────────────────────────────────
 
 func (g *GitHubCore) SearchIssuesAndPRs(query string, params map[string]string) (json.RawMessage, error) {
@@ -6260,13 +6246,7 @@ func (g *GitHubCore) ListCheckSuiteCheckRuns(owner, repo string, checkSuiteID in
 	return g.apiGet(fmt.Sprintf("/repos/%s/%s/check-suites/%d/check-runs", owner, repo, checkSuiteID), nil)
 }
 
-func (g *GitHubCore) ListCheckRunsForRef(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, repo, ref), nil)
-}
 
-func (g *GitHubCore) ListCheckSuitesForRef(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(fmt.Sprintf("/repos/%s/%s/commits/%s/check-suites", owner, repo, ref), nil)
-}
 
 // ── Gists — Extended ─────────────────────────────────────────────────────────
 
@@ -6440,16 +6420,8 @@ func (g *GitHubCore) GetMeta() (json.RawMessage, error) {
 	return g.apiGet("/meta", nil)
 }
 
-func (g *GitHubCore) GetOctocat() (json.RawMessage, error) {
-	return g.apiGet("/octocat", nil)
-}
-
 func (g *GitHubCore) GetAPIVersions() (json.RawMessage, error) {
 	return g.apiGet("/versions", nil)
-}
-
-func (g *GitHubCore) GetZen() (json.RawMessage, error) {
-	return g.apiGet("/zen", nil)
 }
 
 // ── Gitignore Templates ──────────────────────────────────────────────────────

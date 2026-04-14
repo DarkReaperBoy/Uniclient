@@ -3820,8 +3820,20 @@ func (t *TeamSpeakCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 
 // ──────────────────────────── Core Interface: Remaining Stubs ────────────────────────────
 
-func (t *TeamSpeakCore) SendTyping(_ string) error {
-	return fmt.Errorf("%w: teamspeak does not support typing indicators", ErrNotSupported)
+func (t *TeamSpeakCore) SendTyping(chatID string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed {
+		return ErrAuth
+	}
+	kind, id, err := tsParseChatID(chatID)
+	if err != nil {
+		return err
+	}
+	if kind != "dm" {
+		return fmt.Errorf("%w: typing indicators only supported for DMs", ErrNotSupported)
+	}
+	return t.tsExecSimple(fmt.Sprintf("clientchatcomposing clid=%d", id))
 }
 
 func (t *TeamSpeakCore) CreatePoll(_ string, _ string, _ []string) (*Message, error) {

@@ -1,8 +1,28 @@
 # Matrix — Fresh Checklist
 
-**Methods:** 240 exported | **Lines:** 6,409 | **File:** `go/cores/matrix.go`
+**Methods:** 240 exported | **Lines:** 6,421 | **File:** `go/cores/matrix.go`
 **Protocol:** Matrix (CS API v1.13-v1.18, E2EE via goolm, mautrix-go SDK)
 **Last updated:** 2026-04-13
+
+## Audit Notes (2026-04-13)
+
+### Duplicates resolved (kept as thin aliases)
+- `DeclineCall` -> delegates to `RejectCall` (same behavior, unified name)
+- `Delete3PIDByAddress` -> delegates to `Delete3PID` (identical API endpoint)
+- `ValidateEmailForAccount` -> delegates to `RequestEmailToken` (identical API endpoint)
+- `ValidatePhoneForAccount` -> delegates to `RequestMsisdnToken` (identical API endpoint)
+- `GroupCallEncryptionKeys` uses `m.call.encryption_keys` event type; `SendGroupCallEncryptionKeys` uses Element's `io.element.call.encryption_keys` -- kept both but removed dead SendToDevice code from the first
+
+### Stubs implemented (were ErrNotSupported, now real)
+- `ArchiveChat` -> uses room tags (`m.lowpriority`)
+- `MuteChat` -> uses push rules (`dont_notify` for room)
+- `UnpinAllMessages` -> sends empty pinned event list
+- `SendLocation` -> delegates to `SendLocationMessage` with geo: URI
+
+### Naming notes (not renamed, different semantics)
+- `Capabilities()` = Core interface (local feature flags) vs `GetCapabilities()` = server capabilities API
+- `GetPresence()` = dedicated presence API vs `GetProfile()` = profile + presence combined
+- `SendLocationMessage(roomID, geoURI, body)` = raw geo message vs `SendLocation(chatID, lat, lon)` = Core interface wrapper
 
 ## Categories
 

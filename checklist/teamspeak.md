@@ -1,8 +1,16 @@
 # TeamSpeak — Fresh Checklist
 
-**Methods:** 296 exported | **Lines:** 6,883 | **File:** `go/cores/teamspeak.go`
+**Methods:** 296 exported | **Lines:** 6,893 | **File:** `go/cores/teamspeak.go`
 **Protocol:** TeamSpeak 3 (UDP client protocol, ServerQuery)
 **Last updated:** 2026-04-13
+
+## Audit Notes (2026-04-13)
+- **No true duplicates found.** `ClientKick` (single, flexible reasonID) vs `RequestClientsKickFromChannel/Server` (batch, hardcoded) are complementary. `ClientMute/Unmute` (local, `clientmute` cmd) vs `RequestMuteClientsTemporary` (server-side, `clientedit client_output_muted`) are fundamentally different operations.
+- **No dead unexported code.** All helper functions are called at least once.
+- **SendTyping** implemented for DM chats (delegates to `clientchatcomposing`). Still returns ErrNotSupported for channel/server chats.
+- **DecodeLegacyCodec** is a correct stub — Speex/CELT require native C decoders (CGo forbidden).
+- **Correct ErrNotSupported stubs:** EditMessage, DeleteMessage, ForwardMessage, ReactToMessage, PinMessage, UnpinMessage, UnpinAllMessages, polls, stickers, location, contacts add/delete, read state, folders, topics, leave chat, call methods (TS3 uses channel-join model).
+- Codec/whisper constants are defined but only used as exported API documentation for callers — intentionally kept.
 
 ## Categories
 
@@ -327,7 +335,7 @@
 
 ### Messaging — Extras (3)
 - [ ] SendLocation
-- [ ] SendTyping
+- [ ] SendTyping (implemented for DMs, ErrNotSupported for channel/server)
 - [ ] SendPluginCommand
 
 ### Chat Management (9)

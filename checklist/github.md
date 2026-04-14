@@ -1,6 +1,6 @@
 # GitHub — Fresh Checklist
 
-**Methods:** 775 exported | **Lines:** 6,610 | **File:** `go/cores/github.go`
+**Methods:** 768 exported | **Lines:** 6,582 | **File:** `go/cores/github.go`
 **Protocol:** GitHub (REST API v3, GraphQL v4)
 **Last updated:** 2026-04-13
 
@@ -41,13 +41,12 @@
 - [ ] RedeliverAppWebhook
 - [ ] UpdateAppWebhookConfig
 
-### User Profile & Account (16)
+### User Profile & Account (14)
 - [ ] AddEmail
 - [ ] AddSocialAccount
 - [ ] BlockUser
 - [ ] DeleteEmail
 - [ ] DeleteSocialAccount
-- [ ] FollowUser
 - [ ] GetBlockedUsers
 - [ ] GetProfile
 - [ ] GetUserHovercard
@@ -56,7 +55,6 @@
 - [ ] ListSocialAccounts
 - [ ] SetEmailVisibility
 - [ ] UnblockUser
-- [ ] UnfollowUser
 - [ ] UpdateProfile
 
 ### User Keys (10)
@@ -216,7 +214,7 @@
 - [ ] ListRefs
 - [ ] RenameBranch
 
-### Branch Protection (18)
+### Branch Protection (17)
 - [ ] CreateBranchProtection
 - [ ] DeleteBranchProtection
 - [ ] DeleteBranchRestrictions
@@ -232,7 +230,6 @@
 - [ ] RemoveRequiredStatusChecks
 - [ ] SetAdminEnforcement
 - [ ] SetRequiredSignatures
-- [ ] UpdateBranchProtection
 - [ ] UpdateRequiredPRReviews
 - [ ] UpdateRequiredStatusChecks
 
@@ -570,16 +567,14 @@
 - [ ] GetRepoCacheUsage
 - [ ] ListRepoCaches
 
-### Check Runs & Check Suites (12)
+### Check Runs & Check Suites (10)
 - [ ] CreateCheckRun
 - [ ] GetCheckRun
 - [ ] GetCheckSuite
 - [ ] ListCheckRunAnnotations
 - [ ] ListCheckRuns
-- [ ] ListCheckRunsForRef
 - [ ] ListCheckSuiteCheckRuns
 - [ ] ListCheckSuites
-- [ ] ListCheckSuitesForRef
 - [ ] RerequestCheckRun
 - [ ] RerequestCheckSuite
 - [ ] UpdateCheckSuitePreferences
@@ -966,10 +961,8 @@
 - [ ] ListUserOrgMemberships
 - [ ] ListUserTeams
 
-### Feeds & Rendering (4)
+### Feeds & Rendering (2)
 - [ ] GetFeeds
-- [ ] GetOctocat
-- [ ] GetZen
 - [ ] RenderMarkdown
 
 ### Licenses & Codes of Conduct (4)

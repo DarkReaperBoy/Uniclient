@@ -1,8 +1,35 @@
 # IRC — Fresh Checklist
 
-**Methods:** 469 exported | **Lines:** 5,797 | **File:** `go/cores/irc.go`
+**Methods:** 418 exported | **Lines:** 5,712 | **File:** `go/cores/irc.go`
 **Protocol:** IRC (RFC 1459/2812, IRCv3, DCC, CTCP, Services)
 **Last updated:** 2026-04-13
+
+## Audit Changes (2026-04-13)
+
+**Merged duplicates:**
+- 18 `Extban*` methods → 1 `SetExtban(channel, modeChar, extbanType, value)` — all were one-liner MODE commands varying only by extban prefix and mode char
+- 10 `ChanServ{Op,Deop,Voice,Devoice,Halfop,Dehalfop,Owner,Deowner,Protect,Deprotect}` → 1 `ChanServModeCmd(channel, nick, command)` — all identical pattern `PRIVMSG ChanServ :CMD #ch nick`
+- 16 `Set{NoColors,NoCTCP,DelayedJoins,WordFilter,Censor,NoKnock,RequireRegistered,RequireRegisteredSpeak,NoNickChange,OperOnly,Permanent,NoKicks,StripColors,NoNotices,Auditorium,NoInvite,SSLOnly}` → 1 `SetChannelModeFlag(channel, mode, on)` — all were `chanMode(ch, X, on)` one-liners
+- 9 `Set{BotMode,DeafMode,CallerID,HideOper,HideChannels,BlockUnregistered,BlockCTCP,WhoisNotify,RequireSSL}` → 1 `SetUserModeFlag(mode, on)` — all were `userMode(X, on)` one-liners
+- Removed `SetBotModeIRCv3` — exact duplicate of `SetUserModeFlag('B', true)`
+- `SendTyping` (Core interface) now delegates to `SendTypingIndicator` instead of being a no-op
+- `MarkAsRead` (Core interface) now also calls `MarkRead` to sync server-side via IRCv3 MARKREAD
+
+**NOT duplicates (kept both):**
+- `SendTyping` (Core interface, error return) vs `SendTypingIndicator` (IRC-specific, supports on/off toggle) — different signatures and semantics
+- `MarkAsRead` (Core interface, updates local state + server) vs `MarkRead` (IRC-specific, server MARKREAD only) — different levels of abstraction
+
+**Stubs returning ErrNotSupported (Core interface compliance — IRC genuinely lacks these):**
+- CreatePoll, VotePoll, SendSticker, GetSessions, TerminateSession
+- MuteChat, ArchiveChat, MarkUnread, UnpinAllMessages
+- AcceptCall, DeclineCall, SendLocation
+- UploadFile, DownloadFile, SendImageBase64
+- EditMessage, DeleteMessage, ReactToMessage
+- AddContact, DeleteContact, GetContacts
+- EditChatTitle (IRC channels are immutable names)
+- GetInviteLink
+
+**No dead unexported methods found** — all 56 unexported methods are called internally.
 
 ## Categories
 
@@ -48,19 +75,13 @@
 - [ ] ChgIdent
 - [ ] ChgName
 
-### User Modes & Status (14)
+### User Modes & Status (7)
 - [ ] Away
 - [ ] PreAway
 - [ ] GetAway
 - [ ] GetUserMode
 - [ ] SetUserMode
-- [ ] SetCallerID
-- [ ] SetDeafMode
-- [ ] SetHideChannels
-- [ ] SetHideOper
-- [ ] SetBotMode
-- [ ] SetBotModeIRCv3
-- [ ] SetWhoisNotify
+- [ ] SetUserModeFlag *(replaces 9 individual user mode methods)*
 - [ ] Vhost
 - [ ] Swhois
 
@@ -79,9 +100,10 @@
 - [ ] Ojoin
 - [ ] Njoin
 
-### Channel Modes (28)
+### Channel Modes (9)
 - [ ] SetMode
 - [ ] Rmode
+- [ ] SetChannelModeFlag *(replaces 16 individual boolean channel mode methods)*
 - [ ] SetChannelKey
 - [ ] SetChannelLimit
 - [ ] SetChannelModerated
@@ -91,69 +113,30 @@
 - [ ] SetChannelInviteOnly
 - [ ] SetChannelRedirect
 - [ ] SetChannelHistory
-- [ ] SetAuditorium
-- [ ] SetDelayedJoins
 - [ ] SetFloodProtection
 - [ ] SetJoinThrottle
-- [ ] SetNoColors
-- [ ] SetNoCTCP
-- [ ] SetNoInvite
-- [ ] SetNoKicks
-- [ ] SetNoKnock
-- [ ] SetNoNickChange
-- [ ] SetNoNotices
-- [ ] SetOperOnly
-- [ ] SetPermanent
-- [ ] SetRequireRegistered
-- [ ] SetRequireRegisteredSpeak
-- [ ] SetRequireSSL
-- [ ] SetSSLOnly
 
 ### Channel Topic (2)
 - [ ] GetChannelTopic
 - [ ] CreateTopic
 
-### Channel Member Modes (7)
+### Channel Member Modes (3)
 - [ ] SetVoice
 - [ ] SetHalfop
 - [ ] SetAdmin
-- [ ] SetBanExcept
-- [ ] SetInviteExcept
-- [ ] SetBlockCTCP
-- [ ] SetBlockUnregistered
 
-### Channel Bans & Lists (7)
+### Channel Bans & Lists (9)
 - [ ] BanMask
 - [ ] UnbanMask
 - [ ] GetBanList
 - [ ] GetExceptList
 - [ ] GetInviteExceptList
 - [ ] RequestInviteList
-- [ ] SetCensor
+- [ ] SetBanExcept
+- [ ] SetInviteExcept
+- [ ] SetExtban *(replaces 18 individual Extban* methods)*
 
-### Extended Bans (18)
-- [ ] ExtbanAccount
-- [ ] ExtbanASN
-- [ ] ExtbanCertFP
-- [ ] ExtbanChannel
-- [ ] ExtbanCountry
-- [ ] ExtbanFlood
-- [ ] ExtbanForward
-- [ ] ExtbanInherit
-- [ ] ExtbanJoin
-- [ ] ExtbanMsgbypass
-- [ ] ExtbanNickchange
-- [ ] ExtbanOperclass
-- [ ] ExtbanPartmsg
-- [ ] ExtbanQuiet
-- [ ] ExtbanRealname
-- [ ] ExtbanSecurityGroup
-- [ ] ExtbanText
-- [ ] ExtbanTimed
-
-### Content Filtering (6)
-- [ ] SetStripColors
-- [ ] SetWordFilter
+### Content Filtering (4)
 - [ ] FilterAdd
 - [ ] FilterDel
 - [ ] SpamfilterAdd
@@ -179,12 +162,11 @@
 - [ ] SendTagMsg
 - [ ] Relaymsg
 
-### Typing & Read State (5)
+### Typing & Read State (4)
 - [ ] SendTyping
 - [ ] SendTypingIndicator
 - [ ] MarkAsRead
 - [ ] MarkRead
-- [ ] MarkUnread
 
 ### Message Pins (3)
 - [ ] PinMessage
@@ -375,7 +357,7 @@
 - [ ] NickServUnsuspend
 - [ ] NickServUpdate
 
-### ChanServ (46)
+### ChanServ (37)
 - [ ] ChanServRegister
 - [ ] ChanServInfo
 - [ ] ChanServList
@@ -407,16 +389,7 @@
 - [ ] ChanServStatus
 - [ ] ChanServUp
 - [ ] ChanServDown
-- [ ] ChanServOp
-- [ ] ChanServDeop
-- [ ] ChanServHalfop
-- [ ] ChanServDehalfop
-- [ ] ChanServVoice
-- [ ] ChanServDevoice
-- [ ] ChanServOwner
-- [ ] ChanServDeowner
-- [ ] ChanServProtect
-- [ ] ChanServDeprotect
+- [ ] ChanServModeCmd *(replaces Op/Deop/Voice/Devoice/Halfop/Dehalfop/Owner/Deowner/Protect/Deprotect)*
 - [ ] ChanServHop
 - [ ] ChanServAop
 - [ ] ChanServSop
@@ -578,4 +551,4 @@
 
 ---
 
-**Total: 478 methods across all categories.**
+**Total: 418 exported methods across all categories.**

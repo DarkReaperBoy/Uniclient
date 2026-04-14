@@ -3443,57 +3443,6 @@ func (d *DeltaChatCore) GetFreshMessages() ([]Message, error) {
 
 // --- Autocrypt PGP/MIME encryption ---
 
-// encryptMessage encrypts a MIME message payload using PGP for the given recipients.
-func (d *DeltaChatCore) encryptMessage(plainMIME []byte, recipients []string) ([]byte, error) {
-	if d.myEntity == nil {
-		return plainMIME, nil // no key, send plaintext
-	}
-
-	// Collect recipient entities
-	var recipientEntities []*openpgp.Entity
-	recipientEntities = append(recipientEntities, d.myEntity) // encrypt to self
-
-	d.peerKeysMu.RLock()
-	allHaveKeys := true
-	for _, email := range recipients {
-		ps := d.peerStates[canonicalizeEmail(email)]
-		if ps != nil && ps.entity != nil {
-			recipientEntities = append(recipientEntities, ps.entity)
-		} else if ps != nil && len(ps.PublicKey) > 0 {
-			entities, err := openpgp.ReadKeyRing(bytes.NewReader(ps.PublicKey))
-			if err == nil && len(entities) > 0 {
-				recipientEntities = append(recipientEntities, entities[0])
-			} else {
-				allHaveKeys = false
-			}
-		} else {
-			allHaveKeys = false
-		}
-	}
-	d.peerKeysMu.RUnlock()
-
-	if !allHaveKeys || len(recipientEntities) <= 1 {
-		return plainMIME, nil // not all recipients have keys, send plaintext
-	}
-
-	// Encrypt
-	var cipherBuf bytes.Buffer
-	plainWriter, err := openpgp.Encrypt(&cipherBuf, recipientEntities, d.myEntity, nil, nil)
-	if err != nil {
-		return plainMIME, nil // fallback to plaintext
-	}
-	plainWriter.Write(plainMIME)
-	plainWriter.Close()
-
-	// Armor
-	var armoredBuf bytes.Buffer
-	armorWriter, _ := armor.Encode(&armoredBuf, "PGP MESSAGE", nil)
-	armoredBuf.Write(cipherBuf.Bytes())
-	armorWriter.Close()
-
-	return armoredBuf.Bytes(), nil
-}
-
 // decryptMessage attempts to decrypt a PGP/MIME message.
 func (d *DeltaChatCore) decryptMessage(armored []byte) ([]byte, bool) {
 	if d.myEntity == nil {
@@ -3880,22 +3829,6 @@ func (d *DeltaChatCore) sendEmail(to []*mail.Address, subject string, text strin
 
 	// Send via SMTP (plaintext — only works on servers that don't require encryption)
 	return d.smtpSend(to, plainMsg)
-}
-
-// shouldEncrypt checks if all recipients have Autocrypt keys and we should encrypt.
-func (d *DeltaChatCore) shouldEncrypt(recipients []string) bool {
-	if d.myEntity == nil {
-		return false
-	}
-	d.peerKeysMu.RLock()
-	defer d.peerKeysMu.RUnlock()
-	for _, email := range recipients {
-		ps := d.peerStates[canonicalizeEmail(email)]
-		if ps == nil || (len(ps.PublicKey) == 0 && len(ps.GossipKey) == 0) {
-			return false
-		}
-	}
-	return len(recipients) > 0
 }
 
 // wrapPGPMIME wraps a plaintext MIME message in PGP/MIME encryption.
@@ -6017,37 +5950,13 @@ func (d *DeltaChatCore) SaveSticker(chatID, msgID string) error {
 
 // ──────────────────────────── Advanced Chat ────────────────────────────
 
-// CreateBroadcastList creates a broadcast channel (one-to-many, recipients hidden from each other).
+// CreateBroadcastList creates a broadcast channel — delegates to CreateChannel.
 func (d *DeltaChatCore) CreateBroadcastList(name string) (string, error) {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-	if !d.authed {
-		return "", ErrAuth
+	dlg, err := d.CreateChannel(name, "")
+	if err != nil {
+		return "", err
 	}
-
-	grpID := generateGroupID()
-	chatID := "bc:" + grpID
-
-	// Generate broadcast secret (264-bit random key, base64url, 43 chars)
-	secretBytes := make([]byte, 33)
-	if _, err := rand.Read(secretBytes); err != nil {
-		return "", fmt.Errorf("generate secret: %w", err)
-	}
-	broadcastSecret := base64.RawURLEncoding.EncodeToString(secretBytes)
-
-	d.chatsMu.Lock()
-	d.chats[chatID] = &dcChatState{
-		ID:              chatID,
-		Type:            ChatTypeChannel,
-		Title:           name,
-		GroupID:         grpID,
-		Members:         []string{d.myAddr},
-		BroadcastSecret: broadcastSecret,
-	}
-	d.chatsMu.Unlock()
-
-	d.saveSession()
-	return chatID, nil
+	return dlg.ID, nil
 }
 
 // EstimateAutoDeletionCount estimates how many messages would be deleted if the ephemeral
@@ -7383,8 +7292,7 @@ func (d *DeltaChatCore) CreateQRSvg(data string) string {
 // ══════════════════════════════════════════════════════════════════════════════
 
 func (d *DeltaChatCore) ProvideBackup() (string, error) {
-	// Export session data as JSON backup
-	return d.sessionPath, nil
+	return d.GetBackup()
 }
 
 func (d *DeltaChatCore) GetBackupQR() (string, error) {
@@ -7590,7 +7498,7 @@ func (d *DeltaChatCore) AcceptCall(callID string) (*CallSession, error) {
 }
 
 func (d *DeltaChatCore) DeclineCall(callID string) error {
-	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, dcPlatform)
+	return d.EndCall(callID)
 }
 
 func (d *DeltaChatCore) MuteChat(chatID string, muted bool) error {
@@ -7601,13 +7509,21 @@ func (d *DeltaChatCore) MuteChat(chatID string, muted bool) error {
 }
 
 func (d *DeltaChatCore) ArchiveChat(chatID string, archived bool) error {
-	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, dcPlatform)
+	if archived {
+		return d.SetChatVisibility(chatID, 1) // 1 = archived
+	}
+	return d.SetChatVisibility(chatID, 0) // 0 = normal
 }
 
 func (d *DeltaChatCore) MarkUnread(chatID string, unread bool) error {
-	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, dcPlatform)
+	if unread {
+		return d.MarkFreshChat(chatID)
+	}
+	return d.MarkNoticedChat(chatID)
 }
 
 func (d *DeltaChatCore) UnpinAllMessages(chatID string) error {
-	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, dcPlatform)
+	delete(d.pins, chatID)
+	d.saveSession()
+	return nil
 }

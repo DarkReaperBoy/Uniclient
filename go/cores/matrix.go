@@ -4515,6 +4515,7 @@ func (m *MatrixCore) CallNotify(callID string, roomID id.RoomID, lifetime int) e
 }
 
 // GroupCallEncryptionKeys sends m.call.encryption_keys for MatrixRTC encrypted group calls.
+// Deprecated: Use SendGroupCallEncryptionKeys instead (uses Element's event type).
 func (m *MatrixCore) GroupCallEncryptionKeys(callID string, roomID id.RoomID, keys []map[string]interface{}) error {
 	if !m.authed {
 		return ErrAuth
@@ -4525,14 +4526,7 @@ func (m *MatrixCore) GroupCallEncryptionKeys(callID string, roomID id.RoomID, ke
 		"party_id": m.deviceID.String(),
 		"keys":     keys,
 	}
-	_, err := m.client.SendToDevice(m.ctx, event.NewEventType("m.call.encryption_keys"), &mautrix.ReqSendToDevice{
-		Messages: map[id.UserID]map[id.DeviceID]*event.Content{
-			// Broadcast — caller should fill in targets
-		},
-	})
-	_ = err
-	// Fallback: send as room event
-	_, err = m.client.SendMessageEvent(m.ctx, roomID, event.NewEventType("m.call.encryption_keys"), content)
+	_, err := m.client.SendMessageEvent(m.ctx, roomID, event.NewEventType("m.call.encryption_keys"), content)
 	return err
 }
 
@@ -6250,43 +6244,23 @@ func (m *MatrixCore) SetCanonicalAlias(roomID, alias string, altAliases []string
 // Step 4 — Identity Server (3 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ValidateEmailForAccount requests email validation for account binding.
+// ValidateEmailForAccount is an alias for RequestEmailToken (same API endpoint).
 func (m *MatrixCore) ValidateEmailForAccount(email, clientSecret string, sendAttempt int) (map[string]interface{}, error) {
-	data, err := m.mxRawReq(http.MethodPost,
-		m.client.BuildClientURL("v3", "account", "3pid", "email", "requestToken"),
-		map[string]interface{}{
-			"client_secret": clientSecret,
-			"email":         email,
-			"send_attempt":  sendAttempt,
-		})
+	sid, err := m.RequestEmailToken(email, clientSecret, sendAttempt)
 	if err != nil { return nil, err }
-	var result map[string]interface{}
-	json.Unmarshal(data, &result)
-	return result, nil
+	return map[string]interface{}{"sid": sid}, nil
 }
 
-// ValidatePhoneForAccount requests phone validation for account binding.
+// ValidatePhoneForAccount is an alias for RequestMsisdnToken (same API endpoint).
 func (m *MatrixCore) ValidatePhoneForAccount(country, phone, clientSecret string, sendAttempt int) (map[string]interface{}, error) {
-	data, err := m.mxRawReq(http.MethodPost,
-		m.client.BuildClientURL("v3", "account", "3pid", "msisdn", "requestToken"),
-		map[string]interface{}{
-			"client_secret": clientSecret,
-			"country":       country,
-			"phone_number":  phone,
-			"send_attempt":  sendAttempt,
-		})
+	sid, err := m.RequestMsisdnToken(country, phone, clientSecret, sendAttempt)
 	if err != nil { return nil, err }
-	var result map[string]interface{}
-	json.Unmarshal(data, &result)
-	return result, nil
+	return map[string]interface{}{"sid": sid}, nil
 }
 
-// Delete3PIDByAddress removes a 3PID by address.
+// Delete3PIDByAddress is an alias for Delete3PID.
 func (m *MatrixCore) Delete3PIDByAddress(medium, address string) error {
-	_, err := m.mxRawReq(http.MethodPost,
-		m.client.BuildClientURL("v3", "account", "3pid", "delete"),
-		map[string]string{"medium": medium, "address": address})
-	return err
+	return m.Delete3PID(medium, address)
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -6379,23 +6353,61 @@ func (m *MatrixCore) GetIgnoredUsers() ([]string, error) {
 }
 
 func (m *MatrixCore) ArchiveChat(chatID string, archived bool) error {
-	return fmt.Errorf("%w: %s archive chat not yet implemented", ErrNotSupported, mxPlatform)
+	if !m.authed {
+		return ErrAuth
+	}
+	if archived {
+		return m.SetRoomTag(chatID, "m.lowpriority")
+	}
+	return m.RemoveRoomTag(chatID, "m.lowpriority")
 }
 
-func (m *MatrixCore) DeclineCall(callID string) error {
-	return m.RejectCall(callID)
-}
+func (m *MatrixCore) DeclineCall(callID string) error { return m.RejectCall(callID) }
 
 func (m *MatrixCore) MuteChat(chatID string, muted bool) error {
-	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, mxPlatform)
+	if !m.authed {
+		return ErrAuth
+	}
+	if muted {
+		// Add a push rule to suppress notifications for this room
+		return m.SetPushRule("global", "room", chatID, map[string]interface{}{
+			"actions": []interface{}{"dont_notify"},
+		})
+	}
+	// Remove the mute push rule
+	return m.DeletePushRule("global", "room", chatID)
 }
 
 func (m *MatrixCore) UnpinAllMessages(chatID string) error {
-	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, mxPlatform)
+	if !m.authed {
+		return ErrAuth
+	}
+	roomID := id.RoomID(chatID)
+	_, err := m.client.SendStateEvent(m.ctx, roomID, event.StatePinnedEvents, "", map[string]interface{}{
+		"pinned": []string{},
+	})
+	if err != nil {
+		return fmt.Errorf("unpin all: %w", err)
+	}
+	return nil
 }
 
 func (m *MatrixCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
-	return nil, fmt.Errorf("%w: %s send location not yet implemented", ErrNotSupported, mxPlatform)
+	geoURI := fmt.Sprintf("geo:%.6f,%.6f", lat, lon)
+	body := fmt.Sprintf("Location (%.6f, %.6f)", lat, lon)
+	eventID, err := m.SendLocationMessage(chatID, geoURI, body)
+	if err != nil {
+		return nil, err
+	}
+	return &Message{
+		ID:        eventID,
+		ChatID:    chatID,
+		SenderID:  m.userID.String(),
+		Text:      body,
+		Timestamp: time.Now(),
+		Status:    MessageStatusSent,
+		Platform:  "matrix",
+	}, nil
 }
 
 // GetFullyReadMarker returns the m.fully_read room account data.

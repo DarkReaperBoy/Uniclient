@@ -4661,14 +4661,7 @@ func (c *MumbleCore) MoveToChannel(channelID uint32) error {
 	c.mu.RLock()
 	session := c.mySession
 	c.mu.RUnlock()
-
-	msg := &mumbleUserStateMsg{
-		Session:      session,
-		HasSession:   true,
-		ChannelID:    channelID,
-		HasChannelID: true,
-	}
-	return c.tcpSend(mumbleMsgUserState, msg.marshal())
+	return c.MoveUser(session, channelID)
 }
 
 // MoveUser moves another user to a channel.
@@ -5089,11 +5082,6 @@ func (c *MumbleCore) MoveChannel(channelID, newParent uint32) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// SendVoiceWhisper sends voice to a registered whisper target.
-func (c *MumbleCore) SendVoiceWhisper(opusData []byte, targetID int) error {
-	return c.SendVoice(opusData, targetID)
-}
-
 // SendTreeMessage sends a text message to a channel tree (recursively).
 func (c *MumbleCore) SendTreeMessage(channelID uint32, message string) error {
 	msg := &mumbleTextMsg{
@@ -5360,15 +5348,6 @@ func (c *MumbleCore) HandleContextActionModify(handler func(MumbleContextActionE
 	c.mu.Lock()
 	c.contextActionHandler = handler
 	c.mu.Unlock()
-}
-
-// TriggerContextActionChannel triggers a registered context action targeting a channel.
-func (c *MumbleCore) TriggerContextActionChannel(action string, channelID uint32) error {
-	msg := &mumbleContextActionMsg{
-		ChannelID: channelID,
-		Action:    action,
-	}
-	return c.tcpSend(mumbleMsgContextAction, msg.marshal())
 }
 
 // ── Ban Management ──

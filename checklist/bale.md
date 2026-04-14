@@ -1,6 +1,6 @@
 # Bale — Fresh Checklist
 
-**Methods:** 464 exported | **Lines:** 7,985 | **File:** `go/cores/bale.go`
+**Methods:** 456 exported | **Lines:** 7,968 | **File:** `go/cores/bale.go`
 **Protocol:** Bale (Bot API + User gRPC API, Iranian messenger)
 **Last updated:** 2026-04-13
 
@@ -10,7 +10,7 @@
 - [ ] Capabilities
 - [ ] Name
 
-### Authentication & Session (26)
+### Authentication & Session (22)
 - [ ] Authenticate
 - [ ] ChangePhone
 - [ ] ChangePhoneNumber
@@ -19,10 +19,8 @@
 - [ ] DeleteAccount
 - [ ] DisableTwoFactorAuthentication
 - [ ] EnableTwoFactorAuthentication
-- [ ] GetAuthSessions
 - [ ] GetSessions
 - [ ] GetUserID
-- [ ] GetUserIdToken
 - [ ] IsTwoFactorAuthenticationEnabled
 - [ ] Logout
 - [ ] RecoverPassword
@@ -31,14 +29,13 @@
 - [ ] SetNewPassword
 - [ ] TerminateAllSessions
 - [ ] TerminateSession
-- [ ] TerminateSessionReal
 - [ ] UserSignOut
 - [ ] UserSignUp
 - [ ] UserTerminateSession
 - [ ] UserValidatePassword
 - [ ] VerifyPasswordRecovery
 
-### Messaging — Send (30)
+### Messaging — Send (29)
 - [ ] CopyMessage
 - [ ] ForwardMessage
 - [ ] ReplyToMessage
@@ -48,7 +45,6 @@
 - [ ] SendContact
 - [ ] SendDocument
 - [ ] SendImageBase64
-- [ ] SendInvoice
 - [ ] SendJsonMessage
 - [ ] SendLiveMessage
 - [ ] SendLocation
@@ -139,9 +135,8 @@
 - [ ] UserGetMessagesRepliesInfo
 - [ ] UserMessageReceived
 
-### Messaging — Pins (6)
+### Messaging — Pins (5)
 - [ ] PinMessage
-- [ ] UnpinAllChatMessages
 - [ ] UnpinAllMessages
 - [ ] UnpinMessage
 - [ ] UserGetPins
@@ -199,15 +194,13 @@
 - [ ] UserSendInlineCallback
 - [ ] UserSendInlineCallBackData
 
-### Chat & Group Management (14)
+### Chat & Group Management (12)
 - [ ] CreateChannel
 - [ ] CreateGroup
 - [ ] GetChat
 - [ ] GetChatInfo
 - [ ] EditChatDescription
 - [ ] EditChatTitle
-- [ ] SetChatDescription
-- [ ] SetChatTitle
 - [ ] DeleteChatPhoto
 - [ ] SetChatPhoto
 - [ ] LeaveChat
@@ -215,9 +208,8 @@
 - [ ] UserCreateGroupFull
 - [ ] UserGetFullGroup
 
-### Chat — Members (16)
+### Chat — Members (14)
 - [ ] AddMembers
-- [ ] BanChatMember
 - [ ] BanMember
 - [ ] GetChatAdministrators
 - [ ] GetChatMember
@@ -229,7 +221,6 @@
 - [ ] RestrictChatMember
 - [ ] SearchMembers
 - [ ] SetAdmin
-- [ ] UnbanChatMember
 - [ ] UnbanMember
 - [ ] UserLoadMembers
 
@@ -309,9 +300,8 @@
 - [ ] UserUnArchiveDialogs
 - [ ] UserDeleteChat
 
-### Dialogs & Folders (17)
+### Dialogs & Folders (16)
 - [ ] CreateFolder
-- [ ] CreateFolderReal
 - [ ] DeleteFolder
 - [ ] EditFolder
 - [ ] GetDialogs
@@ -359,7 +349,7 @@
 - [ ] UserResetContacts
 - [ ] UserSearchContacts
 
-### User Profile & Privacy (17)
+### User Profile & Privacy (16)
 - [ ] EditAvatarGRPC
 - [ ] EditBirthDate
 - [ ] EditMyPreferredLanguages
@@ -371,7 +361,6 @@
 - [ ] GetUserPrivacyStatus
 - [ ] IsNameAllowed
 - [ ] LoadAvatars
-- [ ] LoadFullUsersSequentially
 - [ ] RemoveAvatar
 - [ ] SetUserPrivacyStatus
 - [ ] UserEditAbout
@@ -586,32 +575,21 @@
 - [ ] UserSubscribeToUpdates
 - [ ] GetUserProfilePhotos
 
-### Payments & Commerce (7)
-- [ ] AnswerPreCheckoutQuery
-- [ ] AnswerShippingQuery
-- [ ] CreateInvoiceLink
-- [ ] UserCalculateDiscountedPrice
+### Payments & Commerce (2)
 - [ ] UserGetPaymentDetails
 - [ ] UserMakePayment
-- [ ] InquireTransaction
 
-### Banking & Ramz (10)
-- [ ] AddCard
-- [ ] ChangeDefaultCardNumber
+### Banking & Ramz (7)
 - [ ] CheckRamzPassword
 - [ ] CheckRamzPasswordSet
 - [ ] DeleteRamzPassword
 - [ ] ForgetRamzPassword
-- [ ] GetUsersDefaultCardNumber
-- [ ] RemoveDefaultCardNumber
 - [ ] SendRamzOTP
 - [ ] SetRamzPassword
+- [ ] ValidateRamzOTP
 
 ### Banking (User) (2)
-- [ ] ValidateRamzOTP
 - [ ] UserEditGroupDefaultCardNumber
-
-### Banking — Group Card (1)
 - [ ] UserGetGroupDefaultCardNumber
 
 ### Push Notifications (6)
@@ -630,21 +608,15 @@
 - [ ] NotifyAboutDeviceInfo
 - [ ] UserExecuteTaskNow
 
-### Tickets & Tokens (5)
-- [ ] GetBajeBamTicket
-- [ ] GetBaleTicket
-- [ ] GetJWTToken
-- [ ] GetTicket
+### Tickets & Tokens (1)
 - [ ] GetWssURL
 
 ### Email (1)
 - [ ] VerifyEmail
 
-### Feedback & Reports (4)
-- [ ] AskReview
+### Feedback & Reports (2)
 - [ ] ReportDismiss
 - [ ] ReportInappropriateContent
-- [ ] SendFeedBack
 
 ### Fanoos (1)
 - [ ] FanoosSend
@@ -656,66 +628,14 @@
 - [ ] UserGetLinkStatus
 - [ ] UserGetLinkSummary
 
-### Premium (5)
-- [ ] UserGetPremiumBadges
-- [ ] UserGetPremiumPackages
-- [ ] UserIsPremium
-- [ ] UserIsPremiumBatch
-- [ ] UserPurchasePremiumPackage
-
-### Premium — Badge (1)
-- [ ] UserSetPremiumBadge
+### Premium
+*Removed — premium/badge/purchase features have no messaging value. Not implemented.*
 
 ### Organization (1)
 - [ ] UserGetOrganizationInfo
 
-### Marketplace (21)
-- [ ] UserMarketAcceptCampaignMarket
-- [ ] UserMarketAcceptJoinRequest
-- [ ] UserMarketCreateJoinRequest
-- [ ] UserMarketCreateTag
-- [ ] UserMarketGetCategoriesList
-- [ ] UserMarketGetCategoryMarkets
-- [ ] UserMarketGetCategoryProducts
-- [ ] UserMarketGetIndexedProducts
-- [ ] UserMarketGetJoinRequests
-- [ ] UserMarketGetMarket
-- [ ] UserMarketGetNumberOfSales
-- [ ] UserMarketGetOnboardingStatus
-- [ ] UserMarketGetPendingCampaignMarkets
-- [ ] UserMarketGetPendingJoinRequests
-- [ ] UserMarketGetStores
-- [ ] UserMarketGetTags
-- [ ] UserMarketGetTopMarkets
-- [ ] UserMarketGetYaldaStores
-- [ ] UserMarketRejectCampaignMarket
-- [ ] UserMarketRejectJoinRequest
-- [ ] UserMarketSetBanners
-
-### Marketplace — Config (4)
-- [ ] UserMarketSetGenericDeepLinks
-- [ ] UserMarketSetOnboardingData
-- [ ] UserMarketSetPopularSearches
-- [ ] UserMarketSubmitFeedback
-
-### Marketplace — Update & Search (3)
-- [ ] UserMarketUpdateInfo
-- [ ] UserSearchMarket
-- [ ] UserSearchMarketPopular
-
-### Marketplace — Products (1)
-- [ ] UserSearchProduct
-
-### Timche (5)
-- [ ] UserTimcheAskBotReviewCallback
-- [ ] UserTimcheGetBotPage
-- [ ] UserTimcheGetHomePage
-- [ ] UserTimcheGetSectionPage
-- [ ] UserTimcheSubmitReview
-
-### Ghasedak (Feed) (2)
-- [ ] UserGhasedakGetDiff
-- [ ] UserGhasedakGetRoutesStates
+### Marketplace / Timche / Ghasedak
+*Removed — these gRPC services exist on the server but are market/store/feed features with no messaging value. Not implemented.*
 
 ### Feed & Magazine (3)
 - [ ] UserLoadCategoryFeedMessages
@@ -725,8 +645,7 @@
 ### Magazine (1)
 - [ ] UserLoadMagazineCategories
 
-### AI & Transcription (4)
-- [ ] GetTranscript
+### AI & Transcription (3)
 - [ ] GetTranscript
 - [ ] UserAIGetTranscript
 - [ ] UserAISendEvent

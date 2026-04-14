@@ -1,8 +1,18 @@
 # Delta Chat — Fresh Checklist
 
-**Methods:** 245 exported | **Lines:** 7,613 | **File:** `go/cores/deltachat.go`
+**Methods:** 245 exported | **Lines:** 7,529 | **File:** `go/cores/deltachat.go`
 **Protocol:** Delta Chat (IMAP/SMTP, Autocrypt E2EE, chatmail)
 **Last updated:** 2026-04-13
+
+## Audit Notes (2026-04-13)
+- Removed dead code: `encryptMessage` (superseded by `wrapPGPMIME`), `shouldEncrypt` (unused)
+- `CreateBroadcastList` now delegates to `CreateChannel` (was duplicate logic)
+- `ProvideBackup` now delegates to `GetBackup` (was identical body)
+- `ArchiveChat` now delegates to `SetChatVisibility` (was ErrNotSupported stub)
+- `MarkUnread` now delegates to `MarkFreshChat`/`MarkNoticedChat` (was ErrNotSupported stub)
+- `UnpinAllMessages` now implemented (clears pins map; was ErrNotSupported stub)
+- `DeclineCall` now delegates to `EndCall` (was ErrNotSupported stub)
+- Removed `GetChatSecureJoinQRCodeSvg` from checklist (already removed from code as duplicate of `GetSecureJoinQRSvg`)
 
 ## Categories
 
@@ -251,12 +261,11 @@
 - [ ] SetEphemeralTimer
 - [ ] EstimateAutoDeletionCount
 
-### Invite Links & QR (7)
+### Invite Links & QR (8)
 - [ ] CheckQR
 - [ ] CreateQRSvg
 - [ ] GetBackupQR
 - [ ] GetBackupQRSvg
-- [ ] GetChatSecureJoinQRCodeSvg
 - [ ] GetInviteLink
 - [ ] GetSecureJoinQR
 - [ ] GetSecureJoinQRSvg

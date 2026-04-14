@@ -3199,15 +3199,15 @@ func (r *RubikaCore) GetObjectByUsername(username string) (map[string]interface{
 	})
 }
 
-// SearchGlobalObjects searches for objects globally.
-func (r *RubikaCore) SearchGlobalObjects(searchText string) (map[string]interface{}, error) {
+// searchGlobalObjects searches for objects globally.
+func (r *RubikaCore) searchGlobalObjects(searchText string) (map[string]interface{}, error) {
 	return r.api("searchGlobalObjects", map[string]interface{}{
 		"search_text": searchText,
 	})
 }
 
-// SearchChatMessages searches messages within a chat.
-func (r *RubikaCore) SearchChatMessages(chatID string, searchText string) (map[string]interface{}, error) {
+// searchChatMessages searches messages within a chat.
+func (r *RubikaCore) searchChatMessages(chatID string, searchText string) (map[string]interface{}, error) {
 	return r.api("searchChatMessages", map[string]interface{}{
 		"object_guid": chatID,
 		"search_text": searchText,
@@ -3229,8 +3229,8 @@ func (r *RubikaCore) getContactsRaw() (map[string]interface{}, error) {
 	return r.api("getContacts", map[string]interface{}{})
 }
 
-// GetMySessions retrieves active sessions.
-func (r *RubikaCore) GetMySessions() (map[string]interface{}, error) {
+// getMySessions retrieves active sessions.
+func (r *RubikaCore) getMySessions() (map[string]interface{}, error) {
 	return r.api("getMySessions", map[string]interface{}{})
 }
 
@@ -3777,7 +3777,7 @@ func (r *RubikaCore) DeleteUserChat(userGUID string, lastDeletedMsgID string) er
 // --- Contacts ---
 
 // AddAddressBook imports contacts.
-func (r *RubikaCore) AddAddressBook(phone string, firstName string, lastName string) (map[string]interface{}, error) {
+func (r *RubikaCore) addAddressBook(phone string, firstName string, lastName string) (map[string]interface{}, error) {
 	return r.api("addAddressBook", map[string]interface{}{
 		"phone":      phone,
 		"first_name": firstName,
@@ -4808,7 +4808,7 @@ func (r *RubikaCore) GetInviteLink(chatID string) (string, error) {
 		}
 		return "", nil
 	case ChatTypeChannel:
-		raw, err := r.api("getChannelLink", map[string]interface{}{"channel_guid": chatID})
+		raw, err := r.GetChannelLink(chatID)
 		if err != nil {
 			return "", err
 		}
@@ -4951,7 +4951,7 @@ func (r *RubikaCore) GetContacts() ([]User, error) {
 }
 
 func (r *RubikaCore) AddContact(phone string, firstName string, lastName string) error {
-	_, err := r.AddAddressBook(phone, firstName, lastName)
+	_, err := r.addAddressBook(phone, firstName, lastName)
 	return err
 }
 
@@ -4995,7 +4995,7 @@ func (r *RubikaCore) GetBlockedUsers() ([]User, error) {
 }
 
 func (r *RubikaCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
-	raw, err := r.SearchChatMessages(chatID, query)
+	raw, err := r.searchChatMessages(chatID, query)
 	if err != nil {
 		return nil, err
 	}
@@ -5021,7 +5021,7 @@ func (r *RubikaCore) SearchMessages(chatID string, query string, opts Pagination
 }
 
 func (r *RubikaCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
-	raw, err := r.SearchGlobalObjects(query)
+	raw, err := r.searchGlobalObjects(query)
 	if err != nil {
 		return nil, err
 	}
@@ -5078,7 +5078,7 @@ func (r *RubikaCore) SendSticker(chatID string, stickerID string) (*Message, err
 }
 
 func (r *RubikaCore) GetSessions() ([]Session, error) {
-	raw, err := r.GetMySessions()
+	raw, err := r.getMySessions()
 	if err != nil {
 		return nil, err
 	}

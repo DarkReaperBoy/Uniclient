@@ -799,7 +799,7 @@ func (b *BaleCore) CreateFolder(name string, chatIDs []string) (*Folder, error) 
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bale bot API does not support folders", ErrNotSupported)
 	}
-	resp, err := b.CreateFolderReal(name, chatIDs)
+	resp, err := b.UserCreateFolder(name, chatIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -1925,8 +1925,8 @@ func (b *BaleCore) GetChatMember(chatID string, userID int64) (map[string]interf
 	return result, nil
 }
 
-// BanChatMember bans a user from a group/channel.
-func (b *BaleCore) BanChatMember(chatID string, userID int64) error {
+// banChatMember bans a user from a group/channel (bot API).
+func (b *BaleCore) banChatMember(chatID string, userID int64) error {
 	params := map[string]interface{}{
 		"chat_id": chatID,
 		"user_id": userID,
@@ -1935,8 +1935,8 @@ func (b *BaleCore) BanChatMember(chatID string, userID int64) error {
 	return err
 }
 
-// UnbanChatMember unbans a user.
-func (b *BaleCore) UnbanChatMember(chatID string, userID int64, onlyIfBanned bool) error {
+// unbanChatMember unbans a user (bot API).
+func (b *BaleCore) unbanChatMember(chatID string, userID int64, onlyIfBanned bool) error {
 	params := map[string]interface{}{
 		"chat_id":        chatID,
 		"user_id":        userID,
@@ -1959,8 +1959,8 @@ func (b *BaleCore) PromoteChatMember(chatID string, userID int64, perms map[stri
 	return err
 }
 
-// SetChatTitle sets the chat title.
-func (b *BaleCore) SetChatTitle(chatID string, title string) error {
+// setChatTitle sets the chat title (bot API).
+func (b *BaleCore) setChatTitle(chatID string, title string) error {
 	params := map[string]interface{}{
 		"chat_id": chatID,
 		"title":   title,
@@ -1969,8 +1969,8 @@ func (b *BaleCore) SetChatTitle(chatID string, title string) error {
 	return err
 }
 
-// SetChatDescription sets the chat description.
-func (b *BaleCore) SetChatDescription(chatID string, description string) error {
+// setChatDescription sets the chat description (bot API).
+func (b *BaleCore) setChatDescription(chatID string, description string) error {
 	params := map[string]interface{}{
 		"chat_id":     chatID,
 		"description": description,
@@ -2033,8 +2033,8 @@ func (b *BaleCore) ExportChatInviteLink(chatID string) (string, error) {
 	return link, nil
 }
 
-// UnpinAllChatMessages unpins all messages in a chat.
-func (b *BaleCore) UnpinAllChatMessages(chatID string) error {
+// unpinAllChatMessages unpins all messages in a chat (bot API).
+func (b *BaleCore) unpinAllChatMessages(chatID string) error {
 	params := map[string]interface{}{
 		"chat_id": chatID,
 	}
@@ -4531,7 +4531,7 @@ func (b *BaleCore) GetChatInfo(chatID string) (*Dialog, error) {
 
 func (b *BaleCore) EditChatTitle(chatID string, title string) error {
 	if b.isBot {
-		return b.SetChatTitle(chatID, title)
+		return b.setChatTitle(chatID, title)
 	}
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
@@ -4547,7 +4547,7 @@ func (b *BaleCore) EditChatTitle(chatID string, title string) error {
 
 func (b *BaleCore) EditChatDescription(chatID string, description string) error {
 	if b.isBot {
-		return b.SetChatDescription(chatID, description)
+		return b.setChatDescription(chatID, description)
 	}
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
@@ -4596,7 +4596,7 @@ func (b *BaleCore) AddMembers(chatID string, userIDs []string) error {
 func (b *BaleCore) RemoveMember(chatID string, userID string) error {
 	if b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
-		return b.BanChatMember(chatID, uid)
+		return b.banChatMember(chatID, uid)
 	}
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
@@ -4614,7 +4614,7 @@ func (b *BaleCore) RemoveMember(chatID string, userID string) error {
 func (b *BaleCore) BanMember(chatID string, userID string) error {
 	if b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
-		return b.BanChatMember(chatID, uid)
+		return b.banChatMember(chatID, uid)
 	}
 	return b.RemoveMember(chatID, userID) // Bale user mode: kick = ban
 }
@@ -4622,7 +4622,7 @@ func (b *BaleCore) BanMember(chatID string, userID string) error {
 func (b *BaleCore) UnbanMember(chatID string, userID string) error {
 	if b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
-		return b.UnbanChatMember(chatID, uid, false)
+		return b.unbanChatMember(chatID, uid, false)
 	}
 	return fmt.Errorf("%w: bale user mode does not support unbanning", ErrNotSupported)
 }
@@ -4811,7 +4811,7 @@ func (b *BaleCore) GetSessions() ([]Session, error) {
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bale bot API does not support session management", ErrNotSupported)
 	}
-	resp, err := b.GetAuthSessions()
+	resp, err := b.getAuthSessions()
 	if err != nil {
 		return nil, err
 	}
@@ -4838,7 +4838,7 @@ func (b *BaleCore) TerminateSession(sessionID string) error {
 	if err != nil {
 		return fmt.Errorf("invalid session ID: %w", err)
 	}
-	_, err = b.TerminateSessionReal(sid)
+	_, err = b.terminateSessionReal(sid)
 	return err
 }
 
@@ -5783,43 +5783,26 @@ func (b *BaleCore) GetMyCommands() ([]map[string]string, error) {
 // Extended Methods — Auth Sessions (2 methods, user mode)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// GetAuthSessions returns the user's active sessions.
+// getAuthSessions returns the user's active sessions (raw gRPC).
 // Service: bale.auth.v1.Auth/GetAuthSessions
-func (b *BaleCore) GetAuthSessions() (map[string]interface{}, error) {
+func (b *BaleCore) getAuthSessions() (map[string]interface{}, error) {
 	return b.userSend(baleServiceAuth, "GetAuthSessions", map[string]interface{}{})
 }
 
-// TerminateSessionReal terminates a specific auth session by ID.
+// terminateSessionReal terminates a specific auth session by ID (raw gRPC).
 // Service: bale.auth.v1.Auth/TerminateSession
-func (b *BaleCore) TerminateSessionReal(sessionID int64) (map[string]interface{}, error) {
+func (b *BaleCore) terminateSessionReal(sessionID int64) (map[string]interface{}, error) {
 	return b.userSend(baleServiceAuth, "TerminateSession", map[string]interface{}{"1": sessionID})
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Extended Methods — Folders (2 methods, user mode)
+// Extended Methods — Folders (1 method, user mode)
 // ══════════════════════════════════════════════════════════════════════════════
 
 // LoadFolders loads the user's dialog folders.
 // Service: bale.messaging.v2.Messaging/LoadFolders
 func (b *BaleCore) LoadFolders() (map[string]interface{}, error) {
 	return b.userSend(baleServiceMessaging, "LoadFolders", map[string]interface{}{})
-}
-
-// CreateFolderReal creates a new dialog folder with the given title and included peers.
-// Service: bale.messaging.v2.Messaging/CreateFolder
-func (b *BaleCore) CreateFolderReal(title string, peerIDs []string) (map[string]interface{}, error) {
-	var peers []interface{}
-	for _, id := range peerIDs {
-		peerID, peerType := parsePeerID(id)
-		peers = append(peers, balePeer(peerType, peerID))
-	}
-	payload := map[string]interface{}{
-		"1": title,
-	}
-	if len(peers) > 0 {
-		payload["2"] = peers
-	}
-	return b.userSend(baleServiceMessaging, "CreateFolder", payload)
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -6038,7 +6021,7 @@ func (b *BaleCore) MarkUnread(chatID string, unread bool) error {
 }
 
 func (b *BaleCore) UnpinAllMessages(chatID string) error {
-	return b.UnpinAllChatMessages(chatID)
+	return b.unpinAllChatMessages(chatID)
 }
 
 func (b *BaleCore) AcceptCall(callID string) (*CallSession, error) {
