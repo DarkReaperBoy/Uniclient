@@ -241,8 +241,10 @@ func NewMatrixCore(sessionPath string) *MatrixCore {
 
 // --- Core Interface: Identity ---
 
+// Name returns the platform identifier for Matrix.
 func (m *MatrixCore) Name() string { return mxPlatform }
 
+// Capabilities returns the list of features supported by the Matrix core.
 func (m *MatrixCore) Capabilities() []string {
 	return []string{
 		CapText, CapChannels, CapCalls, CapReactions, CapReadReceipts,
@@ -254,6 +256,7 @@ func (m *MatrixCore) Capabilities() []string {
 
 // --- Core Interface: Auth ---
 
+// Authenticate logs in to a Matrix homeserver using the provided credentials.
 func (m *MatrixCore) Authenticate(cfg AuthConfig) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -370,6 +373,7 @@ func (m *MatrixCore) Authenticate(cfg AuthConfig) error {
 	return nil
 }
 
+// Logout ends the current Matrix session and cleans up resources.
 func (m *MatrixCore) Logout() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -392,6 +396,7 @@ func (m *MatrixCore) Logout() error {
 
 // --- Core Interface: Dialogs ---
 
+// GetDialogs returns a paginated list of joined rooms.
 func (m *MatrixCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -433,6 +438,7 @@ func (m *MatrixCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs, nil
 }
 
+// CreateGroup creates a new private group room with the specified members.
 func (m *MatrixCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -474,6 +480,7 @@ func (m *MatrixCore) CreateGroup(name string, members []string) (*Dialog, error)
 	return &dialog, nil
 }
 
+// CreateChannel creates a new public room with the given name and description.
 func (m *MatrixCore) CreateChannel(name string, description string) (*Dialog, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -510,6 +517,7 @@ func (m *MatrixCore) CreateChannel(name string, description string) (*Dialog, er
 	return &dialog, nil
 }
 
+// CreateTopic creates a new thread-like sub-room within a space.
 func (m *MatrixCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -537,6 +545,7 @@ func (m *MatrixCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	return &dialog, nil
 }
 
+// GetFolders returns the list of spaces as folders.
 func (m *MatrixCore) GetFolders() ([]Folder, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -574,6 +583,7 @@ func (m *MatrixCore) GetFolders() ([]Folder, error) {
 	return folders, nil
 }
 
+// CreateFolder creates a new Matrix space containing the specified rooms.
 func (m *MatrixCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -612,6 +622,7 @@ func (m *MatrixCore) CreateFolder(name string, chatIDs []string) (*Folder, error
 
 // --- Core Interface: Messages ---
 
+// SendMessage sends a text message to a room, with optional encryption.
 func (m *MatrixCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -648,6 +659,7 @@ func (m *MatrixCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 	}, nil
 }
 
+// GetMessages retrieves a paginated list of messages from a room.
 func (m *MatrixCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -680,6 +692,7 @@ func (m *MatrixCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 	return messages, nil
 }
 
+// EditMessage edits an existing message in a room.
 func (m *MatrixCore) EditMessage(chatID string, msgID string, text string) (*Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -715,6 +728,7 @@ func (m *MatrixCore) EditMessage(chatID string, msgID string, text string) (*Mes
 	}, nil
 }
 
+// DeleteMessage redacts a message in a room.
 func (m *MatrixCore) DeleteMessage(chatID string, msgID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -728,6 +742,7 @@ func (m *MatrixCore) DeleteMessage(chatID string, msgID string) error {
 	return nil
 }
 
+// ReplyToMessage sends a message as a reply to an existing message.
 func (m *MatrixCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -761,6 +776,7 @@ func (m *MatrixCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outg
 	}, nil
 }
 
+// ForwardMessage copies a message from one room to another.
 func (m *MatrixCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -804,6 +820,7 @@ func (m *MatrixCore) ForwardMessage(fromChatID string, msgID string, toChatID st
 	}, nil
 }
 
+// ReactToMessage sends an emoji reaction to a message.
 func (m *MatrixCore) ReactToMessage(chatID string, msgID string, emoji string) error {
 	if !m.authed {
 		return ErrAuth
@@ -817,6 +834,7 @@ func (m *MatrixCore) ReactToMessage(chatID string, msgID string, emoji string) e
 	return nil
 }
 
+// PinMessage pins a message in a room.
 func (m *MatrixCore) PinMessage(chatID string, msgID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -844,6 +862,7 @@ func (m *MatrixCore) PinMessage(chatID string, msgID string) error {
 	return nil
 }
 
+// UnpinMessage unpins a message in a room.
 func (m *MatrixCore) UnpinMessage(chatID string, msgID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -872,6 +891,7 @@ func (m *MatrixCore) UnpinMessage(chatID string, msgID string) error {
 
 // --- Core Interface: Read State ---
 
+// MarkAsRead sends a read receipt up to the specified message.
 func (m *MatrixCore) MarkAsRead(chatID string, upToMsgID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -885,6 +905,7 @@ func (m *MatrixCore) MarkAsRead(chatID string, upToMsgID string) error {
 	return nil
 }
 
+// GetReadState returns the read state for a room.
 func (m *MatrixCore) GetReadState(chatID string) (*ReadState, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -899,6 +920,7 @@ func (m *MatrixCore) GetReadState(chatID string) (*ReadState, error) {
 
 // --- Core Interface: Files ---
 
+// UploadFile uploads a file to a room, with optional encryption and progress reporting.
 func (m *MatrixCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -996,6 +1018,7 @@ func (m *MatrixCore) UploadFile(chatID string, file FileUpload, progress func(se
 	}, nil
 }
 
+// DownloadFile downloads a file from Matrix to a local path, with progress reporting.
 func (m *MatrixCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	if !m.authed {
 		return ErrAuth
@@ -1047,6 +1070,7 @@ func (m *MatrixCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 
 // --- Core Interface: Media ---
 
+// SendImageBase64 sends a base64-encoded image as a message to a room.
 func (m *MatrixCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -1077,6 +1101,7 @@ func (m *MatrixCore) SendImageBase64(chatID string, b64 string, caption string) 
 
 // --- Core Interface: Calls ---
 
+// StartCall initiates a WebRTC call in a room.
 func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -1214,10 +1239,12 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	}, nil
 }
 
+// JoinGroupCall joins an existing group call in a room (not yet implemented).
 func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: matrix group calls (MSC3401) not yet implemented", ErrNotSupported)
 }
 
+// EndCall terminates an active call and sends a hangup event.
 func (m *MatrixCore) EndCall(callID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -1254,6 +1281,7 @@ func (m *MatrixCore) EndCall(callID string) error {
 	return nil
 }
 
+// SetCallMuted mutes or unmutes the audio track of an active call.
 func (m *MatrixCore) SetCallMuted(callID string, muted bool) error {
 	m.callsMu.RLock()
 	call, ok := m.activeCalls[callID]
@@ -1731,6 +1759,7 @@ func (m *MatrixCore) handleCallCandidates(evt *event.Event) {
 
 // --- Core Interface: Profile ---
 
+// GetProfile returns the profile information for a user.
 func (m *MatrixCore) GetProfile(userID string) (*User, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -1770,12 +1799,14 @@ func (m *MatrixCore) GetProfile(userID string) (*User, error) {
 
 // --- Core Interface: Real-time ---
 
+// OnUpdate registers a handler to receive real-time updates from the sync loop.
 func (m *MatrixCore) OnUpdate(handler func(Update)) {
 	m.updateMu.Lock()
 	defer m.updateMu.Unlock()
 	m.updateHandlers = append(m.updateHandlers, handler)
 }
 
+// Close stops the sync loop, ends active calls, and releases all resources.
 func (m *MatrixCore) Close() error {
 	m.mu.Lock()
 	if m.syncStop != nil {
@@ -1792,6 +1823,7 @@ func (m *MatrixCore) Close() error {
 
 // --- Core Interface: Chat Management ---
 
+// GetChatInfo returns detailed information about a room.
 func (m *MatrixCore) GetChatInfo(chatID string) (*Dialog, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -1820,6 +1852,7 @@ func (m *MatrixCore) GetChatInfo(chatID string) (*Dialog, error) {
 	return &dialog, nil
 }
 
+// EditChatTitle updates the name of a room.
 func (m *MatrixCore) EditChatTitle(chatID string, title string) error {
 	if !m.authed {
 		return ErrAuth
@@ -1835,6 +1868,7 @@ func (m *MatrixCore) EditChatTitle(chatID string, title string) error {
 	return nil
 }
 
+// EditChatDescription updates the topic of a room.
 func (m *MatrixCore) EditChatDescription(chatID string, description string) error {
 	if !m.authed {
 		return ErrAuth
@@ -1850,6 +1884,7 @@ func (m *MatrixCore) EditChatDescription(chatID string, description string) erro
 	return nil
 }
 
+// LeaveChat leaves a room and removes it from the local cache.
 func (m *MatrixCore) LeaveChat(chatID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -1868,6 +1903,7 @@ func (m *MatrixCore) LeaveChat(chatID string) error {
 	return nil
 }
 
+// GetInviteLink returns the canonical alias or room ID as an invite link.
 func (m *MatrixCore) GetInviteLink(chatID string) (string, error) {
 	if !m.authed {
 		return "", ErrAuth
@@ -1886,6 +1922,7 @@ func (m *MatrixCore) GetInviteLink(chatID string) (string, error) {
 
 // --- Core Interface: Members ---
 
+// AddMembers invites users to a room.
 func (m *MatrixCore) AddMembers(chatID string, userIDs []string) error {
 	if !m.authed {
 		return ErrAuth
@@ -1903,6 +1940,7 @@ func (m *MatrixCore) AddMembers(chatID string, userIDs []string) error {
 	return nil
 }
 
+// RemoveMember kicks a user from a room.
 func (m *MatrixCore) RemoveMember(chatID string, userID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -1918,6 +1956,7 @@ func (m *MatrixCore) RemoveMember(chatID string, userID string) error {
 	return nil
 }
 
+// BanMember bans a user from a room.
 func (m *MatrixCore) BanMember(chatID string, userID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -1933,6 +1972,7 @@ func (m *MatrixCore) BanMember(chatID string, userID string) error {
 	return nil
 }
 
+// UnbanMember lifts a ban on a user in a room.
 func (m *MatrixCore) UnbanMember(chatID string, userID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -1948,6 +1988,7 @@ func (m *MatrixCore) UnbanMember(chatID string, userID string) error {
 	return nil
 }
 
+// GetMembers returns a paginated list of members in a room.
 func (m *MatrixCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -1973,6 +2014,7 @@ func (m *MatrixCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	return users, nil
 }
 
+// SetAdmin grants or revokes admin power level for a user in a room.
 func (m *MatrixCore) SetAdmin(chatID string, userID string, admin bool) error {
 	if !m.authed {
 		return ErrAuth
@@ -2004,6 +2046,7 @@ func (m *MatrixCore) SetAdmin(chatID string, userID string, admin bool) error {
 
 // --- Core Interface: Contacts ---
 
+// GetContacts returns the list of users in direct message rooms.
 func (m *MatrixCore) GetContacts() ([]User, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -2039,10 +2082,12 @@ func (m *MatrixCore) GetContacts() ([]User, error) {
 	return contacts, nil
 }
 
+// AddContact is not supported on Matrix and always returns an error.
 func (m *MatrixCore) AddContact(phone string, firstName string, lastName string) error {
 	return fmt.Errorf("%w: matrix uses @user:server identifiers, not phone numbers", ErrNotSupported)
 }
 
+// DeleteContact removes a user from direct chats by clearing the m.direct mapping.
 func (m *MatrixCore) DeleteContact(userID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -2056,6 +2101,7 @@ func (m *MatrixCore) DeleteContact(userID string) error {
 	return m.saveDirectChats()
 }
 
+// BlockUser adds a user to the ignore list.
 func (m *MatrixCore) BlockUser(userID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -2078,6 +2124,7 @@ func (m *MatrixCore) BlockUser(userID string) error {
 	return m.client.SetAccountData(m.ctx, "m.ignored_user_list", &ignored)
 }
 
+// UnblockUser removes a user from the ignore list.
 func (m *MatrixCore) UnblockUser(userID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -2098,6 +2145,7 @@ func (m *MatrixCore) UnblockUser(userID string) error {
 	return m.client.SetAccountData(m.ctx, "m.ignored_user_list", &ignored)
 }
 
+// GetBlockedUsers returns the list of ignored users.
 func (m *MatrixCore) GetBlockedUsers() ([]User, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -2124,6 +2172,7 @@ func (m *MatrixCore) GetBlockedUsers() ([]User, error) {
 
 // --- Core Interface: Search ---
 
+// SearchMessages searches for messages matching a query within a room.
 func (m *MatrixCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -2187,6 +2236,7 @@ func (m *MatrixCore) SearchMessages(chatID string, query string, opts Pagination
 	return messages, nil
 }
 
+// SearchGlobal searches the public room directory for rooms matching a query.
 func (m *MatrixCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -2212,6 +2262,7 @@ func (m *MatrixCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, 
 
 // --- Core Interface: Typing ---
 
+// SendTyping sends a typing notification to a room.
 func (m *MatrixCore) SendTyping(chatID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -2227,6 +2278,7 @@ func (m *MatrixCore) SendTyping(chatID string) error {
 
 // --- Core Interface: Polls ---
 
+// CreatePoll creates a poll message in a room with the given question and options.
 func (m *MatrixCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -2274,6 +2326,7 @@ func (m *MatrixCore) CreatePoll(chatID string, question string, options []string
 	}, nil
 }
 
+// VotePoll casts a vote on a poll by option index.
 func (m *MatrixCore) VotePoll(chatID string, msgID string, optionIndex int) error {
 	if !m.authed {
 		return ErrAuth
@@ -2300,6 +2353,7 @@ func (m *MatrixCore) VotePoll(chatID string, msgID string, optionIndex int) erro
 
 // --- Core Interface: Stickers ---
 
+// SendSticker sends a sticker message to a room using an mxc:// URI.
 func (m *MatrixCore) SendSticker(chatID string, stickerID string) (*Message, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -2339,6 +2393,7 @@ func (m *MatrixCore) SendSticker(chatID string, stickerID string) (*Message, err
 
 // --- Core Interface: Sessions ---
 
+// GetSessions returns all active device sessions for the current user.
 func (m *MatrixCore) GetSessions() ([]Session, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -2370,6 +2425,7 @@ func (m *MatrixCore) GetSessions() ([]Session, error) {
 	return sessions, nil
 }
 
+// TerminateSession deletes a device session by its ID.
 func (m *MatrixCore) TerminateSession(sessionID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -2556,6 +2612,7 @@ func (m *MatrixCore) JoinRoom(roomID string) error {
 	return nil
 }
 
+// JoinRoomByAlias joins a room using its alias and returns the room info.
 func (m *MatrixCore) JoinRoomByAlias(alias string) (*Dialog, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -5229,6 +5286,7 @@ func (m *MatrixCore) LookupThirdPartyLocation(protocol string, fields map[string
 	return resp, nil
 }
 
+// LookupThirdPartyUser looks up a third-party user by protocol and field parameters.
 func (m *MatrixCore) LookupThirdPartyUser(protocol string, fields map[string]string) ([]map[string]interface{}, error) {
 	if !m.authed {
 		return nil, ErrAuth
@@ -6439,6 +6497,7 @@ func (m *MatrixCore) GetIgnoredUsers() ([]string, error) {
 	return users, nil
 }
 
+// ArchiveChat archives or unarchives a room using the low-priority tag.
 func (m *MatrixCore) ArchiveChat(chatID string, archived bool) error {
 	if !m.authed {
 		return ErrAuth
@@ -6449,8 +6508,10 @@ func (m *MatrixCore) ArchiveChat(chatID string, archived bool) error {
 	return m.RemoveRoomTag(chatID, "m.lowpriority")
 }
 
+// DeclineCall declines an incoming call (alias for RejectCall).
 func (m *MatrixCore) DeclineCall(callID string) error { return m.RejectCall(callID) }
 
+// MuteChat mutes or unmutes notifications for a room using push rules.
 func (m *MatrixCore) MuteChat(chatID string, muted bool) error {
 	if !m.authed {
 		return ErrAuth
@@ -6465,6 +6526,7 @@ func (m *MatrixCore) MuteChat(chatID string, muted bool) error {
 	return m.DeletePushRule("global", "room", chatID)
 }
 
+// UnpinAllMessages removes all pinned messages from a room.
 func (m *MatrixCore) UnpinAllMessages(chatID string) error {
 	if !m.authed {
 		return ErrAuth
@@ -6479,6 +6541,7 @@ func (m *MatrixCore) UnpinAllMessages(chatID string) error {
 	return nil
 }
 
+// SendLocation sends a location message with latitude and longitude coordinates.
 func (m *MatrixCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	latStr := strconv.FormatFloat(lat, 'f', 6, 64)
 	lonStr := strconv.FormatFloat(lon, 'f', 6, 64)

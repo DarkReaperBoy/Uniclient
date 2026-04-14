@@ -27,6 +27,7 @@ var (
 
 // --- Enums ---
 
+// ChatType represents the kind of chat (DM, group, channel, or topic).
 type ChatType string
 
 const (
@@ -36,6 +37,7 @@ const (
 	ChatTypeTopic   ChatType = "topic"
 )
 
+// MessageStatus represents the delivery state of a message.
 type MessageStatus string
 
 const (
@@ -46,6 +48,7 @@ const (
 	MessageStatusFailed    MessageStatus = "failed"
 )
 
+// UpdateType represents the kind of real-time event received from the platform.
 type UpdateType string
 
 const (
@@ -61,6 +64,7 @@ const (
 	UpdateConnectivity   UpdateType = "connectivity"
 )
 
+// CallState represents the current phase of a voice or video call.
 type CallState string
 
 const (
@@ -70,6 +74,7 @@ const (
 	CallStateEnded      CallState = "ended"
 )
 
+// AuthMode represents the authentication method (bot token or user login).
 type AuthMode string
 
 const (
@@ -109,6 +114,7 @@ const (
 
 // --- Models ---
 
+// AuthConfig holds the credentials and settings needed to authenticate with a platform.
 type AuthConfig struct {
 	Mode       AuthMode          `json:"mode"`
 	BotToken   string            `json:"bot_token,omitempty"`
@@ -118,11 +124,13 @@ type AuthConfig struct {
 	Extra      map[string]string `json:"extra,omitempty"`       // platform-specific (e.g., api_id, api_hash, server)
 }
 
+// PaginationOpts controls result pagination with a limit and an opaque cursor.
 type PaginationOpts struct {
 	Limit  int    `json:"limit"`
 	Offset string `json:"offset,omitempty"` // opaque cursor, platform-specific
 }
 
+// User represents a platform user or bot with profile information.
 type User struct {
 	ID          string `json:"id"`
 	Username    string `json:"username,omitempty"`
@@ -136,6 +144,7 @@ type User struct {
 	Platform    string `json:"platform"`
 }
 
+// Dialog represents a conversation (DM, group, channel, or topic) in the chat list.
 type Dialog struct {
 	ID            string     `json:"id"`
 	Type          ChatType   `json:"type"`
@@ -152,6 +161,7 @@ type Dialog struct {
 	Platform      string     `json:"platform"`
 }
 
+// Message represents a single message with its content, metadata, and attachments.
 type Message struct {
 	ID            string        `json:"id"`
 	ChatID        string        `json:"chat_id"`
@@ -173,6 +183,7 @@ type Message struct {
 	Extra         map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
 }
 
+// OutgoingMessage holds the content for a message being sent.
 type OutgoingMessage struct {
 	Text        string                 `json:"text"`
 	ReplyToID   string                 `json:"reply_to_id,omitempty"`
@@ -180,6 +191,7 @@ type OutgoingMessage struct {
 	Extra       map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
 }
 
+// FileRef represents a reference to a file attachment with optional thumbnail.
 type FileRef struct {
 	ID       string `json:"id,omitempty"`  // platform file ID (for downloads)
 	Name     string `json:"name"`
@@ -190,6 +202,7 @@ type FileRef struct {
 	Extra    string `json:"extra,omitempty"`     // platform-specific metadata (e.g. Matrix encrypted file info JSON)
 }
 
+// FileUpload holds file metadata and a data stream for uploading.
 type FileUpload struct {
 	Name     string    `json:"name"`
 	MimeType string    `json:"mime_type"`
@@ -197,17 +210,20 @@ type FileUpload struct {
 	Reader   io.Reader `json:"-"` // the file data stream
 }
 
+// Reaction represents an emoji reaction on a message with its count.
 type Reaction struct {
 	Emoji string `json:"emoji"`
 	Count int    `json:"count"`
 	ByMe  bool   `json:"by_me"`
 }
 
+// ReadState tracks the last-read message positions for the current user and peers.
 type ReadState struct {
 	MyLastRead   string            `json:"my_last_read"`
 	PeerLastRead map[string]string `json:"peer_last_read"` // userID → message ID
 }
 
+// CallSession represents an active or pending voice/video call with its participants.
 type CallSession struct {
 	ID           string            `json:"id"`
 	ChatID       string            `json:"chat_id"`
@@ -218,6 +234,7 @@ type CallSession struct {
 	Meta         map[string]string `json:"meta,omitempty"` // platform-specific transport info (e.g. livekit_url, livekit_token, room)
 }
 
+// CallParticipant represents a user in a call with their audio/video state.
 type CallParticipant struct {
 	UserID      string `json:"user_id"`
 	DisplayName string `json:"display_name"`
@@ -226,12 +243,14 @@ type CallParticipant struct {
 	HasVideo    bool   `json:"has_video"`
 }
 
+// Folder represents a named collection of chats for organizing the dialog list.
 type Folder struct {
 	ID      string   `json:"id"`
 	Name    string   `json:"name"`
 	ChatIDs []string `json:"chat_ids"`
 }
 
+// Session represents an active login session on a device.
 type Session struct {
 	ID         string    `json:"id"`
 	Device     string    `json:"device"`
@@ -244,6 +263,7 @@ type Session struct {
 	IsCurrent  bool      `json:"is_current"`
 }
 
+// Update represents a real-time event pushed from the platform to the client.
 type Update struct {
 	Type         UpdateType        `json:"type"`
 	ChatID       string            `json:"chat_id,omitempty"`
@@ -276,110 +296,152 @@ type VerificationInfo struct {
 // Core is the contract that every messaging platform must implement.
 // The frontend programs against this interface exclusively.
 type Core interface {
-	// Identity
+	// Name returns the platform identifier (e.g. "telegram", "bale").
 	Name() string
+	// Capabilities returns the list of feature capability strings this core supports.
 	Capabilities() []string
 
-	// Auth
+	// Authenticate logs into the platform using the provided credentials.
 	Authenticate(cfg AuthConfig) error
+	// Logout terminates the current session and clears stored credentials.
 	Logout() error
 
-	// Dialogs
+	// GetDialogs returns a paginated list of conversations.
 	GetDialogs(opts PaginationOpts) ([]Dialog, error)
+	// CreateGroup creates a new group chat with the given members.
 	CreateGroup(name string, members []string) (*Dialog, error)
+	// CreateChannel creates a new broadcast channel with a name and description.
 	CreateChannel(name string, description string) (*Dialog, error)
+	// CreateTopic creates a new topic thread inside a group or channel.
 	CreateTopic(chatID string, name string) (*Dialog, error)
+	// GetFolders returns all chat folders for the current user.
 	GetFolders() ([]Folder, error)
+	// CreateFolder creates a new chat folder containing the specified chats.
 	CreateFolder(name string, chatIDs []string) (*Folder, error)
 
-	// Messages
+	// SendMessage sends a message to the specified chat.
 	SendMessage(chatID string, msg OutgoingMessage) (*Message, error)
+	// GetMessages returns a paginated list of messages from a chat.
 	GetMessages(chatID string, opts PaginationOpts) ([]Message, error)
+	// EditMessage modifies the text of an existing message.
 	EditMessage(chatID string, msgID string, text string) (*Message, error)
+	// DeleteMessage removes a message from a chat.
 	DeleteMessage(chatID string, msgID string) error
+	// ReplyToMessage sends a message as a reply to an existing message.
 	ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error)
+	// ForwardMessage forwards a message from one chat to another.
 	ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error)
+	// ReactToMessage adds or changes an emoji reaction on a message.
 	ReactToMessage(chatID string, msgID string, emoji string) error
+	// PinMessage pins a message in a chat.
 	PinMessage(chatID string, msgID string) error
+	// UnpinMessage unpins a previously pinned message.
 	UnpinMessage(chatID string, msgID string) error
 
-	// Read state
+	// MarkAsRead marks all messages up to the given ID as read.
 	MarkAsRead(chatID string, upToMsgID string) error
+	// GetReadState returns the read-state positions for a chat.
 	GetReadState(chatID string) (*ReadState, error)
 
-	// Files
+	// UploadFile uploads a file to a chat, reporting progress via callback.
 	UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error)
+	// DownloadFile downloads a file to the given destination path, reporting progress via callback.
 	DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error
 
-	// Media
+	// SendImageBase64 sends a base64-encoded image with an optional caption.
 	SendImageBase64(chatID string, b64 string, caption string) (*Message, error)
 
-	// Calls
+	// StartCall initiates a voice or video call in the specified chat.
 	StartCall(chatID string, video bool) (*CallSession, error)
+	// JoinGroupCall joins an ongoing group call in the specified chat.
 	JoinGroupCall(chatID string) (*CallSession, error)
+	// EndCall terminates an active call.
 	EndCall(callID string) error
+	// SetCallMuted mutes or unmutes the local microphone in a call.
 	SetCallMuted(callID string, muted bool) error
 
-	// Profile
+	// GetProfile returns the profile information for a user.
 	GetProfile(userID string) (*User, error)
 
-	// Real-time
+	// OnUpdate registers a handler that receives real-time platform events.
 	OnUpdate(handler func(Update))
+	// Close disconnects from the platform and releases all resources.
 	Close() error
 
 	// --- Unified chat management ---
 
-	// Chat info & settings
+	// GetChatInfo returns detailed information about a chat.
 	GetChatInfo(chatID string) (*Dialog, error)
+	// EditChatTitle changes the title of a group or channel.
 	EditChatTitle(chatID string, title string) error
+	// EditChatDescription changes the description of a group or channel.
 	EditChatDescription(chatID string, description string) error
+	// LeaveChat removes the current user from a chat.
 	LeaveChat(chatID string) error
+	// GetInviteLink returns or generates an invite link for a chat.
 	GetInviteLink(chatID string) (string, error)
 
-	// Member management
+	// AddMembers adds users to a group or channel.
 	AddMembers(chatID string, userIDs []string) error
+	// RemoveMember removes a user from a group or channel.
 	RemoveMember(chatID string, userID string) error
+	// BanMember bans a user from a group or channel.
 	BanMember(chatID string, userID string) error
+	// UnbanMember lifts a ban on a user in a group or channel.
 	UnbanMember(chatID string, userID string) error
+	// GetMembers returns a paginated list of members in a chat.
 	GetMembers(chatID string, opts PaginationOpts) ([]User, error)
+	// SetAdmin grants or revokes admin privileges for a user in a chat.
 	SetAdmin(chatID string, userID string, admin bool) error
 
-	// Contacts
+	// GetContacts returns the current user's contact list.
 	GetContacts() ([]User, error)
+	// AddContact adds a new contact by phone number and name.
 	AddContact(phone string, firstName string, lastName string) error
+	// DeleteContact removes a user from the contact list.
 	DeleteContact(userID string) error
+	// BlockUser blocks a user, preventing them from sending messages.
 	BlockUser(userID string) error
+	// UnblockUser unblocks a previously blocked user.
 	UnblockUser(userID string) error
+	// GetBlockedUsers returns the list of blocked users.
 	GetBlockedUsers() ([]User, error)
 
-	// Search
+	// SearchMessages searches for messages matching a query within a chat.
 	SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error)
+	// SearchGlobal searches for chats matching a query across all conversations.
 	SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error)
 
-	// Typing
+	// SendTyping sends a typing indicator to a chat.
 	SendTyping(chatID string) error
 
-	// Polls
+	// CreatePoll creates a poll message with a question and answer options.
 	CreatePoll(chatID string, question string, options []string) (*Message, error)
+	// VotePoll casts a vote on a poll by selecting an option index.
 	VotePoll(chatID string, msgID string, optionIndex int) error
 
-	// Stickers
+	// SendSticker sends a sticker by its platform-specific ID.
 	SendSticker(chatID string, stickerID string) (*Message, error)
 
-	// Sessions
+	// GetSessions returns all active login sessions for the current user.
 	GetSessions() ([]Session, error)
+	// TerminateSession ends a specific login session by its ID.
 	TerminateSession(sessionID string) error
 
-	// Chat state
+	// MuteChat enables or disables notifications for a chat.
 	MuteChat(chatID string, muted bool) error
+	// ArchiveChat moves a chat into or out of the archive.
 	ArchiveChat(chatID string, archived bool) error
+	// MarkUnread marks or unmarks a chat as unread.
 	MarkUnread(chatID string, unread bool) error
+	// UnpinAllMessages unpins every pinned message in a chat.
 	UnpinAllMessages(chatID string) error
 
-	// Calls (incoming)
+	// AcceptCall accepts an incoming call and returns the call session.
 	AcceptCall(callID string) (*CallSession, error)
+	// DeclineCall rejects an incoming call.
 	DeclineCall(callID string) error
 
-	// Location
+	// SendLocation sends a geographic location as a message.
 	SendLocation(chatID string, lat float64, lon float64) (*Message, error)
 }

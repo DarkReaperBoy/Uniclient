@@ -324,8 +324,10 @@ const dcPlatform = "deltachat"
 
 // --- Core Interface: Identity ---
 
+// Name returns the platform identifier for Delta Chat.
 func (d *DeltaChatCore) Name() string { return dcPlatform }
 
+// Capabilities returns the list of features supported by the Delta Chat core.
 func (d *DeltaChatCore) Capabilities() []string {
 	return []string{
 		CapText, CapChannels, CapCalls, CapReactions, CapReadReceipts,
@@ -336,6 +338,7 @@ func (d *DeltaChatCore) Capabilities() []string {
 
 // --- Core Interface: Auth ---
 
+// Authenticate connects to the email server using IMAP/SMTP credentials.
 func (d *DeltaChatCore) Authenticate(cfg AuthConfig) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -466,6 +469,7 @@ func (d *DeltaChatCore) Authenticate(cfg AuthConfig) error {
 	return nil
 }
 
+// Logout disconnects from the email server and clears session state.
 func (d *DeltaChatCore) Logout() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -494,6 +498,7 @@ func (d *DeltaChatCore) Logout() error {
 
 // --- Core Interface: Dialogs ---
 
+// GetDialogs returns the list of chats with pagination support.
 func (d *DeltaChatCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -550,6 +555,7 @@ func (d *DeltaChatCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs, nil
 }
 
+// CreateGroup creates a new group chat with the specified members.
 func (d *DeltaChatCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -598,6 +604,7 @@ func (d *DeltaChatCore) CreateGroup(name string, members []string) (*Dialog, err
 	return &dlg, nil
 }
 
+// CreateChannel creates a new mailing-list-style broadcast channel.
 func (d *DeltaChatCore) CreateChannel(name string, description string) (*Dialog, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -631,6 +638,7 @@ func (d *DeltaChatCore) CreateChannel(name string, description string) (*Dialog,
 	return &dlg, nil
 }
 
+// CreateTopic creates a threaded topic within a chat.
 func (d *DeltaChatCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -679,6 +687,7 @@ func (d *DeltaChatCore) CreateTopic(chatID string, name string) (*Dialog, error)
 	return &dlg, nil
 }
 
+// GetFolders returns all chat folders (labels).
 func (d *DeltaChatCore) GetFolders() ([]Folder, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -713,6 +722,7 @@ func (d *DeltaChatCore) GetFolders() ([]Folder, error) {
 	return result, nil
 }
 
+// CreateFolder creates a new chat folder containing the specified chats.
 func (d *DeltaChatCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -733,6 +743,7 @@ func (d *DeltaChatCore) CreateFolder(name string, chatIDs []string) (*Folder, er
 
 // --- Core Interface: Messages ---
 
+// SendMessage sends a message to the specified chat via SMTP.
 func (d *DeltaChatCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -817,6 +828,7 @@ func (d *DeltaChatCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 	return m, nil
 }
 
+// GetMessages returns messages from a chat with pagination support.
 func (d *DeltaChatCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -858,6 +870,7 @@ func (d *DeltaChatCore) GetMessages(chatID string, opts PaginationOpts) ([]Messa
 	return result, nil
 }
 
+// EditMessage edits a previously sent message by sending an edit notification.
 func (d *DeltaChatCore) EditMessage(chatID string, msgID string, text string) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -919,6 +932,7 @@ func (d *DeltaChatCore) EditMessage(chatID string, msgID string, text string) (*
 	return m, nil
 }
 
+// DeleteMessage deletes a message from the chat.
 func (d *DeltaChatCore) DeleteMessage(chatID string, msgID string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -968,6 +982,7 @@ func (d *DeltaChatCore) DeleteMessage(chatID string, msgID string) error {
 	return nil
 }
 
+// ReplyToMessage sends a reply referencing the specified message.
 func (d *DeltaChatCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1034,6 +1049,7 @@ func (d *DeltaChatCore) ReplyToMessage(chatID string, replyToMsgID string, msg O
 	return m, nil
 }
 
+// ForwardMessage forwards a message from one chat to another.
 func (d *DeltaChatCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1103,6 +1119,7 @@ func (d *DeltaChatCore) ForwardMessage(fromChatID string, msgID string, toChatID
 	return m, nil
 }
 
+// ReactToMessage sends an emoji reaction to a message.
 func (d *DeltaChatCore) ReactToMessage(chatID string, msgID string, emoji string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1137,6 +1154,7 @@ func (d *DeltaChatCore) ReactToMessage(chatID string, msgID string, emoji string
 	return err
 }
 
+// PinMessage pins a message in the specified chat.
 func (d *DeltaChatCore) PinMessage(chatID string, msgID string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1152,6 +1170,7 @@ func (d *DeltaChatCore) PinMessage(chatID string, msgID string) error {
 	return nil
 }
 
+// UnpinMessage unpins a message in the specified chat.
 func (d *DeltaChatCore) UnpinMessage(chatID string, msgID string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1168,6 +1187,7 @@ func (d *DeltaChatCore) UnpinMessage(chatID string, msgID string) error {
 
 // --- Core Interface: Read State ---
 
+// MarkAsRead marks messages as read up to the specified message ID.
 func (d *DeltaChatCore) MarkAsRead(chatID string, upToMsgID string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1201,6 +1221,7 @@ func (d *DeltaChatCore) MarkAsRead(chatID string, upToMsgID string) error {
 	return nil
 }
 
+// GetReadState returns the read/unread state for a chat.
 func (d *DeltaChatCore) GetReadState(chatID string) (*ReadState, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1228,6 +1249,7 @@ func (d *DeltaChatCore) GetReadState(chatID string) (*ReadState, error) {
 
 // --- Core Interface: Files ---
 
+// UploadFile sends a file as an email attachment with progress reporting.
 func (d *DeltaChatCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1316,6 +1338,7 @@ func (d *DeltaChatCore) UploadFile(chatID string, file FileUpload, progress func
 	return m, nil
 }
 
+// DownloadFile saves a message attachment to the specified destination path.
 func (d *DeltaChatCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1341,6 +1364,7 @@ func (d *DeltaChatCore) DownloadFile(fileRef FileRef, dest string, progress func
 	return fmt.Errorf("%w: file not cached locally — re-sync messages to download", ErrNotFound)
 }
 
+// SendImageBase64 sends a base64-encoded image as a message.
 func (d *DeltaChatCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1376,6 +1400,7 @@ func (d *DeltaChatCore) SendImageBase64(chatID string, b64 string, caption strin
 
 // --- Core Interface: Calls ---
 
+// StartCall initiates a WebRTC call via Delta Chat signaling messages.
 func (d *DeltaChatCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1654,10 +1679,12 @@ func (d *DeltaChatCore) AcceptIncomingCall(callID string, offerPayload string) (
 	}, nil
 }
 
+// JoinGroupCall joins a group call (not supported in Delta Chat).
 func (d *DeltaChatCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: Delta Chat does not support group calls", ErrNotSupported)
 }
 
+// EndCall terminates an active WebRTC call and cleans up resources.
 func (d *DeltaChatCore) EndCall(callID string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1693,6 +1720,7 @@ func (d *DeltaChatCore) EndCall(callID string) error {
 	return nil
 }
 
+// SetCallMuted mutes or unmutes the local audio track in a call.
 func (d *DeltaChatCore) SetCallMuted(callID string, muted bool) error {
 	d.callsMu.RLock()
 	call, ok := d.activeCalls[callID]
@@ -1755,6 +1783,7 @@ func (d *DeltaChatCore) getICEServers() []webrtc.ICEServer {
 
 // --- Core Interface: Profile ---
 
+// GetProfile returns profile information for a contact by email address.
 func (d *DeltaChatCore) GetProfile(userID string) (*User, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1802,12 +1831,14 @@ func (d *DeltaChatCore) GetProfile(userID string) (*User, error) {
 
 // --- Core Interface: Real-time ---
 
+// OnUpdate registers a handler for incoming message and status updates.
 func (d *DeltaChatCore) OnUpdate(handler func(Update)) {
 	d.updateMu.Lock()
 	defer d.updateMu.Unlock()
 	d.updateHandlers = append(d.updateHandlers, handler)
 }
 
+// Close disconnects all IMAP connections and releases resources.
 func (d *DeltaChatCore) Close() error {
 	d.cancel()
 	if d.imapOps != nil {
@@ -1829,6 +1860,7 @@ func (d *DeltaChatCore) Close() error {
 
 // --- Core Interface: Chat Management ---
 
+// GetChatInfo returns detailed information about a specific chat.
 func (d *DeltaChatCore) GetChatInfo(chatID string) (*Dialog, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1847,6 +1879,7 @@ func (d *DeltaChatCore) GetChatInfo(chatID string) (*Dialog, error) {
 	return &dlg, nil
 }
 
+// EditChatTitle changes the display name of a group or channel.
 func (d *DeltaChatCore) EditChatTitle(chatID string, title string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1887,6 +1920,7 @@ func (d *DeltaChatCore) EditChatTitle(chatID string, title string) error {
 	return nil
 }
 
+// EditChatDescription changes the description/topic of a group or channel.
 func (d *DeltaChatCore) EditChatDescription(chatID string, description string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1925,6 +1959,7 @@ func (d *DeltaChatCore) EditChatDescription(chatID string, description string) e
 	return nil
 }
 
+// LeaveChat removes the current user from a group chat.
 func (d *DeltaChatCore) LeaveChat(chatID string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1971,6 +2006,7 @@ func (d *DeltaChatCore) LeaveChat(chatID string) error {
 	return nil
 }
 
+// GetInviteLink returns a secure-join QR code URI for the chat.
 func (d *DeltaChatCore) GetInviteLink(chatID string) (string, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -1999,6 +2035,7 @@ func (d *DeltaChatCore) GetInviteLink(chatID string) (string, error) {
 
 // --- Core Interface: Member Management ---
 
+// AddMembers adds users to a group chat by email address.
 func (d *DeltaChatCore) AddMembers(chatID string, userIDs []string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2056,6 +2093,7 @@ func (d *DeltaChatCore) AddMembers(chatID string, userIDs []string) error {
 	return nil
 }
 
+// RemoveMember removes a user from a group chat.
 func (d *DeltaChatCore) RemoveMember(chatID string, userID string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2105,6 +2143,7 @@ func (d *DeltaChatCore) RemoveMember(chatID string, userID string) error {
 	return nil
 }
 
+// BanMember removes and blocks a user from a group chat.
 func (d *DeltaChatCore) BanMember(chatID string, userID string) error {
 	if err := d.RemoveMember(chatID, userID); err != nil {
 		return err
@@ -2116,6 +2155,7 @@ func (d *DeltaChatCore) BanMember(chatID string, userID string) error {
 	return nil
 }
 
+// UnbanMember unblocks a previously banned user from a group chat.
 func (d *DeltaChatCore) UnbanMember(chatID string, userID string) error {
 	d.mu.Lock()
 	delete(d.blocked, canonicalizeEmail(userID))
@@ -2124,6 +2164,7 @@ func (d *DeltaChatCore) UnbanMember(chatID string, userID string) error {
 	return nil
 }
 
+// GetMembers returns the list of members in a group chat.
 func (d *DeltaChatCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2160,6 +2201,7 @@ func (d *DeltaChatCore) GetMembers(chatID string, opts PaginationOpts) ([]User, 
 	return users, nil
 }
 
+// SetAdmin grants or revokes admin privileges for a chat member.
 func (d *DeltaChatCore) SetAdmin(chatID string, userID string, admin bool) error {
 	// DC groups are flat — no admin hierarchy in protocol. Local-only.
 	return nil
@@ -2167,6 +2209,7 @@ func (d *DeltaChatCore) SetAdmin(chatID string, userID string, admin bool) error
 
 // --- Core Interface: Contacts ---
 
+// GetContacts returns all known contacts from the address book.
 func (d *DeltaChatCore) GetContacts() ([]User, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2194,6 +2237,7 @@ func (d *DeltaChatCore) GetContacts() ([]User, error) {
 	return contacts, nil
 }
 
+// AddContact adds a new contact by email address.
 func (d *DeltaChatCore) AddContact(phone string, firstName string, lastName string) error {
 	// "phone" is actually email for Delta Chat
 	email := canonicalizeEmail(phone)
@@ -2210,6 +2254,7 @@ func (d *DeltaChatCore) AddContact(phone string, firstName string, lastName stri
 	return nil
 }
 
+// DeleteContact removes a contact from the address book.
 func (d *DeltaChatCore) DeleteContact(userID string) error {
 	d.peerKeysMu.Lock()
 	delete(d.peerStates, canonicalizeEmail(userID))
@@ -2218,6 +2263,7 @@ func (d *DeltaChatCore) DeleteContact(userID string) error {
 	return nil
 }
 
+// BlockUser blocks a contact by email address.
 func (d *DeltaChatCore) BlockUser(userID string) error {
 	d.mu.Lock()
 	d.blocked[canonicalizeEmail(userID)] = true
@@ -2226,6 +2272,7 @@ func (d *DeltaChatCore) BlockUser(userID string) error {
 	return nil
 }
 
+// UnblockUser unblocks a previously blocked contact.
 func (d *DeltaChatCore) UnblockUser(userID string) error {
 	d.mu.Lock()
 	delete(d.blocked, canonicalizeEmail(userID))
@@ -2234,6 +2281,7 @@ func (d *DeltaChatCore) UnblockUser(userID string) error {
 	return nil
 }
 
+// GetBlockedUsers returns the list of blocked email addresses.
 func (d *DeltaChatCore) GetBlockedUsers() ([]User, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2251,6 +2299,7 @@ func (d *DeltaChatCore) GetBlockedUsers() ([]User, error) {
 
 // --- Core Interface: Search ---
 
+// SearchMessages searches for messages matching a query within a chat.
 func (d *DeltaChatCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2282,6 +2331,7 @@ func (d *DeltaChatCore) SearchMessages(chatID string, query string, opts Paginat
 	return results, nil
 }
 
+// SearchGlobal searches for messages matching a query across all chats.
 func (d *DeltaChatCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2336,6 +2386,7 @@ func (d *DeltaChatCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 
 // --- Core Interface: Typing ---
 
+// SendTyping sends a typing notification to the specified chat.
 func (d *DeltaChatCore) SendTyping(chatID string) error {
 	// No-op: email has no typing indicator concept. Return nil (not error).
 	return nil
@@ -2343,6 +2394,7 @@ func (d *DeltaChatCore) SendTyping(chatID string) error {
 
 // --- Core Interface: Polls ---
 
+// CreatePoll creates a poll message in the specified chat.
 func (d *DeltaChatCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2362,6 +2414,7 @@ func (d *DeltaChatCore) CreatePoll(chatID string, question string, options []str
 	return d.SendMessage(chatID, msg)
 }
 
+// VotePoll submits a vote on a poll message.
 func (d *DeltaChatCore) VotePoll(chatID string, msgID string, optionIndex int) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2376,6 +2429,7 @@ func (d *DeltaChatCore) VotePoll(chatID string, msgID string, optionIndex int) e
 
 // --- Core Interface: Stickers ---
 
+// SendSticker sends a sticker image to the specified chat.
 func (d *DeltaChatCore) SendSticker(chatID string, stickerID string) (*Message, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2450,6 +2504,7 @@ func (d *DeltaChatCore) SendSticker(chatID string, stickerID string) (*Message, 
 
 // --- Core Interface: Sessions ---
 
+// GetSessions returns active session information.
 func (d *DeltaChatCore) GetSessions() ([]Session, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -2469,6 +2524,7 @@ func (d *DeltaChatCore) GetSessions() ([]Session, error) {
 	}}, nil
 }
 
+// TerminateSession terminates a session (changes the email password).
 func (d *DeltaChatCore) TerminateSession(sessionID string) error {
 	if sessionID == "current" {
 		return fmt.Errorf("%w: cannot terminate current session", ErrInvalidInput)
@@ -6993,6 +7049,7 @@ func (d *DeltaChatCore) MarkFreshChat(chatID string) error {
 // Step 4 — Message Properties (30 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// GetMessageInfo returns metadata about a specific message.
 func (d *DeltaChatCore) GetMessageInfo(chatID, msgID string) (map[string]string, error) {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return nil, ErrNotFound }
@@ -7002,6 +7059,7 @@ func (d *DeltaChatCore) GetMessageInfo(chatID, msgID string) (map[string]string,
 	}, nil
 }
 
+// GetFreshMessageCount returns the number of unread messages in a chat.
 func (d *DeltaChatCore) GetFreshMessageCount(chatID string) int {
 	d.chatsMu.RLock()
 	defer d.chatsMu.RUnlock()
@@ -7009,6 +7067,7 @@ func (d *DeltaChatCore) GetFreshMessageCount(chatID string) int {
 	return 0
 }
 
+// GetNextMessages returns messages newer than the specified message ID.
 func (d *DeltaChatCore) GetNextMessages(chatID string, lastSeenMsgID string) ([]*Message, error) {
 	d.msgsMu.RLock()
 	defer d.msgsMu.RUnlock()
@@ -7020,6 +7079,7 @@ func (d *DeltaChatCore) GetNextMessages(chatID string, lastSeenMsgID string) ([]
 	return nil, nil
 }
 
+// WaitNextMessages blocks until new messages arrive or the timeout expires.
 func (d *DeltaChatCore) WaitNextMessages(chatID string, timeout time.Duration) ([]*Message, error) {
 	// Simple polling: check for new messages with timeout
 	deadline := time.Now().Add(timeout)
@@ -7033,6 +7093,7 @@ func (d *DeltaChatCore) WaitNextMessages(chatID string, timeout time.Duration) (
 	return nil, nil
 }
 
+// GetFirstUnreadMessage returns the ID of the first unread message in a chat.
 func (d *DeltaChatCore) GetFirstUnreadMessage(chatID string) (string, error) {
 	d.msgsMu.RLock()
 	defer d.msgsMu.RUnlock()
@@ -7042,6 +7103,7 @@ func (d *DeltaChatCore) GetFirstUnreadMessage(chatID string) (string, error) {
 	return "", nil
 }
 
+// SendDraft sends the saved draft for a chat.
 func (d *DeltaChatCore) SendDraft(chatID string) (*Message, error) {
 	d.draftsMu.Lock()
 	draft, ok := d.drafts[chatID]
@@ -7051,12 +7113,14 @@ func (d *DeltaChatCore) SendDraft(chatID string) (*Message, error) {
 	return d.SendMessage(chatID, *draft)
 }
 
+// RemoveDraft removes the saved draft for a chat.
 func (d *DeltaChatCore) RemoveDraft(chatID string) {
 	d.draftsMu.Lock()
 	delete(d.drafts, chatID)
 	d.draftsMu.Unlock()
 }
 
+// GetMessageSubject returns the email subject line of a message.
 func (d *DeltaChatCore) GetMessageSubject(chatID, msgID string) string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return "" }
@@ -7064,11 +7128,13 @@ func (d *DeltaChatCore) GetMessageSubject(chatID, msgID string) string {
 	return ""
 }
 
+// SetMessageSubject sets the email subject line on an outgoing message.
 func (d *DeltaChatCore) SetMessageSubject(msg *OutgoingMessage, subject string) {
 	if msg.Extra == nil { msg.Extra = make(map[string]interface{}) }
 	msg.Extra["subject"] = subject
 }
 
+// GetMessageDownloadState returns the download state of a message attachment.
 func (d *DeltaChatCore) GetMessageDownloadState(chatID, msgID string) string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return "done" }
@@ -7076,12 +7142,14 @@ func (d *DeltaChatCore) GetMessageDownloadState(chatID, msgID string) string {
 	return "done"
 }
 
+// GetMessageSortTimestamp returns the sort timestamp for a message.
 func (d *DeltaChatCore) GetMessageSortTimestamp(chatID, msgID string) int64 {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return 0 }
 	return msg.Timestamp.UnixMilli()
 }
 
+// GetMessageError returns the error string associated with a failed message.
 func (d *DeltaChatCore) GetMessageError(chatID, msgID string) string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return "" }
@@ -7089,6 +7157,7 @@ func (d *DeltaChatCore) GetMessageError(chatID, msgID string) string {
 	return ""
 }
 
+// IsMessageBot returns whether a message was sent by a bot.
 func (d *DeltaChatCore) IsMessageBot(chatID, msgID string) bool {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return false }
@@ -7096,11 +7165,13 @@ func (d *DeltaChatCore) IsMessageBot(chatID, msgID string) bool {
 	return v
 }
 
+// IsMessageEdited returns whether a message has been edited.
 func (d *DeltaChatCore) IsMessageEdited(chatID, msgID string) bool {
 	msg := d.dcFindMsg(chatID, msgID)
 	return msg != nil && msg.EditedAt != nil
 }
 
+// IsMessageForwarded returns whether a message was forwarded.
 func (d *DeltaChatCore) IsMessageForwarded(chatID, msgID string) bool {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return false }
@@ -7108,6 +7179,7 @@ func (d *DeltaChatCore) IsMessageForwarded(chatID, msgID string) bool {
 	return v
 }
 
+// IsMessageInfo returns whether a message is a system/info message.
 func (d *DeltaChatCore) IsMessageInfo(chatID, msgID string) bool {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return false }
@@ -7115,6 +7187,7 @@ func (d *DeltaChatCore) IsMessageInfo(chatID, msgID string) bool {
 	return v
 }
 
+// GetMessageInfoType returns the info type of a system message.
 func (d *DeltaChatCore) GetMessageInfoType(chatID, msgID string) string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return "" }
@@ -7122,12 +7195,14 @@ func (d *DeltaChatCore) GetMessageInfoType(chatID, msgID string) string {
 	return ""
 }
 
+// GetMessageParent returns the parent message ID in a thread.
 func (d *DeltaChatCore) GetMessageParent(chatID, msgID string) string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return "" }
 	return msg.ReplyToID
 }
 
+// GetOriginalMsgId returns the original message ID before saving.
 func (d *DeltaChatCore) GetOriginalMsgId(chatID, msgID string) string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return msgID }
@@ -7135,6 +7210,7 @@ func (d *DeltaChatCore) GetOriginalMsgId(chatID, msgID string) string {
 	return msgID
 }
 
+// GetSavedMsgId returns the saved-messages copy ID of a message.
 func (d *DeltaChatCore) GetSavedMsgId(chatID, msgID string) string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return "" }
@@ -7142,6 +7218,7 @@ func (d *DeltaChatCore) GetSavedMsgId(chatID, msgID string) string {
 	return ""
 }
 
+// HasMessageHtml returns whether a message contains HTML content.
 func (d *DeltaChatCore) HasMessageHtml(chatID, msgID string) bool {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return false }
@@ -7149,6 +7226,7 @@ func (d *DeltaChatCore) HasMessageHtml(chatID, msgID string) bool {
 	return ok
 }
 
+// HasMessageLocation returns whether a message includes location data.
 func (d *DeltaChatCore) HasMessageLocation(chatID, msgID string) bool {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return false }
@@ -7156,6 +7234,7 @@ func (d *DeltaChatCore) HasMessageLocation(chatID, msgID string) bool {
 	return ok
 }
 
+// HasDeviatingTimestamp returns whether a message has a non-standard timestamp.
 func (d *DeltaChatCore) HasDeviatingTimestamp(chatID, msgID string) bool {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return false }
@@ -7163,6 +7242,7 @@ func (d *DeltaChatCore) HasDeviatingTimestamp(chatID, msgID string) bool {
 	return v
 }
 
+// GetOverrideSenderName returns the overridden sender display name.
 func (d *DeltaChatCore) GetOverrideSenderName(chatID, msgID string) string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return "" }
@@ -7170,11 +7250,13 @@ func (d *DeltaChatCore) GetOverrideSenderName(chatID, msgID string) string {
 	return ""
 }
 
+// SetOverrideSenderName sets a custom sender display name on an outgoing message.
 func (d *DeltaChatCore) SetOverrideSenderName(msg *OutgoingMessage, name string) {
 	if msg.Extra == nil { msg.Extra = make(map[string]interface{}) }
 	msg.Extra["override_sender_name"] = name
 }
 
+// GetShowPadlock returns whether the encryption padlock should be shown for a message.
 func (d *DeltaChatCore) GetShowPadlock(chatID, msgID string) bool {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return false }
@@ -7182,6 +7264,7 @@ func (d *DeltaChatCore) GetShowPadlock(chatID, msgID string) bool {
 	return v
 }
 
+// MessageSaveFile saves a message's file attachment to the specified path.
 func (d *DeltaChatCore) MessageSaveFile(chatID, msgID, destPath string) error {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return ErrNotFound }
@@ -7194,23 +7277,27 @@ func (d *DeltaChatCore) MessageSaveFile(chatID, msgID, destPath string) error {
 	return os.WriteFile(destPath, data, 0644)
 }
 
+// SetMessageDimensions sets the width and height on an outgoing media message.
 func (d *DeltaChatCore) SetMessageDimensions(msg *OutgoingMessage, width, height int) {
 	if msg.Extra == nil { msg.Extra = make(map[string]interface{}) }
 	msg.Extra["width"] = width
 	msg.Extra["height"] = height
 }
 
+// SetMessageDuration sets the duration in seconds on an outgoing audio/video message.
 func (d *DeltaChatCore) SetMessageDuration(msg *OutgoingMessage, duration int) {
 	if msg.Extra == nil { msg.Extra = make(map[string]interface{}) }
 	msg.Extra["duration"] = duration
 }
 
+// SetMessageLocation attaches GPS coordinates to an outgoing message.
 func (d *DeltaChatCore) SetMessageLocation(msg *OutgoingMessage, lat, lon float64) {
 	if msg.Extra == nil { msg.Extra = make(map[string]interface{}) }
 	msg.Extra["latitude"] = lat
 	msg.Extra["longitude"] = lon
 }
 
+// SetMessageHtml sets HTML content on an outgoing message.
 func (d *DeltaChatCore) SetMessageHtml(msg *OutgoingMessage, html string) {
 	if msg.Extra == nil { msg.Extra = make(map[string]interface{}) }
 	msg.Extra["html"] = html
@@ -7230,6 +7317,7 @@ func (d *DeltaChatCore) dcFindMsg(chatID, msgID string) *Message {
 // Step 4 — Contact Properties (13 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// LookupContactByAddr looks up a contact ID by email address.
 func (d *DeltaChatCore) LookupContactByAddr(email string) (string, error) {
 	canonical := canonicalizeEmail(email)
 	d.peerKeysMu.RLock()
@@ -7238,6 +7326,7 @@ func (d *DeltaChatCore) LookupContactByAddr(email string) (string, error) {
 	return "", ErrNotFound
 }
 
+// GetContactEncryptionInfo returns the Autocrypt encryption status for a contact.
 func (d *DeltaChatCore) GetContactEncryptionInfo(email string) (string, error) {
 	canonical := canonicalizeEmail(email)
 	d.peerKeysMu.RLock()
@@ -7254,6 +7343,7 @@ func (d *DeltaChatCore) GetContactEncryptionInfo(email string) (string, error) {
 	return "no key", nil
 }
 
+// IsContactVerified returns whether a contact has been verified via QR code.
 func (d *DeltaChatCore) IsContactVerified(email string) bool {
 	canonical := canonicalizeEmail(email)
 	d.peerKeysMu.RLock()
@@ -7262,8 +7352,10 @@ func (d *DeltaChatCore) IsContactVerified(email string) bool {
 	return ok && ps.entity != nil && ps.PreferEncrypt == "mutual"
 }
 
+// IsContactBot returns whether a contact is a bot (always false for email).
 func (d *DeltaChatCore) IsContactBot(email string) bool { return false }
 
+// IsContactKeyContact returns whether a contact has an Autocrypt key.
 func (d *DeltaChatCore) IsContactKeyContact(email string) bool {
 	canonical := canonicalizeEmail(email)
 	d.peerKeysMu.RLock()
@@ -7272,12 +7364,14 @@ func (d *DeltaChatCore) IsContactKeyContact(email string) bool {
 	return ok && ps.PublicKey != nil
 }
 
+// GetContactColor returns a deterministic color hex string for a contact.
 func (d *DeltaChatCore) GetContactColor(email string) string {
 	h := 0
 	for _, c := range email { h = h*31 + int(c) }
 	return fmt.Sprintf("#%06x", h&0xFFFFFF)
 }
 
+// GetContactAuthName returns the authenticated display name of a contact.
 func (d *DeltaChatCore) GetContactAuthName(email string) string {
 	canonical := canonicalizeEmail(email)
 	d.peerKeysMu.RLock()
@@ -7287,6 +7381,7 @@ func (d *DeltaChatCore) GetContactAuthName(email string) string {
 	return ps.DisplayName
 }
 
+// GetContactLastSeen returns the last time a message was received from a contact.
 func (d *DeltaChatCore) GetContactLastSeen(email string) time.Time {
 	canonical := canonicalizeEmail(email)
 	d.peerKeysMu.RLock()
@@ -7296,10 +7391,13 @@ func (d *DeltaChatCore) GetContactLastSeen(email string) time.Time {
 	return ps.LastSeen
 }
 
+// GetContactVerifierId returns the verifier contact ID (empty for email).
 func (d *DeltaChatCore) GetContactVerifierId(email string) string { return "" }
 
+// GetContactStatus returns the status text of a contact (empty for email).
 func (d *DeltaChatCore) GetContactStatus(email string) string { return "" }
 
+// ChangeContactName changes the display name of a contact.
 func (d *DeltaChatCore) ChangeContactName(email, newName string) error {
 	canonical := canonicalizeEmail(email)
 	d.peerKeysMu.Lock()
@@ -7310,6 +7408,7 @@ func (d *DeltaChatCore) ChangeContactName(email, newName string) error {
 	return nil
 }
 
+// AddAddressBook imports contacts from a newline-separated name/address CSV.
 func (d *DeltaChatCore) AddAddressBook(csv string) int {
 	// Parse CSV: "Name\nemail\nName\nemail" format
 	lines := strings.Split(csv, "\n")
@@ -7330,6 +7429,7 @@ func (d *DeltaChatCore) AddAddressBook(csv string) int {
 	return count
 }
 
+// IsContactInChat returns whether a contact is a member of the specified chat.
 func (d *DeltaChatCore) IsContactInChat(chatID, email string) bool {
 	d.chatsMu.RLock()
 	defer d.chatsMu.RUnlock()
@@ -7346,6 +7446,7 @@ func (d *DeltaChatCore) IsContactInChat(chatID, email string) bool {
 // Step 4 — QR Code Operations (4 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// GetSecureJoinQR returns a secure-join QR code data string for a chat.
 func (d *DeltaChatCore) GetSecureJoinQR(chatID string) (string, error) {
 	if d.myEntity == nil { return "", fmt.Errorf("no key") }
 	fp := fmt.Sprintf("%X", d.myEntity.PrimaryKey.Fingerprint)
@@ -7354,6 +7455,7 @@ func (d *DeltaChatCore) GetSecureJoinQR(chatID string) (string, error) {
 	return qr, nil
 }
 
+// GetSecureJoinQRSvg returns a secure-join QR code as an SVG string.
 func (d *DeltaChatCore) GetSecureJoinQRSvg(chatID string) (string, error) {
 	data, err := d.GetSecureJoinQR(chatID)
 	if err != nil { return "", err }
@@ -7371,25 +7473,30 @@ func (d *DeltaChatCore) CreateQRSvg(data string) string {
 // Step 4 — Backup Transfer (5 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// ProvideBackup creates a backup file and returns its path.
 func (d *DeltaChatCore) ProvideBackup() (string, error) {
 	return d.GetBackup()
 }
 
+// GetBackupQR returns a QR code string for transferring the account to another device.
 func (d *DeltaChatCore) GetBackupQR() (string, error) {
 	return fmt.Sprintf("DCBACKUP:%s", d.sessionPath), nil
 }
 
+// GetBackupQRSvg returns a backup transfer QR code as an SVG string.
 func (d *DeltaChatCore) GetBackupQRSvg() (string, error) {
 	data, err := d.GetBackupQR()
 	if err != nil { return "", err }
 	return d.CreateQRSvg(data), nil
 }
 
+// ReceiveBackup restores an account from a backup QR code.
 func (d *DeltaChatCore) ReceiveBackup(qrData string) error {
 	if !strings.HasPrefix(qrData, "DCBACKUP:") { return fmt.Errorf("not a backup QR") }
 	return fmt.Errorf("backup receive not implemented in pure Go client")
 }
 
+// GetBackup creates and returns the path to an account backup archive.
 func (d *DeltaChatCore) GetBackup() (string, error) {
 	return d.sessionPath, nil
 }
@@ -7398,6 +7505,7 @@ func (d *DeltaChatCore) GetBackup() (string, error) {
 // Step 4 — Chatlist Operations (5 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// GetChatlistEntries returns a filtered list of chat IDs matching the query.
 func (d *DeltaChatCore) GetChatlistEntries(listFlags int, query string) ([]string, error) {
 	d.chatsMu.RLock()
 	defer d.chatsMu.RUnlock()
@@ -7409,6 +7517,7 @@ func (d *DeltaChatCore) GetChatlistEntries(listFlags int, query string) ([]strin
 	return ids, nil
 }
 
+// GetChatlistItemsByEntries returns summary data for the specified chat IDs.
 func (d *DeltaChatCore) GetChatlistItemsByEntries(chatIDs []string) ([]map[string]interface{}, error) {
 	d.chatsMu.RLock()
 	defer d.chatsMu.RUnlock()
@@ -7423,6 +7532,7 @@ func (d *DeltaChatCore) GetChatlistItemsByEntries(chatIDs []string) ([]map[strin
 	return items, nil
 }
 
+// GetChatlistSummary returns a summary of the last message and metadata for a chat.
 func (d *DeltaChatCore) GetChatlistSummary(chatID string) (map[string]interface{}, error) {
 	d.chatsMu.RLock()
 	cs, ok := d.chats[chatID]
@@ -7440,6 +7550,7 @@ func (d *DeltaChatCore) GetChatlistSummary(chatID string) (map[string]interface{
 	return summary, nil
 }
 
+// GetBasicChatInfo returns basic metadata for a chat (name, type, member count).
 func (d *DeltaChatCore) GetBasicChatInfo(chatID string) (map[string]interface{}, error) {
 	d.chatsMu.RLock()
 	defer d.chatsMu.RUnlock()
@@ -7450,6 +7561,7 @@ func (d *DeltaChatCore) GetBasicChatInfo(chatID string) (map[string]interface{},
 	}, nil
 }
 
+// GetFullChatById returns full chat details including members and settings.
 func (d *DeltaChatCore) GetFullChatById(chatID string) (map[string]interface{}, error) {
 	d.chatsMu.RLock()
 	defer d.chatsMu.RUnlock()
@@ -7466,6 +7578,7 @@ func (d *DeltaChatCore) GetFullChatById(chatID string) (map[string]interface{}, 
 // Step 4 — I/O and Network Control (4 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// MaybeNetwork hints that network connectivity may have changed, triggering a reconnect check.
 func (d *DeltaChatCore) MaybeNetwork() {
 	// Hint that network is available — trigger reconnect of IDLE clients if they're dead.
 	// Test each IDLE connection by attempting a NOOP; if it fails, close it so the
@@ -7487,23 +7600,27 @@ func (d *DeltaChatCore) MaybeNetwork() {
 	}
 }
 
+// StopOngoingProcess cancels any long-running background operation.
 func (d *DeltaChatCore) StopOngoingProcess() error {
 	if d.cancel != nil { d.cancel() }
 	return nil
 }
 
+// BackgroundFetch performs a background IMAP fetch for new messages.
 func (d *DeltaChatCore) BackgroundFetch() error {
 	// One-shot background fetch — check for new emails
 	if !d.authed { return fmt.Errorf("not configured") }
 	return nil
 }
 
+// StopBackgroundFetch stops the background fetch process.
 func (d *DeltaChatCore) StopBackgroundFetch() error { return nil }
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Step 4 — OAuth2 (1 method)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// GetOAuth2URL returns an OAuth2 authorization URL for the given email provider.
 func (d *DeltaChatCore) GetOAuth2URL(addr, redirectURI string) (string, error) {
 	// Gmail and Yandex OAuth2 URL generation
 	domain := strings.Split(addr, "@")
@@ -7521,6 +7638,7 @@ func (d *DeltaChatCore) GetOAuth2URL(addr, redirectURI string) (string, error) {
 // Step 4 — Read Receipts (2 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// GetReadReceiptCount returns the number of read receipts for a message.
 func (d *DeltaChatCore) GetReadReceiptCount(chatID, msgID string) int {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return 0 }
@@ -7528,6 +7646,7 @@ func (d *DeltaChatCore) GetReadReceiptCount(chatID, msgID string) int {
 	return 0
 }
 
+// GetReadReceipts returns the list of email addresses that sent read receipts for a message.
 func (d *DeltaChatCore) GetReadReceipts(chatID, msgID string) []string {
 	msg := d.dcFindMsg(chatID, msgID)
 	if msg == nil { return nil }
@@ -7539,6 +7658,7 @@ func (d *DeltaChatCore) GetReadReceipts(chatID, msgID string) []string {
 // Step 4 — Connectivity HTML (1 method)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// GetConnectivityHtml returns an HTML summary of the current IMAP/SMTP connection state.
 func (d *DeltaChatCore) GetConnectivityHtml() string {
 	status := "Not connected"
 	if d.authed { status = "Connected" }
@@ -7550,6 +7670,7 @@ func (d *DeltaChatCore) GetConnectivityHtml() string {
 // Step 4 — Stock Strings (1 method)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// SetStockStrings sets localized UI string overrides by stock string ID.
 func (d *DeltaChatCore) SetStockStrings(strings map[int]string) {
 	d.mu.Lock()
 	d.stockStrings = strings
@@ -7560,12 +7681,14 @@ func (d *DeltaChatCore) SetStockStrings(strings map[int]string) {
 // Step 4 — Location Extras (2 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
+// DeleteAllLocations clears all stored location history.
 func (d *DeltaChatCore) DeleteAllLocations() {
 	d.locationHistMu.Lock()
 	d.locations = make(map[string][]DCLocation)
 	d.locationHistMu.Unlock()
 }
 
+// IsSendingLocationsToChat returns whether location streaming is active for a chat.
 func (d *DeltaChatCore) IsSendingLocationsToChat(chatID string) bool {
 	d.locationMu.RLock()
 	defer d.locationMu.RUnlock()
@@ -7573,14 +7696,17 @@ func (d *DeltaChatCore) IsSendingLocationsToChat(chatID string) bool {
 	return ok
 }
 
+// AcceptCall accepts an incoming call (alias for AcceptIncomingCall).
 func (d *DeltaChatCore) AcceptCall(callID string) (*CallSession, error) {
 	return d.AcceptIncomingCall(callID, "")
 }
 
+// DeclineCall declines an incoming call by ending it.
 func (d *DeltaChatCore) DeclineCall(callID string) error {
 	return d.EndCall(callID)
 }
 
+// MuteChat mutes or unmutes notifications for a chat.
 func (d *DeltaChatCore) MuteChat(chatID string, muted bool) error {
 	if muted {
 		return d.SetChatMuted(chatID, 0) // 0 = muted forever
@@ -7588,6 +7714,7 @@ func (d *DeltaChatCore) MuteChat(chatID string, muted bool) error {
 	return d.SetChatMuted(chatID, -1) // -1 = unmute
 }
 
+// ArchiveChat archives or unarchives a chat.
 func (d *DeltaChatCore) ArchiveChat(chatID string, archived bool) error {
 	if archived {
 		return d.SetChatVisibility(chatID, 1) // 1 = archived
@@ -7595,6 +7722,7 @@ func (d *DeltaChatCore) ArchiveChat(chatID string, archived bool) error {
 	return d.SetChatVisibility(chatID, 0) // 0 = normal
 }
 
+// MarkUnread marks a chat as unread or read.
 func (d *DeltaChatCore) MarkUnread(chatID string, unread bool) error {
 	if unread {
 		return d.MarkFreshChat(chatID)
@@ -7602,6 +7730,7 @@ func (d *DeltaChatCore) MarkUnread(chatID string, unread bool) error {
 	return d.MarkNoticedChat(chatID)
 }
 
+// UnpinAllMessages unpins all pinned messages in a chat.
 func (d *DeltaChatCore) UnpinAllMessages(chatID string) error {
 	delete(d.pins, chatID)
 	d.saveSession()

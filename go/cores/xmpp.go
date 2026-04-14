@@ -443,8 +443,10 @@ func NewXMPPCore(sessionPath string) *XMPPCore {
 // Core interface — Identity
 // ---------------------------------------------------------------------------
 
+// Name returns the platform identifier for this core.
 func (c *XMPPCore) Name() string { return xmppPlatform }
 
+// Capabilities returns the list of supported features for this XMPP core.
 func (c *XMPPCore) Capabilities() []string {
 	return []string{
 		CapText, CapChannels, CapCalls, CapReactions, CapReadReceipts,
@@ -457,6 +459,7 @@ func (c *XMPPCore) Capabilities() []string {
 // Core interface — Auth
 // ---------------------------------------------------------------------------
 
+// Authenticate connects to the XMPP server and logs in with the provided credentials.
 func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 	c.mu.Lock()
 	if c.authed {
@@ -578,6 +581,7 @@ func (c *XMPPCore) postAuthSetup() {
 	go c.autoJoinBookmarks()
 }
 
+// Logout disconnects from the XMPP server and cleans up resources.
 func (c *XMPPCore) Logout() error {
 	c.mu.RLock()
 	if !c.authed {
@@ -1912,6 +1916,7 @@ func (c *XMPPCore) pingLoop() {
 // Core interface — Dialogs
 // ---------------------------------------------------------------------------
 
+// GetDialogs returns the list of active conversations from roster and joined MUC rooms.
 func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -1993,6 +1998,7 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs, nil
 }
 
+// CreateGroup creates a new MUC room with the specified name and members.
 func (c *XMPPCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2033,6 +2039,7 @@ func (c *XMPPCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	return d, nil
 }
 
+// CreateChannel creates a new MUC room configured as a channel.
 func (c *XMPPCore) CreateChannel(name string, description string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2053,10 +2060,12 @@ func (c *XMPPCore) CreateChannel(name string, description string) (*Dialog, erro
 	return d, nil
 }
 
+// CreateTopic creates a new topic.
 func (c *XMPPCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	return nil, fmt.Errorf("%w: xmpp does not support forum topics", ErrNotSupported)
 }
 
+// GetFolders retrieves folders from the XMPP server.
 func (c *XMPPCore) GetFolders() ([]Folder, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2090,6 +2099,7 @@ func (c *XMPPCore) GetFolders() ([]Folder, error) {
 	}}, nil
 }
 
+// CreateFolder creates a new folder.
 func (c *XMPPCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2113,6 +2123,7 @@ func (c *XMPPCore) CreateFolder(name string, chatIDs []string) (*Folder, error) 
 // Core interface — Messages
 // ---------------------------------------------------------------------------
 
+// SendMessage sends a text message to the specified JID or MUC room.
 func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2182,6 +2193,7 @@ func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 	return m, nil
 }
 
+// GetMessages retrieves message history from MAM (XEP-0313) for the specified JID.
 func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2214,6 +2226,7 @@ func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, e
 	return result, nil
 }
 
+// EditMessage sends a message correction (XEP-0308) replacing a previous message.
 func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2262,6 +2275,7 @@ func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Messa
 	}, nil
 }
 
+// DeleteMessage retracts a previously sent message.
 func (c *XMPPCore) DeleteMessage(chatID string, msgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2285,6 +2299,7 @@ func (c *XMPPCore) DeleteMessage(chatID string, msgID string) error {
 	return nil
 }
 
+// ReplyToMessage reply to message on the XMPP connection.
 func (c *XMPPCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2296,6 +2311,7 @@ func (c *XMPPCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outgoi
 	return c.SendMessage(chatID, msg)
 }
 
+// ForwardMessage forwards a message to another JID or MUC room.
 func (c *XMPPCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2328,6 +2344,7 @@ func (c *XMPPCore) ForwardMessage(fromChatID string, msgID string, toChatID stri
 	return c.SendMessage(toChatID, fwdMsg)
 }
 
+// ReactToMessage react to message on the XMPP connection.
 func (c *XMPPCore) ReactToMessage(chatID string, msgID string, emoji string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2338,6 +2355,7 @@ func (c *XMPPCore) ReactToMessage(chatID string, msgID string, emoji string) err
 	return c.SendReaction(chatID, msgID, []string{emoji})
 }
 
+// PinMessage pins a message in a MUC room via PubSub.
 func (c *XMPPCore) PinMessage(chatID string, msgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2356,6 +2374,7 @@ func (c *XMPPCore) PinMessage(chatID string, msgID string) error {
 	return nil
 }
 
+// UnpinMessage unpins a previously pinned message in a MUC room.
 func (c *XMPPCore) UnpinMessage(chatID string, msgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2377,6 +2396,7 @@ func (c *XMPPCore) UnpinMessage(chatID string, msgID string) error {
 // Core interface — Read state
 // ---------------------------------------------------------------------------
 
+// MarkAsRead mark as read on the XMPP connection.
 func (c *XMPPCore) MarkAsRead(chatID string, upToMsgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2397,6 +2417,7 @@ func (c *XMPPCore) MarkAsRead(chatID string, upToMsgID string) error {
 	return nil
 }
 
+// GetReadState retrieves read state from the XMPP server.
 func (c *XMPPCore) GetReadState(chatID string) (*ReadState, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2417,6 +2438,7 @@ func (c *XMPPCore) GetReadState(chatID string) (*ReadState, error) {
 // Core interface — Files
 // ---------------------------------------------------------------------------
 
+// UploadFile uploads a file to the HTTP upload service (XEP-0363).
 func (c *XMPPCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	// Use XEP-0363 HTTP File Upload
 	c.mu.RLock()
@@ -2451,6 +2473,7 @@ func (c *XMPPCore) UploadFile(chatID string, file FileUpload, progress func(sent
 	return c.SendFileURL(chatID, getURL, file.Name)
 }
 
+// DownloadFile download file on the XMPP connection.
 func (c *XMPPCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2466,6 +2489,7 @@ func (c *XMPPCore) DownloadFile(fileRef FileRef, dest string, progress func(recv
 	return c.DownloadFileHTTP(fileRef.URL, dest, progress)
 }
 
+// SendImageBase64 sends image base64 to the specified JID.
 func (c *XMPPCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2502,6 +2526,7 @@ func (c *XMPPCore) SendImageBase64(chatID string, b64 string, caption string) (*
 // Core interface — Calls (Jingle stubs)
 // ---------------------------------------------------------------------------
 
+// StartCall initiates a Jingle voice call (XEP-0166/0167) with the specified JID.
 func (c *XMPPCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2512,10 +2537,12 @@ func (c *XMPPCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	return c.InitiateJingle(chatID, video)
 }
 
+// JoinGroupCall joins group call.
 func (c *XMPPCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: xmpp group calls (Muji/XEP-0272) not widely supported", ErrNotSupported)
 }
 
+// EndCall terminates an active Jingle call session.
 func (c *XMPPCore) EndCall(callID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2526,6 +2553,7 @@ func (c *XMPPCore) EndCall(callID string) error {
 	return c.TerminateJingle(callID, "success")
 }
 
+// SetCallMuted sets call muted on the XMPP server.
 func (c *XMPPCore) SetCallMuted(callID string, muted bool) error {
 	return fmt.Errorf("%w: xmpp does not support call muting", ErrNotSupported)
 }
@@ -2534,6 +2562,7 @@ func (c *XMPPCore) SetCallMuted(callID string, muted bool) error {
 // Core interface — Profile
 // ---------------------------------------------------------------------------
 
+// GetProfile retrieves profile from the XMPP server.
 func (c *XMPPCore) GetProfile(userID string) (*User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2594,12 +2623,14 @@ func (c *XMPPCore) GetProfile(userID string) (*User, error) {
 // Core interface — Real-time
 // ---------------------------------------------------------------------------
 
+// OnUpdate on update on the XMPP connection.
 func (c *XMPPCore) OnUpdate(handler func(Update)) {
 	c.updateMu.Lock()
 	c.updateHandlers = append(c.updateHandlers, handler)
 	c.updateMu.Unlock()
 }
 
+// Close closes .
 func (c *XMPPCore) Close() error {
 	c.saveSession()
 	c.cancel()
@@ -2622,6 +2653,7 @@ func (c *XMPPCore) Close() error {
 // Core interface — Chat management
 // ---------------------------------------------------------------------------
 
+// GetChatInfo retrieves chat info from the XMPP server.
 func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2667,6 +2699,7 @@ func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 	return d, nil
 }
 
+// EditChatTitle edit chat title on the XMPP connection.
 func (c *XMPPCore) EditChatTitle(chatID string, title string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2681,6 +2714,7 @@ func (c *XMPPCore) EditChatTitle(chatID string, title string) error {
 	return fmt.Errorf("%w: xmpp does not support editing DM titles", ErrNotSupported)
 }
 
+// EditChatDescription edit chat description on the XMPP connection.
 func (c *XMPPCore) EditChatDescription(chatID string, description string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2697,6 +2731,7 @@ func (c *XMPPCore) EditChatDescription(chatID string, description string) error 
 	return fmt.Errorf("%w: xmpp does not support editing DM descriptions", ErrNotSupported)
 }
 
+// LeaveChat leaves chat.
 func (c *XMPPCore) LeaveChat(chatID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2712,6 +2747,7 @@ func (c *XMPPCore) LeaveChat(chatID string) error {
 	return c.RemoveRosterItem(chatID)
 }
 
+// GetInviteLink retrieves invite link from the XMPP server.
 func (c *XMPPCore) GetInviteLink(chatID string) (string, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2728,6 +2764,7 @@ func (c *XMPPCore) GetInviteLink(chatID string) (string, error) {
 // Core interface — Members
 // ---------------------------------------------------------------------------
 
+// AddMembers adds members.
 func (c *XMPPCore) AddMembers(chatID string, userIDs []string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2745,6 +2782,7 @@ func (c *XMPPCore) AddMembers(chatID string, userIDs []string) error {
 	return nil
 }
 
+// RemoveMember removes member.
 func (c *XMPPCore) RemoveMember(chatID string, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2759,6 +2797,7 @@ func (c *XMPPCore) RemoveMember(chatID string, userID string) error {
 	return c.KickFromMUC(chatID, userID, "")
 }
 
+// BanMember bans a user from a MUC room.
 func (c *XMPPCore) BanMember(chatID string, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2773,6 +2812,7 @@ func (c *XMPPCore) BanMember(chatID string, userID string) error {
 	return c.BanFromMUC(chatID, userID, "")
 }
 
+// UnbanMember removes a ban on a user from a MUC room.
 func (c *XMPPCore) UnbanMember(chatID string, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2787,6 +2827,7 @@ func (c *XMPPCore) UnbanMember(chatID string, userID string) error {
 	return c.UnbanFromMUC(chatID, userID)
 }
 
+// GetMembers retrieves members from the XMPP server.
 func (c *XMPPCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2805,6 +2846,7 @@ func (c *XMPPCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error
 	}, nil
 }
 
+// SetAdmin sets admin on the XMPP server.
 func (c *XMPPCore) SetAdmin(chatID string, userID string, admin bool) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2827,6 +2869,7 @@ func (c *XMPPCore) SetAdmin(chatID string, userID string, admin bool) error {
 // Core interface — Contacts
 // ---------------------------------------------------------------------------
 
+// GetContacts returns the user's roster (contact list).
 func (c *XMPPCore) GetContacts() ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2856,6 +2899,7 @@ func (c *XMPPCore) GetContacts() ([]User, error) {
 	return users, nil
 }
 
+// AddContact adds a JID to the roster and sends a presence subscription request.
 func (c *XMPPCore) AddContact(phone string, firstName string, lastName string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2873,6 +2917,7 @@ func (c *XMPPCore) AddContact(phone string, firstName string, lastName string) e
 	return c.AddRosterItem(jid, name, nil)
 }
 
+// DeleteContact deletes contact from the XMPP server.
 func (c *XMPPCore) DeleteContact(userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2883,6 +2928,7 @@ func (c *XMPPCore) DeleteContact(userID string) error {
 	return c.RemoveRosterItem(userID)
 }
 
+// BlockUser adds a JID to the block list (XEP-0191).
 func (c *XMPPCore) BlockUser(userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2893,6 +2939,7 @@ func (c *XMPPCore) BlockUser(userID string) error {
 	return c.BlockJID(userID)
 }
 
+// UnblockUser removes a JID from the block list (XEP-0191).
 func (c *XMPPCore) UnblockUser(userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2903,6 +2950,7 @@ func (c *XMPPCore) UnblockUser(userID string) error {
 	return c.UnblockJID(userID)
 }
 
+// GetBlockedUsers returns the list of blocked JIDs (XEP-0191).
 func (c *XMPPCore) GetBlockedUsers() ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2930,6 +2978,7 @@ func (c *XMPPCore) GetBlockedUsers() ([]User, error) {
 // Core interface — Search
 // ---------------------------------------------------------------------------
 
+// SearchMessages search messages on the XMPP connection.
 func (c *XMPPCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2966,6 +3015,7 @@ func (c *XMPPCore) SearchMessages(chatID string, query string, opts PaginationOp
 	return results, nil
 }
 
+// SearchGlobal search global on the XMPP connection.
 func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3019,6 +3069,7 @@ func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 // Core interface — Typing
 // ---------------------------------------------------------------------------
 
+// SendTyping sends typing to the specified JID.
 func (c *XMPPCore) SendTyping(chatID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -3033,14 +3084,17 @@ func (c *XMPPCore) SendTyping(chatID string) error {
 // Core interface — Polls & Stickers (not supported)
 // ---------------------------------------------------------------------------
 
+// CreatePoll creates a new poll.
 func (c *XMPPCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
 	return nil, fmt.Errorf("%w: xmpp does not support polls", ErrNotSupported)
 }
 
+// VotePoll vote poll on the XMPP connection.
 func (c *XMPPCore) VotePoll(chatID string, msgID string, optionIndex int) error {
 	return fmt.Errorf("%w: xmpp does not support polls", ErrNotSupported)
 }
 
+// SendSticker sends a sticker image to the specified JID.
 func (c *XMPPCore) SendSticker(chatID string, stickerID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: xmpp does not support stickers", ErrNotSupported)
 }
@@ -3049,6 +3103,7 @@ func (c *XMPPCore) SendSticker(chatID string, stickerID string) (*Message, error
 // Core interface — Sessions
 // ---------------------------------------------------------------------------
 
+// GetSessions retrieves sessions from the XMPP server.
 func (c *XMPPCore) GetSessions() ([]Session, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3067,6 +3122,7 @@ func (c *XMPPCore) GetSessions() ([]Session, error) {
 	}}, nil
 }
 
+// TerminateSession terminate session on the XMPP connection.
 func (c *XMPPCore) TerminateSession(sessionID string) error {
 	return fmt.Errorf("%w: xmpp does not support session termination", ErrNotSupported)
 }
@@ -3075,6 +3131,7 @@ func (c *XMPPCore) TerminateSession(sessionID string) error {
 // XMPP-specific: Presence methods
 // ---------------------------------------------------------------------------
 
+// SendPresenceAvailable sends an available presence stanza to the server.
 func (c *XMPPCore) SendPresenceAvailable(show, status string) error {
 	var b strings.Builder
 	b.Grow(128)
@@ -3094,6 +3151,7 @@ func (c *XMPPCore) SendPresenceAvailable(show, status string) error {
 	return c.sendRawStanza(b.String())
 }
 
+// SendPresenceUnavailable sends an unavailable presence stanza to the server.
 func (c *XMPPCore) SendPresenceUnavailable(status string) error {
 	if status == "" {
 		return c.sendRawStanza("<presence type='unavailable'/>")
@@ -3103,36 +3161,42 @@ func (c *XMPPCore) SendPresenceUnavailable(status string) error {
 
 
 
+// SetPresencePriority sets the priority value on subsequent presence stanzas.
 func (c *XMPPCore) SetPresencePriority(priority int) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence><priority>%d</priority>%s</presence>`, priority, c.buildCapsElement(),
 	))
 }
 
+// SendPresenceSubscribe sends a presence subscription request to a JID.
 func (c *XMPPCore) SendPresenceSubscribe(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='subscribe' to='%s'/>`, xmlEscape(jid),
 	))
 }
 
+// SendPresenceSubscribed approves a pending presence subscription from a JID.
 func (c *XMPPCore) SendPresenceSubscribed(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='subscribed' to='%s'/>`, xmlEscape(jid),
 	))
 }
 
+// SendPresenceUnsubscribe cancels an existing presence subscription to a JID.
 func (c *XMPPCore) SendPresenceUnsubscribe(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='unsubscribe' to='%s'/>`, xmlEscape(jid),
 	))
 }
 
+// SendPresenceUnsubscribed rejects or revokes a presence subscription from a JID.
 func (c *XMPPCore) SendPresenceUnsubscribed(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='unsubscribed' to='%s'/>`, xmlEscape(jid),
 	))
 }
 
+// SendDirectedPresence sends a presence stanza targeted at a specific JID.
 func (c *XMPPCore) SendDirectedPresence(jid, show, status string) error {
 	var inner string
 	if show != "" {
@@ -3146,6 +3210,7 @@ func (c *XMPPCore) SendDirectedPresence(jid, show, status string) error {
 	))
 }
 
+// ProbePresence probe presence on the XMPP connection.
 func (c *XMPPCore) ProbePresence(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='probe' to='%s'/>`, xmlEscape(jid),
@@ -3186,6 +3251,7 @@ func (c *XMPPCore) requestRoster() {
 	c.rosterMu.Unlock()
 }
 
+// GetRoster retrieves the full roster (contact list) from the server.
 func (c *XMPPCore) GetRoster() ([]xmppRosterItem, error) {
 	c.rosterMu.RLock()
 	defer c.rosterMu.RUnlock()
@@ -3197,6 +3263,7 @@ func (c *XMPPCore) GetRoster() ([]xmppRosterItem, error) {
 	return items, nil
 }
 
+// AddRosterItem adds a JID to the roster with an optional name and groups.
 func (c *XMPPCore) AddRosterItem(jid, name string, groups []string) error {
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<query xmlns='%s'><item jid='%s'`, nsRoster, xmlEscape(jid)))
@@ -3219,16 +3286,19 @@ func (c *XMPPCore) AddRosterItem(jid, name string, groups []string) error {
 	return nil
 }
 
+// RemoveRosterItem removes a JID from the roster.
 func (c *XMPPCore) RemoveRosterItem(jid string) error {
 	inner := fmt.Sprintf(`<query xmlns='%s'><item jid='%s' subscription='remove'/></query>`, nsRoster, xmlEscape(jid))
 	_, err := c.sendIQSync("set", "", inner)
 	return err
 }
 
+// SetRosterItemName updates the display name for a roster entry.
 func (c *XMPPCore) SetRosterItemName(jid, name string) error {
 	return c.AddRosterItem(jid, name, nil) // Add/update is the same operation
 }
 
+// SetRosterItemGroups updates the group memberships for a roster entry.
 func (c *XMPPCore) SetRosterItemGroups(jid string, groups []string) error {
 	c.rosterMu.RLock()
 	item, ok := c.roster[jid]
@@ -3263,22 +3333,27 @@ func (c *XMPPCore) sendChatState(chatID, state string) error {
 	return c.sendRawStanza(b.String())
 }
 
+// SendChatStateActive sends chat state active to the specified JID.
 func (c *XMPPCore) SendChatStateActive(chatID string) error {
 	return c.sendChatState(chatID, "active")
 }
 
+// SendChatStateComposing sends chat state composing to the specified JID.
 func (c *XMPPCore) SendChatStateComposing(chatID string) error {
 	return c.sendChatState(chatID, "composing")
 }
 
+// SendChatStatePaused sends chat state paused to the specified JID.
 func (c *XMPPCore) SendChatStatePaused(chatID string) error {
 	return c.sendChatState(chatID, "paused")
 }
 
+// SendChatStateInactive sends chat state inactive to the specified JID.
 func (c *XMPPCore) SendChatStateInactive(chatID string) error {
 	return c.sendChatState(chatID, "inactive")
 }
 
+// SendChatStateGone sends chat state gone to the specified JID.
 func (c *XMPPCore) SendChatStateGone(chatID string) error {
 	return c.sendChatState(chatID, "gone")
 }
@@ -3288,6 +3363,7 @@ func (c *XMPPCore) SendChatStateGone(chatID string) error {
 // ---------------------------------------------------------------------------
 
 
+// SendGroupchatMessage sends groupchat message to the specified JID.
 func (c *XMPPCore) SendGroupchatMessage(to, body string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -3296,6 +3372,7 @@ func (c *XMPPCore) SendGroupchatMessage(to, body string) error {
 	))
 }
 
+// SendHeadlineMessage sends headline message to the specified JID.
 func (c *XMPPCore) SendHeadlineMessage(to, body, subject string) error {
 	id := c.nextMsgID()
 	var subjectXML string
@@ -3308,6 +3385,7 @@ func (c *XMPPCore) SendHeadlineMessage(to, body, subject string) error {
 	))
 }
 
+// SendNormalMessage sends normal message to the specified JID.
 func (c *XMPPCore) SendNormalMessage(to, body string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -3316,6 +3394,7 @@ func (c *XMPPCore) SendNormalMessage(to, body string) error {
 	))
 }
 
+// RequestReceipt includes a receipt request in the next outgoing message.
 func (c *XMPPCore) RequestReceipt(to, msgID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s' id='%s'><request xmlns='%s'/></message>`,
@@ -3323,6 +3402,7 @@ func (c *XMPPCore) RequestReceipt(to, msgID string) error {
 	))
 }
 
+// SendReceipt sends a message delivery receipt (XEP-0184) for a received message.
 func (c *XMPPCore) SendReceipt(to, msgID string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza("<message to='" + xmlEscape(to) + "' id='" + id + "'><received xmlns='" + nsReceipts + "' id='" + xmlEscape(msgID) + "'/></message>")
@@ -3330,6 +3410,7 @@ func (c *XMPPCore) SendReceipt(to, msgID string) error {
 
 
 
+// EnableCarbons enables message carbons (XEP-0280) for multi-device sync.
 func (c *XMPPCore) EnableCarbons() error {
 	inner := fmt.Sprintf(`<enable xmlns='%s'/>`, nsCarbons)
 	_, err := c.sendIQSync("set", "", inner)
@@ -3341,6 +3422,7 @@ func (c *XMPPCore) EnableCarbons() error {
 	return err
 }
 
+// DisableCarbons disables message carbons (XEP-0280).
 func (c *XMPPCore) DisableCarbons() error {
 	inner := fmt.Sprintf(`<disable xmlns='%s'/>`, nsCarbons)
 	_, err := c.sendIQSync("set", "", inner)
@@ -3352,11 +3434,13 @@ func (c *XMPPCore) DisableCarbons() error {
 	return err
 }
 
+// SendDisplayedMarker sends displayed marker to the specified JID.
 func (c *XMPPCore) SendDisplayedMarker(to, msgID string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza("<message to='" + xmlEscape(to) + "' id='" + id + "'><displayed xmlns='" + nsMarkers + "' id='" + xmlEscape(msgID) + "'/></message>")
 }
 
+// SendReceivedMarker sends received marker to the specified JID.
 func (c *XMPPCore) SendReceivedMarker(to, msgID string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -3365,6 +3449,7 @@ func (c *XMPPCore) SendReceivedMarker(to, msgID string) error {
 	))
 }
 
+// SendOOBURL sends a message with an out-of-band data URL (XEP-0066).
 func (c *XMPPCore) SendOOBURL(chatID, url, desc string) error {
 	id := c.nextMsgID()
 	msgType := "chat"
@@ -3381,11 +3466,13 @@ func (c *XMPPCore) SendOOBURL(chatID, url, desc string) error {
 	))
 }
 
+// SetMessageHint sets message hint on the XMPP server.
 func (c *XMPPCore) SetMessageHint(chatID, msgID, hint string) error {
 	return fmt.Errorf("%w: xmpp message hints can only be set at send time", ErrNotSupported)
 }
 
 
+// SendReaction sends a message reaction (XEP-0444) to the specified message.
 func (c *XMPPCore) SendReaction(chatID, msgID string, emojis []string) error {
 	id := c.nextMsgID()
 	msgType := "chat"
@@ -3408,6 +3495,7 @@ func (c *XMPPCore) SendReaction(chatID, msgID string, emojis []string) error {
 // XMPP-specific: MUC methods (XEP-0045)
 // ---------------------------------------------------------------------------
 
+// JoinMUC joins a multi-user chat room with the specified nickname.
 func (c *XMPPCore) JoinMUC(roomJID, nick string) error {
 	if nick == "" {
 		c.mu.RLock()
@@ -3444,6 +3532,7 @@ func (c *XMPPCore) JoinMUC(roomJID, nick string) error {
 	return nil
 }
 
+// LeaveMUC leaves a multi-user chat room.
 func (c *XMPPCore) LeaveMUC(roomJID string) error {
 	c.roomsMu.RLock()
 	room, ok := c.rooms[roomJID]
@@ -3473,12 +3562,14 @@ func (c *XMPPCore) LeaveMUC(roomJID string) error {
 	return err
 }
 
+// SetMUCNick changes the user's nickname in a MUC room.
 func (c *XMPPCore) SetMUCNick(roomJID, nick string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence to='%s/%s'/>`, xmlEscape(roomJID), xmlEscape(nick),
 	))
 }
 
+// GetMUCOccupants retrieves the list of occupants in a MUC room.
 func (c *XMPPCore) GetMUCOccupants(roomJID string) ([]User, error) {
 	c.roomsMu.RLock()
 	room, ok := c.rooms[roomJID]
@@ -3510,6 +3601,7 @@ func (c *XMPPCore) GetMUCOccupants(roomJID string) ([]User, error) {
 	return users, nil
 }
 
+// GetMUCInfo retrieves the room info and configuration for a MUC room.
 func (c *XMPPCore) GetMUCInfo(roomJID string) (*Dialog, error) {
 	resp, err := c.DiscoInfo(roomJID)
 	if err != nil {
@@ -3540,6 +3632,7 @@ func (c *XMPPCore) GetMUCInfo(roomJID string) (*Dialog, error) {
 	return d, nil
 }
 
+// SetMUCSubject sets the subject line of a MUC room.
 func (c *XMPPCore) SetMUCSubject(roomJID, subject string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message type='groupchat' to='%s'><subject>%s</subject></message>`,
@@ -3547,6 +3640,7 @@ func (c *XMPPCore) SetMUCSubject(roomJID, subject string) error {
 	))
 }
 
+// SendMUCInvitation sends a direct MUC invitation to a user.
 func (c *XMPPCore) SendMUCInvitation(roomJID, userJID, reason string) error {
 	// Direct invitation (XEP-0249)
 	var reasonAttr string
@@ -3559,6 +3653,7 @@ func (c *XMPPCore) SendMUCInvitation(roomJID, userJID, reason string) error {
 	))
 }
 
+// SendMUCMediatedInvite sends a mediated (server-forwarded) MUC invitation to a user.
 func (c *XMPPCore) SendMUCMediatedInvite(roomJID, userJID, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3570,6 +3665,7 @@ func (c *XMPPCore) SendMUCMediatedInvite(roomJID, userJID, reason string) error 
 	))
 }
 
+// DeclineMUCInvitation declines a pending MUC room invitation.
 func (c *XMPPCore) DeclineMUCInvitation(roomJID, inviterJID, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3581,6 +3677,7 @@ func (c *XMPPCore) DeclineMUCInvitation(roomJID, inviterJID, reason string) erro
 	))
 }
 
+// SetMUCRole changes an occupant's role (moderator, participant, visitor) in a MUC room.
 func (c *XMPPCore) SetMUCRole(roomJID, nick, role string) error {
 	inner := fmt.Sprintf(
 		`<query xmlns='%s'><item nick='%s' role='%s'/></query>`,
@@ -3590,6 +3687,7 @@ func (c *XMPPCore) SetMUCRole(roomJID, nick, role string) error {
 	return err
 }
 
+// SetMUCAffiliation changes a user's affiliation (owner, admin, member, outcast) in a MUC room.
 func (c *XMPPCore) SetMUCAffiliation(roomJID, userJID, affiliation string) error {
 	inner := fmt.Sprintf(
 		`<query xmlns='%s'><item jid='%s' affiliation='%s'/></query>`,
@@ -3599,6 +3697,7 @@ func (c *XMPPCore) SetMUCAffiliation(roomJID, userJID, affiliation string) error
 	return err
 }
 
+// KickFromMUC kicks an occupant from a MUC room.
 func (c *XMPPCore) KickFromMUC(roomJID, nick, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3612,6 +3711,7 @@ func (c *XMPPCore) KickFromMUC(roomJID, nick, reason string) error {
 	return err
 }
 
+// BanFromMUC bans a user from a MUC room by setting outcast affiliation.
 func (c *XMPPCore) BanFromMUC(roomJID, userJID, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3625,18 +3725,22 @@ func (c *XMPPCore) BanFromMUC(roomJID, userJID, reason string) error {
 	return err
 }
 
+// UnbanFromMUC removes a ban from a user in a MUC room.
 func (c *XMPPCore) UnbanFromMUC(roomJID, userJID string) error {
 	return c.SetMUCAffiliation(roomJID, userJID, "none")
 }
 
+// GrantVoice grants voice.
 func (c *XMPPCore) GrantVoice(roomJID, nick string) error {
 	return c.SetMUCRole(roomJID, nick, "participant")
 }
 
+// RevokeVoice revokes voice.
 func (c *XMPPCore) RevokeVoice(roomJID, nick string) error {
 	return c.SetMUCRole(roomJID, nick, "visitor")
 }
 
+// GetMUCConfig retrieves the configuration form for a MUC room.
 func (c *XMPPCore) GetMUCConfig(roomJID string) (map[string]string, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsMUCOwner)
 	resp, err := c.sendIQSync("get", roomJID, inner)
@@ -3648,6 +3752,7 @@ func (c *XMPPCore) GetMUCConfig(roomJID string) (map[string]string, error) {
 	return parseXDataForm(resp.Inner), nil
 }
 
+// ConfigureMUC submits a configuration form to update MUC room settings.
 func (c *XMPPCore) ConfigureMUC(roomJID string, config map[string]string) error {
 	var fields strings.Builder
 	fields.WriteString(fmt.Sprintf(`<query xmlns='%s'><x xmlns='%s' type='submit'>`, nsMUCOwner, nsXData))
@@ -3661,6 +3766,7 @@ func (c *XMPPCore) ConfigureMUC(roomJID string, config map[string]string) error 
 	return err
 }
 
+// DestroyMUC permanently destroys a MUC room.
 func (c *XMPPCore) DestroyMUC(roomJID, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3679,6 +3785,7 @@ func (c *XMPPCore) DestroyMUC(roomJID, reason string) error {
 	return err
 }
 
+// CreateInstantMUC creates an instant MUC room with default configuration.
 func (c *XMPPCore) CreateInstantMUC(roomJID, nick string) error {
 	if err := c.JoinMUC(roomJID, nick); err != nil {
 		return err
@@ -3689,6 +3796,7 @@ func (c *XMPPCore) CreateInstantMUC(roomJID, nick string) error {
 	return err
 }
 
+// RequestMUCHistory requests recent message history from a MUC room.
 func (c *XMPPCore) RequestMUCHistory(roomJID string, maxStanzas int) error {
 	// History is requested on join via <history maxstanzas='N'/>
 	// Re-join to request more
@@ -3706,6 +3814,7 @@ func (c *XMPPCore) RequestMUCHistory(roomJID string, maxStanzas int) error {
 	))
 }
 
+// MUCSelfPing performs a MUC (multi-user chat) self ping operation.
 func (c *XMPPCore) MUCSelfPing(roomJID string) error {
 	nick := ""
 	c.roomsMu.RLock()
@@ -3727,6 +3836,7 @@ func (c *XMPPCore) MUCSelfPing(roomJID string) error {
 // XMPP-specific: Service Discovery (XEP-0030)
 // ---------------------------------------------------------------------------
 
+// DiscoInfo queries a JID for its service discovery features (XEP-0030).
 func (c *XMPPCore) DiscoInfo(target string) (*XMPPIQ, error) {
 	if target == "" {
 		target = c.domain
@@ -3735,6 +3845,7 @@ func (c *XMPPCore) DiscoInfo(target string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", target, inner)
 }
 
+// DiscoItems queries a JID for its service discovery items (XEP-0030).
 func (c *XMPPCore) DiscoItems(target string) (*XMPPIQ, error) {
 	if target == "" {
 		target = c.domain
@@ -3743,6 +3854,7 @@ func (c *XMPPCore) DiscoItems(target string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", target, inner)
 }
 
+// QueryFeatures queries features from the XMPP server.
 func (c *XMPPCore) QueryFeatures(target string) ([]string, error) {
 	resp, err := c.DiscoInfo(target)
 	if err != nil {
@@ -3751,6 +3863,7 @@ func (c *XMPPCore) QueryFeatures(target string) ([]string, error) {
 	return parseDiscoFeatures(resp.Inner), nil
 }
 
+// QueryIdentity queries identity from the XMPP server.
 func (c *XMPPCore) QueryIdentity(target string) (category, typ, name string, err error) {
 	resp, err := c.DiscoInfo(target)
 	if err != nil {
@@ -3762,6 +3875,7 @@ func (c *XMPPCore) QueryIdentity(target string) (category, typ, name string, err
 	return
 }
 
+// DiscoverMUCService discovers the MUC conference service on the connected domain.
 func (c *XMPPCore) DiscoverMUCService() (string, error) {
 	resp, err := c.DiscoItems("")
 	if err != nil {
@@ -3782,6 +3896,7 @@ func (c *XMPPCore) DiscoverMUCService() (string, error) {
 	return "", errors.New("no MUC service found")
 }
 
+// DiscoverHTTPUploadService performs a service discovery (XEP-0030) query.
 func (c *XMPPCore) DiscoverHTTPUploadService() (string, int64, error) {
 	resp, err := c.DiscoItems("")
 	if err != nil {
@@ -3803,6 +3918,7 @@ func (c *XMPPCore) DiscoverHTTPUploadService() (string, int64, error) {
 	return "", 0, errors.New("no HTTP upload service found")
 }
 
+// DiscoverExternalServices performs a service discovery (XEP-0030) query.
 func (c *XMPPCore) DiscoverExternalServices() ([]map[string]string, error) {
 	inner := fmt.Sprintf(`<services xmlns='%s'/>`, nsExtSvc)
 	resp, err := c.sendIQSync("get", c.domain, inner)
@@ -3880,6 +3996,7 @@ func (c *XMPPCore) discoverServices() {
 // XMPP-specific: File Transfer (XEP-0363)
 // ---------------------------------------------------------------------------
 
+// RequestHTTPUploadSlot requests an HTTP upload slot (XEP-0363) for a file.
 func (c *XMPPCore) RequestHTTPUploadSlot(filename string, size int64, contentType string) (putURL, getURL string, err error) {
 	c.mu.RLock()
 	uploadSvc := c.uploadService
@@ -3910,6 +4027,7 @@ func (c *XMPPCore) RequestHTTPUploadSlot(filename string, size int64, contentTyp
 	return putURL, getURL, nil
 }
 
+// UploadFileHTTP uploads a file using the HTTP upload service (XEP-0363).
 func (c *XMPPCore) UploadFileHTTP(putURL string, data []byte, contentType string, progress func(sent, total int64)) error {
 	req, err := http.NewRequestWithContext(c.ctx, "PUT", putURL, bytes.NewReader(data))
 	if err != nil {
@@ -3934,6 +4052,7 @@ func (c *XMPPCore) UploadFileHTTP(putURL string, data []byte, contentType string
 	return nil
 }
 
+// DownloadFileHTTP downloads a file from the given HTTP URL.
 func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total int64)) error {
 	req, err := http.NewRequestWithContext(c.ctx, "GET", url, nil)
 	if err != nil {
@@ -3981,6 +4100,7 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 	return nil
 }
 
+// SendFileURL sends a file reference by URL to the specified JID.
 func (c *XMPPCore) SendFileURL(chatID, url, caption string) (*Message, error) {
 	id := c.nextMsgID()
 	msgType := "chat"
@@ -4020,6 +4140,7 @@ func (c *XMPPCore) SendFileURL(chatID, url, caption string) (*Message, error) {
 // XMPP-specific: PubSub (XEP-0060)
 // ---------------------------------------------------------------------------
 
+// CreatePubSubNode performs a PubSub (XEP-0060) create node operation.
 func (c *XMPPCore) CreatePubSubNode(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -4029,6 +4150,7 @@ func (c *XMPPCore) CreatePubSubNode(service, node string) error {
 	return err
 }
 
+// DeletePubSubNode performs a PubSub (XEP-0060) delete node operation.
 func (c *XMPPCore) DeletePubSubNode(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -4038,6 +4160,7 @@ func (c *XMPPCore) DeletePubSubNode(service, node string) error {
 	return err
 }
 
+// PublishPubSubItem performs a PubSub (XEP-0060) publish item operation.
 func (c *XMPPCore) PublishPubSubItem(service, node, itemID, payload string) error {
 	if service == "" {
 		service = c.bareJID // PEP
@@ -4050,6 +4173,7 @@ func (c *XMPPCore) PublishPubSubItem(service, node, itemID, payload string) erro
 	return err
 }
 
+// RetractPubSubItem performs a PubSub (XEP-0060) retract item operation.
 func (c *XMPPCore) RetractPubSubItem(service, node, itemID string) error {
 	if service == "" {
 		service = c.bareJID
@@ -4062,6 +4186,7 @@ func (c *XMPPCore) RetractPubSubItem(service, node, itemID string) error {
 	return err
 }
 
+// SubscribePubSub performs a PubSub (XEP-0060) subscribe operation.
 func (c *XMPPCore) SubscribePubSub(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -4074,6 +4199,7 @@ func (c *XMPPCore) SubscribePubSub(service, node string) error {
 	return err
 }
 
+// UnsubscribePubSub performs a PubSub (XEP-0060) unsubscribe operation.
 func (c *XMPPCore) UnsubscribePubSub(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -4086,6 +4212,7 @@ func (c *XMPPCore) UnsubscribePubSub(service, node string) error {
 	return err
 }
 
+// GetPubSubItems performs a PubSub (XEP-0060) get items operation.
 func (c *XMPPCore) GetPubSubItems(service, node string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
@@ -4094,6 +4221,7 @@ func (c *XMPPCore) GetPubSubItems(service, node string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service, inner)
 }
 
+// GetPubSubSubscriptions performs a PubSub (XEP-0060) get subscriptions operation.
 func (c *XMPPCore) GetPubSubSubscriptions(service string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
@@ -4102,6 +4230,7 @@ func (c *XMPPCore) GetPubSubSubscriptions(service string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service, inner)
 }
 
+// ConfigurePubSubNode performs a PubSub (XEP-0060) configure node operation.
 func (c *XMPPCore) ConfigurePubSubNode(service, node string, config map[string]string) error {
 	if service == "" {
 		service = c.domain
@@ -4120,6 +4249,7 @@ func (c *XMPPCore) ConfigurePubSubNode(service, node string, config map[string]s
 // XMPP-specific: PEP (XEP-0163) — User Mood, Activity, Tune, Location
 // ---------------------------------------------------------------------------
 
+// SetUserMood sets user mood on the XMPP server.
 func (c *XMPPCore) SetUserMood(mood, text string) error {
 	var textXML string
 	if text != "" {
@@ -4129,6 +4259,7 @@ func (c *XMPPCore) SetUserMood(mood, text string) error {
 	return c.PublishPubSubItem("", nsMood, "current", payload)
 }
 
+// SetUserActivity sets user activity on the XMPP server.
 func (c *XMPPCore) SetUserActivity(activity, specific, text string) error {
 	var specificXML, textXML string
 	if specific != "" {
@@ -4142,6 +4273,7 @@ func (c *XMPPCore) SetUserActivity(activity, specific, text string) error {
 	return c.PublishPubSubItem("", nsActivity, "current", payload)
 }
 
+// SetUserTune sets user tune on the XMPP server.
 func (c *XMPPCore) SetUserTune(artist, title, source string, length int) error {
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<tune xmlns='%s'>`, nsTune))
@@ -4161,6 +4293,7 @@ func (c *XMPPCore) SetUserTune(artist, title, source string, length int) error {
 	return c.PublishPubSubItem("", nsTune, "current", inner.String())
 }
 
+// SetUserLocation sets user location on the XMPP server.
 func (c *XMPPCore) SetUserLocation(lat, lon float64, description string) error {
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<geoloc xmlns='%s'>`, nsGeoLoc))
@@ -4173,6 +4306,7 @@ func (c *XMPPCore) SetUserLocation(lat, lon float64, description string) error {
 	return c.PublishPubSubItem("", nsGeoLoc, "current", inner.String())
 }
 
+// SetAvatarPEP publishes an avatar image via PEP (XEP-0084).
 func (c *XMPPCore) SetAvatarPEP(imageData []byte, mimeType string) error {
 	// Publish avatar data
 	b64 := base64.StdEncoding.EncodeToString(imageData)
@@ -4192,6 +4326,7 @@ func (c *XMPPCore) SetAvatarPEP(imageData []byte, mimeType string) error {
 	return c.PublishPubSubItem("", nsAvatarMeta, hashStr, metaPayload)
 }
 
+// GetAvatarPEP retrieves a user's avatar image via PEP (XEP-0084).
 func (c *XMPPCore) GetAvatarPEP(jid string) ([]byte, error) {
 	resp, err := c.GetPubSubItems(jid, nsAvatarData)
 	if err != nil {
@@ -4210,6 +4345,7 @@ func (c *XMPPCore) GetAvatarPEP(jid string) ([]byte, error) {
 // XMPP-specific: vCard (XEP-0054)
 // ---------------------------------------------------------------------------
 
+// GetVCard retrieves the vCard (XEP-0054) for a specified JID.
 func (c *XMPPCore) GetVCard(jid string) (map[string]string, error) {
 	c.vcardCacheMu.RLock()
 	if cached, ok := c.vcardCache[jid]; ok {
@@ -4233,6 +4369,7 @@ func (c *XMPPCore) GetVCard(jid string) (map[string]string, error) {
 	return fields, nil
 }
 
+// SetVCard updates the authenticated user's vCard (XEP-0054).
 func (c *XMPPCore) SetVCard(fields map[string]string) error {
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<vCard xmlns='%s'>`, nsVCard))
@@ -4257,6 +4394,7 @@ func (c *XMPPCore) SetVCard(fields map[string]string) error {
 	return err
 }
 
+// GetVCardField retrieves a specific field from a user's vCard (XEP-0054).
 func (c *XMPPCore) GetVCardField(jid, field string) (string, error) {
 	vcard, err := c.GetVCard(jid)
 	if err != nil {
@@ -4265,6 +4403,7 @@ func (c *XMPPCore) GetVCardField(jid, field string) (string, error) {
 	return vcard[field], nil
 }
 
+// SetAvatarVCard updates the avatar photo in the user's vCard (XEP-0054).
 func (c *XMPPCore) SetAvatarVCard(imageData []byte, mimeType string) error {
 	b64 := base64.StdEncoding.EncodeToString(imageData)
 	fields := map[string]string{
@@ -4299,6 +4438,7 @@ func (c *XMPPCore) SetAvatarVCard(imageData []byte, mimeType string) error {
 // XMPP-specific: Blocking (XEP-0191)
 // ---------------------------------------------------------------------------
 
+// BlockJID blocks a JID using the block list (XEP-0191).
 func (c *XMPPCore) BlockJID(jid string) error {
 	inner := fmt.Sprintf(`<block xmlns='%s'><item jid='%s'/></block>`, nsBlocking, xmlEscape(jid))
 	_, err := c.sendIQSync("set", "", inner)
@@ -4310,6 +4450,7 @@ func (c *XMPPCore) BlockJID(jid string) error {
 	return err
 }
 
+// UnblockJID removes a JID from the block list (XEP-0191).
 func (c *XMPPCore) UnblockJID(jid string) error {
 	inner := fmt.Sprintf(`<unblock xmlns='%s'><item jid='%s'/></unblock>`, nsBlocking, xmlEscape(jid))
 	_, err := c.sendIQSync("set", "", inner)
@@ -4321,6 +4462,7 @@ func (c *XMPPCore) UnblockJID(jid string) error {
 	return err
 }
 
+// GetBlocklist retrieves blocklist from the XMPP server.
 func (c *XMPPCore) GetBlocklist() ([]string, error) {
 	inner := fmt.Sprintf(`<blocklist xmlns='%s'/>`, nsBlocking)
 	resp, err := c.sendIQSync("get", "", inner)
@@ -4377,6 +4519,7 @@ func (c *XMPPCore) loadBookmarks() {
 	c.bookmarksMu.Unlock()
 }
 
+// GetBookmarks retrieves stored conference bookmarks (XEP-0048/0402).
 func (c *XMPPCore) GetBookmarks() ([]xmppBookmark, error) {
 	c.bookmarksMu.RLock()
 	if len(c.bookmarks) == 0 {
@@ -4391,6 +4534,7 @@ func (c *XMPPCore) GetBookmarks() ([]xmppBookmark, error) {
 	return result, nil
 }
 
+// SetBookmark saves a conference bookmark (XEP-0048/0402).
 func (c *XMPPCore) SetBookmark(jid, name, nick string, autoJoin bool) error {
 	c.bookmarksMu.Lock()
 	// Update or add
@@ -4419,6 +4563,7 @@ func (c *XMPPCore) SetBookmark(jid, name, nick string, autoJoin bool) error {
 	return c.saveBookmarks(bms)
 }
 
+// RemoveBookmark deletes a conference bookmark (XEP-0048/0402).
 func (c *XMPPCore) RemoveBookmark(jid string) error {
 	c.bookmarksMu.Lock()
 	for i := range c.bookmarks {
@@ -4434,6 +4579,7 @@ func (c *XMPPCore) RemoveBookmark(jid string) error {
 	return c.saveBookmarks(bms)
 }
 
+// SetBookmarkAutoJoin toggles the auto-join flag on a conference bookmark.
 func (c *XMPPCore) SetBookmarkAutoJoin(jid string, autoJoin bool) error {
 	c.bookmarksMu.Lock()
 	for i := range c.bookmarks {
@@ -4493,6 +4639,7 @@ func (c *XMPPCore) autoJoinBookmarks() {
 // XMPP-specific: MAM (XEP-0313)
 // ---------------------------------------------------------------------------
 
+// QueryMAM queries the Message Archive (XEP-0313) with the given parameters.
 func (c *XMPPCore) QueryMAM(jid string, limit int, after string) ([]Message, error) {
 	if limit <= 0 {
 		limit = 50
@@ -4536,10 +4683,12 @@ func (c *XMPPCore) QueryMAM(jid string, limit int, after string) ([]Message, err
 	return nil, nil
 }
 
+// QueryMAMByJID queries the Message Archive (XEP-0313) filtered by a specific JID.
 func (c *XMPPCore) QueryMAMByJID(jid string, limit int) ([]Message, error) {
 	return c.QueryMAM(jid, limit, "")
 }
 
+// QueryMAMByDateRange queries the Message Archive (XEP-0313) within a time range.
 func (c *XMPPCore) QueryMAMByDateRange(jid string, start, end time.Time, limit int) ([]Message, error) {
 	if limit <= 0 {
 		limit = 50
@@ -4579,6 +4728,7 @@ func (c *XMPPCore) QueryMAMByDateRange(jid string, start, end time.Time, limit i
 	return nil, nil
 }
 
+// QueryMAMPage retrieves a page of results from the Message Archive (XEP-0313).
 func (c *XMPPCore) QueryMAMPage(jid string, limit int, after string) ([]Message, error) {
 	return c.QueryMAM(jid, limit, after)
 }
@@ -4587,6 +4737,7 @@ func (c *XMPPCore) QueryMAMPage(jid string, limit int, after string) ([]Message,
 // XMPP-specific: Registration (XEP-0077)
 // ---------------------------------------------------------------------------
 
+// RegisterAccount registers a new account on the XMPP server.
 func (c *XMPPCore) RegisterAccount(server, username, password string) error {
 	inner := fmt.Sprintf(
 		`<query xmlns='%s'><username>%s</username><password>%s</password></query>`,
@@ -4596,6 +4747,7 @@ func (c *XMPPCore) RegisterAccount(server, username, password string) error {
 	return err
 }
 
+// ChangePassword changes the account password on the XMPP server.
 func (c *XMPPCore) ChangePassword(newPassword string) error {
 	local := c.bareJID
 	if at := strings.Index(local, "@"); at > 0 {
@@ -4614,6 +4766,7 @@ func (c *XMPPCore) ChangePassword(newPassword string) error {
 	return err
 }
 
+// UnregisterAccount unregister account on the XMPP connection.
 func (c *XMPPCore) UnregisterAccount() error {
 	inner := fmt.Sprintf(`<query xmlns='%s'><remove/></query>`, nsRegister)
 	_, err := c.sendIQSync("set", "", inner)
@@ -4624,6 +4777,7 @@ func (c *XMPPCore) UnregisterAccount() error {
 // XMPP-specific: Stream Management (XEP-0198)
 // ---------------------------------------------------------------------------
 
+// EnableStreamManagement activates stream management (XEP-0198) on the connection.
 func (c *XMPPCore) EnableStreamManagement() error {
 	err := c.sendRawStanza(fmt.Sprintf(`<enable xmlns='%s' resume='true'/>`, nsSM))
 	if err != nil {
@@ -4638,10 +4792,12 @@ func (c *XMPPCore) EnableStreamManagement() error {
 	return nil
 }
 
+// RequestAck requests ack from the XMPP server.
 func (c *XMPPCore) RequestAck() error {
 	return c.sendRawStanza(fmt.Sprintf(`<r xmlns='%s'/>`, nsSM))
 }
 
+// SendAck sends ack to the specified JID.
 func (c *XMPPCore) SendAck() error {
 	h := c.smInH.Load()
 	c.writeMu.Lock()
@@ -4650,6 +4806,7 @@ func (c *XMPPCore) SendAck() error {
 	return err
 }
 
+// ResumeStream resume stream on the XMPP connection.
 func (c *XMPPCore) ResumeStream(prevID string, h int64) error {
 	return c.sendRawStanza(fmt.Sprintf(`<resume xmlns='%s' previd='%s' h='%d'/>`, nsSM, xmlEscape(prevID), h))
 }
@@ -4669,6 +4826,7 @@ func (c *XMPPCore) handleAck(h int64) {
 // XMPP-specific: Utility methods
 // ---------------------------------------------------------------------------
 
+// SendPing sends ping to the specified JID.
 func (c *XMPPCore) SendPing(to string) error {
 	if to == "" {
 		to = c.domain
@@ -4678,6 +4836,7 @@ func (c *XMPPCore) SendPing(to string) error {
 	return err
 }
 
+// GetSoftwareVersion retrieves software version from the XMPP server.
 func (c *XMPPCore) GetSoftwareVersion(jid string) (name, version, os string, err error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsVersion)
 	resp, err := c.sendIQSync("get", jid, inner)
@@ -4691,6 +4850,7 @@ func (c *XMPPCore) GetSoftwareVersion(jid string) (name, version, os string, err
 	return
 }
 
+// GetLastActivity queries a JID for its last activity time (XEP-0012).
 func (c *XMPPCore) GetLastActivity(jid string) (int64, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsLast)
 	resp, err := c.sendIQSync("get", jid, inner)
@@ -4703,6 +4863,7 @@ func (c *XMPPCore) GetLastActivity(jid string) (int64, error) {
 	return secs, nil
 }
 
+// GetEntityTime queries a JID for its local time (XEP-0202).
 func (c *XMPPCore) GetEntityTime(jid string) (utc, tzo string, err error) {
 	inner := fmt.Sprintf(`<time xmlns='%s'/>`, nsTime)
 	resp, err := c.sendIQSync("get", jid, inner)
@@ -4715,14 +4876,17 @@ func (c *XMPPCore) GetEntityTime(jid string) (utc, tzo string, err error) {
 	return
 }
 
+// SetClientStateActive sets client state active on the XMPP server.
 func (c *XMPPCore) SetClientStateActive() error {
 	return c.sendRawStanza(fmt.Sprintf(`<active xmlns='%s'/>`, nsCSI))
 }
 
+// SetClientStateInactive sets client state inactive on the XMPP server.
 func (c *XMPPCore) SetClientStateInactive() error {
 	return c.sendRawStanza(fmt.Sprintf(`<inactive xmlns='%s'/>`, nsCSI))
 }
 
+// GetEntityCapabilities retrieves entity capabilities from the XMPP server.
 func (c *XMPPCore) GetEntityCapabilities(jid string) (string, error) {
 	resp, err := c.DiscoInfo(jid)
 	if err != nil {
@@ -4735,6 +4899,7 @@ func (c *XMPPCore) GetEntityCapabilities(jid string) (string, error) {
 // XMPP-specific: Jingle / Calls (XEP-0166)
 // ---------------------------------------------------------------------------
 
+// InitiateJingle starts a new Jingle session (XEP-0166) with the specified JID.
 func (c *XMPPCore) InitiateJingle(to string, video bool) (*CallSession, error) {
 	sid := fmt.Sprintf("jingle_%d", time.Now().UnixNano())
 	media := "audio"
@@ -4771,6 +4936,7 @@ func (c *XMPPCore) InitiateJingle(to string, video bool) (*CallSession, error) {
 	}, nil
 }
 
+// AcceptJingle accepts an incoming Jingle session (XEP-0166).
 func (c *XMPPCore) AcceptJingle(to, sid string) error {
 	inner := fmt.Sprintf(
 		`<jingle xmlns='%s' action='session-accept' sid='%s' responder='%s'>`+
@@ -4786,10 +4952,12 @@ func (c *XMPPCore) AcceptJingle(to, sid string) error {
 	return err
 }
 
+// RejectJingle rejects an incoming Jingle session (XEP-0166).
 func (c *XMPPCore) RejectJingle(to, sid string) error {
 	return c.TerminateJingle(sid, "decline")
 }
 
+// TerminateJingle terminates an active Jingle session (XEP-0166).
 func (c *XMPPCore) TerminateJingle(sid, reason string) error {
 	if reason == "" {
 		reason = "success"
@@ -4803,6 +4971,7 @@ func (c *XMPPCore) TerminateJingle(sid, reason string) error {
 	return c.sendRawStanza(fmt.Sprintf(`<iq type='set' id='%s'>%s</iq>`, c.nextIQID(), inner))
 }
 
+// SendJingleTransportInfo sends transport candidate information for a Jingle session.
 func (c *XMPPCore) SendJingleTransportInfo(to, sid, candidate string) error {
 	inner := fmt.Sprintf(
 		`<jingle xmlns='%s' action='transport-info' sid='%s'>`+
@@ -4815,6 +4984,7 @@ func (c *XMPPCore) SendJingleTransportInfo(to, sid, candidate string) error {
 	return err
 }
 
+// GetTURNCredentials retrieves TURN server credentials from the XMPP server.
 func (c *XMPPCore) GetTURNCredentials() ([]map[string]string, error) {
 	return c.DiscoverExternalServices()
 }
@@ -5712,7 +5882,7 @@ func (c *XMPPCore) FetchOMEMOBundle(jid string, deviceID int) (*XMPPIQ, error) {
 }
 
 // OMEMOEncrypt encrypts a message payload using OMEMO (envelope XML).
-// Returns the encrypted XML element to include in a message stanza.
+// OMEMOEncrypt encrypts a message payload using OMEMO envelope XML (XEP-0384).
 func (c *XMPPCore) OMEMOEncrypt(payload []byte, recipientKeys []map[string]string) (string, error) {
 	encoded := base64.StdEncoding.EncodeToString(payload)
 	keys := ""
@@ -5726,7 +5896,7 @@ func (c *XMPPCore) OMEMOEncrypt(payload []byte, recipientKeys []map[string]strin
 		nsOMEMO, c.bareJID, keys, "", encoded), nil
 }
 
-// OMEMODecrypt decrypts an OMEMO-encrypted message payload.
+// OMEMODecrypt decrypts an OMEMO-encrypted message payload (XEP-0384).
 func (c *XMPPCore) OMEMODecrypt(encryptedXML string, sessionKey []byte) ([]byte, error) {
 	// Extract base64 payload from the XML
 	start := strings.Index(encryptedXML, "<payload>")
@@ -6299,7 +6469,7 @@ func (c *XMPPCore) ActivateS5B(proxyJID, sid, targetJID string) error {
 
 // ──────────────────────────── MUC Voice Request (XEP-0045) ────────────────────────────
 
-// RequestMUCVoice requests voice (participant role) in a moderated MUC room.
+// RequestMUCVoice requests voice (ability to speak) in a moderated MUC room.
 func (c *XMPPCore) RequestMUCVoice(roomJID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s'>`+
@@ -6449,7 +6619,7 @@ func (c *XMPPCore) ShareEncryptedFile(toJID, name, mediaType string, size int64,
 // ──────────────────────────── OMEMO Media Sharing (XEP-0454) ────────────────────────────
 
 // EncryptMedia encrypts plaintext bytes with a random AES-256-GCM key.
-// Returns ciphertext, IV (base64), and key (base64).
+// EncryptMedia encrypts plaintext bytes with a random AES-256-GCM key.
 func (c *XMPPCore) EncryptMedia(plaintext []byte) ([]byte, string, string, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -6471,7 +6641,7 @@ func (c *XMPPCore) EncryptMedia(plaintext []byte) ([]byte, string, string, error
 	return ct, base64.StdEncoding.EncodeToString(iv), base64.StdEncoding.EncodeToString(key), nil
 }
 
-// DecryptMedia decrypts AES-256-GCM encrypted media given IV and key (both base64).
+// DecryptMedia decrypts AES-256-GCM encrypted media using the provided key and IV.
 func (c *XMPPCore) DecryptMedia(ciphertext []byte, ivB64, keyB64 string) ([]byte, error) {
 	key, err := base64.StdEncoding.DecodeString(keyB64)
 	if err != nil {
@@ -7867,30 +8037,37 @@ func HashElement(algo string, data []byte) string {
 		algo, base64.StdEncoding.EncodeToString(h.Sum(nil)))
 }
 
+// MuteChat mutes notifications for a conversation.
 func (c *XMPPCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, xmppPlatform)
 }
 
+// ArchiveChat archives a conversation by removing it from bookmarks.
 func (c *XMPPCore) ArchiveChat(chatID string, archived bool) error {
 	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, xmppPlatform)
 }
 
+// MarkUnread mark unread on the XMPP connection.
 func (c *XMPPCore) MarkUnread(chatID string, unread bool) error {
 	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, xmppPlatform)
 }
 
+// UnpinAllMessages unpin all messages on the XMPP connection.
 func (c *XMPPCore) UnpinAllMessages(chatID string) error {
 	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, xmppPlatform)
 }
 
+// AcceptCall accepts call.
 func (c *XMPPCore) AcceptCall(callID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, xmppPlatform)
 }
 
+// DeclineCall declines an incoming call session.
 func (c *XMPPCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, xmppPlatform)
 }
 
+// SendLocation sends a geographic location to the specified JID.
 func (c *XMPPCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, xmppPlatform)
 }

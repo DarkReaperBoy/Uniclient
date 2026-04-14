@@ -410,8 +410,10 @@ func NewIRCCore(sessionPath string) *IRCCore {
 // Core interface — Identity
 // ---------------------------------------------------------------------------
 
+// Name returns the platform identifier for this core ("irc").
 func (c *IRCCore) Name() string { return ircPlatform }
 
+// Capabilities returns the list of features supported by this IRC core.
 func (c *IRCCore) Capabilities() []string {
 	return []string{CapText, CapChannels, CapAdmin, CapSearch, CapBlocking, CapTyping}
 }
@@ -420,6 +422,7 @@ func (c *IRCCore) Capabilities() []string {
 // Core interface — Auth
 // ---------------------------------------------------------------------------
 
+// Authenticate connects to the IRC server and performs registration, optional SASL authentication, and auto-join.
 func (c *IRCCore) Authenticate(cfg AuthConfig) error {
 	c.mu.Lock()
 	if c.authed {
@@ -571,6 +574,7 @@ func (c *IRCCore) connect() error {
 	return nil
 }
 
+// Logout disconnects from the IRC server gracefully by sending a QUIT command.
 func (c *IRCCore) Logout() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -1902,6 +1906,7 @@ func (c *IRCCore) fireUpdate(u Update) {
 // Core interface — Dialogs
 // ---------------------------------------------------------------------------
 
+// GetDialogs returns the list of joined channels and active DM conversations.
 func (c *IRCCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -1968,6 +1973,7 @@ func (c *IRCCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs, nil
 }
 
+// CreateGroup creates a new IRC channel and invites the specified members.
 func (c *IRCCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -1992,6 +1998,7 @@ func (c *IRCCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	}, nil
 }
 
+// CreateChannel creates a new IRC channel with the given name and sets its topic.
 func (c *IRCCore) CreateChannel(name string, description string) (*Dialog, error) {
 	// IRC channels and groups are the same thing
 	d, err := c.CreateGroup(name, nil)
@@ -2005,14 +2012,17 @@ func (c *IRCCore) CreateChannel(name string, description string) (*Dialog, error
 	return d, nil
 }
 
+// CreateTopic is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) CreateTopic(_ string, _ string) (*Dialog, error) {
 	return nil, fmt.Errorf("%w: irc does not support forum topics", ErrNotSupported)
 }
 
+// GetFolders is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) GetFolders() ([]Folder, error) {
 	return nil, fmt.Errorf("%w: irc does not support folders", ErrNotSupported)
 }
 
+// CreateFolder is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) CreateFolder(_ string, _ []string) (*Folder, error) {
 	return nil, fmt.Errorf("%w: irc does not support folders", ErrNotSupported)
 }
@@ -2021,6 +2031,7 @@ func (c *IRCCore) CreateFolder(_ string, _ []string) (*Folder, error) {
 // Core interface — Messages
 // ---------------------------------------------------------------------------
 
+// SendMessage sends a PRIVMSG to the specified channel or user.
 func (c *IRCCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2090,6 +2101,7 @@ func (c *IRCCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, err
 	return lastMsg, nil
 }
 
+// GetMessages retrieves buffered messages for a channel or user, using CHATHISTORY if available.
 func (c *IRCCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2117,14 +2129,17 @@ func (c *IRCCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, er
 	return result, nil
 }
 
+// EditMessage is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) EditMessage(_ string, _ string, _ string) (*Message, error) {
 	return nil, fmt.Errorf("%w: irc does not support message editing", ErrNotSupported)
 }
 
+// DeleteMessage is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) DeleteMessage(_ string, _ string) error {
 	return fmt.Errorf("%w: irc does not support message deletion", ErrNotSupported)
 }
 
+// ReplyToMessage sends a reply referencing the original message via IRCv3 +reply tag.
 func (c *IRCCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2153,6 +2168,7 @@ func (c *IRCCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outgoin
 	return c.SendMessage(chatID, OutgoingMessage{Text: text})
 }
 
+// ForwardMessage forwards a buffered message from one channel or user to another.
 func (c *IRCCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2177,10 +2193,12 @@ func (c *IRCCore) ForwardMessage(fromChatID string, msgID string, toChatID strin
 	return c.SendMessage(toChatID, OutgoingMessage{Text: text})
 }
 
+// ReactToMessage is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) ReactToMessage(_ string, _ string, _ string) error {
 	return fmt.Errorf("%w: irc does not support reactions", ErrNotSupported)
 }
 
+// PinMessage sets the channel topic to the content of the specified message.
 func (c *IRCCore) PinMessage(chatID string, msgID string) error {
 	c.pinnedMu.Lock()
 	if c.pinned[chatID] == nil {
@@ -2192,6 +2210,7 @@ func (c *IRCCore) PinMessage(chatID string, msgID string) error {
 	return nil
 }
 
+// UnpinMessage clears the channel topic if it matches the specified message.
 func (c *IRCCore) UnpinMessage(chatID string, msgID string) error {
 	c.pinnedMu.Lock()
 	if c.pinned[chatID] != nil {
@@ -2206,6 +2225,7 @@ func (c *IRCCore) UnpinMessage(chatID string, msgID string) error {
 // Core interface — Read State
 // ---------------------------------------------------------------------------
 
+// MarkAsRead sends an IRCv3 MARKREAD command for the given target up to the specified message.
 func (c *IRCCore) MarkAsRead(chatID string, upToMsgID string) error {
 	c.readStateMu.Lock()
 	if c.readState[chatID] == nil {
@@ -2218,6 +2238,7 @@ func (c *IRCCore) MarkAsRead(chatID string, upToMsgID string) error {
 	return nil
 }
 
+// GetReadState returns the read state for the specified channel or DM.
 func (c *IRCCore) GetReadState(chatID string) (*ReadState, error) {
 	c.readStateMu.RLock()
 	defer c.readStateMu.RUnlock()
@@ -2231,14 +2252,17 @@ func (c *IRCCore) GetReadState(chatID string) (*ReadState, error) {
 // Core interface — Files (not supported)
 // ---------------------------------------------------------------------------
 
+// UploadFile is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) UploadFile(_ string, _ FileUpload, _ func(int64, int64)) (*Message, error) {
 	return nil, fmt.Errorf("%w: irc does not support file uploads", ErrNotSupported)
 }
 
+// DownloadFile is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) DownloadFile(_ FileRef, _ string, _ func(int64, int64)) error {
 	return fmt.Errorf("%w: irc does not support file downloads", ErrNotSupported)
 }
 
+// SendImageBase64 is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) SendImageBase64(_ string, _ string, _ string) (*Message, error) {
 	return nil, fmt.Errorf("%w: irc does not support base64 image sending", ErrNotSupported)
 }
@@ -2247,18 +2271,22 @@ func (c *IRCCore) SendImageBase64(_ string, _ string, _ string) (*Message, error
 // Core interface — Calls (not supported)
 // ---------------------------------------------------------------------------
 
+// StartCall is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) StartCall(_ string, _ bool) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
 
+// JoinGroupCall is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) JoinGroupCall(_ string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
 
+// EndCall terminates an active DCC CHAT connection.
 func (c *IRCCore) EndCall(_ string) error {
 	return fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
 
+// SetCallMuted is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) SetCallMuted(_ string, _ bool) error {
 	return fmt.Errorf("%w: irc does not support calls", ErrNotSupported)
 }
@@ -2267,6 +2295,7 @@ func (c *IRCCore) SetCallMuted(_ string, _ bool) error {
 // Core interface — Profile
 // ---------------------------------------------------------------------------
 
+// GetProfile queries WHOIS for the specified nick and returns user profile information.
 func (c *IRCCore) GetProfile(userID string) (*User, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2315,12 +2344,14 @@ func (c *IRCCore) GetProfile(userID string) (*User, error) {
 // Core interface — Real-time
 // ---------------------------------------------------------------------------
 
+// OnUpdate registers a handler function to receive real-time IRC updates.
 func (c *IRCCore) OnUpdate(handler func(Update)) {
 	c.updateMu.Lock()
 	c.updateHandlers = append(c.updateHandlers, handler)
 	c.updateMu.Unlock()
 }
 
+// Close disconnects from the IRC server, saves the session, and releases resources.
 func (c *IRCCore) Close() error {
 	c.mu.Lock()
 	if c.authed {
@@ -2341,6 +2372,7 @@ func (c *IRCCore) Close() error {
 // Core interface — Chat Info & Settings
 // ---------------------------------------------------------------------------
 
+// GetChatInfo returns metadata for a channel or DM conversation.
 func (c *IRCCore) GetChatInfo(chatID string) (*Dialog, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2375,10 +2407,12 @@ func (c *IRCCore) GetChatInfo(chatID string) (*Dialog, error) {
 	}, nil
 }
 
+// EditChatTitle is not supported on IRC because channel names are immutable.
 func (c *IRCCore) EditChatTitle(_ string, _ string) error {
 	return fmt.Errorf("%w: irc channel names are immutable", ErrNotSupported)
 }
 
+// EditChatDescription sets the channel topic to the given description.
 func (c *IRCCore) EditChatDescription(chatID string, description string) error {
 	if !c.authed {
 		return ErrAuth
@@ -2388,6 +2422,7 @@ func (c *IRCCore) EditChatDescription(chatID string, description string) error {
 	return nil
 }
 
+// LeaveChat sends a PART command to leave a channel or removes a DM from tracking.
 func (c *IRCCore) LeaveChat(chatID string) error {
 	if !c.authed {
 		return ErrAuth
@@ -2403,6 +2438,7 @@ func (c *IRCCore) LeaveChat(chatID string) error {
 	return nil
 }
 
+// GetInviteLink returns the channel name as a pseudo invite link.
 func (c *IRCCore) GetInviteLink(_ string) (string, error) {
 	return "", fmt.Errorf("%w: irc does not support invite links", ErrNotSupported)
 }
@@ -2411,6 +2447,7 @@ func (c *IRCCore) GetInviteLink(_ string) (string, error) {
 // Core interface — Member Management
 // ---------------------------------------------------------------------------
 
+// AddMembers sends INVITE commands to invite users to a channel.
 func (c *IRCCore) AddMembers(chatID string, userIDs []string) error {
 	if !c.authed {
 		return ErrAuth
@@ -2421,6 +2458,7 @@ func (c *IRCCore) AddMembers(chatID string, userIDs []string) error {
 	return nil
 }
 
+// RemoveMember sends a KICK command to remove a user from a channel.
 func (c *IRCCore) RemoveMember(chatID string, userID string) error {
 	if !c.authed {
 		return ErrAuth
@@ -2429,6 +2467,7 @@ func (c *IRCCore) RemoveMember(chatID string, userID string) error {
 	return nil
 }
 
+// BanMember sets a ban mode (+b) on the user's hostmask in the specified channel.
 func (c *IRCCore) BanMember(chatID string, userID string) error {
 	if !c.authed {
 		return ErrAuth
@@ -2440,6 +2479,7 @@ func (c *IRCCore) BanMember(chatID string, userID string) error {
 	return nil
 }
 
+// UnbanMember removes the ban mode (-b) on the user's hostmask in the specified channel.
 func (c *IRCCore) UnbanMember(chatID string, userID string) error {
 	if !c.authed {
 		return ErrAuth
@@ -2448,6 +2488,7 @@ func (c *IRCCore) UnbanMember(chatID string, userID string) error {
 	return nil
 }
 
+// GetMembers returns the list of users in the specified channel.
 func (c *IRCCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2491,6 +2532,7 @@ func (c *IRCCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error)
 	return users, nil
 }
 
+// SetAdmin grants or revokes operator status (+o/-o) for a user in a channel.
 func (c *IRCCore) SetAdmin(chatID string, userID string, admin bool) error {
 	if !c.authed {
 		return ErrAuth
@@ -2507,18 +2549,22 @@ func (c *IRCCore) SetAdmin(chatID string, userID string, admin bool) error {
 // Core interface — Contacts (local tracking only)
 // ---------------------------------------------------------------------------
 
+// GetContacts is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) GetContacts() ([]User, error) {
 	return nil, fmt.Errorf("%w: irc does not support contacts", ErrNotSupported)
 }
 
+// AddContact is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) AddContact(_ string, _ string, _ string) error {
 	return fmt.Errorf("%w: irc does not support contacts", ErrNotSupported)
 }
 
+// DeleteContact is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) DeleteContact(_ string) error {
 	return fmt.Errorf("%w: irc does not support contacts", ErrNotSupported)
 }
 
+// BlockUser adds the specified user to the SILENCE list to block their messages.
 func (c *IRCCore) BlockUser(userID string) error {
 	c.blockedMu.Lock()
 	c.blocked[strings.ToLower(userID)] = true
@@ -2527,6 +2573,7 @@ func (c *IRCCore) BlockUser(userID string) error {
 	return nil
 }
 
+// UnblockUser removes the specified user from the SILENCE list.
 func (c *IRCCore) UnblockUser(userID string) error {
 	c.blockedMu.Lock()
 	delete(c.blocked, strings.ToLower(userID))
@@ -2535,6 +2582,7 @@ func (c *IRCCore) UnblockUser(userID string) error {
 	return nil
 }
 
+// GetBlockedUsers returns the list of locally blocked users.
 func (c *IRCCore) GetBlockedUsers() ([]User, error) {
 	c.blockedMu.RLock()
 	defer c.blockedMu.RUnlock()
@@ -2557,6 +2605,7 @@ func (c *IRCCore) GetBlockedUsers() ([]User, error) {
 // Core interface — Search
 // ---------------------------------------------------------------------------
 
+// SearchMessages searches the local message buffer for messages matching the query string.
 func (c *IRCCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2589,6 +2638,7 @@ func (c *IRCCore) SearchMessages(chatID string, query string, opts PaginationOpt
 	return results, nil
 }
 
+// SearchGlobal searches local channels and DMs matching the query string.
 func (c *IRCCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	if !c.authed {
 		return nil, ErrAuth
@@ -2640,6 +2690,7 @@ func (c *IRCCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, err
 // Core interface — Typing
 // ---------------------------------------------------------------------------
 
+// SendTyping sends an IRCv3 typing indicator to the specified channel or user.
 func (c *IRCCore) SendTyping(chatID string) error {
 	// Use IRCv3 draft/typing if the server supports it, otherwise no-op.
 	c.SendTypingIndicator(chatID, true)
@@ -2650,10 +2701,12 @@ func (c *IRCCore) SendTyping(chatID string) error {
 // Core interface — Polls (not supported)
 // ---------------------------------------------------------------------------
 
+// CreatePoll is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) CreatePoll(_ string, _ string, _ []string) (*Message, error) {
 	return nil, fmt.Errorf("%w: irc does not support polls", ErrNotSupported)
 }
 
+// VotePoll is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) VotePoll(_ string, _ string, _ int) error {
 	return fmt.Errorf("%w: irc does not support polls", ErrNotSupported)
 }
@@ -2662,6 +2715,7 @@ func (c *IRCCore) VotePoll(_ string, _ string, _ int) error {
 // Core interface — Stickers (not supported)
 // ---------------------------------------------------------------------------
 
+// SendSticker is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) SendSticker(_ string, _ string) (*Message, error) {
 	return nil, fmt.Errorf("%w: irc does not support stickers", ErrNotSupported)
 }
@@ -2670,10 +2724,12 @@ func (c *IRCCore) SendSticker(_ string, _ string) (*Message, error) {
 // Core interface — Sessions (not supported)
 // ---------------------------------------------------------------------------
 
+// GetSessions is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) GetSessions() ([]Session, error) {
 	return nil, fmt.Errorf("%w: irc does not support session management", ErrNotSupported)
 }
 
+// TerminateSession is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) TerminateSession(_ string) error {
 	return fmt.Errorf("%w: irc does not support session management", ErrNotSupported)
 }
@@ -5233,31 +5289,47 @@ func (c *IRCCore) StatServAkill() {
 
 // ── IRCd Oper Commands — UnrealIRCd (~23) ──
 
+// Tempshun temporarily shuns a nick, preventing them from executing commands.
 func (c *IRCCore) Tempshun(nick, reason string) { c.sendRaw("TEMPSHUN " + nick + " :" + reason) }
+// SpamfilterAdd adds a spam filter rule to the IRCd.
 func (c *IRCCore) SpamfilterAdd(target, action, tkltime, reason, regex string) {
 	c.sendRaw("SPAMFILTER add " + target + " " + action + " " + tkltime + " " + reason + " :" + regex)
 }
+// SpamfilterDel removes a spam filter rule from the IRCd.
 func (c *IRCCore) SpamfilterDel(target, action, regex string) {
 	c.sendRaw("SPAMFILTER del " + target + " " + action + " :" + regex)
 }
+// Rmtkl removes a TKL (ban) entry by type and pattern from the IRCd.
 func (c *IRCCore) Rmtkl(tklType, pattern string) { c.sendRaw("RMTKL " + tklType + " " + pattern) }
+// Jumpserver redirects clients to another server via the JUMPSERVER IRCd command.
 func (c *IRCCore) Jumpserver(addr, port, reason string) {
 	c.sendRaw("JUMPSERVER " + addr + " " + port + " :" + reason)
 }
+// Tsctl sends a TS control command to the IRCd.
 func (c *IRCCore) Tsctl(subcmd string) { c.sendRaw("TSCTL " + subcmd) }
+// Dccdeny adds a DCC deny rule to block file transfers matching the pattern.
 func (c *IRCCore) Dccdeny(filePattern, reason string) {
 	c.sendRaw("DCCDENY " + filePattern + " :" + reason)
 }
+// Undccdeny removes a DCC deny rule for the specified file pattern.
 func (c *IRCCore) Undccdeny(filePattern string) { c.sendRaw("UNDCCDENY " + filePattern) }
+// Dccallow manages the DCC allow list for the current user.
 func (c *IRCCore) Dccallow(args string) { c.sendRaw("DCCALLOW " + args) }
+// Sdesc sets the server description via the SDESC IRCd command.
 func (c *IRCCore) Sdesc(desc string) { c.sendRaw("SDESC :" + desc) }
+// Mkpasswd generates a hashed password using the specified hash type.
 func (c *IRCCore) Mkpasswd(hashType, password string) {
 	c.sendRaw("MKPASSWD " + hashType + " " + password)
 }
+// Ircops lists all online IRC operators.
 func (c *IRCCore) Ircops() { c.sendRaw("IRCOPS") }
+// Cycle parts and immediately rejoins a channel.
 func (c *IRCCore) Cycle(channel string) { c.sendRaw("CYCLE " + channel) }
+// CloseConnections sends a CLOSE command to disconnect idle connections on the IRCd.
 func (c *IRCCore) CloseConnections() { c.sendRaw("CLOSE") }
+// DnsInfo queries DNS information via the IRCd DNS command.
 func (c *IRCCore) DnsInfo(args string) { c.sendRaw("DNS " + args) }
+// Eline adds or removes an E-line (ban exception) on the IRCd.
 func (c *IRCCore) Eline(mask, duration, reason string) {
 	if reason != "" {
 		c.sendRaw("ELINE " + mask + " " + duration + " :" + reason)
@@ -5265,13 +5337,21 @@ func (c *IRCCore) Eline(mask, duration, reason string) {
 		c.sendRaw("ELINE " + mask)
 	}
 }
+// Addmotd appends a line to the server's Message of the Day.
 func (c *IRCCore) Addmotd(line string)  { c.sendRaw("ADDMOTD :" + line) }
+// Addomotd appends a line to the oper-only Message of the Day.
 func (c *IRCCore) Addomotd(line string) { c.sendRaw("ADDOMOTD :" + line) }
+// Botmotd displays the bot Message of the Day.
 func (c *IRCCore) Botmotd()             { c.sendRaw("BOTMOTD") }
+// Opermotd displays the oper-only Message of the Day.
 func (c *IRCCore) Opermotd()            { c.sendRaw("OPERMOTD") }
+// ShowCredits displays the IRCd credits.
 func (c *IRCCore) ShowCredits()         { c.sendRaw("CREDITS") }
+// ShowLicense displays the IRCd license information.
 func (c *IRCCore) ShowLicense()         { c.sendRaw("LICENSE") }
+// ShowStaff displays the IRCd staff list.
 func (c *IRCCore) ShowStaff()           { c.sendRaw("STAFFLIST") }
+// ModuleManage loads, unloads, or lists IRCd modules.
 func (c *IRCCore) ModuleManage(action, moduleName string) {
 	switch action {
 	case "list":
@@ -5285,61 +5365,92 @@ func (c *IRCCore) ModuleManage(action, moduleName string) {
 
 // ── IRCd Oper Commands — InspIRCd (~23) ──
 
+// ForcePart forcibly removes a user from a channel via the REMOVE command.
 func (c *IRCCore) ForcePart(nick, channel, reason string) {
 	c.sendRaw("REMOVE " + channel + " " + nick + " :" + reason)
 }
+// Uninvite revokes a pending invite for a user to a channel.
 func (c *IRCCore) Uninvite(nick, channel string) { c.sendRaw("UNINVITE " + nick + " " + channel) }
+// Clearchan clears a channel attribute (bans, ops, voices, etc.) via the IRCd.
 func (c *IRCCore) Clearchan(channel, action string) {
 	c.sendRaw("CLEARCHAN " + channel + " " + action)
 }
+// Cban adds a channel ban preventing the channel from being used.
 func (c *IRCCore) Cban(channel, reason string) { c.sendRaw("CBAN " + channel + " :" + reason) }
+// CbanDel removes a channel ban set by CBAN.
 func (c *IRCCore) CbanDel(channel string)      { c.sendRaw("CBAN " + channel) }
+// Rline adds a regex-based ban line on the IRCd.
 func (c *IRCCore) Rline(regex, duration, reason string) {
 	c.sendRaw("RLINE " + regex + " " + duration + " :" + reason)
 }
+// RlineDel removes a regex-based ban line from the IRCd.
 func (c *IRCCore) RlineDel(regex string) { c.sendRaw("RLINE " + regex) }
+// Tline tests how many users match a hostmask pattern.
 func (c *IRCCore) Tline(mask string)     { c.sendRaw("TLINE " + mask) }
+// Clones lists users connecting from the same IP address.
 func (c *IRCCore) Clones()               { c.sendRaw("CLONES") }
+// Rconnect requests a remote server to connect to another server.
 func (c *IRCCore) Rconnect(serverMask, remoteTarget string) {
 	c.sendRaw("RCONNECT " + serverMask + " " + remoteTarget)
 }
+// Rsquit requests a remote server to disconnect from the network.
 func (c *IRCCore) Rsquit(serverMask, reason string) {
 	c.sendRaw("RSQUIT " + serverMask + " :" + reason)
 }
+// Nicklock forcibly changes and locks a user's nick via the IRCd.
 func (c *IRCCore) Nicklock(nick, newNick string) { c.sendRaw("NICKLOCK " + nick + " " + newNick) }
+// Nickunlock unlocks a previously locked nick.
 func (c *IRCCore) Nickunlock(nick string)        { c.sendRaw("NICKUNLOCK " + nick) }
+// Setidle sets the idle time for the current connection.
 func (c *IRCCore) Setidle(seconds int)           { c.sendRaw("SETIDLE " + strconv.Itoa(seconds)) }
+// Swhois sets a custom WHOIS line for a user via the IRCd.
 func (c *IRCCore) Swhois(nick, line string)      { c.sendRaw("SWHOIS " + nick + " :" + line) }
+// Ojoin joins a channel as an IRC operator with elevated privileges.
 func (c *IRCCore) Ojoin(channel string)          { c.sendRaw("OJOIN " + channel) }
+// Sakick forcibly kicks a user from a channel using services authority.
 func (c *IRCCore) Sakick(channel, nick, reason string) {
 	c.sendRaw("SAKICK " + channel + " " + nick + " :" + reason)
 }
+// Saquit forcibly disconnects a user from the server.
 func (c *IRCCore) Saquit(nick, reason string) { c.sendRaw("SAQUIT " + nick + " :" + reason) }
+// Satopic forcibly sets a channel topic using services authority.
 func (c *IRCCore) Satopic(channel, topic string) {
 	c.sendRaw("SATOPIC " + channel + " :" + topic)
 }
+// Rmode sets modes on all channels matching a mask.
 func (c *IRCCore) Rmode(mask, modes string)    { c.sendRaw("RMODE " + mask + " " + modes) }
+// FilterAdd adds a message filter pattern to the IRCd.
 func (c *IRCCore) FilterAdd(pattern string)    { c.sendRaw("FILTER " + pattern) }
+// FilterDel removes a message filter pattern from the IRCd.
 func (c *IRCCore) FilterDel(pattern string)    { c.sendRaw("FILTER -" + pattern) }
+// Alltime displays the local time on all linked servers.
 func (c *IRCCore) Alltime()                    { c.sendRaw("ALLTIME") }
+// Qline adds a Q-line to prevent use of a nickname.
 func (c *IRCCore) Qline(nick, reason string)   { c.sendRaw("QLINE " + nick + " :" + reason) }
+// QlineDel removes a Q-line for the specified nickname.
 func (c *IRCCore) QlineDel(nick string)        { c.sendRaw("QLINE -" + nick) }
 
 // ── IRCv3 Extensions (~19) ──
 
+// MetadataGet retrieves a metadata value for a target via the IRCv3 METADATA command.
 func (c *IRCCore) MetadataGet(target, key string) {
 	c.sendRaw("METADATA " + target + " GET " + key)
 }
+// MetadataSet sets a metadata key-value pair on a target via the IRCv3 METADATA command.
 func (c *IRCCore) MetadataSet(target, key, value string) {
 	c.sendRaw("METADATA " + target + " SET " + key + " :" + value)
 }
+// MetadataList lists all metadata keys for a target via the IRCv3 METADATA command.
 func (c *IRCCore) MetadataList(target string) { c.sendRaw("METADATA " + target + " LIST") }
+// MetadataSub subscribes to metadata change notifications for a key on a target.
 func (c *IRCCore) MetadataSub(target, key string) {
 	c.sendRaw("METADATA " + target + " SUB " + key)
 }
+// MetadataUnsub unsubscribes from metadata change notifications for a key on a target.
 func (c *IRCCore) MetadataUnsub(target, key string) {
 	c.sendRaw("METADATA " + target + " UNSUB " + key)
 }
+// Relaymsg sends a message to a channel on behalf of another nick using the draft/relaymsg extension.
 func (c *IRCCore) Relaymsg(channel, nick, text string) {
 	c.sendRaw("@+draft/relaymsg=" + nick + " PRIVMSG " + channel + " :" + text)
 }
@@ -5373,6 +5484,7 @@ func ParseStandardReply(line string) (severity, command, code, context, descript
 	return
 }
 
+// STSAutoUpgrade records an STS policy to auto-upgrade connections to TLS for the given domain.
 func (c *IRCCore) STSAutoUpgrade(domain string, port int) error {
 	c.mu.Lock()
 	c.stsPolicies[domain] = port
@@ -5380,6 +5492,7 @@ func (c *IRCCore) STSAutoUpgrade(domain string, port int) error {
 	return nil
 }
 
+// ConnectWebSocket stores a WebSocket URL for IRC-over-WebSocket transport.
 func (c *IRCCore) ConnectWebSocket(url string) error {
 	// WebSocket IRC requires HTTP upgrade — store URL for use during connect
 	c.mu.Lock()
@@ -5388,9 +5501,11 @@ func (c *IRCCore) ConnectWebSocket(url string) error {
 	return fmt.Errorf("irc: WebSocket transport requires external ws library")
 }
 
+// RequestNoImplicitNames requests the draft/no-implicit-names IRCv3 capability.
 func (c *IRCCore) RequestNoImplicitNames() {
 	c.sendRaw("CAP REQ :draft/no-implicit-names")
 }
+// RequestExtendedMonitor requests the draft/extended-monitor IRCv3 capability.
 func (c *IRCCore) RequestExtendedMonitor() {
 	c.sendRaw("CAP REQ :draft/extended-monitor")
 }
@@ -5406,6 +5521,7 @@ func (c *IRCCore) ParseAccountExtban(account string) string {
 	return prefix + account
 }
 
+// OnInviteNotify registers a handler for IRCv3 invite-notify events.
 func (c *IRCCore) OnInviteNotify(handler func(inviter, channel, target string)) {
 	c.mu.Lock()
 	c.inviteNotifyHandler = handler
@@ -5446,13 +5562,16 @@ func (c *IRCCore) SendMultiline(target string, lines []string) {
 	c.sendRaw("BATCH -" + batchID)
 }
 
+// RequestExtendedIsupport requests extended ISUPPORT tokens from the server.
 func (c *IRCCore) RequestExtendedIsupport()  { c.sendRaw("CAP REQ :draft/extended-isupport") }
+// GetNetworkIcon retrieves the network icon URL via IRCv3 metadata.
 func (c *IRCCore) GetNetworkIcon() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.networkIcon
 }
 
+// FilehostUpload uploads a file using the IRCv3 draft/filehost extension.
 func (c *IRCCore) FilehostUpload(filename string) {
 	c.sendRaw("FILEHOST UPLOAD " + filename)
 }
@@ -5572,6 +5691,7 @@ func (c *IRCCore) SetUserModeFlag(mode byte, on bool) { c.userMode(mode, on) }
 
 // ── ACCEPT Command (1) ──
 
+// Accept sends an ACCEPT command to manage the caller-ID accept list.
 func (c *IRCCore) Accept(args string) { c.sendRaw("ACCEPT " + args) }
 
 // ── IRC Formatting Helpers (4 groups) ──
@@ -5669,6 +5789,7 @@ func FormatHexColor(text, rrggbb string) string {
 
 // ── Connection/Transport (5) ──
 
+// ConnectSOCKS establishes a connection to the IRC server through a SOCKS5 proxy.
 func (c *IRCCore) ConnectSOCKS(proxyAddr, targetAddr string) error {
 	// SOCKS5 connect
 	conn, err := net.DialTimeout("tcp", proxyAddr, 10*time.Second)
@@ -5702,6 +5823,7 @@ func (c *IRCCore) ConnectSOCKS(proxyAddr, targetAddr string) error {
 	return nil
 }
 
+// ConnectHTTPProxy establishes a connection to the IRC server through an HTTP CONNECT proxy.
 func (c *IRCCore) ConnectHTTPProxy(proxyAddr, targetAddr string) error {
 	conn, err := net.DialTimeout("tcp", proxyAddr, 10*time.Second)
 	if err != nil {
@@ -5735,6 +5857,7 @@ func ParsePROXYProtocol(line string) (proto, srcIP, dstIP string, srcPort, dstPo
 	return
 }
 
+// STSRemember stores an STS policy for the given domain and port.
 func (c *IRCCore) STSRemember(domain string, port int, duration time.Duration) {
 	c.mu.Lock()
 	c.stsPolicies[domain] = port
@@ -5743,38 +5866,47 @@ func (c *IRCCore) STSRemember(domain string, port int, duration time.Duration) {
 
 // ── CTCP Types (2) ──
 
+// CTCPErrMsg sends a CTCP error reply to the specified nick.
 func (c *IRCCore) CTCPErrMsg(nick, query, message string) {
 	c.sendRaw("NOTICE " + nick + " :\x01ERRMSG " + query + " :" + message + "\x01")
 }
 
+// CTCPAvatar sends a CTCP AVATAR reply with the given URL to the specified nick.
 func (c *IRCCore) CTCPAvatar(nick, url string) {
 	c.sendRaw("NOTICE " + nick + " :\x01AVATAR " + url + "\x01")
 }
 
+// MuteChat is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, ircPlatform)
 }
 
+// ArchiveChat is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) ArchiveChat(chatID string, archived bool) error {
 	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, ircPlatform)
 }
 
+// MarkUnread is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) MarkUnread(chatID string, unread bool) error {
 	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, ircPlatform)
 }
 
+// UnpinAllMessages is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) UnpinAllMessages(chatID string) error {
 	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, ircPlatform)
 }
 
+// AcceptCall is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) AcceptCall(callID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, ircPlatform)
 }
 
+// DeclineCall is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, ircPlatform)
 }
 
+// SendLocation is not supported on IRC and always returns ErrNotSupported.
 func (c *IRCCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, ircPlatform)
 }

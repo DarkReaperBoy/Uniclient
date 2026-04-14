@@ -410,8 +410,10 @@ const rubikaPlatform = "rubika"
 
 // --- Core Interface: Identity ---
 
+// Name returns the platform identifier for Rubika.
 func (r *RubikaCore) Name() string { return rubikaPlatform }
 
+// Capabilities returns the list of supported features for Rubika.
 func (r *RubikaCore) Capabilities() []string {
 	return []string{
 		CapText, CapChannels, CapReactions, CapPolls, CapStickers,
@@ -1312,6 +1314,7 @@ func (r *RubikaCore) saveSession(phone string) error {
 
 // --- Auth ---
 
+// Authenticate performs bot or user authentication against the Rubika API.
 func (r *RubikaCore) Authenticate(cfg AuthConfig) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1646,6 +1649,7 @@ func rubikaSecret(length int) string {
 
 // --- Logout ---
 
+// Logout clears the session and disconnects from Rubika.
 func (r *RubikaCore) Logout() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -1671,6 +1675,7 @@ func (r *RubikaCore) Logout() error {
 
 // --- Dialogs ---
 
+// GetDialogs retrieves the user's chat list with pagination support.
 func (r *RubikaCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -1765,6 +1770,7 @@ func (r *RubikaCore) guidToChatType(guid string) ChatType {
 	return ChatTypeDM
 }
 
+// CreateGroup creates a new group with the given name and initial members.
 func (r *RubikaCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -1804,6 +1810,7 @@ func (r *RubikaCore) CreateGroup(name string, members []string) (*Dialog, error)
 	}, nil
 }
 
+// CreateChannel creates a new channel with the given name and description.
 func (r *RubikaCore) CreateChannel(name string, description string) (*Dialog, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -1836,10 +1843,12 @@ func (r *RubikaCore) CreateChannel(name string, description string) (*Dialog, er
 	}, nil
 }
 
+// CreateTopic returns an error because Rubika does not support forum topics.
 func (r *RubikaCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	return nil, fmt.Errorf("%w: rubika does not support forum topics", ErrNotSupported)
 }
 
+// GetFolders retrieves the user's chat folders.
 func (r *RubikaCore) GetFolders() ([]Folder, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -1885,6 +1894,7 @@ func (r *RubikaCore) GetFolders() ([]Folder, error) {
 	return folders, nil
 }
 
+// CreateFolder creates a new folder with the given name and included chat IDs.
 func (r *RubikaCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	info, err := r.AddFolder(name, chatIDs)
 	if err != nil {
@@ -1895,6 +1905,7 @@ func (r *RubikaCore) CreateFolder(name string, chatIDs []string) (*Folder, error
 
 // --- Messages ---
 
+// SendMessage sends a text message to the specified chat.
 func (r *RubikaCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -1985,6 +1996,7 @@ func (r *RubikaCore) botUploadAndSendFile(chatID string, file FileUpload, progre
 	}, nil
 }
 
+// GetMessages retrieves messages from a chat with pagination support.
 func (r *RubikaCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2028,6 +2040,7 @@ func (r *RubikaCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 	return messages, nil
 }
 
+// EditMessage edits the text of an existing message.
 func (r *RubikaCore) EditMessage(chatID string, msgID string, text string) (*Message, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2058,6 +2071,7 @@ func (r *RubikaCore) EditMessage(chatID string, msgID string, text string) (*Mes
 	return r.mapResponseToMessage(data, chatID), nil
 }
 
+// DeleteMessage deletes a message from a chat globally.
 func (r *RubikaCore) DeleteMessage(chatID string, msgID string) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2080,11 +2094,13 @@ func (r *RubikaCore) DeleteMessage(chatID string, msgID string) error {
 	return err
 }
 
+// ReplyToMessage sends a message as a reply to an existing message.
 func (r *RubikaCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	msg.ReplyToID = replyToMsgID
 	return r.SendMessage(chatID, msg)
 }
 
+// ForwardMessage forwards a message from one chat to another.
 func (r *RubikaCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2116,6 +2132,7 @@ func (r *RubikaCore) ForwardMessage(fromChatID string, msgID string, toChatID st
 	return r.mapResponseToMessage(data, toChatID), nil
 }
 
+// ReactToMessage adds an emoji reaction to a message.
 func (r *RubikaCore) ReactToMessage(chatID string, msgID string, emoji string) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2153,6 +2170,7 @@ func (r *RubikaCore) ReactToMessage(chatID string, msgID string, emoji string) e
 	return err
 }
 
+// PinMessage pins a message in a chat.
 func (r *RubikaCore) PinMessage(chatID string, msgID string) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2171,6 +2189,7 @@ func (r *RubikaCore) PinMessage(chatID string, msgID string) error {
 	return err
 }
 
+// UnpinMessage unpins a message in a chat.
 func (r *RubikaCore) UnpinMessage(chatID string, msgID string) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2191,6 +2210,7 @@ func (r *RubikaCore) UnpinMessage(chatID string, msgID string) error {
 
 // --- Read State ---
 
+// MarkAsRead marks messages in a chat as read up to the specified message ID.
 func (r *RubikaCore) MarkAsRead(chatID string, upToMsgID string) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2209,12 +2229,14 @@ func (r *RubikaCore) MarkAsRead(chatID string, upToMsgID string) error {
 	return err
 }
 
+// GetReadState returns an error because Rubika does not expose read state.
 func (r *RubikaCore) GetReadState(chatID string) (*ReadState, error) {
 	return nil, fmt.Errorf("%w: rubika does not expose read state", ErrNotSupported)
 }
 
 // --- Files ---
 
+// UploadFile uploads a file and sends it as a message in the specified chat.
 func (r *RubikaCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2376,6 +2398,7 @@ func (r *RubikaCore) UploadFile(chatID string, file FileUpload, progress func(se
 	return r.mapResponseToMessage(data, chatID), nil
 }
 
+// DownloadFile downloads a file by its reference and saves it to the destination path.
 func (r *RubikaCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2453,12 +2476,14 @@ func (r *RubikaCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 
 // --- Media ---
 
+// SendImageBase64 returns an error because Rubika does not support base64 image sending.
 func (r *RubikaCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
 	return nil, fmt.Errorf("%w: rubika does not support base64 image sending", ErrNotSupported)
 }
 
 // --- Calls ---
 
+// StartCall creates a voice chat in the specified group or channel and joins it via WebRTC.
 func (r *RubikaCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	r.activeCallMu.Lock()
 	if r.activeCall != nil {
@@ -2505,6 +2530,7 @@ func (r *RubikaCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	return r.joinVoiceChatWebRTC(chatID, vcID)
 }
 
+// JoinGroupCall joins an existing voice chat in a group or channel via WebRTC.
 func (r *RubikaCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	r.activeCallMu.Lock()
 	if r.activeCall != nil {
@@ -2545,6 +2571,7 @@ func (r *RubikaCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	return r.joinVoiceChatWebRTC(chatID, vcID)
 }
 
+// EndCall leaves and discards the active voice chat.
 func (r *RubikaCore) EndCall(callID string) error {
 	r.activeCallMu.Lock()
 	call := r.activeCall
@@ -2599,6 +2626,7 @@ func (r *RubikaCore) GetCallStats() (sent, recv int64) {
 	return call.rtpSent.Load(), call.rtpRecv.Load()
 }
 
+// SetCallMuted sets the mute state for the active voice chat.
 func (r *RubikaCore) SetCallMuted(callID string, muted bool) error {
 	r.activeCallMu.Lock()
 	call := r.activeCall
@@ -2912,6 +2940,7 @@ func (r *RubikaCore) parseVoiceChatParticipants(resp map[string]interface{}) []C
 
 // --- Profile ---
 
+// GetProfile retrieves profile information for a user by their GUID.
 func (r *RubikaCore) GetProfile(userID string) (*User, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -2957,6 +2986,7 @@ func (r *RubikaCore) GetProfile(userID string) (*User, error) {
 
 // --- Real-time ---
 
+// OnUpdate registers a handler for real-time update events.
 func (r *RubikaCore) OnUpdate(handler func(Update)) {
 	r.updateMu.Lock()
 	defer r.updateMu.Unlock()
@@ -2975,6 +3005,7 @@ func (r *RubikaCore) GetGUID() string {
 	return r.guid
 }
 
+// Close shuts down the Rubika core, ending active calls and saving the session.
 func (r *RubikaCore) Close() error {
 	// Clean up active call
 	r.activeCallMu.Lock()
@@ -4767,6 +4798,7 @@ func mapGetString(m map[string]interface{}, key string) (string, bool) {
 
 // --- Unified Core interface adapters ---
 
+// GetChatInfo retrieves information about a chat by its GUID.
 func (r *RubikaCore) GetChatInfo(chatID string) (*Dialog, error) {
 	ct := r.guidToChatType(chatID)
 	d := &Dialog{Platform: rubikaPlatform, ID: chatID, Type: ct}
@@ -4795,6 +4827,7 @@ func (r *RubikaCore) GetChatInfo(chatID string) (*Dialog, error) {
 	return d, nil
 }
 
+// EditChatTitle updates the title of a group or channel.
 func (r *RubikaCore) EditChatTitle(chatID string, title string) error {
 	ct := r.guidToChatType(chatID)
 	switch ct {
@@ -4806,6 +4839,7 @@ func (r *RubikaCore) EditChatTitle(chatID string, title string) error {
 	return fmt.Errorf("%w: rubika does not support editing title for this chat type", ErrNotSupported)
 }
 
+// EditChatDescription updates the description of a group or channel.
 func (r *RubikaCore) EditChatDescription(chatID string, description string) error {
 	ct := r.guidToChatType(chatID)
 	switch ct {
@@ -4817,6 +4851,7 @@ func (r *RubikaCore) EditChatDescription(chatID string, description string) erro
 	return fmt.Errorf("%w: rubika does not support editing description for this chat type", ErrNotSupported)
 }
 
+// LeaveChat leaves a group or channel.
 func (r *RubikaCore) LeaveChat(chatID string) error {
 	ct := r.guidToChatType(chatID)
 	switch ct {
@@ -4829,6 +4864,7 @@ func (r *RubikaCore) LeaveChat(chatID string) error {
 	return fmt.Errorf("%w: rubika does not support leaving this chat type", ErrNotSupported)
 }
 
+// GetInviteLink retrieves the invite link for a group or channel.
 func (r *RubikaCore) GetInviteLink(chatID string) (string, error) {
 	ct := r.guidToChatType(chatID)
 	switch ct {
@@ -4848,6 +4884,7 @@ func (r *RubikaCore) GetInviteLink(chatID string) (string, error) {
 	return "", fmt.Errorf("%w: rubika does not support invite links for this chat type", ErrNotSupported)
 }
 
+// AddMembers adds members to a group or channel.
 func (r *RubikaCore) AddMembers(chatID string, userIDs []string) error {
 	ct := r.guidToChatType(chatID)
 	switch ct {
@@ -4859,10 +4896,12 @@ func (r *RubikaCore) AddMembers(chatID string, userIDs []string) error {
 	return fmt.Errorf("%w: rubika does not support adding members to this chat type", ErrNotSupported)
 }
 
+// RemoveMember removes a member from a group or channel by banning them.
 func (r *RubikaCore) RemoveMember(chatID string, userID string) error {
 	return r.BanMember(chatID, userID)
 }
 
+// BanMember bans a member from a group or channel.
 func (r *RubikaCore) BanMember(chatID string, userID string) error {
 	ct := r.guidToChatType(chatID)
 	switch ct {
@@ -4874,6 +4913,7 @@ func (r *RubikaCore) BanMember(chatID string, userID string) error {
 	return fmt.Errorf("%w: rubika does not support banning in this chat type", ErrNotSupported)
 }
 
+// UnbanMember unbans a member from a group or channel.
 func (r *RubikaCore) UnbanMember(chatID string, userID string) error {
 	ct := r.guidToChatType(chatID)
 	switch ct {
@@ -4885,6 +4925,7 @@ func (r *RubikaCore) UnbanMember(chatID string, userID string) error {
 	return fmt.Errorf("%w: rubika does not support unbanning in this chat type", ErrNotSupported)
 }
 
+// GetMembers retrieves all members of a group or channel.
 func (r *RubikaCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	ct := r.guidToChatType(chatID)
 	var ml RubikaMemberList
@@ -4919,6 +4960,7 @@ func (r *RubikaCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	return users, nil
 }
 
+// SetAdmin grants or revokes admin privileges for a group member.
 func (r *RubikaCore) SetAdmin(chatID string, userID string, admin bool) error {
 	ct := r.guidToChatType(chatID)
 	if ct == ChatTypeGroup {
@@ -4933,6 +4975,7 @@ func (r *RubikaCore) SetAdmin(chatID string, userID string, admin bool) error {
 	return fmt.Errorf("%w: rubika does not support admin management for this chat type", ErrNotSupported)
 }
 
+// GetContacts retrieves the user's contact list.
 func (r *RubikaCore) GetContacts() ([]User, error) {
 	raw, err := r.getContactsRaw()
 	if err != nil {
@@ -4968,6 +5011,7 @@ func (r *RubikaCore) GetContacts() ([]User, error) {
 	return users, nil
 }
 
+// AddContact adds a contact to the user's address book.
 func (r *RubikaCore) AddContact(phone string, firstName string, lastName string) error {
 	_, err := r.addAddressBook(phone, firstName, lastName)
 	return err
@@ -4975,14 +5019,17 @@ func (r *RubikaCore) AddContact(phone string, firstName string, lastName string)
 
 // DeleteContact is already implemented with the correct unified signature.
 
+// BlockUser blocks a user.
 func (r *RubikaCore) BlockUser(userID string) error {
 	return r.SetBlockUser(userID, true)
 }
 
+// UnblockUser unblocks a user.
 func (r *RubikaCore) UnblockUser(userID string) error {
 	return r.SetBlockUser(userID, false)
 }
 
+// GetBlockedUsers retrieves the list of blocked users.
 func (r *RubikaCore) GetBlockedUsers() ([]User, error) {
 	raw, err := r.getBlockedUsersRaw()
 	if err != nil {
@@ -5012,6 +5059,7 @@ func (r *RubikaCore) GetBlockedUsers() ([]User, error) {
 	return users, nil
 }
 
+// SearchMessages searches for messages matching a query within a chat.
 func (r *RubikaCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
 	raw, err := r.searchChatMessages(chatID, query)
 	if err != nil {
@@ -5038,6 +5086,7 @@ func (r *RubikaCore) SearchMessages(chatID string, query string, opts Pagination
 	return msgs, nil
 }
 
+// SearchGlobal searches for users, groups, and channels globally.
 func (r *RubikaCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	raw, err := r.searchGlobalObjects(query)
 	if err != nil {
@@ -5067,10 +5116,12 @@ func (r *RubikaCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, 
 	return dialogs, nil
 }
 
+// SendTyping sends a typing indicator to a chat.
 func (r *RubikaCore) SendTyping(chatID string) error {
 	return r.SendChatActivity(chatID, "Typing")
 }
 
+// CreatePoll creates a poll in the specified chat.
 func (r *RubikaCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
 	raw, err := r.createPollRaw(chatID, question, options)
 	if err != nil {
@@ -5085,16 +5136,19 @@ func (r *RubikaCore) CreatePoll(chatID string, question string, options []string
 	return msg, nil
 }
 
+// VotePoll votes on a poll option by index.
 func (r *RubikaCore) VotePoll(chatID string, msgID string, optionIndex int) error {
 	// Rubika VotePoll uses poll_id, not chatID+msgID — pass msgID as poll ID
 	_, err := r.votePollRaw(msgID, optionIndex)
 	return err
 }
 
+// SendSticker returns an error because Rubika stickers use file-based sending.
 func (r *RubikaCore) SendSticker(chatID string, stickerID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: rubika stickers use file-based sending, not sticker IDs", ErrNotSupported)
 }
 
+// GetSessions retrieves all active login sessions.
 func (r *RubikaCore) GetSessions() ([]Session, error) {
 	raw, err := r.getMySessions()
 	if err != nil {
@@ -5679,26 +5733,32 @@ func (r *RubikaCore) OnRemoveNotifications(handler func(map[string]interface{}))
 	r.updateMu.Unlock()
 }
 
+// MuteChat returns an error because Rubika does not support muting chats via this method.
 func (r *RubikaCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, rubikaPlatform)
 }
 
+// ArchiveChat returns an error because Rubika does not support archiving chats.
 func (r *RubikaCore) ArchiveChat(chatID string, archived bool) error {
 	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, rubikaPlatform)
 }
 
+// MarkUnread returns an error because Rubika does not support marking chats as unread.
 func (r *RubikaCore) MarkUnread(chatID string, unread bool) error {
 	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, rubikaPlatform)
 }
 
+// UnpinAllMessages returns an error because Rubika does not support unpinning all messages.
 func (r *RubikaCore) UnpinAllMessages(chatID string) error {
 	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, rubikaPlatform)
 }
 
+// AcceptCall returns an error because Rubika does not support accepting individual calls.
 func (r *RubikaCore) AcceptCall(callID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, rubikaPlatform)
 }
 
+// DeclineCall returns an error because Rubika does not support declining individual calls.
 func (r *RubikaCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, rubikaPlatform)
 }

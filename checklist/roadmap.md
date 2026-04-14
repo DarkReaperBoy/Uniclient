@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 14 — Write /docs — IN PROGRESS (14.1 DONE, 14.2 pending)
+**Current Step:** Step 14 — Write /docs — DONE
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 8 — Step 14.1 done, GitHub pruned 768→282 methods)
+**Last Updated:** 2026-04-14 (session 9 — Step 14.2 done, all 3,526 methods + base.go documented)
 
-**NEXT:** Step 14.2 — Add Go docstrings to every exported method that needs one across all core files, for new contributors
+**NEXT:** Step 15 — Build GUI (Flutter)
 
 ## Steps
 
@@ -26,7 +26,7 @@
 | 12.5 | Fix all skipped tests | **DONE** — 32 skips fixed (3 TS3 + 6 IRC + 23 Rubika) |
 | 13.0 | Type the untyped methods (~250 fixable, ~400 inherently untyped → `bytes`) | **DONE** |
 | 13 | Protobuf bridge (all 4,051 methods, codegen) | **DONE** (3,564 dispatched, 412 skipped, 5 tests pass) |
-| 14 | Write /docs | IN PROGRESS (14.1 full API docs DONE, 14.2 docstrings pending) |
+| 14 | Write /docs | **DONE** |
 | 15 | Build GUI | NOT STARTED |
 
 ## Detailed Progress
@@ -488,7 +488,10 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
   - Mumble (233 methods, 960 lines), Rubika (242 methods, 2637 lines), DeltaChat (245 methods, 2510 lines), TeamSpeak (296 methods, 2813 lines), XMPP (379 methods, 3541 lines), IRC (418 methods), Bale (456 methods, 4151 lines), GitHub (282 methods after pruning)
   - Telegram & Matrix: wrapper guides linking to gotd/td and mautrix-go docs, explaining why and how to use the unified Core interface
   - **GitHub pruned:** 768→282 methods — removed 486 pure DevOps/CI/CD methods (Actions, Codespaces, Copilot, Pages, Webhooks, Branch Protection, Code Scanning, Dependabot, Packages, etc.). Kept: issues, PRs, discussions, notifications, gists, user/org/team social, repos, search, releases, contents, reactions, events, projects V2.
-- [ ] **14.2 — Add Go docstrings** to every exported method that needs one across all core files, for new contributors
+- [x] **14.2 — Add Go docstrings** to every exported method across all core files + base.go — DONE
+  - 3,526 exported methods across 10 core files: all documented (was ~1,909 missing)
+  - base.go: 22 type/struct comments + 55 Core interface method comments added
+  - Build+vet clean, no code changes — only `//` comment lines added
 
 ### Step 15 — Build GUI
 - [ ] Flutter GUI (see research/gui-idea.md, checklist/gui.md)

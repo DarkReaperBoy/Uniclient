@@ -301,6 +301,7 @@ const balePlatform = "bale"
 
 // --- Core Interface: Identity ---
 
+// Name returns the platform identifier for Bale.
 func (b *BaleCore) Name() string { return balePlatform }
 
 // GetUserID returns the authenticated user's ID (user mode only).
@@ -319,12 +320,15 @@ func PbGetMsg(m map[string]interface{}, field string) map[string]interface{} { r
 func PbGetList(m map[string]interface{}, field string) []interface{}  { return pbGetList(m, field) }
 func ParseMsgIDFullExported(msgID string) (int64, int64, int64)      { return parseMsgIDFull(msgID) }
 func PbDecode(data []byte) map[string]interface{}                    { return pbDecode(data) }
+// UserSendRaw sends a raw request via the user-mode WebSocket connection.
 func (b *BaleCore) UserSendRaw(service, method string, payload map[string]interface{}) (map[string]interface{}, error) {
 	return b.userSend(service, method, payload)
 }
+// ResolveGroupID resolves a peer ID to the internal group ID.
 func (b *BaleCore) ResolveGroupID(peerID int64) (int64, error) {
 	return b.resolveGroupInternalID(peerID)
 }
+// UploadRawPUT uploads raw data via HTTP PUT to the given URL.
 func (b *BaleCore) UploadRawPUT(url string, data []byte) error {
 	req, err := http.NewRequestWithContext(b.ctx, "PUT", url, bytes.NewReader(data))
 	if err != nil {
@@ -376,6 +380,7 @@ func (b *BaleCore) resolveGroupInternalID(peerID int64) (int64, error) {
 	return internalID, nil
 }
 
+// Capabilities returns the list of features supported by this core.
 func (b *BaleCore) Capabilities() []string {
 	return []string{
 		CapText, CapChannels, CapReactions, CapPolls, CapStickers,
@@ -386,6 +391,7 @@ func (b *BaleCore) Capabilities() []string {
 
 // --- Core Interface: Auth ---
 
+// Authenticate logs in to Bale using bot token or user credentials.
 func (b *BaleCore) Authenticate(cfg AuthConfig) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -477,6 +483,7 @@ func (b *BaleCore) saveSession() error {
 	return os.WriteFile(b.sessionPath, data, 0600)
 }
 
+// Logout disconnects and clears the current session.
 func (b *BaleCore) Logout() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -764,6 +771,7 @@ func (b *BaleCore) processUpdate(u map[string]interface{}) {
 
 // --- Core Interface: Dialogs ---
 
+// GetDialogs retrieves the list of conversations (user mode only).
 func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bots do not have a dialog list", ErrNotSupported)
@@ -827,6 +835,7 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs, nil
 }
 
+// CreateGroup creates a new group chat with the specified members.
 func (b *BaleCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bots cannot create groups", ErrNotSupported)
@@ -850,6 +859,7 @@ func (b *BaleCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	}, nil
 }
 
+// CreateChannel creates a new channel with the given name and description.
 func (b *BaleCore) CreateChannel(name string, description string) (*Dialog, error) {
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bots cannot create channels", ErrNotSupported)
@@ -858,14 +868,17 @@ func (b *BaleCore) CreateChannel(name string, description string) (*Dialog, erro
 	return nil, fmt.Errorf("%w: use CreateGroup + SetRestriction for channels", ErrNotSupported)
 }
 
+// CreateTopic creates a new topic in a forum-enabled group.
 func (b *BaleCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	return nil, fmt.Errorf("%w: bale does not support topics", ErrNotSupported)
 }
 
+// GetFolders returns the list of chat folders.
 func (b *BaleCore) GetFolders() ([]Folder, error) {
 	return nil, fmt.Errorf("%w: bale bot API does not support folders", ErrNotSupported)
 }
 
+// CreateFolder creates a new chat folder containing the specified chats.
 func (b *BaleCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bale bot API does not support folders", ErrNotSupported)
@@ -883,6 +896,7 @@ func (b *BaleCore) CreateFolder(name string, chatIDs []string) (*Folder, error) 
 
 // --- Core Interface: Messages ---
 
+// SendMessage sends a text or media message to the specified chat.
 func (b *BaleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	b.mu.RLock()
 	if !b.authed {
@@ -954,6 +968,7 @@ func (b *BaleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 	return &parsed, nil
 }
 
+// GetMessages retrieves messages from the specified chat.
 func (b *BaleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bale bot API does not support fetching message history", ErrNotSupported)
@@ -986,6 +1001,7 @@ func (b *BaleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, e
 	return messages, nil
 }
 
+// EditMessage edits the text of an existing message.
 func (b *BaleCore) EditMessage(chatID string, msgID string, text string) (*Message, error) {
 	b.mu.RLock()
 	if !b.authed {
@@ -1028,6 +1044,7 @@ func (b *BaleCore) EditMessage(chatID string, msgID string, text string) (*Messa
 	return &parsed, nil
 }
 
+// DeleteMessage deletes a message from the specified chat.
 func (b *BaleCore) DeleteMessage(chatID string, msgID string) error {
 	b.mu.RLock()
 	if !b.authed {
@@ -1056,11 +1073,13 @@ func (b *BaleCore) DeleteMessage(chatID string, msgID string) error {
 	return err
 }
 
+// ReplyToMessage sends a reply to a specific message in a chat.
 func (b *BaleCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	msg.ReplyToID = replyToMsgID
 	return b.SendMessage(chatID, msg)
 }
 
+// ForwardMessage forwards a message from one chat to another.
 func (b *BaleCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
 	b.mu.RLock()
 	if !b.authed {
@@ -1116,6 +1135,7 @@ func (b *BaleCore) ReactToMessage(chatID string, msgID string, emoji string) err
 	return err
 }
 
+// PinMessage pins a message in the specified chat.
 func (b *BaleCore) PinMessage(chatID string, msgID string) error {
 	b.mu.RLock()
 	if !b.authed {
@@ -1145,6 +1165,7 @@ func (b *BaleCore) PinMessage(chatID string, msgID string) error {
 	return err
 }
 
+// UnpinMessage unpins a message in the specified chat.
 func (b *BaleCore) UnpinMessage(chatID string, msgID string) error {
 	b.mu.RLock()
 	if !b.authed {
@@ -1176,6 +1197,7 @@ func (b *BaleCore) UnpinMessage(chatID string, msgID string) error {
 
 // --- Core Interface: Read State ---
 
+// MarkAsRead marks messages as read up to the given message ID (user mode only).
 func (b *BaleCore) MarkAsRead(chatID string, upToMsgID string) error {
 	if b.isBot {
 		return fmt.Errorf("%w: bale bot API does not support read state", ErrNotSupported)
@@ -1185,12 +1207,14 @@ func (b *BaleCore) MarkAsRead(chatID string, upToMsgID string) error {
 	return err
 }
 
+// GetReadState returns the read/unread state for a chat.
 func (b *BaleCore) GetReadState(chatID string) (*ReadState, error) {
 	return nil, fmt.Errorf("%w: bale does not expose read state", ErrNotSupported)
 }
 
 // --- Core Interface: Files ---
 
+// UploadFile uploads a file to the specified chat with optional progress reporting.
 func (b *BaleCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	b.mu.RLock()
 	if !b.authed {
@@ -1342,6 +1366,7 @@ func (b *BaleCore) detectSendMethod(mimeType string, name string) (method string
 	}
 }
 
+// DownloadFile downloads a file by its ID to the specified path.
 func (b *BaleCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	b.mu.RLock()
 	if !b.authed {
@@ -1409,6 +1434,7 @@ func (b *BaleCore) DownloadFile(fileRef FileRef, dest string, progress func(recv
 
 // --- Core Interface: Media ---
 
+// SendImageBase64 is not supported on Bale; use UploadFile instead.
 func (b *BaleCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
 	return nil, fmt.Errorf("%w: use UploadFile instead", ErrNotSupported)
 }
@@ -1604,6 +1630,7 @@ func (b *BaleCore) baleDisconnectLiveKit() {
 	}
 }
 
+// StartCall initiates a voice or video call with the specified user.
 func (b *BaleCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	// 1:1 calls: StartCall {1: OutPeer{1:1, 2:peer_id}, 2: rid}
 	// UNTESTED: 1:1 calls may require access_hash which is hard to obtain.
@@ -1658,6 +1685,7 @@ func (b *BaleCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	return session, nil
 }
 
+// JoinGroupCall joins the specified group call.
 func (b *BaleCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bots cannot join calls", ErrNotSupported)
@@ -1760,7 +1788,7 @@ func (b *BaleCore) GetOngoingCalls() (map[string]interface{}, error) {
 	return b.userSend(baleServiceMeet, "GetOngoingCalls", map[string]interface{}{})
 }
 
-// GetWssURL retrieves the LiveKit WebSocket URL for an active call.
+// GetWssURL returns the LiveKit WebSocket URL for an active call.
 func (b *BaleCore) GetWssURL(callID string) (string, error) {
 	cid, _ := strconv.ParseInt(callID, 10, 64)
 	if cid == 0 {
@@ -1804,6 +1832,7 @@ func (b *BaleCore) GetCallLogs(page, count int) (map[string]interface{}, error) 
 	})
 }
 
+// EndCall ends the active call.
 func (b *BaleCore) EndCall(callID string) error {
 	// Disconnect from LiveKit first
 	b.baleDisconnectLiveKit()
@@ -1837,6 +1866,7 @@ func (b *BaleCore) baleEndCallSignaling(callID int64) error {
 	return nil
 }
 
+// SetCallMuted sets whether the active call microphone is muted.
 func (b *BaleCore) SetCallMuted(callID string, muted bool) error {
 	b.activeCallMu.Lock()
 	call := b.activeCall
@@ -1857,6 +1887,7 @@ func (b *BaleCore) SetCallMuted(callID string, muted bool) error {
 
 // --- Core Interface: Profile ---
 
+// GetProfile retrieves profile information for the given user.
 func (b *BaleCore) GetProfile(userID string) (*User, error) {
 	b.mu.RLock()
 	if !b.authed {
@@ -1918,12 +1949,14 @@ func (b *BaleCore) GetProfile(userID string) (*User, error) {
 
 // --- Core Interface: Real-time ---
 
+// OnUpdate registers a handler function to receive real-time updates.
 func (b *BaleCore) OnUpdate(handler func(Update)) {
 	b.updateMu.Lock()
 	defer b.updateMu.Unlock()
 	b.updateHandlers = append(b.updateHandlers, handler)
 }
 
+// Close shuts down the core and releases all resources.
 func (b *BaleCore) Close() error {
 	if b.pollCancel != nil {
 		b.pollCancel()
@@ -2072,7 +2105,7 @@ func (b *BaleCore) LeaveChat(chatID string) error {
 	return err
 }
 
-// CreateChatInviteLink creates a new invite link.
+// CreateChatInviteLink creates a new invite link for a chat.
 func (b *BaleCore) CreateChatInviteLink(chatID string) (string, error) {
 	params := map[string]interface{}{
 		"chat_id": chatID,
@@ -2108,7 +2141,7 @@ func (b *BaleCore) unpinAllChatMessages(chatID string) error {
 	return err
 }
 
-// SendChatAction sends a chat action (typing indicator etc).
+// SendChatAction sends a chat action (typing, uploading, etc.) to a chat.
 func (b *BaleCore) SendChatAction(chatID string, action string) error {
 	params := map[string]interface{}{
 		"chat_id": chatID,
@@ -3872,6 +3905,7 @@ func (b *BaleCore) UserCreateGroup(title string, userIDs []int64) (map[string]in
 	return b.UserCreateGroupFull(title, userIDs, 0, "", 0)
 }
 
+// UserCreateGroupFull creates a group with full options including description and photo (user mode).
 func (b *BaleCore) UserCreateGroupFull(title string, userIDs []int64, groupType int, username string, restriction int) (map[string]interface{}, error) {
 	var users []interface{}
 	for _, uid := range userIDs {
@@ -4594,6 +4628,7 @@ func (b *BaleCore) mapHistoryMessage(mc map[string]interface{}) Message {
 
 // --- Unified Core interface adapters ---
 
+// GetChatInfo retrieves detailed information about a chat.
 func (b *BaleCore) GetChatInfo(chatID string) (*Dialog, error) {
 	if b.isBot {
 		info, err := b.GetChat(chatID)
@@ -4622,6 +4657,7 @@ func (b *BaleCore) GetChatInfo(chatID string) (*Dialog, error) {
 	return &Dialog{Platform: balePlatform, ID: chatID}, nil
 }
 
+// EditChatTitle edits the chat title.
 func (b *BaleCore) EditChatTitle(chatID string, title string) error {
 	if b.isBot {
 		return b.setChatTitle(chatID, title)
@@ -4638,6 +4674,7 @@ func (b *BaleCore) EditChatTitle(chatID string, title string) error {
 	return err
 }
 
+// EditChatDescription edits the chat description.
 func (b *BaleCore) EditChatDescription(chatID string, description string) error {
 	if b.isBot {
 		return b.setChatDescription(chatID, description)
@@ -4658,6 +4695,7 @@ func (b *BaleCore) EditChatDescription(chatID string, description string) error 
 // For user mode, add support:
 // Note: LeaveChat already exists with correct signature for bot mode.
 
+// GetInviteLink generates or retrieves the invite link for a chat.
 func (b *BaleCore) GetInviteLink(chatID string) (string, error) {
 	if b.isBot {
 		return b.ExportChatInviteLink(chatID)
@@ -4665,6 +4703,7 @@ func (b *BaleCore) GetInviteLink(chatID string) (string, error) {
 	return "", fmt.Errorf("%w: bale user mode does not support invite links", ErrNotSupported)
 }
 
+// AddMembers adds a members.
 func (b *BaleCore) AddMembers(chatID string, userIDs []string) error {
 	if b.isBot {
 		return fmt.Errorf("%w: bale bots cannot add members", ErrNotSupported)
@@ -4686,6 +4725,7 @@ func (b *BaleCore) AddMembers(chatID string, userIDs []string) error {
 	return err
 }
 
+// RemoveMember removes the specified member.
 func (b *BaleCore) RemoveMember(chatID string, userID string) error {
 	if b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -4704,6 +4744,7 @@ func (b *BaleCore) RemoveMember(chatID string, userID string) error {
 	return err
 }
 
+// BanMember bans a user from the specified chat.
 func (b *BaleCore) BanMember(chatID string, userID string) error {
 	if b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -4712,6 +4753,7 @@ func (b *BaleCore) BanMember(chatID string, userID string) error {
 	return b.RemoveMember(chatID, userID) // Bale user mode: kick = ban
 }
 
+// UnbanMember unbans a previously banned user from the specified chat.
 func (b *BaleCore) UnbanMember(chatID string, userID string) error {
 	if b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -4720,6 +4762,7 @@ func (b *BaleCore) UnbanMember(chatID string, userID string) error {
 	return fmt.Errorf("%w: bale user mode does not support unbanning", ErrNotSupported)
 }
 
+// GetMembers returns the member list for a chat.
 func (b *BaleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	if b.isBot {
 		admins, err := b.GetChatAdministrators(chatID)
@@ -4745,6 +4788,7 @@ func (b *BaleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error
 	return nil, fmt.Errorf("%w: bale user mode does not support member listing", ErrNotSupported)
 }
 
+// SetAdmin grants or revokes admin privileges for a chat member.
 func (b *BaleCore) SetAdmin(chatID string, userID string, admin bool) error {
 	if b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -4761,6 +4805,7 @@ func (b *BaleCore) SetAdmin(chatID string, userID string, admin bool) error {
 	return fmt.Errorf("%w: bale user mode does not support admin management", ErrNotSupported)
 }
 
+// GetContacts returns the contact list.
 func (b *BaleCore) GetContacts() ([]User, error) {
 	if !b.isBot {
 		raw, err := b.UserGetContacts()
@@ -4789,6 +4834,7 @@ func (b *BaleCore) GetContacts() ([]User, error) {
 	return nil, fmt.Errorf("%w: bale bots cannot list contacts", ErrNotSupported)
 }
 
+// AddContact adds a user to the contact list.
 func (b *BaleCore) AddContact(phone string, firstName string, lastName string) error {
 	if !b.isBot {
 		contacts := []map[string]interface{}{
@@ -4800,6 +4846,7 @@ func (b *BaleCore) AddContact(phone string, firstName string, lastName string) e
 	return fmt.Errorf("%w: bale bots cannot manage contacts", ErrNotSupported)
 }
 
+// DeleteContact deletes the specified contact.
 func (b *BaleCore) DeleteContact(userID string) error {
 	if !b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -4809,6 +4856,7 @@ func (b *BaleCore) DeleteContact(userID string) error {
 	return fmt.Errorf("%w: bale bots cannot manage contacts", ErrNotSupported)
 }
 
+// BlockUser blocks the specified user.
 func (b *BaleCore) BlockUser(userID string) error {
 	if !b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -4818,6 +4866,7 @@ func (b *BaleCore) BlockUser(userID string) error {
 	return fmt.Errorf("%w: bale bots cannot block users", ErrNotSupported)
 }
 
+// UnblockUser unblocks the specified user.
 func (b *BaleCore) UnblockUser(userID string) error {
 	if !b.isBot {
 		uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -4827,6 +4876,7 @@ func (b *BaleCore) UnblockUser(userID string) error {
 	return fmt.Errorf("%w: bale bots cannot unblock users", ErrNotSupported)
 }
 
+// GetBlockedUsers returns the list of blocked users.
 func (b *BaleCore) GetBlockedUsers() ([]User, error) {
 	if !b.isBot {
 		raw, err := b.UserLoadBlockedUsers()
@@ -4850,10 +4900,12 @@ func (b *BaleCore) GetBlockedUsers() ([]User, error) {
 	return nil, fmt.Errorf("%w: bale bots cannot list blocked users", ErrNotSupported)
 }
 
+// SearchMessages searches for messages matching a query in a chat.
 func (b *BaleCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
 	return nil, fmt.Errorf("%w: bale does not support message search", ErrNotSupported)
 }
 
+// SearchGlobal searches for messages matching a query across all chats.
 func (b *BaleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	if !b.isBot {
 		raw, err := b.UserSearchContacts(query)
@@ -4882,6 +4934,7 @@ func (b *BaleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 	return nil, fmt.Errorf("%w: bale bots cannot search globally", ErrNotSupported)
 }
 
+// SendTyping sends a typing indicator to the specified chat.
 func (b *BaleCore) SendTyping(chatID string) error {
 	if b.isBot {
 		return b.SendChatAction(chatID, "typing")
@@ -4890,16 +4943,19 @@ func (b *BaleCore) SendTyping(chatID string) error {
 	return err
 }
 
+// CreatePoll creates a new poll.
 func (b *BaleCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
 	return nil, fmt.Errorf("%w: bale does not support polls", ErrNotSupported)
 }
 
+// VotePoll submits a vote on a poll.
 func (b *BaleCore) VotePoll(chatID string, msgID string, optionIndex int) error {
 	return fmt.Errorf("%w: bale does not support polls", ErrNotSupported)
 }
 
 // SendSticker is already implemented with the correct unified signature (bot mode).
 
+// GetSessions retrieves active login sessions (user mode only).
 func (b *BaleCore) GetSessions() ([]Session, error) {
 	if b.isBot {
 		return nil, fmt.Errorf("%w: bale bot API does not support session management", ErrNotSupported)
@@ -4923,6 +4979,7 @@ func (b *BaleCore) GetSessions() ([]Session, error) {
 	return sessions, nil
 }
 
+// TerminateSession ends an active user session.
 func (b *BaleCore) TerminateSession(sessionID string) error {
 	if b.isBot {
 		return fmt.Errorf("%w: bale bot API does not support session management", ErrNotSupported)
@@ -6104,18 +6161,22 @@ func (b *BaleCore) SendLiveMessage(chatID string, liveData map[string]interface{
 	return b.userSend(baleServiceMessaging, "SendMessage", payload)
 }
 
+// MarkUnread marks unread.
 func (b *BaleCore) MarkUnread(chatID string, unread bool) error {
 	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, balePlatform)
 }
 
+// UnpinAllMessages unpins all messages in the specified chat.
 func (b *BaleCore) UnpinAllMessages(chatID string) error {
 	return b.unpinAllChatMessages(chatID)
 }
 
+// AcceptCall accepts an incoming call.
 func (b *BaleCore) AcceptCall(callID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, balePlatform)
 }
 
+// DeclineCall rejects the specified call.
 func (b *BaleCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, balePlatform)
 }
@@ -6125,6 +6186,7 @@ func (b *BaleCore) DeclineCall(callID string) error {
 // Discovered from web.bale.ai v4.17.0+151668 JS scrape, 2026-04-13
 // =============================================================================
 
+// UserSendMultiMediaMessage sends a message with multiple media attachments (user mode).
 func (b *BaleCore) UserSendMultiMediaMessage(chatID string, mediaMessages []map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6137,6 +6199,7 @@ func (b *BaleCore) UserSendMultiMediaMessage(chatID string, mediaMessages []map[
 	return b.userSend(baleServiceMessaging, "SendMultiMediaMessage", payload)
 }
 
+// UserLoadFolderDialogs retrieves dialogs within a specific folder (user mode).
 func (b *BaleCore) UserLoadFolderDialogs(folderID int64, offsetDate int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6149,6 +6212,7 @@ func (b *BaleCore) UserLoadFolderDialogs(folderID int64, offsetDate int64, limit
 	return b.userSend(baleServiceMessaging, "LoadFolderDialogs", payload)
 }
 
+// UserLoadGroupedDialogs retrieves dialogs grouped by type (user mode).
 func (b *BaleCore) UserLoadGroupedDialogs(offsetDate int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6160,6 +6224,7 @@ func (b *BaleCore) UserLoadGroupedDialogs(offsetDate int64, limit int) (map[stri
 	return b.userSend(baleServiceMessaging, "LoadGroupedDialogs", payload)
 }
 
+// UserLoadPeerDialogs retrieves dialogs for specific peers (user mode).
 func (b *BaleCore) UserLoadPeerDialogs(peerIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6172,6 +6237,7 @@ func (b *BaleCore) UserLoadPeerDialogs(peerIDs []string) (map[string]interface{}
 	return b.userSend(baleServiceMessaging, "LoadPeerDialogs", map[string]interface{}{"1": peers})
 }
 
+// UserLoadPeers retrieves peer info for the specified IDs (user mode).
 func (b *BaleCore) UserLoadPeers(peerIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6184,6 +6250,7 @@ func (b *BaleCore) UserLoadPeers(peerIDs []string) (map[string]interface{}, erro
 	return b.userSend(baleServiceMessaging, "LoadPeers", map[string]interface{}{"1": peers})
 }
 
+// UserLoadPinnedDialogs retrieves pinned dialogs (user mode).
 func (b *BaleCore) UserLoadPinnedDialogs() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6191,6 +6258,7 @@ func (b *BaleCore) UserLoadPinnedDialogs() (map[string]interface{}, error) {
 	return b.userSend(baleServiceMessaging, "LoadPinnedDialogs", map[string]interface{}{})
 }
 
+// UserLoadReplies retrieves reply messages for a thread (user mode).
 func (b *BaleCore) UserLoadReplies(chatID string, msgID string, offsetDate int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6206,6 +6274,7 @@ func (b *BaleCore) UserLoadReplies(chatID string, msgID string, offsetDate int64
 	return b.userSend(baleServiceMessaging, "LoadReplies", payload)
 }
 
+// UserCreateReservedFolder creates a system-reserved folder (user mode).
 func (b *BaleCore) UserCreateReservedFolder(title string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6213,6 +6282,7 @@ func (b *BaleCore) UserCreateReservedFolder(title string) (map[string]interface{
 	return b.userSend(baleServiceMessaging, "CreateReservedFolder", map[string]interface{}{"1": title})
 }
 
+// UserArchiveDialogs archives the specified dialogs (user mode).
 func (b *BaleCore) UserArchiveDialogs(chatIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6225,6 +6295,7 @@ func (b *BaleCore) UserArchiveDialogs(chatIDs []string) (map[string]interface{},
 	return b.userSend(baleServiceMessaging, "ArchiveDialogs", map[string]interface{}{"1": peers})
 }
 
+// UserUnArchiveDialogs unarchives the specified dialogs (user mode).
 func (b *BaleCore) UserUnArchiveDialogs(chatIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6237,6 +6308,7 @@ func (b *BaleCore) UserUnArchiveDialogs(chatIDs []string) (map[string]interface{
 	return b.userSend(baleServiceMessaging, "UnArchiveDialogs", map[string]interface{}{"1": peers})
 }
 
+// UserPinDialogs pins the specified dialogs (user mode).
 func (b *BaleCore) UserPinDialogs(chatIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6249,6 +6321,7 @@ func (b *BaleCore) UserPinDialogs(chatIDs []string) (map[string]interface{}, err
 	return b.userSend(baleServiceMessaging, "PinDialogs", map[string]interface{}{"1": peers})
 }
 
+// UserUnpinDialogs unpins the specified dialogs (user mode).
 func (b *BaleCore) UserUnpinDialogs(chatIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6261,6 +6334,7 @@ func (b *BaleCore) UserUnpinDialogs(chatIDs []string) (map[string]interface{}, e
 	return b.userSend(baleServiceMessaging, "UnpinDialogs", map[string]interface{}{"1": peers})
 }
 
+// UserReorderPinnedDialogs reorders pinned dialogs (user mode).
 func (b *BaleCore) UserReorderPinnedDialogs(chatIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6273,6 +6347,7 @@ func (b *BaleCore) UserReorderPinnedDialogs(chatIDs []string) (map[string]interf
 	return b.userSend(baleServiceMessaging, "ReorderPinnedDialogs", map[string]interface{}{"1": peers})
 }
 
+// UserMarkDialogsAsRead marks the specified dialogs as read (user mode).
 func (b *BaleCore) UserMarkDialogsAsRead(chatIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6285,6 +6360,7 @@ func (b *BaleCore) UserMarkDialogsAsRead(chatIDs []string) (map[string]interface
 	return b.userSend(baleServiceMessaging, "MarkDialogsAsRead", map[string]interface{}{"1": peers})
 }
 
+// UserMentionRead marks mentions as read in a chat (user mode).
 func (b *BaleCore) UserMentionRead(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6297,6 +6373,7 @@ func (b *BaleCore) UserMentionRead(chatID string, msgID string) (map[string]inte
 	})
 }
 
+// UserMessageReceived acknowledges message receipt (user mode).
 func (b *BaleCore) UserMessageReceived(chatID string, dateMs int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6308,6 +6385,7 @@ func (b *BaleCore) UserMessageReceived(chatID string, dateMs int64) (map[string]
 	})
 }
 
+// UserFetchProtectedMessage retrieves a protected (non-forwardable) message (user mode).
 func (b *BaleCore) UserFetchProtectedMessage(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6320,6 +6398,7 @@ func (b *BaleCore) UserFetchProtectedMessage(chatID string, msgID string) (map[s
 	})
 }
 
+// UserGetMessagesRepliesInfo retrieves reply thread info for messages (user mode).
 func (b *BaleCore) UserGetMessagesRepliesInfo(chatID string, msgIDs []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6336,6 +6415,7 @@ func (b *BaleCore) UserGetMessagesRepliesInfo(chatID string, msgIDs []string) (m
 	})
 }
 
+// UserGetDiscussionMessage retrieves a discussion thread message (user mode).
 func (b *BaleCore) UserGetDiscussionMessage(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6348,6 +6428,7 @@ func (b *BaleCore) UserGetDiscussionMessage(chatID string, msgID string) (map[st
 	})
 }
 
+// UserCreateThread creates a new thread in a group (user mode).
 func (b *BaleCore) UserCreateThread(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6360,6 +6441,7 @@ func (b *BaleCore) UserCreateThread(chatID string, msgID string) (map[string]int
 	})
 }
 
+// UserCreateTopic creates a new topic in a forum group (user mode).
 func (b *BaleCore) UserCreateTopic(chatID string, title string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6371,6 +6453,7 @@ func (b *BaleCore) UserCreateTopic(chatID string, title string) (map[string]inte
 	})
 }
 
+// UserGetTopics retrieves topics in a forum group (user mode).
 func (b *BaleCore) UserGetTopics(chatID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6381,6 +6464,7 @@ func (b *BaleCore) UserGetTopics(chatID string) (map[string]interface{}, error) 
 	})
 }
 
+// UserGetTopicByID retrieves a specific topic by its ID (user mode).
 func (b *BaleCore) UserGetTopicByID(chatID string, topicID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6396,6 +6480,7 @@ func (b *BaleCore) UserGetTopicByID(chatID string, topicID int64) (map[string]in
 // Missing Groups methods (bale.groups.v1.Groups)
 // =============================================================================
 
+// UserLoadFullGroups loads full group info for the given group IDs (user mode).
 func (b *BaleCore) UserLoadFullGroups(groupIDs []int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6407,6 +6492,7 @@ func (b *BaleCore) UserLoadFullGroups(groupIDs []int64) (map[string]interface{},
 	return b.userSend(baleServiceGroups, "LoadFullGroups", map[string]interface{}{"1": peers})
 }
 
+// UserGetMyGroups retrieves groups the user is a member of (user mode).
 func (b *BaleCore) UserGetMyGroups() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6414,6 +6500,7 @@ func (b *BaleCore) UserGetMyGroups() (map[string]interface{}, error) {
 	return b.userSend(baleServiceGroups, "GetMyGroups", map[string]interface{}{})
 }
 
+// UserLoadGroupAvatars retrieves avatar images for a group (user mode).
 func (b *BaleCore) UserLoadGroupAvatars(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6423,6 +6510,7 @@ func (b *BaleCore) UserLoadGroupAvatars(groupID int64) (map[string]interface{}, 
 	})
 }
 
+// UserEditGroupDefaultCardNumber updates the default payment card for a group (user mode).
 func (b *BaleCore) UserEditGroupDefaultCardNumber(groupID int64, cardNumber string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6437,6 +6525,7 @@ func (b *BaleCore) UserEditGroupDefaultCardNumber(groupID int64, cardNumber stri
 	})
 }
 
+// UserGetGroupDefaultCardNumber retrieves the default payment card for a group (user mode).
 func (b *BaleCore) UserGetGroupDefaultCardNumber(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6450,6 +6539,7 @@ func (b *BaleCore) UserGetGroupDefaultCardNumber(groupID int64) (map[string]inte
 	})
 }
 
+// UserInviteUser invites a user to a group or channel (user mode).
 func (b *BaleCore) UserInviteUser(groupID int64, userID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6464,6 +6554,7 @@ func (b *BaleCore) UserInviteUser(groupID int64, userID int64) (map[string]inter
 	})
 }
 
+// UserSetCanSeeMessages sets whether a member can view message history (user mode).
 func (b *BaleCore) UserSetCanSeeMessages(groupID int64, canSee bool) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6478,6 +6569,7 @@ func (b *BaleCore) UserSetCanSeeMessages(groupID int64, canSee bool) (map[string
 	})
 }
 
+// UserGetCanSeeMessages checks whether a member can view message history (user mode).
 func (b *BaleCore) UserGetCanSeeMessages(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6491,6 +6583,7 @@ func (b *BaleCore) UserGetCanSeeMessages(groupID int64) (map[string]interface{},
 	})
 }
 
+// UserFetchGroupAdmins retrieves the admin list for a group (user mode).
 func (b *BaleCore) UserFetchGroupAdmins(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6504,6 +6597,7 @@ func (b *BaleCore) UserFetchGroupAdmins(groupID int64) (map[string]interface{}, 
 	})
 }
 
+// UserLoadGroups retrieves the list of groups (user mode).
 func (b *BaleCore) UserLoadGroups(groupIDs []int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6515,6 +6609,7 @@ func (b *BaleCore) UserLoadGroups(groupIDs []int64) (map[string]interface{}, err
 	return b.userSend(baleServiceGroups, "LoadGroups", map[string]interface{}{"1": peers})
 }
 
+// UserSetAvailableReactions configures which reactions are allowed in a group (user mode).
 func (b *BaleCore) UserSetAvailableReactions(groupID int64, reactions []string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6529,6 +6624,7 @@ func (b *BaleCore) UserSetAvailableReactions(groupID int64, reactions []string) 
 	})
 }
 
+// UserGetMutualGroups retrieves groups shared with another user (user mode).
 func (b *BaleCore) UserGetMutualGroups(userID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6538,6 +6634,7 @@ func (b *BaleCore) UserGetMutualGroups(userID int64) (map[string]interface{}, er
 	})
 }
 
+// UserSetDiscussionGroup links a discussion group to a channel (user mode).
 func (b *BaleCore) UserSetDiscussionGroup(channelID int64, groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6556,6 +6653,7 @@ func (b *BaleCore) UserSetDiscussionGroup(channelID int64, groupID int64) (map[s
 	})
 }
 
+// UserRemoveDiscussionGroup unlinks a discussion group from a channel (user mode).
 func (b *BaleCore) UserRemoveDiscussionGroup(channelID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6569,6 +6667,7 @@ func (b *BaleCore) UserRemoveDiscussionGroup(channelID int64) (map[string]interf
 	})
 }
 
+// UserAddDiscussionGroupAdmin adds an admin to a linked discussion group (user mode).
 func (b *BaleCore) UserAddDiscussionGroupAdmin(channelID int64, userID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6583,6 +6682,7 @@ func (b *BaleCore) UserAddDiscussionGroupAdmin(channelID int64, userID int64) (m
 	})
 }
 
+// UserSetCanSeeHistory sets whether new members can see chat history (user mode).
 func (b *BaleCore) UserSetCanSeeHistory(groupID int64, canSee bool) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6597,6 +6697,7 @@ func (b *BaleCore) UserSetCanSeeHistory(groupID int64, canSee bool) (map[string]
 	})
 }
 
+// UserGetGroupRecommendations retrieves recommended groups (user mode).
 func (b *BaleCore) UserGetGroupRecommendations(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6606,6 +6707,7 @@ func (b *BaleCore) UserGetGroupRecommendations(groupID int64) (map[string]interf
 	})
 }
 
+// UserSetMemberCustomTitle sets a custom admin title for a member (user mode).
 func (b *BaleCore) UserSetMemberCustomTitle(groupID int64, userID int64, title string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6625,6 +6727,7 @@ func (b *BaleCore) UserSetMemberCustomTitle(groupID int64, userID int64, title s
 // Missing Meet methods (bale.meet.v1.Meet)
 // =============================================================================
 
+// UserAcceptCallMeet accepts an incoming call in a meet session (user mode).
 func (b *BaleCore) UserAcceptCallMeet(callID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6632,6 +6735,7 @@ func (b *BaleCore) UserAcceptCallMeet(callID int64) (map[string]interface{}, err
 	return b.userSend(baleServiceMeet, "AcceptCall", map[string]interface{}{"1": callID})
 }
 
+// UserGetCallState retrieves the current call state (user mode).
 func (b *BaleCore) UserGetCallState(callID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6639,6 +6743,7 @@ func (b *BaleCore) UserGetCallState(callID int64) (map[string]interface{}, error
 	return b.userSend(baleServiceMeet, "GetCallState", map[string]interface{}{"1": callID})
 }
 
+// UserDeleteCallLogs deletes call history entries (user mode).
 func (b *BaleCore) UserDeleteCallLogs(callIDs []int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6646,6 +6751,7 @@ func (b *BaleCore) UserDeleteCallLogs(callIDs []int64) (map[string]interface{}, 
 	return b.userSend(baleServiceMeet, "DeleteCallLogs", map[string]interface{}{"1": callIDs})
 }
 
+// UserInviteToCall invites a user to an active call (user mode).
 func (b *BaleCore) UserInviteToCall(callID int64, userIDs []int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6660,6 +6766,7 @@ func (b *BaleCore) UserInviteToCall(callID int64, userIDs []int64) (map[string]i
 	})
 }
 
+// UserAskToJoinCall requests to join an active call (user mode).
 func (b *BaleCore) UserAskToJoinCall(callID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6667,6 +6774,7 @@ func (b *BaleCore) UserAskToJoinCall(callID int64) (map[string]interface{}, erro
 	return b.userSend(baleServiceMeet, "AskToJoinCall", map[string]interface{}{"1": callID})
 }
 
+// UserAnswerCallJoinRequest accepts or rejects a call join request (user mode).
 func (b *BaleCore) UserAnswerCallJoinRequest(callID int64, userID int64, accept bool) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6678,6 +6786,7 @@ func (b *BaleCore) UserAnswerCallJoinRequest(callID int64, userID int64, accept 
 	})
 }
 
+// UserSendCallReaction sends a reaction emoji during a call (user mode).
 func (b *BaleCore) UserSendCallReaction(callID int64, reaction string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6688,6 +6797,7 @@ func (b *BaleCore) UserSendCallReaction(callID int64, reaction string) (map[stri
 	})
 }
 
+// UserSubmitCallFeedback submits quality feedback after a call (user mode).
 func (b *BaleCore) UserSubmitCallFeedback(callID int64, rating int, comment string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6699,6 +6809,7 @@ func (b *BaleCore) UserSubmitCallFeedback(callID int64, rating int, comment stri
 	})
 }
 
+// UserMuteCallParticipant mutes a participant in a group call (user mode).
 func (b *BaleCore) UserMuteCallParticipant(callID int64, userID int64, muted bool) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6710,6 +6821,7 @@ func (b *BaleCore) UserMuteCallParticipant(callID int64, userID int64, muted boo
 	})
 }
 
+// UserRemoveCallParticipant removes a participant from a call (user mode).
 func (b *BaleCore) UserRemoveCallParticipant(callID int64, userID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6720,6 +6832,7 @@ func (b *BaleCore) UserRemoveCallParticipant(callID int64, userID int64) (map[st
 	})
 }
 
+// UserStartRecording starts recording the active call (user mode).
 func (b *BaleCore) UserStartRecording(callID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6727,6 +6840,7 @@ func (b *BaleCore) UserStartRecording(callID int64) (map[string]interface{}, err
 	return b.userSend(baleServiceMeet, "StartRecording", map[string]interface{}{"1": callID})
 }
 
+// UserStopRecording stops recording the active call (user mode).
 func (b *BaleCore) UserStopRecording(callID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6734,6 +6848,7 @@ func (b *BaleCore) UserStopRecording(callID int64) (map[string]interface{}, erro
 	return b.userSend(baleServiceMeet, "StopRecording", map[string]interface{}{"1": callID})
 }
 
+// UserStartStream starts live streaming in a call (user mode).
 func (b *BaleCore) UserStartStream(callID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6741,6 +6856,7 @@ func (b *BaleCore) UserStartStream(callID int64) (map[string]interface{}, error)
 	return b.userSend(baleServiceMeet, "StartStream", map[string]interface{}{"1": callID})
 }
 
+// UserDeleteStream stops and deletes a live stream (user mode).
 func (b *BaleCore) UserDeleteStream(callID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6748,6 +6864,7 @@ func (b *BaleCore) UserDeleteStream(callID int64) (map[string]interface{}, error
 	return b.userSend(baleServiceMeet, "DeleteStream", map[string]interface{}{"1": callID})
 }
 
+// UserUpdateCallLayout changes the video layout of a group call (user mode).
 func (b *BaleCore) UserUpdateCallLayout(callID int64, layout int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6758,6 +6875,7 @@ func (b *BaleCore) UserUpdateCallLayout(callID int64, layout int) (map[string]in
 	})
 }
 
+// UserGenerateCallLink creates a shareable link for a call (user mode).
 func (b *BaleCore) UserGenerateCallLink(callID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6765,6 +6883,7 @@ func (b *BaleCore) UserGenerateCallLink(callID int64) (map[string]interface{}, e
 	return b.userSend(baleServiceMeet, "GenerateCallLink", map[string]interface{}{"1": callID})
 }
 
+// UserGetCallLinkDetails retrieves info about a call link (user mode).
 func (b *BaleCore) UserGetCallLinkDetails(link string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6772,6 +6891,7 @@ func (b *BaleCore) UserGetCallLinkDetails(link string) (map[string]interface{}, 
 	return b.userSend(baleServiceMeet, "GetCallLinkDetails", map[string]interface{}{"1": link})
 }
 
+// UserSetCallLinkTitle sets the title of a call link (user mode).
 func (b *BaleCore) UserSetCallLinkTitle(callID int64, title string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6782,6 +6902,7 @@ func (b *BaleCore) UserSetCallLinkTitle(callID int64, title string) (map[string]
 	})
 }
 
+// UserSendCallFanoosEvent sends a Fanoos analytics event for a call (user mode).
 func (b *BaleCore) UserSendCallFanoosEvent(callID int64, eventName string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6792,6 +6913,7 @@ func (b *BaleCore) UserSendCallFanoosEvent(callID int64, eventName string) (map[
 	})
 }
 
+// UserTakeCallAction performs a call control action (accept, reject, hangup) (user mode).
 func (b *BaleCore) UserTakeCallAction(callID int64, action int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6806,6 +6928,7 @@ func (b *BaleCore) UserTakeCallAction(callID int64, action int) (map[string]inte
 // Missing Presence methods (bale.presence.v1.Presence)
 // =============================================================================
 
+// UserGetContactsPresences retrieves online status for all contacts (user mode).
 func (b *BaleCore) UserGetContactsPresences() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6813,6 +6936,7 @@ func (b *BaleCore) UserGetContactsPresences() (map[string]interface{}, error) {
 	return b.userSend(baleServicePresence, "GetContactsPresences", map[string]interface{}{})
 }
 
+// UserGetGroupMembersPresences retrieves online status for group members (user mode).
 func (b *BaleCore) UserGetGroupMembersPresences(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6822,6 +6946,7 @@ func (b *BaleCore) UserGetGroupMembersPresences(groupID int64) (map[string]inter
 	})
 }
 
+// UserGetGroupOnlineCount returns the number of online members in a group (user mode).
 func (b *BaleCore) UserGetGroupOnlineCount(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6831,6 +6956,7 @@ func (b *BaleCore) UserGetGroupOnlineCount(groupID int64) (map[string]interface{
 	})
 }
 
+// UserGetUsersPresence retrieves online/offline status for users (user mode).
 func (b *BaleCore) UserGetUsersPresence(userIDs []int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6842,6 +6968,7 @@ func (b *BaleCore) UserGetUsersPresence(userIDs []int64) (map[string]interface{}
 	return b.userSend(baleServicePresence, "GetUsersPresence", map[string]interface{}{"1": users})
 }
 
+// UserSubscribeToOnline subscribes to online status updates for users (user mode).
 func (b *BaleCore) UserSubscribeToOnline(userIDs []int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6853,6 +6980,7 @@ func (b *BaleCore) UserSubscribeToOnline(userIDs []int64) (map[string]interface{
 	return b.userSend(baleServicePresence, "SubscribeToOnline", map[string]interface{}{"1": users})
 }
 
+// UserSubscribeFromOnline unsubscribes from online status updates (user mode).
 func (b *BaleCore) UserSubscribeFromOnline(userIDs []int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6864,6 +6992,7 @@ func (b *BaleCore) UserSubscribeFromOnline(userIDs []int64) (map[string]interfac
 	return b.userSend(baleServicePresence, "SubscribeFromOnline", map[string]interface{}{"1": users})
 }
 
+// UserSubscribeToGroupOnline subscribes to group member online status (user mode).
 func (b *BaleCore) UserSubscribeToGroupOnline(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6873,6 +7002,7 @@ func (b *BaleCore) UserSubscribeToGroupOnline(groupID int64) (map[string]interfa
 	})
 }
 
+// UserSubscribeFromGroupOnline unsubscribes from group member online status (user mode).
 func (b *BaleCore) UserSubscribeFromGroupOnline(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6886,6 +7016,7 @@ func (b *BaleCore) UserSubscribeFromGroupOnline(groupID int64) (map[string]inter
 // Missing Abacus methods (bale.abacus.v1.Abacus)
 // =============================================================================
 
+// UserEnableShowReactionFlag enables or disables the show-reaction flag (user mode).
 func (b *BaleCore) UserEnableShowReactionFlag(enabled bool) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6893,6 +7024,7 @@ func (b *BaleCore) UserEnableShowReactionFlag(enabled bool) (map[string]interfac
 	return b.userSend(baleServiceAbacus, "EnableShowReactionFlag", map[string]interface{}{"1": enabled})
 }
 
+// UserGetShowReactionFlag checks whether reactions are visible (user mode).
 func (b *BaleCore) UserGetShowReactionFlag() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6900,6 +7032,7 @@ func (b *BaleCore) UserGetShowReactionFlag() (map[string]interface{}, error) {
 	return b.userSend(baleServiceAbacus, "GetShowReactionFlag", map[string]interface{}{})
 }
 
+// UserLoadReactions retrieves reactions on a message (user mode).
 func (b *BaleCore) UserLoadReactions() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6907,6 +7040,7 @@ func (b *BaleCore) UserLoadReactions() (map[string]interface{}, error) {
 	return b.userSend(baleServiceAbacus, "LoadReactions", map[string]interface{}{})
 }
 
+// UserMessageReactionsRead marks message reactions as read (user mode).
 func (b *BaleCore) UserMessageReactionsRead(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6923,6 +7057,7 @@ func (b *BaleCore) UserMessageReactionsRead(chatID string, msgID string) (map[st
 // New service: Poll (bale.poll.v1.Poll)
 // =============================================================================
 
+// UserCreatePoll creates a poll in the specified chat (user mode).
 func (b *BaleCore) UserCreatePoll(chatID string, question string, options []string, multipleChoice bool, anonymous bool) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6942,6 +7077,7 @@ func (b *BaleCore) UserCreatePoll(chatID string, question string, options []stri
 	})
 }
 
+// UserClosePollService closes a poll so no more votes can be cast (user mode).
 func (b *BaleCore) UserClosePollService(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6955,6 +7091,7 @@ func (b *BaleCore) UserClosePollService(chatID string, msgID string) (map[string
 	})
 }
 
+// UserVotePollService submits a vote on a poll (user mode).
 func (b *BaleCore) UserVotePollService(chatID string, msgID string, optionIndices []int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6973,6 +7110,7 @@ func (b *BaleCore) UserVotePollService(chatID string, msgID string, optionIndice
 	})
 }
 
+// UserGetPollResultsService retrieves poll results (user mode).
 func (b *BaleCore) UserGetPollResultsService(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -6986,6 +7124,7 @@ func (b *BaleCore) UserGetPollResultsService(chatID string, msgID string) (map[s
 	})
 }
 
+// UserGetFullPollResultService retrieves detailed poll results with voter info (user mode).
 func (b *BaleCore) UserGetFullPollResultService(chatID string, msgID string, optionIndex int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7004,6 +7143,7 @@ func (b *BaleCore) UserGetFullPollResultService(chatID string, msgID string, opt
 // New service: Search (bale.search.v1.Search)
 // =============================================================================
 
+// UserSearchMessages searches for messages matching a query (user mode).
 func (b *BaleCore) UserSearchMessages(query string, chatID string, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7019,6 +7159,7 @@ func (b *BaleCore) UserSearchMessages(query string, chatID string, limit int) (m
 	return b.userSend(baleServiceSearch, "SearchMessages", payload)
 }
 
+// UserSearchMessageMore continues a paginated message search (user mode).
 func (b *BaleCore) UserSearchMessageMore(query string, chatID string, offset int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7035,6 +7176,7 @@ func (b *BaleCore) UserSearchMessageMore(query string, chatID string, offset int
 	return b.userSend(baleServiceSearch, "SearchMessageMore", payload)
 }
 
+// UserSearchPeer searches for users, groups, and channels by name (user mode).
 func (b *BaleCore) UserSearchPeer(query string, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7045,6 +7187,7 @@ func (b *BaleCore) UserSearchPeer(query string, limit int) (map[string]interface
 	})
 }
 
+// UserSearchMediaService searches for media messages in a chat (user mode).
 func (b *BaleCore) UserSearchMediaService(chatID string, mediaType int, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7057,6 +7200,7 @@ func (b *BaleCore) UserSearchMediaService(chatID string, mediaType int, limit in
 	})
 }
 
+// UserSearchMembersService searches for members in a group (user mode).
 func (b *BaleCore) UserSearchMembersService(chatID string, query string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7068,6 +7212,7 @@ func (b *BaleCore) UserSearchMembersService(chatID string, query string) (map[st
 	})
 }
 
+// UserSearchDialog searches for dialogs by name or content (user mode).
 func (b *BaleCore) UserSearchDialog(query string, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7078,6 +7223,7 @@ func (b *BaleCore) UserSearchDialog(query string, limit int) (map[string]interfa
 	})
 }
 
+// UserSearchContent searches for content across chats (user mode).
 func (b *BaleCore) UserSearchContent(query string, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7088,6 +7234,7 @@ func (b *BaleCore) UserSearchContent(query string, limit int) (map[string]interf
 	})
 }
 
+// UserUpdateSearchContentClick records a click on a search result for relevance (user mode).
 func (b *BaleCore) UserUpdateSearchContentClick(contentID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7099,6 +7246,7 @@ func (b *BaleCore) UserUpdateSearchContentClick(contentID string) (map[string]in
 // New service: Story (bale.story.v1.Story)
 // =============================================================================
 
+// UserAddStory publishes a story to the user's profile (user mode).
 func (b *BaleCore) UserAddStory(content map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7106,6 +7254,7 @@ func (b *BaleCore) UserAddStory(content map[string]interface{}) (map[string]inte
 	return b.userSend(baleServiceStory, "AddStory", content)
 }
 
+// UserAddChannelStory publishes a story on a channel (user mode).
 func (b *BaleCore) UserAddChannelStory(channelID int64, content map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7114,6 +7263,7 @@ func (b *BaleCore) UserAddChannelStory(channelID int64, content map[string]inter
 	return b.userSend(baleServiceStory, "AddChannelStory", content)
 }
 
+// UserAddBotStory publishes a story for a bot (user mode).
 func (b *BaleCore) UserAddBotStory(botID int64, content map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7122,6 +7272,7 @@ func (b *BaleCore) UserAddBotStory(botID int64, content map[string]interface{}) 
 	return b.userSend(baleServiceStory, "AddBotStory", content)
 }
 
+// UserCanAddBotStory checks whether the user can add a story for a bot (user mode).
 func (b *BaleCore) UserCanAddBotStory(botID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7131,6 +7282,7 @@ func (b *BaleCore) UserCanAddBotStory(botID int64) (map[string]interface{}, erro
 	})
 }
 
+// UserRemoveStory deletes a story (user mode).
 func (b *BaleCore) UserRemoveStory(storyID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7138,6 +7290,7 @@ func (b *BaleCore) UserRemoveStory(storyID int64) (map[string]interface{}, error
 	return b.userSend(baleServiceStory, "RemoveStory", map[string]interface{}{"1": storyID})
 }
 
+// UserGetStoryViewers retrieves the list of users who viewed a story (user mode).
 func (b *BaleCore) UserGetStoryViewers(storyID int64, offset int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7149,6 +7302,7 @@ func (b *BaleCore) UserGetStoryViewers(storyID int64, offset int64, limit int) (
 	})
 }
 
+// UserGetStoryViewersCount returns the view count for a story (user mode).
 func (b *BaleCore) UserGetStoryViewersCount(storyID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7156,6 +7310,7 @@ func (b *BaleCore) UserGetStoryViewersCount(storyID int64) (map[string]interface
 	return b.userSend(baleServiceStory, "GetViewersCount", map[string]interface{}{"1": storyID})
 }
 
+// UserGetStories retrieves stories for a user or channel (user mode).
 func (b *BaleCore) UserGetStories(peerID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7165,6 +7320,7 @@ func (b *BaleCore) UserGetStories(peerID int64) (map[string]interface{}, error) 
 	})
 }
 
+// UserGetChannelStories retrieves stories published by a channel (user mode).
 func (b *BaleCore) UserGetChannelStories(channelID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7174,6 +7330,7 @@ func (b *BaleCore) UserGetChannelStories(channelID int64) (map[string]interface{
 	})
 }
 
+// UserGetBotStories retrieves stories published by a bot (user mode).
 func (b *BaleCore) UserGetBotStories(botID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7183,6 +7340,7 @@ func (b *BaleCore) UserGetBotStories(botID int64) (map[string]interface{}, error
 	})
 }
 
+// UserReactToStory adds a reaction to a story (user mode).
 func (b *BaleCore) UserReactToStory(storyID int64, reaction string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7193,6 +7351,7 @@ func (b *BaleCore) UserReactToStory(storyID int64, reaction string) (map[string]
 	})
 }
 
+// UserGetStoryByID retrieves a specific story by its ID (user mode).
 func (b *BaleCore) UserGetStoryByID(storyID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7200,6 +7359,7 @@ func (b *BaleCore) UserGetStoryByID(storyID int64) (map[string]interface{}, erro
 	return b.userSend(baleServiceStory, "GetStoryById", map[string]interface{}{"1": storyID})
 }
 
+// UserGetStoryPrivacyConfig retrieves story privacy settings (user mode).
 func (b *BaleCore) UserGetStoryPrivacyConfig() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7207,6 +7367,7 @@ func (b *BaleCore) UserGetStoryPrivacyConfig() (map[string]interface{}, error) {
 	return b.userSend(baleServiceStory, "GetUserPrivacyConfig", map[string]interface{}{})
 }
 
+// UserSetStoryPrivacyConfig updates story privacy settings (user mode).
 func (b *BaleCore) UserSetStoryPrivacyConfig(config map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7214,6 +7375,7 @@ func (b *BaleCore) UserSetStoryPrivacyConfig(config map[string]interface{}) (map
 	return b.userSend(baleServiceStory, "SetUserPrivacyConfig", config)
 }
 
+// UserGetDefaultStoryBackgrounds retrieves default background images for stories (user mode).
 func (b *BaleCore) UserGetDefaultStoryBackgrounds() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7221,6 +7383,7 @@ func (b *BaleCore) UserGetDefaultStoryBackgrounds() (map[string]interface{}, err
 	return b.userSend(baleServiceStory, "GetDefaultStoryBackgrounds", map[string]interface{}{})
 }
 
+// UserGetMostPopularStories retrieves trending/popular stories (user mode).
 func (b *BaleCore) UserGetMostPopularStories() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7228,6 +7391,7 @@ func (b *BaleCore) UserGetMostPopularStories() (map[string]interface{}, error) {
 	return b.userSend(baleServiceStory, "GetMostPopularStories", map[string]interface{}{})
 }
 
+// UserGetStoryWidgets retrieves available widgets for story creation (user mode).
 func (b *BaleCore) UserGetStoryWidgets() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7235,6 +7399,7 @@ func (b *BaleCore) UserGetStoryWidgets() (map[string]interface{}, error) {
 	return b.userSend(baleServiceStory, "GetStoryWidgets", map[string]interface{}{})
 }
 
+// UserGetUserStoryConfig retrieves the user's story configuration (user mode).
 func (b *BaleCore) UserGetUserStoryConfig() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7242,6 +7407,7 @@ func (b *BaleCore) UserGetUserStoryConfig() (map[string]interface{}, error) {
 	return b.userSend(baleServiceStory, "GetUserStoryConfig", map[string]interface{}{})
 }
 
+// UserSetUserStoryConfig updates the user's story configuration (user mode).
 func (b *BaleCore) UserSetUserStoryConfig(config map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7249,6 +7415,7 @@ func (b *BaleCore) UserSetUserStoryConfig(config map[string]interface{}) (map[st
 	return b.userSend(baleServiceStory, "SetUserStoryConfig", config)
 }
 
+// UserGetStoriesByList retrieves stories for a list of users (user mode).
 func (b *BaleCore) UserGetStoriesByList(storyIDs []int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7256,6 +7423,7 @@ func (b *BaleCore) UserGetStoriesByList(storyIDs []int64) (map[string]interface{
 	return b.userSend(baleServiceStory, "GetStoriesByList", map[string]interface{}{"1": storyIDs})
 }
 
+// UserGetStoryReactionEmojis retrieves available reaction emojis for stories (user mode).
 func (b *BaleCore) UserGetStoryReactionEmojis() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7263,6 +7431,7 @@ func (b *BaleCore) UserGetStoryReactionEmojis() (map[string]interface{}, error) 
 	return b.userSend(baleServiceStory, "GetStoryReactionEmojis", map[string]interface{}{})
 }
 
+// UserGetStoryTags retrieves tags used in stories (user mode).
 func (b *BaleCore) UserGetStoryTags() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7270,6 +7439,7 @@ func (b *BaleCore) UserGetStoryTags() (map[string]interface{}, error) {
 	return b.userSend(baleServiceStory, "GetStoryTags", map[string]interface{}{})
 }
 
+// UserCheckStoryLinkValidity checks whether a story link is valid (user mode).
 func (b *BaleCore) UserCheckStoryLinkValidity(link string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7281,6 +7451,7 @@ func (b *BaleCore) UserCheckStoryLinkValidity(link string) (map[string]interface
 // New service: Ketf/Bots (bale.ketf.v1.Ketf)
 // =============================================================================
 
+// UserAddGif saves a GIF to the user's collection (user mode).
 func (b *BaleCore) UserAddGif(fileID int64, accessHash int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7290,6 +7461,7 @@ func (b *BaleCore) UserAddGif(fileID int64, accessHash int64) (map[string]interf
 	})
 }
 
+// UserRemoveGif removes a GIF from saved GIFs (user mode).
 func (b *BaleCore) UserRemoveGif(fileID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7297,6 +7469,7 @@ func (b *BaleCore) UserRemoveGif(fileID int64) (map[string]interface{}, error) {
 	return b.userSend(baleServiceKetf, "RemoveGif", map[string]interface{}{"1": fileID})
 }
 
+// UserUseGif records usage of a GIF for sorting (user mode).
 func (b *BaleCore) UserUseGif(fileID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7304,6 +7477,7 @@ func (b *BaleCore) UserUseGif(fileID int64) (map[string]interface{}, error) {
 	return b.userSend(baleServiceKetf, "UseGif", map[string]interface{}{"1": fileID})
 }
 
+// UserGetSavedGifs retrieves the list of saved GIFs (user mode).
 func (b *BaleCore) UserGetSavedGifs() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7311,6 +7485,7 @@ func (b *BaleCore) UserGetSavedGifs() (map[string]interface{}, error) {
 	return b.userSend(baleServiceKetf, "GetSavedGifs", map[string]interface{}{})
 }
 
+// UserAddStickerCollection adds a sticker collection to the user's list (user mode).
 func (b *BaleCore) UserAddStickerCollection(collectionID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7318,6 +7493,7 @@ func (b *BaleCore) UserAddStickerCollection(collectionID int64) (map[string]inte
 	return b.userSend(baleServiceKetf, "AddStickerCollection", map[string]interface{}{"1": collectionID})
 }
 
+// UserRemoveStickerCollection removes a sticker collection from the user's list (user mode).
 func (b *BaleCore) UserRemoveStickerCollection(collectionID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7325,6 +7501,7 @@ func (b *BaleCore) UserRemoveStickerCollection(collectionID int64) (map[string]i
 	return b.userSend(baleServiceKetf, "RemoveStickerCollection", map[string]interface{}{"1": collectionID})
 }
 
+// UserAddStickerPack adds a sticker pack (user mode).
 func (b *BaleCore) UserAddStickerPack(packID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7332,6 +7509,7 @@ func (b *BaleCore) UserAddStickerPack(packID int64) (map[string]interface{}, err
 	return b.userSend(baleServiceKetf, "AddStickerPack", map[string]interface{}{"1": packID})
 }
 
+// UserRemoveStickerPack removes a sticker pack (user mode).
 func (b *BaleCore) UserRemoveStickerPack(packID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7339,6 +7517,7 @@ func (b *BaleCore) UserRemoveStickerPack(packID int64) (map[string]interface{}, 
 	return b.userSend(baleServiceKetf, "RemoveStickerPack", map[string]interface{}{"1": packID})
 }
 
+// UserLoadOwnStickers retrieves the user's own sticker packs (user mode).
 func (b *BaleCore) UserLoadOwnStickers() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7346,6 +7525,7 @@ func (b *BaleCore) UserLoadOwnStickers() (map[string]interface{}, error) {
 	return b.userSend(baleServiceKetf, "LoadOwnStickers", map[string]interface{}{})
 }
 
+// UserLoadStickerCollection retrieves a sticker collection by ID (user mode).
 func (b *BaleCore) UserLoadStickerCollection(collectionID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7353,6 +7533,7 @@ func (b *BaleCore) UserLoadStickerCollection(collectionID int64) (map[string]int
 	return b.userSend(baleServiceKetf, "LoadStickerCollection", map[string]interface{}{"1": collectionID})
 }
 
+// UserSendInlineCallBackData sends callback data from an inline keyboard button (user mode).
 func (b *BaleCore) UserSendInlineCallBackData(botID int64, queryID string, data string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7364,6 +7545,7 @@ func (b *BaleCore) UserSendInlineCallBackData(botID int64, queryID string, data 
 	})
 }
 
+// UserSendInlineCallback sends an inline callback query response (user mode).
 func (b *BaleCore) UserSendInlineCallback(botID int64, queryID string, data string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7375,6 +7557,7 @@ func (b *BaleCore) UserSendInlineCallback(botID int64, queryID string, data stri
 	})
 }
 
+// UserSendAuthenticatedInlineCallBackData sends authenticated callback data from an inline button (user mode).
 func (b *BaleCore) UserSendAuthenticatedInlineCallBackData(botID int64, queryID string, data string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7386,6 +7569,7 @@ func (b *BaleCore) UserSendAuthenticatedInlineCallBackData(botID int64, queryID 
 	})
 }
 
+// UserSendMiniAppData sends data to a Mini App (user mode).
 func (b *BaleCore) UserSendMiniAppData(botID int64, data string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7396,6 +7580,7 @@ func (b *BaleCore) UserSendMiniAppData(botID int64, data string) (map[string]int
 	})
 }
 
+// UserGetBotWhiteList retrieves the bot whitelist (user mode).
 func (b *BaleCore) UserGetBotWhiteList() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7403,6 +7588,7 @@ func (b *BaleCore) UserGetBotWhiteList() (map[string]interface{}, error) {
 	return b.userSend(baleServiceKetf, "GetBotWhiteList", map[string]interface{}{})
 }
 
+// UserGetUserContext retrieves the context data for a user (user mode).
 func (b *BaleCore) UserGetUserContext(botID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7412,6 +7598,7 @@ func (b *BaleCore) UserGetUserContext(botID int64) (map[string]interface{}, erro
 	})
 }
 
+// UserGetWebappHash retrieves the hash for a web app session (user mode).
 func (b *BaleCore) UserGetWebappHash(botID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7421,6 +7608,7 @@ func (b *BaleCore) UserGetWebappHash(botID int64) (map[string]interface{}, error
 	})
 }
 
+// UserGetBots retrieves the list of bots (user mode).
 func (b *BaleCore) UserGetBots() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7428,6 +7616,7 @@ func (b *BaleCore) UserGetBots() (map[string]interface{}, error) {
 	return b.userSend(baleServiceKetf, "GetBots", map[string]interface{}{})
 }
 
+// UserGetBotInfo retrieves info about a specific bot (user mode).
 func (b *BaleCore) UserGetBotInfo(botID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7437,6 +7626,7 @@ func (b *BaleCore) UserGetBotInfo(botID int64) (map[string]interface{}, error) {
 	})
 }
 
+// UserGetInlineBotResults retrieves inline query results from a bot (user mode).
 func (b *BaleCore) UserGetInlineBotResults(botID int64, query string, offset string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7448,6 +7638,7 @@ func (b *BaleCore) UserGetInlineBotResults(botID int64, query string, offset str
 	})
 }
 
+// UserGetBotGroupPermissions retrieves a bot's permissions in a group (user mode).
 func (b *BaleCore) UserGetBotGroupPermissions(botID int64, groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7458,6 +7649,7 @@ func (b *BaleCore) UserGetBotGroupPermissions(botID int64, groupID int64) (map[s
 	})
 }
 
+// UserGetPaymentDetails retrieves payment/invoice details (user mode).
 func (b *BaleCore) UserGetPaymentDetails(paymentID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7465,6 +7657,7 @@ func (b *BaleCore) UserGetPaymentDetails(paymentID string) (map[string]interface
 	return b.userSend(baleServiceKetf, "GetPaymentDetails", map[string]interface{}{"1": paymentID})
 }
 
+// UserMakePayment processes a payment (user mode).
 func (b *BaleCore) UserMakePayment(paymentID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7472,6 +7665,7 @@ func (b *BaleCore) UserMakePayment(paymentID string) (map[string]interface{}, er
 	return b.userSend(baleServiceKetf, "MakePayment", map[string]interface{}{"1": paymentID})
 }
 
+// UserInvokeCustomAction invokes a custom action on the server (user mode).
 func (b *BaleCore) UserInvokeCustomAction(botID int64, action string, data string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7487,6 +7681,7 @@ func (b *BaleCore) UserInvokeCustomAction(botID int64, action string, data strin
 // New service: MavizStream (bale.maviz.v1.MavizStream)
 // =============================================================================
 
+// UserSubscribeToUpdates subscribes to real-time update notifications via MavizStream (user mode).
 func (b *BaleCore) UserSubscribeToUpdates() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7494,6 +7689,7 @@ func (b *BaleCore) UserSubscribeToUpdates() (map[string]interface{}, error) {
 	return b.userSend(baleServiceMaviz, "SubscribeToUpdates", map[string]interface{}{})
 }
 
+// UserGetDifference fetches updates since the last sync point (user mode).
 func (b *BaleCore) UserGetDifference(seq int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7501,6 +7697,7 @@ func (b *BaleCore) UserGetDifference(seq int64) (map[string]interface{}, error) 
 	return b.userSend(baleServiceMaviz, "GetDifference", map[string]interface{}{"1": seq})
 }
 
+// UserSubscribeToThreadUpdates subscribes to real-time thread updates (user mode).
 func (b *BaleCore) UserSubscribeToThreadUpdates(chatID string, threadID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7512,6 +7709,7 @@ func (b *BaleCore) UserSubscribeToThreadUpdates(chatID string, threadID int64) (
 	})
 }
 
+// UserUnsubscribeFromThreadUpdates unsubscribes from thread updates (user mode).
 func (b *BaleCore) UserUnsubscribeFromThreadUpdates(chatID string, threadID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7527,6 +7725,7 @@ func (b *BaleCore) UserUnsubscribeFromThreadUpdates(chatID string, threadID int6
 // New service: MessageStream (bale.message_stream.v1.MessageStream)
 // =============================================================================
 
+// UserCancelMessageStream cancels an active message stream (user mode).
 func (b *BaleCore) UserCancelMessageStream(streamID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7534,6 +7733,7 @@ func (b *BaleCore) UserCancelMessageStream(streamID int64) (map[string]interface
 	return b.userSend(baleServiceMsgStream, "CancelMessageStream", map[string]interface{}{"1": streamID})
 }
 
+// UserReceiveMessageStream opens a streaming connection for incoming messages (user mode).
 func (b *BaleCore) UserReceiveMessageStream(streamID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7545,6 +7745,7 @@ func (b *BaleCore) UserReceiveMessageStream(streamID int64) (map[string]interfac
 // New service: Scheduler (bale.schedule.v1.Scheduler)
 // =============================================================================
 
+// UserScheduleTask schedules a task in the specified chat (user mode).
 func (b *BaleCore) UserScheduleTask(chatID string, task map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7554,6 +7755,7 @@ func (b *BaleCore) UserScheduleTask(chatID string, task map[string]interface{}) 
 	return b.userSend(baleServiceScheduler, "ScheduleTask", task)
 }
 
+// UserUnScheduleTask cancels a scheduled task (user mode).
 func (b *BaleCore) UserUnScheduleTask(taskID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7561,6 +7763,7 @@ func (b *BaleCore) UserUnScheduleTask(taskID int64) (map[string]interface{}, err
 	return b.userSend(baleServiceScheduler, "UnScheduleTask", map[string]interface{}{"1": taskID})
 }
 
+// UserListScheduledTasks retrieves the list of scheduled tasks (user mode).
 func (b *BaleCore) UserListScheduledTasks(chatID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7571,6 +7774,7 @@ func (b *BaleCore) UserListScheduledTasks(chatID string) (map[string]interface{}
 	})
 }
 
+// UserExecuteTaskNow immediately executes a scheduled task (user mode).
 func (b *BaleCore) UserExecuteTaskNow(taskID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7578,6 +7782,7 @@ func (b *BaleCore) UserExecuteTaskNow(taskID int64) (map[string]interface{}, err
 	return b.userSend(baleServiceScheduler, "ExecuteTaskNow", map[string]interface{}{"1": taskID})
 }
 
+// UserReScheduleTask changes the time of a scheduled task (user mode).
 func (b *BaleCore) UserReScheduleTask(taskID int64, newDate int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7588,6 +7793,7 @@ func (b *BaleCore) UserReScheduleTask(taskID int64, newDate int64) (map[string]i
 	})
 }
 
+// UserPeersWithScheduleTask retrieves peers that have scheduled tasks (user mode).
 func (b *BaleCore) UserPeersWithScheduleTask() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7599,6 +7805,7 @@ func (b *BaleCore) UserPeersWithScheduleTask() (map[string]interface{}, error) {
 // New service: TLDR (bale.tldr.v1.TLDR)
 // =============================================================================
 
+// UserGetLinkSummary retrieves an AI-generated summary for a URL (user mode).
 func (b *BaleCore) UserGetLinkSummary(url string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7606,6 +7813,7 @@ func (b *BaleCore) UserGetLinkSummary(url string) (map[string]interface{}, error
 	return b.userSend(baleServiceTLDR, "GetLinkSummary", map[string]interface{}{"1": url})
 }
 
+// UserGetLinkPreview retrieves a preview (title, image) for a URL (user mode).
 func (b *BaleCore) UserGetLinkPreview(url string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7617,6 +7825,7 @@ func (b *BaleCore) UserGetLinkPreview(url string) (map[string]interface{}, error
 // New service: Negah (bale.negah.v1.Negah)
 // =============================================================================
 
+// UserGetMessageSeenList retrieves the list of users who have seen a message (user mode).
 func (b *BaleCore) UserGetMessageSeenList(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7633,6 +7842,7 @@ func (b *BaleCore) UserGetMessageSeenList(chatID string, msgID string) (map[stri
 // New service: SharedMedia (bale.shared_media.v1.SharedMediaService)
 // =============================================================================
 
+// UserLoadSharedMedia loads shared media items from a chat by type (user mode).
 func (b *BaleCore) UserLoadSharedMedia(chatID string, mediaType int, offset int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7646,6 +7856,7 @@ func (b *BaleCore) UserLoadSharedMedia(chatID string, mediaType int, offset int6
 	})
 }
 
+// UserGetActiveSharedMedia retrieves shared media in a chat (user mode).
 func (b *BaleCore) UserGetActiveSharedMedia(chatID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7660,6 +7871,7 @@ func (b *BaleCore) UserGetActiveSharedMedia(chatID string) (map[string]interface
 // New service: TopPeer (bale.top_peer.v1.TopPeer)
 // =============================================================================
 
+// UserGetTopPeer retrieves the user's most-contacted peers (user mode).
 func (b *BaleCore) UserGetTopPeer() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7667,6 +7879,7 @@ func (b *BaleCore) UserGetTopPeer() (map[string]interface{}, error) {
 	return b.userSend(baleServiceTopPeer, "GetTopPeer", map[string]interface{}{})
 }
 
+// UserRemoveTopPeer removes a peer from the frequently-contacted list (user mode).
 func (b *BaleCore) UserRemoveTopPeer(peerID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7681,6 +7894,7 @@ func (b *BaleCore) UserRemoveTopPeer(peerID string) (map[string]interface{}, err
 // New service: Recommender (bale.recommender.v1.Recommender)
 // =============================================================================
 
+// UserGetChannelRecommendations retrieves recommended channels (user mode).
 func (b *BaleCore) UserGetChannelRecommendations(channelID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7690,6 +7904,7 @@ func (b *BaleCore) UserGetChannelRecommendations(channelID int64) (map[string]in
 	})
 }
 
+// UserGetRelatedChannels retrieves channels related to the current one (user mode).
 func (b *BaleCore) UserGetRelatedChannels(channelID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7699,6 +7914,7 @@ func (b *BaleCore) UserGetRelatedChannels(channelID int64) (map[string]interface
 	})
 }
 
+// UserGetGroupsRecommendation retrieves recommended groups to join (user mode).
 func (b *BaleCore) UserGetGroupsRecommendation() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7706,6 +7922,7 @@ func (b *BaleCore) UserGetGroupsRecommendation() (map[string]interface{}, error)
 	return b.userSend(baleServiceRecommender, "GetGroupsRecommendation", map[string]interface{}{})
 }
 
+// UserGetRelatedGroups retrieves groups related to the current one (user mode).
 func (b *BaleCore) UserGetRelatedGroups(groupID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7719,6 +7936,7 @@ func (b *BaleCore) UserGetRelatedGroups(groupID int64) (map[string]interface{}, 
 // New service: AnonymousContact (bale.anonymous_contact.v1.AnonymousContact)
 // =============================================================================
 
+// UserGetAnonymousContactPage retrieves the anonymous contact page for the user (user mode).
 func (b *BaleCore) UserGetAnonymousContactPage() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7730,6 +7948,7 @@ func (b *BaleCore) UserGetAnonymousContactPage() (map[string]interface{}, error)
 // New service: Falake (bale.falake.v1.Falake)
 // =============================================================================
 
+// UserGetLinkStatus checks the status of a Bale invite or short link (user mode).
 func (b *BaleCore) UserGetLinkStatus(link string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7741,6 +7960,7 @@ func (b *BaleCore) UserGetLinkStatus(link string) (map[string]interface{}, error
 // New service: LLMAuth (bale.llm_auth.v1.LLMAuthService)
 // =============================================================================
 
+// UserGetLLMAuthToken retrieves an authentication token for Bale's LLM service (user mode).
 func (b *BaleCore) UserGetLLMAuthToken() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7752,6 +7972,7 @@ func (b *BaleCore) UserGetLLMAuthToken() (map[string]interface{}, error) {
 // New service: Organizations (bale.organizations.v1.Organizations)
 // =============================================================================
 
+// UserGetOrganizationalContacts retrieves contacts within the user's organization (user mode).
 func (b *BaleCore) UserGetOrganizationalContacts() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7759,6 +7980,7 @@ func (b *BaleCore) UserGetOrganizationalContacts() (map[string]interface{}, erro
 	return b.userSend(baleServiceOrgs, "GetUserOrganizationalContacts", map[string]interface{}{})
 }
 
+// UserGetOrganizationInfo retrieves organization/workspace info (user mode).
 func (b *BaleCore) UserGetOrganizationInfo() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7770,6 +7992,7 @@ func (b *BaleCore) UserGetOrganizationInfo() (map[string]interface{}, error) {
 // New service: Appzar (bale.appzar.v1.Appzar)
 // =============================================================================
 
+// UserGetMiniAppUrlAppzar retrieves the URL for an Appzar mini-app (user mode).
 func (b *BaleCore) UserGetMiniAppUrlAppzar(botID int64, shortName string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7780,6 +8003,7 @@ func (b *BaleCore) UserGetMiniAppUrlAppzar(botID int64, shortName string) (map[s
 	})
 }
 
+// UserGetMenuButton retrieves the bot menu button configuration (user mode).
 func (b *BaleCore) UserGetMenuButton(botID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7787,6 +8011,7 @@ func (b *BaleCore) UserGetMenuButton(botID int64) (map[string]interface{}, error
 	return b.userSend(baleServiceAppzar, "GetMenuButton", map[string]interface{}{"1": botID})
 }
 
+// UserInvokeCustomMethodAppzar calls a custom Appzar mini-app method (user mode).
 func (b *BaleCore) UserInvokeCustomMethodAppzar(botID int64, method string, params string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7802,6 +8027,7 @@ func (b *BaleCore) UserInvokeCustomMethodAppzar(botID int64, method string, para
 // New service: AI (bale.turing.v1.AI)
 // =============================================================================
 
+// UserAISendEvent sends an event to Bale's AI/Turing service (user mode).
 func (b *BaleCore) UserAISendEvent(eventData map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7809,6 +8035,7 @@ func (b *BaleCore) UserAISendEvent(eventData map[string]interface{}) (map[string
 	return b.userSend(baleServiceTuringAI, "SendEvent", eventData)
 }
 
+// UserAIGetTranscript retrieves an AI-generated transcript for a voice message (user mode).
 func (b *BaleCore) UserAIGetTranscript(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7833,6 +8060,7 @@ func (b *BaleCore) UserAIGetTranscript(chatID string, msgID string) (map[string]
 // Missing Magazine methods
 // =============================================================================
 
+// UserGetMyUpvotes retrieves the user's upvoted magazine posts (user mode).
 func (b *BaleCore) UserGetMyUpvotes(offset int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7842,6 +8070,7 @@ func (b *BaleCore) UserGetMyUpvotes(offset int64, limit int) (map[string]interfa
 	})
 }
 
+// UserLoadFeedMessages retrieves feed/news messages (user mode).
 func (b *BaleCore) UserLoadFeedMessages(offset int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7851,6 +8080,7 @@ func (b *BaleCore) UserLoadFeedMessages(offset int64, limit int) (map[string]int
 	})
 }
 
+// UserLoadInternalFeedMessages retrieves internal feed messages (user mode).
 func (b *BaleCore) UserLoadInternalFeedMessages(offset int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7860,6 +8090,7 @@ func (b *BaleCore) UserLoadInternalFeedMessages(offset int64, limit int) (map[st
 	})
 }
 
+// UserLoadCategoryFeedMessages retrieves feed messages for a category (user mode).
 func (b *BaleCore) UserLoadCategoryFeedMessages(categoryID int64, offset int64, limit int) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7869,6 +8100,7 @@ func (b *BaleCore) UserLoadCategoryFeedMessages(categoryID int64, offset int64, 
 	})
 }
 
+// UserLoadMagazineCategories retrieves magazine/news categories (user mode).
 func (b *BaleCore) UserLoadMagazineCategories() (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7876,6 +8108,7 @@ func (b *BaleCore) UserLoadMagazineCategories() (map[string]interface{}, error) 
 	return b.userSend(baleServiceMagazine, "LoadCategories", map[string]interface{}{})
 }
 
+// UserGetSimilarPosts retrieves posts similar to the given one (user mode).
 func (b *BaleCore) UserGetSimilarPosts(chatID string, msgID string) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7892,6 +8125,7 @@ func (b *BaleCore) UserGetSimilarPosts(chatID string, msgID string) (map[string]
 // Missing Files methods
 // =============================================================================
 
+// UserGetNasimFileUrls retrieves download URLs for files by their IDs (user mode).
 func (b *BaleCore) UserGetNasimFileUrls(fileIDs []map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7899,6 +8133,7 @@ func (b *BaleCore) UserGetNasimFileUrls(fileIDs []map[string]interface{}) (map[s
 	return b.userSend(baleServiceFiles, "GetNasimFileUrls", map[string]interface{}{"1": fileIDs})
 }
 
+// UserGetNasimFileUploadResume retrieves resume info for an interrupted file upload (user mode).
 func (b *BaleCore) UserGetNasimFileUploadResume(fileID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7906,6 +8141,7 @@ func (b *BaleCore) UserGetNasimFileUploadResume(fileID int64) (map[string]interf
 	return b.userSend(baleServiceFiles, "GetNasimFileUploadResume", map[string]interface{}{"1": fileID})
 }
 
+// UserFileUploadCancel cancels an in-progress file upload (user mode).
 func (b *BaleCore) UserFileUploadCancel(fileID int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7913,6 +8149,7 @@ func (b *BaleCore) UserFileUploadCancel(fileID int64) (map[string]interface{}, e
 	return b.userSend(baleServiceFiles, "FileUploadCancel", map[string]interface{}{"1": fileID})
 }
 
+// UserGetNasimFilePublicUrl retrieves a public URL for an uploaded file (user mode).
 func (b *BaleCore) UserGetNasimFilePublicUrl(fileID int64, accessHash int64) (map[string]interface{}, error) {
 	if !b.authed {
 		return nil, ErrAuth
@@ -7946,26 +8183,31 @@ func (b *BaleCore) UserGetNasimFilePublicUrl(fileID int64, accessHash int64) (ma
 // Miscellaneous missing from existing services
 // =============================================================================
 
+// UserSetMyCommands registers bot commands for the current user-as-bot (user mode).
 func (b *BaleCore) UserSetMyCommands(commands []map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	return b.userSend(baleServiceMessaging, "SetMyCommands", map[string]interface{}{"1": commands})
 }
 
+// UserDeleteMyCommands deletes the bot's registered commands (user mode).
 func (b *BaleCore) UserDeleteMyCommands() (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	return b.userSend(baleServiceMessaging, "DeleteMyCommands", map[string]interface{}{})
 }
 
+// UserGetMyCommands retrieves the bot's registered commands (user mode).
 func (b *BaleCore) UserGetMyCommands() (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	return b.userSend(baleServiceMessaging, "GetMyCommands", map[string]interface{}{})
 }
 
+// UserTerminateSession terminates a specific login session (user mode).
 func (b *BaleCore) UserTerminateSession(sessionID int64) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	return b.userSend(baleServiceMessaging, "TerminateSession", map[string]interface{}{"1": sessionID})
 }
 
+// UserCreateFolder creates a new chat folder (user mode).
 func (b *BaleCore) UserCreateFolder(title string, peerIDs []string) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peers := make([]map[string]interface{}, len(peerIDs))
@@ -7976,6 +8218,7 @@ func (b *BaleCore) UserCreateFolder(title string, peerIDs []string) (map[string]
 	return b.userSend(baleServiceMessaging, "CreateFolder", map[string]interface{}{"1": title, "2": peers})
 }
 
+// UserLoadDialogsFiltered retrieves dialogs matching a filter (user mode).
 func (b *BaleCore) UserLoadDialogsFiltered(filterType int, offset int64, limit int) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	return b.userSend(baleServiceMessaging, "LoadDialogsFiltered", map[string]interface{}{
@@ -7983,11 +8226,13 @@ func (b *BaleCore) UserLoadDialogsFiltered(filterType int, offset int64, limit i
 	})
 }
 
+// UserPushSetConfig configures push notification settings (user mode).
 func (b *BaleCore) UserPushSetConfig(config map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	return b.userSend(baleServiceMessaging, "PushSetConfig", config)
 }
 
+// UserMarkAsUnread marks a dialog as unread (user mode).
 func (b *BaleCore) UserMarkAsUnread(chatID string, unread bool) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)
@@ -7996,6 +8241,7 @@ func (b *BaleCore) UserMarkAsUnread(chatID string, unread bool) (map[string]inte
 	})
 }
 
+// UserSendScheduledMessage sends a message scheduled for future delivery (user mode).
 func (b *BaleCore) UserSendScheduledMessage(chatID string, date int64, msg map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)
@@ -8004,6 +8250,7 @@ func (b *BaleCore) UserSendScheduledMessage(chatID string, date int64, msg map[s
 	return b.userSend(baleServiceMessaging, "SendScheduledMessage", msg)
 }
 
+// UserSendProtectedMessage sends a non-forwardable message (user mode).
 func (b *BaleCore) UserSendProtectedMessage(chatID string, msg map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)
@@ -8011,6 +8258,7 @@ func (b *BaleCore) UserSendProtectedMessage(chatID string, msg map[string]interf
 	return b.userSend(baleServiceMessaging, "SendProtectedMessage", msg)
 }
 
+// UserSendLongTextMessage sends a message exceeding the normal length limit (user mode).
 func (b *BaleCore) UserSendLongTextMessage(chatID string, text string) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)
@@ -8019,6 +8267,7 @@ func (b *BaleCore) UserSendLongTextMessage(chatID string, text string) (map[stri
 	})
 }
 
+// UserSendBankMessage sends a banking/payment message (user mode).
 func (b *BaleCore) UserSendBankMessage(chatID string, bankMsg map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)
@@ -8026,6 +8275,7 @@ func (b *BaleCore) UserSendBankMessage(chatID string, bankMsg map[string]interfa
 	return b.userSend(baleServiceMessaging, "SendBankMessage", bankMsg)
 }
 
+// UserSendJsonMessage sends a message with structured JSON content (user mode).
 func (b *BaleCore) UserSendJsonMessage(chatID string, jsonData string) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)
@@ -8034,6 +8284,7 @@ func (b *BaleCore) UserSendJsonMessage(chatID string, jsonData string) (map[stri
 	})
 }
 
+// UserSendOrderMessage sends an order/invoice message (user mode).
 func (b *BaleCore) UserSendOrderMessage(chatID string, order map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)
@@ -8041,6 +8292,7 @@ func (b *BaleCore) UserSendOrderMessage(chatID string, order map[string]interfac
 	return b.userSend(baleServiceMessaging, "SendOrderMessage", order)
 }
 
+// UserSendAnimatedSticker sends an animated sticker (user mode).
 func (b *BaleCore) UserSendAnimatedSticker(chatID string, stickerData map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)
@@ -8048,6 +8300,7 @@ func (b *BaleCore) UserSendAnimatedSticker(chatID string, stickerData map[string
 	return b.userSend(baleServiceMessaging, "SendAnimatedSticker", stickerData)
 }
 
+// UserSendLiveMessage sends a live-updating message (user mode).
 func (b *BaleCore) UserSendLiveMessage(chatID string, liveData map[string]interface{}) (map[string]interface{}, error) {
 	if !b.authed { return nil, ErrAuth }
 	peerID, peerType := parsePeerID(chatID)

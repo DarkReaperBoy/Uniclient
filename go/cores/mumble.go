@@ -3753,12 +3753,15 @@ func MumbleServerPing(addr string) (version [4]byte, users, maxUsers, bandwidth 
 // Core Interface Implementation
 // ════════════════════════════════════════════════════════════════════════════════
 
+// Name returns the platform name for Mumble.
 func (c *MumbleCore) Name() string { return mumblePlatform }
 
+// Capabilities returns the list of supported features for Mumble.
 func (c *MumbleCore) Capabilities() []string {
 	return []string{CapText, CapChannels, CapVoice, CapAdmin, CapBlocking, CapSearch}
 }
 
+// Authenticate connects to a Mumble server using the provided configuration.
 func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
 	// Load or generate certificate
 	sessionPath := cfg.Extra["session_path"]
@@ -3811,6 +3814,7 @@ func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
 	return nil
 }
 
+// Logout disconnects from the Mumble server.
 func (c *MumbleCore) Logout() error {
 	c.mu.RLock()
 	if !c.authed {
@@ -3821,6 +3825,7 @@ func (c *MumbleCore) Logout() error {
 	return c.Close()
 }
 
+// Close shuts down the connection and releases all resources.
 func (c *MumbleCore) Close() error {
 	c.mu.Lock()
 	if c.sessionPath != "" {
@@ -3846,6 +3851,7 @@ func (c *MumbleCore) Close() error {
 	return nil
 }
 
+// OnUpdate registers a callback for server state change events.
 func (c *MumbleCore) OnUpdate(handler func(Update)) {
 	c.mu.Lock()
 	c.updateHandlers = append(c.updateHandlers, handler)
@@ -3854,6 +3860,7 @@ func (c *MumbleCore) OnUpdate(handler func(Update)) {
 
 // ── Dialogs ──
 
+// GetDialogs returns the list of channels as dialogs.
 func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3942,6 +3949,7 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs[offset:end], nil
 }
 
+// CreateGroup creates a new permanent channel under root.
 func (c *MumbleCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3952,6 +3960,7 @@ func (c *MumbleCore) CreateGroup(name string, members []string) (*Dialog, error)
 	return c.createChannel(name, 0, false)
 }
 
+// CreateChannel creates a new permanent channel with an optional description.
 func (c *MumbleCore) CreateChannel(name string, description string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3969,6 +3978,7 @@ func (c *MumbleCore) CreateChannel(name string, description string) (*Dialog, er
 	return dlg, nil
 }
 
+// CreateTopic creates a temporary sub-channel under the given parent channel.
 func (c *MumbleCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4030,15 +4040,18 @@ func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool)
 	}
 }
 
+// GetFolders returns an error because Mumble does not support folders.
 func (c *MumbleCore) GetFolders() ([]Folder, error) {
 	return nil, fmt.Errorf("%w: mumble does not support folders", ErrNotSupported)
 }
+// CreateFolder returns an error because Mumble does not support folders.
 func (c *MumbleCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	return nil, fmt.Errorf("%w: mumble does not support folders", ErrNotSupported)
 }
 
 // ── Messages ──
 
+// SendMessage sends a text message to a channel or user.
 func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4096,6 +4109,7 @@ func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 	}, nil
 }
 
+// GetMessages returns cached messages for a channel or private conversation.
 func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4147,33 +4161,41 @@ func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 	return msgs, nil
 }
 
+// EditMessage returns an error because Mumble does not support message editing.
 func (c *MumbleCore) EditMessage(chatID, msgID, text string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support message editing", ErrNotSupported)
 }
+// DeleteMessage returns an error because Mumble does not support message deletion.
 func (c *MumbleCore) DeleteMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message deletion", ErrNotSupported)
 }
 
+// ReplyToMessage sends a message since Mumble has no native reply concept.
 func (c *MumbleCore) ReplyToMessage(chatID, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	// Auth check is in SendMessage
 	return c.SendMessage(chatID, msg) // Mumble has no reply concept
 }
 
+// ForwardMessage returns an error because Mumble does not support message forwarding.
 func (c *MumbleCore) ForwardMessage(fromChatID, msgID, toChatID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support message forwarding", ErrNotSupported)
 }
+// ReactToMessage returns an error because Mumble does not support reactions.
 func (c *MumbleCore) ReactToMessage(chatID, msgID, emoji string) error {
 	return fmt.Errorf("%w: mumble does not support reactions", ErrNotSupported)
 }
+// PinMessage returns an error because Mumble does not support message pinning.
 func (c *MumbleCore) PinMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message pinning", ErrNotSupported)
 }
+// UnpinMessage returns an error because Mumble does not support message pinning.
 func (c *MumbleCore) UnpinMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message pinning", ErrNotSupported)
 }
 
 // ── Read State ──
 
+// MarkAsRead is a no-op since Mumble has no read receipts.
 func (c *MumbleCore) MarkAsRead(chatID, upToMsgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4183,6 +4205,7 @@ func (c *MumbleCore) MarkAsRead(chatID, upToMsgID string) error {
 	c.mu.RUnlock()
 	return nil
 }
+// GetReadState returns an empty read state since Mumble has no read receipts.
 func (c *MumbleCore) GetReadState(chatID string) (*ReadState, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4195,14 +4218,17 @@ func (c *MumbleCore) GetReadState(chatID string) (*ReadState, error) {
 
 // ── Files ──
 
+// UploadFile returns an error because Mumble does not support file uploads.
 func (c *MumbleCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support file uploads", ErrNotSupported)
 }
 
+// DownloadFile returns an error because Mumble does not support file downloads.
 func (c *MumbleCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	return fmt.Errorf("%w: mumble does not support file downloads", ErrNotSupported)
 }
 
+// SendImageBase64 sends a base64-encoded image as an inline HTML message.
 func (c *MumbleCore) SendImageBase64(chatID, b64, caption string) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4225,6 +4251,7 @@ func (c *MumbleCore) SendImageBase64(chatID, b64, caption string) (*Message, err
 
 // ── Calls ──
 
+// StartCall joins a voice channel, which is the Mumble equivalent of starting a call.
 func (c *MumbleCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4249,10 +4276,12 @@ func (c *MumbleCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	}, nil
 }
 
+// JoinGroupCall joins a voice channel by moving to it.
 func (c *MumbleCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	return c.StartCall(chatID, false)
 }
 
+// EndCall leaves the current voice channel by moving to root.
 func (c *MumbleCore) EndCall(callID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4264,6 +4293,7 @@ func (c *MumbleCore) EndCall(callID string) error {
 	return c.MoveToChannel(0)
 }
 
+// SetCallMuted toggles self-mute for the current voice session.
 func (c *MumbleCore) SetCallMuted(callID string, muted bool) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4276,6 +4306,7 @@ func (c *MumbleCore) SetCallMuted(callID string, muted bool) error {
 
 // ── Profile ──
 
+// GetProfile returns user information for the given session ID.
 func (c *MumbleCore) GetProfile(userID string) (*User, error) {
 	session, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
@@ -4306,6 +4337,7 @@ func (c *MumbleCore) GetProfile(userID string) (*User, error) {
 
 // ── Chat Management ──
 
+// GetChatInfo returns channel details including member count.
 func (c *MumbleCore) GetChatInfo(chatID string) (*Dialog, error) {
 	channelID, err := strconv.ParseUint(chatID, 10, 32)
 	if err != nil {
@@ -4340,6 +4372,7 @@ func (c *MumbleCore) GetChatInfo(chatID string) (*Dialog, error) {
 	}, nil
 }
 
+// EditChatTitle renames a channel.
 func (c *MumbleCore) EditChatTitle(chatID, title string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4359,6 +4392,7 @@ func (c *MumbleCore) EditChatTitle(chatID, title string) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
+// EditChatDescription updates the description of a channel.
 func (c *MumbleCore) EditChatDescription(chatID, description string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4378,6 +4412,7 @@ func (c *MumbleCore) EditChatDescription(chatID, description string) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
+// LeaveChat moves the user to the root channel.
 func (c *MumbleCore) LeaveChat(chatID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4388,12 +4423,14 @@ func (c *MumbleCore) LeaveChat(chatID string) error {
 	return c.MoveToChannel(0) // Move to root
 }
 
+// GetInviteLink returns an error because Mumble does not support invite links.
 func (c *MumbleCore) GetInviteLink(chatID string) (string, error) {
 	return "", fmt.Errorf("%w: mumble does not support invite links", ErrNotSupported)
 }
 
 // ── Members ──
 
+// AddMembers moves users into the specified channel.
 func (c *MumbleCore) AddMembers(chatID string, userIDs []string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4417,6 +4454,7 @@ func (c *MumbleCore) AddMembers(chatID string, userIDs []string) error {
 	return nil
 }
 
+// RemoveMember kicks a user from the server.
 func (c *MumbleCore) RemoveMember(chatID, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4432,6 +4470,7 @@ func (c *MumbleCore) RemoveMember(chatID, userID string) error {
 	return c.tcpSend(mumbleMsgUserRemove, msg.marshal())
 }
 
+// BanMember bans a user by certificate and IP.
 func (c *MumbleCore) BanMember(chatID, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4452,6 +4491,7 @@ func (c *MumbleCore) BanMember(chatID, userID string) error {
 	return c.tcpSend(mumbleMsgUserRemove, msg.marshal())
 }
 
+// UnbanMember removes all ban entries matching the user's certificate hash.
 func (c *MumbleCore) UnbanMember(chatID, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4499,6 +4539,7 @@ func (c *MumbleCore) UnbanMember(chatID, userID string) error {
 	return c.tcpSend(mumbleMsgBanList, set.marshal())
 }
 
+// GetMembers returns the users currently in a channel.
 func (c *MumbleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	channelID, err := strconv.ParseUint(chatID, 10, 32)
 	if err != nil {
@@ -4528,12 +4569,14 @@ func (c *MumbleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	return users, nil
 }
 
+// SetAdmin returns an error because Mumble uses ACLs instead of admin roles.
 func (c *MumbleCore) SetAdmin(chatID, userID string, admin bool) error {
 	return fmt.Errorf("%w: mumble uses ACL system instead of admin roles", ErrNotSupported)
 }
 
 // ── Contacts ──
 
+// GetContacts returns all users currently connected to the server.
 func (c *MumbleCore) GetContacts() ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4555,13 +4598,16 @@ func (c *MumbleCore) GetContacts() ([]User, error) {
 	return users, nil
 }
 
+// AddContact returns an error because Mumble does not support contacts.
 func (c *MumbleCore) AddContact(phone, firstName, lastName string) error {
 	return fmt.Errorf("%w: mumble does not support contacts", ErrNotSupported)
 }
+// DeleteContact returns an error because Mumble does not support contacts.
 func (c *MumbleCore) DeleteContact(userID string) error {
 	return fmt.Errorf("%w: mumble does not support contacts", ErrNotSupported)
 }
 
+// BlockUser locally mutes a user so their voice packets are ignored.
 func (c *MumbleCore) BlockUser(userID string) error {
 	session, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
@@ -4577,6 +4623,7 @@ func (c *MumbleCore) BlockUser(userID string) error {
 	return nil
 }
 
+// UnblockUser removes the local mute for a user.
 func (c *MumbleCore) UnblockUser(userID string) error {
 	session, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
@@ -4592,6 +4639,7 @@ func (c *MumbleCore) UnblockUser(userID string) error {
 	return nil
 }
 
+// GetBlockedUsers returns the list of locally muted users.
 func (c *MumbleCore) GetBlockedUsers() ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4617,6 +4665,7 @@ func (c *MumbleCore) GetBlockedUsers() ([]User, error) {
 
 // ── Search ──
 
+// SearchMessages searches cached messages for text matching the query.
 func (c *MumbleCore) SearchMessages(chatID, query string, opts PaginationOpts) ([]Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4643,6 +4692,7 @@ func (c *MumbleCore) SearchMessages(chatID, query string, opts PaginationOpts) (
 	return msgs, nil
 }
 
+// SearchGlobal searches channel names matching the query.
 func (c *MumbleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4668,6 +4718,7 @@ func (c *MumbleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, 
 
 // ── Typing / Polls / Stickers ──
 
+// SendTyping is a no-op since Mumble does not support typing indicators.
 func (c *MumbleCore) SendTyping(chatID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4677,18 +4728,22 @@ func (c *MumbleCore) SendTyping(chatID string) error {
 	c.mu.RUnlock()
 	return nil // no-op
 }
+// CreatePoll returns an error because Mumble does not support polls.
 func (c *MumbleCore) CreatePoll(chatID, question string, options []string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support polls", ErrNotSupported)
 }
+// VotePoll returns an error because Mumble does not support polls.
 func (c *MumbleCore) VotePoll(chatID, msgID string, optionIndex int) error {
 	return fmt.Errorf("%w: mumble does not support polls", ErrNotSupported)
 }
+// SendSticker returns an error because Mumble does not support stickers.
 func (c *MumbleCore) SendSticker(chatID, stickerID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support stickers", ErrNotSupported)
 }
 
 // ── Sessions ──
 
+// GetSessions returns all connected user sessions on the server.
 func (c *MumbleCore) GetSessions() ([]Session, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4709,6 +4764,7 @@ func (c *MumbleCore) GetSessions() ([]Session, error) {
 	return sessions, nil
 }
 
+// TerminateSession kicks a user from the server by session ID.
 func (c *MumbleCore) TerminateSession(sessionID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -7930,30 +7986,37 @@ func MumbleResolveSRV(hostname string) (string, error) {
 	return net.JoinHostPort(target, strconv.Itoa(int(addrs[0].Port))), nil
 }
 
+// MuteChat returns an error because Mumble does not support muting chats.
 func (c *MumbleCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, mumblePlatform)
 }
 
+// ArchiveChat returns an error because Mumble does not support archiving chats.
 func (c *MumbleCore) ArchiveChat(chatID string, archived bool) error {
 	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, mumblePlatform)
 }
 
+// MarkUnread returns an error because Mumble does not support marking chats as unread.
 func (c *MumbleCore) MarkUnread(chatID string, unread bool) error {
 	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, mumblePlatform)
 }
 
+// UnpinAllMessages returns an error because Mumble does not support message pinning.
 func (c *MumbleCore) UnpinAllMessages(chatID string) error {
 	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, mumblePlatform)
 }
 
+// AcceptCall returns an error because Mumble uses always-on voice channels instead of call invitations.
 func (c *MumbleCore) AcceptCall(callID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, mumblePlatform)
 }
 
+// DeclineCall returns an error because Mumble uses always-on voice channels instead of call invitations.
 func (c *MumbleCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, mumblePlatform)
 }
 
+// SendLocation returns an error because Mumble does not support location sharing.
 func (c *MumbleCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, mumblePlatform)
 }
