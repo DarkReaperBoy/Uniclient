@@ -5,11 +5,13 @@
 **Current Method:** —
 **Last Updated:** 2026-04-14 (session 7 — Step 13 done, Step 14 brief docs done)
 
-**NEXT:** Rewrite all 10 docs as full Telethon-style API reference tutorials:
+**NEXT:** Rewrite 8 docs as full Telethon-style API reference tutorials (SKIP Telegram & Matrix):
 - For each core: document EVERY exported method with signature, params, return type, usage example
 - Organize by category (auth, messaging, groups, channels, admin, media, calls, etc.)
 - Like Telethon's docs — someone importing a single core should have a complete reference
-- Start with smallest cores first (Mumble 233 → Matrix 240 → Rubika 242 → ... → Telegram 771)
+- Order: Mumble 233 → Rubika 242 → DeltaChat 245 → TeamSpeak 296 → XMPP 379 → IRC 418 → Bale 456 → GitHub 768
+- SKIP: Telegram (gotd/td has its own docs), Matrix (mautrix-go has its own docs)
+- After docs: add docstrings to every exported method that needs one across all core files, for new contributors
 
 ## Steps
 
@@ -488,7 +490,8 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
 ### Step 14 — Write /docs — IN PROGRESS
 - [x] `docs/README.md` — overview, quick start, core comparison table, shared types, build requirements
 - [x] 10 per-core docs (brief): telegram.md, github.md, bale.md, irc.md, xmpp.md, teamspeak.md, deltachat.md, rubika.md, matrix.md, mumble.md
-- [ ] **REWRITE all docs as full Telethon-style tutorials** — every exported method documented with signature, params, return types, usage examples. Organized by category. This is the next task.
+- [ ] **14.1 — REWRITE 8 docs as full Telethon-style tutorials** (SKIP Telegram & Matrix) — every exported method with signature, params, return types, usage examples. By category.
+- [ ] **14.2 — Add Go docstrings** to every exported method that needs one across all core files, for new contributors
 
 ### Step 15 — Build GUI
 - [ ] Flutter GUI (see research/gui-idea.md, checklist/gui.md)
