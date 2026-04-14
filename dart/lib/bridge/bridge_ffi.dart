@@ -3,7 +3,7 @@ library;
 
 import 'dart:async';
 import 'dart:ffi';
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 import 'dart:typed_data';
 
 import 'package:ffi/ffi.dart';
@@ -98,7 +98,13 @@ class BridgeImpl {
   static DynamicLibrary _loadLibrary(String? path) {
     if (path != null) return DynamicLibrary.open(path);
 
-    if (Platform.isLinux) return DynamicLibrary.open('libcores.so');
+    if (Platform.isLinux) {
+      // Try bundle lib/ directory first (next to the executable).
+      final exeDir = File(Platform.resolvedExecutable).parent.path;
+      final bundlePath = '$exeDir/lib/libcores.so';
+      if (File(bundlePath).existsSync()) return DynamicLibrary.open(bundlePath);
+      return DynamicLibrary.open('libcores.so');
+    }
     if (Platform.isMacOS) return DynamicLibrary.open('libcores.dylib');
     if (Platform.isWindows) return DynamicLibrary.open('cores.dll');
     if (Platform.isAndroid) return DynamicLibrary.open('libcores.so');

@@ -3,7 +3,7 @@
 **Current Step:** Step 15 — Build GUI — Phase C (Flutter UI) — IN PROGRESS
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 11 — cross-platform bridge + all 5 runners done)
+**Last Updated:** 2026-04-14 (session 11 — cross-platform done, Linux desktop builds + runs)
 
 **NEXT:** Phase C cont. — First desktop build (`flutter build linux`), integration test with Go backend
 
@@ -103,7 +103,9 @@ Cross-platform bridge + runners:
 
 Dart analyze: 0 issues (17 files). `pub get` resolved 31 dependencies.
 
-**Next:** Phase C cont. — First desktop build (`flutter build linux`), integration test with Go backend
+**DONE:** First desktop build + launch on NixOS. Go shared lib (134MB) + Flutter runner (71KB) + engine (47MB) bundle runs successfully.
+
+**Next:** Phase D — GUI screens, real Go backend integration, auth flow end-to-end
 
 ## Detailed Progress
 
