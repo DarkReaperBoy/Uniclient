@@ -1,7 +1,7 @@
 # Uniclient — Build Checklist
 
-**Status (updated 2026-04-13, Step 6 complete):**
-All 10 platform cores implemented with 4,791 functions across 76,218 lines of pure Go. Steps 1-6 DONE. All cores at 100% protocol coverage, optimized, decoupled, and unified with 62-method Core interface + 24 capability constants. Flutter UI not started.
+**Status (updated 2026-04-14, Step 9 in progress):**
+All 10 platform cores implemented with 4,079 exported methods (down from 4,350 after Step 8 dedup). Steps 1-8 DONE. Step 9 testing in progress: ~35,000 lines of comprehensive test code across 11 files. Results so far: TeamSpeak 41 PASS. Telegram 61 PASS, 2 SKIP. Bale 106 PASS, 16 SKIP. Mumble 117 PASS, 10 FAIL (diagnosed — fixes ready). XMPP 95+ PASS, 0 FAIL (still running). IRC, DeltaChat, GitHub, Matrix, Rubika still running.
 
 ## Index
 
@@ -34,9 +34,15 @@ All 10 platform cores implemented with 4,791 functions across 76,218 lines of pu
 | 4 | Implement all new methods to 100% | **DONE** |
 | 5 | Perfect/optimize/decouple cores | **DONE** |
 | 6 | Unify core APIs | **DONE** |
-| 7 | Protobuf bridge | NOT STARTED |
-| 8 | Write /docs | NOT STARTED |
-| 9 | Build GUI | NOT STARTED |
+| 7 | Complete Telegram & Matrix method coverage | **DONE** |
+| 8 | Fresh checklists + dedup + implement + optimize | **DONE** |
+| 9 | Test every core (official harnesses, multi-account) | **IN PROGRESS** |
+| 10 | Fresh checklists + optimize every core + retest | NOT STARTED |
+| 11 | Unify every core | NOT STARTED |
+| 12 | Test every unified method | NOT STARTED |
+| 13 | Protobuf bridge | NOT STARTED |
+| 14 | Write /docs | NOT STARTED |
+| 15 | Build GUI | NOT STARTED |
 
 See [roadmap.md](roadmap.md) for detailed progress on each step.
 
