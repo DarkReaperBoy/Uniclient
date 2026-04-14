@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 14 — Write /docs — DONE
+**Current Step:** Step 14 — Write /docs — IN PROGRESS
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 7 — Steps 13 + 14 done)
+**Last Updated:** 2026-04-14 (session 7 — Step 13 done, Step 14 brief docs done)
 
-**NEXT:** Step 15 — Build GUI
+**NEXT:** Rewrite all docs as full Telethon-style API reference tutorials (every method, every param, examples)
 
 ## Steps
 
@@ -26,7 +26,7 @@
 | 12.5 | Fix all skipped tests | **DONE** — 32 skips fixed (3 TS3 + 6 IRC + 23 Rubika) |
 | 13.0 | Type the untyped methods (~250 fixable, ~400 inherently untyped → `bytes`) | **DONE** |
 | 13 | Protobuf bridge (all 4,051 methods, codegen) | **DONE** (3,564 dispatched, 412 skipped, 5 tests pass) |
-| 14 | Write /docs | **DONE** (README + 10 per-core docs) |
+| 14 | Write /docs | IN PROGRESS (brief docs done, full Telethon-style rewrite pending) |
 | 15 | Build GUI | NOT STARTED |
 
 ## Detailed Progress
@@ -481,10 +481,10 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
 - TeamSpeak: 296 | DeltaChat: 245 | Rubika: 242 | Matrix: 240
 - Mumble: 236 | GitHub: 768
 
-### Step 14 — Write /docs — DONE
+### Step 14 — Write /docs — IN PROGRESS
 - [x] `docs/README.md` — overview, quick start, core comparison table, shared types, build requirements
-- [x] 10 per-core docs: telegram.md, github.md, bale.md, irc.md, xmpp.md, teamspeak.md, deltachat.md, rubika.md, matrix.md, mumble.md
-- Each doc covers: setup, auth flow, key features, capabilities, examples, dependencies
+- [x] 10 per-core docs (brief): telegram.md, github.md, bale.md, irc.md, xmpp.md, teamspeak.md, deltachat.md, rubika.md, matrix.md, mumble.md
+- [ ] **REWRITE all docs as full Telethon-style tutorials** — every exported method documented with signature, params, return types, usage examples. Organized by category. This is the next task.
 
 ### Step 15 — Build GUI
 - [ ] Flutter GUI (see research/gui-idea.md, checklist/gui.md)
