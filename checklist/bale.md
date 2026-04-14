@@ -1,667 +1,518 @@
-# Bale — Fresh Checklist
-
-**Methods:** 456 exported | **Lines:** 7,968 | **File:** `go/cores/bale.go`
-**Protocol:** Bale (Bot API + User gRPC API, Iranian messenger)
-**Last updated:** 2026-04-13
-
-## Categories
-
-### Core Interface (2)
-- [ ] Capabilities
-- [ ] Name
-
-### Authentication & Session (22)
-- [ ] Authenticate
-- [ ] ChangePhone
-- [ ] ChangePhoneNumber
-- [ ] ConfirmPhoneNumber
-- [ ] Close
-- [ ] DeleteAccount
-- [ ] DisableTwoFactorAuthentication
-- [ ] EnableTwoFactorAuthentication
-- [ ] GetSessions
-- [ ] GetUserID
-- [ ] IsTwoFactorAuthenticationEnabled
-- [ ] Logout
-- [ ] RecoverPassword
-- [ ] SendChangePhoneVerificationCode
-- [ ] SendDeleteAccountVerificationCode
-- [ ] SetNewPassword
-- [ ] TerminateAllSessions
-- [ ] TerminateSession
-- [ ] UserSignOut
-- [ ] UserSignUp
-- [ ] UserTerminateSession
-- [ ] UserValidatePassword
-- [ ] VerifyPasswordRecovery
-
-### Messaging — Send (29)
-- [ ] CopyMessage
-- [ ] ForwardMessage
-- [ ] ReplyToMessage
-- [ ] SendAnimation
-- [ ] SendAnimatedSticker
-- [ ] SendAudio
-- [ ] SendContact
-- [ ] SendDocument
-- [ ] SendImageBase64
-- [ ] SendJsonMessage
-- [ ] SendLiveMessage
-- [ ] SendLocation
-- [ ] SendLongTextMessage
-- [ ] SendMediaGroup
-- [ ] SendMessage
-- [ ] SendMessageWithKeyboard
-- [ ] SendOrderMessage
-- [ ] SendPhoto
-- [ ] SendProtectedMessage
-- [ ] SendScheduledMessage
-- [ ] SendSticker
-- [ ] SendVenue
-- [ ] SendVideo
-- [ ] SendVideoNote
-- [ ] SendVoice
-- [ ] UserForwardMessages
-- [ ] UserSendMessage
-- [ ] UserSendMultiMediaMessage
-- [ ] UserSendRaw
-
-### Messaging — Send (User-Specific) (11)
-- [ ] SendBankMessage
-- [ ] UserSendAnimatedSticker
-- [ ] UserSendBankMessage
-- [ ] UserSendJsonMessage
-- [ ] UserSendLiveMessage
-- [ ] UserSendLongTextMessage
-- [ ] UserSendOrderMessage
-- [ ] UserSendProtectedMessage
-- [ ] UserSendScheduledMessage
-- [ ] UserFetchProtectedMessage
-- [ ] UserSendAuthenticatedInlineCallBackData
-
-### Messaging — Edit & Delete (5)
-- [ ] DeleteMessage
-- [ ] EditMessage
-- [ ] EditMessageCaption
-- [ ] EditMessageReplyMarkup
-- [ ] UserUpdateMessage
-
-### Messaging — Delete (User) (2)
-- [ ] UserClearChat
-- [ ] UserDeleteMessage
-
-### Messaging — Read State (8)
-- [ ] GetReadState
-- [ ] MarkAsRead
-- [ ] MarkAsUnread
-- [ ] MarkUnread
-- [ ] UserMarkAsUnread
-- [ ] UserMarkDialogsAsRead
-- [ ] UserMentionRead
-- [ ] UserMessageRead
-
-### Messaging — Reactions (8)
-- [ ] ReactToMessage
-- [ ] UserEnableShowReactionFlag
-- [ ] UserGetReactions
-- [ ] UserGetReactionsList
-- [ ] UserGetShowReactionFlag
-- [ ] UserLoadReactions
-- [ ] UserMessageReactionsRead
-- [ ] UserSetAvailableReactions
-
-### Messaging — Reactions (Single) (2)
-- [ ] UserRemoveReaction
-- [ ] UserSetReaction
-
-### Messaging — Search (10)
-- [ ] SearchGlobal
-- [ ] SearchMessages
-- [ ] UserSearchContent
-- [ ] UserSearchDialog
-- [ ] UserSearchMessageMore
-- [ ] UserSearchMessages
-- [ ] UserSearchPeer
-- [ ] UserUpdateSearchContentClick
-- [ ] SearchLinks
-- [ ] UserGetLinkPreview
-
-### Messaging — History & Fetch (7)
-- [ ] GetMessages
-- [ ] UserGetDifference
-- [ ] UserLoadHistory
-- [ ] UserLoadReplies
-- [ ] UserGetDiscussionMessage
-- [ ] UserGetMessagesRepliesInfo
-- [ ] UserMessageReceived
-
-### Messaging — Pins (5)
-- [ ] PinMessage
-- [ ] UnpinAllMessages
-- [ ] UnpinMessage
-- [ ] UserGetPins
-- [ ] UserLoadPinnedMessages
-
-### Messaging — Pins (User) (4)
-- [ ] UserPinMessage
-- [ ] UserRemoveAllPins
-- [ ] UserRemovePin
-- [ ] UserUnPinMessages
-
-### Messaging — Typing & Actions (3)
-- [ ] SendChatAction
-- [ ] SendTyping
-- [ ] UserStopTyping
-
-### Messaging — Typing (User) (1)
-- [ ] UserTyping
-
-### Messaging — Upvotes (4)
-- [ ] GetMessageUpvoters
-- [ ] RevokeUpvotedPost
-- [ ] UpvotePost
-- [ ] UserGetMyUpvotes
-
-### Messaging — Views (1)
-- [ ] UserGetMessageViews
-
-### Messaging — Seen List (1)
-- [ ] UserGetMessageSeenList
-
-### Messaging — Streams (3)
-- [ ] UserCancelMessageStream
-- [ ] UserDeleteStream
-- [ ] UserReceiveMessageStream
-
-### Polls (8)
-- [ ] ClosePoll
-- [ ] CreatePoll
-- [ ] GetFullPollResult
-- [ ] GetPollResults
-- [ ] VotePoll
-- [ ] UserClosePollService
-- [ ] UserCreatePoll
-- [ ] UserVotePollService
-
-### Polls (User-Specific) (2)
-- [ ] UserGetFullPollResultService
-- [ ] UserGetPollResultsService
-
-### Inline & Callback (5)
-- [ ] AnswerCallbackQuery
-- [ ] AnswerInlineQuery
-- [ ] UserGetInlineBotResults
-- [ ] UserSendInlineCallback
-- [ ] UserSendInlineCallBackData
-
-### Chat & Group Management (12)
-- [ ] CreateChannel
-- [ ] CreateGroup
-- [ ] GetChat
-- [ ] GetChatInfo
-- [ ] EditChatDescription
-- [ ] EditChatTitle
-- [ ] DeleteChatPhoto
-- [ ] SetChatPhoto
-- [ ] LeaveChat
-- [ ] UserCreateGroup
-- [ ] UserCreateGroupFull
-- [ ] UserGetFullGroup
-
-### Chat — Members (14)
-- [ ] AddMembers
-- [ ] BanMember
-- [ ] GetChatAdministrators
-- [ ] GetChatMember
-- [ ] GetChatMembersCount
-- [ ] GetMembers
-- [ ] InviteUser
-- [ ] PromoteChatMember
-- [ ] RemoveMember
-- [ ] RestrictChatMember
-- [ ] SearchMembers
-- [ ] SetAdmin
-- [ ] UnbanMember
-- [ ] UserLoadMembers
-
-### Chat — Members (User) (12)
-- [ ] UserFetchGroupAdmins
-- [ ] UserGetBannedUsers
-- [ ] UserGetGroupMembersCount
-- [ ] UserGetGroupMembersPresences
-- [ ] UserGetMemberPermissions
-- [ ] UserInviteUser
-- [ ] UserInviteUsers
-- [ ] UserKickUser
-- [ ] UserMakeUserAdmin
-- [ ] UserRemoveUserAdmin
-- [ ] UserSearchMembersService
-- [ ] UserSetMemberPermissions
-
-### Chat — Member Customization (3)
-- [ ] UserSetMemberCustomTitle
-- [ ] UserSetRestriction
-- [ ] UserTransferOwnership
-
-### Chat — Invite Links (5)
-- [ ] CreateChatInviteLink
-- [ ] ExportChatInviteLink
-- [ ] GetInviteLink
-- [ ] UserGetGroupInviteURL
-- [ ] UserRevokeInviteURL
-
-### Chat — Join & Leave (User) (3)
-- [ ] UserJoinGroup
-- [ ] UserJoinPublicGroup
-- [ ] UserLeaveGroup
-
-### Chat — Group Settings (User) (6)
-- [ ] UserEditGroupAbout
-- [ ] UserEditGroupAvatar
-- [ ] UserEditGroupTitle
-- [ ] UserRemoveGroupAvatar
-- [ ] UserSetCanSeeHistory
-- [ ] UserSetCanSeeMessages
-
-### Chat — Group Permissions (User) (3)
-- [ ] UserGetBotGroupPermissions
-- [ ] UserGetCanSeeMessages
-- [ ] UserSetGroupDefaultPermissions
-
-### Chat — Group Info (User) (6)
-- [ ] UserGetGroupOnlineCount
-- [ ] UserGetGroupPreview
-- [ ] UserGetMyGroups
-- [ ] UserLoadFullGroups
-- [ ] UserLoadGroups
-- [ ] ResolveGroupID
-
-### Chat — Discussion Groups (3)
-- [ ] UserAddDiscussionGroupAdmin
-- [ ] UserRemoveDiscussionGroup
-- [ ] UserSetDiscussionGroup
-
-### Chat — Recommendations (4)
-- [ ] UserGetChannelRecommendations
-- [ ] UserGetGroupRecommendations
-- [ ] UserGetGroupsRecommendation
-- [ ] UserGetRelatedChannels
-
-### Chat — Recommendations (Groups) (1)
-- [ ] UserGetRelatedGroups
-
-### Chat — Mutual (1)
-- [ ] UserGetMutualGroups
-
-### Chat — Archive & Mute (5)
-- [ ] ArchiveChat
-- [ ] MuteChat
-- [ ] UserArchiveDialogs
-- [ ] UserUnArchiveDialogs
-- [ ] UserDeleteChat
-
-### Dialogs & Folders (16)
-- [ ] CreateFolder
-- [ ] DeleteFolder
-- [ ] EditFolder
-- [ ] GetDialogs
-- [ ] GetFolders
-- [ ] LoadDialogsFiltered
-- [ ] LoadFolders
-- [ ] ReorderFolders
-- [ ] UserCreateFolder
-- [ ] UserCreateReservedFolder
-- [ ] UserLoadDialogs
-- [ ] UserLoadDialogsFiltered
-- [ ] UserLoadFolderDialogs
-- [ ] UserLoadGroupedDialogs
-- [ ] UserLoadPeerDialogs
-- [ ] UserLoadPinnedDialogs
-
-### Dialogs — Pin (3)
-- [ ] UserPinDialogs
-- [ ] UserReorderPinnedDialogs
-- [ ] UserUnpinDialogs
-
-### Topics & Threads (7)
-- [ ] CreateTopic
-- [ ] DeleteTopic
-- [ ] EditTopic
-- [ ] UserCreateTopic
-- [ ] UserCreateThread
-- [ ] UserGetTopicByID
-- [ ] UserGetTopics
-
-### Thread Subscriptions (2)
-- [ ] UserSubscribeToThreadUpdates
-- [ ] UserUnsubscribeFromThreadUpdates
-
-### Contacts (11)
-- [ ] AddContact
-- [ ] DeleteContact
-- [ ] GetContacts
-- [ ] UserAddContact
-- [ ] UserGetContacts
-- [ ] UserGetContactsPresences
-- [ ] UserGetOrganizationalContacts
-- [ ] UserImportContacts
-- [ ] UserRemoveContact
-- [ ] UserResetContacts
-- [ ] UserSearchContacts
-
-### User Profile & Privacy (16)
-- [ ] EditAvatarGRPC
-- [ ] EditBirthDate
-- [ ] EditMyPreferredLanguages
-- [ ] EditMyTimeZone
-- [ ] EditSex
-- [ ] GetFullUser
-- [ ] GetProfile
-- [ ] GetUserFullPrivacy
-- [ ] GetUserPrivacyStatus
-- [ ] IsNameAllowed
-- [ ] LoadAvatars
-- [ ] RemoveAvatar
-- [ ] SetUserPrivacyStatus
-- [ ] UserEditAbout
-- [ ] UserEditName
-- [ ] UserEditNickName
-
-### User Profile (User-Specific) (5)
-- [ ] UserCheckNickName
-- [ ] UserEditChannelNick
-- [ ] UserEditLocalName
-- [ ] UserEditParameter
-- [ ] UserGetParameters
-
-### User — Avatars (User) (1)
-- [ ] UserLoadGroupAvatars
-
-### User — Presence & Online (6)
-- [ ] UserGetUsersPresence
-- [ ] UserSetOnline
-- [ ] UserSubscribeFromGroupOnline
-- [ ] UserSubscribeFromOnline
-- [ ] UserSubscribeToGroupOnline
-- [ ] UserSubscribeToOnline
-
-### User — Block (5)
-- [ ] BlockUser
-- [ ] UnblockUser
-- [ ] UserBlockUser
-- [ ] UserUnBanUser
-- [ ] UserUnblockUser
-
-### User — Blocked List (2)
-- [ ] GetBlockedUsers
-- [ ] UserLoadBlockedUsers
-
-### User — Peers & Top Peers (3)
-- [ ] UserLoadPeers
-- [ ] UserGetTopPeer
-- [ ] UserRemoveTopPeer
-
-### User — Context (1)
-- [ ] UserGetUserContext
-
-### User — Anonymous (1)
-- [ ] UserGetAnonymousContactPage
-
-### User — Full Users (1)
-- [ ] UserLoadFullUsers
-
-### User — Users (1)
-- [ ] UserLoadUsers
-
-### Files & Media (7)
-- [ ] DownloadFile
-- [ ] GetFile
-- [ ] UploadFile
-- [ ] UploadRawPUT
-- [ ] UserGetFileUploadURL
-- [ ] UserGetFileURL
-- [ ] UserFileUploadCancel
-
-### Files — Shared Media (3)
-- [ ] SearchPeerMedia
-- [ ] SearchPeerMessages
-- [ ] UserLoadSharedMedia
-
-### Files — Active Shared Media (1)
-- [ ] UserGetActiveSharedMedia
-
-### Files — Search Media (1)
-- [ ] UserSearchMediaService
-
-### Files — Nasim (CDN) (3)
-- [ ] UserGetNasimFilePublicUrl
-- [ ] UserGetNasimFileUploadResume
-- [ ] UserGetNasimFileUrls
-
-### Stickers (10)
-- [ ] AddStickerToSet
-- [ ] CreateNewStickerSet
-- [ ] DeleteStickerFromSet
-- [ ] GetStickerSet
-- [ ] UploadStickerFile
-- [ ] UserAddStickerCollection
-- [ ] UserAddStickerPack
-- [ ] UserLoadOwnStickers
-- [ ] UserLoadStickerCollection
-- [ ] UserRemoveStickerCollection
-
-### Stickers (User) (1)
-- [ ] UserRemoveStickerPack
-
-### GIFs (4)
-- [ ] UserAddGif
-- [ ] UserGetSavedGifs
-- [ ] UserRemoveGif
-- [ ] UserUseGif
-
-### Stories (19)
-- [ ] UserAddBotStory
-- [ ] UserAddChannelStory
-- [ ] UserAddStory
-- [ ] UserCanAddBotStory
-- [ ] UserCheckStoryLinkValidity
-- [ ] UserGetBotStories
-- [ ] UserGetChannelStories
-- [ ] UserGetDefaultStoryBackgrounds
-- [ ] UserGetMostPopularStories
-- [ ] UserGetSimilarPosts
-- [ ] UserGetStories
-- [ ] UserGetStoriesByList
-- [ ] UserGetStoryByID
-- [ ] UserGetStoryPrivacyConfig
-- [ ] UserGetStoryReactionEmojis
-- [ ] UserGetStoryTags
-- [ ] UserGetStoryViewers
-- [ ] UserGetStoryViewersCount
-- [ ] UserGetStoryWidgets
-
-### Stories — Actions (3)
-- [ ] UserReactToStory
-- [ ] UserRemoveStory
-- [ ] UserSetStoryPrivacyConfig
-
-### Stories — Config (1)
-- [ ] UserSetUserStoryConfig
-
-### Stories — User Config (1)
-- [ ] UserGetUserStoryConfig
-
-### Calls — Bot API (5)
-- [ ] AcceptCall
-- [ ] DeclineCall
-- [ ] DiscardCall
-- [ ] EndCall
-- [ ] StartCall
-
-### Calls — State & Logs (4)
-- [ ] GetCallLogs
-- [ ] GetGroupCall
-- [ ] GetOngoingCalls
-- [ ] ReceiveCall
-
-### Calls — Mute & Layout (3)
-- [ ] SetCallMuted
-- [ ] UserMuteCallParticipant
-- [ ] UserUpdateCallLayout
-
-### Calls — User Actions (9)
-- [ ] UserAskToJoinCall
-- [ ] UserAnswerCallJoinRequest
-- [ ] UserDeleteCallLogs
-- [ ] UserGenerateCallLink
-- [ ] UserGetCallLinkDetails
-- [ ] UserGetCallState
-- [ ] UserInviteToCall
-- [ ] UserRemoveCallParticipant
-- [ ] UserTakeCallAction
-
-### Calls — Links (1)
-- [ ] UserSetCallLinkTitle
-
-### Calls — Recording & Streaming (4)
-- [ ] UserStartRecording
-- [ ] UserStartStream
-- [ ] UserStopRecording
-- [ ] JoinGroupCall
-
-### Calls — Reactions & Feedback (3)
-- [ ] UserSendCallReaction
-- [ ] UserSubmitCallFeedback
-- [ ] UserAcceptCallMeet
-
-### Calls — Fanoos (1)
-- [ ] UserSendCallFanoosEvent
-
-### Bots (9)
-- [ ] DeleteMyCommands
-- [ ] GetBotMenuButtons
-- [ ] GetMyCommands
-- [ ] InvokeCustomMethod
-- [ ] SetMyCommands
-- [ ] UserDeleteMyCommands
-- [ ] UserGetBotInfo
-- [ ] UserGetBots
-- [ ] UserGetMyCommands
-
-### Bots — Menu & Whitelist (2)
-- [ ] UserGetMenuButton
-- [ ] UserGetBotWhiteList
-
-### Bots — User Commands (1)
-- [ ] UserSetMyCommands
-
-### Bots — Custom Actions (1)
-- [ ] UserInvokeCustomAction
-
-### Mini Apps & Webapps (4)
-- [ ] GetMiniAppUrl
-- [ ] UserGetMiniAppUrlAppzar
-- [ ] UserSendMiniAppData
-- [ ] UserGetWebappHash
-
-### Webhooks (3)
-- [ ] DeleteWebhook
-- [ ] GetWebhookInfo
-- [ ] SetWebhook
-
-### Updates & Sync (4)
-- [ ] GetUpdates
-- [ ] OnUpdate
-- [ ] UserSubscribeToUpdates
-- [ ] GetUserProfilePhotos
-
-### Payments & Commerce (2)
-- [ ] UserGetPaymentDetails
-- [ ] UserMakePayment
-
-### Banking & Ramz (7)
-- [ ] CheckRamzPassword
-- [ ] CheckRamzPasswordSet
-- [ ] DeleteRamzPassword
-- [ ] ForgetRamzPassword
-- [ ] SendRamzOTP
-- [ ] SetRamzPassword
-- [ ] ValidateRamzOTP
-
-### Banking (User) (2)
-- [ ] UserEditGroupDefaultCardNumber
-- [ ] UserGetGroupDefaultCardNumber
-
-### Push Notifications (6)
-- [ ] PushSetConfig
-- [ ] RegisterGooglePush
-- [ ] RegisterPush
-- [ ] UnregisterAllPushCredentials
-- [ ] UnregisterGooglePush
-- [ ] UnregisterPush
-
-### Push (User) (1)
-- [ ] UserPushSetConfig
-
-### Device & App (3)
-- [ ] GetInAppUpdate
-- [ ] NotifyAboutDeviceInfo
-- [ ] UserExecuteTaskNow
-
-### Tickets & Tokens (1)
-- [ ] GetWssURL
-
-### Email (1)
-- [ ] VerifyEmail
-
-### Feedback & Reports (2)
-- [ ] ReportDismiss
-- [ ] ReportInappropriateContent
-
-### Fanoos (1)
-- [ ] FanoosSend
-
-### Channel Search (1)
-- [ ] GlobalChannelSearch
-
-### Link Status (2)
-- [ ] UserGetLinkStatus
-- [ ] UserGetLinkSummary
-
-### Premium
-*Removed — premium/badge/purchase features have no messaging value. Not implemented.*
-
-### Organization (1)
-- [ ] UserGetOrganizationInfo
-
-### Marketplace / Timche / Ghasedak
-*Removed — these gRPC services exist on the server but are market/store/feed features with no messaging value. Not implemented.*
-
-### Feed & Magazine (3)
-- [ ] UserLoadCategoryFeedMessages
-- [ ] UserLoadFeedMessages
-- [ ] UserLoadInternalFeedMessages
-
-### Magazine (1)
-- [ ] UserLoadMagazineCategories
-
-### AI & Transcription (3)
-- [ ] GetTranscript
-- [ ] UserAIGetTranscript
-- [ ] UserAISendEvent
-
-### LLM Auth (1)
-- [ ] UserGetLLMAuthToken
-
-### Scheduled Tasks (5)
-- [ ] UserListScheduledTasks
-- [ ] UserPeersWithScheduleTask
-- [ ] UserReScheduleTask
-- [ ] UserScheduleTask
-- [ ] UserUnScheduleTask
-
-### HTTP & Network (1)
-- [ ] UserHTTPPost
-
-### Appzar (1)
-- [ ] UserInvokeCustomMethodAppzar
+# Bale Checklist — 456 methods
+
+
+## Core Interface
+- [x] Capabilities
+- [x] Close
+- [x] Name
+- [x] OnUpdate
+
+## Authentication
+- [x] Authenticate
+- [x] ChangePhone
+- [x] Logout
+
+## Dialogs & Chats
+- [x] ArchiveChat
+- [x] EditChatDescription
+- [x] EditChatTitle
+- [x] GetChatInfo
+- [x] GetDialogs
+- [x] LeaveChat
+- [x] MuteChat
+
+## Messaging
+- [x] DeleteMessage
+- [x] EditMessage
+- [x] ForwardMessage
+- [x] GetMessages
+- [x] GetReadState
+- [x] MarkAsRead
+- [x] MarkUnread
+- [x] PinMessage
+- [x] ReactToMessage
+- [x] ReplyToMessage
+- [x] SendAnimatedSticker
+- [x] SendAnimation
+- [x] SendBankMessage
+- [x] SendChangePhoneVerificationCode
+- [x] SendChatAction
+- [x] SendContact
+- [x] SendDeleteAccountVerificationCode
+- [x] SendDocument
+- [x] SendImageBase64
+- [x] SendJsonMessage
+- [x] SendLiveMessage
+- [x] SendLocation
+- [x] SendLongTextMessage
+- [x] SendMediaGroup
+- [x] SendMessage
+- [x] SendMessageWithKeyboard
+- [x] SendOrderMessage
+- [x] SendPhoto
+- [x] SendProtectedMessage
+- [x] SendRamzOTP
+- [x] SendScheduledMessage
+- [x] SendSticker
+- [x] SendTyping
+- [x] SendVenue
+- [x] UnpinAllMessages
+- [x] UnpinMessage
+
+## Media & Files
+- [x] DownloadFile
+- [x] GetFile
+- [x] SendAudio
+- [x] SendVideo
+- [x] SendVideoNote
+- [x] SendVoice
+- [x] UploadFile
+
+## Calls
+- [x] AcceptCall
+- [x] AnswerCallbackQuery
+- [x] DeclineCall
+- [x] DiscardCall
+- [x] EndCall
+- [x] GetCallLogs
+- [x] GetOngoingCalls
+- [x] ReceiveCall
+- [x] SetCallMuted
+- [x] StartCall
+
+## Group Calls
+- [x] GetGroupCall
+- [x] JoinGroupCall
+
+## Groups & Channels
+- [x] CreateChannel
+- [x] CreateGroup
+- [x] CreateTopic
+
+## Members & Admin
+- [x] AddMembers
+- [x] BanMember
+- [x] GetInviteLink
+- [x] GetMembers
+- [x] RemoveMember
+- [x] SetAdmin
+- [x] UnbanMember
+
+## Contacts & Users
+- [x] AddContact
+- [x] BlockUser
+- [x] DeleteContact
+- [x] GetBlockedUsers
+- [x] GetContacts
+- [x] GetProfile
+- [x] SearchGlobal
+- [x] UnblockUser
+
+## Folders
+- [x] CreateFolder
+- [x] DeleteFolder
+- [x] GetFolders
+
+## Sessions
+- [x] GetSessions
+- [x] TerminateSession
+
+## Polls
+- [x] CreatePoll
+- [x] VotePoll
+
+## Stickers
+- [x] AddStickerToSet
+- [x] CreateNewStickerSet
+- [x] DeleteStickerFromSet
+- [x] GetStickerSet
+- [x] UploadStickerFile
+
+## Forum Topics
+- [x] DeleteTopic
+- [x] EditTopic
+
+## Profile & Settings
+- [x] GetFullUser
+
+## Privacy
+- [x] GetUserFullPrivacy
+- [x] GetUserPrivacyStatus
+- [x] SetUserPrivacyStatus
+
+## Search
+- [x] SearchLinks
+- [x] SearchMembers
+- [x] SearchMessages
+- [x] SearchPeerMedia
+- [x] SearchPeerMessages
+
+## Chat Invites & Lists
+- [x] CreateChatInviteLink
+- [x] ExportChatInviteLink
+
+## User API
+- [x] UserAcceptCallMeet
+- [x] UserAddBotStory
+- [x] UserAddChannelStory
+- [x] UserAddContact
+- [x] UserAddDiscussionGroupAdmin
+- [x] UserAddGif
+- [x] UserAddStickerCollection
+- [x] UserAddStickerPack
+- [x] UserAddStory
+- [x] UserAIGetTranscript
+- [x] UserAISendEvent
+- [x] UserAnswerCallJoinRequest
+- [x] UserArchiveDialogs
+- [x] UserAskToJoinCall
+- [x] UserBlockUser
+- [x] UserCanAddBotStory
+- [x] UserCancelMessageStream
+- [x] UserCheckNickName
+- [x] UserCheckStoryLinkValidity
+- [x] UserClearChat
+- [x] UserClosePollService
+- [x] UserCreateFolder
+- [x] UserCreateGroup
+- [x] UserCreateGroupFull
+- [x] UserCreatePoll
+- [x] UserCreateReservedFolder
+- [x] UserCreateThread
+- [x] UserCreateTopic
+- [x] UserDeleteCallLogs
+- [x] UserDeleteChat
+- [x] UserDeleteMessage
+- [x] UserDeleteMyCommands
+- [x] UserDeleteStream
+- [x] UserEditAbout
+- [x] UserEditChannelNick
+- [x] UserEditGroupAbout
+- [x] UserEditGroupAvatar
+- [x] UserEditGroupDefaultCardNumber
+- [x] UserEditGroupTitle
+- [x] UserEditLocalName
+- [x] UserEditName
+- [x] UserEditNickName
+- [x] UserEditParameter
+- [x] UserEnableShowReactionFlag
+- [x] UserExecuteTaskNow
+- [x] UserFetchGroupAdmins
+- [x] UserFetchProtectedMessage
+- [x] UserFileUploadCancel
+- [x] UserForwardMessages
+- [x] UserGenerateCallLink
+- [x] UserGetActiveSharedMedia
+- [x] UserGetAnonymousContactPage
+- [x] UserGetBannedUsers
+- [x] UserGetBotGroupPermissions
+- [x] UserGetBotInfo
+- [x] UserGetBots
+- [x] UserGetBotStories
+- [x] UserGetBotWhiteList
+- [x] UserGetCallLinkDetails
+- [x] UserGetCallState
+- [x] UserGetCanSeeMessages
+- [x] UserGetChannelRecommendations
+- [x] UserGetChannelStories
+- [x] UserGetContacts
+- [x] UserGetContactsPresences
+- [x] UserGetDefaultStoryBackgrounds
+- [x] UserGetDifference
+- [x] UserGetDiscussionMessage
+- [x] UserGetFileUploadURL
+- [x] UserGetFileURL
+- [x] UserGetFullGroup
+- [x] UserGetFullPollResultService
+- [x] UserGetGroupDefaultCardNumber
+- [x] UserGetGroupInviteURL
+- [x] UserGetGroupMembersCount
+- [x] UserGetGroupMembersPresences
+- [x] UserGetGroupOnlineCount
+- [x] UserGetGroupPreview
+- [x] UserGetGroupRecommendations
+- [x] UserGetGroupsRecommendation
+- [x] UserGetInlineBotResults
+- [x] UserGetLinkPreview
+- [x] UserGetLinkStatus
+- [x] UserGetLinkSummary
+- [x] UserGetLLMAuthToken
+- [x] UserGetMemberPermissions
+- [x] UserGetMenuButton
+- [x] UserGetMessageSeenList
+- [x] UserGetMessagesRepliesInfo
+- [x] UserGetMessageViews
+- [x] UserGetMiniAppUrlAppzar
+- [x] UserGetMostPopularStories
+- [x] UserGetMutualGroups
+- [x] UserGetMyCommands
+- [x] UserGetMyGroups
+- [x] UserGetMyUpvotes
+- [x] UserGetNasimFilePublicUrl
+- [x] UserGetNasimFileUploadResume
+- [x] UserGetNasimFileUrls
+- [x] UserGetOrganizationalContacts
+- [x] UserGetOrganizationInfo
+- [x] UserGetParameters
+- [x] UserGetPaymentDetails
+- [x] UserGetPins
+- [x] UserGetPollResultsService
+- [x] UserGetReactions
+- [x] UserGetReactionsList
+- [x] UserGetRelatedChannels
+- [x] UserGetRelatedGroups
+- [x] UserGetSavedGifs
+- [x] UserGetShowReactionFlag
+- [x] UserGetSimilarPosts
+- [x] UserGetStories
+- [x] UserGetStoriesByList
+- [x] UserGetStoryByID
+- [x] UserGetStoryPrivacyConfig
+- [x] UserGetStoryReactionEmojis
+- [x] UserGetStoryTags
+- [x] UserGetStoryViewers
+- [x] UserGetStoryViewersCount
+- [x] UserGetStoryWidgets
+- [x] UserGetTopicByID
+- [x] UserGetTopics
+- [x] UserGetTopPeer
+- [x] UserGetUserContext
+- [x] UserGetUsersPresence
+- [x] UserGetUserStoryConfig
+- [x] UserGetWebappHash
+- [x] UserHTTPPost
+- [x] UserImportContacts
+- [x] UserInviteToCall
+- [x] UserInviteUser
+- [x] UserInviteUsers
+- [x] UserInvokeCustomAction
+- [x] UserInvokeCustomMethodAppzar
+- [x] UserJoinGroup
+- [x] UserJoinPublicGroup
+- [x] UserKickUser
+- [x] UserLeaveGroup
+- [x] UserListScheduledTasks
+- [x] UserLoadBlockedUsers
+- [x] UserLoadCategoryFeedMessages
+- [x] UserLoadDialogs
+- [x] UserLoadDialogsFiltered
+- [x] UserLoadFeedMessages
+- [x] UserLoadFolderDialogs
+- [x] UserLoadFullGroups
+- [x] UserLoadFullUsers
+- [x] UserLoadGroupAvatars
+- [x] UserLoadGroupedDialogs
+- [x] UserLoadGroups
+- [x] UserLoadHistory
+- [x] UserLoadInternalFeedMessages
+- [x] UserLoadMagazineCategories
+- [x] UserLoadMembers
+- [x] UserLoadOwnStickers
+- [x] UserLoadPeerDialogs
+- [x] UserLoadPeers
+- [x] UserLoadPinnedDialogs
+- [x] UserLoadPinnedMessages
+- [x] UserLoadReactions
+- [x] UserLoadReplies
+- [x] UserLoadSharedMedia
+- [x] UserLoadStickerCollection
+- [x] UserLoadUsers
+- [x] UserMakePayment
+- [x] UserMakeUserAdmin
+- [x] UserMarkAsUnread
+- [x] UserMarkDialogsAsRead
+- [x] UserMentionRead
+- [x] UserMessageReactionsRead
+- [x] UserMessageRead
+- [x] UserMessageReceived
+- [x] UserMuteCallParticipant
+- [x] UserPeersWithScheduleTask
+- [x] UserPinDialogs
+- [x] UserPinMessage
+- [x] UserPushSetConfig
+- [x] UserReactToStory
+- [x] UserReceiveMessageStream
+- [x] UserRemoveAllPins
+- [x] UserRemoveCallParticipant
+- [x] UserRemoveContact
+- [x] UserRemoveDiscussionGroup
+- [x] UserRemoveGif
+- [x] UserRemoveGroupAvatar
+- [x] UserRemovePin
+- [x] UserRemoveReaction
+- [x] UserRemoveStickerCollection
+- [x] UserRemoveStickerPack
+- [x] UserRemoveStory
+- [x] UserRemoveTopPeer
+- [x] UserRemoveUserAdmin
+- [x] UserReorderPinnedDialogs
+- [x] UserReScheduleTask
+- [x] UserResetContacts
+- [x] UserRevokeInviteURL
+- [x] UserScheduleTask
+- [x] UserSearchContacts
+- [x] UserSearchContent
+- [x] UserSearchDialog
+- [x] UserSearchMediaService
+- [x] UserSearchMembersService
+- [x] UserSearchMessageMore
+- [x] UserSearchMessages
+- [x] UserSearchPeer
+- [x] UserSendAnimatedSticker
+- [x] UserSendAuthenticatedInlineCallBackData
+- [x] UserSendBankMessage
+- [x] UserSendCallFanoosEvent
+- [x] UserSendCallReaction
+- [x] UserSendInlineCallback
+- [x] UserSendInlineCallBackData
+- [x] UserSendJsonMessage
+- [x] UserSendLiveMessage
+- [x] UserSendLongTextMessage
+- [x] UserSendMessage
+- [x] UserSendMiniAppData
+- [x] UserSendMultiMediaMessage
+- [x] UserSendOrderMessage
+- [x] UserSendProtectedMessage
+- [x] UserSendRaw
+- [x] UserSendScheduledMessage
+- [x] UserSetAvailableReactions
+- [x] UserSetCallLinkTitle
+- [x] UserSetCanSeeHistory
+- [x] UserSetCanSeeMessages
+- [x] UserSetDiscussionGroup
+- [x] UserSetGroupDefaultPermissions
+- [x] UserSetMemberCustomTitle
+- [x] UserSetMemberPermissions
+- [x] UserSetMyCommands
+- [x] UserSetOnline
+- [x] UserSetReaction
+- [x] UserSetRestriction
+- [x] UserSetStoryPrivacyConfig
+- [x] UserSetUserStoryConfig
+- [x] UserSignOut
+- [x] UserSignUp
+- [x] UserStartRecording
+- [x] UserStartStream
+- [x] UserStopRecording
+- [x] UserStopTyping
+- [x] UserSubmitCallFeedback
+- [x] UserSubscribeFromGroupOnline
+- [x] UserSubscribeFromOnline
+- [x] UserSubscribeToGroupOnline
+- [x] UserSubscribeToOnline
+- [x] UserSubscribeToThreadUpdates
+- [x] UserSubscribeToUpdates
+- [x] UserTakeCallAction
+- [x] UserTerminateSession
+- [x] UserTransferOwnership
+- [x] UserTyping
+- [x] UserUnArchiveDialogs
+- [x] UserUnBanUser
+- [x] UserUnblockUser
+- [x] UserUnpinDialogs
+- [x] UserUnPinMessages
+- [x] UserUnScheduleTask
+- [x] UserUnsubscribeFromThreadUpdates
+- [x] UserUpdateCallLayout
+- [x] UserUpdateMessage
+- [x] UserUpdateSearchContentClick
+- [x] UserUseGif
+- [x] UserValidatePassword
+- [x] UserVotePollService
+
+## Fanoos Analytics
+- [x] FanoosSend
+
+## Push Notifications
+- [x] PushSetConfig
+- [x] RegisterGooglePush
+- [x] RegisterPush
+- [x] UnregisterAllPushCredentials
+- [x] UnregisterGooglePush
+- [x] UnregisterPush
+
+## Upvotes
+- [x] GetMessageUpvoters
+- [x] RevokeUpvotedPost
+- [x] UpvotePost
+
+## Queries & Info
+- [x] GetChat
+- [x] GetChatAdministrators
+- [x] GetChatMember
+- [x] GetChatMembersCount
+- [x] GetFullPollResult
+- [x] GetInAppUpdate
+- [x] GetMiniAppUrl
+- [x] GetMyCommands
+- [x] GetPollResults
+- [x] GetTranscript
+- [x] GetUpdates
+- [x] GetUserID
+- [x] GetUserProfilePhotos
+- [x] GetWebhookInfo
+- [x] GetWssURL
+
+## Settings & Configuration
+- [x] SetChatPhoto
+- [x] SetMyCommands
+- [x] SetNewPassword
+- [x] SetRamzPassword
+- [x] SetWebhook
+
+## Deletion
+- [x] DeleteAccount
+- [x] DeleteChatPhoto
+- [x] DeleteMyCommands
+- [x] DeleteRamzPassword
+- [x] DeleteWebhook
+- [x] RemoveAvatar
+
+## Editing
+- [x] EditAvatarGRPC
+- [x] EditBirthDate
+- [x] EditFolder
+- [x] EditMessageCaption
+- [x] EditMessageReplyMarkup
+- [x] EditMyPreferredLanguages
+- [x] EditMyTimeZone
+- [x] EditSex
+
+## Read State
+- [x] MarkAsUnread
+
+## Other
+- [x] AnswerInlineQuery
+- [x] ChangePhoneNumber
+- [x] CheckRamzPassword
+- [x] CheckRamzPasswordSet
+- [x] ClosePoll
+- [x] ConfirmPhoneNumber
+- [x] CopyMessage
+- [x] DisableTwoFactorAuthentication
+- [x] EnableTwoFactorAuthentication
+- [x] ForgetRamzPassword
+- [x] GlobalChannelSearch
+- [x] InviteUser
+- [x] InvokeCustomMethod
+- [x] IsNameAllowed
+- [x] IsTwoFactorAuthenticationEnabled
+- [x] LoadAvatars
+- [x] LoadDialogsFiltered
+- [x] LoadFolders
+- [x] NotifyAboutDeviceInfo
+- [x] PromoteChatMember
+- [x] RecoverPassword
+- [x] ReorderFolders
+- [x] ReportDismiss
+- [x] ReportInappropriateContent
+- [x] ResolveGroupID
+- [x] RestrictChatMember
+- [x] TerminateAllSessions
+- [x] UploadRawPUT
+- [x] ValidateRamzOTP
+- [x] VerifyEmail
+- [x] VerifyPasswordRecovery
+
+## Bots
+- [x] GetBotMenuButtons

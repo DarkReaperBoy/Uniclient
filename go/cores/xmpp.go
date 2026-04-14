@@ -400,6 +400,10 @@ type XMPPCore struct {
 	vcardCache   map[string]map[string]string // bare JID → fields
 	vcardCacheMu sync.RWMutex
 
+	// Cached caps element (static, computed once)
+	capsElement     string
+	capsElementOnce sync.Once
+
 	// Real-time
 	updateHandlers []func(Update)
 	updateMu       sync.RWMutex
@@ -687,13 +691,18 @@ func (c *XMPPCore) sendStreamHeader() error {
 	domain := c.domain
 	c.mu.RUnlock()
 
-	header := fmt.Sprintf(
-		`<?xml version='1.0'?><stream:stream to='%s' xmlns='%s' xmlns:stream='%s' version='1.0'>`,
-		xmlEscape(domain), nsClient, nsStream,
-	)
+	var b strings.Builder
+	b.Grow(200)
+	b.WriteString("<?xml version='1.0'?><stream:stream to='")
+	b.WriteString(xmlEscape(domain))
+	b.WriteString("' xmlns='")
+	b.WriteString(nsClient)
+	b.WriteString("' xmlns:stream='")
+	b.WriteString(nsStream)
+	b.WriteString("' version='1.0'>")
 
 	c.writeMu.Lock()
-	_, err := c.conn.Write([]byte(header))
+	_, err := c.conn.Write([]byte(b.String()))
 	c.writeMu.Unlock()
 	return err
 }
@@ -712,28 +721,26 @@ func (c *XMPPCore) readStreamStart() error {
 	defer c.conn.SetReadDeadline(time.Time{})
 
 	var buf bytes.Buffer
+	buf.Grow(2048)
+	endTag1 := []byte("</stream:features>")
+	endTag2 := []byte("</features>")
 	for {
 		b, err := reader.ReadByte()
 		if err != nil {
 			return fmt.Errorf("read stream: %w", err)
 		}
 		buf.WriteByte(b)
-		data := buf.String()
 
-		// Check if we have complete features
-		if strings.Contains(data, "</stream:features>") {
-			// Create the xml.Decoder from the same buffered reader
-			// so it picks up any bytes read after features
-			c.mu.Lock()
-			c.decoder = xml.NewDecoder(reader)
-			c.mu.Unlock()
-			return c.parseStreamFeatures(data)
+		if b != '>' {
+			continue
 		}
-		if strings.Contains(data, "</features>") {
+
+		data := buf.Bytes()
+		if bytes.Contains(data, endTag1) || bytes.Contains(data, endTag2) {
 			c.mu.Lock()
 			c.decoder = xml.NewDecoder(reader)
 			c.mu.Unlock()
-			return c.parseStreamFeatures(data)
+			return c.parseStreamFeatures(buf.String())
 		}
 	}
 }
@@ -828,9 +835,8 @@ func (c *XMPPCore) parseStreamFeatures(data string) error {
 }
 
 func (c *XMPPCore) startTLS() error {
-	// Send STARTTLS
 	c.writeMu.Lock()
-	c.conn.Write([]byte(fmt.Sprintf(`<starttls xmlns='%s'/>`, nsTLS)))
+	c.conn.Write([]byte("<starttls xmlns='" + nsTLS + "'/>"))
 	c.writeMu.Unlock()
 
 	// Read proceed (raw, since we don't have an xml.Decoder yet for this stream)
@@ -936,13 +942,10 @@ func (c *XMPPCore) authSASLPlain() error {
 		local = bareJID[:at]
 	}
 
-	// PLAIN: \0authcid\0password
 	payload := base64.StdEncoding.EncodeToString([]byte("\x00" + local + "\x00" + password))
 
 	c.writeMu.Lock()
-	c.conn.Write([]byte(fmt.Sprintf(
-		`<auth xmlns='%s' mechanism='PLAIN'>%s</auth>`, nsSASL, payload,
-	)))
+	c.conn.Write([]byte("<auth xmlns='" + nsSASL + "' mechanism='PLAIN'>" + payload + "</auth>"))
 	c.writeMu.Unlock()
 
 	return c.readSASLResult()
@@ -970,9 +973,7 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 
 	payload := base64.StdEncoding.EncodeToString([]byte(clientFirst))
 	c.writeMu.Lock()
-	c.conn.Write([]byte(fmt.Sprintf(
-		`<auth xmlns='%s' mechanism='%s'>%s</auth>`, nsSASL, mechName, payload,
-	)))
+	c.conn.Write([]byte("<auth xmlns='" + nsSASL + "' mechanism='" + mechName + "'>" + payload + "</auth>"))
 	c.writeMu.Unlock()
 
 	// Read server challenge
@@ -1019,12 +1020,9 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 
 	clientFinal := clientFinalNoProof + ",p=" + base64.StdEncoding.EncodeToString(clientProof)
 
-	// Send response
 	respPayload := base64.StdEncoding.EncodeToString([]byte(clientFinal))
 	c.writeMu.Lock()
-	c.conn.Write([]byte(fmt.Sprintf(
-		`<response xmlns='%s'>%s</response>`, nsSASL, respPayload,
-	)))
+	c.conn.Write([]byte("<response xmlns='" + nsSASL + "'>" + respPayload + "</response>"))
 	c.writeMu.Unlock()
 
 	// Read success (which may contain server signature verification)
@@ -1060,23 +1058,26 @@ func (c *XMPPCore) readSASLElement() (elemName, content string, err error) {
 	defer c.conn.SetReadDeadline(time.Time{})
 
 	var buf bytes.Buffer
+	buf.Grow(512)
+	saslTags := [3]string{"challenge", "success", "failure"}
 	for {
 		b, readErr := c.reader.ReadByte()
 		if readErr != nil {
 			return "", "", fmt.Errorf("sasl read: %w", readErr)
 		}
 		buf.WriteByte(b)
-		data := buf.String()
 
-		for _, tag := range []string{"challenge", "success", "failure"} {
-			// Self-closing: <tag/>
+		if b != '>' {
+			continue
+		}
+
+		data := buf.String()
+		for _, tag := range saslTags {
 			if strings.Contains(data, "<"+tag+"/>") {
 				return tag, "", nil
 			}
-			// With content: <tag>...</tag> or <tag ...>...</tag>
 			closeTag := "</" + tag + ">"
 			if strings.Contains(data, closeTag) {
-				// Extract content between > and </tag>
 				startIdx := strings.Index(data, "<"+tag)
 				if startIdx < 0 {
 					continue
@@ -1153,15 +1154,16 @@ func (c *XMPPCore) readRawIQResponse() (string, error) {
 	defer c.conn.SetReadDeadline(time.Time{})
 
 	var buf bytes.Buffer
+	buf.Grow(1024)
+	endTag := []byte("</iq>")
 	for {
 		b, err := c.reader.ReadByte()
 		if err != nil {
 			return "", fmt.Errorf("read iq: %w", err)
 		}
 		buf.WriteByte(b)
-		data := buf.String()
-		if strings.Contains(data, "</iq>") {
-			return data, nil
+		if b == '>' && bytes.Contains(buf.Bytes(), endTag) {
+			return buf.String(), nil
 		}
 	}
 }
@@ -1532,7 +1534,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 
 	msgID := msg.ID
 	if msgID == "" {
-		msgID = fmt.Sprintf("xmpp_%d", atomic.AddInt64(&c.msgCounter, 1))
+		msgID = "xmpp_" + strconv.FormatInt(atomic.AddInt64(&c.msgCounter, 1), 10)
 	}
 
 	m := &Message{
@@ -1702,78 +1704,56 @@ func (c *XMPPCore) handleIQ(iq xmppIQ) {
 		return
 	}
 
-	// Handle incoming IQ requests
 	if iq.Type == "get" {
-		// Respond to common queries
-		if strings.Contains(iq.Inner, nsPing) {
-			// Respond to ping
-			c.sendRawStanza(fmt.Sprintf(
-				`<iq type='result' id='%s' to='%s'/>`, xmlEscape(iq.ID), xmlEscape(iq.From),
-			))
+		escapedID := xmlEscape(iq.ID)
+		escapedFrom := xmlEscape(iq.From)
+		inner := iq.Inner
+
+		if strings.Contains(inner, nsPing) {
+			c.sendRawStanza("<iq type='result' id='" + escapedID + "' to='" + escapedFrom + "'/>")
 			return
 		}
-		if strings.Contains(iq.Inner, nsVersion) {
-			c.sendRawStanza(fmt.Sprintf(
-				`<iq type='result' id='%s' to='%s'><query xmlns='%s'><name>Uniclient</name><version>1.0</version><os>Go</os></query></iq>`,
-				xmlEscape(iq.ID), xmlEscape(iq.From), nsVersion,
-			))
+		if strings.Contains(inner, nsVersion) {
+			c.sendRawStanza("<iq type='result' id='" + escapedID + "' to='" + escapedFrom + "'><query xmlns='" + nsVersion + "'><name>Uniclient</name><version>1.0</version><os>Go</os></query></iq>")
 			return
 		}
-		if strings.Contains(iq.Inner, nsDiscoInfo) {
+		if strings.Contains(inner, nsDiscoInfo) {
 			c.respondDiscoInfo(iq)
 			return
 		}
-		if strings.Contains(iq.Inner, nsTime) {
+		if strings.Contains(inner, nsTime) {
 			now := time.Now()
-			c.sendRawStanza(fmt.Sprintf(
-				`<iq type='result' id='%s' to='%s'><time xmlns='%s'><tzo>%s</tzo><utc>%s</utc></time></iq>`,
-				xmlEscape(iq.ID), xmlEscape(iq.From), nsTime,
-				now.Format("-07:00"), now.UTC().Format("2006-01-02T15:04:05Z"),
-			))
+			c.sendRawStanza("<iq type='result' id='" + escapedID + "' to='" + escapedFrom + "'><time xmlns='" + nsTime + "'><tzo>" + now.Format("-07:00") + "</tzo><utc>" + now.UTC().Format("2006-01-02T15:04:05Z") + "</utc></time></iq>")
 			return
 		}
-		if strings.Contains(iq.Inner, nsLast) {
-			c.sendRawStanza(fmt.Sprintf(
-				`<iq type='result' id='%s' to='%s'><query xmlns='%s' seconds='0'/></iq>`,
-				xmlEscape(iq.ID), xmlEscape(iq.From), nsLast,
-			))
+		if strings.Contains(inner, nsLast) {
+			c.sendRawStanza("<iq type='result' id='" + escapedID + "' to='" + escapedFrom + "'><query xmlns='" + nsLast + "' seconds='0'/></iq>")
 			return
 		}
-		// Unknown — service-unavailable
-		c.sendRawStanza(fmt.Sprintf(
-			`<iq type='error' id='%s' to='%s'><error type='cancel'><service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>`,
-			xmlEscape(iq.ID), xmlEscape(iq.From),
-		))
+		c.sendRawStanza("<iq type='error' id='" + escapedID + "' to='" + escapedFrom + "'><error type='cancel'><service-unavailable xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>")
 		return
 	}
 
 	if iq.Type == "set" {
-		// Roster push
-		if strings.Contains(iq.Inner, nsRoster) {
+		inner := iq.Inner
+		if strings.Contains(inner, nsRoster) {
 			c.handleRosterPush(iq)
 			return
 		}
-		// Blocklist push (XEP-0191)
-		if strings.Contains(iq.Inner, nsBlocking) {
+		if strings.Contains(inner, nsBlocking) {
 			c.handleBlocklistPush(iq)
 			return
 		}
-		// Jingle
-		if strings.Contains(iq.Inner, nsJingle) {
+		if strings.Contains(inner, nsJingle) {
 			c.handleJingleAction(iq)
 			return
 		}
-		// Unknown set — feature-not-implemented
-		c.sendRawStanza(fmt.Sprintf(
-			`<iq type='error' id='%s' to='%s'><error type='cancel'><feature-not-implemented xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>`,
-			xmlEscape(iq.ID), xmlEscape(iq.From),
-		))
+		c.sendRawStanza("<iq type='error' id='" + xmlEscape(iq.ID) + "' to='" + xmlEscape(iq.From) + "'><error type='cancel'><feature-not-implemented xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>")
 	}
 }
 
 func (c *XMPPCore) handleRosterPush(iq xmppIQ) {
-	// Ack the push
-	c.sendRawStanza(fmt.Sprintf(`<iq type='result' id='%s'/>`, xmlEscape(iq.ID)))
+	c.sendRawStanza("<iq type='result' id='" + xmlEscape(iq.ID) + "'/>")
 
 	// Parse roster item
 	type rosterQuery struct {
@@ -1800,7 +1780,7 @@ func (c *XMPPCore) handleRosterPush(iq xmppIQ) {
 }
 
 func (c *XMPPCore) handleBlocklistPush(iq xmppIQ) {
-	c.sendRawStanza(fmt.Sprintf(`<iq type='result' id='%s'/>`, xmlEscape(iq.ID)))
+	c.sendRawStanza("<iq type='result' id='" + xmlEscape(iq.ID) + "'/>")
 
 	c.blockedMu.Lock()
 	defer c.blockedMu.Unlock()
@@ -1832,7 +1812,7 @@ func (c *XMPPCore) handleJingleAction(iq xmppIQ) {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) nextIQID() string {
-	return fmt.Sprintf("iq_%d", c.iqCounter.Add(1))
+	return "iq_" + strconv.FormatInt(c.iqCounter.Add(1), 10)
 }
 
 func (c *XMPPCore) sendIQSync(typ, to, inner string) (*xmppIQ, error) {
@@ -1844,12 +1824,22 @@ func (c *XMPPCore) sendIQSync(typ, to, inner string) (*xmppIQ, error) {
 	c.pendingIQ[id] = &xmppPendingIQ{ch: ch, timeout: timer}
 	c.pendingIQMu.Unlock()
 
-	var toAttr string
+	var b strings.Builder
+	b.Grow(64 + len(typ) + len(id) + len(to) + len(inner))
+	b.WriteString("<iq type='")
+	b.WriteString(typ)
+	b.WriteString("' id='")
+	b.WriteString(id)
+	b.WriteByte('\'')
 	if to != "" {
-		toAttr = fmt.Sprintf(` to='%s'`, xmlEscape(to))
+		b.WriteString(" to='")
+		b.WriteString(xmlEscape(to))
+		b.WriteByte('\'')
 	}
-
-	stanza := fmt.Sprintf(`<iq type='%s' id='%s'%s>%s</iq>`, typ, id, toAttr, inner)
+	b.WriteByte('>')
+	b.WriteString(inner)
+	b.WriteString("</iq>")
+	stanza := b.String()
 	if err := c.sendRawStanza(stanza); err != nil {
 		c.pendingIQMu.Lock()
 		delete(c.pendingIQ, id)
@@ -1879,19 +1869,21 @@ func (c *XMPPCore) sendIQSync(typ, to, inner string) (*xmppIQ, error) {
 }
 
 func (c *XMPPCore) sendRawStanza(stanza string) error {
+	stanzaBytes := []byte(stanza)
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 	if c.conn == nil {
 		return errors.New("not connected")
 	}
 
-	_, err := c.conn.Write([]byte(stanza))
+	_, err := c.conn.Write(stanzaBytes)
 
-	// Stream management: track outgoing
 	if c.smEnabled {
 		c.smOutH.Add(1)
+		buf := bytes.NewBuffer(make([]byte, 0, len(stanzaBytes)))
+		buf.Write(stanzaBytes)
 		c.smOutMu.Lock()
-		c.smOutQueue = append(c.smOutQueue, bytes.NewBufferString(stanza))
+		c.smOutQueue = append(c.smOutQueue, buf)
 		c.smOutMu.Unlock()
 	}
 
@@ -2119,27 +2111,35 @@ func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 
 	id := c.nextMsgID()
 
-	var inner strings.Builder
-	inner.WriteString(fmt.Sprintf(`<body>%s</body>`, xmlEscape(msg.Text)))
+	escapedText := xmlEscape(msg.Text)
+	escapedChatID := xmlEscape(chatID)
 
-	// Request receipt
-	inner.WriteString(fmt.Sprintf(`<request xmlns='%s'/>`, nsReceipts))
-
-	// Chat state: active
-	inner.WriteString(fmt.Sprintf(`<active xmlns='%s'/>`, nsChatState))
-
-	// Reply
+	var b strings.Builder
+	b.Grow(128 + len(escapedText) + len(escapedChatID))
+	b.WriteString("<message type='")
+	b.WriteString(msgType)
+	b.WriteString("' to='")
+	b.WriteString(escapedChatID)
+	b.WriteString("' id='")
+	b.WriteString(id)
+	b.WriteString("'><body>")
+	b.WriteString(escapedText)
+	b.WriteString("</body><request xmlns='")
+	b.WriteString(nsReceipts)
+	b.WriteString("'/><active xmlns='")
+	b.WriteString(nsChatState)
+	b.WriteString("'/>")
 	if msg.ReplyToID != "" {
-		inner.WriteString(fmt.Sprintf(`<reply xmlns='%s' id='%s'/>`, nsReply, xmlEscape(msg.ReplyToID)))
+		b.WriteString("<reply xmlns='")
+		b.WriteString(nsReply)
+		b.WriteString("' id='")
+		b.WriteString(xmlEscape(msg.ReplyToID))
+		b.WriteString("'/>")
 	}
-
-	// Store hint
-	inner.WriteString(fmt.Sprintf(`<store xmlns='%s'/>`, nsHints))
-
-	stanza := fmt.Sprintf(
-		`<message type='%s' to='%s' id='%s'>%s</message>`,
-		msgType, xmlEscape(chatID), xmlEscape(id), inner.String(),
-	)
+	b.WriteString("<store xmlns='")
+	b.WriteString(nsHints)
+	b.WriteString("'/></message>")
+	stanza := b.String()
 
 	if err := c.sendRawStanza(stanza); err != nil {
 		return nil, err
@@ -3059,25 +3059,29 @@ func (c *XMPPCore) TerminateSession(sessionID string) error {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) SendPresenceAvailable(show, status string) error {
-	var inner string
+	var b strings.Builder
+	b.Grow(128)
+	b.WriteString("<presence>")
 	if show != "" {
-		inner += fmt.Sprintf(`<show>%s</show>`, xmlEscape(show))
+		b.WriteString("<show>")
+		b.WriteString(xmlEscape(show))
+		b.WriteString("</show>")
 	}
 	if status != "" {
-		inner += fmt.Sprintf(`<status>%s</status>`, xmlEscape(status))
+		b.WriteString("<status>")
+		b.WriteString(xmlEscape(status))
+		b.WriteString("</status>")
 	}
-	// Entity capabilities (XEP-0115)
-	inner += c.buildCapsElement()
-
-	return c.sendRawStanza(fmt.Sprintf(`<presence>%s</presence>`, inner))
+	b.WriteString(c.buildCapsElement())
+	b.WriteString("</presence>")
+	return c.sendRawStanza(b.String())
 }
 
 func (c *XMPPCore) SendPresenceUnavailable(status string) error {
-	var inner string
-	if status != "" {
-		inner = fmt.Sprintf(`<status>%s</status>`, xmlEscape(status))
+	if status == "" {
+		return c.sendRawStanza("<presence type='unavailable'/>")
 	}
-	return c.sendRawStanza(fmt.Sprintf(`<presence type='unavailable'>%s</presence>`, inner))
+	return c.sendRawStanza("<presence type='unavailable'><status>" + xmlEscape(status) + "</status></presence>")
 }
 
 
@@ -3228,10 +3232,18 @@ func (c *XMPPCore) sendChatState(chatID, state string) error {
 	if c.isRoom(chatID) {
 		msgType = "groupchat"
 	}
-	return c.sendRawStanza(fmt.Sprintf(
-		`<message type='%s' to='%s'><%s xmlns='%s'/></message>`,
-		msgType, xmlEscape(chatID), state, nsChatState,
-	))
+	var b strings.Builder
+	b.Grow(80 + len(chatID) + len(state))
+	b.WriteString("<message type='")
+	b.WriteString(msgType)
+	b.WriteString("' to='")
+	b.WriteString(xmlEscape(chatID))
+	b.WriteString("'><")
+	b.WriteString(state)
+	b.WriteString(" xmlns='")
+	b.WriteString(nsChatState)
+	b.WriteString("'/></message>")
+	return c.sendRawStanza(b.String())
 }
 
 func (c *XMPPCore) SendChatStateActive(chatID string) error {
@@ -3296,10 +3308,7 @@ func (c *XMPPCore) RequestReceipt(to, msgID string) error {
 
 func (c *XMPPCore) SendReceipt(to, msgID string) error {
 	id := c.nextMsgID()
-	return c.sendRawStanza(fmt.Sprintf(
-		`<message to='%s' id='%s'><received xmlns='%s' id='%s'/></message>`,
-		xmlEscape(to), id, nsReceipts, xmlEscape(msgID),
-	))
+	return c.sendRawStanza("<message to='" + xmlEscape(to) + "' id='" + id + "'><received xmlns='" + nsReceipts + "' id='" + xmlEscape(msgID) + "'/></message>")
 }
 
 
@@ -3328,10 +3337,7 @@ func (c *XMPPCore) DisableCarbons() error {
 
 func (c *XMPPCore) SendDisplayedMarker(to, msgID string) error {
 	id := c.nextMsgID()
-	return c.sendRawStanza(fmt.Sprintf(
-		`<message to='%s' id='%s'><displayed xmlns='%s' id='%s'/></message>`,
-		xmlEscape(to), id, nsMarkers, xmlEscape(msgID),
-	))
+	return c.sendRawStanza("<message to='" + xmlEscape(to) + "' id='" + id + "'><displayed xmlns='" + nsMarkers + "' id='" + xmlEscape(msgID) + "'/></message>")
 }
 
 func (c *XMPPCore) SendReceivedMarker(to, msgID string) error {
@@ -3790,26 +3796,39 @@ func (c *XMPPCore) DiscoverExternalServices() ([]map[string]string, error) {
 	return parseExternalServices(resp.Inner), nil
 }
 
-func (c *XMPPCore) respondDiscoInfo(iq xmppIQ) {
+var xmppDiscoInfoBody string
+
+func init() {
 	features := []string{
 		nsDiscoInfo, nsDiscoItem, nsCaps, nsChatState,
 		nsReceipts, nsCorrect, nsReactions, nsReply,
 		nsMarkers, nsPing, nsVersion, nsTime, nsLast,
 		nsCarbons, nsBlocking,
 	}
-
-	var featsXML strings.Builder
-	featsXML.WriteString(fmt.Sprintf(`<query xmlns='%s'>`, nsDiscoInfo))
-	featsXML.WriteString(`<identity category='client' type='pc' name='Uniclient'/>`)
+	var b strings.Builder
+	b.WriteString("<query xmlns='")
+	b.WriteString(nsDiscoInfo)
+	b.WriteString("'><identity category='client' type='pc' name='Uniclient'/>")
 	for _, f := range features {
-		featsXML.WriteString(fmt.Sprintf(`<feature var='%s'/>`, f))
+		b.WriteString("<feature var='")
+		b.WriteString(f)
+		b.WriteString("'/>")
 	}
-	featsXML.WriteString(`</query>`)
+	b.WriteString("</query>")
+	xmppDiscoInfoBody = b.String()
+}
 
-	c.sendRawStanza(fmt.Sprintf(
-		`<iq type='result' id='%s' to='%s'>%s</iq>`,
-		xmlEscape(iq.ID), xmlEscape(iq.From), featsXML.String(),
-	))
+func (c *XMPPCore) respondDiscoInfo(iq xmppIQ) {
+	var b strings.Builder
+	b.Grow(64 + len(iq.ID) + len(iq.From) + len(xmppDiscoInfoBody))
+	b.WriteString("<iq type='result' id='")
+	b.WriteString(xmlEscape(iq.ID))
+	b.WriteString("' to='")
+	b.WriteString(xmlEscape(iq.From))
+	b.WriteString("'>")
+	b.WriteString(xmppDiscoInfoBody)
+	b.WriteString("</iq>")
+	c.sendRawStanza(b.String())
 }
 
 func (c *XMPPCore) discoverServices() {
@@ -4610,7 +4629,7 @@ func (c *XMPPCore) SendAck() error {
 	h := c.smInH.Load()
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
-	_, err := c.conn.Write([]byte(fmt.Sprintf(`<a xmlns='%s' h='%d'/>`, nsSM, h)))
+	_, err := c.conn.Write([]byte("<a xmlns='" + nsSM + "' h='" + strconv.FormatInt(h, 10) + "'/>"))
 	return err
 }
 
@@ -4984,7 +5003,7 @@ func (c *XMPPCore) bufferMessage(chatID string, m *Message) {
 }
 
 func (c *XMPPCore) nextMsgID() string {
-	return fmt.Sprintf("msg_%d", atomic.AddInt64(&c.msgCounter, 1))
+	return "msg_" + strconv.FormatInt(atomic.AddInt64(&c.msgCounter, 1), 10)
 }
 
 // ---------------------------------------------------------------------------
@@ -4993,6 +5012,10 @@ func (c *XMPPCore) nextMsgID() string {
 
 func (c *XMPPCore) fireUpdate(u Update) {
 	c.updateMu.RLock()
+	if len(c.updateHandlers) == 0 {
+		c.updateMu.RUnlock()
+		return
+	}
 	handlers := make([]func(Update), len(c.updateHandlers))
 	copy(handlers, c.updateHandlers)
 	c.updateMu.RUnlock()
@@ -5028,14 +5051,12 @@ func (c *XMPPCore) isRoom(jid string) bool {
 		return true
 	}
 
-	// Check if JID domain matches MUC service
 	c.mu.RLock()
 	mucSvc := c.mucService
 	c.mu.RUnlock()
 
 	if mucSvc != "" {
-		parts := strings.SplitN(jid, "@", 2)
-		if len(parts) == 2 && parts[1] == mucSvc {
+		if at := strings.IndexByte(jid, '@'); at >= 0 && jid[at+1:] == mucSvc {
 			return true
 		}
 	}
@@ -5048,7 +5069,11 @@ func (c *XMPPCore) isRoom(jid string) bool {
 // ---------------------------------------------------------------------------
 
 func xmlEscape(s string) string {
+	if !strings.ContainsAny(s, `<>&'"`) {
+		return s
+	}
 	var b strings.Builder
+	b.Grow(len(s) + 10)
 	xml.EscapeText(&b, []byte(s))
 	return b.String()
 }
@@ -5338,10 +5363,10 @@ func parseExternalServices(inner string) []map[string]string {
 
 // xmppPBKDF2 derives a key using PBKDF2 (RFC 2898). Pure Go, no external deps.
 func xmppPBKDF2(password, salt []byte, iterations, keyLen int, h func() hash.Hash) []byte {
-	numBlocks := (keyLen + h().Size() - 1) / h().Size()
-	dk := make([]byte, 0, numBlocks*h().Size())
+	hashSize := h().Size()
+	numBlocks := (keyLen + hashSize - 1) / hashSize
+	dk := make([]byte, 0, numBlocks*hashSize)
 	for block := 1; block <= numBlocks; block++ {
-		// U1 = PRF(password, salt || INT(block))
 		blk := []byte{byte(block >> 24), byte(block >> 16), byte(block >> 8), byte(block)}
 		mac := hmac.New(h, password)
 		mac.Write(salt)
@@ -5403,22 +5428,24 @@ func xorBytes(a, b []byte) []byte {
 // ---------------------------------------------------------------------------
 
 func (c *XMPPCore) buildCapsElement() string {
-	// Simplified caps hash — in production you'd compute from actual disco#info
-	features := []string{
-		nsDiscoInfo, nsChatState, nsReceipts, nsCorrect,
-		nsReactions, nsReply, nsMarkers, nsPing, nsVersion,
-	}
-	sort.Strings(features)
+	c.capsElementOnce.Do(func() {
+		features := []string{
+			nsDiscoInfo, nsChatState, nsReceipts, nsCorrect,
+			nsReactions, nsReply, nsMarkers, nsPing, nsVersion,
+		}
+		sort.Strings(features)
 
-	h := sha1.New()
-	h.Write([]byte("client/pc//Uniclient<"))
-	for _, f := range features {
-		h.Write([]byte(f + "<"))
-	}
-	ver := base64.StdEncoding.EncodeToString(h.Sum(nil))
+		h := sha1.New()
+		h.Write([]byte("client/pc//Uniclient<"))
+		for _, f := range features {
+			h.Write([]byte(f))
+			h.Write([]byte("<"))
+		}
+		ver := base64.StdEncoding.EncodeToString(h.Sum(nil))
 
-	return fmt.Sprintf(`<c xmlns='%s' hash='sha-1' node='https://github.com/DarkReaperBoy/uniclient' ver='%s'/>`,
-		nsCaps, ver)
+		c.capsElement = "<c xmlns='" + nsCaps + "' hash='sha-1' node='https://github.com/DarkReaperBoy/uniclient' ver='" + ver + "'/>"
+	})
+	return c.capsElement
 }
 
 // ──────────────────────────── Message Moderation (XEP-0425) ────────────────────────────

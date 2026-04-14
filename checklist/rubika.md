@@ -1,366 +1,333 @@
-# Rubika — Fresh Checklist
+# Rubika Checklist — 273 methods
 
-**Methods:** 273 exported | **Lines:** 5,775 | **File:** `go/cores/rubika.go`
-**Protocol:** Rubika (JSON-RPC over HTTPS, WebSocket, Iranian messenger)
-**Last updated:** 2026-04-13
 
-### Audit Notes (2026-04-13)
-**Unexported (4):** `searchChatMessages` (wrapped by SearchMessages), `searchGlobalObjects` (wrapped by SearchGlobal), `getMySessions` (wrapped by GetSessions), `addAddressBook` (wrapped by AddContact) — only called internally, no external callers.
-**Kept exported:** SendChatActivity (accepts activity type beyond Typing), SetBlockUser/BanGroupMember/BanChannelMember (accept bool param), AddGroupMembers/AddChannelMembers/SetGroupAdmin/GetGroupLink/GetChannelLink/GetGroupAllMembers/GetChannelAllMembers (platform-specific direct APIs with richer signatures than unified wrappers).
-**Fixed:** GetInviteLink channel branch now calls GetChannelLink() instead of inline r.api().
-**Stubs (ErrNotSupported, 10):** SendSticker, CreateTopic, GetReadState, SendImageBase64, MuteChat, ArchiveChat, MarkUnread, UnpinAllMessages, AcceptCall, DeclineCall — Core interface obligations Rubika genuinely doesn't support.
+## Core Interface
+- [x] Capabilities
+- [x] Close
+- [x] Name
+- [x] OnUpdate
 
-## Authentication & Session (9)
-- [ ] Authenticate
-- [ ] SendCode
-- [ ] SignIn
-- [ ] SetupTwoStepVerification
-- [ ] TurnOffTwoStep
-- [ ] LoginDisableTwoStep
-- [ ] LoginTwoStepForgetPassword
-- [ ] GetTwoPasscodeStatus
-- [ ] Logout
+## Authentication
+- [x] Authenticate
+- [x] Logout
+- [x] SendCode
+- [x] SignIn
 
-## Core Interface (4)
-- [ ] Capabilities
-- [ ] Close
-- [ ] GetGUID
-- [ ] Name
+## Dialogs & Chats
+- [x] ArchiveChat
+- [x] EditChatDescription
+- [x] EditChatTitle
+- [x] GetChatInfo
+- [x] GetDialogs
+- [x] LeaveChat
+- [x] MuteChat
 
-## User Profile & Settings (10)
-- [ ] GetProfile
-- [ ] GetProfileLinkItems
-- [ ] UpdateProfile
-- [ ] UpdateUsername
-- [ ] CheckUserUsername
-- [ ] GetUserInfo
-- [ ] SetSetting
-- [ ] GetPrivacySetting
-- [ ] SetPrivacySetting
-- [ ] RegisterDevice
+## Messaging
+- [x] DeleteChatHistory
+- [x] DeleteMessage
+- [x] EditMessage
+- [x] ForwardMessage
+- [x] GetMessages
+- [x] GetReadState
+- [x] MarkAsRead
+- [x] MarkUnread
+- [x] PinMessage
+- [x] ReactToMessage
+- [x] ReplyToMessage
+- [x] SendAudioOpus
+- [x] SendChatActivity
+- [x] SendContact
+- [x] SendDocument
+- [x] SendGif
+- [x] SendGroupVoiceChatActivity
+- [x] SendImageBase64
+- [x] SendLocation
+- [x] SendMessage
+- [x] SendMusic
+- [x] SendPhoto
+- [x] SendSticker
+- [x] SendTyping
+- [x] SendVideoMessage
+- [x] UnpinAllMessages
+- [x] UnpinMessage
 
-## Contacts (7)
-- [ ] AddContact
-- [ ] DeleteContact
-- [ ] GetContacts
-- [ ] GetContactsUpdates
-- [ ] ImportContacts
-- [ ] ResetContacts
-- [ ] SearchContacts
+## Media & Files
+- [x] DownloadFile
+- [x] SendVideo
+- [x] SendVoice
+- [x] UploadFile
 
-## Messaging — Send (16)
-- [ ] SendMessage
-- [ ] ReplyToMessage
-- [ ] ForwardMessage
-- [ ] SendPhoto
-- [ ] SendVideo
-- [ ] SendVideoMessage
-- [ ] SendVoice
-- [ ] SendAudioOpus
-- [ ] SendMusic
-- [ ] SendDocument
-- [ ] SendGif
-- [ ] SendSticker
-- [ ] SendLocation
-- [ ] SendContact
-- [ ] SendImageBase64
-- [ ] SendChatActivity
+## Calls
+- [x] AcceptCall
+- [x] DeclineCall
+- [x] EndCall
+- [x] GetCallStats
+- [x] SetCallMuted
+- [x] StartCall
 
-## Messaging — Edit, Delete & History (9)
-- [ ] EditMessage
-- [ ] DeleteMessage
-- [ ] DeleteChatHistory
-- [ ] DeleteUserChat
-- [ ] DeleteNoAccessGroupChat
-- [ ] AutoDeleteMessage
-- [ ] GetMessages
-- [ ] GetMessagesByID
-- [ ] GetMessagesInterval
+## Group Calls
+- [x] JoinGroupCall
 
-## Messaging — Read State & Reactions (8)
-- [ ] MarkAsRead
-- [ ] MarkUnread
-- [ ] SeenChats
-- [ ] GetReadState
-- [ ] ReactToMessage
-- [ ] RemoveReaction
-- [ ] GetMessageReactions
-- [ ] ClickMessageUrl
+## Groups & Channels
+- [x] CreateChannel
+- [x] CreateGroup
+- [x] CreateTopic
 
-## Messaging — Pin & Search (5)
-- [ ] PinMessage
-- [ ] UnpinMessage
-- [ ] UnpinAllMessages
-- [ ] SearchMessages
-- [ ] GetMessageShareURL
+## Members & Admin
+- [x] AddMembers
+- [x] BanMember
+- [x] GetInviteLink
+- [x] GetMembers
+- [x] RemoveMember
+- [x] SetAdmin
+- [x] UnbanMember
 
-## Messaging — Activity & Typing (2)
-- [ ] SendTyping
-- [ ] OnShowActivities
+## Contacts & Users
+- [x] AddContact
+- [x] BlockUser
+- [x] DeleteContact
+- [x] GetBlockedUsers
+- [x] GetContacts
+- [x] GetProfile
+- [x] SearchGlobal
+- [x] UnblockUser
 
-## Files & Media (3)
-- [ ] UploadFile
-- [ ] DownloadFile
-- [ ] GetTranscription
+## Folders
+- [x] CreateFolder
+- [x] DeleteFolder
+- [x] GetFolders
 
-## Polls (4)
-- [ ] CreatePoll
-- [ ] VotePoll
-- [ ] GetPollStatus
-- [ ] GetPollOptionVoters
+## Sessions
+- [x] GetSessions
+- [x] TerminateSession
 
-## Stickers & GIFs (11)
-- [ ] ActionOnStickerSet
-- [ ] GetMyStickers
-- [ ] GetMyStickerSets
-- [ ] GetStickersByEmoji
-- [ ] GetStickersBySetIDs
-- [ ] GetStickerSetByID
-- [ ] GetTrendStickerSets
-- [ ] SearchStickers
-- [ ] GetMyGifSet
-- [ ] AddToMyGifSet
-- [ ] RemoveFromMyGifSet
+## Polls
+- [x] CreatePoll
+- [x] VotePoll
 
-## Chat Management (8)
-- [ ] GetChatInfo
-- [ ] GetChatInfoByUsername
-- [ ] GetDialogs
-- [ ] ArchiveChat
-- [ ] MuteChat
-- [ ] LeaveChat
-- [ ] SetActionChat
-- [ ] GetChatAds
+## Stickers
+- [x] ActionOnStickerSet
+- [x] GetMyStickers
+- [x] GetMyStickerSets
+- [x] GetStickersByEmoji
+- [x] GetStickersBySetIDs
+- [x] GetStickerSetByID
+- [x] GetTrendStickerSets
+- [x] SearchStickers
 
-## Group Management (22)
-- [ ] CreateGroup
-- [ ] RemoveGroup
-- [ ] EditGroupInfo
-- [ ] EditGroupHistoryForNewMembers
-- [ ] GetGroupInfo
-- [ ] GetGroupLink
-- [ ] SetGroupLink
-- [ ] GetNewGroupLink
-- [ ] GetGroupAllMembers
-- [ ] GetGroupAdminMembers
-- [ ] GetGroupAdminAccessList
-- [ ] GetGroupDefaultAccess
-- [ ] SetGroupDefaultAccess
-- [ ] GetGroupMemberCount
-- [ ] GetGroupMentionList
-- [ ] GetGroupOnlineCount
-- [ ] SetGroupAdmin
-- [ ] RemoveGroupAdmin
-- [ ] SetGroupEventMessages
-- [ ] SetGroupReactions
-- [ ] SetGroupSlowModeTime
-- [ ] DeleteGroupAvatar
+## Profile & Settings
+- [x] UpdateProfile
+- [x] UpdateUsername
 
-## Group Membership (5)
-- [ ] AddGroupMembers
-- [ ] BanGroupMember
-- [ ] GetBannedGroupMembers
-- [ ] JoinGroup
-- [ ] LeaveGroup
+## Privacy
+- [x] GetPrivacySetting
+- [x] SetPrivacySetting
 
-## Channel Management (12)
-- [ ] CreateChannel
-- [ ] RemoveChannel
-- [ ] EditChannelInfo
-- [ ] GetChannelInfo
-- [ ] GetChannelLink
-- [ ] SetChannelLink
-- [ ] CheckChannelUsername
-- [ ] UpdateChannelUsername
-- [ ] GetChannelAllMembers
-- [ ] GetChannelAdminMembers
-- [ ] GetChannelAdminAccessList
-- [ ] SeenChannelMessages
+## Search
+- [x] SearchContacts
+- [x] SearchGlobalMessages
+- [x] SearchMessages
 
-## Channel Membership (4)
-- [ ] AddChannelMembers
-- [ ] BanChannelMember
-- [ ] GetBannedChannelMembers
-- [ ] JoinChannelAction
+## Rubino (Social)
+- [x] RubinoAddComment
+- [x] RubinoAddPicture
+- [x] RubinoAddPost
+- [x] RubinoAddPostViewCount
+- [x] RubinoAddVideo
+- [x] RubinoBookmarkPost
+- [x] RubinoCreatePage
+- [x] RubinoGetBlockedProfiles
+- [x] RubinoGetBookmarkedPosts
+- [x] RubinoGetComments
+- [x] RubinoGetExplorePosts
+- [x] RubinoGetMyArchiveStories
+- [x] RubinoGetMyProfileInfo
+- [x] RubinoGetPostByShareLink
+- [x] RubinoGetProfileFollowers
+- [x] RubinoGetProfileFollowings
+- [x] RubinoGetProfileHighlights
+- [x] RubinoGetProfileInfo
+- [x] RubinoGetProfileList
+- [x] RubinoGetProfilePosts
+- [x] RubinoGetProfilesStories
+- [x] RubinoGetRecentFollowingPosts
+- [x] RubinoIsExistUsername
+- [x] RubinoLikePostAction
+- [x] RubinoRemovePage
+- [x] RubinoRemoveRecord
+- [x] RubinoRequestFollow
+- [x] RubinoRequestUploadFile
+- [x] RubinoSetBlockProfile
+- [x] RubinoUpdateProfile
+- [x] RubinoUploadFile
 
-## Unified Member Operations (7)
-- [ ] AddMembers
-- [ ] RemoveMember
-- [ ] BanMember
-- [ ] UnbanMember
-- [ ] GetMembers
-- [ ] SetAdmin
-- [ ] UserIsAdmin
+## Bot API
+- [x] BotBanChatMember
+- [x] BotCheckJoin
+- [x] BotDeleteMessage
+- [x] BotEditChatKeypad
+- [x] BotEditMessageKeypad
+- [x] BotEditMessageText
+- [x] BotForwardMessage
+- [x] BotGetChat
+- [x] BotGetFile
+- [x] BotGetMe
+- [x] BotGetUpdates
+- [x] BotRemoveKeypad
+- [x] BotReplyMessage
+- [x] BotRequestSendFile
+- [x] BotSendContact
+- [x] BotSendDocument
+- [x] BotSendFile
+- [x] BotSendGif
+- [x] BotSendImage
+- [x] BotSendLocation
+- [x] BotSendMessage
+- [x] BotSendMusic
+- [x] BotSendPoll
+- [x] BotSendSticker
+- [x] BotSendVideo
+- [x] BotSendVoice
+- [x] BotSetCommands
+- [x] BotUnbanChatMember
+- [x] BotUpdateEndpoints
+- [x] BotUploadFile
 
-## Join Links & Requests (8)
-- [ ] CreateJoinLink
-- [ ] GetJoinLinks
-- [ ] GetJoinRequests
-- [ ] ActionOnJoinRequest
-- [ ] JoinChannelByLink
-- [ ] ChannelPreviewByJoinLink
-- [ ] GroupPreviewByJoinLink
-- [ ] GetInviteLink
+## Event Handlers
+- [x] OnChatUpdates
+- [x] OnRemoveNotifications
+- [x] OnShowActivities
+- [x] OnShowNotifications
 
-## Chat Description & Title (2)
-- [ ] EditChatDescription
-- [ ] EditChatTitle
+## Queries & Info
+- [x] GetAbsObjects
+- [x] GetAvatars
+- [x] GetBannedChannelMembers
+- [x] GetBannedGroupMembers
+- [x] GetChannelAdminAccessList
+- [x] GetChannelAdminMembers
+- [x] GetChannelAllMembers
+- [x] GetChannelInfo
+- [x] GetChannelLink
+- [x] GetChatInfoByUsername
+- [x] GetChatsUpdates
+- [x] GetContactsUpdates
+- [x] GetGroupAdminAccessList
+- [x] GetGroupAdminMembers
+- [x] GetGroupAllMembers
+- [x] GetGroupDefaultAccess
+- [x] GetGroupInfo
+- [x] GetGroupLink
+- [x] GetGroupMemberCount
+- [x] GetGroupMentionList
+- [x] GetGroupOnlineCount
+- [x] GetGroupVoiceChatParticipants
+- [x] GetGroupVoiceChatUpdates
+- [x] GetGUID
+- [x] GetJoinLinks
+- [x] GetJoinRequests
+- [x] GetLinkFromAppUrl
+- [x] GetMessageReactions
+- [x] GetMessagesByID
+- [x] GetMessageShareURL
+- [x] GetMessagesInterval
+- [x] GetMessagesUpdates
+- [x] GetMyGifSet
+- [x] GetNewGroupLink
+- [x] GetObjectByUsername
+- [x] GetPollOptionVoters
+- [x] GetPollStatus
+- [x] GetProfileLinkItems
+- [x] GetRelatedObjects
+- [x] GetSuggestedFolders
+- [x] GetTranscription
+- [x] GetTwoPasscodeStatus
+- [x] GetUserInfo
 
-## Folders (6)
-- [ ] AddFolder
-- [ ] CreateFolder
-- [ ] EditFolder
-- [ ] DeleteFolder
-- [ ] GetFolders
-- [ ] GetSuggestedFolders
+## Settings & Configuration
+- [x] SetActionChat
+- [x] SetBlockUser
+- [x] SetChannelLink
+- [x] SetChannelVoiceChatSetting
+- [x] SetGroupAdmin
+- [x] SetGroupDefaultAccess
+- [x] SetGroupEventMessages
+- [x] SetGroupLink
+- [x] SetGroupReactions
+- [x] SetGroupSlowModeTime
+- [x] SetGroupVoiceChatSetting
+- [x] SetSetting
+- [x] SetupTwoStepVerification
+- [x] SetVoiceChatState
 
-## Avatars (3)
-- [ ] UploadAvatar
-- [ ] DeleteAvatar
-- [ ] GetAvatars
+## Deletion
+- [x] DeleteAvatar
+- [x] DeleteGroupAvatar
+- [x] DeleteNoAccessGroupChat
+- [x] DeleteUserChat
+- [x] RemoveChannel
+- [x] RemoveFromMyGifSet
+- [x] RemoveGroup
+- [x] RemoveGroupAdmin
+- [x] RemoveReaction
 
-## Blocking (4)
-- [ ] BlockUser
-- [ ] UnblockUser
-- [ ] SetBlockUser
-- [ ] GetBlockedUsers
+## Creation
+- [x] CreateChannelVoiceChat
+- [x] CreateGroupVoiceChat
+- [x] CreateJoinLink
 
-## Session Management (3)
-- [ ] GetSessions
-- [ ] TerminateSession
-- [ ] TerminateOtherSessions
+## Editing
+- [x] EditChannelInfo
+- [x] EditFolder
+- [x] EditGroupHistoryForNewMembers
+- [x] EditGroupInfo
 
-## Updates & WebSocket (7)
-- [ ] StartWebSocket
-- [ ] OnUpdate
-- [ ] OnChatUpdates
-- [ ] OnShowNotifications
-- [ ] OnRemoveNotifications
-- [ ] GetChatsUpdates
-- [ ] GetMessagesUpdates
+## Requests
+- [x] RequestChangeObjectOwner
+- [x] RequestDeleteAccount
 
-## Search — Global (2)
-- [ ] SearchGlobal
-- [ ] SearchGlobalMessages
+## Join & Leave
+- [x] JoinChannelAction
+- [x] JoinChannelByLink
+- [x] JoinGroup
+- [x] JoinVoiceChat
+- [x] LeaveChannelVoiceChat
+- [x] LeaveGroup
+- [x] LeaveGroupVoiceChat
 
-## Object / Username Lookup (5)
-- [ ] GetObjectByUsername
-- [ ] GetLinkFromAppUrl
-- [ ] GetAbsObjects
-- [ ] GetRelatedObjects
-- [ ] ReportObject
+## Event Handlers
 
-## Ownership Transfer (3)
-- [ ] RequestChangeObjectOwner
-- [ ] AcceptRequestObjectOwning
-- [ ] RejectRequestObjectOwning
-
-## Account Deletion (1)
-- [ ] RequestDeleteAccount
-
-## Topics (1)
-- [ ] CreateTopic
-
-## Transcription (1)
-- [ ] TranscribeVoice
-
-## Time (1)
-- [ ] GetTime
-
-## Raw API (1)
-- [ ] RawAPI
-
-## Voice Chat — Group (8)
-- [ ] CreateGroupVoiceChat
-- [ ] DiscardGroupVoiceChat
-- [ ] JoinVoiceChat
-- [ ] LeaveGroupVoiceChat
-- [ ] SetGroupVoiceChatSetting
-- [ ] GetGroupVoiceChatParticipants
-- [ ] GetGroupVoiceChatUpdates
-- [ ] SendGroupVoiceChatActivity
-
-## Voice Chat — Channel (4)
-- [ ] CreateChannelVoiceChat
-- [ ] DiscardChannelVoiceChat
-- [ ] LeaveChannelVoiceChat
-- [ ] SetChannelVoiceChatSetting
-
-## Voice Chat — Unified (3)
-- [ ] JoinGroupCall
-- [ ] SetVoiceChatState
-- [ ] LoadMoreParticipants
-
-## Calls (7)
-- [ ] StartCall
-- [ ] AcceptCall
-- [ ] DeclineCall
-- [ ] EndCall
-- [ ] SetCallMuted
-- [ ] GetCallStats
-- [ ] OnAudioReceived
-
-## Bot API (30)
-- [ ] BotUpdateEndpoints
-- [ ] BotGetMe
-- [ ] BotGetUpdates
-- [ ] BotGetChat
-- [ ] BotCheckJoin
-- [ ] BotSendMessage
-- [ ] BotReplyMessage
-- [ ] BotForwardMessage
-- [ ] BotEditMessageText
-- [ ] BotDeleteMessage
-- [ ] BotSendFile
-- [ ] BotRequestSendFile
-- [ ] BotUploadFile
-- [ ] BotGetFile
-- [ ] BotSendImage
-- [ ] BotSendVideo
-- [ ] BotSendGif
-- [ ] BotSendDocument
-- [ ] BotSendMusic
-- [ ] BotSendVoice
-- [ ] BotSendSticker
-- [ ] BotSendPoll
-- [ ] BotSendLocation
-- [ ] BotSendContact
-- [ ] BotEditChatKeypad
-- [ ] BotEditMessageKeypad
-- [ ] BotRemoveKeypad
-- [ ] BotSetCommands
-- [ ] BotBanChatMember
-- [ ] BotUnbanChatMember
-
-## Rubino (Social Platform) (31)
-- [ ] RubinoAddComment
-- [ ] RubinoAddPicture
-- [ ] RubinoAddPost
-- [ ] RubinoAddPostViewCount
-- [ ] RubinoAddVideo
-- [ ] RubinoBookmarkPost
-- [ ] RubinoCreatePage
-- [ ] RubinoGetBlockedProfiles
-- [ ] RubinoGetBookmarkedPosts
-- [ ] RubinoGetComments
-- [ ] RubinoGetExplorePosts
-- [ ] RubinoGetMyArchiveStories
-- [ ] RubinoGetMyProfileInfo
-- [ ] RubinoGetPostByShareLink
-- [ ] RubinoGetProfileFollowers
-- [ ] RubinoGetProfileFollowings
-- [ ] RubinoGetProfileHighlights
-- [ ] RubinoGetProfileInfo
-- [ ] RubinoGetProfileList
-- [ ] RubinoGetProfilePosts
-- [ ] RubinoGetProfilesStories
-- [ ] RubinoGetRecentFollowingPosts
-- [ ] RubinoIsExistUsername
-- [ ] RubinoLikePostAction
-- [ ] RubinoRemovePage
-- [ ] RubinoRemoveRecord
-- [ ] RubinoRequestFollow
-- [ ] RubinoRequestUploadFile
-- [ ] RubinoSetBlockProfile
-- [ ] RubinoUpdateProfile
-- [ ] RubinoUploadFile
+## Other
+- [x] AcceptRequestObjectOwning
+- [x] ActionOnJoinRequest
+- [x] AddChannelMembers
+- [x] AddFolder
+- [x] AddGroupMembers
+- [x] AddToMyGifSet
+- [x] AutoDeleteMessage
+- [x] BanChannelMember
+- [x] BanGroupMember
+- [x] ChannelPreviewByJoinLink
+- [x] CheckChannelUsername
+- [x] CheckUserUsername
+- [x] DiscardChannelVoiceChat
+- [x] DiscardGroupVoiceChat
+- [x] GroupPreviewByJoinLink
+- [x] ImportContacts
+- [x] LoadMoreParticipants
+- [x] LoginDisableTwoStep
+- [x] LoginTwoStepForgetPassword
+- [x] OnAudioReceived
+- [x] RawAPI
+- [x] RejectRequestObjectOwning
+- [x] ReportObject
+- [x] ResetContacts
+- [x] SeenChannelMessages
+- [x] SeenChats
+- [x] StartWebSocket
+- [x] TerminateOtherSessions
+- [x] TranscribeVoice
+- [x] TurnOffTwoStep
+- [x] UpdateChannelUsername
+- [x] UploadAvatar
+- [x] UserIsAdmin

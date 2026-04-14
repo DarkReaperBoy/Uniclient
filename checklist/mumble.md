@@ -1,330 +1,301 @@
-# Mumble — Fresh Checklist
+# Mumble Checklist — 233 methods
 
-**Methods:** 233 exported | **Lines:** 7,846 | **File:** `go/cores/mumble.go`
-**Protocol:** Mumble (TCP control + UDP voice, Protobuf messages, OCB2-AES crypto)
-**Last updated:** 2026-04-13
 
-## Categories
+## Core Interface
+- [x] Capabilities
+- [x] Close
+- [x] Name
+- [x] OnUpdate
 
-### Core Interface — Lifecycle & Identity (6)
-- Name
-- Capabilities
-- Authenticate
-- Close
-- Logout
-- OnUpdate
+## Authentication
+- [x] Authenticate
+- [x] Logout
 
-### Core Interface — Dialogs & Organization (6)
-- GetDialogs
-- CreateGroup
-- CreateChannel
-- CreateTopic
-- GetFolders
-- CreateFolder
+## Connection
+- [x] ConnectFromURL
+- [x] Reconnect
+- [x] SetAutoReconnect
 
-### Core Interface — Messaging (12)
-- SendMessage
-- GetMessages
-- EditMessage
-- DeleteMessage
-- ReplyToMessage
-- ForwardMessage
-- ReactToMessage
-- PinMessage
-- UnpinMessage
-- MarkAsRead
-- GetReadState
-- SendTyping
+## Dialogs & Chats
+- [x] ArchiveChat
+- [x] EditChatDescription
+- [x] EditChatTitle
+- [x] GetChatInfo
+- [x] GetDialogs
+- [x] LeaveChat
+- [x] MuteChat
 
-### Core Interface — Files & Media (4)
-- UploadFile
-- DownloadFile
-- SendImageBase64
-- SendSticker
+## Messaging
+- [x] DeleteMessage
+- [x] EditMessage
+- [x] ForwardMessage
+- [x] GetMessages
+- [x] GetReadState
+- [x] MarkAsRead
+- [x] MarkUnread
+- [x] PinMessage
+- [x] ReactToMessage
+- [x] ReplyToMessage
+- [x] SendImageBase64
+- [x] SendLocation
+- [x] SendMessage
+- [x] SendSticker
+- [x] SendTreeMessage
+- [x] SendTyping
+- [x] SendVersion
+- [x] SendWelcomeMessage
+- [x] UnpinAllMessages
+- [x] UnpinMessage
 
-### Core Interface — Calls (4)
-- StartCall
-- JoinGroupCall
-- EndCall
-- SetCallMuted
+## Media & Files
+- [x] DownloadFile
+- [x] UploadFile
 
-### Core Interface — User & Profile (1)
-- GetProfile
+## Calls
+- [x] AcceptCall
+- [x] DeclineCall
+- [x] EndCall
+- [x] SetCallMuted
+- [x] StartCall
 
-### Core Interface — Chat Management (5)
-- GetChatInfo
-- EditChatTitle
-- EditChatDescription
-- LeaveChat
-- GetInviteLink
+## Group Calls
+- [x] JoinGroupCall
 
-### Core Interface — Members & Moderation (6)
-- AddMembers
-- RemoveMember
-- BanMember
-- UnbanMember
-- GetMembers
-- SetAdmin
+## Voice & Audio
+- [x] GetAudioStats
+- [x] OnAudioStream
+- [x] OnVoice
+- [x] SendPositionalAudio
+- [x] SendVoice
+- [x] SendVoiceTCP
+- [x] SendVoiceTerminator
+- [x] ServerLoopback
+- [x] SetAudioBitrate
+- [x] SetAudioFrameSize
+- [x] SetPreferredCodec
+- [x] SetVoiceTarget
 
-### Core Interface — Contacts & Blocking (6)
-- GetContacts
-- AddContact
-- DeleteContact
-- BlockUser
-- UnblockUser
-- GetBlockedUsers
+## Groups & Channels
+- [x] CreateGroup
+- [x] CreateTopic
 
-### Core Interface — Search (2)
-- SearchMessages
-- SearchGlobal
+## Channel Operations
+- [x] CreateChannel
+- [x] CreateTemporaryChannel
+- [x] DeleteChannel
+- [x] GetChannelDescription
+- [x] GetChannelTree
+- [x] LinkChannels
+- [x] MoveChannel
+- [x] MoveToChannel
+- [x] RenameChannel
+- [x] SetChannelMaxUsers
+- [x] SetChannelPosition
+- [x] UnlinkChannels
 
-### Core Interface — Polls (2)
-- CreatePoll
-- VotePoll
+## Members & Admin
+- [x] AddMembers
+- [x] GetInviteLink
+- [x] GetMembers
+- [x] RemoveMember
+- [x] SetAdmin
+- [x] UnbanMember
 
-### Core Interface — Sessions & Misc (6)
-- GetSessions
-- TerminateSession
-- MuteChat
-- ArchiveChat
-- MarkUnread
-- UnpinAllMessages
+## Contacts & Users
+- [x] AddContact
+- [x] BlockUser
+- [x] DeleteContact
+- [x] GetBlockedUsers
+- [x] GetContacts
+- [x] GetProfile
+- [x] SearchGlobal
+- [x] UnblockUser
 
-### Core Interface — Location (1)
-- SendLocation
+## Folders
+- [x] CreateFolder
+- [x] GetFolders
 
-### Client Protocol — Connection & Auth (5)
-- ConnectFromURL
-- Reconnect
-- SetAutoReconnect
-- LoadCertificate
-- UpdateCertificate
+## Sessions
+- [x] GetSessions
+- [x] TerminateSession
 
-### Client Protocol — Channel Operations (11)
-- CreateTemporaryChannel
-- DeleteChannel
-- RenameChannel
-- MoveChannel
-- SetChannelMaxUsers
-- SetChannelPosition
-- GetChannelDescription
-- GetChannelTree
-- LinkChannels
-- UnlinkChannels
-- FlushPermissions
+## Polls
+- [x] CreatePoll
+- [x] VotePoll
 
-### Client Protocol — User Operations (8)
-- MoveToChannel
-- MoveUser
-- RegisterSelf
-- RegisterUser
-- UnregisterUser
-- QueryUsers
-- GetRegisteredUsers
-- SetComment
+## Search
+- [x] SearchMessages
 
-### Client Protocol — Server Interaction (8)
-- SendVersion
-- RequestBlob
-- RequestNonceResync
-- GetPublicServers
-- SendPluginData
-- SetPluginContext
-- SetPluginIdentity
-- SendWelcomeMessage
+## Event Handlers
+- [x] HandleCodecVersion
+- [x] HandleContextActionModify
+- [x] HandleReject
+- [x] HandleSuggestConfig
+- [x] HandleUserStats
 
-### Client Protocol — Permissions & ACL (5)
-- GetACL
-- SetACL
-- GetPermissions
-- GetCachedPermissions
-- SetAccessTokens
+## Bans
+- [x] AddBan
+- [x] BanMember
+- [x] GetBanList
+- [x] RemoveBan
+- [x] SetBanList
 
-### Client Protocol — Ban Management (4)
-- GetBanList
-- SetBanList
-- AddBan
-- RemoveBan
+## Ice Admin
+- [x] ConnectAdmin
+- [x] DisconnectAdmin
+- [x] IceAddChannel
+- [x] IceAddUserToGroup
+- [x] IceEffectivePermissions
+- [x] IceGetACL
+- [x] IceGetAllConf
+- [x] IceGetBans
+- [x] IceGetCertificateList
+- [x] IceGetChannels
+- [x] IceGetChannelState
+- [x] IceGetConf
+- [x] IceGetListeningChannels
+- [x] IceGetListeningUsers
+- [x] IceGetLogLen
+- [x] IceGetRegistration
+- [x] IceGetState
+- [x] IceGetTexture
+- [x] IceGetTree
+- [x] IceGetUserIds
+- [x] IceGetUserNames
+- [x] IceGetUsers
+- [x] IceHasPermission
+- [x] IceIsListening
+- [x] IceKickUser
+- [x] IceMetaCallbackStarted
+- [x] IceMetaCallbackStopped
+- [x] IceRegisterUser
+- [x] IceRemoveChannel
+- [x] IceRemoveUserFromGroup
+- [x] IceSendMessage
+- [x] IceSendMessageChannel
+- [x] IceSendWelcomeMessage
+- [x] IceServerCallbackChannelCreated
+- [x] IceServerCallbackChannelRemoved
+- [x] IceServerCallbackChannelStateChanged
+- [x] IceServerCallbackUserConnected
+- [x] IceServerCallbackUserDisconnected
+- [x] IceServerCallbackUserStateChanged
+- [x] IceServerCallbackUserTextMessage
+- [x] IceServerDelete
+- [x] IceServerID
+- [x] IceServerIsRunning
+- [x] IceServerStart
+- [x] IceServerStop
+- [x] IceSetACL
+- [x] IceSetAuthenticator
+- [x] IceSetBans
+- [x] IceSetChannelState
+- [x] IceSetState
+- [x] IceSetSuperuserPassword
+- [x] IceSetTexture
+- [x] IceStartListening
+- [x] IceStopListening
+- [x] IceUnregisterUser
+- [x] IceUpdateRegistration
+- [x] IceVerifyPassword
+- [x] OnIceContextAction
 
-### Client Protocol — User State Modifiers (7)
-- SelfMute
-- SelfDeaf
-- ServerMute
-- ServerDeaf
-- Suppress
-- SetPrioritySpeaker
-- SetRecording
+## Meta (Multi-Server)
+- [x] MetaAddCallback
+- [x] MetaGetAllServers
+- [x] MetaGetBootedServers
+- [x] MetaGetDefaultConf
+- [x] MetaGetServer
+- [x] MetaGetSlice
+- [x] MetaGetSliceChecksums
+- [x] MetaGetUptime
+- [x] MetaGetVersion
+- [x] MetaNewServer
+- [x] MetaRemoveCallback
 
-### Client Protocol — Texture & Certificates (3)
-- SetTexture
-- GetUserTexture
-- GetCertificateHash
+## Authenticator
+- [x] AuthenticatorAuthenticate
+- [x] AuthenticatorGetInfo
+- [x] AuthenticatorIdToName
+- [x] AuthenticatorIdToTexture
+- [x] AuthenticatorNameToId
+- [x] UpdatingAuthRegisterUser
+- [x] UpdatingAuthSetInfo
+- [x] UpdatingAuthSetTexture
+- [x] UpdatingAuthUnregisterUser
 
-### Client Protocol — Listeners (4)
-- AddChannelListener
-- RemoveChannelListener
-- SetListenerVolume
-- SetTemporaryAccessTokens
+## ACL & Permissions
+- [x] FlushPermissions
+- [x] GetACL
+- [x] GetCachedPermissions
+- [x] GetPermissions
+- [x] HandlePermissionDenied
+- [x] SetACL
 
-### Client Protocol — Context Actions (3)
-- AddContextCallback
-- RemoveContextCallback
-- TriggerContextAction
+## User Registration
+- [x] GetRegisteredUsers
+- [x] RegisterSelf
+- [x] RegisterUser
+- [x] UnregisterUser
 
-### Client Protocol — Whisper & Targets (2)
-- RedirectWhisperGroup
-- SetVoiceTarget
+## Channel Listeners
+- [x] AddChannelListener
+- [x] RemoveChannelListener
+- [x] SetListenerVolume
 
-### Client Protocol — Message Handlers (6)
-- HandleCodecVersion
-- HandleContextActionModify
-- HandlePermissionDenied
-- HandleReject
-- HandleSuggestConfig
-- HandleUserStats
+## Plugins & Context Actions
+- [x] AddContextCallback
+- [x] RemoveContextCallback
+- [x] SendPluginData
+- [x] SetPluginContext
+- [x] SetPluginIdentity
+- [x] TriggerContextAction
 
-### Client Protocol — User Stats & Info (3)
-- GetUserStats
-- GetUserComment
-- GetServerConfig
+## Certificates
+- [x] GetCertificateHash
+- [x] GetServerCertificate
+- [x] LoadCertificate
+- [x] UpdateCertificate
 
-### Client Protocol — Call Flow (2)
-- AcceptCall
-- DeclineCall
+## Debug
+- [x] DebugBuildLegacyVoicePacket
+- [x] DebugBuildVoicePacket
+- [x] DebugCodecVersion
+- [x] DebugMySession
+- [x] DebugServerVersion
+- [x] DebugState
+- [x] DebugUserFlags
+- [x] DebugVoiceTunnelCount
 
-### Client Protocol — Tree Messages (1)
-- SendTreeMessage
+## Queries & Info
+- [x] GetPublicServers
+- [x] GetServerConfig
+- [x] GetServerLog
+- [x] GetServerUptime
+- [x] GetUserComment
+- [x] GetUserStats
+- [x] GetUserTexture
 
-### Audio / Voice (12)
-- SendVoice
-- SendVoiceTCP
-- SendPositionalAudio
-- SendVoiceTerminator
-- OnVoice
-- OnAudioStream
-- SetAudioBitrate
-- SetAudioFrameSize
-- SetPreferredCodec
-- GetAudioStats
-- ServerLoopback
-- GetServerCertificate
+## Settings & Configuration
+- [x] SetAccessTokens
+- [x] SetComment
+- [x] SetPrioritySpeaker
+- [x] SetRecording
+- [x] SetTemporaryAccessTokens
+- [x] SetTexture
 
-### Ice Admin RPC — Server Management (10)
-- ConnectAdmin
-- DisconnectAdmin
-- IceServerID
-- IceServerIsRunning
-- IceServerStart
-- IceServerStop
-- IceServerDelete
-- IceIsListening
-- IceStartListening
-- IceStopListening
+## Requests
+- [x] RequestBlob
+- [x] RequestNonceResync
 
-### Ice Admin RPC — User Management (9)
-- IceGetUsers
-- IceGetUserIds
-- IceGetUserNames
-- IceGetRegistration
-- IceRegisterUser
-- IceUnregisterUser
-- IceUpdateRegistration
-- IceKickUser
-- IceVerifyPassword
+## Event Handlers
 
-### Ice Admin RPC — Channel Management (5)
-- IceGetChannels
-- IceGetChannelState
-- IceSetChannelState
-- IceAddChannel
-- IceRemoveChannel
-
-### Ice Admin RPC — State & Config (5)
-- IceGetState
-- IceSetState
-- IceGetConf
-- IceGetAllConf
-- IceSetSuperuserPassword
-
-### Ice Admin RPC — ACL & Permissions (4)
-- IceGetACL
-- IceSetACL
-- IceEffectivePermissions
-- IceHasPermission
-
-### Ice Admin RPC — Bans & Log (3)
-- IceGetBans
-- IceSetBans
-- IceGetLogLen
-
-### Ice Admin RPC — Groups & Listeners (4)
-- IceAddUserToGroup
-- IceRemoveUserFromGroup
-- IceGetListeningChannels
-- IceGetListeningUsers
-
-### Ice Admin RPC — Messaging (3)
-- IceSendMessage
-- IceSendMessageChannel
-- IceSendWelcomeMessage
-
-### Ice Admin RPC — Textures & Certificates (3)
-- IceGetTexture
-- IceSetTexture
-- IceGetCertificateList
-
-### Ice Admin RPC — Tree (1)
-- IceGetTree
-
-### Ice Admin RPC — Callbacks (11)
-- IceMetaCallbackStarted
-- IceMetaCallbackStopped
-- IceServerCallbackChannelCreated
-- IceServerCallbackChannelRemoved
-- IceServerCallbackChannelStateChanged
-- IceServerCallbackUserConnected
-- IceServerCallbackUserDisconnected
-- IceServerCallbackUserStateChanged
-- IceServerCallbackUserTextMessage
-- IceSetAuthenticator
-- OnIceContextAction
-
-### Ice Admin RPC — Authenticator (5)
-- AuthenticatorAuthenticate
-- AuthenticatorGetInfo
-- AuthenticatorIdToName
-- AuthenticatorIdToTexture
-- AuthenticatorNameToId
-
-### Ice Admin RPC — Updating Authenticator (4)
-- UpdatingAuthRegisterUser
-- UpdatingAuthSetInfo
-- UpdatingAuthSetTexture
-- UpdatingAuthUnregisterUser
-
-### Ice Admin RPC — Meta (11)
-- MetaAddCallback
-- MetaRemoveCallback
-- MetaGetAllServers
-- MetaGetBootedServers
-- MetaGetDefaultConf
-- MetaGetServer
-- MetaGetSlice
-- MetaGetSliceChecksums
-- MetaGetUptime
-- MetaGetVersion
-- MetaNewServer
-
-### Ice Admin RPC — Server Info (2)
-- GetServerUptime
-- GetServerLog
-
-### Debug (8)
-- DebugBuildLegacyVoicePacket
-- DebugBuildVoicePacket
-- DebugCodecVersion
-- DebugMySession
-- DebugServerVersion
-- DebugState
-- DebugUserFlags
-- DebugVoiceTunnelCount
+## Other
+- [x] MoveUser
+- [x] QueryUsers
+- [x] RedirectWhisperGroup
+- [x] SelfDeaf
+- [x] SelfMute
+- [x] ServerDeaf
+- [x] ServerMute
+- [x] Suppress

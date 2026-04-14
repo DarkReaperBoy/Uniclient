@@ -1,357 +1,304 @@
-# Matrix — Fresh Checklist
+# Matrix Checklist — 240 methods
 
-**Methods:** 240 exported | **Lines:** 6,421 | **File:** `go/cores/matrix.go`
-**Protocol:** Matrix (CS API v1.13-v1.18, E2EE via goolm, mautrix-go SDK)
-**Last updated:** 2026-04-13
 
-## Audit Notes (2026-04-13)
+## Core Interface
+- [x] Capabilities
+- [x] Close
+- [x] Name
+- [x] OnUpdate
 
-### Duplicates resolved (kept as thin aliases)
-- `DeclineCall` -> delegates to `RejectCall` (same behavior, unified name)
-- `Delete3PIDByAddress` -> delegates to `Delete3PID` (identical API endpoint)
-- `ValidateEmailForAccount` -> delegates to `RequestEmailToken` (identical API endpoint)
-- `ValidatePhoneForAccount` -> delegates to `RequestMsisdnToken` (identical API endpoint)
-- `GroupCallEncryptionKeys` uses `m.call.encryption_keys` event type; `SendGroupCallEncryptionKeys` uses Element's `io.element.call.encryption_keys` -- kept both but removed dead SendToDevice code from the first
+## Authentication
+- [x] Authenticate
+- [x] ChangePassword
+- [x] DeactivateAccount
+- [x] Logout
+- [x] Register
 
-### Stubs implemented (were ErrNotSupported, now real)
-- `ArchiveChat` -> uses room tags (`m.lowpriority`)
-- `MuteChat` -> uses push rules (`dont_notify` for room)
-- `UnpinAllMessages` -> sends empty pinned event list
-- `SendLocation` -> delegates to `SendLocationMessage` with geo: URI
+## Authentication Extensions
+- [x] CheckRegistrationToken
+- [x] DeviceAuthGrant
+- [x] GetAuthMetadata
+- [x] GetLoginFlows
+- [x] GetLoginToken
+- [x] RefreshToken
+- [x] SSORedirect
+- [x] SSORedirectIdP
 
-### Naming notes (not renamed, different semantics)
-- `Capabilities()` = Core interface (local feature flags) vs `GetCapabilities()` = server capabilities API
-- `GetPresence()` = dedicated presence API vs `GetProfile()` = profile + presence combined
-- `SendLocationMessage(roomID, geoURI, body)` = raw geo message vs `SendLocation(chatID, lat, lon)` = Core interface wrapper
+## Dialogs & Chats
+- [x] ArchiveChat
+- [x] EditChatDescription
+- [x] EditChatTitle
+- [x] GetChatInfo
+- [x] GetDialogs
+- [x] LeaveChat
+- [x] MuteChat
 
-## Categories
+## Messaging
+- [x] DeleteMessage
+- [x] EditMessage
+- [x] ForwardMessage
+- [x] GetMessages
+- [x] GetReadState
+- [x] MarkAsRead
+- [x] MarkUnread
+- [x] PinMessage
+- [x] ReactToMessage
+- [x] ReplyToMessage
+- [x] SendEmoteMessage
+- [x] SendImageBase64
+- [x] SendLocation
+- [x] SendLocationMessage
+- [x] SendMessage
+- [x] SendPrivateReadReceipt
+- [x] SendSecretRequest
+- [x] SendSecretSend
+- [x] SendSticker
+- [x] SendToDevice
+- [x] SendTyping
+- [x] UnpinAllMessages
+- [x] UnpinMessage
 
-### Authentication & Registration (14)
-- [ ] Authenticate
-- [ ] Register
-- [ ] Logout
-- [ ] LogoutAll
-- [ ] ChangePassword
-- [ ] DeactivateAccount
-- [ ] CheckUsernameAvailability
-- [ ] CheckRegistrationToken
-- [ ] GetLoginFlows
-- [ ] GetLoginToken
-- [ ] RefreshToken
-- [ ] SSORedirect
-- [ ] SSORedirectIdP
-- [ ] DeviceAuthGrant
+## Media & Files
+- [x] DownloadFile
+- [x] UploadFile
 
-### Server Discovery & Capabilities (7)
-- [ ] GetVersions
-- [ ] GetCapabilities
-- [ ] Capabilities
-- [ ] GetClientWellKnown
-- [ ] GetSupportContacts
-- [ ] GetAuthMetadata
-- [ ] GetMediaConfig
+## Calls
+- [x] AcceptCall
+- [x] AcceptCallSelectAnswer
+- [x] CallNotify
+- [x] CallReplaces
+- [x] DeclineCall
+- [x] EndCall
+- [x] RejectCall
+- [x] SendCallAssertedIdentity
+- [x] SendCallCandidates
+- [x] SendCallNegotiate
+- [x] SetCallAudioSink
+- [x] SetCallAudioSource
+- [x] SetCallMuted
+- [x] StartCall
 
-### Profile & User Settings (12)
-- [ ] GetProfile
-- [ ] SetDisplayName
-- [ ] SetAvatar
-- [ ] GetProfileField
-- [ ] SetProfileField
-- [ ] DeleteProfileField
-- [ ] GetProfileFieldsCap
-- [ ] SetTimezone
-- [ ] SetPresence
-- [ ] GetPresence
-- [ ] GetIgnoredUsers
-- [ ] GetRecentEmoji
+## Group Calls
+- [x] GroupCallEncryptionKeys
+- [x] JoinGroupCall
+- [x] SendGroupCallEncryptionKeys
 
-### Messaging (13)
-- [ ] SendMessage
-- [ ] EditMessage
-- [ ] DeleteMessage
-- [ ] ReplyToMessage
-- [ ] ForwardMessage
-- [ ] ReactToMessage
-- [ ] SendEmoteMessage
-- [ ] SendLocationMessage
-- [ ] SendLiveLocation
-- [ ] SendLocation
-- [ ] GetMessages
-- [ ] GetEvent
-- [ ] GetEventContext
+## Groups & Channels
+- [x] CreateChannel
+- [x] CreateGroup
+- [x] CreateTopic
 
-### Polls (3)
-- [ ] CreatePoll
-- [ ] VotePoll
-- [ ] EndPoll
+## Members & Admin
+- [x] AddMembers
+- [x] BanMember
+- [x] GetInviteLink
+- [x] GetMembers
+- [x] RemoveMember
+- [x] SetAdmin
+- [x] UnbanMember
 
-### Stickers (1)
-- [ ] SendSticker
+## Contacts & Users
+- [x] AddContact
+- [x] BlockUser
+- [x] DeleteContact
+- [x] GetBlockedUsers
+- [x] GetContacts
+- [x] GetProfile
+- [x] SearchGlobal
+- [x] UnblockUser
 
-### Media & Files (12)
-- [ ] UploadFile
-- [ ] DownloadFile
-- [ ] SendImageBase64
-- [ ] DownloadThumbnail
-- [ ] GetURLPreview
-- [ ] GetURLPreviewAuth
-- [ ] CreateMXCURI
-- [ ] GetMediaConfigAuth
-- [ ] DownloadMediaAuth
-- [ ] DownloadMediaAuthFilename
-- [ ] DownloadThumbnailAuth
-- [ ] UploadMediaAsync
+## Folders
+- [x] CreateFolder
+- [x] GetFolders
 
-### Read Receipts & Markers (6)
-- [ ] MarkAsRead
-- [ ] MarkUnread
-- [ ] GetReadState
-- [ ] SendPrivateReadReceipt
-- [ ] SetReadMarkers
-- [ ] GetFullyReadMarker
+## Sessions
+- [x] GetSessions
+- [x] TerminateSession
 
-### Typing Indicators (1)
-- [ ] SendTyping
+## Polls
+- [x] CreatePoll
+- [x] VotePoll
 
-### Pinning (3)
-- [ ] PinMessage
-- [ ] UnpinMessage
-- [ ] UnpinAllMessages
+## Search
+- [x] SearchMessages
+- [x] SearchUsers
 
-### Room Management (18)
-- [ ] CreateGroup
-- [ ] CreateChannel
-- [ ] CreateTopic
-- [ ] GetChatInfo
-- [ ] EditChatTitle
-- [ ] EditChatDescription
-- [ ] GetInviteLink
-- [ ] LeaveChat
-- [ ] JoinRoom
-- [ ] JoinRoomByAlias
-- [ ] KnockRoom
-- [ ] ForgetRoom
-- [ ] UpgradeRoom
-- [ ] ArchiveChat
-- [ ] MuteChat
-- [ ] GetDialogs
-- [ ] GetDirectChats
-- [ ] SetDirectChat
+## Event Handlers
+- [x] HandleUserLimitExceeded
 
-### Room State & Configuration (12)
-- [ ] GetRoomState
-- [ ] GetRoomVisibility
-- [ ] SetRoomVisibility
-- [ ] SetRoomAvatar
-- [ ] SetJoinRules
-- [ ] SetHistoryVisibility
-- [ ] SetGuestAccess
-- [ ] SetCanonicalAlias
-- [ ] GetRoomAliases
-- [ ] SetRoomAlias
-- [ ] DeleteRoomAlias
-- [ ] ResolveAlias
+## Spaces
+- [x] AddSpaceChild
+- [x] GetSpaceChildren
+- [x] RemoveSpaceChild
 
-### Room Metadata (4)
-- [ ] GetRoomCreationEvent
-- [ ] GetRoomTombstone
-- [ ] GetRoomSummary
-- [ ] GetForgetOnLeave
+## Threads
+- [x] GetThreadReplies
+- [x] GetThreads
 
-### Members & Permissions (8)
-- [ ] GetMembers
-- [ ] AddMembers
-- [ ] RemoveMember
-- [ ] BanMember
-- [ ] UnbanMember
-- [ ] SetAdmin
-- [ ] SetPowerLevels
-- [ ] InviteBy3PID
+## Push Rules & Notifications
+- [x] DeletePushRule
+- [x] EnablePushRule
+- [x] GetPushers
+- [x] GetPushRuleActions
+- [x] GetPushRuleEnabled
+- [x] GetPushRules
+- [x] SetPusher
+- [x] SetPushRule
+- [x] SetPushRuleActions
 
-### Contacts & Blocking (6)
-- [ ] GetContacts
-- [ ] AddContact
-- [ ] DeleteContact
-- [ ] BlockUser
-- [ ] UnblockUser
-- [ ] GetBlockedUsers
+## Cross-Signing & Secrets
+- [x] DeleteDehydratedDevice
+- [x] GenerateCrossSigningKeys
+- [x] GetDehydratedDevice
+- [x] GetDehydratedDeviceEvents
+- [x] GetSecretStorageKey
+- [x] SetDehydratedDevice
+- [x] SetSecretStorageKey
+- [x] UploadCrossSigningKeys
 
-### Folders & Tags (5)
-- [ ] GetFolders
-- [ ] CreateFolder
-- [ ] SetRoomTag
-- [ ] RemoveRoomTag
-- [ ] GetTags
+## Third-Party Identity
+- [x] Add3PID
+- [x] Bind3PID
+- [x] Delete3PID
+- [x] Delete3PIDByAddress
+- [x] Get3PIDs
+- [x] GetThirdPartyInvites
+- [x] GetThirdPartyProtocols
+- [x] InviteBy3PID
+- [x] LookupThirdPartyLocation
+- [x] LookupThirdPartyUser
+- [x] Unbind3PID
 
-### Spaces (3)
-- [ ] GetSpaceChildren
-- [ ] AddSpaceChild
-- [ ] RemoveSpaceChild
+## Sync
+- [x] SlidingSync
+- [x] SyncStateAfter
 
-### Threads (2)
-- [ ] GetThreads
-- [ ] GetThreadReplies
+## RTC & Location
+- [x] DeclineRTCSession
+- [x] GetRTCTransports
+- [x] SendLiveLocation
+- [x] SendRTCNotification
+- [x] SetRTCMemberState
 
-### Search (3)
-- [ ] SearchMessages
-- [ ] SearchGlobal
-- [ ] SearchUsers
+## Queries & Info
+- [x] GetAccountData
+- [x] GetCapabilities
+- [x] GetClientWellKnown
+- [x] GetDeviceInfo
+- [x] GetDirectChats
+- [x] GetEncryptionInfo
+- [x] GetEvent
+- [x] GetEventContext
+- [x] GetFilter
+- [x] GetForgetOnLeave
+- [x] GetFullyReadMarker
+- [x] GetIgnoredUsers
+- [x] GetKeyBackupInfo
+- [x] GetKeyChanges
+- [x] GetMediaConfig
+- [x] GetMediaConfigAuth
+- [x] GetMutualRooms
+- [x] GetNonCrossSignedExclusion
+- [x] GetNotifications
+- [x] GetPresence
+- [x] GetProfileField
+- [x] GetProfileFieldsCap
+- [x] GetPublicRooms
+- [x] GetRecentEmoji
+- [x] GetRoomAccountData
+- [x] GetRoomAliases
+- [x] GetRoomCreationEvent
+- [x] GetRoomState
+- [x] GetRoomSummary
+- [x] GetRoomTombstone
+- [x] GetRoomVisibility
+- [x] GetSupportContacts
+- [x] GetTags
+- [x] GetTurnServer
+- [x] GetURLPreview
+- [x] GetURLPreviewAuth
+- [x] GetVersions
 
-### Public Rooms (2)
-- [ ] GetPublicRooms
-- [ ] GetMutualRooms
+## Settings & Configuration
+- [x] SetAccountData
+- [x] SetAvatar
+- [x] SetCanonicalAlias
+- [x] SetDeviceName
+- [x] SetDirectChat
+- [x] SetDisplayName
+- [x] SetGuestAccess
+- [x] SetHistoryVisibility
+- [x] SetInviteBlocking
+- [x] SetJoinRules
+- [x] SetPolicyRule
+- [x] SetPowerLevels
+- [x] SetPresence
+- [x] SetProfileField
+- [x] SetReadMarkers
+- [x] SetRoomAccountData
+- [x] SetRoomAlias
+- [x] SetRoomAvatar
+- [x] SetRoomTag
+- [x] SetRoomVisibility
+- [x] SetServerACL
+- [x] SetTimezone
 
-### 1:1 Calls (VoIP) (12)
-- [ ] StartCall
-- [ ] AcceptCall
-- [ ] RejectCall
-- [ ] DeclineCall
-- [ ] EndCall
-- [ ] SetCallMuted
-- [ ] SetCallAudioSource
-- [ ] SetCallAudioSink
-- [ ] AcceptCallSelectAnswer
-- [ ] SendCallCandidates
-- [ ] SendCallNegotiate
-- [ ] SendCallAssertedIdentity
+## Deletion
+- [x] DeleteDevices
+- [x] DeleteProfileField
+- [x] DeleteRoomAlias
+- [x] RemoveRoomTag
 
-### Call Signaling (3)
-- [ ] CallReplaces
-- [ ] SDPStreamMetadataChanged
-- [ ] CallNotify
+## Creation
+- [x] CreateDelayedEvent
+- [x] CreateFilter
+- [x] CreateKeyBackup
+- [x] CreateMXCURI
 
-### Group Calls & RTC (7)
-- [ ] JoinGroupCall
-- [ ] GroupCallEncryptionKeys
-- [ ] SendGroupCallEncryptionKeys
-- [ ] GetRTCTransports
-- [ ] SetRTCMemberState
-- [ ] SendRTCNotification
-- [ ] DeclineRTCSession
+## Requests
+- [x] RequestEmailToken
+- [x] RequestMsisdnToken
+- [x] RequestOpenIDToken
 
-### E2EE & Key Management (10)
-- [ ] ExportKeys
-- [ ] ImportKeys
-- [ ] EnableEncryption
-- [ ] GetEncryptionInfo
-- [ ] CreateKeyBackup
-- [ ] RestoreKeyBackup
-- [ ] GetKeyBackupInfo
-- [ ] GetKeyChanges
-- [ ] SetSecretStorageKey
-- [ ] GetSecretStorageKey
+## Join & Leave
+- [x] JoinRoom
+- [x] JoinRoomByAlias
 
-### Cross-Signing & Verification (8)
-- [ ] VerifyDevice
-- [ ] StartSASVerification
-- [ ] AcceptSASVerification
-- [ ] ConfirmSASEmojis
-- [ ] CancelVerification
-- [ ] StartQRVerification
-- [ ] GenerateCrossSigningKeys
-- [ ] UploadCrossSigningKeys
+## Event Handlers
 
-### Signatures (1)
-- [ ] UploadSignatures
-
-### Secret Sharing (2)
-- [ ] SendSecretRequest
-- [ ] SendSecretSend
-
-### Dehydrated Devices (4)
-- [ ] SetDehydratedDevice
-- [ ] GetDehydratedDevice
-- [ ] DeleteDehydratedDevice
-- [ ] GetDehydratedDeviceEvents
-
-### Device Management (5)
-- [ ] GetSessions
-- [ ] TerminateSession
-- [ ] GetDeviceInfo
-- [ ] SetDeviceName
-- [ ] DeleteDevices
-
-### Push Notifications (10)
-- [ ] GetPushers
-- [ ] SetPusher
-- [ ] GetPushRules
-- [ ] SetPushRule
-- [ ] DeletePushRule
-- [ ] EnablePushRule
-- [ ] GetPushRuleActions
-- [ ] SetPushRuleActions
-- [ ] GetPushRuleEnabled
-- [ ] GetNotifications
-
-### Third-Party Identifiers (10)
-- [ ] Get3PIDs
-- [ ] Add3PID
-- [ ] Bind3PID
-- [ ] Delete3PID
-- [ ] Delete3PIDByAddress
-- [ ] Unbind3PID
-- [ ] RequestEmailToken
-- [ ] RequestMsisdnToken
-- [ ] ValidateEmailForAccount
-- [ ] ValidatePhoneForAccount
-
-### Third-Party Protocols (3)
-- [ ] GetThirdPartyProtocols
-- [ ] LookupThirdPartyLocation
-- [ ] LookupThirdPartyUser
-
-### Third-Party Invites (1)
-- [ ] GetThirdPartyInvites
-
-### Account Data (4)
-- [ ] SetAccountData
-- [ ] GetAccountData
-- [ ] SetRoomAccountData
-- [ ] GetRoomAccountData
-
-### Filters (2)
-- [ ] CreateFilter
-- [ ] GetFilter
-
-### Delayed Events (2)
-- [ ] CreateDelayedEvent
-- [ ] UpdateDelayedEvent
-
-### Sync (2)
-- [ ] SlidingSync
-- [ ] SyncStateAfter
-
-### To-Device Messaging (1)
-- [ ] SendToDevice
-
-### Moderation & Reporting (5)
-- [ ] ReportEvent
-- [ ] ReportRoom
-- [ ] ReportUser
-- [ ] RedactAllUserEvents
-- [ ] SetPolicyRule
-
-### Server Administration (4)
-- [ ] WhoisUser
-- [ ] SuspendUser
-- [ ] LockUser
-- [ ] HandleUserLimitExceeded
-
-### Privacy & Safety (2)
-- [ ] SetInviteBlocking
-- [ ] GetNonCrossSignedExclusion
-
-### Room ACL (1)
-- [ ] SetServerACL
-
-### TURN Server (1)
-- [ ] GetTurnServer
-
-### Tokens & Identity (2)
-- [ ] RequestOpenIDToken
-- [ ] TimestampToEvent
-
-### Lifecycle (3)
-- [ ] Name
-- [ ] OnUpdate
-- [ ] Close
+## Other
+- [x] AcceptSASVerification
+- [x] CancelVerification
+- [x] CheckUsernameAvailability
+- [x] ConfirmSASEmojis
+- [x] DownloadMediaAuth
+- [x] DownloadMediaAuthFilename
+- [x] DownloadThumbnail
+- [x] DownloadThumbnailAuth
+- [x] EnableEncryption
+- [x] EndPoll
+- [x] ExportKeys
+- [x] ForgetRoom
+- [x] ImportKeys
+- [x] KnockRoom
+- [x] LockUser
+- [x] LogoutAll
+- [x] RedactAllUserEvents
+- [x] ReportEvent
+- [x] ReportRoom
+- [x] ReportUser
+- [x] ResolveAlias
+- [x] RestoreKeyBackup
+- [x] SDPStreamMetadataChanged
+- [x] StartQRVerification
+- [x] StartSASVerification
+- [x] SuspendUser
+- [x] TimestampToEvent
+- [x] UpdateDelayedEvent
+- [x] UpgradeRoom
+- [x] UploadMediaAsync
+- [x] UploadSignatures
+- [x] ValidateEmailForAccount
+- [x] ValidatePhoneForAccount
+- [x] VerifyDevice
+- [x] WhoisUser

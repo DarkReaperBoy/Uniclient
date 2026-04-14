@@ -292,6 +292,9 @@ func (t *TelegramCore) initClient() {
 	})
 
 	dispatcher.OnDeleteChannelMessages(func(ctx context.Context, e tg.Entities, u *tg.UpdateDeleteChannelMessages) error {
+		if len(u.Messages) == 0 {
+			return nil
+		}
 		chatID := strconv.FormatInt(int64(-1000000000000-u.ChannelID), 10)
 		for _, msgID := range u.Messages {
 			t.fireUpdate(Update{
@@ -7781,20 +7784,6 @@ func (t *TelegramCore) SendAudioFrame(callID string, opusData []byte) error {
 	}
 	seq := uint16(atomic.AddUint32(&call.audioSeq, 1))
 	ts := atomic.AddUint32(&call.audioTS, tsIncrement)
-	if seq%500 == 1 {
-		senders := call.pc.GetSenders()
-		fmt.Printf("[tg-call] SendAudioFrame seq=%d: %d senders, pc=%s ice=%s\n",
-			seq, len(senders), call.pc.ConnectionState(), call.pc.ICEConnectionState())
-		for i, s := range senders {
-			params := s.GetParameters()
-			if s.Track() != nil {
-				fmt.Printf("[tg-call]   sender[%d] track=%s kind=%s encodings=%d\n",
-					i, s.Track().ID(), s.Track().Kind(), len(params.Encodings))
-			} else {
-				fmt.Printf("[tg-call]   sender[%d] track=nil encodings=%d\n", i, len(params.Encodings))
-			}
-		}
-	}
 	pkt := &pionrtp.Packet{
 		Header: pionrtp.Header{
 			Version:        2,
@@ -8633,7 +8622,18 @@ func (t *TelegramCore) Close() error {
 
 func (t *TelegramCore) fireUpdate(u Update) {
 	t.updateMu.RLock()
-	handlers := make([]func(Update), len(t.updateHandlers))
+	n := len(t.updateHandlers)
+	if n == 0 {
+		t.updateMu.RUnlock()
+		return
+	}
+	if n == 1 {
+		h := t.updateHandlers[0]
+		t.updateMu.RUnlock()
+		h(u)
+		return
+	}
+	handlers := make([]func(Update), n)
 	copy(handlers, t.updateHandlers)
 	t.updateMu.RUnlock()
 	for _, h := range handlers {
@@ -8809,16 +8809,21 @@ func (t *TelegramCore) getCachedFileRef(fileID int64) []byte {
 
 // cacheEntities extracts access hashes from user/chat lists and caches them.
 func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass) {
+	if len(users) == 0 && len(chats) == 0 {
+		return
+	}
+	t.peerMu.Lock()
 	for _, u := range users {
 		if user, ok := u.(*tg.User); ok {
-			t.cacheUserHash(user.ID, user.AccessHash)
+			t.userAccessHash[user.ID] = user.AccessHash
 		}
 	}
 	for _, c := range chats {
 		if ch, ok := c.(*tg.Channel); ok {
-			t.cacheChannelHash(ch.ID, ch.AccessHash)
+			t.channelAccessHash[ch.ID] = ch.AccessHash
 		}
 	}
+	t.peerMu.Unlock()
 }
 
 // resolveChannelAccessHash fetches the access hash for a channel/supergroup.
@@ -8858,39 +8863,31 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		Platform:   "telegram",
 	}
 
-	if msg.Out {
-		m.Status = MessageStatusSent
-	}
-
-	// Sender
 	if from := msg.FromID; from != nil {
 		m.SenderID = peerToID(from)
 	}
 
-	// Edit time
 	if msg.EditDate != 0 {
-		t := time.Unix(int64(msg.EditDate), 0)
-		m.EditedAt = &t
+		et := time.Unix(int64(msg.EditDate), 0)
+		m.EditedAt = &et
 	}
 
-	// Reply
 	if reply, ok := msg.GetReplyTo(); ok {
 		if rh, ok := reply.(*tg.MessageReplyHeader); ok {
 			m.ReplyToID = strconv.Itoa(rh.ReplyToMsgID)
 		}
 	}
 
-	// Forward
 	if fwd, ok := msg.GetFwdFrom(); ok {
 		if from, ok := fwd.GetFromID(); ok {
 			m.ForwardFrom = peerToID(from)
 		}
 	}
 
-	// Media/attachments
 	if media := msg.Media; media != nil {
-		if doc, ok := media.(*tg.MessageMediaDocument); ok {
-			if d, ok := doc.Document.(*tg.Document); ok {
+		switch md := media.(type) {
+		case *tg.MessageMediaDocument:
+			if d, ok := md.Document.(*tg.Document); ok {
 				ref := FileRef{
 					ID:       strconv.FormatInt(d.ID, 10),
 					Size:     d.Size,
@@ -8899,14 +8896,14 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				for _, attr := range d.Attributes {
 					if fn, ok := attr.(*tg.DocumentAttributeFilename); ok {
 						ref.Name = fn.FileName
+						break
 					}
 				}
-				m.Attachments = append(m.Attachments, ref)
+				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
 			}
-		}
-		if photo, ok := media.(*tg.MessageMediaPhoto); ok {
-			if p, ok := photo.Photo.(*tg.Photo); ok {
+		case *tg.MessageMediaPhoto:
+			if p, ok := md.Photo.(*tg.Photo); ok {
 				ref := FileRef{
 					ID:       strconv.FormatInt(p.ID, 10),
 					MimeType: "image/jpeg",
@@ -8917,25 +8914,24 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 						ref.Size = int64(s.Size)
 					}
 				}
-				m.Attachments = append(m.Attachments, ref)
+				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(p.ID, p.AccessHash, p.FileReference)
 			}
 		}
 	}
 
-	// Reactions
 	if reactions, ok := msg.GetReactions(); ok {
-		for _, r := range reactions.Results {
-			emoji := ""
-			if re, ok := r.Reaction.(*tg.ReactionEmoji); ok {
-				emoji = re.Emoticon
-			}
-			if emoji != "" {
-				m.Reactions = append(m.Reactions, Reaction{
-					Emoji: emoji,
-					Count: r.Count,
-					ByMe:  r.ChosenOrder > 0,
-				})
+		results := reactions.Results
+		if len(results) > 0 {
+			m.Reactions = make([]Reaction, 0, len(results))
+			for _, r := range results {
+				if re, ok := r.Reaction.(*tg.ReactionEmoji); ok && re.Emoticon != "" {
+					m.Reactions = append(m.Reactions, Reaction{
+						Emoji: re.Emoticon,
+						Count: r.Count,
+						ByMe:  r.ChosenOrder > 0,
+					})
+				}
 			}
 		}
 	}
@@ -8981,14 +8977,13 @@ func (t *TelegramCore) convertDialogs(result tg.MessagesDialogsClass) ([]Dialog,
 }
 
 func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageClass, chats []tg.ChatClass, users []tg.UserClass) []Dialog {
-	// Build lookup maps
-	userMap := make(map[int64]*tg.User)
+	userMap := make(map[int64]*tg.User, len(users))
 	for _, u := range users {
 		if user, ok := u.(*tg.User); ok {
 			userMap[user.ID] = user
 		}
 	}
-	chatMap := make(map[int64]tg.ChatClass)
+	chatMap := make(map[int64]tg.ChatClass, len(chats))
 	for _, c := range chats {
 		switch ch := c.(type) {
 		case *tg.Chat:
@@ -8997,14 +8992,14 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 			chatMap[ch.ID] = ch
 		}
 	}
-	msgMap := make(map[int]tg.MessageClass)
+	msgMap := make(map[int]tg.MessageClass, len(msgs))
 	for _, m := range msgs {
 		if msg, ok := m.(*tg.Message); ok {
 			msgMap[msg.ID] = msg
 		}
 	}
 
-	var result []Dialog
+	result := make([]Dialog, 0, len(dlgs))
 	for _, d := range dlgs {
 		dlg, ok := d.(*tg.Dialog)
 		if !ok {
@@ -9118,28 +9113,25 @@ func (t *TelegramCore) extractDialogFromUpdates(updates tg.UpdatesClass) *Dialog
 }
 
 func (t *TelegramCore) convertMessages(result tg.MessagesMessagesClass) []Message {
-	var messages []Message
+	var rawMsgs []tg.MessageClass
 	switch r := result.(type) {
 	case *tg.MessagesMessages:
 		t.cacheEntities(r.Users, r.Chats)
-		for _, m := range r.Messages {
-			if msg, ok := m.(*tg.Message); ok {
-				messages = append(messages, *t.convertMessage(msg))
-			}
-		}
+		rawMsgs = r.Messages
 	case *tg.MessagesMessagesSlice:
 		t.cacheEntities(r.Users, r.Chats)
-		for _, m := range r.Messages {
-			if msg, ok := m.(*tg.Message); ok {
-				messages = append(messages, *t.convertMessage(msg))
-			}
-		}
+		rawMsgs = r.Messages
 	case *tg.MessagesChannelMessages:
 		t.cacheEntities(r.Users, r.Chats)
-		for _, m := range r.Messages {
-			if msg, ok := m.(*tg.Message); ok {
-				messages = append(messages, *t.convertMessage(msg))
-			}
+		rawMsgs = r.Messages
+	}
+	if len(rawMsgs) == 0 {
+		return nil
+	}
+	messages := make([]Message, 0, len(rawMsgs))
+	for _, m := range rawMsgs {
+		if msg, ok := m.(*tg.Message); ok {
+			messages = append(messages, *t.convertMessage(msg))
 		}
 	}
 	return messages
@@ -15086,7 +15078,7 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 		return nil, fmt.Errorf("global search: %w", err)
 	}
 	t.cacheEntities(result.Users, result.Chats)
-	var dialogs []Dialog
+	dialogs := make([]Dialog, 0, len(result.Users)+len(result.Chats))
 	for _, u := range result.Users {
 		if user, ok := u.(*tg.User); ok {
 			dialogs = append(dialogs, Dialog{

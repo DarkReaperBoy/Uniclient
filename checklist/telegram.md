@@ -1,872 +1,837 @@
-# Telegram — Fresh Checklist
+# Telegram Checklist — 771 methods
 
-**Methods:** 771 exported | **Lines:** 15,326 | **File:** `go/cores/telegram.go`
-**Protocol:** Telegram MTProto (gotd/td v0.143.0, 681/763 API methods wrapped — 82 excluded: payments/premium/SMS/test)
-**Last updated:** 2026-04-13
 
-## Categories
+## Core Interface
+- [x] Capabilities
+- [x] Close
+- [x] Name
+- [x] OnUpdate
 
-### Core Interface (3)
-- [ ] Capabilities
-- [ ] Name
-- [ ] Close
+## Authentication
+- [x] AuthCodeRequested
+- [x] Authenticate
+- [x] AuthPasswordRequested
+- [x] Logout
+- [x] ProvideAuthCode
+- [x] ProvideAuthPassword
 
-### Authentication & Session — General (7)
-- [ ] Authenticate
-- [ ] AuthCodeRequested
-- [ ] AuthPasswordRequested
-- [ ] Logout
-- [ ] ProvideAuthCode
-- [ ] ProvideAuthPassword
-- [ ] StartBot
+## Dialogs & Chats
+- [x] ArchiveChat
+- [x] EditChatDescription
+- [x] EditChatTitle
+- [x] GetChatInfo
+- [x] GetDialogs
+- [x] GetPinnedDialogs
+- [x] LeaveChat
+- [x] MarkDialogUnread
+- [x] MuteChat
+- [x] PinDialog
+- [x] UnpinDialog
 
-### Authentication — auth.* (22)
-- [ ] AuthAcceptLoginToken
-- [ ] AuthBindTempAuthKey
-- [ ] AuthCancelCode
-- [ ] AuthCheckPaidAuth
-- [ ] AuthCheckPassword
-- [ ] AuthCheckRecoveryPassword
-- [ ] AuthDropTempAuthKeys
-- [ ] AuthExportAuthorization
-- [ ] AuthExportLoginToken
-- [ ] AuthFinishPasskeyLogin
-- [ ] AuthImportAuthorization
-- [ ] AuthImportBotAuthorization
-- [ ] AuthImportLoginToken
-- [ ] AuthImportWebTokenAuthorization
-- [ ] AuthInitPasskeyLogin
-- [ ] AuthRecoverPassword
-- [ ] AuthReportMissingCode
-- [ ] AuthRequestFirebaseSMS
-- [ ] AuthRequestPasswordRecovery
-- [ ] AuthResendCode
-- [ ] AuthResetAuthorizations
-- [ ] AuthResetLoginEmail
-- [ ] AuthSendCode
-- [ ] AuthSignIn
-- [ ] AuthSignUp
+## Messaging
+- [x] DeleteChatHistory
+- [x] DeleteHistory
+- [x] DeleteMessage
+- [x] EditMessage
+- [x] ForwardMessage
+- [x] GetMessageReadParticipants
+- [x] GetMessages
+- [x] GetMessageViews
+- [x] GetReadState
+- [x] GetWebPagePreview
+- [x] MarkAsRead
+- [x] MarkUnread
+- [x] PinMessage
+- [x] ReactToMessage
+- [x] ReadMentions
+- [x] ReadReactions
+- [x] ReplyToMessage
+- [x] SearchMessagesGlobal
+- [x] SendImageBase64
+- [x] SendInlineBotResult
+- [x] SendLocation
+- [x] SendMessage
+- [x] SendMultiMedia
+- [x] SendPoll
+- [x] SendScheduled
+- [x] SendScheduledNow
+- [x] SendSticker
+- [x] SendStory
+- [x] SendStoryWithPhoto
+- [x] SendTyping
+- [x] TranslateText
+- [x] UnpinAllMessages
+- [x] UnpinMessage
 
-### Account — Profile & Settings (25)
-- [ ] AccountChangeAuthorizationSettings
-- [ ] AccountChangePhone
-- [ ] AccountCheckUsername
-- [ ] AccountDeleteAccount
-- [ ] AccountFinishTakeoutSession
-- [ ] AccountGetContactSignUpNotification
-- [ ] AccountGetContentSettings
-- [ ] AccountGetNotifyExceptions
-- [ ] AccountGetNotifySettings
-- [ ] AccountGetTmpPassword
-- [ ] AccountGetWebAuthorizations
-- [ ] AccountInitTakeoutSession
-- [ ] AccountInvalidateSignInCodes
-- [ ] AccountRegisterDevice
-- [ ] AccountReorderUsernames
-- [ ] AccountReportPeer
-- [ ] AccountReportProfilePhoto
-- [ ] AccountResetNotifySettings
-- [ ] AccountResetWebAuthorization
-- [ ] AccountResetWebAuthorizations
-- [ ] AccountSetAuthorizationTTL
-- [ ] AccountSetContactSignUpNotification
-- [ ] AccountSetContentSettings
-- [ ] AccountSetMainProfileTab
-- [ ] AccountToggleSponsoredMessages
-- [ ] AccountToggleUsername
-- [ ] AccountUnregisterDevice
-- [ ] AccountUpdateDeviceLocked
-- [ ] AccountUpdateNotifySettings
-- [ ] AccountUpdatePersonalChannel
+## Media & Files
+- [x] DeleteProfilePhotos
+- [x] DownloadFile
+- [x] UploadFile
+- [x] UploadProfilePhoto
 
-### Account — Password & Security (10)
-- [ ] AccountCancelPasswordEmail
-- [ ] AccountConfirmPasswordEmail
-- [ ] AccountDeclinePasswordReset
-- [ ] AccountGetPasswordSettings
-- [ ] AccountResendPasswordEmail
-- [ ] AccountResetPassword
-- [ ] AccountUpdatePasswordSettings
-- [ ] GetPassword
-- [ ] GetActiveSessions
-- [ ] TerminateSession
+## Media Streaming
+- [x] SendAudioFrame
+- [x] SendScreenFrame
+- [x] SendScreenFrameYUV
+- [x] SendVideoFrame
+- [x] SendVideoFrameYUV
+- [x] SetAudioFrameDuration
+- [x] SetEchoMode
+- [x] SetOnAudioFrame
+- [x] SetOnDecodedScreenFrame
+- [x] SetOnDecodedVideoFrame
+- [x] SetOnScreenFrame
+- [x] SetOnVideoFrame
+- [x] SetVideoDecoderFactory
+- [x] SetVideoEncoderFactory
 
-### Account — Passkeys (4)
-- [ ] AccountDeletePasskey
-- [ ] AccountGetPasskeys
-- [ ] AccountInitPasskeyRegistration
-- [ ] AccountRegisterPasskey
+## Screen Share & Recording
+- [x] StartScreenShare
+- [x] StopScreenShare
 
-### Account — Phone Verification (6)
-- [ ] AccountConfirmPhone
-- [ ] AccountSendChangePhoneCode
-- [ ] AccountSendConfirmPhoneCode
-- [ ] AccountSendVerifyPhoneCode
-- [ ] AccountVerifyPhone
-- [ ] AccountSendVerifyEmailCode
-- [ ] AccountVerifyEmail
+## Calls
+- [x] AcceptCall
+- [x] DeclineCall
+- [x] EndCall
+- [x] GetBotCallbackAnswer
+- [x] GetCallConfig
+- [x] MessagesDeletePhoneCallHistory
+- [x] MessagesSetBotCallbackAnswer
+- [x] PhoneCreateConferenceCall
+- [x] PhoneDeclineConferenceCallInvite
+- [x] PhoneDeleteConferenceCallParticipants
+- [x] PhoneInviteConferenceCallParticipant
+- [x] PhoneReceivedCall
+- [x] PhoneSaveCallDebug
+- [x] PhoneSaveCallLog
+- [x] PhoneSendConferenceCallBroadcast
+- [x] PhoneSetCallRating
+- [x] SendCallRating
+- [x] SetCallMuted
+- [x] SetCallVideo
+- [x] StartCall
+- [x] StartCallRecording
+- [x] StopCallRecording
+- [x] TestAcceptCallRaw
+- [x] TestGetCallAudioSSRC
+- [x] TestGetCallInfo
+- [x] TestGetCallPCState
+- [x] TestGetCallStats
+- [x] TestStartCallRaw
 
-### Account — Privacy & Status (5)
-- [ ] GetGlobalPrivacy
-- [ ] SetGlobalPrivacy
-- [ ] GetPrivacy
-- [ ] SetPrivacy
-- [ ] UpdateStatus
+## Group Calls
+- [x] CreateGroupCall
+- [x] CreateScheduledGroupCall
+- [x] GetGroupCall
+- [x] GetGroupCallStreamChannels
+- [x] GetGroupCallStreamRtmpURL
+- [x] JoinGroupCall
+- [x] JoinGroupCallWithVideo
+- [x] LeaveGroupCall
+- [x] PhoneCheckGroupCall
+- [x] PhoneCreateGroupCall
+- [x] PhoneDeleteGroupCallMessages
+- [x] PhoneDeleteGroupCallParticipantMessages
+- [x] PhoneDiscardGroupCall
+- [x] PhoneEditGroupCallParticipant
+- [x] PhoneEditGroupCallTitle
+- [x] PhoneExportGroupCallInvite
+- [x] PhoneGetGroupCall
+- [x] PhoneGetGroupCallChainBlocks
+- [x] PhoneGetGroupCallJoinAs
+- [x] PhoneGetGroupCallStars
+- [x] PhoneGetGroupCallStreamChannels
+- [x] PhoneGetGroupCallStreamRtmpURL
+- [x] PhoneInviteToGroupCall
+- [x] PhoneJoinGroupCall
+- [x] PhoneJoinGroupCallPresentation
+- [x] PhoneLeaveGroupCall
+- [x] PhoneLeaveGroupCallPresentation
+- [x] PhoneSaveDefaultGroupCallJoinAs
+- [x] PhoneSendGroupCallEncryptedMessage
+- [x] PhoneSendGroupCallMessage
+- [x] PhoneStartScheduledGroupCall
+- [x] PhoneToggleGroupCallRecord
+- [x] PhoneToggleGroupCallSettings
+- [x] PhoneToggleGroupCallStartSubscription
+- [x] SetGroupCallMuted
+- [x] SetGroupCallParticipantVolume
+- [x] StartGroupCallScreenShare
+- [x] StartScheduledGroupCall
+- [x] StopGroupCallScreenShare
+- [x] TestGetGroupCallAccessHash
 
-### Account — Theme & Wallpaper (16)
-- [ ] AccountCreateTheme
-- [ ] AccountGetChatThemes
-- [ ] AccountGetMultiWallPapers
-- [ ] AccountGetTheme
-- [ ] AccountGetThemes
-- [ ] AccountGetUniqueGiftChatThemes
-- [ ] AccountGetWallPaper
-- [ ] AccountGetWallPapers
-- [ ] AccountInstallTheme
-- [ ] AccountInstallWallPaper
-- [ ] AccountResetWallPapers
-- [ ] AccountSaveTheme
-- [ ] AccountSaveWallPaper
-- [ ] AccountUpdateTheme
-- [ ] AccountUploadTheme
-- [ ] AccountUploadWallPaper
+## Groups & Channels
+- [x] CreateChannel
+- [x] CreateGroup
+- [x] CreateTopic
+- [x] DeleteChannel
+- [x] EditChannelPhoto
+- [x] EditChannelTitle
+- [x] GetFullChannel
+- [x] GetFullChat
+- [x] GetParticipants
+- [x] JoinChannel
+- [x] LeaveChannel
 
-### Account — Emoji & Reactions (13)
-- [ ] AccountClearRecentEmojiStatuses
-- [ ] AccountGetChannelDefaultEmojiStatuses
-- [ ] AccountGetChannelRestrictedStatusEmojis
-- [ ] AccountGetCollectibleEmojiStatuses
-- [ ] AccountGetDefaultBackgroundEmojis
-- [ ] AccountGetDefaultEmojiStatuses
-- [ ] AccountGetDefaultGroupPhotoEmojis
-- [ ] AccountGetDefaultProfilePhotoEmojis
-- [ ] AccountGetReactionsNotifySettings
-- [ ] AccountGetRecentEmojiStatuses
-- [ ] AccountSetReactionsNotifySettings
-- [ ] AccountUpdateColor
-- [ ] AccountUpdateEmojiStatus
+## Channel/Group Settings
+- [x] ToggleAntiSpam
+- [x] ToggleAutotranslation
+- [x] ToggleForum
+- [x] ToggleGroupCallVideo
+- [x] ToggleJoinRequest
+- [x] ToggleJoinToSend
+- [x] ToggleNoForwards
+- [x] ToggleParticipantsHidden
+- [x] TogglePreHistoryHidden
+- [x] ToggleSignatures
+- [x] ToggleViewForumAsMessages
 
-### Account — Auto-Download & Auto-Save (5)
-- [ ] AccountDeleteAutoSaveExceptions
-- [ ] AccountGetAutoDownloadSettings
-- [ ] AccountGetAutoSaveSettings
-- [ ] AccountSaveAutoDownloadSettings
-- [ ] AccountSaveAutoSaveSettings
+## Members & Admin
+- [x] AddChatUser
+- [x] AddMembers
+- [x] BanMember
+- [x] DeleteChatUser
+- [x] DemoteAdmin
+- [x] ExportChatInvite
+- [x] GetAdminLog
+- [x] GetInviteLink
+- [x] GetMembers
+- [x] InviteToChannel
+- [x] PromoteAdmin
+- [x] RemoveMember
+- [x] RestrictUser
+- [x] SetAdmin
+- [x] SetGroupPermissions
+- [x] UnbanMember
 
-### Account — Secure Values (Passport) (5)
-- [ ] AccountAcceptAuthorization
-- [ ] AccountGetAllSecureValues
-- [ ] AccountGetAuthorizationForm
-- [ ] AccountGetSecureValue
-- [ ] AccountSaveSecureValue
-- [ ] AccountDeleteSecureValue
+## Contacts & Users
+- [x] AddContact
+- [x] BlockUser
+- [x] DeleteContact
+- [x] GetBlockedUsers
+- [x] GetContacts
+- [x] GetProfile
+- [x] ResolveUsername
+- [x] SearchGlobal
+- [x] UnblockUser
 
-### Account — Business (14)
-- [ ] AccountCreateBusinessChatLink
-- [ ] AccountDeleteBusinessChatLink
-- [ ] AccountDisablePeerConnectedBot
-- [ ] AccountEditBusinessChatLink
-- [ ] AccountGetBotBusinessConnection
-- [ ] AccountGetBusinessChatLinks
-- [ ] AccountGetConnectedBots
-- [ ] AccountResolveBusinessChatLink
-- [ ] AccountToggleConnectedBotPaused
-- [ ] AccountUpdateBusinessAwayMessage
-- [ ] AccountUpdateBusinessGreetingMessage
-- [ ] AccountUpdateBusinessIntro
-- [ ] AccountUpdateBusinessLocation
-- [ ] AccountUpdateBusinessWorkHours
-- [ ] AccountUpdateConnectedBot
+## Folders
+- [x] CreateFolder
+- [x] DeleteFolder
+- [x] GetFolders
 
-### Account — Paid Messages (2)
-- [ ] AccountGetPaidMessagesRevenue
-- [ ] AccountToggleNoPaidMessagesException
+## Sessions
+- [x] GetActiveSessions
+- [x] GetSessions
+- [x] TerminateSession
 
-### Account — Ringtones & Music (4)
-- [ ] AccountGetSavedMusicIDs
-- [ ] AccountGetSavedRingtones
-- [ ] AccountSaveMusic
-- [ ] AccountSaveRingtone
-- [ ] AccountUploadRingtone
+## Polls
+- [x] CreatePoll
+- [x] VoteInPoll
+- [x] VotePoll
 
-### Profile (7)
-- [ ] GetProfile
-- [ ] UpdateProfile
-- [ ] UpdateUsername
-- [ ] UpdateBirthday
-- [ ] DeleteProfilePhotos
-- [ ] UploadProfilePhoto
-- [ ] GetUserPhotos
+## Stickers
+- [x] ChannelsSetEmojiStickers
+- [x] ChannelsSetStickers
+- [x] FaveSticker
+- [x] GetAllStickerSets
+- [x] GetFavedStickers
+- [x] GetFeaturedStickersCount
+- [x] GetRecentStickersCount
+- [x] GetStickerSet
+- [x] MessagesClearRecentStickers
+- [x] MessagesGetArchivedStickers
+- [x] MessagesGetAttachedStickers
+- [x] MessagesGetEmojiStickerGroups
+- [x] MessagesGetEmojiStickers
+- [x] MessagesGetFeaturedEmojiStickers
+- [x] MessagesGetMaskStickers
+- [x] MessagesGetMyStickers
+- [x] MessagesGetOldFeaturedStickers
+- [x] MessagesGetStickers
+- [x] MessagesInstallStickerSet
+- [x] MessagesReadFeaturedStickers
+- [x] MessagesReorderStickerSets
+- [x] MessagesSaveRecentSticker
+- [x] MessagesSearchEmojiStickerSets
+- [x] MessagesSearchStickers
+- [x] MessagesToggleStickerSets
+- [x] MessagesUninstallStickerSet
+- [x] SearchStickerSetsCount
+- [x] StickersAddStickerToSet
+- [x] StickersChangeSticker
+- [x] StickersChangeStickerPosition
+- [x] StickersCheckShortName
+- [x] StickersCreateStickerSet
+- [x] StickersDeleteStickerSet
+- [x] StickersRemoveStickerFromSet
+- [x] StickersRenameStickerSet
+- [x] StickersReplaceSticker
+- [x] StickersSetStickerSetThumb
+- [x] StickersSuggestShortName
 
-### Profile Photos (2)
-- [ ] PhotosUpdateProfilePhoto
-- [ ] PhotosUploadContactProfilePhoto
+## Drafts
+- [x] ClearDraft
+- [x] GetAllDrafts
+- [x] MessagesClearAllDrafts
+- [x] SaveDraft
 
-### Contacts (17)
-- [ ] AddContact
-- [ ] DeleteContact
-- [ ] DeleteContacts
-- [ ] GetContactIDs
-- [ ] GetContacts
-- [ ] ImportContacts
-- [ ] ResolvePhone
-- [ ] ResolveUsername
-- [ ] ContactsAcceptContact
-- [ ] ContactsBlockFromReplies
-- [ ] ContactsDeleteByPhones
-- [ ] EditCloseFriends
-- [ ] ContactsExportContactToken
-- [ ] ContactsGetLocated
-- [ ] ContactsGetSaved
-- [ ] ContactsGetStatuses
-- [ ] ContactsImportContactToken
-- [ ] ContactsResetSaved
-- [ ] ContactsResetTopPeerRating
-- [ ] ContactsSetBlocked
-- [ ] ContactsToggleTopPeers
-- [ ] ContactsUpdateContactNote
-- [ ] ContactsGetSponsoredPeers
-- [ ] SearchContactsCount
+## Scheduled Messages
+- [x] DeleteScheduledMessages
+- [x] GetScheduledMessages
+- [x] MessagesGetScheduledMessages
 
-### Users (6)
-- [ ] GetFullUser
-- [ ] BlockUser
-- [ ] UnblockUser
-- [ ] GetBlockedUsers
-- [ ] UsersGetRequirementsToContact
-- [ ] UsersSuggestBirthday
-- [ ] UsersGetSavedMusic
-- [ ] UsersGetSavedMusicByID
-- [ ] UsersSetSecureValueErrors
+## Forum Topics
+- [x] CreateForumTopic
+- [x] DeleteTopicHistory
+- [x] EditForumTopic
+- [x] GetForumTopics
+- [x] MessagesGetForumTopicsByID
+- [x] PinForumTopic
+- [x] ReorderPinnedForumTopics
 
-### Messaging — Send & Edit (17)
-- [ ] SendMessage
-- [ ] SendMultiMedia
-- [ ] SendImageBase64
-- [ ] SendLocation
-- [ ] SendSticker
-- [ ] ReplyToMessage
-- [ ] ForwardMessage
-- [ ] EditMessage
-- [ ] DeleteMessage
-- [ ] SendInlineBotResult
-- [ ] SendScheduled
-- [ ] SendScheduledNow
-- [ ] DeleteScheduledMessages
-- [ ] GetScheduledMessages
-- [ ] ExportMessageLink
-- [ ] SendTyping
-- [ ] SetTyping
+## Stories
+- [x] DeleteStories
+- [x] GetAllStories
+- [x] GetPeerStories
+- [x] GetPinnedStories
+- [x] GetStoryViews
+- [x] ReactToStory
+- [x] StatsGetStoryPublicForwards
+- [x] StatsGetStoryStats
+- [x] StoriesActivateStealthMode
+- [x] StoriesCanSendStory
+- [x] StoriesCreateAlbum
+- [x] StoriesDeleteAlbum
+- [x] StoriesEditStory
+- [x] StoriesExportStoryLink
+- [x] StoriesGetAlbums
+- [x] StoriesGetAlbumStories
+- [x] StoriesGetAllReadPeerStories
+- [x] StoriesGetChatsToSend
+- [x] StoriesGetPeerMaxIDs
+- [x] StoriesGetStoriesArchive
+- [x] StoriesGetStoriesByID
+- [x] StoriesGetStoryReactionsList
+- [x] StoriesGetStoryViewsList
+- [x] StoriesIncrementStoryViews
+- [x] StoriesReadStories
+- [x] StoriesReorderAlbums
+- [x] StoriesReport
+- [x] StoriesSearchPosts
+- [x] StoriesStartLive
+- [x] StoriesToggleAllStoriesHidden
+- [x] StoriesTogglePeerStoriesHidden
+- [x] StoriesTogglePinned
+- [x] StoriesTogglePinnedToTop
+- [x] StoriesUpdateAlbum
 
-### Messaging — Read & State (10)
-- [ ] MarkAsRead
-- [ ] MarkDialogUnread
-- [ ] MarkUnread
-- [ ] ReadMentions
-- [ ] ReadReactions
-- [ ] GetReadState
-- [ ] GetMessageViews
-- [ ] GetMessageReadParticipants
-- [ ] GetOutboxReadDate
-- [ ] ClearDraft
-- [ ] SaveDraft
+## Profile & Settings
+- [x] GetFullUser
+- [x] UpdateBirthday
+- [x] UpdateProfile
+- [x] UpdateStatus
+- [x] UpdateUsername
 
-### Messaging — Search & Fetch (11)
-- [ ] GetMessages
-- [ ] SearchMessages
-- [ ] SearchGlobal
-- [ ] SearchMessagesGlobal
-- [ ] GetSearchCalendar
-- [ ] GetSearchCounters
-- [ ] GetWebPagePreview
-- [ ] TranslateText
-- [ ] GetUnreadMentions
-- [ ] GetUnreadReactions
-- [ ] GetAllDrafts
+## Privacy
+- [x] GetGlobalPrivacy
+- [x] GetPrivacy
+- [x] MessagesGetPaidReactionPrivacy
+- [x] MessagesTogglePaidReactionPrivacy
+- [x] SetGlobalPrivacy
+- [x] SetPrivacy
 
-### Messaging — Reactions & Polls (11)
-- [ ] ReactToMessage
-- [ ] GetReactionsList
-- [ ] GetMessageReactionsList
-- [ ] SetChatReactions
-- [ ] SetDefaultReaction
-- [ ] CreatePoll
-- [ ] SendPoll
-- [ ] VoteInPoll
-- [ ] VotePoll
-- [ ] GetPollResults
-- [ ] GetPollVotes
+## Search
+- [x] SearchContactsCount
+- [x] SearchMessages
 
-### Messaging — Inline & Bot Interaction (3)
-- [ ] GetInlineBotResults
-- [ ] GetBotCallbackAnswer
-- [ ] OnUpdate
+## Chat Invites & Lists
+- [x] ChatlistsCheckChatlistInvite
+- [x] ChatlistsEditExportedInvite
+- [x] ChatlistsGetChatlistUpdates
+- [x] ChatlistsGetLeaveChatlistSuggestions
+- [x] ChatlistsHideChatlistUpdates
+- [x] ChatlistsJoinChatlistUpdates
+- [x] ChatlistsLeaveChatlist
+- [x] CheckChatInvite
+- [x] DeleteChatInvite
+- [x] DeleteChatlistInvite
+- [x] EditChatInvite
+- [x] ExportChatlistInvite
+- [x] GetChatlistInvites
+- [x] GetInviteImporters
+- [x] ImportChatInvite
+- [x] JoinChatlistInvite
+- [x] MessagesDeleteRevokedExportedChatInvites
+- [x] MessagesGetExportedChatInvite
+- [x] MessagesGetExportedChatInvites
 
-### Messages — Extended API (133)
-- [ ] MessagesAcceptEncryption
-- [ ] MessagesAcceptURLAuth
-- [ ] MessagesAddPollAnswer
-- [ ] MessagesAppendTodoList
-- [ ] MessagesCheckHistoryImport
-- [ ] MessagesCheckHistoryImportPeer
-- [ ] MessagesCheckQuickReplyShortcut
-- [ ] MessagesCheckURLAuthMatchCode
-- [ ] MessagesClearAllDrafts
-- [ ] MessagesClearRecentReactions
-- [ ] MessagesClearRecentStickers
-- [ ] MessagesClickSponsoredMessage
-- [ ] MessagesComposeMessageWithAI
-- [ ] MessagesDeclineURLAuth
-- [ ] MessagesDeleteChat
-- [ ] MessagesDeleteFactCheck
-- [ ] MessagesDeletePhoneCallHistory
-- [ ] MessagesDeletePollAnswer
-- [ ] MessagesDeleteQuickReplyMessages
-- [ ] MessagesDeleteQuickReplyShortcut
-- [ ] MessagesDeleteRevokedExportedChatInvites
-- [ ] MessagesDeleteSavedHistory
-- [ ] MessagesDiscardEncryption
-- [ ] MessagesEditChatAbout
-- [ ] MessagesEditChatAdmin
-- [ ] MessagesEditChatCreator
-- [ ] MessagesEditChatParticipantRank
-- [ ] MessagesEditChatPhoto
-- [ ] MessagesEditChatTitle
-- [ ] MessagesEditFactCheck
-- [ ] MessagesEditInlineBotMessage
-- [ ] MessagesEditQuickReplyShortcut
-- [ ] MessagesGetAdminsWithInvites
-- [ ] MessagesGetArchivedStickers
-- [ ] MessagesGetAttachedStickers
-- [ ] MessagesGetAttachMenuBot
-- [ ] MessagesGetAttachMenuBots
-- [ ] MessagesGetAvailableEffects
-- [ ] MessagesGetAvailableReactions
-- [ ] MessagesGetBotApp
-- [ ] MessagesGetChats
-- [ ] MessagesGetCustomEmojiDocuments
-- [ ] MessagesGetDefaultTagReactions
-- [ ] MessagesGetDiscussionMessage
-- [ ] MessagesGetDocumentByHash
-- [ ] MessagesGetEmojiGameInfo
-- [ ] MessagesGetEmojiGroups
-- [ ] MessagesGetEmojiKeywords
-- [ ] MessagesGetEmojiKeywordsDifference
-- [ ] MessagesGetEmojiKeywordsLanguages
-- [ ] MessagesGetEmojiProfilePhotoGroups
-- [ ] MessagesGetEmojiStatusGroups
-- [ ] MessagesGetEmojiStickerGroups
-- [ ] MessagesGetEmojiStickers
-- [ ] MessagesGetEmojiURL
-- [ ] MessagesGetExportedChatInvite
-- [ ] MessagesGetExportedChatInvites
-- [ ] MessagesGetExtendedMedia
-- [ ] MessagesGetFactCheck
-- [ ] MessagesGetFeaturedEmojiStickers
-- [ ] MessagesGetForumTopicsByID
-- [ ] MessagesGetFutureChatCreatorAfterLeave
-- [ ] MessagesGetGameHighScores
-- [ ] MessagesGetInlineGameHighScores
-- [ ] MessagesGetMaskStickers
-- [ ] MessagesGetMessageEditData
-- [ ] MessagesGetMessages
-- [ ] MessagesGetMessagesReactions
-- [ ] MessagesGetMyStickers
-- [ ] MessagesGetOldFeaturedStickers
-- [ ] MessagesGetPaidReactionPrivacy
-- [ ] MessagesGetPeerDialogs
-- [ ] MessagesGetPinnedSavedDialogs
-- [ ] MessagesGetPreparedInlineMessage
-- [ ] MessagesGetQuickReplies
-- [ ] MessagesGetQuickReplyMessages
-- [ ] MessagesGetRecentLocations
-- [ ] MessagesGetRecentReactions
-- [ ] MessagesGetReplies
-- [ ] MessagesGetSavedDialogs
-- [ ] MessagesGetSavedDialogsByID
-- [ ] MessagesGetSavedGifs
-- [ ] MessagesGetSavedHistory
-- [ ] MessagesGetSavedReactionTags
-- [ ] MessagesGetScheduledMessages
-- [ ] MessagesGetSearchResultsPositions
-- [ ] MessagesGetSplitRanges
-- [ ] MessagesGetSponsoredMessages
-- [ ] MessagesGetStickers
-- [ ] MessagesGetTopReactions
-- [ ] MessagesGetUnreadPollVotes
-- [ ] MessagesGetWebPage
-- [ ] MessagesHideAllChatJoinRequests
-- [ ] MessagesHidePeerSettingsBar
-- [ ] MessagesInitHistoryImport
-- [ ] MessagesInstallStickerSet
-- [ ] MessagesProlongWebView
-- [ ] MessagesRateTranscribedAudio
-- [ ] MessagesReadDiscussion
-- [ ] MessagesReadEncryptedHistory
-- [ ] MessagesReadFeaturedStickers
-- [ ] MessagesReadMessageContents
-- [ ] MessagesReadPollVotes
-- [ ] MessagesReadSavedHistory
-- [ ] MessagesReceivedMessages
-- [ ] MessagesReceivedQueue
-- [ ] MessagesReorderPinnedSavedDialogs
-- [ ] MessagesReorderQuickReplies
-- [ ] MessagesReorderStickerSets
-- [ ] MessagesReport
-- [ ] MessagesReportEncryptedSpam
-- [ ] MessagesReportMessagesDelivery
-- [ ] MessagesReportMusicListen
-- [ ] MessagesReportReaction
-- [ ] MessagesReportReadMetrics
-- [ ] MessagesReportSpam
-- [ ] MessagesReportSponsoredMessage
-- [ ] MessagesRequestAppWebView
-- [ ] MessagesRequestEncryption
-- [ ] MessagesRequestMainWebView
-- [ ] MessagesRequestSimpleWebView
-- [ ] MessagesRequestURLAuth
-- [ ] MessagesRequestWebView
-- [ ] MessagesSaveDefaultSendAs
-- [ ] MessagesSaveGif
-- [ ] MessagesSavePreparedInlineMessage
-- [ ] MessagesSaveRecentSticker
-- [ ] MessagesSearchCustomEmoji
-- [ ] MessagesSearchEmojiStickerSets
-- [ ] MessagesSearchSentMedia
-- [ ] MessagesSearchStickers
-- [ ] MessagesSendBotRequestedPeer
-- [ ] MessagesSendEncrypted
-- [ ] MessagesSendEncryptedFile
-- [ ] MessagesSendEncryptedService
-- [ ] MessagesSendPaidReaction
-- [ ] MessagesSendQuickReplyMessages
-- [ ] MessagesSendScreenshotNotification
-- [ ] MessagesSendWebViewData
-- [ ] MessagesSendWebViewResultMessage
-- [ ] MessagesSetBotCallbackAnswer
-- [ ] MessagesSetBotPrecheckoutResults
-- [ ] MessagesSetBotShippingResults
-- [ ] MessagesSetDefaultHistoryTTL
-- [ ] MessagesSetEncryptedTyping
-- [ ] MessagesSetGameScore
-- [ ] MessagesSetInlineBotResults
-- [ ] MessagesSetInlineGameScore
-- [ ] MessagesStartHistoryImport
-- [ ] MessagesSummarizeText
-- [ ] MessagesToggleBotInAttachMenu
-- [ ] MessagesToggleDialogFilterTags
-- [ ] MessagesTogglePaidReactionPrivacy
-- [ ] MessagesTogglePeerTranslations
-- [ ] MessagesToggleSavedDialogPin
-- [ ] MessagesToggleStickerSets
-- [ ] MessagesToggleSuggestedPostApproval
-- [ ] MessagesToggleTodoCompleted
-- [ ] MessagesTranscribeAudio
-- [ ] MessagesUninstallStickerSet
-- [ ] MessagesUpdateSavedReactionTag
-- [ ] MessagesUploadEncryptedFile
-- [ ] MessagesUploadImportedMedia
-- [ ] MessagesUploadMedia
-- [ ] MessagesViewSponsoredMessage
+## Account
+- [x] AccountAcceptAuthorization
+- [x] AccountCancelPasswordEmail
+- [x] AccountChangeAuthorizationSettings
+- [x] AccountChangePhone
+- [x] AccountCheckUsername
+- [x] AccountClearRecentEmojiStatuses
+- [x] AccountConfirmPasswordEmail
+- [x] AccountConfirmPhone
+- [x] AccountCreateBusinessChatLink
+- [x] AccountCreateTheme
+- [x] AccountDeclinePasswordReset
+- [x] AccountDeleteAccount
+- [x] AccountDeleteAutoSaveExceptions
+- [x] AccountDeleteBusinessChatLink
+- [x] AccountDeletePasskey
+- [x] AccountDeleteSecureValue
+- [x] AccountDisablePeerConnectedBot
+- [x] AccountEditBusinessChatLink
+- [x] AccountFinishTakeoutSession
+- [x] AccountGetAllSecureValues
+- [x] AccountGetAuthorizationForm
+- [x] AccountGetAutoDownloadSettings
+- [x] AccountGetAutoSaveSettings
+- [x] AccountGetBotBusinessConnection
+- [x] AccountGetBusinessChatLinks
+- [x] AccountGetChannelDefaultEmojiStatuses
+- [x] AccountGetChannelRestrictedStatusEmojis
+- [x] AccountGetChatThemes
+- [x] AccountGetCollectibleEmojiStatuses
+- [x] AccountGetConnectedBots
+- [x] AccountGetContactSignUpNotification
+- [x] AccountGetContentSettings
+- [x] AccountGetDefaultBackgroundEmojis
+- [x] AccountGetDefaultEmojiStatuses
+- [x] AccountGetDefaultGroupPhotoEmojis
+- [x] AccountGetDefaultProfilePhotoEmojis
+- [x] AccountGetMultiWallPapers
+- [x] AccountGetNotifyExceptions
+- [x] AccountGetNotifySettings
+- [x] AccountGetPaidMessagesRevenue
+- [x] AccountGetPasskeys
+- [x] AccountGetPasswordSettings
+- [x] AccountGetReactionsNotifySettings
+- [x] AccountGetRecentEmojiStatuses
+- [x] AccountGetSavedMusicIDs
+- [x] AccountGetSavedRingtones
+- [x] AccountGetSecureValue
+- [x] AccountGetTheme
+- [x] AccountGetThemes
+- [x] AccountGetTmpPassword
+- [x] AccountGetUniqueGiftChatThemes
+- [x] AccountGetWallPaper
+- [x] AccountGetWallPapers
+- [x] AccountGetWebAuthorizations
+- [x] AccountInitPasskeyRegistration
+- [x] AccountInitTakeoutSession
+- [x] AccountInstallTheme
+- [x] AccountInstallWallPaper
+- [x] AccountInvalidateSignInCodes
+- [x] AccountRegisterDevice
+- [x] AccountRegisterPasskey
+- [x] AccountReorderUsernames
+- [x] AccountReportPeer
+- [x] AccountReportProfilePhoto
+- [x] AccountResendPasswordEmail
+- [x] AccountResetNotifySettings
+- [x] AccountResetPassword
+- [x] AccountResetWallPapers
+- [x] AccountResetWebAuthorization
+- [x] AccountResetWebAuthorizations
+- [x] AccountResolveBusinessChatLink
+- [x] AccountSaveAutoDownloadSettings
+- [x] AccountSaveAutoSaveSettings
+- [x] AccountSaveMusic
+- [x] AccountSaveRingtone
+- [x] AccountSaveSecureValue
+- [x] AccountSaveTheme
+- [x] AccountSaveWallPaper
+- [x] AccountSendChangePhoneCode
+- [x] AccountSendConfirmPhoneCode
+- [x] AccountSendVerifyEmailCode
+- [x] AccountSendVerifyPhoneCode
+- [x] AccountSetAuthorizationTTL
+- [x] AccountSetContactSignUpNotification
+- [x] AccountSetContentSettings
+- [x] AccountSetMainProfileTab
+- [x] AccountSetReactionsNotifySettings
+- [x] AccountToggleConnectedBotPaused
+- [x] AccountToggleNoPaidMessagesException
+- [x] AccountToggleSponsoredMessages
+- [x] AccountToggleUsername
+- [x] AccountUnregisterDevice
+- [x] AccountUpdateBusinessAwayMessage
+- [x] AccountUpdateBusinessGreetingMessage
+- [x] AccountUpdateBusinessIntro
+- [x] AccountUpdateBusinessLocation
+- [x] AccountUpdateBusinessWorkHours
+- [x] AccountUpdateColor
+- [x] AccountUpdateConnectedBot
+- [x] AccountUpdateDeviceLocked
+- [x] AccountUpdateEmojiStatus
+- [x] AccountUpdateNotifySettings
+- [x] AccountUpdatePasswordSettings
+- [x] AccountUpdatePersonalChannel
+- [x] AccountUpdateTheme
+- [x] AccountUploadRingtone
+- [x] AccountUploadTheme
+- [x] AccountUploadWallPaper
+- [x] AccountVerifyEmail
+- [x] AccountVerifyPhone
 
-### Chats & Groups (22)
-- [ ] CreateGroup
-- [ ] AddChatUser
-- [ ] DeleteChatUser
-- [ ] AddMembers
-- [ ] RemoveMember
-- [ ] GetChatInfo
-- [ ] EditChatTitle
-- [ ] EditChatDescription
-- [ ] GetFullChat
-- [ ] GetFullChatParticipantsCount
-- [ ] MigrateChat
-- [ ] LeaveChat
-- [ ] MuteChat
-- [ ] ArchiveChat
-- [ ] SetChatTheme
-- [ ] SetChatWallpaper
-- [ ] DeleteChatHistory
-- [ ] DeleteHistory
-- [ ] SetHistoryTTL
-- [ ] GetDefaultHistoryTTL
-- [ ] SetSlowMode
-- [ ] GetOnlineCount
+## Queries & Info
+- [x] GetAccountTTL
+- [x] GetAppConfig
+- [x] GetAppConfigCheck
+- [x] GetBirthdaysCount
+- [x] GetBroadcastStats
+- [x] GetChannelDifference
+- [x] GetCommonChats
+- [x] GetConfig
+- [x] GetConfigDCCount
+- [x] GetContactIDs
+- [x] GetCountriesList
+- [x] GetDefaultHistoryTTL
+- [x] GetDialogUnreadMarksCount
+- [x] GetDifferenceCheck
+- [x] GetFullChatParticipantsCount
+- [x] GetMegagroupStats
+- [x] GetMessageReactionsList
+- [x] GetNearestDC
+- [x] GetOnlineCount
+- [x] GetOutboxReadDate
+- [x] GetParticipantInfo
+- [x] GetPassword
+- [x] GetPeerSettingsCheck
+- [x] GetPollResults
+- [x] GetPollVotes
+- [x] GetReactionsList
+- [x] GetSearchCalendar
+- [x] GetSearchCounters
+- [x] GetSendAs
+- [x] GetSuggestedFoldersCount
+- [x] GetTopPeersCount
+- [x] GetUnreadMentions
+- [x] GetUnreadReactions
+- [x] GetUserPhotos
 
-### Chat Invites (8)
-- [ ] CheckChatInvite
-- [ ] ImportChatInvite
-- [ ] ExportChatInvite
-- [ ] EditChatInvite
-- [ ] DeleteChatInvite
-- [ ] GetInviteLink
-- [ ] GetInviteImporters
-- [ ] HideChatJoinRequest
+## Settings & Configuration
+- [x] SetAccountTTL
+- [x] SetChatReactions
+- [x] SetChatTheme
+- [x] SetChatWallpaper
+- [x] SetDefaultReaction
+- [x] SetHistoryTTL
+- [x] SetSlowMode
+- [x] SetTyping
 
-### Channels & Supergroups (30)
-- [ ] CreateChannel
-- [ ] RawCreateChannel
-- [ ] DeleteChannel
-- [ ] JoinChannel
-- [ ] LeaveChannel
-- [ ] InviteToChannel
-- [ ] EditChannelTitle
-- [ ] EditChannelPhoto
-- [ ] UpdateChannelColor
-- [ ] UpdateChannelUsername
-- [ ] GetFullChannel
-- [ ] ChannelsCheckSearchPostsFlood
-- [ ] ChannelsCheckUsername
-- [ ] ChannelsConvertToGigagroup
-- [ ] ChannelsDeactivateAllUsernames
-- [ ] ChannelsDeleteHistory
-- [ ] ChannelsDeleteParticipantHistory
-- [ ] ChannelsEditLocation
-- [ ] ChannelsGetAdminedPublicChannels
-- [ ] ChannelsGetChannelRecommendations
-- [ ] ChannelsGetGroupsForDiscussion
-- [ ] ChannelsGetInactiveChannels
-- [ ] ChannelsGetLeftChannels
-- [ ] ChannelsGetMessageAuthor
-- [ ] ChannelsGetMessages
-- [ ] ChannelsReadMessageContents
-- [ ] ChannelsReorderUsernames
-- [ ] ChannelsReportAntiSpamFalsePositive
-- [ ] ChannelsReportSpam
-- [ ] ChannelsRestrictSponsoredMessages
-- [ ] ChannelsSearchPosts
-- [ ] ChannelsSetBoostsToUnblockRestrictions
-- [ ] ChannelsSetDiscussionGroup
-- [ ] ChannelsSetEmojiStickers
-- [ ] ChannelsSetMainProfileTab
-- [ ] ChannelsSetStickers
-- [ ] ChannelsToggleUsername
-- [ ] ChannelsUpdateEmojiStatus
-- [ ] ChannelsUpdatePaidMessagesPrice
+## Deletion
+- [x] DeleteContacts
 
-### Channel & Group Admin (15)
-- [ ] PromoteAdmin
-- [ ] DemoteAdmin
-- [ ] SetAdmin
-- [ ] BanMember
-- [ ] UnbanMember
-- [ ] RestrictUser
-- [ ] SetGroupPermissions
-- [ ] GetAdminLog
-- [ ] GetMembers
-- [ ] GetParticipants
-- [ ] GetParticipantInfo
-- [ ] ToggleAntiSpam
-- [ ] ToggleJoinRequest
-- [ ] ToggleJoinToSend
-- [ ] ToggleNoForwards
-- [ ] ToggleParticipantsHidden
-- [ ] TogglePreHistoryHidden
-- [ ] ToggleSignatures
+## Editing
+- [x] EditCloseFriends
 
-### Forum Topics (9)
-- [ ] CreateForumTopic
-- [ ] CreateTopic
-- [ ] EditForumTopic
-- [ ] GetForumTopics
-- [ ] PinForumTopic
-- [ ] DeleteTopicHistory
-- [ ] ReorderPinnedForumTopics
-- [ ] ToggleForum
-- [ ] ToggleViewForumAsMessages
+## Other
+- [x] AuthAcceptLoginToken
+- [x] AuthBindTempAuthKey
+- [x] AuthCancelCode
+- [x] AuthCheckPaidAuth
+- [x] AuthCheckPassword
+- [x] AuthCheckRecoveryPassword
+- [x] AuthDropTempAuthKeys
+- [x] AuthExportAuthorization
+- [x] AuthExportLoginToken
+- [x] AuthFinishPasskeyLogin
+- [x] AuthImportAuthorization
+- [x] AuthImportLoginToken
+- [x] AuthImportWebTokenAuthorization
+- [x] AuthInitPasskeyLogin
+- [x] AuthRecoverPassword
+- [x] AuthReportMissingCode
+- [x] AuthRequestFirebaseSMS
+- [x] AuthRequestPasswordRecovery
+- [x] AuthResendCode
+- [x] AuthResetAuthorizations
+- [x] AuthResetLoginEmail
+- [x] AuthSendCode
+- [x] AuthSignIn
+- [x] AuthSignUp
+- [x] ChannelsCheckSearchPostsFlood
+- [x] ChannelsCheckUsername
+- [x] ChannelsConvertToGigagroup
+- [x] ChannelsDeactivateAllUsernames
+- [x] ChannelsDeleteHistory
+- [x] ChannelsDeleteParticipantHistory
+- [x] ChannelsEditLocation
+- [x] ChannelsGetAdminedPublicChannels
+- [x] ChannelsGetChannelRecommendations
+- [x] ChannelsGetGroupsForDiscussion
+- [x] ChannelsGetInactiveChannels
+- [x] ChannelsGetLeftChannels
+- [x] ChannelsGetMessageAuthor
+- [x] ChannelsGetMessages
+- [x] ChannelsReadMessageContents
+- [x] ChannelsReorderUsernames
+- [x] ChannelsReportAntiSpamFalsePositive
+- [x] ChannelsReportSpam
+- [x] ChannelsRestrictSponsoredMessages
+- [x] ChannelsSearchPosts
+- [x] ChannelsSetBoostsToUnblockRestrictions
+- [x] ChannelsSetDiscussionGroup
+- [x] ChannelsSetMainProfileTab
+- [x] ChannelsToggleUsername
+- [x] ChannelsUpdateEmojiStatus
+- [x] ChannelsUpdatePaidMessagesPrice
+- [x] ContactsAcceptContact
+- [x] ContactsBlockFromReplies
+- [x] ContactsDeleteByPhones
+- [x] ContactsExportContactToken
+- [x] ContactsGetLocated
+- [x] ContactsGetSaved
+- [x] ContactsGetSponsoredPeers
+- [x] ContactsGetStatuses
+- [x] ContactsImportContactToken
+- [x] ContactsResetSaved
+- [x] ContactsResetTopPeerRating
+- [x] ContactsSetBlocked
+- [x] ContactsToggleTopPeers
+- [x] ContactsUpdateContactNote
+- [x] ExportMessageLink
+- [x] HelpAcceptTermsOfService
+- [x] HelpDismissSuggestion
+- [x] HelpEditUserInfo
+- [x] HelpGetAppUpdate
+- [x] HelpGetCDNConfig
+- [x] HelpGetDeepLinkInfo
+- [x] HelpGetInviteText
+- [x] HelpGetPassportConfig
+- [x] HelpGetPeerColors
+- [x] HelpGetPeerProfileColors
+- [x] HelpGetPremiumPromo
+- [x] HelpGetPromoData
+- [x] HelpGetRecentMeURLs
+- [x] HelpGetSupport
+- [x] HelpGetSupportName
+- [x] HelpGetTermsOfServiceUpdate
+- [x] HelpGetTimezonesList
+- [x] HelpGetUserInfo
+- [x] HelpHidePromoData
+- [x] HelpSaveAppLog
+- [x] HideChatJoinRequest
+- [x] ImportContacts
+- [x] InvokeJSON
+- [x] LangpackGetDifference
+- [x] LangpackGetLangPack
+- [x] LangpackGetLanguage
+- [x] LangpackGetLanguages
+- [x] LangpackGetStrings
+- [x] MessagesAcceptEncryption
+- [x] MessagesAcceptURLAuth
+- [x] MessagesAddPollAnswer
+- [x] MessagesAppendTodoList
+- [x] MessagesCheckHistoryImport
+- [x] MessagesCheckHistoryImportPeer
+- [x] MessagesCheckQuickReplyShortcut
+- [x] MessagesCheckURLAuthMatchCode
+- [x] MessagesClearRecentReactions
+- [x] MessagesClickSponsoredMessage
+- [x] MessagesComposeMessageWithAI
+- [x] MessagesDeclineURLAuth
+- [x] MessagesDeleteChat
+- [x] MessagesDeleteFactCheck
+- [x] MessagesDeletePollAnswer
+- [x] MessagesDeleteQuickReplyMessages
+- [x] MessagesDeleteQuickReplyShortcut
+- [x] MessagesDeleteSavedHistory
+- [x] MessagesDiscardEncryption
+- [x] MessagesEditChatAbout
+- [x] MessagesEditChatAdmin
+- [x] MessagesEditChatCreator
+- [x] MessagesEditChatParticipantRank
+- [x] MessagesEditChatPhoto
+- [x] MessagesEditChatTitle
+- [x] MessagesEditFactCheck
+- [x] MessagesEditQuickReplyShortcut
+- [x] MessagesGetAdminsWithInvites
+- [x] MessagesGetAvailableEffects
+- [x] MessagesGetAvailableReactions
+- [x] MessagesGetChats
+- [x] MessagesGetCustomEmojiDocuments
+- [x] MessagesGetDefaultTagReactions
+- [x] MessagesGetDiscussionMessage
+- [x] MessagesGetDocumentByHash
+- [x] MessagesGetEmojiGameInfo
+- [x] MessagesGetEmojiGroups
+- [x] MessagesGetEmojiKeywords
+- [x] MessagesGetEmojiKeywordsDifference
+- [x] MessagesGetEmojiKeywordsLanguages
+- [x] MessagesGetEmojiProfilePhotoGroups
+- [x] MessagesGetEmojiStatusGroups
+- [x] MessagesGetEmojiURL
+- [x] MessagesGetExtendedMedia
+- [x] MessagesGetFactCheck
+- [x] MessagesGetFutureChatCreatorAfterLeave
+- [x] MessagesGetGameHighScores
+- [x] MessagesGetInlineGameHighScores
+- [x] MessagesGetMessageEditData
+- [x] MessagesGetMessages
+- [x] MessagesGetMessagesReactions
+- [x] MessagesGetPeerDialogs
+- [x] MessagesGetPinnedSavedDialogs
+- [x] MessagesGetPreparedInlineMessage
+- [x] MessagesGetQuickReplies
+- [x] MessagesGetQuickReplyMessages
+- [x] MessagesGetRecentLocations
+- [x] MessagesGetRecentReactions
+- [x] MessagesGetReplies
+- [x] MessagesGetSavedDialogs
+- [x] MessagesGetSavedDialogsByID
+- [x] MessagesGetSavedGifs
+- [x] MessagesGetSavedHistory
+- [x] MessagesGetSavedReactionTags
+- [x] MessagesGetSearchResultsPositions
+- [x] MessagesGetSplitRanges
+- [x] MessagesGetSponsoredMessages
+- [x] MessagesGetTopReactions
+- [x] MessagesGetUnreadPollVotes
+- [x] MessagesGetWebPage
+- [x] MessagesHideAllChatJoinRequests
+- [x] MessagesHidePeerSettingsBar
+- [x] MessagesInitHistoryImport
+- [x] MessagesProlongWebView
+- [x] MessagesRateTranscribedAudio
+- [x] MessagesReadDiscussion
+- [x] MessagesReadEncryptedHistory
+- [x] MessagesReadMessageContents
+- [x] MessagesReadPollVotes
+- [x] MessagesReadSavedHistory
+- [x] MessagesReceivedMessages
+- [x] MessagesReceivedQueue
+- [x] MessagesReorderPinnedSavedDialogs
+- [x] MessagesReorderQuickReplies
+- [x] MessagesReport
+- [x] MessagesReportEncryptedSpam
+- [x] MessagesReportMessagesDelivery
+- [x] MessagesReportMusicListen
+- [x] MessagesReportReaction
+- [x] MessagesReportReadMetrics
+- [x] MessagesReportSpam
+- [x] MessagesReportSponsoredMessage
+- [x] MessagesRequestAppWebView
+- [x] MessagesRequestEncryption
+- [x] MessagesRequestMainWebView
+- [x] MessagesRequestSimpleWebView
+- [x] MessagesRequestURLAuth
+- [x] MessagesRequestWebView
+- [x] MessagesSaveDefaultSendAs
+- [x] MessagesSaveGif
+- [x] MessagesSavePreparedInlineMessage
+- [x] MessagesSearchCustomEmoji
+- [x] MessagesSearchSentMedia
+- [x] MessagesSendEncrypted
+- [x] MessagesSendEncryptedFile
+- [x] MessagesSendEncryptedService
+- [x] MessagesSendPaidReaction
+- [x] MessagesSendQuickReplyMessages
+- [x] MessagesSendScreenshotNotification
+- [x] MessagesSendWebViewData
+- [x] MessagesSendWebViewResultMessage
+- [x] MessagesSetDefaultHistoryTTL
+- [x] MessagesSetEncryptedTyping
+- [x] MessagesSetGameScore
+- [x] MessagesSetInlineGameScore
+- [x] MessagesStartHistoryImport
+- [x] MessagesSummarizeText
+- [x] MessagesToggleDialogFilterTags
+- [x] MessagesTogglePeerTranslations
+- [x] MessagesToggleSavedDialogPin
+- [x] MessagesToggleSuggestedPostApproval
+- [x] MessagesToggleTodoCompleted
+- [x] MessagesTranscribeAudio
+- [x] MessagesUpdateSavedReactionTag
+- [x] MessagesUploadEncryptedFile
+- [x] MessagesUploadImportedMedia
+- [x] MessagesUploadMedia
+- [x] MessagesViewSponsoredMessage
+- [x] MigrateChat
+- [x] PhoneGetGroupParticipants
+- [x] PhoneSaveDefaultSendAs
+- [x] PhotosUpdateProfilePhoto
+- [x] PhotosUploadContactProfilePhoto
+- [x] RawCreateChannel
+- [x] ReorderDialogFilters
+- [x] ReorderPinnedDialogs
+- [x] ResolvePhone
+- [x] StatsGetMessagePublicForwards
+- [x] StatsGetMessageStats
+- [x] StatsLoadAsyncGraph
+- [x] TestGetSenderSSRCs
+- [x] TestHandleSignalingData
+- [x] TestSendRawSignaling
+- [x] TestSetSignalingInInterceptor
+- [x] TestSetSignalingOutInterceptor
+- [x] UpdateChannelColor
+- [x] UpdateChannelUsername
+- [x] UploadGetCDNFile
+- [x] UploadGetCDNFileHashes
+- [x] UploadGetFile
+- [x] UploadGetFileHashes
+- [x] UploadGetWebFile
+- [x] UploadReuploadCDNFile
+- [x] UploadSaveBigFilePart
+- [x] UploadSaveFilePart
+- [x] UsersGetRequirementsToContact
+- [x] UsersGetSavedMusic
+- [x] UsersGetSavedMusicByID
+- [x] UsersSetSecureValueErrors
+- [x] UsersSuggestBirthday
 
-### Dialogs & Folders (12)
-- [ ] GetDialogs
-- [ ] GetDialogUnreadMarksCount
-- [ ] GetPinnedDialogs
-- [ ] PinDialog
-- [ ] UnpinDialog
-- [ ] ReorderPinnedDialogs
-- [ ] CreateFolder
-- [ ] DeleteFolder
-- [ ] GetFolders
-- [ ] ReorderDialogFilters
-- [ ] GetSuggestedFoldersCount
-- [ ] GetDifferenceCheck
-
-### Chat Lists (Folders v2) (7)
-- [ ] ChatlistsCheckChatlistInvite
-- [ ] ChatlistsEditExportedInvite
-- [ ] ChatlistsGetChatlistUpdates
-- [ ] ChatlistsGetLeaveChatlistSuggestions
-- [ ] ChatlistsHideChatlistUpdates
-- [ ] ChatlistsJoinChatlistUpdates
-- [ ] ChatlistsLeaveChatlist
-- [ ] DeleteChatlistInvite
-- [ ] ExportChatlistInvite
-- [ ] GetChatlistInvites
-- [ ] JoinChatlistInvite
-
-### Pin Messages (4)
-- [ ] PinMessage
-- [ ] UnpinMessage
-- [ ] UnpinAllMessages
-- [ ] GetCommonChats
-
-### Stickers (20)
-- [ ] FaveSticker
-- [ ] GetAllStickerSets
-- [ ] GetFavedStickers
-- [ ] GetFeaturedStickersCount
-- [ ] GetRecentStickersCount
-- [ ] GetStickerSet
-- [ ] SearchStickerSetsCount
-- [ ] StickersAddStickerToSet
-- [ ] StickersChangeSticker
-- [ ] StickersChangeStickerPosition
-- [ ] StickersCheckShortName
-- [ ] StickersCreateStickerSet
-- [ ] StickersDeleteStickerSet
-- [ ] StickersRemoveStickerFromSet
-- [ ] StickersRenameStickerSet
-- [ ] StickersReplaceSticker
-- [ ] StickersSetStickerSetThumb
-- [ ] StickersSuggestShortName
-
-### Stories (30)
-- [ ] SendStory
-- [ ] SendStoryWithPhoto
-- [ ] DeleteStories
-- [ ] ReactToStory
-- [ ] GetAllStories
-- [ ] GetPeerStories
-- [ ] GetPinnedStories
-- [ ] GetStoryViews
-- [ ] StoriesActivateStealthMode
-- [ ] StoriesCanSendStory
-- [ ] StoriesCreateAlbum
-- [ ] StoriesDeleteAlbum
-- [ ] StoriesEditStory
-- [ ] StoriesExportStoryLink
-- [ ] StoriesGetAlbums
-- [ ] StoriesGetAlbumStories
-- [ ] StoriesGetAllReadPeerStories
-- [ ] StoriesGetChatsToSend
-- [ ] StoriesGetPeerMaxIDs
-- [ ] StoriesGetStoriesArchive
-- [ ] StoriesGetStoriesByID
-- [ ] StoriesGetStoryReactionsList
-- [ ] StoriesGetStoryViewsList
-- [ ] StoriesIncrementStoryViews
-- [ ] StoriesReadStories
-- [ ] StoriesReorderAlbums
-- [ ] StoriesReport
-- [ ] StoriesSearchPosts
-- [ ] StoriesStartLive
-- [ ] StoriesToggleAllStoriesHidden
-- [ ] StoriesTogglePeerStoriesHidden
-- [ ] StoriesTogglePinned
-- [ ] StoriesTogglePinnedToTop
-- [ ] StoriesUpdateAlbum
-
-### Phone Calls — Private (13)
-- [ ] AcceptCall
-- [ ] DeclineCall
-- [ ] StartCall
-- [ ] EndCall
-- [ ] GetCallConfig
-- [ ] SendCallRating
-- [ ] SendAudioFrame
-- [ ] SendVideoFrame
-- [ ] SendVideoFrameYUV
-- [ ] SendScreenFrame
-- [ ] SendScreenFrameYUV
-- [ ] SetAudioFrameDuration
-- [ ] SetCallMuted
-- [ ] SetCallVideo
-
-### Phone Calls — Callbacks & Codecs (7)
-- [ ] SetOnAudioFrame
-- [ ] SetOnDecodedScreenFrame
-- [ ] SetOnDecodedVideoFrame
-- [ ] SetOnScreenFrame
-- [ ] SetOnVideoFrame
-- [ ] SetVideoDecoderFactory
-- [ ] SetVideoEncoderFactory
-
-### Phone Calls — Call Recording & Screen Share (6)
-- [ ] StartCallRecording
-- [ ] StopCallRecording
-- [ ] StartScreenShare
-- [ ] StopScreenShare
-- [ ] StartGroupCallScreenShare
-- [ ] StopGroupCallScreenShare
-- [ ] SetEchoMode
-
-### Phone — Group Calls (30)
-- [ ] CreateGroupCall
-- [ ] CreateScheduledGroupCall
-- [ ] StartScheduledGroupCall
-- [ ] JoinGroupCall
-- [ ] JoinGroupCallWithVideo
-- [ ] LeaveGroupCall
-- [ ] ToggleGroupCallVideo
-- [ ] SetGroupCallMuted
-- [ ] SetGroupCallParticipantVolume
-- [ ] GetGroupCall
-- [ ] GetGroupCallStreamChannels
-- [ ] GetGroupCallStreamRtmpURL
-- [ ] PhoneCheckGroupCall
-- [ ] PhoneCreateConferenceCall
-- [ ] PhoneCreateGroupCall
-- [ ] PhoneDeclineConferenceCallInvite
-- [ ] PhoneDeleteConferenceCallParticipants
-- [ ] PhoneDeleteGroupCallMessages
-- [ ] PhoneDeleteGroupCallParticipantMessages
-- [ ] PhoneDiscardGroupCall
-- [ ] PhoneEditGroupCallParticipant
-- [ ] PhoneEditGroupCallTitle
-- [ ] PhoneExportGroupCallInvite
-- [ ] PhoneGetGroupCall
-- [ ] PhoneGetGroupCallChainBlocks
-- [ ] PhoneGetGroupCallJoinAs
-- [ ] PhoneGetGroupCallStars
-- [ ] PhoneGetGroupCallStreamChannels
-- [ ] PhoneGetGroupCallStreamRtmpURL
-- [ ] PhoneGetGroupParticipants
-- [ ] PhoneInviteConferenceCallParticipant
-- [ ] PhoneInviteToGroupCall
-- [ ] PhoneJoinGroupCall
-- [ ] PhoneJoinGroupCallPresentation
-- [ ] PhoneLeaveGroupCall
-- [ ] PhoneLeaveGroupCallPresentation
-- [ ] PhoneReceivedCall
-- [ ] PhoneSaveCallDebug
-- [ ] PhoneSaveCallLog
-- [ ] PhoneSaveDefaultGroupCallJoinAs
-- [ ] PhoneSaveDefaultSendAs
-- [ ] PhoneSendConferenceCallBroadcast
-- [ ] PhoneSendGroupCallEncryptedMessage
-- [ ] PhoneSendGroupCallMessage
-- [ ] PhoneSetCallRating
-- [ ] PhoneStartScheduledGroupCall
-- [ ] PhoneToggleGroupCallRecord
-- [ ] PhoneToggleGroupCallSettings
-- [ ] PhoneToggleGroupCallStartSubscription
-
-### Bots API (36)
-- [ ] BotsAddPreviewMedia
-- [ ] BotsAllowSendMessage
-- [ ] BotsAnswerWebhookJSONQuery
-- [ ] BotsCanSendMessage
-- [ ] BotsCheckDownloadFileParams
-- [ ] BotsCheckUsername
-- [ ] BotsCreateBot
-- [ ] BotsDeletePreviewMedia
-- [ ] BotsEditPreviewMedia
-- [ ] BotsExportBotToken
-- [ ] BotsGetAdminedBots
-- [ ] BotsGetBotCommands
-- [ ] BotsGetBotInfo
-- [ ] BotsGetBotMenuButton
-- [ ] BotsGetBotRecommendations
-- [ ] BotsGetPopularAppBots
-- [ ] BotsGetPreviewInfo
-- [ ] BotsGetPreviewMedias
-- [ ] BotsGetRequestedWebViewButton
-- [ ] BotsInvokeWebViewCustomMethod
-- [ ] BotsReorderPreviewMedias
-- [ ] BotsReorderUsernames
-- [ ] BotsRequestWebViewButton
-- [ ] BotsResetBotCommands
-- [ ] BotsSendCustomRequest
-- [ ] BotsSetBotBroadcastDefaultAdminRights
-- [ ] BotsSetBotCommands
-- [ ] BotsSetBotGroupDefaultAdminRights
-- [ ] BotsSetBotInfo
-- [ ] BotsSetBotMenuButton
-- [ ] BotsSetCustomVerification
-- [ ] BotsToggleUserEmojiStatusPermission
-- [ ] BotsToggleUsername
-- [ ] BotsUpdateStarRefProgram
-- [ ] BotsUpdateUserEmojiStatus
-
-### File Upload & Download (12)
-- [ ] DownloadFile
-- [ ] UploadFile
-- [ ] UploadGetCDNFile
-- [ ] UploadGetCDNFileHashes
-- [ ] UploadGetFile
-- [ ] UploadGetFileHashes
-- [ ] UploadGetWebFile
-- [ ] UploadReuploadCDNFile
-- [ ] UploadSaveBigFilePart
-- [ ] UploadSaveFilePart
-
-### Stats & Analytics (6)
-- [ ] GetBroadcastStats
-- [ ] GetMegagroupStats
-- [ ] StatsGetMessagePublicForwards
-- [ ] StatsGetMessageStats
-- [ ] StatsGetStoryPublicForwards
-- [ ] StatsGetStoryStats
-- [ ] StatsLoadAsyncGraph
-
-### Localization (langpack) (5)
-- [ ] LangpackGetDifference
-- [ ] LangpackGetLangPack
-- [ ] LangpackGetLanguage
-- [ ] LangpackGetLanguages
-- [ ] LangpackGetStrings
-
-### Help & Config (21)
-- [ ] GetAppConfig
-- [ ] GetAppConfigCheck
-- [ ] GetConfig
-- [ ] GetConfigDCCount
-- [ ] GetCountriesList
-- [ ] GetNearestDC
-- [ ] GetSendAs
-- [ ] GetSessions
-- [ ] GetTopPeersCount
-- [ ] GetBirthdaysCount
-- [ ] GetAccountTTL
-- [ ] SetAccountTTL
-- [ ] GetPeerSettingsCheck
-- [ ] GetChannelDifference
-- [ ] HelpAcceptTermsOfService
-- [ ] HelpDismissSuggestion
-- [ ] HelpEditUserInfo
-- [ ] HelpGetAppUpdate
-- [ ] HelpGetCDNConfig
-- [ ] HelpGetDeepLinkInfo
-- [ ] HelpGetInviteText
-- [ ] HelpGetPassportConfig
-- [ ] HelpGetPeerColors
-- [ ] HelpGetPeerProfileColors
-- [ ] HelpGetPremiumPromo
-- [ ] HelpGetPromoData
-- [ ] HelpGetRecentMeURLs
-- [ ] HelpGetSupport
-- [ ] HelpGetSupportName
-- [ ] HelpGetTermsOfServiceUpdate
-- [ ] HelpGetTimezonesList
-- [ ] HelpGetUserInfo
-- [ ] HelpHidePromoData
-- [ ] HelpSaveAppLog
-- [ ] HelpSetBotUpdatesStatus
-
-### Autotranslation (1)
-- [ ] ToggleAutotranslation
-
-### JSON Invoke (1)
-- [ ] InvokeJSON
-
-### Test / Debug Helpers (13)
-- [ ] TestAcceptCallRaw
-- [ ] TestGetCallAudioSSRC
-- [ ] TestGetCallInfo
-- [ ] TestGetCallPCState
-- [ ] TestGetCallStats
-- [ ] TestGetGroupCallAccessHash
-- [ ] TestGetSenderSSRCs
-- [ ] TestHandleSignalingData
-- [ ] TestSendRawSignaling
-- [ ] TestSetSignalingInInterceptor
-- [ ] TestSetSignalingOutInterceptor
-- [ ] TestStartCallRaw
+## Bots
+- [x] AuthImportBotAuthorization
+- [x] BotsAddPreviewMedia
+- [x] BotsAllowSendMessage
+- [x] BotsAnswerWebhookJSONQuery
+- [x] BotsCanSendMessage
+- [x] BotsCheckDownloadFileParams
+- [x] BotsCheckUsername
+- [x] BotsCreateBot
+- [x] BotsDeletePreviewMedia
+- [x] BotsEditPreviewMedia
+- [x] BotsExportBotToken
+- [x] BotsGetAdminedBots
+- [x] BotsGetBotCommands
+- [x] BotsGetBotInfo
+- [x] BotsGetBotMenuButton
+- [x] BotsGetBotRecommendations
+- [x] BotsGetPopularAppBots
+- [x] BotsGetPreviewInfo
+- [x] BotsGetPreviewMedias
+- [x] BotsGetRequestedWebViewButton
+- [x] BotsInvokeWebViewCustomMethod
+- [x] BotsReorderPreviewMedias
+- [x] BotsReorderUsernames
+- [x] BotsRequestWebViewButton
+- [x] BotsResetBotCommands
+- [x] BotsSendCustomRequest
+- [x] BotsSetBotBroadcastDefaultAdminRights
+- [x] BotsSetBotCommands
+- [x] BotsSetBotGroupDefaultAdminRights
+- [x] BotsSetBotInfo
+- [x] BotsSetBotMenuButton
+- [x] BotsSetCustomVerification
+- [x] BotsToggleUserEmojiStatusPermission
+- [x] BotsToggleUsername
+- [x] BotsUpdateStarRefProgram
+- [x] BotsUpdateUserEmojiStatus
+- [x] GetInlineBotResults
+- [x] HelpSetBotUpdatesStatus
+- [x] MessagesEditInlineBotMessage
+- [x] MessagesGetAttachMenuBot
+- [x] MessagesGetAttachMenuBots
+- [x] MessagesGetBotApp
+- [x] MessagesSendBotRequestedPeer
+- [x] MessagesSetBotPrecheckoutResults
+- [x] MessagesSetBotShippingResults
+- [x] MessagesSetInlineBotResults
+- [x] MessagesToggleBotInAttachMenu
+- [x] StartBot

@@ -17,7 +17,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"math/big"
 	mrand "math/rand"
 	"net/http"
 	"os"
@@ -160,17 +159,18 @@ func (r *RubikaCore) Capabilities() []string {
 
 // decodeAuthStr applies Rubika's substitution cipher to the auth string.
 func decodeAuthStr(auth string) string {
-	var result []byte
-	for _, c := range auth {
+	result := make([]byte, len(auth))
+	for i := 0; i < len(auth); i++ {
+		c := auth[i]
 		switch {
 		case c >= 'a' && c <= 'z':
-			result = append(result, byte(((32-(int(c)-97))%26)+97))
+			result[i] = byte(((32-(int(c)-97))%26)+97)
 		case c >= 'A' && c <= 'Z':
-			result = append(result, byte(((29-(int(c)-65))%26)+65))
+			result[i] = byte(((29-(int(c)-65))%26)+65)
 		case c >= '0' && c <= '9':
-			result = append(result, byte(((13-(int(c)-48))%10)+48))
+			result[i] = byte(((13-(int(c)-48))%10)+48)
 		default:
-			result = append(result, byte(c))
+			result[i] = c
 		}
 	}
 	return string(result)
@@ -183,24 +183,24 @@ func passphrase(auth string) string {
 	if len(auth) != 32 {
 		return auth
 	}
-	// Split into 4 chunks of 8
-	c0, c1, c2, c3 := auth[0:8], auth[8:16], auth[16:24], auth[24:32]
-	// Rearrange: c2 + c0 + c3 + c1
-	rearranged := c2 + c0 + c3 + c1
-	var result []byte
-	for _, c := range rearranged {
+	result := make([]byte, 32)
+	copy(result[0:8], auth[16:24])
+	copy(result[8:16], auth[0:8])
+	copy(result[16:24], auth[24:32])
+	copy(result[24:32], auth[8:16])
+	for i, c := range result {
 		if c >= '0' && c <= '9' {
-			// Digits: shift by +5 mod 10
-			result = append(result, byte(((int(c)-'0'+5)%10)+'0'))
+			result[i] = byte(((int(c)-'0'+5)%10)+'0')
 		} else {
-			// Letters: shift by +9 mod 26
-			result = append(result, byte(((int(c)-'a'+9)%26)+'a'))
+			result[i] = byte(((int(c)-'a'+9)%26)+'a')
 		}
 	}
 	return string(result)
 }
 
 // rubikaEncrypt encrypts data using AES-256-CBC with zero IV.
+var rubikaZeroIV [aes.BlockSize]byte
+
 func rubikaEncrypt(data interface{}, key string) (string, error) {
 	var plaintext []byte
 	switch v := data.(type) {
@@ -216,38 +216,36 @@ func rubikaEncrypt(data interface{}, key string) (string, error) {
 		plaintext = j
 	}
 
-	keyBytes := []byte(key)
-	block, err := aes.NewCipher(keyBytes)
+	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
 		return "", fmt.Errorf("aes cipher: %w", err)
 	}
 
-	// PKCS7 padding
 	padLen := aes.BlockSize - (len(plaintext) % aes.BlockSize)
-	padding := bytes.Repeat([]byte{byte(padLen)}, padLen)
-	plaintext = append(plaintext, padding...)
+	padded := make([]byte, len(plaintext)+padLen)
+	copy(padded, plaintext)
+	for i := len(plaintext); i < len(padded); i++ {
+		padded[i] = byte(padLen)
+	}
 
-	iv := make([]byte, aes.BlockSize) // all zeros
-	ciphertext := make([]byte, len(plaintext))
-	mode := cipher.NewCBCEncrypter(block, iv)
-	mode.CryptBlocks(ciphertext, plaintext)
+	ciphertext := make([]byte, len(padded))
+	mode := cipher.NewCBCEncrypter(block, rubikaZeroIV[:])
+	mode.CryptBlocks(ciphertext, padded)
 
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
 // rubikaDecrypt decrypts AES-256-CBC data with zero IV.
 func rubikaDecrypt(encrypted string, key string) (map[string]interface{}, error) {
-	keyBytes := []byte(key)
 	data, err := base64.StdEncoding.DecodeString(encrypted)
 	if err != nil {
-		// Try URL-safe base64 as fallback
 		data, err = base64.URLEncoding.DecodeString(encrypted)
 		if err != nil {
 			return nil, fmt.Errorf("base64 decode: %w", err)
 		}
 	}
 
-	block, err := aes.NewCipher(keyBytes)
+	block, err := aes.NewCipher([]byte(key))
 	if err != nil {
 		return nil, fmt.Errorf("aes cipher: %w", err)
 	}
@@ -256,28 +254,25 @@ func rubikaDecrypt(encrypted string, key string) (map[string]interface{}, error)
 		return nil, fmt.Errorf("ciphertext not multiple of block size")
 	}
 
-	iv := make([]byte, aes.BlockSize)
-	plaintext := make([]byte, len(data))
-	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(plaintext, data)
+	mode := cipher.NewCBCDecrypter(block, rubikaZeroIV[:])
+	mode.CryptBlocks(data, data)
 
-	// Remove PKCS7 padding
-	if len(plaintext) == 0 {
+	if len(data) == 0 {
 		return nil, fmt.Errorf("empty plaintext")
 	}
-	padLen := int(plaintext[len(plaintext)-1])
+	padLen := int(data[len(data)-1])
 	if padLen > aes.BlockSize || padLen == 0 {
 		return nil, fmt.Errorf("invalid padding")
 	}
-	for i := len(plaintext) - padLen; i < len(plaintext); i++ {
-		if plaintext[i] != byte(padLen) {
+	for i := len(data) - padLen; i < len(data); i++ {
+		if data[i] != byte(padLen) {
 			return nil, fmt.Errorf("invalid padding bytes")
 		}
 	}
-	plaintext = plaintext[:len(plaintext)-padLen]
+	data = data[:len(data)-padLen]
 
 	var result map[string]interface{}
-	if err := json.Unmarshal(plaintext, &result); err != nil {
+	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("json unmarshal: %w", err)
 	}
 	return result, nil
@@ -566,18 +561,21 @@ func (r *RubikaCore) apiRequest(method string, input map[string]interface{}, tmp
 }
 
 func (r *RubikaCore) candidateAPIURLs() []string {
-	var urls []string
-	seen := make(map[string]bool)
-
-	if r.apiURL != "" && !seen[r.apiURL] {
+	urls := make([]string, 0, 1+len(r.apiPriority))
+	if r.apiURL != "" {
 		urls = append(urls, r.apiURL)
-		seen[r.apiURL] = true
 	}
 	for _, code := range r.apiPriority {
 		u := r.apiMap[code]
-		if !seen[u] {
+		dup := false
+		for _, existing := range urls {
+			if existing == u {
+				dup = true
+				break
+			}
+		}
+		if !dup {
 			urls = append(urls, u)
-			seen[u] = true
 		}
 	}
 	return urls
@@ -603,13 +601,22 @@ func (r *RubikaCore) doHTTPPost(url string, body []byte) (map[string]interface{}
 		if err != nil {
 			lastErr = err
 			time.Sleep(time.Duration(1<<attempt) * time.Second)
+			req, _ = http.NewRequestWithContext(r.ctx, "POST", url, bytes.NewReader(body))
+			req.Header.Set("Content-Type", "text/plain")
+			req.Header.Set("User-Agent", r.userAgent)
+			req.Header.Set("Origin", "https://web.rubika.ir")
+			req.Header.Set("Referer", "https://web.rubika.ir/")
+			req.Header.Set("Accept", "application/json, text/plain, */*")
+			req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+			req.Header.Set("Connection", "keep-alive")
 			continue
 		}
-		defer resp.Body.Close()
 
 		var result map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			lastErr = err
+		decErr := json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
+		if decErr != nil {
+			lastErr = decErr
 			continue
 		}
 		return result, nil
@@ -617,8 +624,6 @@ func (r *RubikaCore) doHTTPPost(url string, body []byte) (map[string]interface{}
 	return nil, lastErr
 }
 
-// doRubinoPost sends an HTTP POST to Rubino API with appropriate headers.
-// Rubino uses application/json content type and rubino.ir origin (not web.rubika.ir).
 func (r *RubikaCore) doRubinoPost(url string, body []byte) (map[string]interface{}, error) {
 	req, err := http.NewRequestWithContext(r.ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
@@ -637,13 +642,21 @@ func (r *RubikaCore) doRubinoPost(url string, body []byte) (map[string]interface
 		if err != nil {
 			lastErr = err
 			time.Sleep(time.Duration(1<<attempt) * time.Second)
+			req, _ = http.NewRequestWithContext(r.ctx, "POST", url, bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("User-Agent", r.userAgent)
+			req.Header.Set("Origin", "https://rubino.ir")
+			req.Header.Set("Referer", "https://rubino.ir/")
+			req.Header.Set("Accept", "application/json, text/plain, */*")
+			req.Header.Set("Connection", "keep-alive")
 			continue
 		}
-		defer resp.Body.Close()
 
 		var result map[string]interface{}
-		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-			lastErr = err
+		decErr := json.NewDecoder(resp.Body).Decode(&result)
+		resp.Body.Close()
+		if decErr != nil {
+			lastErr = decErr
 			continue
 		}
 		return result, nil
@@ -1392,12 +1405,12 @@ func (r *RubikaCore) buildDeviceInfo() map[string]interface{} {
 
 func rubikaSecret(length int) string {
 	const chars = "abcdefghijklmnopqrstuvwxyz"
-	b := make([]byte, length)
-	for i := range b {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
-		b[i] = chars[n.Int64()]
+	raw := make([]byte, length)
+	rand.Read(raw)
+	for i, b := range raw {
+		raw[i] = chars[int(b)%len(chars)]
 	}
-	return string(b)
+	return string(raw)
 }
 
 // --- Logout ---
@@ -2949,12 +2962,15 @@ func (r *RubikaCore) handleWSMessage(data []byte) {
 	}
 
 	r.updateMu.RLock()
-	handlers := make([]func(Update), len(r.updateHandlers))
-	copy(handlers, r.updateHandlers)
+	hasUpdateHandlers := len(r.updateHandlers) > 0
+	var handlers []func(Update)
+	if hasUpdateHandlers {
+		handlers = make([]func(Update), len(r.updateHandlers))
+		copy(handlers, r.updateHandlers)
+	}
 	r.updateMu.RUnlock()
 
-	// Process message updates
-	if messages, ok := decrypted["message"].([]interface{}); ok {
+	if messages, ok := decrypted["message"].([]interface{}); ok && hasUpdateHandlers {
 		for _, m := range messages {
 			mm, ok := m.(map[string]interface{})
 			if !ok {
@@ -2977,78 +2993,99 @@ func (r *RubikaCore) handleWSMessage(data []byte) {
 		}
 	}
 
-	// Process chat updates
 	if chats, ok := decrypted["chat"].([]interface{}); ok {
-		for _, c := range chats {
-			cm, ok := c.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			chatID, _ := cm["object_guid"].(string)
-			update := Update{
-				Type:     UpdateReadState,
-				ChatID:   chatID,
-				Platform: "rubika",
-			}
-			for _, h := range handlers {
-				h(update)
+		if hasUpdateHandlers {
+			for _, c := range chats {
+				cm, ok := c.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				chatID, _ := cm["object_guid"].(string)
+				update := Update{
+					Type:     UpdateReadState,
+					ChatID:   chatID,
+					Platform: "rubika",
+				}
+				for _, h := range handlers {
+					h(update)
+				}
 			}
 		}
 
-		// Dispatch to dedicated chat update handlers
 		r.updateMu.RLock()
-		chatHandlers := make([]func(map[string]interface{}), len(r.chatUpdateHandlers))
-		copy(chatHandlers, r.chatUpdateHandlers)
+		hasChatHandlers := len(r.chatUpdateHandlers) > 0
+		var chatHandlers []func(map[string]interface{})
+		if hasChatHandlers {
+			chatHandlers = make([]func(map[string]interface{}), len(r.chatUpdateHandlers))
+			copy(chatHandlers, r.chatUpdateHandlers)
+		}
 		r.updateMu.RUnlock()
-		for _, c := range chats {
-			if cm, ok := c.(map[string]interface{}); ok {
-				for _, h := range chatHandlers {
-					h(cm)
+		if hasChatHandlers {
+			for _, c := range chats {
+				if cm, ok := c.(map[string]interface{}); ok {
+					for _, h := range chatHandlers {
+						h(cm)
+					}
 				}
 			}
 		}
 	}
 
-	// Process activity events (typing/recording)
 	if activities, ok := decrypted["show_activity"].([]interface{}); ok {
 		r.updateMu.RLock()
-		actHandlers := make([]func(map[string]interface{}), len(r.activityHandlers))
-		copy(actHandlers, r.activityHandlers)
+		hasActHandlers := len(r.activityHandlers) > 0
+		var actHandlers []func(map[string]interface{})
+		if hasActHandlers {
+			actHandlers = make([]func(map[string]interface{}), len(r.activityHandlers))
+			copy(actHandlers, r.activityHandlers)
+		}
 		r.updateMu.RUnlock()
-		for _, a := range activities {
-			if am, ok := a.(map[string]interface{}); ok {
-				for _, h := range actHandlers {
-					h(am)
+		if hasActHandlers {
+			for _, a := range activities {
+				if am, ok := a.(map[string]interface{}); ok {
+					for _, h := range actHandlers {
+						h(am)
+					}
 				}
 			}
 		}
 	}
 
-	// Process notification events
 	if notifs, ok := decrypted["show_notification"].([]interface{}); ok {
 		r.updateMu.RLock()
-		notifHandlers := make([]func(map[string]interface{}), len(r.notificationHandlers))
-		copy(notifHandlers, r.notificationHandlers)
+		hasNotifHandlers := len(r.notificationHandlers) > 0
+		var notifHandlers []func(map[string]interface{})
+		if hasNotifHandlers {
+			notifHandlers = make([]func(map[string]interface{}), len(r.notificationHandlers))
+			copy(notifHandlers, r.notificationHandlers)
+		}
 		r.updateMu.RUnlock()
-		for _, n := range notifs {
-			if nm, ok := n.(map[string]interface{}); ok {
-				for _, h := range notifHandlers {
-					h(nm)
+		if hasNotifHandlers {
+			for _, n := range notifs {
+				if nm, ok := n.(map[string]interface{}); ok {
+					for _, h := range notifHandlers {
+						h(nm)
+					}
 				}
 			}
 		}
 	}
 
-	// Process notification dismissal events
 	if removeNotifs, ok := decrypted["remove_notification"].([]interface{}); ok {
 		r.updateMu.RLock()
-		rmHandlers := make([]func(map[string]interface{}), len(r.removeNotifHandlers))
-		copy(rmHandlers, r.removeNotifHandlers)
+		hasRmHandlers := len(r.removeNotifHandlers) > 0
+		var rmHandlers []func(map[string]interface{})
+		if hasRmHandlers {
+			rmHandlers = make([]func(map[string]interface{}), len(r.removeNotifHandlers))
+			copy(rmHandlers, r.removeNotifHandlers)
+		}
 		r.updateMu.RUnlock()
-		for _, rn := range removeNotifs {
-			if rnm, ok := rn.(map[string]interface{}); ok {
-				for _, h := range rmHandlers {
-					h(rnm)
+		if hasRmHandlers {
+			for _, rn := range removeNotifs {
+				if rnm, ok := rn.(map[string]interface{}); ok {
+					for _, h := range rmHandlers {
+						h(rnm)
+					}
 				}
 			}
 		}
@@ -5565,9 +5602,10 @@ func (r *RubikaCore) RubinoBookmarkPost(postID string, postProfileID string, boo
 func (r *RubikaCore) RubinoUploadFile(fileName string, fileData []byte) (map[string]interface{}, error) {
 	fileSize := int64(len(fileData))
 	mimeType := "file"
-	if strings.HasSuffix(strings.ToLower(fileName), ".jpg") || strings.HasSuffix(strings.ToLower(fileName), ".jpeg") || strings.HasSuffix(strings.ToLower(fileName), ".png") {
+	lowerName := strings.ToLower(fileName)
+	if strings.HasSuffix(lowerName, ".jpg") || strings.HasSuffix(lowerName, ".jpeg") || strings.HasSuffix(lowerName, ".png") {
 		mimeType = "picture"
-	} else if strings.HasSuffix(strings.ToLower(fileName), ".mp4") || strings.HasSuffix(strings.ToLower(fileName), ".mov") {
+	} else if strings.HasSuffix(lowerName, ".mp4") || strings.HasSuffix(lowerName, ".mov") {
 		mimeType = "video"
 	}
 

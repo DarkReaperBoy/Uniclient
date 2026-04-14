@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"mime"
 	"net"
 	"os"
@@ -71,6 +70,7 @@ type DeltaChatCore struct {
 	chats    map[string]*dcChatState // chatID -> state
 	chatsMu  sync.RWMutex
 	messages map[string][]*Message   // chatID -> cached messages
+	msgSeen  map[string]bool         // msgID -> true (dedup index)
 	msgsMu   sync.RWMutex
 	drafts   map[string]*OutgoingMessage
 	draftsMu sync.RWMutex
@@ -129,6 +129,10 @@ type DeltaChatCore struct {
 	// Stock strings (localized UI strings)
 	stockStrings   map[int]string
 	stockStringsMu sync.RWMutex
+
+	// Cached serialized public key (invalidated when myEntity changes)
+	cachedPubKey   string
+	cachedPubKeyOK bool
 
 	// Context
 	ctx    context.Context
@@ -298,6 +302,7 @@ func NewDeltaChatCore(sessionPath string) *DeltaChatCore {
 		peerStates:        make(map[string]*dcPeerState),
 		chats:             make(map[string]*dcChatState),
 		messages:          make(map[string][]*Message),
+		msgSeen:           make(map[string]bool),
 		drafts:            make(map[string]*OutgoingMessage),
 		blocked:           make(map[string]bool),
 		folders:           make(map[string]*Folder),
@@ -399,6 +404,7 @@ func (d *DeltaChatCore) Authenticate(cfg AuthConfig) error {
 			return fmt.Errorf("generate keypair: %w", err)
 		}
 		d.myEntity = entity
+		d.cachedPubKeyOK = false
 	}
 
 	// cfg always takes priority over saved session for auth fields
@@ -502,17 +508,17 @@ func (d *DeltaChatCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	d.chatsMu.RLock()
 	defer d.chatsMu.RUnlock()
 
-	var dialogs []Dialog
+	type dialogWithTime struct {
+		dlg  Dialog
+		time int64
+	}
+	dts := make([]dialogWithTime, 0, len(d.chats))
 	for _, cs := range d.chats {
-		dlg := d.chatStateToDialog(cs)
-		dialogs = append(dialogs, dlg)
+		dts = append(dts, dialogWithTime{dlg: d.chatStateToDialog(cs), time: cs.LastMsgTime})
 	}
 
-	// Sort by last message time descending
-	sort.Slice(dialogs, func(i, j int) bool {
-		ti := d.chats[dialogs[i].ID].LastMsgTime
-		tj := d.chats[dialogs[j].ID].LastMsgTime
-		return ti > tj
+	sort.Slice(dts, func(i, j int) bool {
+		return dts[i].time > dts[j].time
 	})
 
 	// Apply pagination
@@ -520,8 +526,13 @@ func (d *DeltaChatCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	if len(dialogs) > limit {
-		dialogs = dialogs[:limit]
+	if len(dts) > limit {
+		dts = dts[:limit]
+	}
+
+	dialogs := make([]Dialog, len(dts))
+	for i, dt := range dts {
+		dialogs[i] = dt.dlg
 	}
 
 	return dialogs, nil
@@ -936,6 +947,7 @@ func (d *DeltaChatCore) DeleteMessage(chatID string, msgID string) error {
 	for i, m := range msgs {
 		if m.ID == msgID {
 			d.messages[chatID] = append(msgs[:i], msgs[i+1:]...)
+			delete(d.msgSeen, msgID)
 			break
 		}
 	}
@@ -2278,26 +2290,34 @@ func (d *DeltaChatCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 	d.chatsMu.RUnlock()
 
 	// Also search message content
+	matched := make(map[string]bool, len(results))
+	for _, r := range results {
+		matched[r.ID] = true
+	}
 	d.msgsMu.RLock()
-	matched := make(map[string]bool)
+	var matchedChatIDs []string
 	for chatID, msgs := range d.messages {
 		if matched[chatID] {
 			continue
 		}
 		for _, m := range msgs {
 			if strings.Contains(strings.ToLower(m.Text), queryLower) {
-				d.chatsMu.RLock()
-				if cs, ok := d.chats[chatID]; ok {
-					dlg := d.chatStateToDialog(cs)
-					results = append(results, dlg)
-					matched[chatID] = true
-				}
-				d.chatsMu.RUnlock()
+				matchedChatIDs = append(matchedChatIDs, chatID)
+				matched[chatID] = true
 				break
 			}
 		}
 	}
 	d.msgsMu.RUnlock()
+
+	d.chatsMu.RLock()
+	for _, chatID := range matchedChatIDs {
+		if cs, ok := d.chats[chatID]; ok {
+			dlg := d.chatStateToDialog(cs)
+			results = append(results, dlg)
+		}
+	}
+	d.chatsMu.RUnlock()
 
 	return results, nil
 }
@@ -3877,19 +3897,15 @@ func (d *DeltaChatCore) wrapPGPMIME(plainMsg []byte, recipients []string, subjec
 	}
 	d.peerKeysMu.RUnlock()
 
-	// Encrypt the plaintext MIME body
-	var cipherBuf bytes.Buffer
-	plainWriter, err := openpgp.Encrypt(&cipherBuf, recipientEntities, d.myEntity, nil, nil)
+	// Encrypt the plaintext MIME body, armor directly
+	var armoredBuf bytes.Buffer
+	armorWriter, _ := armor.Encode(&armoredBuf, "PGP MESSAGE", nil)
+	plainWriter, err := openpgp.Encrypt(armorWriter, recipientEntities, d.myEntity, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("pgp encrypt: %w", err)
 	}
 	plainWriter.Write(plainMsg)
 	plainWriter.Close()
-
-	// Armor the encrypted data
-	var armoredBuf bytes.Buffer
-	armorWriter, _ := armor.Encode(&armoredBuf, "PGP MESSAGE", nil)
-	armorWriter.Write(cipherBuf.Bytes())
 	armorWriter.Close()
 
 	// Build the outer PGP/MIME envelope using low-level go-message API
@@ -4371,6 +4387,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 		for i, m := range msgs {
 			if m.ID == deleteID {
 				d.messages[chatID] = append(msgs[:i], msgs[i+1:]...)
+				delete(d.msgSeen, deleteID)
 				break
 			}
 		}
@@ -4599,10 +4616,11 @@ func (d *DeltaChatCore) idleLoop(client *imapclient.Client, folder string, label
 
 		// Sync new messages
 		d.mu.RLock()
-		if d.authed {
+		authed := d.authed
+		d.mu.RUnlock()
+		if authed {
 			d.syncMessages()
 		}
-		d.mu.RUnlock()
 	}
 }
 
@@ -4672,10 +4690,11 @@ func (d *DeltaChatCore) reconnectIDLE(clientPtr **imapclient.Client, folder stri
 
 		// Sync messages after reconnect
 		d.mu.RLock()
-		if d.authed {
+		authed := d.authed
+		d.mu.RUnlock()
+		if authed {
 			d.syncMessages()
 		}
-		d.mu.RUnlock()
 
 		return true
 	}
@@ -4731,11 +4750,16 @@ func (d *DeltaChatCore) serializePublicKey() string {
 	if d.myEntity == nil {
 		return ""
 	}
+	if d.cachedPubKeyOK {
+		return d.cachedPubKey
+	}
 	var buf bytes.Buffer
 	if err := d.myEntity.Serialize(&buf); err != nil {
 		return ""
 	}
-	return base64.StdEncoding.EncodeToString(buf.Bytes())
+	d.cachedPubKey = base64.StdEncoding.EncodeToString(buf.Bytes())
+	d.cachedPubKeyOK = true
+	return d.cachedPubKey
 }
 
 func (d *DeltaChatCore) getMyFingerprint() string {
@@ -4867,7 +4891,7 @@ func (d *DeltaChatCore) saveSession() {
 		PushToken:         d.pushToken,
 	}
 
-	data, err := json.MarshalIndent(sess, "", "  ")
+	data, err := json.Marshal(sess)
 	if err != nil {
 		return
 	}
@@ -4944,6 +4968,7 @@ func (d *DeltaChatCore) loadSession() error {
 			entities, err := openpgp.ReadKeyRing(block.Body)
 			if err == nil && len(entities) > 0 {
 				d.myEntity = entities[0]
+				d.cachedPubKeyOK = false
 			}
 		}
 	}
@@ -4959,22 +4984,22 @@ func canonicalizeEmail(email string) string {
 
 func generateGroupID() string {
 	const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	b := make([]byte, 16)
-	for i := range b {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
-		b[i] = chars[n.Int64()]
+	var raw [16]byte
+	rand.Read(raw[:])
+	for i, b := range raw {
+		raw[i] = chars[int(b)%len(chars)]
 	}
-	return string(b)
+	return string(raw[:])
 }
 
 func generateShortID() string {
 	const chars = "0123456789abcdefghijklmnopqrstuvwxyz"
-	b := make([]byte, 8)
-	for i := range b {
-		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
-		b[i] = chars[n.Int64()]
+	var raw [8]byte
+	rand.Read(raw[:])
+	for i, b := range raw {
+		raw[i] = chars[int(b)%len(chars)]
 	}
-	return string(b)
+	return string(raw[:])
 }
 
 func (d *DeltaChatCore) generateMsgID(groupID string) string {
@@ -4984,9 +5009,9 @@ func (d *DeltaChatCore) generateMsgID(groupID string) string {
 		domain = d.myAddr[idx+1:]
 	}
 	if groupID != "" {
-		return fmt.Sprintf("<Gr.%s.%s@%s>", groupID, random, domain)
+		return "<Gr." + groupID + "." + random + "@" + domain + ">"
 	}
-	return fmt.Sprintf("<Mr.%s@%s>", random, domain)
+	return "<Mr." + random + "@" + domain + ">"
 }
 
 func (d *DeltaChatCore) chatStateToDialog(cs *dcChatState) Dialog {
@@ -5016,12 +5041,10 @@ func (d *DeltaChatCore) cacheMessage(chatID string, m *Message) {
 	d.msgsMu.Lock()
 	defer d.msgsMu.Unlock()
 
-	// Dedup by ID
-	for _, existing := range d.messages[chatID] {
-		if existing.ID == m.ID {
-			return
-		}
+	if d.msgSeen[m.ID] {
+		return
 	}
+	d.msgSeen[m.ID] = true
 	d.messages[chatID] = append(d.messages[chatID], m)
 }
 
@@ -5045,37 +5068,48 @@ func (d *DeltaChatCore) fireUpdate(u Update) {
 
 // parseRawHeaders parses raw email header bytes into a map.
 func parseRawHeaders(data []byte) map[string]string {
-	headers := make(map[string]string)
-	lines := strings.Split(string(data), "\n")
-	var currentKey, currentValue string
+	headers := make(map[string]string, 16)
+	var currentKey string
+	var currentValue strings.Builder
 
-	for _, line := range lines {
-		line = strings.TrimRight(line, "\r")
-		if line == "" {
+	for len(data) > 0 {
+		nlIdx := bytes.IndexByte(data, '\n')
+		var line []byte
+		if nlIdx < 0 {
+			line = data
+			data = nil
+		} else {
+			line = data[:nlIdx]
+			data = data[nlIdx+1:]
+		}
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+		if len(line) == 0 {
 			if currentKey != "" {
-				headers[currentKey] = strings.TrimSpace(currentValue)
+				headers[currentKey] = strings.TrimSpace(currentValue.String())
 			}
 			break
 		}
-		if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
-			// Continuation
-			currentValue += " " + strings.TrimSpace(line)
+		if line[0] == ' ' || line[0] == '\t' {
+			currentValue.WriteByte(' ')
+			currentValue.Write(bytes.TrimSpace(line))
 			continue
 		}
-		// Save previous header
 		if currentKey != "" {
-			headers[currentKey] = strings.TrimSpace(currentValue)
+			headers[currentKey] = strings.TrimSpace(currentValue.String())
 		}
-		// Parse new header
-		idx := strings.Index(line, ":")
+		idx := bytes.IndexByte(line, ':')
 		if idx < 0 {
+			currentKey = ""
 			continue
 		}
-		currentKey = line[:idx]
-		currentValue = line[idx+1:]
+		currentKey = string(line[:idx])
+		currentValue.Reset()
+		currentValue.Write(line[idx+1:])
 	}
 	if currentKey != "" {
-		headers[currentKey] = strings.TrimSpace(currentValue)
+		headers[currentKey] = strings.TrimSpace(currentValue.String())
 	}
 
 	return headers
@@ -5689,18 +5723,25 @@ func (d *DeltaChatCore) ContinueKeyTransfer(msgID, setupCode string) error {
 	}
 
 	d.myEntity = entities[0]
+	d.cachedPubKeyOK = false
 	d.saveSession()
 	return nil
 }
 
 // generateSetupCode generates a 44-digit Autocrypt setup code (9 groups of 4 digits).
 func (d *DeltaChatCore) generateSetupCode() string {
-	groups := make([]string, 9)
-	for i := range groups {
-		n, _ := rand.Int(rand.Reader, big.NewInt(10000))
-		groups[i] = fmt.Sprintf("%04d", n.Int64())
+	var raw [18]byte
+	rand.Read(raw[:])
+	var sb strings.Builder
+	sb.Grow(44)
+	for i := 0; i < 9; i++ {
+		if i > 0 {
+			sb.WriteByte('-')
+		}
+		v := (int(raw[i*2])<<8 | int(raw[i*2+1])) % 10000
+		sb.WriteString(fmt.Sprintf("%04d", v))
 	}
-	return strings.Join(groups, "-")
+	return sb.String()
 }
 
 // ──────────────────────────── Key Management ────────────────────────────
@@ -5772,6 +5813,7 @@ func (d *DeltaChatCore) ImportSelfKeys(dir string) error {
 	}
 
 	d.myEntity = entities[0]
+	d.cachedPubKeyOK = false
 	d.saveSession()
 	return nil
 }
@@ -5794,6 +5836,7 @@ func (d *DeltaChatCore) PreconfigureKeypair(addr, publicKey, privateKey string) 
 	}
 
 	d.myEntity = entities[0]
+	d.cachedPubKeyOK = false
 
 	// If addr differs from our address, also store as peer key
 	canonical := canonicalizeEmail(addr)
@@ -6088,6 +6131,8 @@ func (d *DeltaChatCore) DeleteMessagesForAll(chatID string, msgIDs []string) err
 	for _, m := range msgs {
 		if !deleteSet[m.ID] {
 			filtered = append(filtered, m)
+		} else {
+			delete(d.msgSeen, m.ID)
 		}
 	}
 	d.messages[chatID] = filtered
@@ -6904,6 +6949,9 @@ func (d *DeltaChatCore) DeleteChat(chatID string) error {
 	delete(d.chats, chatID)
 	d.chatsMu.Unlock()
 	d.msgsMu.Lock()
+	for _, m := range d.messages[chatID] {
+		delete(d.msgSeen, m.ID)
+	}
 	delete(d.messages, chatID)
 	d.msgsMu.Unlock()
 	return nil

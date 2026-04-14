@@ -103,6 +103,7 @@ type BaleCore struct {
 	wsPendMu   sync.Mutex
 	wsPingID   int64
 	wsSessionID string
+	wsMeta      map[string]interface{}
 
 	// Context
 	ctx    context.Context
@@ -438,7 +439,7 @@ func (b *BaleCore) Logout() error {
 
 // apiRequest makes a request to the Bale Bot API.
 func (b *BaleCore) apiRequest(method string, params map[string]interface{}) (map[string]interface{}, error) {
-	url := fmt.Sprintf("%s/bot%s/%s", b.baseURL, b.botToken, method)
+	url := b.baseURL + "/bot" + b.botToken + "/" + method
 
 	var body io.Reader
 	var contentType string
@@ -507,7 +508,7 @@ func (b *BaleCore) apiRequest(method string, params map[string]interface{}) (map
 
 // apiRequestMultipart makes a multipart/form-data request for file uploads.
 func (b *BaleCore) apiRequestMultipart(method string, fields map[string]string, fileField string, fileName string, fileReader io.Reader) (map[string]interface{}, error) {
-	url := fmt.Sprintf("%s/bot%s/%s", b.baseURL, b.botToken, method)
+	url := b.baseURL + "/bot" + b.botToken + "/" + method
 
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
@@ -576,6 +577,8 @@ func (b *BaleCore) startPolling() {
 
 func (b *BaleCore) pollLoop() {
 	defer b.wg.Done()
+	pollClient := newBaleHTTPClient(40 * time.Second)
+	pollURL := b.baseURL + "/bot" + b.botToken + "/getUpdates"
 	for {
 		select {
 		case <-b.pollCtx.Done():
@@ -589,9 +592,7 @@ func (b *BaleCore) pollLoop() {
 			"timeout": 30,
 		}
 
-		// Use a longer timeout for long-polling, with fallback dialer
-		client := newBaleHTTPClient(40 * time.Second)
-		url := fmt.Sprintf("%s/bot%s/getUpdates", b.baseURL, b.botToken)
+		url := pollURL
 
 		jsonData, err := json.Marshal(params)
 		if err != nil {
@@ -606,7 +607,7 @@ func (b *BaleCore) pollLoop() {
 		}
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := client.Do(req)
+		resp, err := pollClient.Do(req)
 		if err != nil {
 			// Context cancelled = shutting down
 			if b.pollCtx.Err() != nil {
@@ -654,13 +655,13 @@ func (b *BaleCore) pollLoop() {
 
 func (b *BaleCore) processUpdate(u map[string]interface{}) {
 	b.updateMu.RLock()
+	if len(b.updateHandlers) == 0 {
+		b.updateMu.RUnlock()
+		return
+	}
 	handlers := make([]func(Update), len(b.updateHandlers))
 	copy(handlers, b.updateHandlers)
 	b.updateMu.RUnlock()
-
-	if len(handlers) == 0 {
-		return
-	}
 
 	var update Update
 	update.Platform = "bale"
@@ -722,7 +723,7 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		if peer := pbGetMsg(pd, "1"); peer != nil {
 			peerID := pbGetInt64(peer, "2")
 			peerType := pbGetInt64(peer, "1")
-			d.ID = fmt.Sprintf("%d|%d", peerID, peerType)
+			d.ID = int64Pair(peerID, peerType, '|')
 			switch peerType {
 			case balePeerPrivate:
 				d.Type = ChatTypeDM
@@ -843,7 +844,7 @@ func (b *BaleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 		// - rid: client random ID, used for edit/delete (UpdateMessage field 2)
 		// - dateMs: server timestamp in millis, used for pin/read/reactions
 		// - mid: server sequential ID, used for group pin (PinMessage field 4)
-		msgID := fmt.Sprintf("%d:%d:%d", ourRID, dateMs, mid)
+		msgID := int64Triple(ourRID, dateMs, mid, ':')
 		return &Message{
 			ID:        msgID,
 			ChatID:    chatID,
@@ -1238,7 +1239,7 @@ func (b *BaleCore) userUploadFile(chatID string, file FileUpload, progress func(
 
 	mid := pbGetInt64(resp, "1")
 	dateMs := pbGetInt64(resp, "2")
-	msgID := fmt.Sprintf("%d:%d:%d", rid, dateMs, mid)
+	msgID := int64Triple(rid, dateMs, mid, ':')
 
 	return &Message{
 		ID:       msgID,
@@ -1298,7 +1299,7 @@ func (b *BaleCore) DownloadFile(fileRef FileRef, dest string, progress func(recv
 	}
 
 	// Step 2: download from file URL
-	fileURL := fmt.Sprintf("%s/file/bot%s/%s", b.baseURL, b.botToken, filePath)
+	fileURL := b.baseURL + "/file/bot" + b.botToken + "/" + filePath
 
 	req, err := http.NewRequestWithContext(b.ctx, "GET", fileURL, nil)
 	if err != nil {
@@ -2096,18 +2097,17 @@ func (b *BaleCore) EditMessageCaption(chatID string, msgID int64, caption string
 
 // SendMessageWithKeyboard sends a message with an inline keyboard.
 func (b *BaleCore) SendMessageWithKeyboard(chatID string, text string, keyboard [][]map[string]string) (*Message, error) {
-	// Build InlineKeyboardMarkup
-	var rows [][]map[string]interface{}
-	for _, row := range keyboard {
-		var btnRow []map[string]interface{}
-		for _, btn := range row {
-			button := map[string]interface{}{}
+	rows := make([][]map[string]interface{}, len(keyboard))
+	for i, row := range keyboard {
+		btnRow := make([]map[string]interface{}, len(row))
+		for j, btn := range row {
+			button := make(map[string]interface{}, len(btn))
 			for k, v := range btn {
 				button[k] = v
 			}
-			btnRow = append(btnRow, button)
+			btnRow[j] = button
 		}
-		rows = append(rows, btnRow)
+		rows[i] = btnRow
 	}
 
 	params := map[string]interface{}{
@@ -2474,11 +2474,37 @@ func jsonString(m map[string]interface{}, key string) string {
 
 // truncateText truncates text to maxLen characters.
 func truncateText(text string, maxLen int) string {
+	if len(text) <= maxLen {
+		return text
+	}
 	runes := []rune(text)
 	if len(runes) <= maxLen {
 		return text
 	}
 	return string(runes[:maxLen]) + "..."
+}
+
+func int64Pair(a, b int64, sep byte) string {
+	sa := strconv.FormatInt(a, 10)
+	sb := strconv.FormatInt(b, 10)
+	buf := make([]byte, len(sa)+1+len(sb))
+	copy(buf, sa)
+	buf[len(sa)] = sep
+	copy(buf[len(sa)+1:], sb)
+	return string(buf)
+}
+
+func int64Triple(a, b, c int64, sep byte) string {
+	sa := strconv.FormatInt(a, 10)
+	sb := strconv.FormatInt(b, 10)
+	sc := strconv.FormatInt(c, 10)
+	buf := make([]byte, len(sa)+1+len(sb)+1+len(sc))
+	copy(buf, sa)
+	buf[len(sa)] = sep
+	copy(buf[len(sa)+1:], sb)
+	buf[len(sa)+1+len(sb)] = sep
+	copy(buf[len(sa)+1+len(sb)+1:], sc)
+	return string(buf)
 }
 
 // progressReader wraps an io.Reader to report progress.
@@ -2571,20 +2597,19 @@ func pbEncodeField(fieldNum int, val interface{}) []byte {
 		tag := pbEncodeTag(fieldNum, 0)
 		return append(tag, pbEncodeVarint(v)...)
 	case pbFixed64:
-		tag := pbEncodeTag(fieldNum, 1) // wire type 1 = 64-bit
-		buf := make([]byte, 8)
-		binary.LittleEndian.PutUint64(buf, uint64(v))
-		return append(tag, buf...)
+		tag := pbEncodeTag(fieldNum, 1)
+		var buf [8]byte
+		binary.LittleEndian.PutUint64(buf[:], uint64(v))
+		return append(tag, buf[:]...)
 	case pbUint32:
-		tag := pbEncodeTag(fieldNum, 5) // wire type 5 = 32-bit
-		buf := make([]byte, 4)
-		binary.LittleEndian.PutUint32(buf, uint32(v))
-		return append(tag, buf...)
+		tag := pbEncodeTag(fieldNum, 5)
+		var buf [4]byte
+		binary.LittleEndian.PutUint32(buf[:], uint32(v))
+		return append(tag, buf[:]...)
 	case string:
 		tag := pbEncodeTag(fieldNum, 2)
-		data := []byte(v)
-		tag = append(tag, pbEncodeVarint(uint64(len(data)))...)
-		return append(tag, data...)
+		tag = append(tag, pbEncodeVarint(uint64(len(v)))...)
+		return append(tag, v...)
 	case []byte:
 		tag := pbEncodeTag(fieldNum, 2)
 		tag = append(tag, pbEncodeVarint(uint64(len(v)))...)
@@ -2605,7 +2630,9 @@ func pbEncodeField(fieldNum int, val interface{}) []byte {
 }
 
 func pbEncode(fields map[string]interface{}) []byte {
-	// Sort field numbers for deterministic output
+	if len(fields) == 0 {
+		return nil
+	}
 	keys := make([]int, 0, len(fields))
 	for k := range fields {
 		n, _ := strconv.Atoi(k)
@@ -2676,8 +2703,7 @@ func pbDecodeDepth(data []byte, depth int) map[string]interface{} {
 			if end > len(data) {
 				return result
 			}
-			payload := make([]byte, end-pos)
-			copy(payload, data[pos:end])
+			payload := data[pos:end]
 			pos = end
 			// Try to decode as nested message; if it fails, store as string/bytes.
 			// IMPORTANT: also store raw bytes so pbGetString can recover strings
@@ -2814,10 +2840,11 @@ func pbGetList(m map[string]interface{}, field string) []interface{} {
 // --- gRPC-Web Framing ---
 
 func grpcWebEncode(payload []byte) []byte {
-	header := make([]byte, 5)
-	header[0] = 0x00 // not compressed
+	var header [5]byte
 	binary.BigEndian.PutUint32(header[1:], uint32(len(payload)))
-	return append(header, payload...)
+	out := make([]byte, 0, 5+len(payload))
+	out = append(out, header[:]...)
+	return append(out, payload...)
 }
 
 func grpcWebDecode(data []byte) []byte {
@@ -2894,7 +2921,8 @@ func (b *BaleCore) wsConnect() error {
 	ctx, cancel := context.WithCancel(b.ctx)
 	b.wsCtx = ctx
 	b.wsCancel = cancel
-	b.wsSessionID = fmt.Sprintf("%d", time.Now().UnixMilli())
+	b.wsSessionID = strconv.FormatInt(time.Now().UnixMilli(), 10)
+	b.wsMeta = nil
 	b.wsPending = make(map[int64]chan map[string]interface{})
 	b.wsIndex = 1
 
@@ -2975,6 +3003,10 @@ func (b *BaleCore) wsRecvLoop() {
 
 func (b *BaleCore) fireConnState(state string) {
 	b.updateMu.RLock()
+	if len(b.updateHandlers) == 0 {
+		b.updateMu.RUnlock()
+		return
+	}
 	handlers := make([]func(Update), len(b.updateHandlers))
 	copy(handlers, b.updateHandlers)
 	b.updateMu.RUnlock()
@@ -3024,13 +3056,13 @@ func (b *BaleCore) wsHandleUpdate(wsUpdate map[string]interface{}) {
 	}
 
 	b.updateMu.RLock()
+	if len(b.updateHandlers) == 0 {
+		b.updateMu.RUnlock()
+		return
+	}
 	handlers := make([]func(Update), len(b.updateHandlers))
 	copy(handlers, b.updateHandlers)
 	b.updateMu.RUnlock()
-
-	if len(handlers) == 0 {
-		return
-	}
 
 	dispatch := func(u Update) {
 		for _, h := range handlers {
@@ -3056,7 +3088,7 @@ func (b *BaleCore) wsHandleUpdate(wsUpdate map[string]interface{}) {
 		if peer := pbGetMsg(delUpdate, "1"); peer != nil {
 			peerID := pbGetInt64(peer, "2")
 			peerType := pbGetInt64(peer, "1")
-			chatID = fmt.Sprintf("%d|%d", peerID, peerType)
+			chatID = int64Pair(peerID, peerType, '|')
 		}
 		dispatch(Update{Type: UpdateDeleteMessage, ChatID: chatID, Platform: "bale"})
 	}
@@ -3157,7 +3189,7 @@ func (b *BaleCore) wsSend(service, method string, payload map[string]interface{}
 
 // wsPost sends a gRPC-Web HTTP POST request (used for auth before WebSocket is established).
 func (b *BaleCore) wsPost(service, method string, payload map[string]interface{}, token string) (map[string]interface{}, error) {
-	url := fmt.Sprintf("%s/%s/%s", balePostURL, service, method)
+	url := balePostURL + "/" + service + "/" + method
 
 	payloadBytes := pbEncode(payload)
 	body := grpcWebEncode(payloadBytes)
@@ -3200,8 +3232,9 @@ func (b *BaleCore) wsPost(service, method string, payload map[string]interface{}
 }
 
 func (b *BaleCore) buildMetadata() map[string]interface{} {
-	// Metadata: field 1 = repeated MetadataKeyValues
-	// aiobale sends both plain and mt_ prefixed versions
+	if b.wsMeta != nil {
+		return b.wsMeta
+	}
 	kvs := []interface{}{
 		map[string]interface{}{"1": "app_version", "2": map[string]interface{}{"1": baleAppVersion}},
 		map[string]interface{}{"1": "browser_type", "2": map[string]interface{}{"1": baleBrowserType}},
@@ -3214,7 +3247,8 @@ func (b *BaleCore) buildMetadata() map[string]interface{} {
 		map[string]interface{}{"1": "mt_os_type", "2": map[string]interface{}{"1": baleOSType}},
 		map[string]interface{}{"1": "mt_session_id", "2": map[string]interface{}{"1": b.wsSessionID}},
 	}
-	return map[string]interface{}{"1": kvs}
+	b.wsMeta = map[string]interface{}{"1": kvs}
+	return b.wsMeta
 }
 
 // --- User Auth Flow ---
@@ -4252,13 +4286,13 @@ func (b *BaleCore) mapUserMessage(um map[string]interface{}) Message {
 	// RID + date as message ID (format: "rid:dateMs" for Bale user mode)
 	rid := pbGetInt64(um, "4")
 	dateMs := pbGetInt64(um, "3")
-	msg.ID = fmt.Sprintf("%d:%d", rid, dateMs)
+	msg.ID = int64Pair(rid, dateMs, ':')
 
 	// Peer → ChatID (format: "peerID|peerType")
 	if peer := pbGetMsg(um, "1"); peer != nil {
 		peerID := pbGetInt64(peer, "2")
 		peerType := pbGetInt64(peer, "1")
-		msg.ChatID = fmt.Sprintf("%d|%d", peerID, peerType)
+		msg.ChatID = int64Pair(peerID, peerType, '|')
 	}
 
 	// Sender
@@ -4308,11 +4342,11 @@ func (b *BaleCore) mapUpdatedMessage(um map[string]interface{}) Message {
 			msg.Timestamp = time.UnixMilli(editDateMs)
 		}
 	}
-	msg.ID = fmt.Sprintf("%d:%d", rid, editDateMs)
+	msg.ID = int64Pair(rid, editDateMs, ':')
 	if peer := pbGetMsg(um, "1"); peer != nil {
 		peerID := pbGetInt64(peer, "2")
 		peerType := pbGetInt64(peer, "1")
-		msg.ChatID = fmt.Sprintf("%d|%d", peerID, peerType)
+		msg.ChatID = int64Pair(peerID, peerType, '|')
 	}
 	if senderVal := pbGetMsg(um, "5"); senderVal != nil {
 		msg.SenderID = strconv.FormatInt(pbGetInt64(senderVal, "1"), 10)
@@ -4356,7 +4390,7 @@ func (b *BaleCore) mapUserMessageContent(parent map[string]interface{}, field st
 			}
 		}
 		msg.Attachments = append(msg.Attachments, FileRef{
-			ID:       fmt.Sprintf("%d:%d", fileID, accessHash),
+			ID:       int64Pair(fileID, accessHash, ':'),
 			Name:     name,
 			MimeType: pbGetString(docMsg, "5"),
 			Size:     pbGetInt64(docMsg, "3"),
@@ -4449,7 +4483,7 @@ func (b *BaleCore) mapHistoryMessage(mc map[string]interface{}) Message {
 	rid := pbGetInt64(mc, "2")
 	dateMs := pbGetInt64(mc, "3")
 	// Message ID format: "rid:dateMs" so Core methods can parse both values
-	msg.ID = fmt.Sprintf("%d:%d", rid, dateMs)
+	msg.ID = int64Pair(rid, dateMs, ':')
 
 	if dateMs > 1e12 {
 		msg.Timestamp = time.UnixMilli(dateMs)

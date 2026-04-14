@@ -160,6 +160,22 @@ type pbEncoder struct {
 	buf bytes.Buffer
 }
 
+var pbEncoderPool = sync.Pool{
+	New: func() interface{} {
+		return &pbEncoder{}
+	},
+}
+
+func getPBEncoder() *pbEncoder {
+	e := pbEncoderPool.Get().(*pbEncoder)
+	e.buf.Reset()
+	return e
+}
+
+func putPBEncoder(e *pbEncoder) {
+	pbEncoderPool.Put(e)
+}
+
 func (e *pbEncoder) writeVarint(v uint64) {
 	for v >= 0x80 {
 		e.buf.WriteByte(byte(v) | 0x80)
@@ -304,21 +320,23 @@ func (e *pbEncoder) writePackedUint32(field int, vs []uint32) {
 	if len(vs) == 0 {
 		return
 	}
-	var inner pbEncoder
+	inner := getPBEncoder()
 	for _, v := range vs {
 		inner.writeVarint(uint64(v))
 	}
 	e.writeTag(field, 2)
 	e.writeVarint(uint64(inner.buf.Len()))
 	e.buf.Write(inner.buf.Bytes())
+	putPBEncoder(inner)
 }
 
 func (e *pbEncoder) writeSubmessage(field int, sub *pbEncoder) {
-	if sub.buf.Len() == 0 {
+	n := sub.buf.Len()
+	if n == 0 {
 		return
 	}
 	e.writeTag(field, 2)
-	e.writeVarint(uint64(sub.buf.Len()))
+	e.writeVarint(uint64(n))
 	e.buf.Write(sub.buf.Bytes())
 }
 
@@ -397,11 +415,17 @@ func (d *pbDecoder) readBytes() ([]byte, error) {
 }
 
 func (d *pbDecoder) readString() (string, error) {
-	b, err := d.readBytes()
+	ln, err := d.readVarint()
 	if err != nil {
 		return "", err
 	}
-	return string(b), nil
+	n := int(ln)
+	if d.pos+n > len(d.data) {
+		return "", io.ErrUnexpectedEOF
+	}
+	s := string(d.data[d.pos : d.pos+n])
+	d.pos += n
+	return s, nil
 }
 
 func (d *pbDecoder) skipField(wireType int) error {
@@ -434,29 +458,61 @@ func (d *pbDecoder) skipField(wireType int) error {
 // ════════════════════════════════════════════════════════════════════════════════
 
 func mumbleVarintEncode(v int64) []byte {
+	var buf [10]byte
+	n := mumbleVarintEncodeTo(buf[:], v)
+	out := make([]byte, n)
+	copy(out, buf[:n])
+	return out
+}
+
+func mumbleVarintEncodeTo(buf []byte, v int64) int {
 	if v < 0 {
 		if v >= -4 {
-			return []byte{byte(0xFC | (^v & 0x03))}
+			buf[0] = byte(0xFC | (^v & 0x03))
+			return 1
 		}
-		neg := mumbleVarintEncode(-v)
-		return append([]byte{0xF8}, neg...)
+		buf[0] = 0xF8
+		n := mumbleVarintEncodeTo(buf[1:], -v)
+		return 1 + n
 	}
 	uv := uint64(v)
 	switch {
 	case uv < 0x80:
-		return []byte{byte(uv)}
+		buf[0] = byte(uv)
+		return 1
 	case uv < 0x4000:
-		return []byte{byte(0x80 | (uv >> 8)), byte(uv)}
+		buf[0] = byte(0x80 | (uv >> 8))
+		buf[1] = byte(uv)
+		return 2
 	case uv < 0x200000:
-		return []byte{byte(0xC0 | (uv >> 16)), byte(uv >> 8), byte(uv)}
+		buf[0] = byte(0xC0 | (uv >> 16))
+		buf[1] = byte(uv >> 8)
+		buf[2] = byte(uv)
+		return 3
 	case uv < 0x10000000:
-		return []byte{byte(0xE0 | (uv >> 24)), byte(uv >> 16), byte(uv >> 8), byte(uv)}
+		buf[0] = byte(0xE0 | (uv >> 24))
+		buf[1] = byte(uv >> 16)
+		buf[2] = byte(uv >> 8)
+		buf[3] = byte(uv)
+		return 4
 	case uv <= 0xFFFFFFFF:
-		return []byte{0xF0, byte(uv >> 24), byte(uv >> 16), byte(uv >> 8), byte(uv)}
+		buf[0] = 0xF0
+		buf[1] = byte(uv >> 24)
+		buf[2] = byte(uv >> 16)
+		buf[3] = byte(uv >> 8)
+		buf[4] = byte(uv)
+		return 5
 	default:
-		return []byte{0xF4,
-			byte(uv >> 56), byte(uv >> 48), byte(uv >> 40), byte(uv >> 32),
-			byte(uv >> 24), byte(uv >> 16), byte(uv >> 8), byte(uv)}
+		buf[0] = 0xF4
+		buf[1] = byte(uv >> 56)
+		buf[2] = byte(uv >> 48)
+		buf[3] = byte(uv >> 40)
+		buf[4] = byte(uv >> 32)
+		buf[5] = byte(uv >> 24)
+		buf[6] = byte(uv >> 16)
+		buf[7] = byte(uv >> 8)
+		buf[8] = byte(uv)
+		return 9
 	}
 }
 
@@ -557,14 +613,13 @@ func ocb2Encrypt(ciph cipher.Block, dst, src, nonce, tag []byte) {
 	}
 
 	ocb2Times2(delta[:])
-	var zeros [ocb2BlockSize]byte
-	copy(tmp[:], zeros[:])
+	tmp = [ocb2BlockSize]byte{}
 	num := remain * 8
 	tmp[ocb2BlockSize-2] = byte(uint32(num) >> 8)
 	tmp[ocb2BlockSize-1] = byte(num)
 	ocb2XOR(tmp[:], tmp[:], delta[:])
 	ciph.Encrypt(pad[:], tmp[:])
-	copy(tmp[:], zeros[:])
+	tmp = [ocb2BlockSize]byte{}
 	copy(tmp[:remain], src[off:off+remain])
 	copy(tmp[remain:], pad[remain:])
 	ocb2XOR(checksum[:], checksum[:], tmp[:])
@@ -594,14 +649,13 @@ func ocb2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
 	}
 
 	ocb2Times2(delta[:])
-	var zeros [ocb2BlockSize]byte
-	copy(tmp[:], zeros[:])
+	tmp = [ocb2BlockSize]byte{}
 	num := remain * 8
 	tmp[ocb2BlockSize-2] = byte(uint32(num) >> 8)
 	tmp[ocb2BlockSize-1] = byte(num)
 	ocb2XOR(tmp[:], tmp[:], delta[:])
 	ciph.Encrypt(pad[:], tmp[:])
-	copy(tmp[:], zeros[:])
+	clear(tmp[:])
 	copy(tmp[:remain], encrypted[off:off+remain])
 	ocb2XOR(tmp[:], tmp[:], pad[:])
 	ocb2XOR(checksum[:], checksum[:], tmp[:])
@@ -657,14 +711,12 @@ func (cs *mumbleCryptState) encrypt(dst, src []byte) int {
 	cs.incrementIV(cs.encryptIV[:])
 
 	var tag [ocb2TagSize]byte
-	ciphertext := make([]byte, len(src))
-	ocb2Encrypt(cs.cipher, ciphertext, src, cs.encryptIV[:], tag[:])
+	ocb2Encrypt(cs.cipher, dst[4:4+len(src)], src, cs.encryptIV[:], tag[:])
 
 	dst[0] = cs.encryptIV[0]
 	dst[1] = tag[0]
 	dst[2] = tag[1]
 	dst[3] = tag[2]
-	copy(dst[4:], ciphertext)
 	return 4 + len(src)
 }
 
@@ -679,7 +731,7 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 	ivByte := src[0]
 	tagCheck := src[1:4]
 	ciphertext := src[4:]
-	plain := make([]byte, len(ciphertext))
+	plainLen := len(ciphertext)
 
 	// Reconstruct full IV from single byte
 	var iv [16]byte
@@ -725,17 +777,15 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 		return 0, errors.New("mumbleCryptState: duplicate packet")
 	}
 
-	// Build full 16-byte tag for OCB2 verification (only first 3 bytes are transmitted)
 	var tag [ocb2TagSize]byte
 	tag[0] = tagCheck[0]
 	tag[1] = tagCheck[1]
 	tag[2] = tagCheck[2]
-	ok := ocb2Decrypt(cs.cipher, plain, ciphertext, iv[:], tag[:3])
+	ok := ocb2Decrypt(cs.cipher, dst[:plainLen], ciphertext, iv[:], tag[:3])
 	if !ok {
 		return 0, errors.New("mumbleCryptState: decrypt failed")
 	}
 
-	// Update state for in-order or lost-gap packets
 	if diff >= 1 && diff <= 128 {
 		copy(cs.decryptIV[:], iv[:])
 		cs.good++
@@ -743,8 +793,7 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 		cs.late++
 	}
 
-	copy(dst, plain)
-	return len(plain), nil
+	return plainLen, nil
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -839,7 +888,7 @@ type mumblePingMsg struct {
 }
 
 func (m *mumblePingMsg) marshal() []byte {
-	var e pbEncoder
+	e := getPBEncoder()
 	e.writeUint64(1, m.Timestamp)
 	e.writeUint32(2, m.Good)
 	e.writeUint32(3, m.Late)
@@ -851,7 +900,10 @@ func (m *mumblePingMsg) marshal() []byte {
 	e.writeFloat(9, m.UDPPingVar)
 	e.writeFloat(10, m.TCPPingAvg)
 	e.writeFloat(11, m.TCPPingVar)
-	return e.bytes()
+	out := make([]byte, e.buf.Len())
+	copy(out, e.bytes())
+	putPBEncoder(e)
+	return out
 }
 
 func (m *mumblePingMsg) unmarshal(data []byte) error {
@@ -2503,10 +2555,6 @@ func (c *MumbleCore) saveSession(path string) error {
 // ════════════════════════════════════════════════════════════════════════════════
 
 func (c *MumbleCore) tcpSend(msgType uint16, payload []byte) error {
-	header := make([]byte, 6)
-	binary.BigEndian.PutUint16(header[:2], msgType)
-	binary.BigEndian.PutUint32(header[2:6], uint32(len(payload)))
-
 	c.mu.Lock()
 	conn := c.tlsConn
 	c.mu.Unlock()
@@ -2514,8 +2562,10 @@ func (c *MumbleCore) tcpSend(msgType uint16, payload []byte) error {
 		return ErrNetwork
 	}
 
-	// Write header + payload atomically
-	msg := append(header, payload...)
+	msg := make([]byte, 6+len(payload))
+	binary.BigEndian.PutUint16(msg[:2], msgType)
+	binary.BigEndian.PutUint32(msg[2:6], uint32(len(payload)))
+	copy(msg[6:], payload)
 	_, err := conn.Write(msg)
 	if err == nil {
 		c.tcpPktsSent.Add(1)
@@ -2529,26 +2579,16 @@ func (c *MumbleCore) tcpRecv() (uint16, []byte, error) {
 		return 0, nil, ErrNetwork
 	}
 
-	header := make([]byte, 6)
-	if _, err := io.ReadFull(conn, header); err != nil {
+	var header [6]byte
+	if _, err := io.ReadFull(conn, header[:]); err != nil {
 		return 0, nil, err
 	}
 
 	msgType := binary.BigEndian.Uint16(header[:2])
 	msgLen := binary.BigEndian.Uint32(header[2:6])
 
-	if msgLen > 8*1024*1024 { // 8MB sanity limit
+	if msgLen > 8*1024*1024 {
 		return 0, nil, fmt.Errorf("mumble: message too large: %d bytes", msgLen)
-	}
-
-	if msgType == mumbleMsgUDPTunnel {
-		// UDPTunnel: raw audio data, not protobuf
-		payload := make([]byte, msgLen)
-		if _, err := io.ReadFull(conn, payload); err != nil {
-			return 0, nil, err
-		}
-		c.tcpPktsRecv.Add(1)
-		return msgType, payload, nil
 	}
 
 	payload := make([]byte, msgLen)
@@ -2593,6 +2633,7 @@ func (c *MumbleCore) udpRecvLoop() {
 	defer c.wg.Done()
 
 	buf := make([]byte, mumbleMaxUDPSize)
+	plain := make([]byte, mumbleMaxUDPSize)
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -2625,7 +2666,6 @@ func (c *MumbleCore) udpRecvLoop() {
 			continue
 		}
 
-		plain := make([]byte, n-mumbleCryptoOverhead)
 		pLen, err := c.crypt.decrypt(plain, buf[:n])
 		if err != nil {
 			continue
@@ -2733,7 +2773,6 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 	}
 
 	if audioType == mumbleUDPOpus {
-		// Opus: varint header with length and terminator bit
 		if pos >= len(data) {
 			return
 		}
@@ -2748,8 +2787,7 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 			opusLen = len(data) - pos
 		}
 		if opusLen > 0 {
-			pkt.AudioData = make([]byte, opusLen)
-			copy(pkt.AudioData, data[pos:pos+opusLen])
+			pkt.AudioData = append([]byte(nil), data[pos:pos+opusLen]...)
 			pos += opusLen
 		}
 	} else {
@@ -3489,7 +3527,18 @@ func (c *MumbleCore) handleTextMessage(msg *mumbleTextMsg) {
 
 func (c *MumbleCore) fireUpdate(u Update) {
 	c.mu.RLock()
-	handlers := make([]func(Update), len(c.updateHandlers))
+	n := len(c.updateHandlers)
+	if n == 0 {
+		c.mu.RUnlock()
+		return
+	}
+	if n == 1 {
+		h := c.updateHandlers[0]
+		c.mu.RUnlock()
+		h(u)
+		return
+	}
+	handlers := make([]func(Update), n)
 	copy(handlers, c.updateHandlers)
 	c.mu.RUnlock()
 	for _, h := range handlers {
@@ -3498,11 +3547,17 @@ func (c *MumbleCore) fireUpdate(u Update) {
 }
 
 func (c *MumbleCore) fireUpdateLocked(u Update) {
-	// Called while c.mu is held — copy handlers first
-	handlers := make([]func(Update), len(c.updateHandlers))
+	n := len(c.updateHandlers)
+	if n == 0 {
+		return
+	}
+	if n == 1 {
+		h := c.updateHandlers[0]
+		go h(u)
+		return
+	}
+	handlers := make([]func(Update), n)
 	copy(handlers, c.updateHandlers)
-	// Release lock, fire, done — actually we can't unlock here.
-	// Fire in goroutine to avoid deadlock.
 	go func() {
 		for _, h := range handlers {
 			h(u)
@@ -3546,14 +3601,14 @@ func (c *MumbleCore) sendTCPPing() {
 
 func (c *MumbleCore) sendUDPPing() {
 	ts := uint64(time.Now().UnixMilli())
-	// Protobuf format: 1-byte type (1=Ping) + MumbleUDP.Ping protobuf
-	var e pbEncoder
-	e.writeUint64(1, ts)                          // field 1: timestamp
-	e.writeBool(2, true)                           // field 2: request_extended_information
+	e := getPBEncoder()
+	e.writeUint64(1, ts)
+	e.writeBool(2, true)
 	pb := e.bytes()
 	data := make([]byte, 1+len(pb))
-	data[0] = 1 // UDPMessageType::Ping
+	data[0] = 1
 	copy(data[1:], pb)
+	putPBEncoder(e)
 	c.udpSend(data)
 }
 
@@ -3603,41 +3658,36 @@ func (c *MumbleCore) SendVoiceTCP(opusData []byte, target int) error {
 	return c.tcpSend(mumbleMsgUDPTunnel, c.buildVoiceAuto(opusData, target, seq, false))
 }
 
-// buildVoicePacket constructs a protobuf MumbleUDP.Audio message.
 func (c *MumbleCore) buildVoicePacket(opusData []byte, target int, seq int64, terminator bool) []byte {
-	var e pbEncoder
-	// field 1: target (uint32, varint) — MUST always be present (oneof Header)
+	e := getPBEncoder()
 	e.writeUint32Always(1, uint32(target))
-	// field 4: frame_number (uint64, varint)
 	e.writeUint64(4, uint64(seq))
-	// field 5: opus_data (bytes, length-delimited)
 	e.writeBytes(5, opusData)
-	// field 16: is_terminator (bool, varint)
 	if terminator {
 		e.writeBool(16, true)
 	}
 	pb := e.bytes()
-	// Mumble 1.5+ protobuf UDP format: 1-byte type prefix + protobuf data
-	// UDPMessageType: 0=Audio, 1=Ping
 	out := make([]byte, 1+len(pb))
-	out[0] = 0 // Audio
+	out[0] = 0
 	copy(out[1:], pb)
+	putPBEncoder(e)
 	return out
 }
 
-// buildLegacyVoicePacket constructs a legacy-format voice packet (pre-1.5).
 func (c *MumbleCore) buildLegacyVoicePacket(opusData []byte, target int, seq int64, terminator bool) []byte {
-	header := byte(mumbleUDPOpus<<5) | byte(target&0x1F)
-	var buf bytes.Buffer
-	buf.WriteByte(header)
-	buf.Write(mumbleVarintEncode(seq))
+	var tmp [20]byte
+	tmp[0] = byte(mumbleUDPOpus<<5) | byte(target&0x1F)
+	n := 1
+	n += mumbleVarintEncodeTo(tmp[n:], seq)
 	opusHeader := int64(len(opusData) & 0x1FFF)
 	if terminator {
 		opusHeader |= 0x2000
 	}
-	buf.Write(mumbleVarintEncode(opusHeader))
-	buf.Write(opusData)
-	return buf.Bytes()
+	n += mumbleVarintEncodeTo(tmp[n:], opusHeader)
+	out := make([]byte, n+len(opusData))
+	copy(out, tmp[:n])
+	copy(out[n:], opusData)
+	return out
 }
 
 // SendVoiceTerminator sends an end-of-transmission marker.
@@ -5339,7 +5389,7 @@ func (c *MumbleCore) SendPositionalAudio(opusData []byte, target int, x, y, z fl
 }
 
 func (c *MumbleCore) buildPositionalVoicePacket(opusData []byte, target int, seq int64, terminator bool, x, y, z float32) []byte {
-	var e pbEncoder
+	e := getPBEncoder()
 	e.writeUint32Always(1, uint32(target))
 	e.writeUint64(4, uint64(seq))
 	e.writeBytes(5, opusData)
@@ -5349,28 +5399,30 @@ func (c *MumbleCore) buildPositionalVoicePacket(opusData []byte, target int, seq
 	}
 	pb := e.bytes()
 	out := make([]byte, 1+len(pb))
-	out[0] = 0 // Audio type
+	out[0] = 0
 	copy(out[1:], pb)
+	putPBEncoder(e)
 	return out
 }
 
 func (c *MumbleCore) buildLegacyPositionalVoicePacket(opusData []byte, target int, seq int64, terminator bool, x, y, z float32) []byte {
-	header := byte(mumbleUDPOpus<<5) | byte(target&0x1F)
-	var buf bytes.Buffer
-	buf.WriteByte(header)
-	buf.Write(mumbleVarintEncode(seq))
+	var tmp [20]byte
+	tmp[0] = byte(mumbleUDPOpus<<5) | byte(target&0x1F)
+	n := 1
+	n += mumbleVarintEncodeTo(tmp[n:], seq)
 	opusHeader := int64(len(opusData) & 0x1FFF)
 	if terminator {
 		opusHeader |= 0x2000
 	}
-	buf.Write(mumbleVarintEncode(opusHeader))
-	buf.Write(opusData)
-	var pos [12]byte
-	binary.LittleEndian.PutUint32(pos[0:4], math.Float32bits(x))
-	binary.LittleEndian.PutUint32(pos[4:8], math.Float32bits(y))
-	binary.LittleEndian.PutUint32(pos[8:12], math.Float32bits(z))
-	buf.Write(pos[:])
-	return buf.Bytes()
+	n += mumbleVarintEncodeTo(tmp[n:], opusHeader)
+	out := make([]byte, n+len(opusData)+12)
+	copy(out, tmp[:n])
+	copy(out[n:], opusData)
+	p := n + len(opusData)
+	binary.LittleEndian.PutUint32(out[p:], math.Float32bits(x))
+	binary.LittleEndian.PutUint32(out[p+4:], math.Float32bits(y))
+	binary.LittleEndian.PutUint32(out[p+8:], math.Float32bits(z))
+	return out
 }
 
 // ServerLoopback sends voice with target=31 for server echo test.
@@ -5504,7 +5556,9 @@ func iceEncSize(buf *bytes.Buffer, n int) {
 		buf.WriteByte(byte(n))
 	} else {
 		buf.WriteByte(0xFF)
-		binary.Write(buf, binary.LittleEndian, int32(n))
+		var b [4]byte
+		binary.LittleEndian.PutUint32(b[:], uint32(n))
+		buf.Write(b[:])
 	}
 }
 
@@ -5516,11 +5570,11 @@ func iceDecSize(r io.Reader) (int, error) {
 	if b[0] < 255 {
 		return int(b[0]), nil
 	}
-	var n int32
-	if err := binary.Read(r, binary.LittleEndian, &n); err != nil {
+	var nb [4]byte
+	if _, err := io.ReadFull(r, nb[:]); err != nil {
 		return 0, err
 	}
-	return int(n), nil
+	return int(int32(binary.LittleEndian.Uint32(nb[:]))), nil
 }
 
 func iceEncStr(buf *bytes.Buffer, s string) {
@@ -5539,18 +5593,25 @@ func iceDecStr(r io.Reader) (string, error) {
 }
 
 func iceEncInt(buf *bytes.Buffer, v int32) {
-	binary.Write(buf, binary.LittleEndian, v)
+	var b [4]byte
+	binary.LittleEndian.PutUint32(b[:], uint32(v))
+	buf.Write(b[:])
 }
 
 func iceDecInt(r io.Reader) (int32, error) {
-	var v int32
-	return v, binary.Read(r, binary.LittleEndian, &v)
+	var b [4]byte
+	if _, err := io.ReadFull(r, b[:]); err != nil {
+		return 0, err
+	}
+	return int32(binary.LittleEndian.Uint32(b[:])), nil
 }
 
 func iceEncEncap(buf *bytes.Buffer, encode func(*bytes.Buffer)) {
 	inner := &bytes.Buffer{}
 	encode(inner)
-	binary.Write(buf, binary.LittleEndian, int32(6+inner.Len())) // size FIRST (includes 4+2 header)
+	var sz [4]byte
+	binary.LittleEndian.PutUint32(sz[:], uint32(6+inner.Len()))
+	buf.Write(sz[:])
 	buf.WriteByte(iceEncMaj)
 	buf.WriteByte(iceEncMin)
 	buf.Write(inner.Bytes())
@@ -5579,8 +5640,19 @@ func iceDecEncap(r io.Reader) ([]byte, error) {
 }
 
 func iceEncHeader(buf *bytes.Buffer, msgType byte, bodyLen int) {
-	buf.Write([]byte{'I', 'c', 'e', 'P', iceProtoMaj, iceProtoMin, iceEncMaj, iceEncMin, msgType, 0})
-	binary.Write(buf, binary.LittleEndian, int32(iceHeaderLen+bodyLen))
+	var hdr [iceHeaderLen]byte
+	hdr[0] = 'I'
+	hdr[1] = 'c'
+	hdr[2] = 'e'
+	hdr[3] = 'P'
+	hdr[4] = iceProtoMaj
+	hdr[5] = iceProtoMin
+	hdr[6] = iceEncMaj
+	hdr[7] = iceEncMin
+	hdr[8] = msgType
+	hdr[9] = 0
+	binary.LittleEndian.PutUint32(hdr[10:], uint32(iceHeaderLen+bodyLen))
+	buf.Write(hdr[:])
 }
 
 func iceReadMsg(conn net.Conn) (byte, []byte, error) {
@@ -5603,20 +5675,22 @@ func iceReadMsg(conn net.Conn) (byte, []byte, error) {
 func iceEncProxy(buf *bytes.Buffer, name, category, host string, port int) {
 	iceEncStr(buf, name)
 	iceEncStr(buf, category)
-	iceEncSize(buf, 0) // facet: empty
-	buf.WriteByte(0)   // mode: twoway
-	buf.WriteByte(0)   // secure: false
+	iceEncSize(buf, 0)
+	buf.WriteByte(0)
+	buf.WriteByte(0)
 	buf.WriteByte(iceProtoMaj)
 	buf.WriteByte(iceProtoMin)
 	buf.WriteByte(iceEncMaj)
 	buf.WriteByte(iceEncMin)
-	iceEncSize(buf, 1) // 1 endpoint
-	binary.Write(buf, binary.LittleEndian, int16(1)) // TCP type
+	iceEncSize(buf, 1)
+	var tcpType [2]byte
+	binary.LittleEndian.PutUint16(tcpType[:], 1)
+	buf.Write(tcpType[:])
 	iceEncEncap(buf, func(ep *bytes.Buffer) {
 		iceEncStr(ep, host)
 		iceEncInt(ep, int32(port))
-		iceEncInt(ep, -1) // timeout: default
-		ep.WriteByte(0)   // compress: false
+		iceEncInt(ep, -1)
+		ep.WriteByte(0)
 	})
 }
 
@@ -5653,7 +5727,9 @@ func (ic *mumbleIceClient) call(identName, identCat, op string, mode byte, encPa
 	rid := ic.reqID
 
 	var body bytes.Buffer
-	binary.Write(&body, binary.LittleEndian, rid)
+	var ridBuf [4]byte
+	binary.LittleEndian.PutUint32(ridBuf[:], rid)
+	body.Write(ridBuf[:])
 	iceEncStr(&body, identName)
 	iceEncStr(&body, identCat)
 	iceEncSize(&body, 0) // facet
@@ -5845,9 +5921,8 @@ func (ic *mumbleIceClient) handleCBReq(conn net.Conn, body []byte) {
 	if len(body) < 4 {
 		return
 	}
-	r := bytes.NewReader(body)
-	var rid uint32
-	binary.Read(r, binary.LittleEndian, &rid)
+	rid := binary.LittleEndian.Uint32(body[:4])
+	r := bytes.NewReader(body[4:])
 	iceDecStr(r) // identity name
 	iceDecStr(r) // identity category
 	if n, _ := iceDecSize(r); n > 0 {
@@ -5878,9 +5953,10 @@ func (ic *mumbleIceClient) handleCBReq(conn net.Conn, body []byte) {
 		}
 	}
 
-	// Reply OK (void)
 	var rb bytes.Buffer
-	binary.Write(&rb, binary.LittleEndian, rid)
+	var ridBytes [4]byte
+	binary.LittleEndian.PutUint32(ridBytes[:], rid)
+	rb.Write(ridBytes[:])
 	rb.WriteByte(iceReplyOK)
 	iceEncEncap(&rb, func(*bytes.Buffer) {})
 	var msg bytes.Buffer
@@ -6710,7 +6786,9 @@ func (c *MumbleCore) IceSetBans(bans []map[string]string) error {
 			if t, e := time.Parse(time.RFC3339, ban["start"]); e == nil {
 				startUnix = t.Unix()
 			}
-			binary.Write(buf, binary.LittleEndian, startUnix)
+			var startBytes [8]byte
+			binary.LittleEndian.PutUint64(startBytes[:], uint64(startUnix))
+			buf.Write(startBytes[:])
 			dur, _ := strconv.Atoi(ban["duration"])
 			iceEncInt(buf, int32(dur))
 		}

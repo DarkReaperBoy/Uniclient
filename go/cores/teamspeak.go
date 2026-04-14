@@ -297,16 +297,16 @@ func tsOMAC1(key, data []byte) []byte {
 
 // tsDbl doubles a value in GF(2^128) with the AES polynomial.
 func tsDbl(b []byte) []byte {
-	r := make([]byte, len(b))
+	var r [16]byte
 	carry := b[0] >> 7
-	for i := 0; i < len(b)-1; i++ {
+	for i := 0; i < 15; i++ {
 		r[i] = (b[i] << 1) | (b[i+1] >> 7)
 	}
-	r[len(b)-1] = b[len(b)-1] << 1
+	r[15] = b[15] << 1
 	if carry == 1 {
-		r[len(b)-1] ^= 0x87
+		r[15] ^= 0x87
 	}
-	return r
+	return r[:]
 }
 
 // tsEAXEncrypt encrypts with EAX mode (AES-128) and returns 8-byte truncated tag + ciphertext.
@@ -383,18 +383,13 @@ func tsEAXDecrypt(key, nonce, header, ciphertext []byte, macIn [8]byte) ([]byte,
 // tsCreateKeyNonce derives the per-packet AES key and nonce from SharedIV.
 // direction: 0x30 = S2C, 0x31 = C2S
 func tsCreateKeyNonce(pType byte, pID uint16, genID uint32, direction byte, sharedIV []byte) (key [16]byte, nonce [16]byte) {
-	var temp []byte
-	if len(sharedIV) == 20 {
-		temp = make([]byte, 26)
-	} else {
-		temp = make([]byte, 70)
-	}
+	var temp [70]byte
 	temp[0] = direction
 	temp[1] = pType & 0x0f
 	binary.BigEndian.PutUint32(temp[2:6], genID)
-	copy(temp[6:], sharedIV)
+	n := 6 + copy(temp[6:], sharedIV)
 
-	h := sha256.Sum256(temp)
+	h := sha256.Sum256(temp[:n])
 	copy(key[:], h[:16])
 	copy(nonce[:], h[16:])
 
@@ -761,9 +756,13 @@ func tsComputeSharedIVMAC(alpha [10]byte, beta [54]byte, ekPriv *edwards25519.Sc
 // tsHashCash computes the hashcash offset for identity proof-of-work.
 // Returns offset such that leading zero bits of SHA1(omega + offset) >= level.
 func tsHashCash(omega string, level byte) uint64 {
+	base := []byte(omega)
+	buf := make([]byte, len(base), len(base)+20)
+	copy(buf, base)
 	for offset := uint64(0); offset < ^uint64(0); offset++ {
-		data := fmt.Sprintf("%s%d", omega, offset)
-		h := sha1.Sum([]byte(data))
+		buf = buf[:len(base)]
+		buf = strconv.AppendUint(buf, offset, 10)
+		h := sha1.Sum(buf)
 		zeros := tsCountLeadingZeros(h[:])
 		if zeros >= level {
 			return offset
@@ -794,18 +793,51 @@ func tsCountLeadingZeros(data []byte) byte {
 // ──────────────────────────── TS3 Command Escape ────────────────────────────
 
 func tsEscape(s string) string {
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	s = strings.ReplaceAll(s, `/`, `\/`)
-	s = strings.ReplaceAll(s, ` `, `\s`)
-	s = strings.ReplaceAll(s, `|`, `\p`)
-	s = strings.ReplaceAll(s, "\a", `\a`)
-	s = strings.ReplaceAll(s, "\b", `\b`)
-	s = strings.ReplaceAll(s, "\f", `\f`)
-	s = strings.ReplaceAll(s, "\n", `\n`)
-	s = strings.ReplaceAll(s, "\r", `\r`)
-	s = strings.ReplaceAll(s, "\t", `\t`)
-	s = strings.ReplaceAll(s, "\v", `\v`)
-	return s
+	needsEscape := false
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\', '/', ' ', '|', '\a', '\b', '\f', '\n', '\r', '\t', '\v':
+			needsEscape = true
+			break
+		}
+		if needsEscape {
+			break
+		}
+	}
+	if !needsEscape {
+		return s
+	}
+	var buf strings.Builder
+	buf.Grow(len(s) + len(s)/4)
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			buf.WriteString(`\\`)
+		case '/':
+			buf.WriteString(`\/`)
+		case ' ':
+			buf.WriteString(`\s`)
+		case '|':
+			buf.WriteString(`\p`)
+		case '\a':
+			buf.WriteString(`\a`)
+		case '\b':
+			buf.WriteString(`\b`)
+		case '\f':
+			buf.WriteString(`\f`)
+		case '\n':
+			buf.WriteString(`\n`)
+		case '\r':
+			buf.WriteString(`\r`)
+		case '\t':
+			buf.WriteString(`\t`)
+		case '\v':
+			buf.WriteString(`\v`)
+		default:
+			buf.WriteByte(s[i])
+		}
+	}
+	return buf.String()
 }
 
 func tsUnescape(s string) string {
@@ -849,8 +881,24 @@ func tsUnescape(s string) string {
 }
 
 func tsParseKV(s string) map[string]string {
-	m := make(map[string]string)
-	for _, pair := range strings.Fields(s) {
+	n := strings.Count(s, " ") + 1
+	m := make(map[string]string, n)
+	for len(s) > 0 {
+		end := strings.IndexByte(s, ' ')
+		var pair string
+		if end < 0 {
+			pair = s
+			s = ""
+		} else {
+			pair = s[:end]
+			s = s[end+1:]
+			for len(s) > 0 && s[0] == ' ' {
+				s = s[1:]
+			}
+		}
+		if pair == "" {
+			continue
+		}
 		idx := strings.IndexByte(pair, '=')
 		if idx < 0 {
 			m[pair] = ""
@@ -876,14 +924,16 @@ func tsParseKVList(s string) []map[string]string {
 
 // tsParseCommand parses "cmdname key=val key=val" into (name, params).
 func tsParseCommand(data []byte) (string, map[string]string) {
-	s := string(data)
-	// Strip trailing null
-	s = strings.TrimRight(s, "\x00")
-	spaceIdx := strings.IndexByte(s, ' ')
-	if spaceIdx < 0 {
-		return s, make(map[string]string)
+	end := len(data)
+	for end > 0 && data[end-1] == 0 {
+		end--
 	}
-	return s[:spaceIdx], tsParseKV(s[spaceIdx+1:])
+	data = data[:end]
+	spaceIdx := bytes.IndexByte(data, ' ')
+	if spaceIdx < 0 {
+		return string(data), make(map[string]string)
+	}
+	return string(data[:spaceIdx]), tsParseKV(string(data[spaceIdx+1:]))
 }
 
 // ──────────────────────────── Packet Building ────────────────────────────
@@ -1239,7 +1289,7 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 		// Single packet
 		pID := tc.tsNextPktID(tsPktCommand)
 		flags := byte(tsPktCommand) | tsFlagNewprotocol
-		meta := make([]byte, 5) // PId(2) + CId(2) + PT(1) for C2S
+		var meta [5]byte
 		binary.BigEndian.PutUint16(meta[0:2], pID)
 		binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
 		meta[4] = flags
@@ -1248,9 +1298,9 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 		var ciphertext []byte
 		if tc.cryptoOK {
 			key, nonce := tsCreateKeyNonce(tsPktCommand, pID, tc.pktState[tsPktCommand].sendGenID, 0x31, tc.sharedIV[:])
-			mac, ciphertext = tsEAXEncrypt(key[:], nonce[:], meta, cmdBytes)
+			mac, ciphertext = tsEAXEncrypt(key[:], nonce[:], meta[:], cmdBytes)
 		} else {
-			mac, ciphertext = tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta, cmdBytes)
+			mac, ciphertext = tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta[:], cmdBytes)
 		}
 
 		pkt := tsBuildC2SPacket(mac, pID, tc.clientID, flags, ciphertext)
@@ -1270,7 +1320,8 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 	}
 
 	// Fragmentation
-	chunks := make([][]byte, 0)
+	numChunks := (len(cmdBytes) + tsMaxPayloadC2S - 1) / tsMaxPayloadC2S
+	chunks := make([][]byte, 0, numChunks)
 	remaining := cmdBytes
 	for len(remaining) > 0 {
 		chunkSize := tsMaxPayloadC2S
@@ -1296,7 +1347,7 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 			flags |= tsFlagCompressed
 		}
 
-		meta := make([]byte, 5)
+		var meta [5]byte
 		binary.BigEndian.PutUint16(meta[0:2], pID)
 		binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
 		meta[4] = flags
@@ -1305,9 +1356,9 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 		var ciphertext []byte
 		if tc.cryptoOK {
 			key, nonce := tsCreateKeyNonce(tsPktCommand, pID, tc.pktState[tsPktCommand].sendGenID, 0x31, tc.sharedIV[:])
-			mac, ciphertext = tsEAXEncrypt(key[:], nonce[:], meta, chunk)
+			mac, ciphertext = tsEAXEncrypt(key[:], nonce[:], meta[:], chunk)
 		} else {
-			mac, ciphertext = tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta, chunk)
+			mac, ciphertext = tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta[:], chunk)
 		}
 
 		pkt := tsBuildC2SPacket(mac, pID, tc.clientID, flags, ciphertext)
@@ -1328,25 +1379,25 @@ func (tc *tsConnection) tsSendAck(pID uint16) error {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	ackData := make([]byte, 2)
-	binary.BigEndian.PutUint16(ackData, pID)
+	var ackData [2]byte
+	binary.BigEndian.PutUint16(ackData[:], pID)
 
 	ackPID := tc.tsNextPktID(tsPktAck)
 	flags := byte(tsPktAck)
 
-	meta := make([]byte, 5)
+	var meta [5]byte
 	binary.BigEndian.PutUint16(meta[0:2], ackPID)
 	binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
 	meta[4] = flags
 
 	if tc.cryptoOK {
 		key, nonce := tsCreateKeyNonce(tsPktAck, ackPID, tc.pktState[tsPktAck].sendGenID, 0x31, tc.sharedIV[:])
-		mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], meta, ackData)
+		mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], meta[:], ackData[:])
 		pkt := tsBuildC2SPacket(mac, ackPID, tc.clientID, flags, ciphertext)
 		return tc.tsSendRaw(pkt)
 	}
 
-	mac, ciphertext := tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta, ackData)
+	mac, ciphertext := tsEAXEncrypt(tsFakeKey[:], tsFakeNonce[:], meta[:], ackData[:])
 	pkt := tsBuildC2SPacket(mac, ackPID, tc.clientID, flags, ciphertext)
 	return tc.tsSendRaw(pkt)
 }
@@ -1367,12 +1418,12 @@ func (tc *tsConnection) tsSendPong(pingID uint16) error {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	pongData := make([]byte, 2)
-	binary.BigEndian.PutUint16(pongData, pingID)
+	var pongData [2]byte
+	binary.BigEndian.PutUint16(pongData[:], pingID)
 
 	pID := tc.tsNextPktID(tsPktPong)
 	flags := byte(tsPktPong) | tsFlagUnencrypted
-	pkt := tsBuildC2SPacket(tc.sharedMAC, pID, tc.clientID, flags, pongData)
+	pkt := tsBuildC2SPacket(tc.sharedMAC, pID, tc.clientID, flags, pongData[:])
 	return tc.tsSendRaw(pkt)
 }
 
@@ -1380,7 +1431,6 @@ func (tc *tsConnection) tsSendPong(pingID uint16) error {
 
 func (tc *tsConnection) tsReceiveLoop(ctx context.Context) {
 
-	buf := make([]byte, 2048)
 	for {
 		select {
 		case <-ctx.Done():
@@ -1389,21 +1439,19 @@ func (tc *tsConnection) tsReceiveLoop(ctx context.Context) {
 		}
 
 		tc.conn.SetReadDeadline(time.Now().Add(tsReadTimeout))
+		buf := make([]byte, 2048)
 		n, _, err := tc.conn.ReadFromUDP(buf)
 		if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				continue
 			}
-			// Connection lost — attempt auto-reconnect if enabled
 			if tc.owner != nil {
 				tc.owner.tsHandleConnectionLost(fmt.Errorf("%w: %v", ErrDisconnected, err))
 			}
 			return
 		}
 
-		raw := make([]byte, n)
-		copy(raw, buf[:n])
-		go tc.tsHandlePacket(raw)
+		go tc.tsHandlePacket(buf[:n])
 	}
 }
 
@@ -2689,7 +2737,7 @@ func (t *TeamSpeakCore) tsReconnectLoop() {
 }
 
 func (t *TeamSpeakCore) tsNextMsgID() string {
-	return fmt.Sprintf("ts_%d", t.msgCounter.Add(1))
+	return "ts_" + strconv.FormatInt(t.msgCounter.Add(1), 10)
 }
 
 func (t *TeamSpeakCore) tsAddMessage(chatID string, msg *Message) {
@@ -3926,11 +3974,18 @@ func (t *TeamSpeakCore) tsClientUpdate(params string) error {
 
 // ClientUpdate sends a clientupdate command with the given key=value pairs.
 func (t *TeamSpeakCore) ClientUpdate(params map[string]string) error {
-	parts := make([]string, 0, len(params))
+	var b strings.Builder
+	first := true
 	for k, v := range params {
-		parts = append(parts, k+"="+tsEscape(v))
+		if !first {
+			b.WriteByte(' ')
+		}
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(tsEscape(v))
+		first = false
 	}
-	return t.tsClientUpdate(strings.Join(parts, " "))
+	return t.tsClientUpdate(b.String())
 }
 
 func (t *TeamSpeakCore) SetNickname(nickname string) error {
@@ -4037,10 +4092,16 @@ func (t *TeamSpeakCore) CreateChannelFull(name string, opts map[string]string) (
 		return 0, ErrAuth
 	}
 
-	cmd := fmt.Sprintf("channelcreate channel_name=%s", tsEscape(name))
+	var b strings.Builder
+	b.WriteString("channelcreate channel_name=")
+	b.WriteString(tsEscape(name))
 	for k, v := range opts {
-		cmd += fmt.Sprintf(" %s=%s", k, tsEscape(v))
+		b.WriteByte(' ')
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(tsEscape(v))
 	}
+	cmd := b.String()
 
 	rows, err := t.tsExec(cmd)
 	if err != nil {
@@ -4059,11 +4120,16 @@ func (t *TeamSpeakCore) EditChannel(cid int, props map[string]string) error {
 	if !t.authed {
 		return ErrAuth
 	}
-	cmd := fmt.Sprintf("channeledit cid=%d", cid)
+	var b strings.Builder
+	b.WriteString("channeledit cid=")
+	b.WriteString(strconv.Itoa(cid))
 	for k, v := range props {
-		cmd += fmt.Sprintf(" %s=%s", k, tsEscape(v))
+		b.WriteByte(' ')
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(tsEscape(v))
 	}
-	return t.tsExecSimple(cmd)
+	return t.tsExecSimple(b.String())
 }
 
 func (t *TeamSpeakCore) DeleteChannel(cid int, force bool) error {
@@ -4119,11 +4185,16 @@ func (t *TeamSpeakCore) SubscribeChannel(cids ...int) error {
 	if !t.authed {
 		return ErrAuth
 	}
-	parts := make([]string, len(cids))
+	var b strings.Builder
+	b.WriteString("channelsubscribe ")
 	for i, cid := range cids {
-		parts[i] = fmt.Sprintf("cid=%d", cid)
+		if i > 0 {
+			b.WriteByte('|')
+		}
+		b.WriteString("cid=")
+		b.WriteString(strconv.Itoa(cid))
 	}
-	return t.tsExecSimple("channelsubscribe " + strings.Join(parts, "|"))
+	return t.tsExecSimple(b.String())
 }
 
 func (t *TeamSpeakCore) SubscribeAllChannels() error {
@@ -4141,11 +4212,16 @@ func (t *TeamSpeakCore) UnsubscribeChannel(cids ...int) error {
 	if !t.authed {
 		return ErrAuth
 	}
-	parts := make([]string, len(cids))
+	var b strings.Builder
+	b.WriteString("channelunsubscribe ")
 	for i, cid := range cids {
-		parts[i] = fmt.Sprintf("cid=%d", cid)
+		if i > 0 {
+			b.WriteByte('|')
+		}
+		b.WriteString("cid=")
+		b.WriteString(strconv.Itoa(cid))
 	}
-	return t.tsExecSimple("channelunsubscribe " + strings.Join(parts, "|"))
+	return t.tsExecSimple(b.String())
 }
 
 func (t *TeamSpeakCore) UnsubscribeAllChannels() error {
@@ -4478,11 +4554,16 @@ func (t *TeamSpeakCore) ClientDBEdit(cldbid int, props map[string]string) error 
 	if !t.authed {
 		return ErrAuth
 	}
-	cmd := fmt.Sprintf("clientdbedit cldbid=%d", cldbid)
+	var b strings.Builder
+	b.WriteString("clientdbedit cldbid=")
+	b.WriteString(strconv.Itoa(cldbid))
 	for k, v := range props {
-		cmd += fmt.Sprintf(" %s=%s", k, tsEscape(v))
+		b.WriteByte(' ')
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(tsEscape(v))
 	}
-	return t.tsExecSimple(cmd)
+	return t.tsExecSimple(b.String())
 }
 
 func (t *TeamSpeakCore) ClientDBDelete(cldbid int) error {
@@ -4596,11 +4677,16 @@ func (t *TeamSpeakCore) ClientEdit(clid int, props map[string]string) error {
 	if !t.authed {
 		return ErrAuth
 	}
-	cmd := fmt.Sprintf("clientedit clid=%d", clid)
+	var b strings.Builder
+	b.WriteString("clientedit clid=")
+	b.WriteString(strconv.Itoa(clid))
 	for k, v := range props {
-		cmd += fmt.Sprintf(" %s=%s", k, tsEscape(v))
+		b.WriteByte(' ')
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(tsEscape(v))
 	}
-	return t.tsExecSimple(cmd)
+	return t.tsExecSimple(b.String())
 }
 
 func (t *TeamSpeakCore) ClientAddPerm(cldbid, permID, permValue int) error {
@@ -4669,23 +4755,29 @@ func (t *TeamSpeakCore) BanAdd(ip, name, uid string, timeSeconds int, reason str
 	if !t.authed {
 		return 0, ErrAuth
 	}
-	cmd := "banadd"
+	var b strings.Builder
+	b.WriteString("banadd")
 	if ip != "" {
-		cmd += fmt.Sprintf(" ip=%s", tsEscape(ip))
+		b.WriteString(" ip=")
+		b.WriteString(tsEscape(ip))
 	}
 	if name != "" {
-		cmd += fmt.Sprintf(" name=%s", tsEscape(name))
+		b.WriteString(" name=")
+		b.WriteString(tsEscape(name))
 	}
 	if uid != "" {
-		cmd += fmt.Sprintf(" uid=%s", tsEscape(uid))
+		b.WriteString(" uid=")
+		b.WriteString(tsEscape(uid))
 	}
 	if timeSeconds > 0 {
-		cmd += fmt.Sprintf(" time=%d", timeSeconds)
+		b.WriteString(" time=")
+		b.WriteString(strconv.Itoa(timeSeconds))
 	}
 	if reason != "" {
-		cmd += fmt.Sprintf(" banreason=%s", tsEscape(reason))
+		b.WriteString(" banreason=")
+		b.WriteString(tsEscape(reason))
 	}
-	rows, err := t.tsExec(cmd)
+	rows, err := t.tsExec(b.String())
 	if err != nil {
 		return 0, err
 	}
@@ -4871,11 +4963,15 @@ func (t *TeamSpeakCore) ServerEdit(props map[string]string) error {
 	if !t.authed {
 		return ErrAuth
 	}
-	cmd := "serveredit"
+	var b strings.Builder
+	b.WriteString("serveredit")
 	for k, v := range props {
-		cmd += fmt.Sprintf(" %s=%s", k, tsEscape(v))
+		b.WriteByte(' ')
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(tsEscape(v))
 	}
-	return t.tsExecSimple(cmd)
+	return t.tsExecSimple(b.String())
 }
 
 func (t *TeamSpeakCore) ServerVersion() (map[string]string, error) {
@@ -5080,11 +5176,20 @@ func (t *TeamSpeakCore) FTDeleteFile(cid int, names []string, channelPassword st
 	if !t.authed {
 		return ErrAuth
 	}
-	parts := make([]string, len(names))
+	var b strings.Builder
+	b.WriteString("ftdeletefile cid=")
+	b.WriteString(strconv.Itoa(cid))
+	b.WriteString(" cpw=")
+	b.WriteString(tsEscape(channelPassword))
+	b.WriteByte(' ')
 	for i, n := range names {
-		parts[i] = fmt.Sprintf("name=%s", tsEscape(n))
+		if i > 0 {
+			b.WriteByte('|')
+		}
+		b.WriteString("name=")
+		b.WriteString(tsEscape(n))
 	}
-	return t.tsExecSimple(fmt.Sprintf("ftdeletefile cid=%d cpw=%s %s", cid, tsEscape(channelPassword), strings.Join(parts, "|")))
+	return t.tsExecSimple(b.String())
 }
 
 func (t *TeamSpeakCore) FTCreateDir(cid int, dirname, channelPassword string) error {
@@ -5294,13 +5399,13 @@ func (t *TeamSpeakCore) tsSendVoicePacket(pktType byte, flags byte, body []byte)
 	}
 
 	// Build meta for EAX: PId(2) + CId(2) + PT(1)
-	meta := make([]byte, 5)
+	var meta [5]byte
 	binary.BigEndian.PutUint16(meta[0:2], pID)
 	binary.BigEndian.PutUint16(meta[2:4], tc.clientID)
 	meta[4] = pktFlags
 
 	key, nonce := tsCreateKeyNonce(pktType, pID, tc.pktState[pktType].sendGenID, 0x31, tc.sharedIV[:])
-	mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], meta, body)
+	mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], meta[:], body)
 
 	pkt := tsBuildC2SPacket(mac, pID, tc.clientID, pktFlags, ciphertext)
 	t.bwStats.recordSent(pktType, len(pkt))
@@ -5682,11 +5787,16 @@ func (t *TeamSpeakCore) ServerCreate(name string, props map[string]string) (map[
 	if !t.authed {
 		return nil, ErrAuth
 	}
-	cmd := fmt.Sprintf("servercreate virtualserver_name=%s", tsEscape(name))
+	var b strings.Builder
+	b.WriteString("servercreate virtualserver_name=")
+	b.WriteString(tsEscape(name))
 	for k, v := range props {
-		cmd += fmt.Sprintf(" %s=%s", tsEscape(k), tsEscape(v))
+		b.WriteByte(' ')
+		b.WriteString(tsEscape(k))
+		b.WriteByte('=')
+		b.WriteString(tsEscape(v))
 	}
-	rows, err := t.tsExec(cmd)
+	rows, err := t.tsExec(b.String())
 	if err != nil {
 		return nil, err
 	}
@@ -6132,11 +6242,15 @@ func (t *TeamSpeakCore) InstanceEdit(props map[string]string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed { return ErrAuth }
-	cmd := "instanceedit"
+	var b strings.Builder
+	b.WriteString("instanceedit")
 	for k, v := range props {
-		cmd += fmt.Sprintf(" %s=%s", k, tsEscape(v))
+		b.WriteByte(' ')
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(tsEscape(v))
 	}
-	return t.tsExecSimple(cmd)
+	return t.tsExecSimple(b.String())
 }
 
 // BindingList lists bound IP addresses.
@@ -6240,12 +6354,15 @@ func (t *TeamSpeakCore) ClientAddServerGroup(cldbid int, sgids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed { return ErrAuth }
-	sgidStr := ""
+	var b strings.Builder
+	b.WriteString("clientaddservergroup cldbid=")
+	b.WriteString(strconv.Itoa(cldbid))
+	b.WriteString(" sgid=")
 	for i, sg := range sgids {
-		if i > 0 { sgidStr += "," }
-		sgidStr += strconv.Itoa(sg)
+		if i > 0 { b.WriteByte(',') }
+		b.WriteString(strconv.Itoa(sg))
 	}
-	return t.tsExecSimple(fmt.Sprintf("clientaddservergroup cldbid=%d sgid=%s", cldbid, sgidStr))
+	return t.tsExecSimple(b.String())
 }
 
 // ClientDelServerGroup removes server groups from a client.
@@ -6253,12 +6370,15 @@ func (t *TeamSpeakCore) ClientDelServerGroup(cldbid int, sgids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed { return ErrAuth }
-	sgidStr := ""
+	var b strings.Builder
+	b.WriteString("clientdelservergroup cldbid=")
+	b.WriteString(strconv.Itoa(cldbid))
+	b.WriteString(" sgid=")
 	for i, sg := range sgids {
-		if i > 0 { sgidStr += "," }
-		sgidStr += strconv.Itoa(sg)
+		if i > 0 { b.WriteByte(',') }
+		b.WriteString(strconv.Itoa(sg))
 	}
-	return t.tsExecSimple(fmt.Sprintf("clientdelservergroup cldbid=%d sgid=%s", cldbid, sgidStr))
+	return t.tsExecSimple(b.String())
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

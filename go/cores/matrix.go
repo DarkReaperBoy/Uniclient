@@ -454,7 +454,7 @@ func (m *MatrixCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 		Type:     ChatTypeTopic,
 		Title:    name,
 		ParentID: chatID,
-		Platform: "matrix",
+		Platform: mxPlatform,
 	}
 	return &dialog, nil
 }
@@ -566,7 +566,7 @@ func (m *MatrixCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 		Text:      msg.Text,
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
-		Platform:  "matrix",
+		Platform:  mxPlatform,
 	}, nil
 }
 
@@ -633,7 +633,7 @@ func (m *MatrixCore) EditMessage(chatID string, msgID string, text string) (*Mes
 		Text:      text,
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
-		Platform:  "matrix",
+		Platform:  mxPlatform,
 	}, nil
 }
 
@@ -679,7 +679,7 @@ func (m *MatrixCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outg
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
 		ReplyToID: replyToMsgID,
-		Platform:  "matrix",
+		Platform:  mxPlatform,
 	}, nil
 }
 
@@ -722,7 +722,7 @@ func (m *MatrixCore) ForwardMessage(fromChatID string, msgID string, toChatID st
 		Timestamp:   time.Now(),
 		Status:      MessageStatusSent,
 		ForwardFrom: evt.Sender.String(),
-		Platform:    "matrix",
+		Platform:    mxPlatform,
 	}, nil
 }
 
@@ -914,7 +914,7 @@ func (m *MatrixCore) UploadFile(chatID string, file FileUpload, progress func(se
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
 		Attachments: []FileRef{attRef},
-		Platform:  "matrix",
+		Platform:  mxPlatform,
 	}, nil
 }
 
@@ -1005,7 +1005,7 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	}
 
 	roomID := id.RoomID(chatID)
-	callID := fmt.Sprintf("call_%d", time.Now().UnixNano())
+	callID := "call_" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
 	// Create PeerConnection with TURN servers
 	pc, err := m.createPeerConnection()
@@ -1337,7 +1337,7 @@ func (m *MatrixCore) RejectCall(callID string) error {
 			ChatID: call.RoomID.String(),
 			State:  CallStateEnded,
 		},
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 
 	return nil
@@ -1382,7 +1382,7 @@ func (m *MatrixCore) setupCallStateHandlers(call *matrixCall) {
 					IsVideo: call.IsVideo,
 					State:   CallStateActive,
 				},
-				Platform: "matrix",
+				Platform: mxPlatform,
 			})
 
 		case webrtc.PeerConnectionStateFailed, webrtc.PeerConnectionStateDisconnected:
@@ -1415,7 +1415,7 @@ func (m *MatrixCore) setupCallStateHandlers(call *matrixCall) {
 						ChatID: call.RoomID.String(),
 						State:  CallStateEnded,
 					},
-					Platform: "matrix",
+					Platform: mxPlatform,
 				})
 			}
 		}
@@ -1465,17 +1465,15 @@ func (m *MatrixCore) handleIncomingAudio(ctx context.Context, call *matrixCall, 
 			return
 		}
 		if n < 12 {
-			continue // too short for RTP header
+			continue
 		}
-
-		// Extract Opus payload (skip 12-byte RTP header)
-		payload := make([]byte, n-12)
-		copy(payload, buf[12:n])
 
 		call.mu.Lock()
 		sink := call.audioSink
 		call.mu.Unlock()
 		if sink != nil {
+			payload := make([]byte, n-12)
+			copy(payload, buf[12:n])
 			sink(payload)
 		}
 	}
@@ -1483,13 +1481,16 @@ func (m *MatrixCore) handleIncomingAudio(ctx context.Context, call *matrixCall, 
 
 // sendAudio sends audio frames via RTP. Uses audioSource callback if set, otherwise sends Opus silence.
 func (m *MatrixCore) sendAudio(ctx context.Context, call *matrixCall) {
-	// Opus silence frame (20ms, mono)
 	silence := []byte{0xf8, 0xff, 0xfe}
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()
 
 	seq := uint16(0)
 	ts := uint32(0)
+	header := make([]byte, 12)
+	header[0] = 0x80
+	header[1] = 111
+	pkt := make([]byte, 0, 12+1500)
 
 	for {
 		select {
@@ -1500,7 +1501,6 @@ func (m *MatrixCore) sendAudio(ctx context.Context, call *matrixCall) {
 				return
 			}
 
-			// Get audio frame from source callback or use silence
 			var frame []byte
 			call.mu.Lock()
 			src := call.audioSource
@@ -1512,24 +1512,21 @@ func (m *MatrixCore) sendAudio(ctx context.Context, call *matrixCall) {
 				frame = silence
 			}
 
-			// Build RTP packet
-			header := make([]byte, 12)
-			header[0] = 0x80             // V=2, no padding, no extension, no CSRC
-			header[1] = 111              // PT=111 (Opus), no marker
-			header[2] = byte(seq >> 8)   // seq high
-			header[3] = byte(seq)        // seq low
-			header[4] = byte(ts >> 24)   // timestamp
+			header[2] = byte(seq >> 8)
+			header[3] = byte(seq)
+			header[4] = byte(ts >> 24)
 			header[5] = byte(ts >> 16)
 			header[6] = byte(ts >> 8)
 			header[7] = byte(ts)
-			// SSRC is set by pion from the track
 
-			pkt := append(header, frame...)
+			pkt = pkt[:12]
+			copy(pkt, header)
+			pkt = append(pkt, frame...)
 			if _, err := call.audioTrack.Write(pkt); err != nil {
 				return
 			}
 			seq++
-			ts += 960 // 20ms at 48kHz
+			ts += 960
 		}
 	}
 }
@@ -1619,7 +1616,7 @@ func (m *MatrixCore) handleCallAnswer(evt *event.Event) {
 			IsVideo: call.IsVideo,
 			State:   CallStateConnecting,
 		},
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 }
 
@@ -1673,7 +1670,7 @@ func (m *MatrixCore) GetProfile(userID string) (*User, error) {
 	user := &User{
 		ID:          userID,
 		DisplayName: profile.DisplayName,
-		Platform:    "matrix",
+		Platform:    mxPlatform,
 	}
 
 	if profile.AvatarURL.IsEmpty() == false {
@@ -1800,15 +1797,13 @@ func (m *MatrixCore) GetInviteLink(chatID string) (string, error) {
 
 	roomID := id.RoomID(chatID)
 
-	// Try to get canonical alias first
 	var aliasContent event.CanonicalAliasEventContent
 	err := m.client.StateEvent(m.ctx, roomID, event.StateCanonicalAlias, "", &aliasContent)
 	if err == nil && aliasContent.Alias != "" {
-		return fmt.Sprintf("https://matrix.to/#/%s", aliasContent.Alias), nil
+		return "https://matrix.to/#/" + string(aliasContent.Alias), nil
 	}
 
-	// Fall back to room ID
-	return fmt.Sprintf("https://matrix.to/#/%s", roomID), nil
+	return "https://matrix.to/#/" + string(roomID), nil
 }
 
 // --- Core Interface: Members ---
@@ -1892,7 +1887,7 @@ func (m *MatrixCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 			ID:          uid.String(),
 			DisplayName: member.DisplayName,
 			AvatarURL:   member.AvatarURL,
-			Platform:    "matrix",
+			Platform:    mxPlatform,
 		}
 		users = append(users, u)
 	}
@@ -1947,7 +1942,7 @@ func (m *MatrixCore) GetContacts() ([]User, error) {
 			contacts = append(contacts, User{
 				ID:          uid.String(),
 				DisplayName: uid.String(),
-				Platform:    "matrix",
+				Platform:    mxPlatform,
 			})
 			continue
 		}
@@ -1955,7 +1950,7 @@ func (m *MatrixCore) GetContacts() ([]User, error) {
 		u := User{
 			ID:          uid.String(),
 			DisplayName: profile.DisplayName,
-			Platform:    "matrix",
+			Platform:    mxPlatform,
 		}
 		if !profile.AvatarURL.IsEmpty() {
 			u.AvatarURL = profile.AvatarURL.String()
@@ -2042,7 +2037,7 @@ func (m *MatrixCore) GetBlockedUsers() ([]User, error) {
 		blocked = append(blocked, User{
 			ID:          uid,
 			DisplayName: uid,
-			Platform:    "matrix",
+			Platform:    mxPlatform,
 		})
 	}
 
@@ -2130,7 +2125,7 @@ func (m *MatrixCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, 
 			ID:       user.UserID.String(),
 			Type:     ChatTypeDM,
 			Title:    user.DisplayName,
-			Platform: "matrix",
+			Platform: mxPlatform,
 		})
 	}
 
@@ -2197,7 +2192,7 @@ func (m *MatrixCore) CreatePoll(chatID string, question string, options []string
 		Text:      question,
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
-		Platform:  "matrix",
+		Platform:  mxPlatform,
 	}, nil
 }
 
@@ -2260,7 +2255,7 @@ func (m *MatrixCore) SendSticker(chatID string, stickerID string) (*Message, err
 		Text:      "sticker",
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
-		Platform:  "matrix",
+		Platform:  mxPlatform,
 	}, nil
 }
 
@@ -2281,7 +2276,7 @@ func (m *MatrixCore) GetSessions() ([]Session, error) {
 		s := Session{
 			ID:        dev.DeviceID.String(),
 			Device:    dev.DisplayName,
-			Platform:  "matrix",
+			Platform:  mxPlatform,
 			IsCurrent: dev.DeviceID == m.deviceID,
 		}
 		if dev.LastSeenIP != "" {
@@ -2326,7 +2321,7 @@ func (m *MatrixCore) GetPresence(userID string) (*User, error) {
 	user := &User{
 		ID:       userID,
 		IsOnline: presence.Presence == event.PresenceOnline,
-		Platform: "matrix",
+		Platform: mxPlatform,
 	}
 
 	if presence.LastActiveAgo > 0 {
@@ -2454,7 +2449,7 @@ func (m *MatrixCore) GetPublicRooms(query string, limit int) ([]Dialog, error) {
 			ID:          room.RoomID.String(),
 			Title:       room.Name,
 			MemberCount: room.NumJoinedMembers,
-			Platform:    "matrix",
+			Platform:    mxPlatform,
 		}
 		if room.Topic != "" {
 			d.Title += " — " + room.Topic
@@ -2506,7 +2501,7 @@ func (m *MatrixCore) JoinRoomByAlias(alias string) (*Dialog, error) {
 
 	dialog := Dialog{
 		ID:       resp.RoomID.String(),
-		Platform: "matrix",
+		Platform: mxPlatform,
 	}
 	return &dialog, nil
 }
@@ -2646,7 +2641,7 @@ func (m *MatrixCore) GetSpaceChildren(chatID string) ([]Dialog, error) {
 			ID:          room.RoomID.String(),
 			Title:       room.Name,
 			MemberCount: room.NumJoinedMembers,
-			Platform:    "matrix",
+			Platform:    mxPlatform,
 		}
 		if room.WorldReadable {
 			d.Type = ChatTypeChannel
@@ -2735,7 +2730,7 @@ func (m *MatrixCore) GetThreads(chatID string) ([]Dialog, error) {
 			Type:     ChatTypeTopic,
 			Title:    title,
 			ParentID: chatID,
-			Platform: "matrix",
+			Platform: mxPlatform,
 		})
 	}
 
@@ -2872,7 +2867,7 @@ func (m *MatrixCore) SearchUsers(query string, limit int) ([]User, error) {
 		user := User{
 			ID:          u.UserID.String(),
 			DisplayName: u.DisplayName,
-			Platform:    "matrix",
+			Platform:    mxPlatform,
 		}
 		if !u.AvatarURL.IsEmpty() {
 			user.AvatarURL = u.AvatarURL.String()
@@ -2964,7 +2959,7 @@ func (m *MatrixCore) setupSyncer() {
 			Type:      UpdateDeleteMessage,
 			ChatID:    evt.RoomID.String(),
 			MessageID: evt.Redacts.String(),
-			Platform:  "matrix",
+			Platform:  mxPlatform,
 		})
 	})
 
@@ -2986,7 +2981,7 @@ func (m *MatrixCore) setupSyncer() {
 		m.fireUpdate(Update{
 			Type:     UpdateTyping,
 			ChatID:   evt.RoomID.String(),
-			Platform: "matrix",
+			Platform: mxPlatform,
 		})
 	})
 
@@ -2995,7 +2990,7 @@ func (m *MatrixCore) setupSyncer() {
 		m.fireUpdate(Update{
 			Type:     UpdateReadState,
 			ChatID:   evt.RoomID.String(),
-			Platform: "matrix",
+			Platform: mxPlatform,
 		})
 	})
 
@@ -3008,7 +3003,7 @@ func (m *MatrixCore) setupSyncer() {
 				Type:     UpdateUserStatus,
 				UserID:   evt.Sender.String(),
 				IsOnline: &isOnline,
-				Platform: "matrix",
+				Platform: mxPlatform,
 			})
 		}
 	})
@@ -3169,7 +3164,7 @@ func (m *MatrixCore) handleMessageEvent(evt *event.Event) {
 				Type:    UpdateEditMessage,
 				ChatID:  evt.RoomID.String(),
 				Message: msg,
-				Platform: "matrix",
+				Platform: mxPlatform,
 			})
 		}
 		return
@@ -3181,7 +3176,7 @@ func (m *MatrixCore) handleMessageEvent(evt *event.Event) {
 			Type:     UpdateNewMessage,
 			ChatID:   evt.RoomID.String(),
 			Message:  msg,
-			Platform: "matrix",
+			Platform: mxPlatform,
 		})
 	}
 }
@@ -3207,7 +3202,7 @@ func (m *MatrixCore) handleMemberEvent(evt *event.Event) {
 	m.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   evt.RoomID.String(),
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 }
 
@@ -3340,7 +3335,7 @@ func (m *MatrixCore) handleCallInvite(evt *event.Event) {
 			IsVideo: false,
 			State:   CallStateRinging,
 		},
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 }
 
@@ -3359,7 +3354,7 @@ func (m *MatrixCore) handleCallHangup(evt *event.Event) {
 				ChatID: evt.RoomID.String(),
 				State:  CallStateEnded,
 			},
-			Platform: "matrix",
+			Platform: mxPlatform,
 		})
 	}
 }
@@ -3377,55 +3372,46 @@ func (m *MatrixCore) eventToMessage(evt *event.Event) *Message {
 		SenderID:  evt.Sender.String(),
 		Timestamp: time.UnixMilli(evt.Timestamp),
 		Status:    MessageStatusSent,
-		Platform:  "matrix",
+		Platform:  mxPlatform,
 	}
 
-	// Text content
 	if mc.NewContent != nil {
 		msg.Text = mc.NewContent.Body
 	} else {
 		msg.Text = mc.Body
 	}
 
-	// Sender name from room cache
-	m.roomsMu.RLock()
-	if rs := m.rooms[evt.RoomID]; rs != nil {
-		if member := rs.Members[evt.Sender]; member != nil {
-			msg.SenderName = member.DisplayName
-		}
-	}
-	m.roomsMu.RUnlock()
-
-	// Reply
 	if mc.RelatesTo != nil && mc.RelatesTo.InReplyTo != nil {
 		msg.ReplyToID = mc.RelatesTo.InReplyTo.EventID.String()
 	}
 
-	// Attachments (encrypted files use mc.File, plaintext use mc.URL)
 	if mc.File != nil && mc.File.URL != "" {
+		info := mc.GetInfo()
 		att := FileRef{
 			ID:       string(mc.File.URL),
 			Name:     mc.Body,
-			MimeType: mc.GetInfo().MimeType,
-			Size:     int64(mc.GetInfo().Size),
+			MimeType: info.MimeType,
+			Size:     int64(info.Size),
 		}
 		if efJSON, err := json.Marshal(mc.File); err == nil {
 			att.Extra = string(efJSON)
 		}
 		msg.Attachments = []FileRef{att}
 	} else if mc.URL != "" {
-		att := FileRef{
+		info := mc.GetInfo()
+		msg.Attachments = []FileRef{{
 			ID:       string(mc.URL),
 			Name:     mc.Body,
-			MimeType: mc.GetInfo().MimeType,
-			Size:     int64(mc.GetInfo().Size),
-		}
-		msg.Attachments = []FileRef{att}
+			MimeType: info.MimeType,
+			Size:     int64(info.Size),
+		}}
 	}
 
-	// Encryption status
 	m.roomsMu.RLock()
 	if rs := m.rooms[evt.RoomID]; rs != nil {
+		if member := rs.Members[evt.Sender]; member != nil {
+			msg.SenderName = member.DisplayName
+		}
 		msg.IsEncrypted = rs.IsEncrypted
 	}
 	m.roomsMu.RUnlock()
@@ -3434,25 +3420,24 @@ func (m *MatrixCore) eventToMessage(evt *event.Event) *Message {
 }
 
 func (m *MatrixCore) roomToDialog(rs *matrixRoomState) Dialog {
-	d := Dialog{
-		ID:          rs.ID.String(),
-		Title:       rs.Name,
-		AvatarURL:   rs.AvatarURL,
-		UnreadCount: rs.UnreadCount,
-		Platform:    "matrix",
-	}
-
-	// Determine chat type
 	memberCount := 0
 	for _, mem := range rs.Members {
 		if mem.Membership == event.MembershipJoin || mem.Membership == event.MembershipInvite {
 			memberCount++
 		}
 	}
-	d.MemberCount = memberCount
+
+	d := Dialog{
+		ID:          rs.ID.String(),
+		Title:       rs.Name,
+		AvatarURL:   rs.AvatarURL,
+		UnreadCount: rs.UnreadCount,
+		MemberCount: memberCount,
+		Platform:    mxPlatform,
+	}
 
 	if m.isSpace(rs) {
-		d.Type = ChatTypeChannel // Spaces displayed as channels
+		d.Type = ChatTypeChannel
 	} else if rs.IsDirect || memberCount == 2 {
 		d.Type = ChatTypeDM
 	} else if rs.JoinRule == "public" {
@@ -3461,7 +3446,6 @@ func (m *MatrixCore) roomToDialog(rs *matrixRoomState) Dialog {
 		d.Type = ChatTypeGroup
 	}
 
-	// If no explicit name, generate from members
 	if d.Title == "" {
 		d.Title = m.generateRoomName(rs)
 	}
@@ -3472,10 +3456,7 @@ func (m *MatrixCore) roomToDialog(rs *matrixRoomState) Dialog {
 func (m *MatrixCore) generateRoomName(rs *matrixRoomState) string {
 	var names []string
 	for _, mem := range rs.Members {
-		if mem.UserID == m.userID {
-			continue
-		}
-		if mem.Membership != event.MembershipJoin {
+		if mem.UserID == m.userID || mem.Membership != event.MembershipJoin {
 			continue
 		}
 		name := mem.DisplayName
@@ -3490,7 +3471,14 @@ func (m *MatrixCore) generateRoomName(rs *matrixRoomState) string {
 	if len(names) <= 3 {
 		return strings.Join(names, ", ")
 	}
-	return fmt.Sprintf("%s and %d others", strings.Join(names[:2], ", "), len(names)-2)
+	var b strings.Builder
+	b.WriteString(names[0])
+	b.WriteString(", ")
+	b.WriteString(names[1])
+	b.WriteString(" and ")
+	b.WriteString(strconv.Itoa(len(names) - 2))
+	b.WriteString(" others")
+	return b.String()
 }
 
 func (m *MatrixCore) isSpace(rs *matrixRoomState) bool {
@@ -3546,10 +3534,20 @@ func (m *MatrixCore) serverName() string {
 
 func (m *MatrixCore) fireUpdate(update Update) {
 	m.updateMu.RLock()
-	handlers := make([]func(Update), len(m.updateHandlers))
+	n := len(m.updateHandlers)
+	if n == 0 {
+		m.updateMu.RUnlock()
+		return
+	}
+	if n == 1 {
+		h := m.updateHandlers[0]
+		m.updateMu.RUnlock()
+		h(update)
+		return
+	}
+	handlers := make([]func(Update), n)
 	copy(handlers, m.updateHandlers)
 	m.updateMu.RUnlock()
-
 	for _, h := range handlers {
 		h(update)
 	}
@@ -4144,7 +4142,7 @@ func (c *matrixVerificationCallbacks) VerificationRequested(_ context.Context, t
 			FromUser:      from.String(),
 			FromDevice:    fromDevice.String(),
 		},
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 }
 
@@ -4156,7 +4154,7 @@ func (c *matrixVerificationCallbacks) VerificationReady(_ context.Context, txnID
 			State:         "ready",
 			FromDevice:    otherDeviceID.String(),
 		},
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 	// Auto-start SAS if both sides support it
 	if supportsSAS && c.m.verificationHelper != nil {
@@ -4173,7 +4171,7 @@ func (c *matrixVerificationCallbacks) VerificationCancelled(_ context.Context, t
 			CancelCode:    string(code),
 			CancelReason:  reason,
 		},
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 }
 
@@ -4184,7 +4182,7 @@ func (c *matrixVerificationCallbacks) VerificationDone(_ context.Context, txnID 
 			TransactionID: txnID.String(),
 			State:         "done",
 		},
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 }
 
@@ -4202,7 +4200,7 @@ func (c *matrixVerificationCallbacks) ShowSAS(_ context.Context, txnID id.Verifi
 			EmojiSymbols:  symbols,
 			Decimals:      decimals,
 		},
-		Platform: "matrix",
+		Platform: mxPlatform,
 	})
 }
 
@@ -4466,7 +4464,7 @@ func (m *MatrixCore) CallReplaces(callID, targetRoomID, targetCallID string) err
 		"call_id":  callID,
 		"version":  "1",
 		"party_id": m.deviceID.String(),
-		"replacement_id": fmt.Sprintf("rep_%d", time.Now().UnixNano()),
+		"replacement_id": "rep_" + strconv.FormatInt(time.Now().UnixNano(), 10),
 		"target_room": map[string]interface{}{
 			"room_id": targetRoomID,
 		},
@@ -4880,16 +4878,20 @@ func (m *MatrixCore) GetNotifications(from string, limit int, only string) (json
 	if !m.authed {
 		return nil, ErrAuth
 	}
-	query := fmt.Sprintf("?limit=%d", limit)
+	var b strings.Builder
+	b.WriteString("?limit=")
+	b.WriteString(strconv.Itoa(limit))
 	if from != "" {
-		query += "&from=" + from
+		b.WriteString("&from=")
+		b.WriteString(from)
 	}
 	if only != "" {
-		query += "&only=" + only
+		b.WriteString("&only=")
+		b.WriteString(only)
 	}
 	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
 		Method: http.MethodGet,
-		URL:    m.client.BuildClientURL("v3", "notifications") + query,
+		URL:    m.client.BuildClientURL("v3", "notifications") + b.String(),
 	})
 	if err != nil {
 		return nil, err
@@ -5133,14 +5135,18 @@ func (m *MatrixCore) LookupThirdPartyLocation(protocol string, fields map[string
 	if !m.authed {
 		return nil, ErrAuth
 	}
-	query := "?"
+	var b strings.Builder
+	b.WriteByte('?')
 	for k, v := range fields {
-		query += k + "=" + v + "&"
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(v)
+		b.WriteByte('&')
 	}
 	var resp []map[string]interface{}
 	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
 		Method:       http.MethodGet,
-		URL:          m.client.BuildClientURL("v3", "thirdparty", "location", protocol) + query,
+		URL:          m.client.BuildClientURL("v3", "thirdparty", "location", protocol) + b.String(),
 		ResponseJSON: &resp,
 	})
 	if err != nil {
@@ -5149,19 +5155,22 @@ func (m *MatrixCore) LookupThirdPartyLocation(protocol string, fields map[string
 	return resp, nil
 }
 
-// LookupThirdPartyUser looks up a user from a third-party protocol.
 func (m *MatrixCore) LookupThirdPartyUser(protocol string, fields map[string]string) ([]map[string]interface{}, error) {
 	if !m.authed {
 		return nil, ErrAuth
 	}
-	query := "?"
+	var b strings.Builder
+	b.WriteByte('?')
 	for k, v := range fields {
-		query += k + "=" + v + "&"
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(v)
+		b.WriteByte('&')
 	}
 	var resp []map[string]interface{}
 	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
 		Method:       http.MethodGet,
-		URL:          m.client.BuildClientURL("v3", "thirdparty", "user", protocol) + query,
+		URL:          m.client.BuildClientURL("v3", "thirdparty", "user", protocol) + b.String(),
 		ResponseJSON: &resp,
 	})
 	if err != nil {
@@ -5355,10 +5364,10 @@ func (m *MatrixCore) DownloadThumbnail(mxcURI string, width, height int, dest st
 		return fmt.Errorf("invalid mxc URI: %s", mxcURI)
 	}
 
-	query := fmt.Sprintf("?width=%d&height=%d&method=scale", width, height)
+	q := "?width=" + strconv.Itoa(width) + "&height=" + strconv.Itoa(height) + "&method=scale"
 	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
 		Method: http.MethodGet,
-		URL:    m.client.BuildURL(mautrix.MediaURLPath{"v3", "thumbnail", parts[0], parts[1]}) + query,
+		URL:    m.client.BuildURL(mautrix.MediaURLPath{"v3", "thumbnail", parts[0], parts[1]}) + q,
 	})
 	if err != nil {
 		return err
@@ -5389,10 +5398,9 @@ func (m *MatrixCore) GetEventContext(chatID, eventID string, limit int) (json.Ra
 	if !m.authed {
 		return nil, ErrAuth
 	}
-	query := fmt.Sprintf("?limit=%d", limit)
 	respData, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
 		Method: http.MethodGet,
-		URL:    m.client.BuildClientURL("v3", "rooms", chatID, "context", eventID) + query,
+		URL:    m.client.BuildClientURL("v3", "rooms", chatID, "context", eventID) + "?limit=" + strconv.Itoa(limit),
 	})
 	if err != nil {
 		return nil, err
@@ -5714,7 +5722,7 @@ func (m *MatrixCore) GetMutualRooms(userID string) ([]string, error) {
 // TimestampToEvent finds the event closest to a given timestamp.
 func (m *MatrixCore) TimestampToEvent(roomID string, timestamp int64, dir string) (map[string]interface{}, error) {
 	url := m.client.BuildClientURL("v1", "rooms", roomID, "timestamp_to_event") +
-		fmt.Sprintf("?ts=%d&dir=%s", timestamp, dir)
+		"?ts=" + strconv.FormatInt(timestamp, 10) + "&dir=" + dir
 	data, err := m.mxRawReq(http.MethodGet, url, nil)
 	if err != nil { return nil, err }
 	var result map[string]interface{}
@@ -5788,7 +5796,7 @@ func (m *MatrixCore) SendLiveLocation(roomID string, geoURI string, description 
 				"event_id": m.client.UserID.String(), // refs the state event
 			},
 			"org.matrix.msc3488.location": map[string]string{"uri": geoURI},
-			"org.matrix.msc3488.ts":       fmt.Sprintf("%d", time.Now().UnixMilli()),
+			"org.matrix.msc3488.ts":       strconv.FormatInt(time.Now().UnixMilli(), 10),
 		})
 	return err
 }
@@ -5938,7 +5946,7 @@ func (m *MatrixCore) DownloadMediaAuthFilename(serverName, mediaID, fileName str
 // DownloadThumbnailAuth downloads a thumbnail with authentication.
 func (m *MatrixCore) DownloadThumbnailAuth(serverName, mediaID string, width, height int, method string) ([]byte, error) {
 	url := m.client.BuildClientURL("v1", "media", "thumbnail", serverName, mediaID) +
-		fmt.Sprintf("?width=%d&height=%d&method=%s", width, height, method)
+		"?width=" + strconv.Itoa(width) + "&height=" + strconv.Itoa(height) + "&method=" + method
 	data, err := m.mxRawReq(http.MethodGet, url, nil)
 	return data, err
 }
@@ -5955,7 +5963,7 @@ func (m *MatrixCore) GetMediaConfigAuth() (map[string]interface{}, error) {
 // GetURLPreviewAuth returns URL preview with authentication (v1.11+).
 func (m *MatrixCore) GetURLPreviewAuth(url string, ts int64) (map[string]interface{}, error) {
 	reqURL := m.client.BuildClientURL("v1", "media", "preview_url") +
-		fmt.Sprintf("?url=%s&ts=%d", url, ts)
+		"?url=" + url + "&ts=" + strconv.FormatInt(ts, 10)
 	data, err := m.mxRawReq(http.MethodGet, reqURL, nil)
 	if err != nil { return nil, err }
 	var result map[string]interface{}
@@ -5994,7 +6002,7 @@ func (m *MatrixCore) SlidingSync(body map[string]interface{}) (map[string]interf
 // SyncStateAfter syncs with state_after parameter (v1.16).
 func (m *MatrixCore) SyncStateAfter(since string, timeout int) (map[string]interface{}, error) {
 	url := m.client.BuildClientURL("v3", "sync") +
-		fmt.Sprintf("?since=%s&timeout=%d&use_state_after=true", since, timeout)
+		"?since=" + since + "&timeout=" + strconv.Itoa(timeout) + "&use_state_after=true"
 	data, err := m.mxRawReq(http.MethodGet, url, nil)
 	if err != nil { return nil, err }
 	var result map[string]interface{}
@@ -6069,7 +6077,7 @@ func (m *MatrixCore) SendGroupCallEncryptionKeys(roomID string, keys map[string]
 
 // GetKeyChanges returns users with changed device keys between two sync tokens.
 func (m *MatrixCore) GetKeyChanges(from, to string) (map[string]interface{}, error) {
-	url := m.client.BuildClientURL("v3", "keys", "changes") + fmt.Sprintf("?from=%s&to=%s", from, to)
+	url := m.client.BuildClientURL("v3", "keys", "changes") + "?from=" + from + "&to=" + to
 	data, err := m.mxRawReq(http.MethodGet, url, nil)
 	if err != nil { return nil, err }
 	var result map[string]interface{}
@@ -6135,7 +6143,7 @@ func (m *MatrixCore) SendSecretSend(targetDeviceID, requestID, secret string) er
 		"request_id": requestID,
 		"secret":     secret,
 	}
-	txnID := fmt.Sprintf("ss_%d", time.Now().UnixNano())
+	txnID := "ss_" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	_, err := m.mxRawReq(http.MethodPut,
 		m.client.BuildClientURL("v3", "sendToDevice", "m.secret.send", txnID),
 		map[string]interface{}{
@@ -6396,8 +6404,10 @@ func (m *MatrixCore) UnpinAllMessages(chatID string) error {
 }
 
 func (m *MatrixCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
-	geoURI := fmt.Sprintf("geo:%.6f,%.6f", lat, lon)
-	body := fmt.Sprintf("Location (%.6f, %.6f)", lat, lon)
+	latStr := strconv.FormatFloat(lat, 'f', 6, 64)
+	lonStr := strconv.FormatFloat(lon, 'f', 6, 64)
+	geoURI := "geo:" + latStr + "," + lonStr
+	body := "Location (" + latStr + ", " + lonStr + ")"
 	eventID, err := m.SendLocationMessage(chatID, geoURI, body)
 	if err != nil {
 		return nil, err
@@ -6409,7 +6419,7 @@ func (m *MatrixCore) SendLocation(chatID string, lat float64, lon float64) (*Mes
 		Text:      body,
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
-		Platform:  "matrix",
+		Platform:  mxPlatform,
 	}, nil
 }
 

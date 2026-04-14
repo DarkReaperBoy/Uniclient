@@ -1,348 +1,301 @@
-# Delta Chat — Fresh Checklist
+# Delta Chat Checklist — 245 methods
 
-**Methods:** 245 exported | **Lines:** 7,529 | **File:** `go/cores/deltachat.go`
-**Protocol:** Delta Chat (IMAP/SMTP, Autocrypt E2EE, chatmail)
-**Last updated:** 2026-04-13
 
-## Audit Notes (2026-04-13)
-- Removed dead code: `encryptMessage` (superseded by `wrapPGPMIME`), `shouldEncrypt` (unused)
-- `CreateBroadcastList` now delegates to `CreateChannel` (was duplicate logic)
-- `ProvideBackup` now delegates to `GetBackup` (was identical body)
-- `ArchiveChat` now delegates to `SetChatVisibility` (was ErrNotSupported stub)
-- `MarkUnread` now delegates to `MarkFreshChat`/`MarkNoticedChat` (was ErrNotSupported stub)
-- `UnpinAllMessages` now implemented (clears pins map; was ErrNotSupported stub)
-- `DeclineCall` now delegates to `EndCall` (was ErrNotSupported stub)
-- Removed `GetChatSecureJoinQRCodeSvg` from checklist (already removed from code as duplicate of `GetSecureJoinQRSvg`)
+## Core Interface
+- [x] Capabilities
+- [x] Close
+- [x] Name
+- [x] OnUpdate
 
-## Categories
+## Authentication
+- [x] Authenticate
+- [x] DeactivateAccount
+- [x] Logout
 
-### Core Lifecycle (7)
-- [ ] Authenticate
-- [ ] Close
-- [ ] IsConfigured
-- [ ] Logout
-- [ ] Name
-- [ ] Capabilities
-- [ ] OnUpdate
+## Dialogs & Chats
+- [x] ArchiveChat
+- [x] EditChatDescription
+- [x] EditChatTitle
+- [x] GetChatInfo
+- [x] GetDialogs
+- [x] LeaveChat
+- [x] MuteChat
 
-### Account Management (7)
-- [ ] AddAccount
-- [ ] DeactivateAccount
-- [ ] GetAllAccountIds
-- [ ] GetAccountFileSize
-- [ ] RemoveAccount
-- [ ] SelectAccount
-- [ ] GetContextInfo
+## Messaging
+- [x] DeleteMessage
+- [x] EditMessage
+- [x] ForwardMessage
+- [x] GetMessages
+- [x] GetReadState
+- [x] MarkAsRead
+- [x] MarkUnread
+- [x] PinMessage
+- [x] ReactToMessage
+- [x] ReplyToMessage
+- [x] SendContact
+- [x] SendDraft
+- [x] SendHTML
+- [x] SendImageBase64
+- [x] SendLocation
+- [x] SendMessage
+- [x] SendSticker
+- [x] SendTyping
+- [x] SendVideochatInvitation
+- [x] UnpinAllMessages
+- [x] UnpinMessage
 
-### I/O & Connectivity (10)
-- [ ] StartIo
-- [ ] StartIoForAllAccounts
-- [ ] StopIo
-- [ ] StopIoForAllAccounts
-- [ ] StopOngoingProcess
-- [ ] MaybeNetwork
-- [ ] SyncNow
-- [ ] GetConnectivity
-- [ ] GetConnectivityHtml
-- [ ] BackgroundFetch
-- [ ] StopBackgroundFetch
+## Media & Files
+- [x] DownloadFile
+- [x] DownloadFullMessage
+- [x] MessageSaveFile
+- [x] UploadFile
 
-### Configuration (8)
-- [ ] GetConfig
-- [ ] SetConfig
-- [ ] SetConfigFromQR
-- [ ] BatchGetConfig
-- [ ] BatchSetConfig
-- [ ] SetStockStrings
-- [ ] SetShowEmails
-- [ ] SetDownloadLimit
+## Calls
+- [x] AcceptCall
+- [x] AcceptIncomingCall
+- [x] DeclineCall
+- [x] EndCall
+- [x] GetCallInfo
+- [x] SetCallFilter
+- [x] SetCallMuted
+- [x] StartCall
 
-### Profile & Status (4)
-- [ ] GetProfile
-- [ ] GetStatus
-- [ ] SetStatus
-- [ ] SetAvatar
+## Group Calls
+- [x] JoinGroupCall
 
-### Contacts (20)
-- [ ] AddContact
-- [ ] AddAddressBook
-- [ ] ChangeContactName
-- [ ] DeleteContact
-- [ ] GetContacts
-- [ ] GetContactAuthName
-- [ ] GetContactColor
-- [ ] GetContactEncryptionInfo
-- [ ] GetContactLastSeen
-- [ ] GetContactStatus
-- [ ] GetContactVerifierId
-- [ ] GetPastContacts
-- [ ] ImportVCard
-- [ ] IsContactBot
-- [ ] IsContactInChat
-- [ ] IsContactKeyContact
-- [ ] IsContactVerified
-- [ ] LookupContactByAddr
-- [ ] MakeVCard
-- [ ] WasContactSeenRecently
+## Groups & Channels
+- [x] CreateChannel
+- [x] CreateGroup
+- [x] CreateTopic
 
-### Chat Management (24)
-- [ ] AcceptChat
-- [ ] ArchiveChat
-- [ ] BlockChat
-- [ ] CreateBroadcastList
-- [ ] CreateChannel
-- [ ] CreateChatByContactId
-- [ ] CreateGroup
-- [ ] CreatePoll
-- [ ] CreateTopic
-- [ ] DeleteChat
-- [ ] EditChatDescription
-- [ ] EditChatTitle
-- [ ] GetBasicChatInfo
-- [ ] GetChatColor
-- [ ] GetChatIdByContactId
-- [ ] GetChatInfo
-- [ ] GetChatType
-- [ ] GetFullChatById
-- [ ] GetSimilarChats
-- [ ] IsChatContactRequest
-- [ ] IsChatDeviceTalk
-- [ ] IsChatSelfTalk
-- [ ] IsChatUnpromoted
-- [ ] LeaveChat
+## Members & Admin
+- [x] AddMembers
+- [x] BanMember
+- [x] GetInviteLink
+- [x] GetMembers
+- [x] RemoveMember
+- [x] SetAdmin
+- [x] UnbanMember
 
-### Chat Visibility & Muting (5)
-- [ ] GetRemainingMuteDuration
-- [ ] MuteChat
-- [ ] SetChatMuted
-- [ ] SetChatVisibility
-- [ ] MarkFreshChat
+## Contacts & Users
+- [x] AddContact
+- [x] BlockUser
+- [x] DeleteContact
+- [x] GetBlockedUsers
+- [x] GetContacts
+- [x] GetProfile
+- [x] SearchGlobal
+- [x] UnblockUser
 
-### Chat Images (2)
-- [ ] RemoveChatImage
-- [ ] SetChatImage
+## Folders
+- [x] CreateFolder
+- [x] GetFolders
 
-### Chat Encryption & Protection (3)
-- [ ] GetEncryptionInfo
-- [ ] IsChatEncrypted
-- [ ] SetChatProtected
+## Sessions
+- [x] GetSessions
+- [x] TerminateSession
 
-### Chat Lists (3)
-- [ ] GetChatlistEntries
-- [ ] GetChatlistItemsByEntries
-- [ ] GetChatlistSummary
+## Polls
+- [x] CreatePoll
+- [x] VotePoll
 
-### Members & Groups (6)
-- [ ] AddMembers
-- [ ] GetChatContacts
-- [ ] GetMembers
-- [ ] RemoveMember
-- [ ] SetAdmin
-- [ ] GetMailingListAddr
+## Stickers
+- [x] GetStickerFolder
+- [x] GetStickers
+- [x] SaveSticker
 
-### Banning (2)
-- [ ] BanMember
-- [ ] UnbanMember
+## Drafts
+- [x] GetDraft
+- [x] RemoveDraft
+- [x] SetDraft
 
-### Blocking (2)
-- [ ] BlockUser
-- [ ] UnblockUser
-- [ ] GetBlockedUsers
+## Search
+- [x] SearchMessages
 
-### Dialogs & Folders (3)
-- [ ] GetDialogs
-- [ ] GetFolders
-- [ ] CreateFolder
+## Chat Invites & Lists
+- [x] GetChatlistEntries
+- [x] GetChatlistItemsByEntries
+- [x] GetChatlistSummary
 
-### Messaging — Send (10)
-- [ ] SendMessage
-- [ ] SendHTML
-- [ ] SendContact
-- [ ] SendDraft
-- [ ] SendImageBase64
-- [ ] SendLocation
-- [ ] SendSticker
-- [ ] SendTyping
-- [ ] SendVideochatInvitation
-- [ ] ReplyToMessage
+## Webxdc
+- [x] GetWebxdcBlob
+- [x] GetWebxdcInfo
+- [x] GetWebxdcStatusUpdates
+- [x] InitWebxdcIntegration
+- [x] LeaveWebxdcRealtime
+- [x] SendWebxdcRealtimeAdvertisement
+- [x] SendWebxdcRealtimeData
+- [x] SendWebxdcStatusUpdate
+- [x] SetWebxdcIntegration
 
-### Messaging — Edit & Forward (4)
-- [ ] EditMessage
-- [ ] ForwardMessage
-- [ ] ForwardMessagesToAccount
-- [ ] ResendMessage
+## Multi-Transport
+- [x] AddTransport
+- [x] DeleteTransport
+- [x] ListTransports
 
-### Messaging — Delete (2)
-- [ ] DeleteMessage
-- [ ] DeleteMessagesForAll
+## State Queries
+- [x] IsChatContactRequest
+- [x] IsChatDeviceTalk
+- [x] IsChatEncrypted
+- [x] IsChatSelfTalk
+- [x] IsChatUnpromoted
+- [x] IsConfigured
+- [x] IsContactBot
+- [x] IsContactInChat
+- [x] IsContactKeyContact
+- [x] IsContactVerified
+- [x] IsLocationStreaming
+- [x] IsMessageBot
+- [x] IsMessageEdited
+- [x] IsMessageForwarded
+- [x] IsMessageInfo
+- [x] IsSendingLocationsToChat
 
-### Messaging — Read State (5)
-- [ ] GetReadReceipts
-- [ ] GetReadReceiptCount
-- [ ] GetReadState
-- [ ] MarkAsRead
-- [ ] MarkUnread
-- [ ] MarkNoticedChat
+## Backup & Key Transfer
+- [x] ContinueKeyTransfer
+- [x] ExportBackup
+- [x] ExportSelfKeys
+- [x] GetBackup
+- [x] GetBackupQR
+- [x] GetBackupQRSvg
+- [x] ImportBackup
+- [x] InitiateKeyTransfer
+- [x] ProvideBackup
+- [x] ReceiveBackup
 
-### Messaging — Retrieve (13)
-- [ ] GetMessages
-- [ ] GetNextMessages
-- [ ] WaitNextMessages
-- [ ] GetChatMedia
-- [ ] GetFirstUnreadMessage
-- [ ] GetFreshMessageCount
-- [ ] GetFreshMessages
-- [ ] GetMessageHTML
-- [ ] GetMessageInfo
-- [ ] GetMessageInfoType
-- [ ] GetMessageParent
-- [ ] GetMessageSortTimestamp
-- [ ] GetMessageSubject
+## Queries & Info
+- [x] GetAccountFileSize
+- [x] GetAllAccountIds
+- [x] GetBasicChatInfo
+- [x] GetBlobDir
+- [x] GetChatColor
+- [x] GetChatContacts
+- [x] GetChatIdByContactId
+- [x] GetChatMedia
+- [x] GetChatType
+- [x] GetConfig
+- [x] GetConnectivity
+- [x] GetConnectivityHtml
+- [x] GetContactAuthName
+- [x] GetContactColor
+- [x] GetContactEncryptionInfo
+- [x] GetContactLastSeen
+- [x] GetContactStatus
+- [x] GetContactVerifierId
+- [x] GetContextInfo
+- [x] GetEncryptionInfo
+- [x] GetEphemeralTimer
+- [x] GetFirstUnreadMessage
+- [x] GetFreshMessageCount
+- [x] GetFreshMessages
+- [x] GetFullChatById
+- [x] GetLocations
+- [x] GetMailingListAddr
+- [x] GetMessageDownloadState
+- [x] GetMessageError
+- [x] GetMessageHTML
+- [x] GetMessageInfo
+- [x] GetMessageInfoType
+- [x] GetMessageParent
+- [x] GetMessageSortTimestamp
+- [x] GetMessageSubject
+- [x] GetNextMessages
+- [x] GetOAuth2URL
+- [x] GetOriginalMsgId
+- [x] GetOverrideSenderName
+- [x] GetPastContacts
+- [x] GetProviderInfo
+- [x] GetPushState
+- [x] GetQuota
+- [x] GetReactions
+- [x] GetReadReceiptCount
+- [x] GetReadReceipts
+- [x] GetRemainingMuteDuration
+- [x] GetSavedMsgId
+- [x] GetSecureJoinQR
+- [x] GetSecureJoinQRSvg
+- [x] GetShowPadlock
+- [x] GetSimilarChats
+- [x] GetStatus
+- [x] GetStorageUsageReport
+- [x] GetSystemInfo
 
-### Messaging — State & Metadata (10)
-- [ ] CanSend
-- [ ] GetMessageDownloadState
-- [ ] GetMessageError
-- [ ] GetOriginalMsgId
-- [ ] GetOverrideSenderName
-- [ ] GetSavedMsgId
-- [ ] GetShowPadlock
-- [ ] HasDeviatingTimestamp
-- [ ] HasMessageHtml
-- [ ] HasMessageLocation
-- [ ] IsMessageBot
-- [ ] IsMessageEdited
-- [ ] IsMessageForwarded
-- [ ] IsMessageInfo
+## Settings & Configuration
+- [x] SetAvatar
+- [x] SetChatImage
+- [x] SetChatMuted
+- [x] SetChatProtected
+- [x] SetChatVisibility
+- [x] SetConfig
+- [x] SetConfigFromQR
+- [x] SetDownloadLimit
+- [x] SetEphemeralTimer
+- [x] SetMessageDimensions
+- [x] SetMessageDuration
+- [x] SetMessageHtml
+- [x] SetMessageLocation
+- [x] SetMessageSubject
+- [x] SetOverrideSenderName
+- [x] SetPeerPublicKey
+- [x] SetPushDeviceToken
+- [x] SetShowEmails
+- [x] SetStatus
+- [x] SetStockStrings
 
-### Messaging — Compose & Draft (5)
-- [ ] GetDraft
-- [ ] RemoveDraft
-- [ ] SetDraft
-- [ ] SetMessageDimensions
-- [ ] SetMessageDuration
-- [ ] SetMessageHtml
-- [ ] SetMessageLocation
-- [ ] SetMessageSubject
-- [ ] SetOverrideSenderName
+## Deletion
+- [x] DeleteAllLocations
+- [x] DeleteChat
+- [x] DeleteMessagesForAll
+- [x] RemoveAccount
+- [x] RemoveChatImage
 
-### Messaging — Pin (3)
-- [ ] PinMessage
-- [ ] UnpinMessage
-- [ ] UnpinAllMessages
+## Creation
+- [x] CreateBroadcastList
+- [x] CreateChatByContactId
+- [x] CreateQRSvg
 
-### Messaging — Download & Files (4)
-- [ ] DownloadFile
-- [ ] DownloadFullMessage
-- [ ] MessageSaveFile
-- [ ] UploadFile
+## Read State
+- [x] MarkFreshChat
+- [x] MarkNoticedChat
 
-### Messaging — Save (1)
-- [ ] SaveMessages
-
-### Reactions (1)
-- [ ] ReactToMessage
-- [ ] GetReactions
-
-### Polls (1)
-- [ ] VotePoll
-
-### Stickers (3)
-- [ ] GetStickerFolder
-- [ ] GetStickers
-- [ ] SaveSticker
-
-### Search (2)
-- [ ] SearchGlobal
-- [ ] SearchMessages
-
-### Ephemeral / Auto-Delete (2)
-- [ ] GetEphemeralTimer
-- [ ] SetEphemeralTimer
-- [ ] EstimateAutoDeletionCount
-
-### Invite Links & QR (8)
-- [ ] CheckQR
-- [ ] CreateQRSvg
-- [ ] GetBackupQR
-- [ ] GetBackupQRSvg
-- [ ] GetInviteLink
-- [ ] GetSecureJoinQR
-- [ ] GetSecureJoinQRSvg
-- [ ] SecureJoin
-
-### Backup (3)
-- [ ] ExportBackup
-- [ ] GetBackup
-- [ ] ImportBackup
-- [ ] ProvideBackup
-- [ ] ReceiveBackup
-
-### Key Management (5)
-- [ ] ChangePassphrase
-- [ ] ContinueKeyTransfer
-- [ ] ExportSelfKeys
-- [ ] ImportSelfKeys
-- [ ] InitiateKeyTransfer
-- [ ] PreconfigureKeypair
-- [ ] SetPeerPublicKey
-
-### Calls (8)
-- [ ] AcceptCall
-- [ ] AcceptIncomingCall
-- [ ] DeclineCall
-- [ ] EndCall
-- [ ] GetCallInfo
-- [ ] JoinGroupCall
-- [ ] SetCallFilter
-- [ ] SetCallMuted
-- [ ] StartCall
-
-### Location Streaming (5)
-- [ ] DeleteAllLocations
-- [ ] GetLocations
-- [ ] IsLocationStreaming
-- [ ] IsSendingLocationsToChat
-- [ ] StartLocationStreaming
-- [ ] StopLocationStreaming
-
-### Webxdc (6)
-- [ ] GetWebxdcBlob
-- [ ] GetWebxdcInfo
-- [ ] GetWebxdcStatusUpdates
-- [ ] InitWebxdcIntegration
-- [ ] LeaveWebxdcRealtime
-- [ ] SendWebxdcRealtimeAdvertisement
-- [ ] SendWebxdcRealtimeData
-- [ ] SendWebxdcStatusUpdate
-- [ ] SetWebxdcIntegration
-
-### Push Notifications (2)
-- [ ] GetPushState
-- [ ] SetPushDeviceToken
-
-### Transports (3)
-- [ ] AddTransport
-- [ ] DeleteTransport
-- [ ] ListTransports
-
-### Provider & OAuth (2)
-- [ ] GetProviderInfo
-- [ ] GetOAuth2URL
-
-### Email Validation (1)
-- [ ] CheckEmailValidity
-
-### Storage & System (4)
-- [ ] GetBlobDir
-- [ ] GetQuota
-- [ ] GetStorageUsageReport
-- [ ] GetSystemInfo
-
-### Sessions (2)
-- [ ] GetSessions
-- [ ] TerminateSession
-
-### Device Messages (2)
-- [ ] AddDeviceMessage
-- [ ] WasDeviceMsgEverAdded
+## Other
+- [x] AcceptChat
+- [x] AddAccount
+- [x] AddAddressBook
+- [x] AddDeviceMessage
+- [x] BackgroundFetch
+- [x] BatchGetConfig
+- [x] BatchSetConfig
+- [x] BlockChat
+- [x] CanSend
+- [x] ChangeContactName
+- [x] ChangePassphrase
+- [x] CheckEmailValidity
+- [x] CheckQR
+- [x] EstimateAutoDeletionCount
+- [x] ForwardMessagesToAccount
+- [x] HasDeviatingTimestamp
+- [x] HasMessageHtml
+- [x] HasMessageLocation
+- [x] ImportSelfKeys
+- [x] ImportVCard
+- [x] LookupContactByAddr
+- [x] MakeVCard
+- [x] MaybeNetwork
+- [x] PreconfigureKeypair
+- [x] ResendMessage
+- [x] SaveMessages
+- [x] SecureJoin
+- [x] SelectAccount
+- [x] StartIo
+- [x] StartIoForAllAccounts
+- [x] StartLocationStreaming
+- [x] StopBackgroundFetch
+- [x] StopIo
+- [x] StopIoForAllAccounts
+- [x] StopLocationStreaming
+- [x] StopOngoingProcess
+- [x] SyncNow
+- [x] WaitNextMessages
+- [x] WasContactSeenRecently
+- [x] WasDeviceMsgEverAdded

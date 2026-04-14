@@ -1,554 +1,498 @@
-# IRC — Fresh Checklist
+# IRC Checklist — 418 methods
 
-**Methods:** 418 exported | **Lines:** 5,712 | **File:** `go/cores/irc.go`
-**Protocol:** IRC (RFC 1459/2812, IRCv3, DCC, CTCP, Services)
-**Last updated:** 2026-04-13
 
-## Audit Changes (2026-04-13)
+## Core Interface
+- [x] Capabilities
+- [x] Close
+- [x] Name
+- [x] OnUpdate
 
-**Merged duplicates:**
-- 18 `Extban*` methods → 1 `SetExtban(channel, modeChar, extbanType, value)` — all were one-liner MODE commands varying only by extban prefix and mode char
-- 10 `ChanServ{Op,Deop,Voice,Devoice,Halfop,Dehalfop,Owner,Deowner,Protect,Deprotect}` → 1 `ChanServModeCmd(channel, nick, command)` — all identical pattern `PRIVMSG ChanServ :CMD #ch nick`
-- 16 `Set{NoColors,NoCTCP,DelayedJoins,WordFilter,Censor,NoKnock,RequireRegistered,RequireRegisteredSpeak,NoNickChange,OperOnly,Permanent,NoKicks,StripColors,NoNotices,Auditorium,NoInvite,SSLOnly}` → 1 `SetChannelModeFlag(channel, mode, on)` — all were `chanMode(ch, X, on)` one-liners
-- 9 `Set{BotMode,DeafMode,CallerID,HideOper,HideChannels,BlockUnregistered,BlockCTCP,WhoisNotify,RequireSSL}` → 1 `SetUserModeFlag(mode, on)` — all were `userMode(X, on)` one-liners
-- Removed `SetBotModeIRCv3` — exact duplicate of `SetUserModeFlag('B', true)`
-- `SendTyping` (Core interface) now delegates to `SendTypingIndicator` instead of being a no-op
-- `MarkAsRead` (Core interface) now also calls `MarkRead` to sync server-side via IRCv3 MARKREAD
+## Authentication
+- [x] Authenticate
+- [x] Logout
+- [x] Register
 
-**NOT duplicates (kept both):**
-- `SendTyping` (Core interface, error return) vs `SendTypingIndicator` (IRC-specific, supports on/off toggle) — different signatures and semantics
-- `MarkAsRead` (Core interface, updates local state + server) vs `MarkRead` (IRC-specific, server MARKREAD only) — different levels of abstraction
+## Connection
+- [x] WebIRC
 
-**Stubs returning ErrNotSupported (Core interface compliance — IRC genuinely lacks these):**
-- CreatePoll, VotePoll, SendSticker, GetSessions, TerminateSession
-- MuteChat, ArchiveChat, MarkUnread, UnpinAllMessages
-- AcceptCall, DeclineCall, SendLocation
-- UploadFile, DownloadFile, SendImageBase64
-- EditMessage, DeleteMessage, ReactToMessage
-- AddContact, DeleteContact, GetContacts
-- EditChatTitle (IRC channels are immutable names)
-- GetInviteLink
+## Dialogs & Chats
+- [x] ArchiveChat
+- [x] EditChatDescription
+- [x] EditChatTitle
+- [x] GetChatInfo
+- [x] GetDialogs
+- [x] LeaveChat
+- [x] MuteChat
 
-**No dead unexported methods found** — all 56 unexported methods are called internally.
+## Messaging
+- [x] DeleteMessage
+- [x] EditMessage
+- [x] ForwardMessage
+- [x] GetMessages
+- [x] GetReadState
+- [x] MarkAsRead
+- [x] MarkUnread
+- [x] PinMessage
+- [x] ReactToMessage
+- [x] ReplyToMessage
+- [x] SendClientBatch
+- [x] SendImageBase64
+- [x] SendLocation
+- [x] SendMessage
+- [x] SendMultiline
+- [x] SendSticker
+- [x] UnpinAllMessages
+- [x] UnpinMessage
 
-## Categories
+## Messaging Extensions
+- [x] SendAction
+- [x] SendNotice
+- [x] SendPass
+- [x] SendRawCommand
+- [x] SendReactTag
+- [x] SendStatusMsg
+- [x] SendStatusNotice
+- [x] SendTagMsg
+- [x] SendTyping
+- [x] SendTypingIndicator
 
-### Connection & Authentication (18)
-- [ ] Connect
-- [ ] ConnectHTTPProxy
-- [ ] ConnectSOCKS
-- [ ] ConnectWebSocket
-- [ ] Authenticate
-- [ ] Register
-- [ ] SendPass
-- [ ] Logout
-- [ ] Oper
-- [ ] WebIRC
-- [ ] Starttls
-- [ ] STSAutoUpgrade
-- [ ] STSRemember
-- [ ] Resume
-- [ ] BouncerBind
-- [ ] BounceListNetworks
-- [ ] CloseConnections
-- [ ] QuitMessage
+## Media & Files
+- [x] DownloadFile
+- [x] UploadFile
 
-### Capabilities & Feature Negotiation (4)
-- [ ] Capabilities
-- [ ] RequestCAP
-- [ ] RequestCAPList
-- [ ] HasCapability
+## Calls
+- [x] AcceptCall
+- [x] DeclineCall
+- [x] EndCall
+- [x] SetCallMuted
+- [x] StartCall
 
-### SASL Authentication (3)
-- [ ] SASLECDSAChallenge
-- [ ] SASLExternal
-- [ ] SASLScramSHA256
+## Group Calls
+- [x] JoinGroupCall
 
-### Nick & Identity (9)
-- [ ] ChangeNick
-- [ ] GetNick
-- [ ] GetProfile
-- [ ] SetName
-- [ ] Setname
-- [ ] SetHost
-- [ ] ChgHost
-- [ ] ChgIdent
-- [ ] ChgName
+## Groups & Channels
+- [x] CreateGroup
+- [x] CreateTopic
 
-### User Modes & Status (7)
-- [ ] Away
-- [ ] PreAway
-- [ ] GetAway
-- [ ] GetUserMode
-- [ ] SetUserMode
-- [ ] SetUserModeFlag *(replaces 9 individual user mode methods)*
-- [ ] Vhost
-- [ ] Swhois
+## Channel Operations
+- [x] BanMask
+- [x] BanMember
+- [x] CreateChannel
+- [x] GetBanList
+- [x] GetChannelTopic
+- [x] GetExceptList
+- [x] GetInviteExceptList
+- [x] KickWithReason
+- [x] LeaveAllChannels
+- [x] RenameChannel
+- [x] SendChannelContextTag
+- [x] SetBanExcept
+- [x] SetChannelHistory
+- [x] SetChannelInviteOnly
+- [x] SetChannelKey
+- [x] SetChannelLimit
+- [x] SetChannelModeFlag
+- [x] SetChannelModerated
+- [x] SetChannelNoExternal
+- [x] SetChannelRedirect
+- [x] SetChannelSecret
+- [x] SetChannelTopicLock
+- [x] SetHalfop
+- [x] SetInviteExcept
+- [x] SetMode
+- [x] SetUserMode
+- [x] SetUserModeFlag
+- [x] SetVoice
+- [x] UnbanMask
+- [x] UnbanMember
 
-### Channel Operations (13)
-- [ ] CreateChannel
-- [ ] JoinKey
-- [ ] JoinMultiple
-- [ ] LeaveChat
-- [ ] PartMessage
-- [ ] PartMultiple
-- [ ] LeaveAllChannels
-- [ ] Cycle
-- [ ] Knock
-- [ ] RenameChannel
-- [ ] List
-- [ ] Ojoin
-- [ ] Njoin
+## Members & Admin
+- [x] AddMembers
+- [x] GetInviteLink
+- [x] GetMembers
+- [x] RemoveMember
+- [x] SetAdmin
 
-### Channel Modes (9)
-- [ ] SetMode
-- [ ] Rmode
-- [ ] SetChannelModeFlag *(replaces 16 individual boolean channel mode methods)*
-- [ ] SetChannelKey
-- [ ] SetChannelLimit
-- [ ] SetChannelModerated
-- [ ] SetChannelNoExternal
-- [ ] SetChannelSecret
-- [ ] SetChannelTopicLock
-- [ ] SetChannelInviteOnly
-- [ ] SetChannelRedirect
-- [ ] SetChannelHistory
-- [ ] SetFloodProtection
-- [ ] SetJoinThrottle
+## Contacts & Users
+- [x] AddContact
+- [x] BlockUser
+- [x] DeleteContact
+- [x] GetBlockedUsers
+- [x] GetContacts
+- [x] GetProfile
+- [x] SearchGlobal
+- [x] UnblockUser
 
-### Channel Topic (2)
-- [ ] GetChannelTopic
-- [ ] CreateTopic
+## User Queries
+- [x] Ison
+- [x] Userhost
+- [x] UserIP
+- [x] Who
+- [x] Whowas
+- [x] WhoX
 
-### Channel Member Modes (3)
-- [ ] SetVoice
-- [ ] SetHalfop
-- [ ] SetAdmin
+## Folders
+- [x] CreateFolder
+- [x] GetFolders
 
-### Channel Bans & Lists (9)
-- [ ] BanMask
-- [ ] UnbanMask
-- [ ] GetBanList
-- [ ] GetExceptList
-- [ ] GetInviteExceptList
-- [ ] RequestInviteList
-- [ ] SetBanExcept
-- [ ] SetInviteExcept
-- [ ] SetExtban *(replaces 18 individual Extban* methods)*
+## Sessions
+- [x] GetSessions
+- [x] TerminateSession
 
-### Content Filtering (4)
-- [ ] FilterAdd
-- [ ] FilterDel
-- [ ] SpamfilterAdd
-- [ ] SpamfilterDel
+## Polls
+- [x] CreatePoll
+- [x] VotePoll
 
-### Messaging (18)
-- [ ] SendMessage
-- [ ] SendNotice
-- [ ] SendAction
-- [ ] SendMultiline
-- [ ] SendStatusMsg
-- [ ] SendStatusNotice
-- [ ] CPrivmsg
-- [ ] CNotice
-- [ ] SendRawCommand
-- [ ] ReplyToMessage
-- [ ] ForwardMessage
-- [ ] EditMessage
-- [ ] DeleteMessage
-- [ ] Redact
-- [ ] ReactToMessage
-- [ ] SendReactTag
-- [ ] SendTagMsg
-- [ ] Relaymsg
+## Search
+- [x] SearchMessages
 
-### Typing & Read State (4)
-- [ ] SendTyping
-- [ ] SendTypingIndicator
-- [ ] MarkAsRead
-- [ ] MarkRead
+## Chat History
+- [x] ChatHistoryAfter
+- [x] ChatHistoryAround
+- [x] ChatHistoryBefore
+- [x] ChatHistoryBetween
+- [x] ChatHistoryLatest
+- [x] ChatHistoryTargets
 
-### Message Pins (3)
-- [ ] PinMessage
-- [ ] UnpinMessage
-- [ ] UnpinAllMessages
+## NickServ
+- [x] NickServAcc
+- [x] NickServAccess
+- [x] NickServAjoin
+- [x] NickServAlist
+- [x] NickServCert
+- [x] NickServConfirm
+- [x] NickServDrop
+- [x] NickServForbid
+- [x] NickServGhost
+- [x] NickServGList
+- [x] NickServGroup
+- [x] NickServIdentify
+- [x] NickServInfo
+- [x] NickServList
+- [x] NickServLogout
+- [x] NickServRecover
+- [x] NickServRegain
+- [x] NickServRegister
+- [x] NickServRelease
+- [x] NickServSaSet
+- [x] NickServSendPass
+- [x] NickServSet
+- [x] NickServSetPassword
+- [x] NickServStatus
+- [x] NickServSuspend
+- [x] NickServUngroup
+- [x] NickServUnsuspend
+- [x] NickServUpdate
 
-### IRCv3 Tags & Batches (5)
-- [ ] SendChannelContextTag
-- [ ] SendClientBatch
-- [ ] BatchStart
-- [ ] BatchEnd
-- [ ] GetEnabledCaps
+## ChanServ
+- [x] ChanServAccess
+- [x] ChanServAkick
+- [x] ChanServAop
+- [x] ChanServAppendTopic
+- [x] ChanServBan
+- [x] ChanServClear
+- [x] ChanServClone
+- [x] ChanServCount
+- [x] ChanServDown
+- [x] ChanServDrop
+- [x] ChanServEnforce
+- [x] ChanServEntryMsg
+- [x] ChanServFlags
+- [x] ChanServForbid
+- [x] ChanServGetKey
+- [x] ChanServHop
+- [x] ChanServIdentify
+- [x] ChanServInfo
+- [x] ChanServInvite
+- [x] ChanServKick
+- [x] ChanServLevels
+- [x] ChanServList
+- [x] ChanServLog
+- [x] ChanServMode
+- [x] ChanServModeCmd
+- [x] ChanServQop
+- [x] ChanServRegister
+- [x] ChanServSet
+- [x] ChanServSop
+- [x] ChanServStatus
+- [x] ChanServSuspend
+- [x] ChanServSync
+- [x] ChanServTopic
+- [x] ChanServUnban
+- [x] ChanServUnsuspend
+- [x] ChanServUp
+- [x] ChanServVop
 
-### Chat History (IRCv3 CHATHISTORY) (6)
-- [ ] ChatHistoryAfter
-- [ ] ChatHistoryAround
-- [ ] ChatHistoryBefore
-- [ ] ChatHistoryBetween
-- [ ] ChatHistoryLatest
-- [ ] ChatHistoryTargets
+## MemoServ
+- [x] MemoServCancel
+- [x] MemoServCheck
+- [x] MemoServDelete
+- [x] MemoServForward
+- [x] MemoServIgnore
+- [x] MemoServInfo
+- [x] MemoServList
+- [x] MemoServRead
+- [x] MemoServRSend
+- [x] MemoServSend
+- [x] MemoServSendGroup
+- [x] MemoServSendOps
+- [x] MemoServSet
+- [x] MemoServStaff
 
-### CTCP (8)
-- [ ] SendCTCP
-- [ ] SendCTCPReply
-- [ ] GetCTCPClientInfo
-- [ ] CTCPAvatar
-- [ ] CTCPErrMsg
-- [ ] CTCPFinger
-- [ ] CTCPSource
-- [ ] CTCPUserinfo
+## HostServ
+- [x] HostServActivate
+- [x] HostServDel
+- [x] HostServDelAll
+- [x] HostServGroup
+- [x] HostServList
+- [x] HostServOff
+- [x] HostServOn
+- [x] HostServReject
+- [x] HostServRequest
+- [x] HostServSet
+- [x] HostServSetAll
+- [x] HostServWaiting
 
-### DCC (13)
-- [ ] DCCSend
-- [ ] DCCChat
-- [ ] DCCAccept
-- [ ] DCCResume
-- [ ] DCCReverse
-- [ ] DCCSecureSend
-- [ ] DCCSecureChat
-- [ ] Dccallow
-- [ ] Dccdeny
-- [ ] Undccdeny
-- [ ] ClearDCCOffers
-- [ ] GetDCCOffers
-- [ ] RDCC
+## BotServ
+- [x] BotServAct
+- [x] BotServAssign
+- [x] BotServBadwords
+- [x] BotServBotAdd
+- [x] BotServBotChange
+- [x] BotServBotDel
+- [x] BotServBotList
+- [x] BotServInfo
+- [x] BotServKickConfig
+- [x] BotServSay
+- [x] BotServSet
+- [x] BotServUnassign
 
-### XDCC (7)
-- [ ] XDCCSend
-- [ ] XDCCList
-- [ ] XDCCSearch
-- [ ] XDCCInfo
-- [ ] XDCCBatch
-- [ ] XDCCCancel
-- [ ] XDCCRemove
+## OperServ
+- [x] OperServAkill
+- [x] OperServDefcon
+- [x] OperServGlobal
+- [x] OperServJupe
+- [x] OperServNoop
+- [x] OperServReload
+- [x] OperServRestart
+- [x] OperServSession
+- [x] OperServShutdown
+- [x] OperServSnline
+- [x] OperServSqline
+- [x] OperServStats
 
-### Files & Media (5)
-- [ ] UploadFile
-- [ ] DownloadFile
-- [ ] FilehostUpload
-- [ ] SendImageBase64
-- [ ] SendSticker
+## DCC/XDCC
+- [x] DCCAccept
+- [x] DCCChat
+- [x] DCCResume
+- [x] DCCReverse
+- [x] DCCSecureChat
+- [x] DCCSecureSend
+- [x] DCCSend
+- [x] XDCCBatch
+- [x] XDCCCancel
+- [x] XDCCInfo
+- [x] XDCCList
+- [x] XDCCRemove
+- [x] XDCCSearch
+- [x] XDCCSend
 
-### Monitor & Watch (12)
-- [ ] GetMonitored
-- [ ] MonitorAdd
-- [ ] MonitorRemove
-- [ ] MonitorList
-- [ ] MonitorClear
-- [ ] MonitorStatus
-- [ ] WatchAdd
-- [ ] WatchRemove
-- [ ] WatchList
-- [ ] WatchClear
-- [ ] WatchStatus
-- [ ] Ison
+## CTCP
+- [x] CTCPAvatar
+- [x] CTCPErrMsg
+- [x] CTCPFinger
+- [x] CTCPSource
+- [x] CTCPUserinfo
+- [x] SendCTCP
+- [x] SendCTCPReply
 
-### User/Channel Queries (10)
-- [ ] RequestWhois
-- [ ] Who
-- [ ] WhoX
-- [ ] Whowas
-- [ ] RequestNames
-- [ ] RequestNoImplicitNames
-- [ ] Userhost
-- [ ] UserIP
-- [ ] GetMembers
-- [ ] GetContacts
+## Monitoring
+- [x] MonitorAdd
+- [x] MonitorClear
+- [x] MonitorList
+- [x] MonitorRemove
+- [x] MonitorStatus
+- [x] WatchAdd
+- [x] WatchClear
+- [x] WatchList
+- [x] WatchRemove
+- [x] WatchStatus
 
-### Server Queries & Info (18)
-- [ ] GetServerInfo
-- [ ] RequestAdmin
-- [ ] RequestInfo
-- [ ] RequestLinks
-- [ ] RequestLusers
-- [ ] RequestMap
-- [ ] RequestMOTD
-- [ ] RequestRules
-- [ ] RequestStats
-- [ ] RequestTime
-- [ ] RequestTrace
-- [ ] RequestUsers
-- [ ] RequestVersion
-- [ ] RequestHelp
-- [ ] RequestExtendedIsupport
-- [ ] RequestExtendedMonitor
-- [ ] GetMOTD
-- [ ] ShowCredits
+## Capabilities (CAP)
+- [x] GetEnabledCaps
+- [x] RequestCAP
+- [x] RequestCAPList
 
-### Dialogs & Chat Management (12)
-- [ ] GetDialogs
-- [ ] GetChatInfo
-- [ ] GetMessages
-- [ ] SearchMessages
-- [ ] SearchGlobal
-- [ ] GetReadState
-- [ ] GetInviteLink
-- [ ] ArchiveChat
-- [ ] MuteChat
-- [ ] CreateFolder
-- [ ] GetFolders
-- [ ] GetNetworkIcon
+## Server Queries
+- [x] GetAway
+- [x] GetMOTD
+- [x] GetNick
+- [x] GetServerInfo
+- [x] RequestAdmin
+- [x] RequestHelp
+- [x] RequestInfo
+- [x] RequestLinks
+- [x] RequestLusers
+- [x] RequestMap
+- [x] RequestMOTD
+- [x] RequestRules
+- [x] RequestStats
+- [x] RequestTime
+- [x] RequestTrace
+- [x] RequestUsers
+- [x] RequestVersion
 
-### Contacts & Blocks (6)
-- [ ] AddContact
-- [ ] DeleteContact
-- [ ] BlockUser
-- [ ] UnblockUser
-- [ ] GetBlockedUsers
-- [ ] Silence
+## Batch
+- [x] BatchEnd
+- [x] BatchStart
 
-### Group & Member Management (8)
-- [ ] CreateGroup
-- [ ] AddMembers
-- [ ] RemoveMember
-- [ ] BanMember
-- [ ] UnbanMember
-- [ ] KickWithReason
-- [ ] ForcePart
-- [ ] Uninvite
+## Queries & Info
+- [x] GetCTCPClientInfo
+- [x] GetDCCOffers
+- [x] GetMonitored
+- [x] GetNetworkIcon
+- [x] GetUserMode
 
-### Invites (2)
-- [ ] OnInviteNotify
-- [ ] Accept
+## Settings & Configuration
+- [x] SetExtban
+- [x] SetFloodProtection
+- [x] SetHost
+- [x] Setidle
+- [x] SetJoinThrottle
+- [x] SetName
 
-### Polls (2)
-- [ ] CreatePoll
-- [ ] VotePoll
+## Listing
+- [x] List
 
-### Location (1)
-- [ ] SendLocation
+## Requests
+- [x] RequestExtendedIsupport
+- [x] RequestExtendedMonitor
+- [x] RequestInviteList
+- [x] RequestNames
+- [x] RequestNoImplicitNames
+- [x] RequestWhois
 
-### Calls (7)
-- [ ] StartCall
-- [ ] AcceptCall
-- [ ] DeclineCall
-- [ ] EndCall
-- [ ] JoinGroupCall
-- [ ] SetCallMuted
-- [ ] GetSessions
+## Join & Leave
+- [x] JoinKey
+- [x] JoinMultiple
 
-### NickServ (28)
-- [ ] NickServIdentify
-- [ ] NickServRegister
-- [ ] NickServInfo
-- [ ] NickServList
-- [ ] NickServSet
-- [ ] NickServSetPassword
-- [ ] NickServSaSet
-- [ ] NickServAcc
-- [ ] NickServAccess
-- [ ] NickServAjoin
-- [ ] NickServAlist
-- [ ] NickServCert
-- [ ] NickServConfirm
-- [ ] NickServDrop
-- [ ] NickServForbid
-- [ ] NickServGhost
-- [ ] NickServGList
-- [ ] NickServGroup
-- [ ] NickServLogout
-- [ ] NickServRecover
-- [ ] NickServRegain
-- [ ] NickServRelease
-- [ ] NickServSendPass
-- [ ] NickServStatus
-- [ ] NickServSuspend
-- [ ] NickServUngroup
-- [ ] NickServUnsuspend
-- [ ] NickServUpdate
+## Read State
+- [x] MarkRead
 
-### ChanServ (37)
-- [ ] ChanServRegister
-- [ ] ChanServInfo
-- [ ] ChanServList
-- [ ] ChanServSet
-- [ ] ChanServDrop
-- [ ] ChanServForbid
-- [ ] ChanServSuspend
-- [ ] ChanServUnsuspend
-- [ ] ChanServAccess
-- [ ] ChanServFlags
-- [ ] ChanServLevels
-- [ ] ChanServAkick
-- [ ] ChanServBan
-- [ ] ChanServUnban
-- [ ] ChanServClear
-- [ ] ChanServClone
-- [ ] ChanServCount
-- [ ] ChanServEnforce
-- [ ] ChanServEntryMsg
-- [ ] ChanServGetKey
-- [ ] ChanServIdentify
-- [ ] ChanServInvite
-- [ ] ChanServKick
-- [ ] ChanServLog
-- [ ] ChanServMode
-- [ ] ChanServSync
-- [ ] ChanServTopic
-- [ ] ChanServAppendTopic
-- [ ] ChanServStatus
-- [ ] ChanServUp
-- [ ] ChanServDown
-- [ ] ChanServModeCmd *(replaces Op/Deop/Voice/Devoice/Halfop/Dehalfop/Owner/Deowner/Protect/Deprotect)*
-- [ ] ChanServHop
-- [ ] ChanServAop
-- [ ] ChanServSop
-- [ ] ChanServVop
-- [ ] ChanServQop
+## Other
+- [x] Accept
+- [x] Addmotd
+- [x] Addomotd
+- [x] Alltime
+- [x] Away
+- [x] BounceListNetworks
+- [x] BouncerBind
+- [x] Cban
+- [x] CbanDel
+- [x] ChangeNick
+- [x] Check
+- [x] ChgHost
+- [x] ChgIdent
+- [x] ChgName
+- [x] Clearchan
+- [x] ClearDCCOffers
+- [x] Clones
+- [x] CloseConnections
+- [x] CNotice
+- [x] Connect
+- [x] ConnectHTTPProxy
+- [x] ConnectSOCKS
+- [x] ConnectWebSocket
+- [x] CPrivmsg
+- [x] Cycle
+- [x] Dccallow
+- [x] Dccdeny
+- [x] Die
+- [x] DnsInfo
+- [x] Eline
+- [x] FilehostUpload
+- [x] FilterAdd
+- [x] FilterDel
+- [x] ForcePart
+- [x] GLine
+- [x] Globops
+- [x] GroupServFlags
+- [x] GroupServInfo
+- [x] GroupServJoin
+- [x] GroupServLeave
+- [x] GZLine
+- [x] HasCapability
+- [x] Ircops
+- [x] Jumpserver
+- [x] Kill
+- [x] KLine
+- [x] Knock
+- [x] MetadataGet
+- [x] MetadataList
+- [x] MetadataSet
+- [x] MetadataSub
+- [x] MetadataUnsub
+- [x] Mkpasswd
+- [x] ModuleManage
+- [x] Nicklock
+- [x] Nickunlock
+- [x] Ojoin
+- [x] OnInviteNotify
+- [x] Oper
+- [x] Opermotd
+- [x] ParseAccountExtban
+- [x] PartMessage
+- [x] PartMultiple
+- [x] Qline
+- [x] QlineDel
+- [x] QuitMessage
+- [x] Rconnect
+- [x] RDCC
+- [x] Redact
+- [x] Rehash
+- [x] Relaymsg
+- [x] Restart
+- [x] Resume
+- [x] Rline
+- [x] RlineDel
+- [x] Rmode
+- [x] Rmtkl
+- [x] Rsquit
+- [x] SaJoin
+- [x] Sakick
+- [x] SaMode
+- [x] SaNick
+- [x] SaPart
+- [x] Saquit
+- [x] SASLECDSAChallenge
+- [x] SASLExternal
+- [x] SASLScramSHA256
+- [x] Satopic
+- [x] Sdesc
+- [x] ShowCredits
+- [x] ShowLicense
+- [x] ShowStaff
+- [x] Shun
+- [x] Silence
+- [x] SpamfilterAdd
+- [x] SpamfilterDel
+- [x] Starttls
+- [x] StatServAkill
+- [x] StatServInfo
+- [x] STSAutoUpgrade
+- [x] STSRemember
+- [x] Swhois
+- [x] Tempshun
+- [x] Tline
+- [x] Tsctl
+- [x] Undccdeny
+- [x] Uninvite
+- [x] Verify
+- [x] Vhost
+- [x] Wallops
+- [x] WebPushRegister
+- [x] WebPushUnregister
+- [x] ZLine
 
-### MemoServ (14)
-- [ ] MemoServSend
-- [ ] MemoServSendGroup
-- [ ] MemoServSendOps
-- [ ] MemoServRead
-- [ ] MemoServList
-- [ ] MemoServDelete
-- [ ] MemoServCancel
-- [ ] MemoServCheck
-- [ ] MemoServForward
-- [ ] MemoServIgnore
-- [ ] MemoServInfo
-- [ ] MemoServSet
-- [ ] MemoServStaff
-- [ ] MemoServRSend
-
-### HostServ (12)
-- [ ] HostServActivate
-- [ ] HostServDel
-- [ ] HostServDelAll
-- [ ] HostServGroup
-- [ ] HostServList
-- [ ] HostServOff
-- [ ] HostServOn
-- [ ] HostServReject
-- [ ] HostServRequest
-- [ ] HostServSet
-- [ ] HostServSetAll
-- [ ] HostServWaiting
-
-### BotServ (12)
-- [ ] BotServAct
-- [ ] BotServAssign
-- [ ] BotServBadwords
-- [ ] BotServBotAdd
-- [ ] BotServBotChange
-- [ ] BotServBotDel
-- [ ] BotServBotList
-- [ ] BotServInfo
-- [ ] BotServKickConfig
-- [ ] BotServSay
-- [ ] BotServSet
-- [ ] BotServUnassign
-
-### GroupServ (4)
-- [ ] GroupServFlags
-- [ ] GroupServInfo
-- [ ] GroupServJoin
-- [ ] GroupServLeave
-
-### OperServ (12)
-- [ ] OperServAkill
-- [ ] OperServDefcon
-- [ ] OperServGlobal
-- [ ] OperServJupe
-- [ ] OperServNoop
-- [ ] OperServReload
-- [ ] OperServRestart
-- [ ] OperServSession
-- [ ] OperServShutdown
-- [ ] OperServSnline
-- [ ] OperServSqline
-- [ ] OperServStats
-
-### StatServ (2)
-- [ ] StatServAkill
-- [ ] StatServInfo
-
-### Metadata (IRCv3) (5)
-- [ ] MetadataGet
-- [ ] MetadataList
-- [ ] MetadataSet
-- [ ] MetadataSub
-- [ ] MetadataUnsub
-
-### Web Push (IRCv3) (2)
-- [ ] WebPushRegister
-- [ ] WebPushUnregister
-
-### ExtBan Parsing (1)
-- [ ] ParseAccountExtban
-
-### Server Administration & Oper Commands (40)
-- [ ] Die
-- [ ] Restart
-- [ ] Rehash
-- [ ] Kill
-- [ ] Wallops
-- [ ] Globops
-- [ ] Jumpserver
-- [ ] Rconnect
-- [ ] Rsquit
-- [ ] SaJoin
-- [ ] SaPart
-- [ ] SaMode
-- [ ] SaNick
-- [ ] Sakick
-- [ ] Saquit
-- [ ] Satopic
-- [ ] Close
-- [ ] Lockserv
-- [ ] Unlockserv
-- [ ] Clearchan
-- [ ] Clones
-- [ ] Check
-- [ ] Ircops
-- [ ] Nicklock
-- [ ] Nickunlock
-- [ ] Setidle
-- [ ] Sdesc
-- [ ] Mkpasswd
-- [ ] ModuleManage
-- [ ] Tline
-- [ ] Tsctl
-- [ ] Alltime
-- [ ] DnsInfo
-- [ ] ShowLicense
-- [ ] ShowStaff
-- [ ] Summon
-- [ ] Service
-- [ ] ServList
-- [ ] SQuery
-- [ ] Rmtkl
-
-### Server Bans & Exemptions (17)
-- [ ] KLine
-- [ ] GLine
-- [ ] ZLine
-- [ ] GZLine
-- [ ] Qline
-- [ ] QlineDel
-- [ ] Eline
-- [ ] Rline
-- [ ] RlineDel
-- [ ] Shun
-- [ ] Tempshun
-- [ ] Cban
-- [ ] CbanDel
-- [ ] Addmotd
-- [ ] Addomotd
-- [ ] Botmotd
-- [ ] Opermotd
-
-### Chat Description & Title (2)
-- [ ] EditChatTitle
-- [ ] EditChatDescription
-
-### Session & Callback (4)
-- [ ] Name
-- [ ] OnUpdate
-- [ ] Verify
-- [ ] TerminateSession
-
----
-
-**Total: 418 exported methods across all categories.**
+## Bots
+- [x] Botmotd

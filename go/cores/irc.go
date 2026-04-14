@@ -83,27 +83,39 @@ func (m *ircMsg) Trailing() string {
 }
 
 func parseIRCMsg(line string) *ircMsg {
-	m := &ircMsg{Tags: make(map[string]string)}
+	m := &ircMsg{}
 
 	// IRCv3 tags: @key=value;key2=value2
-	if strings.HasPrefix(line, "@") {
+	if len(line) > 0 && line[0] == '@' {
 		sp := strings.IndexByte(line, ' ')
 		if sp < 0 {
 			return nil
 		}
 		tagStr := line[1:sp]
 		line = strings.TrimLeft(line[sp+1:], " ")
-		for _, tag := range strings.Split(tagStr, ";") {
+		m.Tags = make(map[string]string, 4)
+		for {
+			semi := strings.IndexByte(tagStr, ';')
+			var tag string
+			if semi < 0 {
+				tag = tagStr
+			} else {
+				tag = tagStr[:semi]
+			}
 			if eq := strings.IndexByte(tag, '='); eq >= 0 {
 				m.Tags[tag[:eq]] = tag[eq+1:]
-			} else {
+			} else if tag != "" {
 				m.Tags[tag] = ""
 			}
+			if semi < 0 {
+				break
+			}
+			tagStr = tagStr[semi+1:]
 		}
 	}
 
 	// Prefix: :nick!user@host
-	if strings.HasPrefix(line, ":") {
+	if len(line) > 0 && line[0] == ':' {
 		sp := strings.IndexByte(line, ' ')
 		if sp < 0 {
 			return nil
@@ -600,7 +612,10 @@ func (c *IRCCore) sendRawErr(line string) error {
 		line = line[:ircMaxMsgLen-2]
 	}
 
-	if _, err := c.writer.WriteString(line + "\r\n"); err != nil {
+	if _, err := c.writer.WriteString(line); err != nil {
+		return fmt.Errorf("%w: %v", ErrDisconnected, err)
+	}
+	if _, err := c.writer.WriteString("\r\n"); err != nil {
 		return fmt.Errorf("%w: %v", ErrDisconnected, err)
 	}
 	if err := c.writer.Flush(); err != nil {
@@ -631,7 +646,8 @@ func (c *IRCCore) sendRaw(line string) {
 		line = line[:ircMaxMsgLen-2]
 	}
 
-	c.writer.WriteString(line + "\r\n")
+	c.writer.WriteString(line)
+	c.writer.WriteString("\r\n")
 	c.writer.Flush()
 }
 
@@ -1198,8 +1214,7 @@ func (c *IRCCore) handleCAP(msg *ircMsg) {
 
 func (c *IRCCore) handleAuthenticate(msg *ircMsg) {
 	if msg.Trailing() == "+" || (len(msg.Params) > 0 && msg.Params[0] == "+") {
-		// Send SASL PLAIN: \0username\0password
-		payload := fmt.Sprintf("\x00%s\x00%s", c.username, c.password)
+		payload := "\x00" + c.username + "\x00" + c.password
 		encoded := base64.StdEncoding.EncodeToString([]byte(payload))
 		c.sendRaw("AUTHENTICATE " + encoded)
 	}
@@ -1337,9 +1352,10 @@ func (c *IRCCore) handleNickChange(msg *ircMsg) {
 	c.channelsMu.Unlock()
 
 	// Update DM partner tracking
+	oldNickLower := strings.ToLower(oldNick)
 	c.dmPartnersMu.Lock()
-	if c.dmPartners[strings.ToLower(oldNick)] {
-		delete(c.dmPartners, strings.ToLower(oldNick))
+	if c.dmPartners[oldNickLower] {
+		delete(c.dmPartners, oldNickLower)
 		c.dmPartners[strings.ToLower(newNick)] = true
 	}
 	c.dmPartnersMu.Unlock()
@@ -1368,21 +1384,13 @@ func (c *IRCCore) handleNamesReply(msg *ircMsg) {
 		c.channels[chanLower] = ch
 	}
 	for _, name := range strings.Fields(names) {
+		if name == "" {
+			continue
+		}
 		mode := ""
-		if strings.HasPrefix(name, "@") {
-			mode = "@"
-			name = name[1:]
-		} else if strings.HasPrefix(name, "+") {
-			mode = "+"
-			name = name[1:]
-		} else if strings.HasPrefix(name, "%") {
-			mode = "%"
-			name = name[1:]
-		} else if strings.HasPrefix(name, "~") {
-			mode = "~"
-			name = name[1:]
-		} else if strings.HasPrefix(name, "&") {
-			mode = "&"
+		switch name[0] {
+		case '@', '+', '%', '~', '&':
+			mode = name[:1]
 			name = name[1:]
 		}
 		ch.Members[name] = mode
@@ -1473,9 +1481,7 @@ func (c *IRCCore) handleCreationTime(msg *ircMsg) {
 
 	c.channelsMu.Lock()
 	if ch, ok := c.channels[chanLower]; ok {
-		var ts int64
-		fmt.Sscanf(msg.Params[2], "%d", &ts)
-		if ts > 0 {
+		if ts, err := strconv.ParseInt(msg.Params[2], 10, 64); err == nil && ts > 0 {
 			ch.Created = time.Unix(ts, 0)
 		}
 	}
@@ -1646,7 +1652,7 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 	// Create message
 	c.msgCounter++
 	m := &Message{
-		ID:         fmt.Sprintf("%d", c.msgCounter),
+		ID:         strconv.FormatInt(c.msgCounter, 10),
 		ChatID:     chatID,
 		SenderID:   nick,
 		SenderName: nick,
@@ -1692,7 +1698,7 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 	// Buffer as regular message with [NOTICE] prefix
 	c.msgCounter++
 	m := &Message{
-		ID:         fmt.Sprintf("%d", c.msgCounter),
+		ID:         strconv.FormatInt(c.msgCounter, 10),
 		ChatID:     chatID,
 		SenderID:   nick,
 		SenderName: nick,
@@ -1716,25 +1722,25 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 
 	switch cmd {
 	case "VERSION":
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01VERSION Uniclient IRC 1.0\x01", nick))
+		c.sendRaw("NOTICE " + nick + " :\x01VERSION Uniclient IRC 1.0\x01")
 	case "PING":
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01%s\x01", nick, ctcp))
+		c.sendRaw("NOTICE " + nick + " :\x01" + ctcp + "\x01")
 	case "TIME":
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01TIME %s\x01", nick, time.Now().Format(time.RFC1123)))
+		c.sendRaw("NOTICE " + nick + " :\x01TIME " + time.Now().Format(time.RFC1123) + "\x01")
 	case "CLIENTINFO":
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01CLIENTINFO ACTION PING VERSION TIME CLIENTINFO FINGER USERINFO SOURCE DCC\x01", nick))
+		c.sendRaw("NOTICE " + nick + " :\x01CLIENTINFO ACTION PING VERSION TIME CLIENTINFO FINGER USERINFO SOURCE DCC\x01")
 	case "FINGER":
 		c.mu.RLock()
 		myNick := c.nick
 		c.mu.RUnlock()
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01FINGER %s (Uniclient IRC)\x01", nick, myNick))
+		c.sendRaw("NOTICE " + nick + " :\x01FINGER " + myNick + " (Uniclient IRC)\x01")
 	case "USERINFO":
 		c.mu.RLock()
 		myNick := c.nick
 		c.mu.RUnlock()
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01USERINFO %s\x01", nick, myNick))
+		c.sendRaw("NOTICE " + nick + " :\x01USERINFO " + myNick + "\x01")
 	case "SOURCE":
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01SOURCE https://github.com/DarkReaperBoy/uniclient\x01", nick))
+		c.sendRaw("NOTICE " + nick + " :\x01SOURCE https://github.com/DarkReaperBoy/uniclient\x01")
 	case "ACTION":
 		// Treat /me as a regular message with action formatting
 		actionText := ""
@@ -1753,7 +1759,7 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 
 		c.msgCounter++
 		m := &Message{
-			ID:         fmt.Sprintf("%d", c.msgCounter),
+			ID:         strconv.FormatInt(c.msgCounter, 10),
 			ChatID:     chatID,
 			SenderID:   nick,
 			SenderName: nick,
@@ -1810,11 +1816,11 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 		dccChatID := nick
 		c.msgCounter++
 		dccMsg := &Message{
-			ID:         fmt.Sprintf("%d", c.msgCounter),
+			ID:         strconv.FormatInt(c.msgCounter, 10),
 			ChatID:     dccChatID,
 			SenderID:   nick,
 			SenderName: nick,
-			Text:       fmt.Sprintf("[DCC %s] %s", dccType, parts[1]),
+			Text:       "[DCC " + dccType + "] " + parts[1],
 			Timestamp:  time.Now(),
 			Platform:   "irc",
 		}
@@ -1869,6 +1875,16 @@ func (c *IRCCore) bufferMessage(chatID string, msg *Message) {
 
 func (c *IRCCore) fireUpdate(u Update) {
 	c.updateMu.RLock()
+	if len(c.updateHandlers) == 0 {
+		c.updateMu.RUnlock()
+		return
+	}
+	if len(c.updateHandlers) == 1 {
+		h := c.updateHandlers[0]
+		c.updateMu.RUnlock()
+		h(u)
+		return
+	}
 	handlers := make([]func(Update), len(c.updateHandlers))
 	copy(handlers, c.updateHandlers)
 	c.updateMu.RUnlock()
@@ -2032,7 +2048,7 @@ func (c *IRCCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, err
 
 			c.msgCounter++
 			lastMsg = &Message{
-				ID:         fmt.Sprintf("%d", c.msgCounter),
+				ID:         strconv.FormatInt(c.msgCounter, 10),
 				ChatID:     chatID,
 				SenderID:   myNick,
 				SenderName: myNick,
@@ -2111,7 +2127,7 @@ func (c *IRCCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outgoin
 				if len(firstLine) > 80 {
 					firstLine = firstLine[:80] + "..."
 				}
-				text = fmt.Sprintf("<%s> %s — %s", m.SenderName, firstLine, msg.Text)
+				text = "<" + m.SenderName + "> " + firstLine + " — " + msg.Text
 				break
 			}
 		}
@@ -2141,7 +2157,7 @@ func (c *IRCCore) ForwardMessage(fromChatID string, msgID string, toChatID strin
 		return nil, ErrNotFound
 	}
 
-	text := fmt.Sprintf("[Fwd from %s] %s", original.SenderName, original.Text)
+	text := "[Fwd from " + original.SenderName + "] " + original.Text
 	return c.SendMessage(toChatID, OutgoingMessage{Text: text})
 }
 
@@ -2978,7 +2994,7 @@ func (c *IRCCore) handleInvite(msg *ircMsg) {
 				ChatID:     channel,
 				SenderID:   nick,
 				SenderName: nick,
-				Text:       fmt.Sprintf("%s invited you to %s", nick, channel),
+				Text:       nick + " invited you to " + channel,
 				Timestamp:  time.Now(),
 				Platform:   "irc",
 			},
@@ -3076,11 +3092,11 @@ func (c *IRCCore) handleTagMsg(msg *ircMsg) {
 		replyTo := msg.Tags["+reply"]
 		c.msgCounter++
 		reactMsg := &Message{
-			ID:         fmt.Sprintf("%d", c.msgCounter),
+			ID:         strconv.FormatInt(c.msgCounter, 10),
 			ChatID:     chatID,
 			SenderID:   nick,
 			SenderName: nick,
-			Text:       fmt.Sprintf("[React: %s to %s]", reaction, replyTo),
+			Text:       "[React: " + reaction + " to " + replyTo + "]",
 			Timestamp:  time.Now(),
 			Platform:   "irc",
 		}
@@ -3114,11 +3130,11 @@ func (c *IRCCore) handleErrorNumeric(msg *ircMsg) {
 	}
 	c.msgCounter++
 	m := &Message{
-		ID:         fmt.Sprintf("%d", c.msgCounter),
+		ID:         strconv.FormatInt(c.msgCounter, 10),
 		ChatID:     "*server*",
 		SenderID:   msg.Prefix,
 		SenderName: "Server",
-		Text:       fmt.Sprintf("[%s] %s", msg.Command, text),
+		Text:       "[" + msg.Command + "] " + text,
 		Timestamp:  time.Now(),
 		Platform:   "irc",
 	}
@@ -3129,7 +3145,7 @@ func (c *IRCCore) handleServerError(msg *ircMsg) {
 	text := msg.Trailing()
 	c.msgCounter++
 	m := &Message{
-		ID:         fmt.Sprintf("%d", c.msgCounter),
+		ID:         strconv.FormatInt(c.msgCounter, 10),
 		ChatID:     "*server*",
 		SenderID:   "server",
 		SenderName: "Server",
@@ -3281,13 +3297,13 @@ func (c *IRCCore) SendNotice(target, text string) {
 
 // SendAction sends a CTCP ACTION (/me) to a target.
 func (c *IRCCore) SendAction(target, text string) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01ACTION %s\x01", target, text))
+	c.sendRaw("PRIVMSG " + target + " :\x01ACTION " + text + "\x01")
 	c.mu.RLock()
 	myNick := c.nick
 	c.mu.RUnlock()
 	c.msgCounter++
 	m := &Message{
-		ID:         fmt.Sprintf("%d", c.msgCounter),
+		ID:         strconv.FormatInt(c.msgCounter, 10),
 		ChatID:     target,
 		SenderID:   myNick,
 		SenderName: myNick,
@@ -3301,18 +3317,18 @@ func (c *IRCCore) SendAction(target, text string) {
 // SendCTCP sends a CTCP request to a target.
 func (c *IRCCore) SendCTCP(target, command, params string) {
 	if params != "" {
-		c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01%s %s\x01", target, command, params))
+		c.sendRaw("PRIVMSG " + target + " :\x01" + command + " " + params + "\x01")
 	} else {
-		c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01%s\x01", target, command))
+		c.sendRaw("PRIVMSG " + target + " :\x01" + command + "\x01")
 	}
 }
 
 // SendCTCPReply sends a CTCP reply via NOTICE.
 func (c *IRCCore) SendCTCPReply(target, command, params string) {
 	if params != "" {
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01%s %s\x01", target, command, params))
+		c.sendRaw("NOTICE " + target + " :\x01" + command + " " + params + "\x01")
 	} else {
-		c.sendRaw(fmt.Sprintf("NOTICE %s :\x01%s\x01", target, command))
+		c.sendRaw("NOTICE " + target + " :\x01" + command + "\x01")
 	}
 }
 
@@ -3362,7 +3378,7 @@ func (c *IRCCore) Whowas(nick string, count int) ([]IRCWhowasEntry, error) {
 	c.whowasMu.Unlock()
 
 	if count > 0 {
-		c.sendRaw(fmt.Sprintf("WHOWAS %s %d", nick, count))
+		c.sendRaw("WHOWAS " + nick + " " + strconv.Itoa(count))
 	} else {
 		c.sendRaw("WHOWAS " + nick)
 	}
@@ -3761,7 +3777,7 @@ func (c *IRCCore) SetChannelKey(channel, key string) {
 // SetChannelLimit sets or removes a user limit on a channel.
 func (c *IRCCore) SetChannelLimit(channel string, limit int) {
 	if limit > 0 {
-		c.sendRaw(fmt.Sprintf("MODE %s +l %d", channel, limit))
+		c.sendRaw("MODE " + channel + " +l " + strconv.Itoa(limit))
 	} else {
 		c.sendRaw("MODE " + channel + " -l")
 	}
@@ -3947,22 +3963,22 @@ type IRCDCCOffer struct {
 
 // DCCSend sends a DCC SEND request to a user.
 func (c *IRCCore) DCCSend(nick, filename string, port int, size int64) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC SEND %s 0 %d %d\x01", nick, filename, port, size))
+	c.sendRaw("PRIVMSG " + nick + " :\x01DCC SEND " + filename + " 0 " + strconv.Itoa(port) + " " + strconv.FormatInt(size, 10) + "\x01")
 }
 
 // DCCChat sends a DCC CHAT request to a user.
 func (c *IRCCore) DCCChat(nick string, port int) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC CHAT chat 0 %d\x01", nick, port))
+	c.sendRaw("PRIVMSG " + nick + " :\x01DCC CHAT chat 0 " + strconv.Itoa(port) + "\x01")
 }
 
 // DCCResume sends a DCC RESUME request to continue an interrupted transfer.
 func (c *IRCCore) DCCResume(nick, filename string, port int, position int64) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC RESUME %s %d %d\x01", nick, filename, port, position))
+	c.sendRaw("PRIVMSG " + nick + " :\x01DCC RESUME " + filename + " " + strconv.Itoa(port) + " " + strconv.FormatInt(position, 10) + "\x01")
 }
 
 // DCCAccept accepts a DCC RESUME request.
 func (c *IRCCore) DCCAccept(nick, filename string, port int, position int64) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC ACCEPT %s %d %d\x01", nick, filename, port, position))
+	c.sendRaw("PRIVMSG " + nick + " :\x01DCC ACCEPT " + filename + " " + strconv.Itoa(port) + " " + strconv.FormatInt(position, 10) + "\x01")
 }
 
 // --- TAGMSG (IRCv3) ---
@@ -3970,18 +3986,24 @@ func (c *IRCCore) DCCAccept(nick, filename string, port int, position int64) {
 // SendTagMsg sends a TAGMSG (message-tags only, no text content).
 // Used for typing indicators, reactions, etc.
 func (c *IRCCore) SendTagMsg(target string, tags map[string]string) {
-	tagStr := ""
+	var b strings.Builder
+	b.Grow(64)
+	b.WriteByte('@')
+	first := true
 	for k, v := range tags {
-		if tagStr != "" {
-			tagStr += ";"
+		if !first {
+			b.WriteByte(';')
 		}
+		first = false
+		b.WriteString(k)
 		if v != "" {
-			tagStr += k + "=" + v
-		} else {
-			tagStr += k
+			b.WriteByte('=')
+			b.WriteString(v)
 		}
 	}
-	c.sendRaw("@" + tagStr + " TAGMSG " + target)
+	b.WriteString(" TAGMSG ")
+	b.WriteString(target)
+	c.sendRaw(b.String())
 }
 
 // SendTypingIndicator sends a typing indicator via TAGMSG (IRCv3 draft/typing).
@@ -3997,27 +4019,27 @@ func (c *IRCCore) SendTypingIndicator(target string, typing bool) {
 
 // ChatHistoryLatest requests the latest N messages for a target.
 func (c *IRCCore) ChatHistoryLatest(target string, limit int) {
-	c.sendRaw(fmt.Sprintf("CHATHISTORY LATEST %s * %d", target, limit))
+	c.sendRaw("CHATHISTORY LATEST " + target + " * " + strconv.Itoa(limit))
 }
 
 // ChatHistoryBefore requests messages before a given msgid or timestamp.
 func (c *IRCCore) ChatHistoryBefore(target, reference string, limit int) {
-	c.sendRaw(fmt.Sprintf("CHATHISTORY BEFORE %s %s %d", target, reference, limit))
+	c.sendRaw("CHATHISTORY BEFORE " + target + " " + reference + " " + strconv.Itoa(limit))
 }
 
 // ChatHistoryAfter requests messages after a given msgid or timestamp.
 func (c *IRCCore) ChatHistoryAfter(target, reference string, limit int) {
-	c.sendRaw(fmt.Sprintf("CHATHISTORY AFTER %s %s %d", target, reference, limit))
+	c.sendRaw("CHATHISTORY AFTER " + target + " " + reference + " " + strconv.Itoa(limit))
 }
 
 // ChatHistoryAround requests messages around a given msgid or timestamp.
 func (c *IRCCore) ChatHistoryAround(target, reference string, limit int) {
-	c.sendRaw(fmt.Sprintf("CHATHISTORY AROUND %s %s %d", target, reference, limit))
+	c.sendRaw("CHATHISTORY AROUND " + target + " " + reference + " " + strconv.Itoa(limit))
 }
 
 // ChatHistoryTargets requests a list of targets with recent messages.
 func (c *IRCCore) ChatHistoryTargets(fromTime, toTime string, limit int) {
-	c.sendRaw(fmt.Sprintf("CHATHISTORY TARGETS %s %s %d", fromTime, toTime, limit))
+	c.sendRaw("CHATHISTORY TARGETS " + fromTime + " " + toTime + " " + strconv.Itoa(limit))
 }
 
 // --- MARKREAD (IRCv3 draft) ---
@@ -4638,10 +4660,11 @@ func (c *IRCCore) saveSession() {
 
 // Connect requests the server to link to another server (oper only).
 func (c *IRCCore) Connect(target string, port int, remote string) {
+	portStr := strconv.Itoa(port)
 	if remote != "" {
-		c.sendRaw(fmt.Sprintf("CONNECT %s %d %s", target, port, remote))
+		c.sendRaw("CONNECT " + target + " " + portStr + " " + remote)
 	} else {
-		c.sendRaw(fmt.Sprintf("CONNECT %s %d", target, port))
+		c.sendRaw("CONNECT " + target + " " + portStr)
 	}
 }
 
@@ -4664,12 +4687,12 @@ func (c *IRCCore) Restart() {
 
 // ChatHistoryBetween fetches messages between two timestamps or message IDs.
 func (c *IRCCore) ChatHistoryBetween(target, startRef, endRef string, limit int) {
-	c.sendRaw(fmt.Sprintf("CHATHISTORY BETWEEN %s %s %s %d", target, startRef, endRef, limit))
+	c.sendRaw("CHATHISTORY BETWEEN " + target + " " + startRef + " " + endRef + " " + strconv.Itoa(limit))
 }
 
 // BatchStart starts a batch processing context.
 func (c *IRCCore) BatchStart(refTag, batchType string, params ...string) {
-	cmd := fmt.Sprintf("BATCH +%s %s", refTag, batchType)
+	cmd := "BATCH +" + refTag + " " + batchType
 	if len(params) > 0 {
 		cmd += " " + strings.Join(params, " ")
 	}
@@ -4690,51 +4713,51 @@ func (c *IRCCore) Starttls() {
 
 // DCCSecureSend sends a DCC SSEND (TLS file transfer) request.
 func (c *IRCCore) DCCSecureSend(nick, filename string, port int, size int64) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC SSEND %s 0 %d %d\x01", nick, filename, port, size))
+	c.sendRaw("PRIVMSG " + nick + " :\x01DCC SSEND " + filename + " 0 " + strconv.Itoa(port) + " " + strconv.FormatInt(size, 10) + "\x01")
 }
 
 // DCCSecureChat sends a DCC SCHAT (TLS chat) request.
 func (c *IRCCore) DCCSecureChat(nick string, port int) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC SCHAT chat 0 %d\x01", nick, port))
+	c.sendRaw("PRIVMSG " + nick + " :\x01DCC SCHAT chat 0 " + strconv.Itoa(port) + "\x01")
 }
 
 // XDCCSend requests a file from an XDCC bot.
 func (c *IRCCore) XDCCSend(botNick string, packNum int) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC SEND #%d", botNick, packNum))
+	c.sendRaw("PRIVMSG " + botNick + " :XDCC SEND #" + strconv.Itoa(packNum))
 }
 
 // XDCCList requests the pack list from an XDCC bot.
 func (c *IRCCore) XDCCList(botNick string) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC LIST", botNick))
+	c.sendRaw("PRIVMSG " + botNick + " :XDCC LIST")
 }
 
 // XDCCBatch requests multiple packs from an XDCC bot.
 func (c *IRCCore) XDCCBatch(botNick string, packNums []int) {
 	packs := make([]string, len(packNums))
 	for i, n := range packNums {
-		packs[i] = fmt.Sprintf("#%d", n)
+		packs[i] = "#" + strconv.Itoa(n)
 	}
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC BATCH %s", botNick, strings.Join(packs, ",")))
+	c.sendRaw("PRIVMSG " + botNick + " :XDCC BATCH " + strings.Join(packs, ","))
 }
 
 // XDCCCancel cancels the current XDCC transfer.
 func (c *IRCCore) XDCCCancel(botNick string) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC CANCEL", botNick))
+	c.sendRaw("PRIVMSG " + botNick + " :XDCC CANCEL")
 }
 
 // XDCCRemove removes a pack (bot owner only).
 func (c *IRCCore) XDCCRemove(botNick string, packNum int) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC REMOVE #%d", botNick, packNum))
+	c.sendRaw("PRIVMSG " + botNick + " :XDCC REMOVE #" + strconv.Itoa(packNum))
 }
 
 // XDCCInfo shows details about a specific pack.
 func (c *IRCCore) XDCCInfo(botNick string, packNum int) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC INFO #%d", botNick, packNum))
+	c.sendRaw("PRIVMSG " + botNick + " :XDCC INFO #" + strconv.Itoa(packNum))
 }
 
 // XDCCSearch searches packs on an XDCC bot.
 func (c *IRCCore) XDCCSearch(botNick, query string) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :XDCC SEARCH %s", botNick, query))
+	c.sendRaw("PRIVMSG " + botNick + " :XDCC SEARCH " + query)
 }
 
 // ──────────────────────────── CTCP Extended ────────────────────────────
@@ -4995,7 +5018,7 @@ func (c *IRCCore) OperServGlobal(message string) {
 
 // OperServDefcon sets the network defense level (1-5).
 func (c *IRCCore) OperServDefcon(level int) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG OperServ :DEFCON %d", level))
+	c.sendRaw("PRIVMSG OperServ :DEFCON " + strconv.Itoa(level))
 }
 
 // OperServStats shows services statistics.
@@ -5092,12 +5115,12 @@ func (c *IRCCore) BouncerBind(networkID string) {
 
 // Resume attempts to resume a disconnected session (draft/resume).
 func (c *IRCCore) Resume(token string, timestamp time.Time) {
-	c.sendRaw(fmt.Sprintf("RESUME %s %s", token, timestamp.UTC().Format("2006-01-02T15:04:05.000Z")))
+	c.sendRaw("RESUME " + token + " " + timestamp.UTC().Format("2006-01-02T15:04:05.000Z"))
 }
 
 // WebPushRegister registers for web push notifications.
 func (c *IRCCore) WebPushRegister(endpoint, vapidKey, p256dh, auth string) {
-	c.sendRaw(fmt.Sprintf("WEBPUSH REGISTER %s %s %s %s", endpoint, vapidKey, p256dh, auth))
+	c.sendRaw("WEBPUSH REGISTER " + endpoint + " " + vapidKey + " " + p256dh + " " + auth)
 }
 
 // WebPushUnregister unregisters from web push notifications.
@@ -5179,10 +5202,10 @@ func (c *IRCCore) StatServAkill() {
 
 func (c *IRCCore) Tempshun(nick, reason string) { c.sendRaw("TEMPSHUN " + nick + " :" + reason) }
 func (c *IRCCore) SpamfilterAdd(target, action, tkltime, reason, regex string) {
-	c.sendRaw(fmt.Sprintf("SPAMFILTER add %s %s %s %s :%s", target, action, tkltime, reason, regex))
+	c.sendRaw("SPAMFILTER add " + target + " " + action + " " + tkltime + " " + reason + " :" + regex)
 }
 func (c *IRCCore) SpamfilterDel(target, action, regex string) {
-	c.sendRaw(fmt.Sprintf("SPAMFILTER del %s %s :%s", target, action, regex))
+	c.sendRaw("SPAMFILTER del " + target + " " + action + " :" + regex)
 }
 func (c *IRCCore) Rmtkl(tklType, pattern string) { c.sendRaw("RMTKL " + tklType + " " + pattern) }
 func (c *IRCCore) Jumpserver(addr, port, reason string) {
@@ -5252,7 +5275,7 @@ func (c *IRCCore) Rsquit(serverMask, reason string) {
 }
 func (c *IRCCore) Nicklock(nick, newNick string) { c.sendRaw("NICKLOCK " + nick + " " + newNick) }
 func (c *IRCCore) Nickunlock(nick string)        { c.sendRaw("NICKUNLOCK " + nick) }
-func (c *IRCCore) Setidle(seconds int)           { c.sendRaw(fmt.Sprintf("SETIDLE %d", seconds)) }
+func (c *IRCCore) Setidle(seconds int)           { c.sendRaw("SETIDLE " + strconv.Itoa(seconds)) }
 func (c *IRCCore) Swhois(nick, line string)      { c.sendRaw("SWHOIS " + nick + " :" + line) }
 func (c *IRCCore) Ojoin(channel string)          { c.sendRaw("OJOIN " + channel) }
 func (c *IRCCore) Sakick(channel, nick, reason string) {
@@ -5285,7 +5308,7 @@ func (c *IRCCore) MetadataUnsub(target, key string) {
 	c.sendRaw("METADATA " + target + " UNSUB " + key)
 }
 func (c *IRCCore) Relaymsg(channel, nick, text string) {
-	c.sendRaw(fmt.Sprintf("@+draft/relaymsg=%s PRIVMSG %s :%s", nick, channel, text))
+	c.sendRaw("@+draft/relaymsg=" + nick + " PRIVMSG " + channel + " :" + text)
 }
 
 // ParseStandardReply parses FAIL/WARN/NOTE structured responses from IRCv3.
@@ -5358,19 +5381,18 @@ func (c *IRCCore) OnInviteNotify(handler func(inviter, channel, target string)) 
 
 // SendTagMsg sends a TAGMSG with a channel context tag.
 func (c *IRCCore) SendChannelContextTag(target, channelCtx, tags string) {
-	c.sendRaw(fmt.Sprintf("@+draft/channel-context=%s;%s TAGMSG %s", channelCtx, tags, target))
+	c.sendRaw("@+draft/channel-context=" + channelCtx + ";" + tags + " TAGMSG " + target)
 }
 
 // SendReactTag sends a TAGMSG with a react tag.
 func (c *IRCCore) SendReactTag(target, msgID, emoji string) {
-	c.sendRaw(fmt.Sprintf("@+draft/react=%s;+draft/reply=%s TAGMSG %s",
-		emoji, msgID, target))
+	c.sendRaw("@+draft/react=" + emoji + ";+draft/reply=" + msgID + " TAGMSG " + target)
 }
 
 // SendClientBatch starts/ends a client-to-server batch.
 func (c *IRCCore) SendClientBatch(batchID, batchType, target string, start bool) {
 	if start {
-		c.sendRaw(fmt.Sprintf("BATCH +%s %s %s", batchID, batchType, target))
+		c.sendRaw("BATCH +" + batchID + " " + batchType + " " + target)
 	} else {
 		c.sendRaw("BATCH -" + batchID)
 	}
@@ -5378,13 +5400,14 @@ func (c *IRCCore) SendClientBatch(batchID, batchType, target string, start bool)
 
 // SendMultiline sends a multi-line message via batch (IRCv3 draft).
 func (c *IRCCore) SendMultiline(target string, lines []string) {
-	batchID := fmt.Sprintf("ml%d", time.Now().UnixNano()%10000)
-	c.sendRaw(fmt.Sprintf("BATCH +%s draft/multiline %s", batchID, target))
+	batchID := "ml" + strconv.FormatInt(time.Now().UnixNano()%10000, 10)
+	c.sendRaw("BATCH +" + batchID + " draft/multiline " + target)
+	last := len(lines) - 1
 	for i, line := range lines {
-		if i < len(lines)-1 {
-			c.sendRaw(fmt.Sprintf("@batch=%s;draft/multiline-concat PRIVMSG %s :%s", batchID, target, line))
+		if i < last {
+			c.sendRaw("@batch=" + batchID + ";draft/multiline-concat PRIVMSG " + target + " :" + line)
 		} else {
-			c.sendRaw(fmt.Sprintf("@batch=%s PRIVMSG %s :%s", batchID, target, line))
+			c.sendRaw("@batch=" + batchID + " PRIVMSG " + target + " :" + line)
 		}
 	}
 	c.sendRaw("BATCH -" + batchID)
@@ -5432,13 +5455,12 @@ func (c *IRCCore) SASLECDSAChallenge(accountName string) {
 
 // DCCReverse initiates passive/reverse DCC (port 0 for NAT traversal).
 func (c *IRCCore) DCCReverse(nick, filename string, size int64, token string) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01DCC SEND %s 0 0 %d %s\x01",
-		nick, filename, size, token))
+	c.sendRaw("PRIVMSG " + nick + " :\x01DCC SEND " + filename + " 0 0 " + strconv.FormatInt(size, 10) + " " + token + "\x01")
 }
 
 // RDCC initiates an advanced DCC Server handshake.
 func (c *IRCCore) RDCC(nick string) {
-	c.sendRaw(fmt.Sprintf("PRIVMSG %s :\x01RDCC\x01", nick))
+	c.sendRaw("PRIVMSG " + nick + " :\x01RDCC\x01")
 }
 
 // ── Extended Bans ──
@@ -5457,7 +5479,7 @@ func (c *IRCCore) RDCC(nick string) {
 //	c.SetExtban("#ch", 'b', "~T:block:", "badword")  // text filter
 //	c.SetExtban("#ch", 'b', "~f:nick!*@*:", "#target") // forward
 func (c *IRCCore) SetExtban(channel string, modeChar byte, extbanType, value string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +%c %s%s", channel, modeChar, extbanType, value))
+	c.sendRaw("MODE " + channel + " +" + string(modeChar) + " " + extbanType + value)
 }
 
 // ── Channel Modes ──
@@ -5474,22 +5496,22 @@ func (c *IRCCore) SetChannelModeFlag(channel string, mode byte, on bool) {
 // SetFloodProtection sets channel flood protection mode (+f).
 // params is server-specific (e.g. "[10j#R5,40m#M5,3n#N1]:15 on UnrealIRCd).
 func (c *IRCCore) SetFloodProtection(channel string, params string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +f %s", channel, params))
+	c.sendRaw("MODE " + channel + " +f " + params)
 }
 
 // SetChannelHistory sets the channel history mode (+H lines:seconds).
 func (c *IRCCore) SetChannelHistory(channel string, lines int, seconds int) {
-	c.sendRaw(fmt.Sprintf("MODE %s +H %d:%d", channel, lines, seconds))
+	c.sendRaw("MODE " + channel + " +H " + strconv.Itoa(lines) + ":" + strconv.Itoa(seconds))
 }
 
 // SetJoinThrottle sets the join throttle mode (+j joins:seconds).
 func (c *IRCCore) SetJoinThrottle(channel string, joins int, seconds int) {
-	c.sendRaw(fmt.Sprintf("MODE %s +j %d:%d", channel, joins, seconds))
+	c.sendRaw("MODE " + channel + " +j " + strconv.Itoa(joins) + ":" + strconv.Itoa(seconds))
 }
 
 // SetChannelRedirect sets the channel redirect mode (+L target).
 func (c *IRCCore) SetChannelRedirect(channel, target string) {
-	c.sendRaw(fmt.Sprintf("MODE %s +L %s", channel, target))
+	c.sendRaw("MODE " + channel + " +L " + target)
 }
 
 func (c *IRCCore) chanMode(channel string, mode byte, on bool) {
@@ -5497,7 +5519,7 @@ func (c *IRCCore) chanMode(channel string, mode byte, on bool) {
 	if !on {
 		prefix = "-"
 	}
-	c.sendRaw(fmt.Sprintf("MODE %s %s%c", channel, prefix, mode))
+	c.sendRaw("MODE " + channel + " " + prefix + string(mode))
 }
 
 // ── User Modes — Typed Methods (~10) ──
@@ -5507,7 +5529,7 @@ func (c *IRCCore) userMode(mode byte, on bool) {
 	if !on {
 		prefix = "-"
 	}
-	c.sendRaw(fmt.Sprintf("MODE %s %s%c", c.nick, prefix, mode))
+	c.sendRaw("MODE " + c.nick + " " + prefix + string(mode))
 }
 
 // SetUserModeFlag sets or unsets a user mode flag.
@@ -5585,23 +5607,24 @@ func ParseColors(text string) []map[string]interface{} {
 		if text[i] == 0x03 {
 			pos := i
 			i++
-			fg := ""
+			fgStart := i
 			for j := 0; j < 2 && i < len(text) && text[i] >= '0' && text[i] <= '9'; j++ {
-				fg += string(text[i])
 				i++
 			}
+			fg := text[fgStart:i]
 			bg := ""
 			if i < len(text) && text[i] == ',' {
 				i++
+				bgStart := i
 				for j := 0; j < 2 && i < len(text) && text[i] >= '0' && text[i] <= '9'; j++ {
-					bg += string(text[i])
 					i++
 				}
+				bg = text[bgStart:i]
 			}
 			colors = append(colors, map[string]interface{}{
 				"pos": pos, "fg": fg, "bg": bg,
 			})
-			i-- // loop will increment
+			i--
 		}
 	}
 	return colors
@@ -5651,7 +5674,7 @@ func (c *IRCCore) ConnectHTTPProxy(proxyAddr, targetAddr string) error {
 	if err != nil {
 		return fmt.Errorf("irc: HTTP proxy connect %s: %w", proxyAddr, err)
 	}
-	connectReq := fmt.Sprintf("CONNECT %s HTTP/1.1\r\nHost: %s\r\n\r\n", targetAddr, targetAddr)
+	connectReq := "CONNECT " + targetAddr + " HTTP/1.1\r\nHost: " + targetAddr + "\r\n\r\n"
 	conn.Write([]byte(connectReq))
 	buf := make([]byte, 1024)
 	n, _ := conn.Read(buf)
@@ -5688,11 +5711,11 @@ func (c *IRCCore) STSRemember(domain string, port int, duration time.Duration) {
 // ── CTCP Types (2) ──
 
 func (c *IRCCore) CTCPErrMsg(nick, query, message string) {
-	c.sendRaw(fmt.Sprintf("NOTICE %s :\x01ERRMSG %s :%s\x01", nick, query, message))
+	c.sendRaw("NOTICE " + nick + " :\x01ERRMSG " + query + " :" + message + "\x01")
 }
 
 func (c *IRCCore) CTCPAvatar(nick, url string) {
-	c.sendRaw(fmt.Sprintf("NOTICE %s :\x01AVATAR %s\x01", nick, url))
+	c.sendRaw("NOTICE " + nick + " :\x01AVATAR " + url + "\x01")
 }
 
 func (c *IRCCore) MuteChat(chatID string, muted bool) error {

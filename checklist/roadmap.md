@@ -1,9 +1,9 @@
 # Pre-GUI Roadmap Progress
 
 **Current Step:** Step 10 — Fresh Checklists + Optimize Every Core + Retest Modified
-**Current Core:** Not started
+**Current Core:** All 10 optimized, need retest
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 4 — Step 9 COMPLETE, all 10 cores pass)
+**Last Updated:** 2026-04-14 (session 4 — 10.1 checklists + 10.2 all optimizations DONE)
 
 ## Steps
 
@@ -300,12 +300,30 @@ Completed cores:
 **Cleanup:** Removed all stale test files from Steps 2/4/6 that referenced methods deleted in Step 8 dedup (24+ files). Deleted stale session files for XMPP/DeltaChat. Updated auth.md with fresh chatmail accounts.
 
 ### Step 10 — Fresh Checklists + Optimize Every Core + Retest Modified
-- [ ] Delete all existing per-core checklists
-- [ ] Create fresh checklists reflecting every exported method per core (everything marked done since it's all implemented)
-- [ ] Performance-optimize every core: reduce allocations, optimize hot paths, simplify complex methods, improve concurrency patterns
+- [x] Delete all existing per-core checklists — DONE
+- [x] Create fresh checklists (4,079 methods across 10 cores, all marked done) — DONE
+- [x] Performance-optimize every core — DONE (all 10 cores)
 - [ ] Track every modified method in the checklist (mark as needs-retest)
 - [ ] Test every modified method against live APIs to confirm no regressions
 - [ ] Fix any failures, prune passing tests
+
+**10.1 Fresh Checklists — DONE**
+All 10 per-core checklists recreated with every exported method, grouped by category.
+
+**10.2 Performance Optimizations — DONE (all 10 cores, build+vet clean)**
+
+| Core | Methods Modified | Key Optimizations |
+|------|-----------------|-------------------|
+| Telegram | 8 | cacheEntities batch lock, convertMessages dedup, audio debug log removed |
+| Bale | 25 | pollLoop HTTP client reuse, protobuf stack allocs, metadata cache |
+| Rubika | 10 | crypto hot path (in-place decrypt, shared IV), defer leak fix, candidateAPIURLs linear scan |
+| Matrix | 22 | eventToMessage merged locks, audio buffer reuse, mxPlatform constant, 40+ fmt.Sprintf eliminated |
+| GitHub | 662 | 663 fmt.Sprintf→string concat for URL building, ghAPI fast path |
+| TeamSpeak | 27 | tsEscape single-pass, crypto stack arrays, command builder strings.Builder |
+| DeltaChat | 14 | crypto/rand.Read batch, serializePublicKey cache, O(1) dedup, deadlock fix |
+| XMPP | 29 | sync.Once caps cache, pre-computed disco response, sendIQSync builder, xmppPBKDF2 |
+| IRC | 72 | 81→2 fmt.Sprintf, parseIRCMsg lazy tags map, sendRaw split writes |
+| Mumble | 30+ | sync.Pool protobuf encoders, in-place OCB2 crypto, stack voice packets, binary.LittleEndian |
 
 ### Step 11 — Unify Every Core (Identical Behavior for Shared Ops)
 - [ ] Unified interface: cores.X.SendMessage() behaves the same across all cores
