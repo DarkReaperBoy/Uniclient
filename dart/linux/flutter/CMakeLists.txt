@@ -62,30 +62,46 @@ add_library(flutter_wrapper_plugin STATIC ${CPP_WRAPPER_SOURCES_CORE} ${CPP_WRAP
 apply_standard_settings(flutter_wrapper_plugin)
 set_target_properties(flutter_wrapper_plugin PROPERTIES
   POSITION_INDEPENDENT_CODE ON)
+# Relax warnings for Flutter SDK C++ wrapper code (GCC 15+ pedantic warnings).
+target_compile_options(flutter_wrapper_plugin PRIVATE -Wno-error=pessimizing-move)
 target_link_libraries(flutter_wrapper_plugin PUBLIC flutter)
 target_include_directories(flutter_wrapper_plugin PUBLIC
   "${WRAPPER_ROOT}/include"
 )
 add_dependencies(flutter_wrapper_plugin flutter_assemble)
 
-# Wrapper sources needed for the runner.
-add_library(flutter_wrapper_app STATIC ${CPP_WRAPPER_SOURCES_CORE} ${CPP_WRAPPER_SOURCES_APP})
-apply_standard_settings(flutter_wrapper_app)
-target_link_libraries(flutter_wrapper_app PUBLIC flutter)
-target_include_directories(flutter_wrapper_app PUBLIC
-  "${WRAPPER_ROOT}/include"
-)
-add_dependencies(flutter_wrapper_app flutter_assemble)
+# Wrapper sources needed for the runner (not used by Linux GTK runner,
+# but defined for completeness — only built if sources exist).
+if(EXISTS "${WRAPPER_ROOT}/flutter_engine.cc" AND EXISTS "${WRAPPER_ROOT}/flutter_view_controller.cc")
+  add_library(flutter_wrapper_app STATIC ${CPP_WRAPPER_SOURCES_CORE} ${CPP_WRAPPER_SOURCES_APP})
+  apply_standard_settings(flutter_wrapper_app)
+  target_compile_options(flutter_wrapper_app PRIVATE -Wno-error=pessimizing-move -Wno-error)
+  target_link_libraries(flutter_wrapper_app PUBLIC flutter)
+  target_include_directories(flutter_wrapper_app PUBLIC
+    "${WRAPPER_ROOT}/include"
+  )
+  add_dependencies(flutter_wrapper_app flutter_assemble)
+endif()
 
 # === Flutter tool backend ===
-# _phony_ is a non-existent file to force this command to run every time,
-# since currently there's no way to get a full input/output list from the
-# temporary build tool.
-add_custom_command(
-  OUTPUT flutter_assemble_phony_
-  COMMAND ${CMAKE_COMMAND} -E
-    env ${FLUTTER_TOOL_ENVIRONMENT}
-    "${FLUTTER_ROOT}/packages/flutter_tools/bin/tool_backend.sh"
-    ${FLUTTER_TARGET_PLATFORM} ${CMAKE_BUILD_TYPE}
-)
+# NixOS workaround: Flutter's tool_backend.sh fails because nix store uses
+# symlinks for engine artifacts and unpackDesktopArtifacts rejects them.
+# When FLUTTER_SKIP_ASSEMBLE is set, we use a no-op instead.
+# Dart compilation and asset bundling are done manually before CMake.
+if(DEFINED ENV{FLUTTER_SKIP_ASSEMBLE})
+  add_custom_command(
+    OUTPUT flutter_assemble_phony_
+    COMMAND ${CMAKE_COMMAND} -E echo "Skipping flutter_assemble (NixOS manual build)"
+    VERBATIM
+  )
+else()
+  add_custom_command(
+    OUTPUT flutter_assemble_phony_
+    COMMAND ${CMAKE_COMMAND} -E
+      env ${FLUTTER_TOOL_ENVIRONMENT}
+      "${FLUTTER_ROOT}/packages/flutter_tools/bin/tool_backend.sh"
+      ${FLUTTER_TARGET_PLATFORM} ${CMAKE_BUILD_TYPE}
+    VERBATIM
+  )
+endif()
 add_custom_target(flutter_assemble DEPENDS flutter_assemble_phony_)

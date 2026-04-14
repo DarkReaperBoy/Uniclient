@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — Phase C (Flutter UI) — IN PROGRESS
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 10 — Phase B done, Phase C scaffolding started)
+**Last Updated:** 2026-04-14 (session 11 — cross-platform bridge + all 5 runners done)
 
-**NEXT:** Phase C cont. — Auth flow screen, settings screen, linux/ runner, first desktop build
+**NEXT:** Phase C cont. — First desktop build (`flutter build linux`), integration test with Go backend
 
 ## Steps
 
@@ -70,11 +70,11 @@ Wired the engine layer into the existing protobuf bridge:
 Build passes: `CGO_ENABLED=0 go build -tags goolm ./...`
 All 21 tests pass (16 engine + 5 bridge).
 
-### Phase C — Flutter UI — IN PROGRESS (scaffolding done)
+### Phase C — Flutter UI — IN PROGRESS (scaffolding + cross-platform done)
 
-Flutter app scaffolded, analyzed, zero issues:
+Flutter app scaffolded with cross-platform support for Linux, Windows, macOS, Android, Web. dart analyze: 0 issues.
 
-- `dart/pubspec.yaml` — Flutter 3.41.5, deps: ffi, protobuf, provider, collection
+- `dart/pubspec.yaml` — Flutter 3.41.5, deps: ffi, protobuf, provider, collection, web
 - `dart/lib/main.dart` — App entry, MultiProvider setup (AppState, ChatState, AuthState, EngineService)
 - `dart/lib/theme/theme.dart` — Dark/light themes matching demo_ui.html (charcoal #101318, accent #4f6ef7, Inter font), AppColors + AppSizes constants
 - `dart/lib/bridge/engine_service.dart` — Typed Dart wrapper over FFI bridge: all engine methods (accounts, auth, chat, messages, search, media, config), 13 typed event streams, JSON event dispatch
@@ -91,7 +91,17 @@ Flutter app scaffolded, analyzed, zero issues:
 - `dart/lib/screens/settings_screen.dart` — Settings: theme picker, font scale, privacy toggles, notification toggles, cache management, account list with remove
 - `dart/linux/` — Linux desktop runner: CMakeLists.txt, main.cc, my_application.cc/h, flutter/ managed files
 
-Dart analyze: 0 issues (14 files). `pub get` resolved 31 dependencies.
+Cross-platform bridge + runners:
+- `dart/lib/bridge/bridge.dart` — Conditional imports: ffi for native, js_interop for web, stub fallback
+- `dart/lib/bridge/bridge_ffi.dart` — Native FFI impl (Linux .so, Windows .dll, macOS .dylib, Android .so)
+- `dart/lib/bridge/bridge_web.dart` — Web WASM impl via dart:js_interop (bridgeCall, bridgeSetEventCallback)
+- `dart/lib/bridge/bridge_stub.dart` — Fallback (throws UnsupportedError)
+- `dart/windows/` — Windows runner: CMake + Win32 (flutter_window.cpp, win32_window.cpp, main.cpp)
+- `dart/macos/` — macOS runner: Swift (AppDelegate, MainFlutterWindow, Info.plist)
+- `dart/android/` — Android runner: Gradle + Kotlin (MainActivity.kt, arm64-v8a + x86_64 ABIs)
+- `dart/web/` — Web runner: index.html (wasm_exec.js + cores.wasm loading), PWA manifest
+
+Dart analyze: 0 issues (17 files). `pub get` resolved 31 dependencies.
 
 **Next:** Phase C cont. — First desktop build (`flutter build linux`), integration test with Go backend
 
