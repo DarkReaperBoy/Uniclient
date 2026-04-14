@@ -481,7 +481,7 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
 - TeamSpeak: 296 | DeltaChat: 245 | Rubika: 242 | Matrix: 240
 - Mumble: 236 | GitHub: 282 (pruned from 768 — removed 486 DevOps/CI/CD methods)
 
-### Step 14 — Write /docs — IN PROGRESS
+### Step 14 — Write /docs — DONE
 - [x] `docs/README.md` — overview, quick start, core comparison table, shared types, build requirements
 - [x] 10 per-core docs (brief): telegram.md, github.md, bale.md, irc.md, xmpp.md, teamspeak.md, deltachat.md, rubika.md, matrix.md, mumble.md
 - [x] **14.1 — Full Telethon-style API reference docs for 8 cores + wrapper guides for 2** — DONE
