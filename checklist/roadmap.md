@@ -1,17 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 14 — Write /docs — IN PROGRESS
+**Current Step:** Step 14 — Write /docs — IN PROGRESS (14.1 DONE, 14.2 pending)
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 7 — Step 13 done, Step 14 brief docs done)
+**Last Updated:** 2026-04-14 (session 8 — Step 14.1 done, GitHub pruned 768→282 methods)
 
-**NEXT:** Rewrite 8 docs as full Telethon-style API reference tutorials (SKIP Telegram & Matrix):
-- For each core: document EVERY exported method with signature, params, return type, usage example
-- Organize by category (auth, messaging, groups, channels, admin, media, calls, etc.)
-- Like Telethon's docs — someone importing a single core should have a complete reference
-- Order: Mumble 233 → Rubika 242 → DeltaChat 245 → TeamSpeak 296 → XMPP 379 → IRC 418 → Bale 456 → GitHub 768
-- SKIP: Telegram (gotd/td has its own docs), Matrix (mautrix-go has its own docs)
-- After docs: add docstrings to every exported method that needs one across all core files, for new contributors
+**NEXT:** Step 14.2 — Add Go docstrings to every exported method that needs one across all core files, for new contributors
 
 ## Steps
 
@@ -32,7 +26,7 @@
 | 12.5 | Fix all skipped tests | **DONE** — 32 skips fixed (3 TS3 + 6 IRC + 23 Rubika) |
 | 13.0 | Type the untyped methods (~250 fixable, ~400 inherently untyped → `bytes`) | **DONE** |
 | 13 | Protobuf bridge (all 4,051 methods, codegen) | **DONE** (3,564 dispatched, 412 skipped, 5 tests pass) |
-| 14 | Write /docs | IN PROGRESS (brief docs done, full Telethon-style rewrite pending) |
+| 14 | Write /docs | IN PROGRESS (14.1 full API docs DONE, 14.2 docstrings pending) |
 | 15 | Build GUI | NOT STARTED |
 
 ## Detailed Progress
@@ -485,12 +479,15 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
 **Method counts per core (4,051 total exported):**
 - Telegram: 771 | Bale: 456 | IRC: 418 | XMPP: 379
 - TeamSpeak: 296 | DeltaChat: 245 | Rubika: 242 | Matrix: 240
-- Mumble: 236 | GitHub: 768
+- Mumble: 236 | GitHub: 282 (pruned from 768 — removed 486 DevOps/CI/CD methods)
 
 ### Step 14 — Write /docs — IN PROGRESS
 - [x] `docs/README.md` — overview, quick start, core comparison table, shared types, build requirements
 - [x] 10 per-core docs (brief): telegram.md, github.md, bale.md, irc.md, xmpp.md, teamspeak.md, deltachat.md, rubika.md, matrix.md, mumble.md
-- [ ] **14.1 — REWRITE 8 docs as full Telethon-style tutorials** (SKIP Telegram & Matrix — they wrap gotd/td and mautrix-go which have their own docs; the other 8 are custom implementations with no external docs) — every exported method with signature, params, return types, usage examples. By category.
+- [x] **14.1 — Full Telethon-style API reference docs for 8 cores + wrapper guides for 2** — DONE
+  - Mumble (233 methods, 960 lines), Rubika (242 methods, 2637 lines), DeltaChat (245 methods, 2510 lines), TeamSpeak (296 methods, 2813 lines), XMPP (379 methods, 3541 lines), IRC (418 methods), Bale (456 methods, 4151 lines), GitHub (282 methods after pruning)
+  - Telegram & Matrix: wrapper guides linking to gotd/td and mautrix-go docs, explaining why and how to use the unified Core interface
+  - **GitHub pruned:** 768→282 methods — removed 486 pure DevOps/CI/CD methods (Actions, Codespaces, Copilot, Pages, Webhooks, Branch Protection, Code Scanning, Dependabot, Packages, etc.). Kept: issues, PRs, discussions, notifications, gists, user/org/team social, repos, search, releases, contents, reactions, events, projects V2.
 - [ ] **14.2 — Add Go docstrings** to every exported method that needs one across all core files, for new contributors
 
 ### Step 15 — Build GUI

@@ -2631,8 +2631,6 @@ func (g *GitHubCore) parseRESTReactions(c map[string]any) []Reaction {
 	return reactions
 }
 
-
-
 func (g *GitHubCore) mapReaction(emoji string) string {
 	return ghEmojiToReaction[emoji]
 }
@@ -3427,36 +3425,6 @@ func (g *GitHubCore) RemoveTeamMember(org, teamSlug, username string) error {
 // Extended Methods — Webhooks (4)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// CreateWebhook creates a webhook.
-func (g *GitHubCore) CreateWebhook(owner, repo, url, contentType, secret string, events []string) (json.RawMessage, error) {
-	config := map[string]any{"url": url, "content_type": contentType}
-	if secret != "" {
-		config["secret"] = secret
-	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/hooks", map[string]any{
-		"config": config,
-		"events": events,
-		"active": true,
-	})
-}
-
-// UpdateWebhook updates a webhook.
-func (g *GitHubCore) UpdateWebhook(owner, repo string, hookID int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/hooks/" + strconv.Itoa(hookID), updates)
-}
-
-// DeleteWebhook deletes a webhook.
-func (g *GitHubCore) DeleteWebhook(owner, repo string, hookID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/hooks/" + strconv.Itoa(hookID))
-	return err
-}
-
-// PingWebhook pings a webhook.
-func (g *GitHubCore) PingWebhook(owner, repo string, hookID int) error {
-	_, err := g.apiPost(ghRepoPath(owner, repo) + "/hooks/" + strconv.Itoa(hookID) + "/pings", nil)
-	return err
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Starring / Watching (6)
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3735,17 +3703,6 @@ func (g *GitHubCore) GetBranch(owner, repo, branch string) (json.RawMessage, err
 	return g.apiGet(ghRepoPath(owner, repo) + "/branches/" + branch, nil)
 }
 
-// CreateBranchProtection creates branch protection rules.
-func (g *GitHubCore) CreateBranchProtection(owner, repo, branch string, rules map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection", rules)
-}
-
-// DeleteBranchProtection removes branch protection.
-func (g *GitHubCore) DeleteBranchProtection(owner, repo, branch string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection")
-	return err
-}
-
 // RenameBranch renames a branch.
 func (g *GitHubCore) RenameBranch(owner, repo, branch, newName string) (json.RawMessage, error) {
 	return g.apiPost(ghRepoPath(owner, repo) + "/branches/" + branch + "/rename", map[string]any{"new_name": newName})
@@ -3758,38 +3715,6 @@ func (g *GitHubCore) RenameBranch(owner, repo, branch, newName string) (json.Raw
 // ListTags lists tags for a repository.
 func (g *GitHubCore) ListTags(owner, repo string) (json.RawMessage, error) {
 	return g.apiGet(ghRepoPath(owner, repo) + "/tags", map[string]string{"per_page": "100"})
-}
-
-// CreateTag creates a tag object.
-func (g *GitHubCore) CreateTag(owner, repo, tag, message, sha, objectType string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/git/tags", map[string]any{
-		"tag":     tag,
-		"message": message,
-		"object":  sha,
-		"type":    objectType,
-	})
-}
-
-// DeleteTag deletes a tag by deleting its reference.
-func (g *GitHubCore) DeleteTag(owner, repo, tag string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/git/refs/tags/" + tag)
-	return err
-}
-
-// ListRefs lists git references.
-func (g *GitHubCore) ListRefs(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/git/refs", nil)
-}
-
-// CreateRef creates a git reference.
-func (g *GitHubCore) CreateRef(owner, repo, ref, sha string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/git/refs", map[string]any{"ref": ref, "sha": sha})
-}
-
-// DeleteRef deletes a git reference.
-func (g *GitHubCore) DeleteRef(owner, repo, ref string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/git/refs/" + ref)
-	return err
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -3815,195 +3740,17 @@ func (g *GitHubCore) CompareCommits(owner, repo, base, head string) (json.RawMes
 // Extended Methods — Actions / Workflows (10)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ListWorkflows lists workflows for a repository.
-func (g *GitHubCore) ListWorkflows(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/workflows", nil)
-}
-
-// ListWorkflowRuns lists workflow runs.
-func (g *GitHubCore) ListWorkflowRuns(owner, repo string, perPage int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs", map[string]string{"per_page": strconv.Itoa(perPage)})
-}
-
-// GetWorkflowRun gets a workflow run.
-func (g *GitHubCore) GetWorkflowRun(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID), nil)
-}
-
-// ReRunWorkflow re-runs a workflow.
-func (g *GitHubCore) ReRunWorkflow(owner, repo string, runID int) error {
-	_, err := g.apiPost(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/rerun", nil)
-	return err
-}
-
-// CancelWorkflowRun cancels a workflow run.
-func (g *GitHubCore) CancelWorkflowRun(owner, repo string, runID int) error {
-	_, err := g.apiPost(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/cancel", nil)
-	return err
-}
-
-// ListWorkflowRunArtifacts lists artifacts for a workflow run.
-func (g *GitHubCore) ListWorkflowRunArtifacts(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/artifacts", nil)
-}
-
-// DownloadArtifact gets the download URL for an artifact.
-func (g *GitHubCore) DownloadArtifact(owner, repo string, artifactID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/artifacts/" + strconv.Itoa(artifactID) + "/zip", nil)
-}
-
-// ListRepositorySecrets lists repository secrets.
-func (g *GitHubCore) ListRepositorySecrets(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/secrets", nil)
-}
-
-// CreateOrUpdateSecret creates or updates a repository secret.
-func (g *GitHubCore) CreateOrUpdateSecret(owner, repo, name, encryptedValue, keyID string) error {
-	_, err := g.apiPut(ghRepoPath(owner, repo) + "/actions/secrets/" + name, map[string]any{
-		"encrypted_value": encryptedValue,
-		"key_id":          keyID,
-	})
-	return err
-}
-
-// DeleteSecret deletes a repository secret.
-func (g *GitHubCore) DeleteSecret(owner, repo, name string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/actions/secrets/" + name)
-	return err
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Checks / Statuses (6)
 // ══════════════════════════════════════════════════════════════════════════════
-
-// ListCheckRuns lists check runs for a ref.
-func (g *GitHubCore) ListCheckRuns(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/commits/" + ref + "/check-runs", nil)
-}
-
-// GetCheckRun gets a check run.
-func (g *GitHubCore) GetCheckRun(owner, repo string, checkRunID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/check-runs/" + strconv.Itoa(checkRunID), nil)
-}
-
-// ListCheckSuites lists check suites for a ref.
-func (g *GitHubCore) ListCheckSuites(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/commits/" + ref + "/check-suites", nil)
-}
-
-// CreateCheckRun creates a check run.
-func (g *GitHubCore) CreateCheckRun(owner, repo, name, headSHA string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/check-runs", map[string]any{
-		"name":     name,
-		"head_sha": headSHA,
-	})
-}
-
-// ListCommitStatuses lists statuses for a ref.
-func (g *GitHubCore) ListCommitStatuses(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/commits/" + ref + "/statuses", nil)
-}
-
-// CreateCommitStatus creates a commit status.
-func (g *GitHubCore) CreateCommitStatus(owner, repo, sha, state, targetURL, description, context string) (json.RawMessage, error) {
-	payload := map[string]any{"state": state}
-	if targetURL != "" {
-		payload["target_url"] = targetURL
-	}
-	if description != "" {
-		payload["description"] = description
-	}
-	if context != "" {
-		payload["context"] = context
-	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/statuses/" + sha, payload)
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Projects (7)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ListProjects lists projects for a repository.
-func (g *GitHubCore) ListProjects(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/projects", nil)
-}
-
-// CreateProject creates a project.
-func (g *GitHubCore) CreateProject(owner, repo, name, body string) (json.RawMessage, error) {
-	payload := map[string]any{"name": name}
-	if body != "" {
-		payload["body"] = body
-	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/projects", payload)
-}
-
-// UpdateProject updates a project.
-func (g *GitHubCore) UpdateProject(projectID int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/projects/" + strconv.Itoa(projectID), updates)
-}
-
-// DeleteProject deletes a project.
-func (g *GitHubCore) DeleteProject(projectID int) error {
-	_, err := g.apiDelete("/projects/" + strconv.Itoa(projectID))
-	return err
-}
-
-// ListProjectColumns lists columns for a project.
-func (g *GitHubCore) ListProjectColumns(projectID int) (json.RawMessage, error) {
-	return g.apiGet("/projects/" + strconv.Itoa(projectID) + "/columns", nil)
-}
-
-// CreateProjectCard creates a card in a project column.
-func (g *GitHubCore) CreateProjectCard(columnID int, note string) (json.RawMessage, error) {
-	return g.apiPost("/projects/columns/" + strconv.Itoa(columnID) + "/cards", map[string]any{"note": note})
-}
-
-// MoveProjectCard moves a project card.
-func (g *GitHubCore) MoveProjectCard(cardID int, position string, columnID int) (json.RawMessage, error) {
-	payload := map[string]any{"position": position}
-	if columnID > 0 {
-		payload["column_id"] = columnID
-	}
-	return g.apiPost("/projects/columns/cards/" + strconv.Itoa(cardID) + "/moves", payload)
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Deployments (4)
 // ══════════════════════════════════════════════════════════════════════════════
-
-// ListDeployments lists deployments for a repository.
-func (g *GitHubCore) ListDeployments(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/deployments", nil)
-}
-
-// CreateDeployment creates a deployment.
-func (g *GitHubCore) CreateDeployment(owner, repo, ref, environment, description string) (json.RawMessage, error) {
-	payload := map[string]any{"ref": ref}
-	if environment != "" {
-		payload["environment"] = environment
-	}
-	if description != "" {
-		payload["description"] = description
-	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/deployments", payload)
-}
-
-// ListDeploymentStatuses lists statuses for a deployment.
-func (g *GitHubCore) ListDeploymentStatuses(owner, repo string, deploymentID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/deployments/" + strconv.Itoa(deploymentID) + "/statuses", nil)
-}
-
-// CreateDeploymentStatus creates a deployment status.
-func (g *GitHubCore) CreateDeploymentStatus(owner, repo string, deploymentID int, state, logURL, description string) (json.RawMessage, error) {
-	payload := map[string]any{"state": state}
-	if logURL != "" {
-		payload["log_url"] = logURL
-	}
-	if description != "" {
-		payload["description"] = description
-	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/deployments/" + strconv.Itoa(deploymentID) + "/statuses", payload)
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Repository Contents (5)
@@ -4098,188 +3845,29 @@ func (g *GitHubCore) GetCollaboratorPermission(owner, repo, username string) (js
 // Extended Methods — Code Scanning / Security (4)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ListCodeScanningAlerts lists code scanning alerts.
-func (g *GitHubCore) ListCodeScanningAlerts(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/alerts", nil)
-}
-
-// GetCodeScanningAlert gets a code scanning alert.
-func (g *GitHubCore) GetCodeScanningAlert(owner, repo string, alertNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/alerts/" + strconv.Itoa(alertNumber), nil)
-}
-
-// ListDependabotAlerts lists Dependabot alerts.
-func (g *GitHubCore) ListDependabotAlerts(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/dependabot/alerts", nil)
-}
-
-// ListSecretScanningAlerts lists secret scanning alerts.
-func (g *GitHubCore) ListSecretScanningAlerts(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/secret-scanning/alerts", nil)
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Pages (3)
 // ══════════════════════════════════════════════════════════════════════════════
-
-// GetPages gets GitHub Pages info for a repository.
-func (g *GitHubCore) GetPages(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pages", nil)
-}
-
-// CreatePagesSite creates a GitHub Pages site.
-func (g *GitHubCore) CreatePagesSite(owner, repo, branch, path string) (json.RawMessage, error) {
-	source := map[string]any{"branch": branch}
-	if path != "" {
-		source["path"] = path
-	}
-	return g.apiPost(ghRepoPath(owner, repo) + "/pages", map[string]any{"source": source})
-}
-
-// ListPagesBuilds lists Pages builds.
-func (g *GitHubCore) ListPagesBuilds(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pages/builds", nil)
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Packages (4)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ListPackages lists packages for the authenticated user.
-func (g *GitHubCore) ListPackages(packageType string) (json.RawMessage, error) {
-	return g.apiGet("/user/packages", map[string]string{"package_type": packageType})
-}
-
-// GetPackage gets a package.
-func (g *GitHubCore) GetPackage(packageType, packageName string) (json.RawMessage, error) {
-	return g.apiGet("/user/packages/" + packageType + "/" + packageName, nil)
-}
-
-// DeletePackage deletes a package.
-func (g *GitHubCore) DeletePackage(packageType, packageName string) error {
-	_, err := g.apiDelete("/user/packages/" + packageType + "/" + packageName)
-	return err
-}
-
-// ListPackageVersions lists versions of a package.
-func (g *GitHubCore) ListPackageVersions(packageType, packageName string) (json.RawMessage, error) {
-	return g.apiGet("/user/packages/" + packageType + "/" + packageName + "/versions", nil)
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — SSH / GPG Keys (6)
 // ══════════════════════════════════════════════════════════════════════════════
-
-// ListSSHKeys lists SSH keys for the authenticated user.
-func (g *GitHubCore) ListSSHKeys() (json.RawMessage, error) {
-	return g.apiGet("/user/keys", nil)
-}
-
-// CreateSSHKey adds an SSH key.
-func (g *GitHubCore) CreateSSHKey(title, key string) (json.RawMessage, error) {
-	return g.apiPost("/user/keys", map[string]any{"title": title, "key": key})
-}
-
-// DeleteSSHKey deletes an SSH key.
-func (g *GitHubCore) DeleteSSHKey(keyID int) error {
-	_, err := g.apiDelete("/user/keys/" + strconv.Itoa(keyID))
-	return err
-}
-
-// ListGPGKeys lists GPG keys for the authenticated user.
-func (g *GitHubCore) ListGPGKeys() (json.RawMessage, error) {
-	return g.apiGet("/user/gpg_keys", nil)
-}
-
-// CreateGPGKey adds a GPG key.
-func (g *GitHubCore) CreateGPGKey(armoredPublicKey string) (json.RawMessage, error) {
-	return g.apiPost("/user/gpg_keys", map[string]any{"armored_public_key": armoredPublicKey})
-}
-
-// DeleteGPGKey deletes a GPG key.
-func (g *GitHubCore) DeleteGPGKey(keyID int) error {
-	_, err := g.apiDelete("/user/gpg_keys/" + strconv.Itoa(keyID))
-	return err
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Rulesets (5)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ListRulesets lists rulesets for a repository.
-func (g *GitHubCore) ListRulesets(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/rulesets", nil)
-}
-
-// CreateRuleset creates a ruleset.
-func (g *GitHubCore) CreateRuleset(owner, repo string, ruleset map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/rulesets", ruleset)
-}
-
-// GetRuleset gets a ruleset.
-func (g *GitHubCore) GetRuleset(owner, repo string, rulesetID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/rulesets/" + strconv.Itoa(rulesetID), nil)
-}
-
-// UpdateRuleset updates a ruleset.
-func (g *GitHubCore) UpdateRuleset(owner, repo string, rulesetID int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/rulesets/" + strconv.Itoa(rulesetID), updates)
-}
-
-// DeleteRuleset deletes a ruleset.
-func (g *GitHubCore) DeleteRuleset(owner, repo string, rulesetID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/rulesets/" + strconv.Itoa(rulesetID))
-	return err
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Autolinks (3)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ListAutolinks lists autolinks for a repository.
-func (g *GitHubCore) ListAutolinks(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/autolinks", nil)
-}
-
-// CreateAutolink creates an autolink reference.
-func (g *GitHubCore) CreateAutolink(owner, repo, keyPrefix, urlTemplate string, isAlphanumeric bool) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/autolinks", map[string]any{
-		"key_prefix":     keyPrefix,
-		"url_template":   urlTemplate,
-		"is_alphanumeric": isAlphanumeric,
-	})
-}
-
-// DeleteAutolink deletes an autolink.
-func (g *GitHubCore) DeleteAutolink(owner, repo string, autolinkID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/autolinks/" + strconv.Itoa(autolinkID))
-	return err
-}
-
 // ══════════════════════════════════════════════════════════════════════════════
 // Extended Methods — Environments (4)
 // ══════════════════════════════════════════════════════════════════════════════
-
-// ListEnvironments lists environments for a repository.
-func (g *GitHubCore) ListEnvironments(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments", nil)
-}
-
-// GetEnvironment gets an environment.
-func (g *GitHubCore) GetEnvironment(owner, repo, envName string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + envName, nil)
-}
-
-// CreateOrUpdateEnvironment creates or updates an environment.
-func (g *GitHubCore) CreateOrUpdateEnvironment(owner, repo, envName string, config map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/environments/" + envName, config)
-}
-
-// DeleteEnvironment deletes an environment.
-func (g *GitHubCore) DeleteEnvironment(owner, repo, envName string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/environments/" + envName)
-	return err
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Step 4 — New Methods (~800 methods)
@@ -4287,652 +3875,27 @@ func (g *GitHubCore) DeleteEnvironment(owner, repo, envName string) error {
 
 // ── Actions — Runners ────────────────────────────────────────────────────────
 
-func (g *GitHubCore) ListRepoRunners(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runners", nil)
-}
-
-func (g *GitHubCore) ListRunnerApplications(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runners/downloads", nil)
-}
-
-func (g *GitHubCore) CreateJITRunnerConfig(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/runners/generate-jitconfig", payload)
-}
-
-func (g *GitHubCore) CreateRunnerRegistrationToken(owner, repo string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/runners/registration-token", nil)
-}
-
-func (g *GitHubCore) CreateRunnerRemoveToken(owner, repo string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/runners/remove-token", nil)
-}
-
-func (g *GitHubCore) GetRepoRunner(owner, repo string, runnerID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runners/" + strconv.Itoa(runnerID), nil)
-}
-
-func (g *GitHubCore) DeleteRepoRunner(owner, repo string, runnerID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/actions/runners/" + strconv.Itoa(runnerID))
-	return err
-}
-
-func (g *GitHubCore) ListRepoRunnerLabels(owner, repo string, runnerID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runners/" + strconv.Itoa(runnerID) + "/labels", nil)
-}
-
-func (g *GitHubCore) AddRepoRunnerLabels(owner, repo string, runnerID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/runners/" + strconv.Itoa(runnerID) + "/labels", payload)
-}
-
-func (g *GitHubCore) SetRepoRunnerLabels(owner, repo string, runnerID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/actions/runners/" + strconv.Itoa(runnerID) + "/labels", payload)
-}
-
-func (g *GitHubCore) RemoveRepoRunnerLabel(owner, repo string, runnerID int, name string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/actions/runners/" + strconv.Itoa(runnerID) + "/labels/" + name)
-	return err
-}
-
-func (g *GitHubCore) ListOrgRunners(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/runners", nil)
-}
-
-func (g *GitHubCore) ListOrgRunnerApplications(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/runners/downloads", nil)
-}
-
-func (g *GitHubCore) CreateOrgJITRunnerConfig(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/actions/runners/generate-jitconfig", payload)
-}
-
-func (g *GitHubCore) CreateOrgRunnerRegistrationToken(org string) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/actions/runners/registration-token", nil)
-}
-
-func (g *GitHubCore) CreateOrgRunnerRemoveToken(org string) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/actions/runners/remove-token", nil)
-}
-
-func (g *GitHubCore) GetOrgRunner(org string, runnerID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/runners/" + strconv.Itoa(runnerID), nil)
-}
-
-func (g *GitHubCore) DeleteOrgRunner(org string, runnerID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/runners/" + strconv.Itoa(runnerID))
-	return err
-}
-
-func (g *GitHubCore) ListOrgRunnerLabels(org string, runnerID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/runners/" + strconv.Itoa(runnerID) + "/labels", nil)
-}
-
-func (g *GitHubCore) AddOrgRunnerLabels(org string, runnerID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/actions/runners/" + strconv.Itoa(runnerID) + "/labels", payload)
-}
-
-func (g *GitHubCore) SetOrgRunnerLabels(org string, runnerID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/runners/" + strconv.Itoa(runnerID) + "/labels", payload)
-}
-
-func (g *GitHubCore) RemoveOrgRunnerLabel(org string, runnerID int, name string) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/runners/" + strconv.Itoa(runnerID) + "/labels/" + name)
-	return err
-}
-
 // ── Actions — Runner Groups ─────────────────────────────────────────────────
-
-func (g *GitHubCore) ListOrgRunnerGroups(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/runner-groups", nil)
-}
-
-func (g *GitHubCore) CreateOrgRunnerGroup(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/actions/runner-groups", payload)
-}
-
-func (g *GitHubCore) GetOrgRunnerGroup(org string, groupID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID), nil)
-}
-
-func (g *GitHubCore) UpdateOrgRunnerGroup(org string, groupID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID), payload)
-}
-
-func (g *GitHubCore) DeleteOrgRunnerGroup(org string, groupID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID))
-	return err
-}
-
-func (g *GitHubCore) ListRunnerGroupRepos(org string, groupID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID) + "/repositories", nil)
-}
-
-func (g *GitHubCore) SetRunnerGroupRepos(org string, groupID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID) + "/repositories", payload)
-}
-
-func (g *GitHubCore) AddRunnerGroupRepo(org string, groupID, repoID int) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID) + "/repositories/" + strconv.Itoa(repoID), nil)
-}
-
-func (g *GitHubCore) RemoveRunnerGroupRepo(org string, groupID, repoID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID) + "/repositories/" + strconv.Itoa(repoID))
-	return err
-}
-
-func (g *GitHubCore) ListRunnerGroupRunners(org string, groupID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID) + "/runners", nil)
-}
-
-func (g *GitHubCore) SetRunnerGroupRunners(org string, groupID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID) + "/runners", payload)
-}
-
-func (g *GitHubCore) AddRunnerGroupRunner(org string, groupID, runnerID int) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID) + "/runners/" + strconv.Itoa(runnerID), nil)
-}
-
-func (g *GitHubCore) RemoveRunnerGroupRunner(org string, groupID, runnerID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/runner-groups/" + strconv.Itoa(groupID) + "/runners/" + strconv.Itoa(runnerID))
-	return err
-}
 
 // ── Actions — Hosted Runners ─────────────────────────────────────────────────
 
-func (g *GitHubCore) ListOrgHostedRunners(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/hosted-runners", nil)
-}
-
-func (g *GitHubCore) CreateOrgHostedRunner(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/actions/hosted-runners", payload)
-}
-
-func (g *GitHubCore) GetOrgHostedRunner(org string, runnerID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/hosted-runners/" + strconv.Itoa(runnerID), nil)
-}
-
-func (g *GitHubCore) UpdateOrgHostedRunner(org string, runnerID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/orgs/" + org + "/actions/hosted-runners/" + strconv.Itoa(runnerID), payload)
-}
-
-func (g *GitHubCore) DeleteOrgHostedRunner(org string, runnerID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/hosted-runners/" + strconv.Itoa(runnerID))
-	return err
-}
-
 // ── Actions — Permissions ────────────────────────────────────────────────────
-
-func (g *GitHubCore) GetOrgActionsPermissions(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/permissions", nil)
-}
-
-func (g *GitHubCore) SetOrgActionsPermissions(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/permissions", payload)
-}
-
-func (g *GitHubCore) GetOrgArtifactRetention(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/permissions/artifact-and-log-retention", nil)
-}
-
-func (g *GitHubCore) SetOrgArtifactRetention(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/permissions/artifact-and-log-retention", payload)
-}
-
-func (g *GitHubCore) GetOrgForkPRApproval(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/permissions/fork-pr-contributor-approval", nil)
-}
-
-func (g *GitHubCore) SetOrgForkPRApproval(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/permissions/fork-pr-contributor-approval", payload)
-}
-
-func (g *GitHubCore) GetOrgEnabledRepos(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/permissions/repositories", nil)
-}
-
-func (g *GitHubCore) SetOrgEnabledRepos(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/permissions/repositories", payload)
-}
-
-func (g *GitHubCore) AddOrgEnabledRepo(org string, repoID int) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/permissions/repositories/" + strconv.Itoa(repoID), nil)
-}
-
-func (g *GitHubCore) RemoveOrgEnabledRepo(org string, repoID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/permissions/repositories/" + strconv.Itoa(repoID))
-	return err
-}
-
-func (g *GitHubCore) GetOrgAllowedActions(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/permissions/selected-actions", nil)
-}
-
-func (g *GitHubCore) SetOrgAllowedActions(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/permissions/selected-actions", payload)
-}
-
-func (g *GitHubCore) GetOrgDefaultWorkflowPermissions(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/permissions/workflow", nil)
-}
-
-func (g *GitHubCore) SetOrgDefaultWorkflowPermissions(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/permissions/workflow", payload)
-}
-
-func (g *GitHubCore) GetRepoActionsPermissions(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/permissions", nil)
-}
-
-func (g *GitHubCore) SetRepoActionsPermissions(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/actions/permissions", payload)
-}
-
-func (g *GitHubCore) GetRepoActionsAccessSettings(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/permissions/access", nil)
-}
-
-func (g *GitHubCore) SetRepoActionsAccessSettings(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/actions/permissions/access", payload)
-}
-
-func (g *GitHubCore) GetRepoAllowedActions(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/permissions/selected-actions", nil)
-}
-
-func (g *GitHubCore) SetRepoAllowedActions(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/actions/permissions/selected-actions", payload)
-}
-
-func (g *GitHubCore) GetRepoDefaultWorkflowPermissions(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/permissions/workflow", nil)
-}
-
-func (g *GitHubCore) SetRepoDefaultWorkflowPermissions(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/actions/permissions/workflow", payload)
-}
 
 // ── Actions — Variables ──────────────────────────────────────────────────────
 
-func (g *GitHubCore) ListRepoVariables(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/variables", nil)
-}
-
-func (g *GitHubCore) CreateRepoVariable(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/variables", payload)
-}
-
-func (g *GitHubCore) GetRepoVariable(owner, repo, name string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/variables/" + name, nil)
-}
-
-func (g *GitHubCore) UpdateRepoVariable(owner, repo, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/actions/variables/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteRepoVariable(owner, repo, name string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/actions/variables/" + name)
-	return err
-}
-
-func (g *GitHubCore) ListOrgVariables(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/variables", nil)
-}
-
-func (g *GitHubCore) CreateOrgVariable(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/actions/variables", payload)
-}
-
-func (g *GitHubCore) GetOrgVariable(org, name string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/variables/" + name, nil)
-}
-
-func (g *GitHubCore) UpdateOrgVariable(org, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/orgs/" + org + "/actions/variables/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteOrgVariable(org, name string) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/variables/" + name)
-	return err
-}
-
 // ── Actions — Org Secrets ────────────────────────────────────────────────────
-
-func (g *GitHubCore) ListOrgSecrets(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/secrets", nil)
-}
-
-func (g *GitHubCore) GetOrgPublicKey(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/secrets/public-key", nil)
-}
-
-func (g *GitHubCore) GetOrgSecret(org, name string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/secrets/" + name, nil)
-}
-
-func (g *GitHubCore) CreateOrUpdateOrgSecret(org, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/secrets/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteOrgSecret(org, name string) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/secrets/" + name)
-	return err
-}
-
-func (g *GitHubCore) ListOrgSecretRepos(org, name string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/secrets/" + name + "/repositories", nil)
-}
-
-func (g *GitHubCore) SetOrgSecretRepos(org, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/secrets/" + name + "/repositories", payload)
-}
-
-func (g *GitHubCore) AddOrgSecretRepo(org, name string, repoID int) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/secrets/" + name + "/repositories/" + strconv.Itoa(repoID), nil)
-}
-
-func (g *GitHubCore) RemoveOrgSecretRepo(org, name string, repoID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/actions/secrets/" + name + "/repositories/" + strconv.Itoa(repoID))
-	return err
-}
 
 // ── Actions — Caches ─────────────────────────────────────────────────────────
 
-func (g *GitHubCore) GetRepoCacheUsage(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/cache/usage", nil)
-}
-
-func (g *GitHubCore) ListRepoCaches(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/caches", nil)
-}
-
-func (g *GitHubCore) DeleteRepoCachesByKey(owner, repo, key string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/actions/caches?key=" + neturl.QueryEscape(key))
-	return err
-}
-
-func (g *GitHubCore) DeleteRepoCacheByID(owner, repo string, cacheID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/actions/caches/" + strconv.Itoa(cacheID))
-	return err
-}
-
-func (g *GitHubCore) GetOrgCacheUsage(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/cache/usage", nil)
-}
-
-func (g *GitHubCore) GetOrgCacheUsageByRepo(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/cache/usage-by-repository", nil)
-}
-
 // ── Actions — Workflow Runs Details ──────────────────────────────────────────
-
-func (g *GitHubCore) GetWorkflowRunApprovals(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/approvals", nil)
-}
-
-func (g *GitHubCore) ApproveWorkflowRun(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/approve", nil)
-}
-
-func (g *GitHubCore) GetWorkflowRunAttempt(owner, repo string, runID, attempt int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/attempts/" + strconv.Itoa(attempt), nil)
-}
-
-func (g *GitHubCore) ListWorkflowRunAttemptJobs(owner, repo string, runID, attempt int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/attempts/" + strconv.Itoa(attempt) + "/jobs", nil)
-}
-
-func (g *GitHubCore) DownloadWorkflowRunAttemptLogs(owner, repo string, runID, attempt int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/attempts/" + strconv.Itoa(attempt) + "/logs", nil)
-}
-
-func (g *GitHubCore) ForceCancelWorkflowRun(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/force-cancel", nil)
-}
-
-func (g *GitHubCore) ListWorkflowRunJobs(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/jobs", nil)
-}
-
-func (g *GitHubCore) DownloadWorkflowRunLogs(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/logs", nil)
-}
-
-func (g *GitHubCore) DeleteWorkflowRunLogs(owner, repo string, runID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/logs")
-	return err
-}
-
-func (g *GitHubCore) GetPendingDeployments(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/pending_deployments", nil)
-}
-
-func (g *GitHubCore) ReviewPendingDeployments(owner, repo string, runID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/pending_deployments", payload)
-}
-
-func (g *GitHubCore) RerunFailedJobs(owner, repo string, runID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/rerun-failed-jobs", payload)
-}
-
-func (g *GitHubCore) GetWorkflowRunTiming(owner, repo string, runID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID) + "/timing", nil)
-}
-
-func (g *GitHubCore) DeleteWorkflowRun(owner, repo string, runID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/actions/runs/" + strconv.Itoa(runID))
-	return err
-}
-
-func (g *GitHubCore) GetWorkflowJob(owner, repo string, jobID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/jobs/" + strconv.Itoa(jobID), nil)
-}
-
-func (g *GitHubCore) DownloadWorkflowJobLogs(owner, repo string, jobID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/jobs/" + strconv.Itoa(jobID) + "/logs", nil)
-}
-
-func (g *GitHubCore) RerunWorkflowJob(owner, repo string, jobID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/jobs/" + strconv.Itoa(jobID) + "/rerun", payload)
-}
 
 // ── Actions — Workflow Management ────────────────────────────────────────────
 
-func (g *GitHubCore) GetWorkflow(owner, repo string, workflowID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/workflows/" + strconv.Itoa(workflowID), nil)
-}
-
-func (g *GitHubCore) DisableWorkflow(owner, repo string, workflowID int) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/actions/workflows/" + strconv.Itoa(workflowID) + "/disable", nil)
-}
-
-func (g *GitHubCore) EnableWorkflow(owner, repo string, workflowID int) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/actions/workflows/" + strconv.Itoa(workflowID) + "/enable", nil)
-}
-
-func (g *GitHubCore) CreateWorkflowDispatch(owner, repo string, workflowID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/actions/workflows/" + strconv.Itoa(workflowID) + "/dispatches", payload)
-}
-
-func (g *GitHubCore) GetWorkflowTiming(owner, repo string, workflowID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/workflows/" + strconv.Itoa(workflowID) + "/timing", nil)
-}
-
 // ── Actions — Environment Secrets & Variables ────────────────────────────────
-
-func (g *GitHubCore) ListEnvironmentSecrets(owner, repo, env string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/secrets", nil)
-}
-
-func (g *GitHubCore) GetEnvironmentPublicKey(owner, repo, env string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/secrets/public-key", nil)
-}
-
-func (g *GitHubCore) GetEnvironmentSecret(owner, repo, env, name string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/secrets/" + name, nil)
-}
-
-func (g *GitHubCore) CreateOrUpdateEnvironmentSecret(owner, repo, env, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/environments/" + env + "/secrets/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteEnvironmentSecret(owner, repo, env, name string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/environments/" + env + "/secrets/" + name)
-	return err
-}
-
-func (g *GitHubCore) ListEnvironmentVariables(owner, repo, env string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/variables", nil)
-}
-
-func (g *GitHubCore) CreateEnvironmentVariable(owner, repo, env string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/environments/" + env + "/variables", payload)
-}
-
-func (g *GitHubCore) GetEnvironmentVariable(owner, repo, env, name string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/variables/" + name, nil)
-}
-
-func (g *GitHubCore) UpdateEnvironmentVariable(owner, repo, env, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/environments/" + env + "/variables/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteEnvironmentVariable(owner, repo, env, name string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/environments/" + env + "/variables/" + name)
-	return err
-}
 
 // ── Actions — OIDC ───────────────────────────────────────────────────────────
 
-func (g *GitHubCore) GetRepoOIDCSubjectClaim(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/actions/oidc/customization/sub", nil)
-}
-
-func (g *GitHubCore) SetRepoOIDCSubjectClaim(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/actions/oidc/customization/sub", payload)
-}
-
 // ── GitHub Apps ───────────────────────────────────────────────────────────────
-
-func (g *GitHubCore) GetAuthenticatedApp() (json.RawMessage, error) {
-	return g.apiGet("/app", nil)
-}
-
-func (g *GitHubCore) CreateAppFromManifest(code string) (json.RawMessage, error) {
-	return g.apiPost("/app-manifests/" + code + "/conversions", nil)
-}
-
-func (g *GitHubCore) GetAppWebhookConfig() (json.RawMessage, error) {
-	return g.apiGet("/app/hook/config", nil)
-}
-
-func (g *GitHubCore) UpdateAppWebhookConfig(payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/app/hook/config", payload)
-}
-
-func (g *GitHubCore) ListAppWebhookDeliveries() (json.RawMessage, error) {
-	return g.apiGet("/app/hook/deliveries", nil)
-}
-
-func (g *GitHubCore) GetAppWebhookDelivery(deliveryID int) (json.RawMessage, error) {
-	return g.apiGet("/app/hook/deliveries/" + strconv.Itoa(deliveryID), nil)
-}
-
-func (g *GitHubCore) RedeliverAppWebhook(deliveryID int) (json.RawMessage, error) {
-	return g.apiPost("/app/hook/deliveries/" + strconv.Itoa(deliveryID) + "/attempts", nil)
-}
-
-func (g *GitHubCore) ListInstallationRequests() (json.RawMessage, error) {
-	return g.apiGet("/app/installation-requests", nil)
-}
-
-func (g *GitHubCore) ListAppInstallations() (json.RawMessage, error) {
-	return g.apiGet("/app/installations", nil)
-}
-
-func (g *GitHubCore) GetAppInstallation(installationID int) (json.RawMessage, error) {
-	return g.apiGet("/app/installations/" + strconv.Itoa(installationID), nil)
-}
-
-func (g *GitHubCore) DeleteAppInstallation(installationID int) error {
-	_, err := g.apiDelete("/app/installations/" + strconv.Itoa(installationID))
-	return err
-}
-
-func (g *GitHubCore) CreateInstallationAccessToken(installationID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/app/installations/" + strconv.Itoa(installationID) + "/access_tokens", payload)
-}
-
-func (g *GitHubCore) SuspendAppInstallation(installationID int) (json.RawMessage, error) {
-	return g.apiPut("/app/installations/" + strconv.Itoa(installationID) + "/suspended", nil)
-}
-
-func (g *GitHubCore) UnsuspendAppInstallation(installationID int) error {
-	_, err := g.apiDelete("/app/installations/" + strconv.Itoa(installationID) + "/suspended")
-	return err
-}
-
-func (g *GitHubCore) DeleteAppAuthorization(clientID string) error {
-	_, err := g.apiDelete("/applications/" + clientID + "/grant")
-	return err
-}
-
-func (g *GitHubCore) CheckAppToken(clientID string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/applications/" + clientID + "/token", payload)
-}
-
-func (g *GitHubCore) ResetAppToken(clientID string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/applications/" + clientID + "/token", payload)
-}
-
-func (g *GitHubCore) DeleteAppToken(clientID string) error {
-	_, err := g.apiDelete("/applications/" + clientID + "/token")
-	return err
-}
-
-func (g *GitHubCore) CreateScopedAccessToken(clientID string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/applications/" + clientID + "/token/scoped", payload)
-}
-
-func (g *GitHubCore) GetAppBySlug(appSlug string) (json.RawMessage, error) {
-	return g.apiGet("/apps/" + appSlug, nil)
-}
-
-func (g *GitHubCore) ListInstallationRepos() (json.RawMessage, error) {
-	return g.apiGet("/installation/repositories", nil)
-}
-
-func (g *GitHubCore) RevokeInstallationAccessToken() error {
-	_, err := g.apiDelete("/installation/token")
-	return err
-}
-
-func (g *GitHubCore) GetOrgInstallation(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/installation", nil)
-}
-
-func (g *GitHubCore) GetRepoInstallation(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/installation", nil)
-}
-
-func (g *GitHubCore) ListUserInstallations() (json.RawMessage, error) {
-	return g.apiGet("/user/installations", nil)
-}
-
-func (g *GitHubCore) ListUserInstallationRepos(installationID int) (json.RawMessage, error) {
-	return g.apiGet("/user/installations/" + strconv.Itoa(installationID) + "/repositories", nil)
-}
-
-func (g *GitHubCore) AddRepoToInstallation(installationID, repoID int) (json.RawMessage, error) {
-	return g.apiPut("/user/installations/" + strconv.Itoa(installationID) + "/repositories/" + strconv.Itoa(repoID), nil)
-}
-
-func (g *GitHubCore) RemoveRepoFromInstallation(installationID, repoID int) error {
-	_, err := g.apiDelete("/user/installations/" + strconv.Itoa(installationID) + "/repositories/" + strconv.Itoa(repoID))
-	return err
-}
-
-func (g *GitHubCore) GetUserInstallation(username string) (json.RawMessage, error) {
-	return g.apiGet("/users/" + username + "/installation", nil)
-}
 
 // ── Repos — Collaborators ────────────────────────────────────────────────────
 
@@ -4955,62 +3918,9 @@ func (g *GitHubCore) RemoveCollaborator(owner, repo, username string) error {
 
 // ── Repos — Deploy Keys ─────────────────────────────────────────────────────
 
-func (g *GitHubCore) ListDeployKeys(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/keys", nil)
-}
-
-func (g *GitHubCore) CreateDeployKey(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/keys", payload)
-}
-
-func (g *GitHubCore) GetDeployKey(owner, repo string, keyID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/keys/" + strconv.Itoa(keyID), nil)
-}
-
-func (g *GitHubCore) DeleteDeployKey(owner, repo string, keyID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/keys/" + strconv.Itoa(keyID))
-	return err
-}
-
 // ── Repos — Statistics ───────────────────────────────────────────────────────
 
-func (g *GitHubCore) GetCodeFrequencyStats(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/stats/code_frequency", nil)
-}
-
-func (g *GitHubCore) GetCommitActivityStats(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/stats/commit_activity", nil)
-}
-
-func (g *GitHubCore) GetContributorStats(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/stats/contributors", nil)
-}
-
-func (g *GitHubCore) GetParticipationStats(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/stats/participation", nil)
-}
-
-func (g *GitHubCore) GetPunchCardStats(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/stats/punch_card", nil)
-}
-
 // ── Repos — Traffic ──────────────────────────────────────────────────────────
-
-func (g *GitHubCore) GetRepoClones(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/traffic/clones", nil)
-}
-
-func (g *GitHubCore) GetTopReferralPaths(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/traffic/popular/paths", nil)
-}
-
-func (g *GitHubCore) GetTopReferrers(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/traffic/popular/referrers", nil)
-}
-
-func (g *GitHubCore) GetRepoPageViews(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/traffic/views", nil)
-}
 
 // ── Repos — Community & README ───────────────────────────────────────────────
 
@@ -5028,39 +3938,7 @@ func (g *GitHubCore) GetDirREADME(owner, repo, dir string) (json.RawMessage, err
 
 // ── Repos — Git Objects ──────────────────────────────────────────────────────
 
-func (g *GitHubCore) CreateBlob(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/git/blobs", payload)
-}
-
-func (g *GitHubCore) GetBlob(owner, repo, sha string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/git/blobs/" + sha, nil)
-}
-
-func (g *GitHubCore) CreateGitCommit(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/git/commits", payload)
-}
-
-func (g *GitHubCore) GetGitCommit(owner, repo, sha string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/git/commits/" + sha, nil)
-}
-
-func (g *GitHubCore) ListMatchingRefs(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/git/matching-refs/" + ref, nil)
-}
-
-func (g *GitHubCore) CreateGitTag(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/git/tags", payload)
-}
-
-func (g *GitHubCore) GetGitTag(owner, repo, sha string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/git/tags/" + sha, nil)
-}
-
 // ── Repos — Misc Missing ────────────────────────────────────────────────────
-
-func (g *GitHubCore) GetCodeownersErrors(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/codeowners/errors", nil)
-}
 
 func (g *GitHubCore) ListRepoLanguages(owner, repo string) (json.RawMessage, error) {
 	return g.apiGet(ghRepoPath(owner, repo) + "/languages", nil)
@@ -5068,51 +3946,6 @@ func (g *GitHubCore) ListRepoLanguages(owner, repo string) (json.RawMessage, err
 
 func (g *GitHubCore) ListRepoTeams(owner, repo string) (json.RawMessage, error) {
 	return g.apiGet(ghRepoPath(owner, repo) + "/teams", nil)
-}
-
-func (g *GitHubCore) CreateRepoFromTemplate(templateOwner, templateRepo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(templateOwner, templateRepo) + "/generate", payload)
-}
-
-func (g *GitHubCore) CreateRepositoryDispatch(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/dispatches", payload)
-}
-
-func (g *GitHubCore) SyncForkWithUpstream(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/merge-upstream", payload)
-}
-
-func (g *GitHubCore) MergeBranch(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/merges", payload)
-}
-
-func (g *GitHubCore) CheckVulnerabilityAlerts(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/vulnerability-alerts", nil)
-}
-
-func (g *GitHubCore) EnableVulnerabilityAlerts(owner, repo string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/vulnerability-alerts", nil)
-}
-
-func (g *GitHubCore) DisableVulnerabilityAlerts(owner, repo string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/vulnerability-alerts")
-	return err
-}
-
-func (g *GitHubCore) GetCustomPropertyValues(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/properties/values", nil)
-}
-
-func (g *GitHubCore) SetCustomPropertyValues(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/properties/values", payload)
-}
-
-func (g *GitHubCore) CreateAttestation(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/attestations", payload)
-}
-
-func (g *GitHubCore) ListAttestations(owner, repo, subjectDigest string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/attestations/" + subjectDigest, nil)
 }
 
 func (g *GitHubCore) GetLatestRelease(owner, repo string) (json.RawMessage, error) {
@@ -5142,194 +3975,19 @@ func (g *GitHubCore) DeleteReleaseAsset(owner, repo string, assetID int) error {
 
 // ── Repos — Branch Protection Details ────────────────────────────────────────
 
-func (g *GitHubCore) GetAdminEnforcement(owner, repo, branch string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/enforce_admins", nil)
-}
-
-func (g *GitHubCore) SetAdminEnforcement(owner, repo, branch string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/enforce_admins", nil)
-}
-
-func (g *GitHubCore) RemoveAdminEnforcement(owner, repo, branch string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/enforce_admins")
-	return err
-}
-
-func (g *GitHubCore) GetRequiredPRReviews(owner, repo, branch string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_pull_request_reviews", nil)
-}
-
-func (g *GitHubCore) UpdateRequiredPRReviews(owner, repo, branch string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_pull_request_reviews", payload)
-}
-
-func (g *GitHubCore) RemoveRequiredPRReviews(owner, repo, branch string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_pull_request_reviews")
-	return err
-}
-
-func (g *GitHubCore) GetRequiredSignatures(owner, repo, branch string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_signatures", nil)
-}
-
-func (g *GitHubCore) SetRequiredSignatures(owner, repo, branch string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_signatures", nil)
-}
-
-func (g *GitHubCore) RemoveRequiredSignatures(owner, repo, branch string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_signatures")
-	return err
-}
-
-func (g *GitHubCore) GetRequiredStatusChecks(owner, repo, branch string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_status_checks", nil)
-}
-
-func (g *GitHubCore) UpdateRequiredStatusChecks(owner, repo, branch string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_status_checks", payload)
-}
-
-func (g *GitHubCore) RemoveRequiredStatusChecks(owner, repo, branch string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/required_status_checks")
-	return err
-}
-
-func (g *GitHubCore) GetBranchRestrictions(owner, repo, branch string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/restrictions", nil)
-}
-
-func (g *GitHubCore) DeleteBranchRestrictions(owner, repo, branch string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/branches/" + branch + "/protection/restrictions")
-	return err
-}
-
 // ── Repos — Pages Extras ────────────────────────────────────────────────────
-
-func (g *GitHubCore) UpdatePagesSite(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/pages", payload)
-}
-
-func (g *GitHubCore) DeletePagesSite(owner, repo string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/pages")
-	return err
-}
-
-func (g *GitHubCore) GetLatestPagesBuild(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pages/builds/latest", nil)
-}
-
-func (g *GitHubCore) GetPagesBuild(owner, repo string, buildID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pages/builds/" + strconv.Itoa(buildID), nil)
-}
-
-func (g *GitHubCore) CreatePagesDeployment(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/pages/deployments", payload)
-}
-
-func (g *GitHubCore) GetPagesDeploymentStatus(owner, repo string, deploymentID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pages/deployments/" + strconv.Itoa(deploymentID), nil)
-}
-
-func (g *GitHubCore) CancelPagesDeployment(owner, repo string, deploymentID int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/pages/deployments/" + strconv.Itoa(deploymentID) + "/cancel", nil)
-}
-
-func (g *GitHubCore) GetPagesDNSHealth(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/pages/health", nil)
-}
 
 // ── Repos — Webhook Extras ───────────────────────────────────────────────────
 
-func (g *GitHubCore) ListWebhookDeliveries(owner, repo string, hookID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/hooks/" + strconv.Itoa(hookID) + "/deliveries", nil)
-}
-
-func (g *GitHubCore) GetWebhookDelivery(owner, repo string, hookID, deliveryID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/hooks/" + strconv.Itoa(hookID) + "/deliveries/" + strconv.Itoa(deliveryID), nil)
-}
-
-func (g *GitHubCore) RedeliverWebhook(owner, repo string, hookID, deliveryID int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/hooks/" + strconv.Itoa(hookID) + "/deliveries/" + strconv.Itoa(deliveryID) + "/attempts", nil)
-}
-
-func (g *GitHubCore) GetWebhookConfig(owner, repo string, hookID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/hooks/" + strconv.Itoa(hookID) + "/config", nil)
-}
-
-func (g *GitHubCore) UpdateWebhookConfig(owner, repo string, hookID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/hooks/" + strconv.Itoa(hookID) + "/config", payload)
-}
-
 // ── Repos — Ruleset Extras ───────────────────────────────────────────────────
 
-func (g *GitHubCore) ListRuleSuites(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/rulesets/rule-suites", nil)
-}
-
-func (g *GitHubCore) GetRuleSuite(owner, repo string, suiteID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/rulesets/rule-suites/" + strconv.Itoa(suiteID), nil)
-}
-
-func (g *GitHubCore) GetRulesetHistory(owner, repo string, rulesetID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/rulesets/" + strconv.Itoa(rulesetID) + "/history", nil)
-}
-
-func (g *GitHubCore) GetRulesetVersion(owner, repo string, rulesetID, versionID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/rulesets/" + strconv.Itoa(rulesetID) + "/history/" + strconv.Itoa(versionID), nil)
-}
-
-func (g *GitHubCore) GetBranchRules(owner, repo, branch string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/rules/branches/" + branch, nil)
-}
-
 // ── Repos — Commits Extras ───────────────────────────────────────────────────
-
-func (g *GitHubCore) ListBranchesForHEADCommit(owner, repo, sha string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/commits/" + sha + "/branches-where-head", nil)
-}
 
 func (g *GitHubCore) ListPRsForCommit(owner, repo, sha string) (json.RawMessage, error) {
 	return g.apiGet(ghRepoPath(owner, repo) + "/commits/" + sha + "/pulls", nil)
 }
 
-func (g *GitHubCore) GetCombinedStatus(owner, repo, ref string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/commits/" + ref + "/status", nil)
-}
-
 // ── Repos — Environment Deployment Policies ──────────────────────────────────
-
-func (g *GitHubCore) ListDeploymentBranchPolicies(owner, repo, env string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/deployment-branch-policies", nil)
-}
-
-func (g *GitHubCore) CreateDeploymentBranchPolicy(owner, repo, env string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/environments/" + env + "/deployment-branch-policies", payload)
-}
-
-func (g *GitHubCore) GetDeploymentBranchPolicy(owner, repo, env string, policyID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/deployment-branch-policies/" + strconv.Itoa(policyID), nil)
-}
-
-func (g *GitHubCore) UpdateDeploymentBranchPolicy(owner, repo, env string, policyID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/environments/" + env + "/deployment-branch-policies/" + strconv.Itoa(policyID), payload)
-}
-
-func (g *GitHubCore) DeleteDeploymentBranchPolicy(owner, repo, env string, policyID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/environments/" + env + "/deployment-branch-policies/" + strconv.Itoa(policyID))
-	return err
-}
-
-func (g *GitHubCore) ListDeploymentProtectionRules(owner, repo, env string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/deployment_protection_rules", nil)
-}
-
-func (g *GitHubCore) CreateDeploymentProtectionRule(owner, repo, env string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/environments/" + env + "/deployment_protection_rules", payload)
-}
-
-func (g *GitHubCore) ListDeploymentProtectionRuleApps(owner, repo, env string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/environments/" + env + "/deployment_protection_rules/apps", nil)
-}
 
 // ── Pull Requests — Missing ──────────────────────────────────────────────────
 
@@ -5446,251 +4104,9 @@ func (g *GitHubCore) ListMilestoneLabels(owner, repo string, milestoneNumber int
 
 // ── Codespaces ───────────────────────────────────────────────────────────────
 
-func (g *GitHubCore) ListOrgCodespaces(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/codespaces", nil)
-}
-
-func (g *GitHubCore) SetOrgCodespacesAccess(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/codespaces/access", payload)
-}
-
-func (g *GitHubCore) AddCodespacesAccessUsers(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/codespaces/access/selected_users", payload)
-}
-
-func (g *GitHubCore) RemoveCodespacesAccessUsers(org string, payload map[string]any) error {
-	_, err := g.apiDelete("/orgs/" + org + "/codespaces/access/selected_users")
-	return err
-}
-
-func (g *GitHubCore) ListOrgCodespaceSecrets(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/codespaces/secrets", nil)
-}
-
-func (g *GitHubCore) GetOrgCodespacePublicKey(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/codespaces/secrets/public-key", nil)
-}
-
-func (g *GitHubCore) GetOrgCodespaceSecret(org, name string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/codespaces/secrets/" + name, nil)
-}
-
-func (g *GitHubCore) CreateOrUpdateOrgCodespaceSecret(org, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/codespaces/secrets/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteOrgCodespaceSecret(org, name string) error {
-	_, err := g.apiDelete("/orgs/" + org + "/codespaces/secrets/" + name)
-	return err
-}
-
-func (g *GitHubCore) ListRepoCodespaces(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/codespaces", nil)
-}
-
-func (g *GitHubCore) CreateRepoCodespace(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/codespaces", payload)
-}
-
-func (g *GitHubCore) ListDevContainerConfigs(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/codespaces/devcontainers", nil)
-}
-
-func (g *GitHubCore) ListCodespaceMachineTypes(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/codespaces/machines", nil)
-}
-
-func (g *GitHubCore) GetCodespaceDefaults(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/codespaces/new", nil)
-}
-
-func (g *GitHubCore) CheckDevContainerPermissions(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/codespaces/permissions_check", nil)
-}
-
-func (g *GitHubCore) CreateCodespaceFromPR(owner, repo string, prNumber int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(prNumber) + "/codespaces", payload)
-}
-
-func (g *GitHubCore) ListUserCodespaces() (json.RawMessage, error) {
-	return g.apiGet("/user/codespaces", nil)
-}
-
-func (g *GitHubCore) CreateUserCodespace(payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/user/codespaces", payload)
-}
-
-func (g *GitHubCore) GetCodespace(name string) (json.RawMessage, error) {
-	return g.apiGet("/user/codespaces/" + name, nil)
-}
-
-func (g *GitHubCore) UpdateCodespace(name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/user/codespaces/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteCodespace(name string) error {
-	_, err := g.apiDelete("/user/codespaces/" + name)
-	return err
-}
-
-func (g *GitHubCore) ExportCodespace(name string) (json.RawMessage, error) {
-	return g.apiPost("/user/codespaces/" + name + "/exports", nil)
-}
-
-func (g *GitHubCore) GetCodespaceExport(name, exportID string) (json.RawMessage, error) {
-	return g.apiGet("/user/codespaces/" + name + "/exports/" + exportID, nil)
-}
-
-func (g *GitHubCore) ListCodespaceMachines(name string) (json.RawMessage, error) {
-	return g.apiGet("/user/codespaces/" + name + "/machines", nil)
-}
-
-func (g *GitHubCore) PublishCodespace(name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/user/codespaces/" + name + "/publish", payload)
-}
-
-func (g *GitHubCore) StartCodespace(name string) (json.RawMessage, error) {
-	return g.apiPost("/user/codespaces/" + name + "/start", nil)
-}
-
-func (g *GitHubCore) StopCodespace(name string) (json.RawMessage, error) {
-	return g.apiPost("/user/codespaces/" + name + "/stop", nil)
-}
-
 // ── Copilot ──────────────────────────────────────────────────────────────────
 
-func (g *GitHubCore) GetCopilotSeatInfo(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/copilot/billing", nil)
-}
-
-func (g *GitHubCore) ListCopilotSeats(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/copilot/billing/seats", nil)
-}
-
-func (g *GitHubCore) AddCopilotTeams(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/copilot/billing/selected_teams", payload)
-}
-
-func (g *GitHubCore) RemoveCopilotTeams(org string, payload map[string]any) error {
-	_, err := g.apiDelete("/orgs/" + org + "/copilot/billing/selected_teams")
-	return err
-}
-
-func (g *GitHubCore) AddCopilotUsers(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/copilot/billing/selected_users", payload)
-}
-
-func (g *GitHubCore) RemoveCopilotUsers(org string, payload map[string]any) error {
-	_, err := g.apiDelete("/orgs/" + org + "/copilot/billing/selected_users")
-	return err
-}
-
-func (g *GitHubCore) GetCopilotMetrics(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/copilot/metrics", nil)
-}
-
-func (g *GitHubCore) GetCopilotUserSeat(org, username string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/members/" + username + "/copilot", nil)
-}
-
-func (g *GitHubCore) GetCopilotTeamMetrics(org, teamSlug string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/team/" + teamSlug + "/copilot/metrics", nil)
-}
-
 // ── Migrations ───────────────────────────────────────────────────────────────
-
-func (g *GitHubCore) ListOrgMigrations(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/migrations", nil)
-}
-
-func (g *GitHubCore) StartOrgMigration(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/migrations", payload)
-}
-
-func (g *GitHubCore) GetOrgMigration(org string, migrationID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/migrations/" + strconv.Itoa(migrationID), nil)
-}
-
-func (g *GitHubCore) DownloadOrgMigrationArchive(org string, migrationID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/migrations/" + strconv.Itoa(migrationID) + "/archive", nil)
-}
-
-func (g *GitHubCore) DeleteOrgMigrationArchive(org string, migrationID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/migrations/" + strconv.Itoa(migrationID) + "/archive")
-	return err
-}
-
-func (g *GitHubCore) UnlockOrgMigrationRepo(org string, migrationID int, repoName string) error {
-	_, err := g.apiDelete("/orgs/" + org + "/migrations/" + strconv.Itoa(migrationID) + "/repos/" + repoName + "/lock")
-	return err
-}
-
-func (g *GitHubCore) ListOrgMigrationRepos(org string, migrationID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/migrations/" + strconv.Itoa(migrationID) + "/repositories", nil)
-}
-
-func (g *GitHubCore) GetImportStatus(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/import", nil)
-}
-
-func (g *GitHubCore) StartImport(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/import", payload)
-}
-
-func (g *GitHubCore) UpdateImport(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/import", payload)
-}
-
-func (g *GitHubCore) CancelImport(owner, repo string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/import")
-	return err
-}
-
-func (g *GitHubCore) ListImportAuthors(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/import/authors", nil)
-}
-
-func (g *GitHubCore) MapImportAuthor(owner, repo string, authorID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/import/authors/" + strconv.Itoa(authorID), payload)
-}
-
-func (g *GitHubCore) ListImportLargeFiles(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/import/large_files", nil)
-}
-
-func (g *GitHubCore) UpdateImportLFS(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/import/lfs", payload)
-}
-
-func (g *GitHubCore) ListUserMigrations() (json.RawMessage, error) {
-	return g.apiGet("/user/migrations", nil)
-}
-
-func (g *GitHubCore) StartUserMigration(payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/user/migrations", payload)
-}
-
-func (g *GitHubCore) GetUserMigration(migrationID int) (json.RawMessage, error) {
-	return g.apiGet("/user/migrations/" + strconv.Itoa(migrationID), nil)
-}
-
-func (g *GitHubCore) DownloadUserMigrationArchive(migrationID int) (json.RawMessage, error) {
-	return g.apiGet("/user/migrations/" + strconv.Itoa(migrationID) + "/archive", nil)
-}
-
-func (g *GitHubCore) DeleteUserMigrationArchive(migrationID int) error {
-	_, err := g.apiDelete("/user/migrations/" + strconv.Itoa(migrationID) + "/archive")
-	return err
-}
-
-func (g *GitHubCore) UnlockUserMigrationRepo(migrationID int, repoName string) error {
-	_, err := g.apiDelete("/user/migrations/" + strconv.Itoa(migrationID) + "/repos/" + repoName + "/lock")
-	return err
-}
-
-func (g *GitHubCore) ListUserMigrationRepos(migrationID int) (json.RawMessage, error) {
-	return g.apiGet("/user/migrations/" + strconv.Itoa(migrationID) + "/repositories", nil)
-}
 
 // ── Reactions ────────────────────────────────────────────────────────────────
 
@@ -5761,213 +4177,13 @@ func (g *GitHubCore) DeleteReleaseReaction(owner, repo string, releaseID, reacti
 
 // ── Security Advisories ──────────────────────────────────────────────────────
 
-func (g *GitHubCore) ListGlobalAdvisories() (json.RawMessage, error) {
-	return g.apiGet("/advisories", nil)
-}
-
-func (g *GitHubCore) GetGlobalAdvisory(ghsaID string) (json.RawMessage, error) {
-	return g.apiGet("/advisories/" + ghsaID, nil)
-}
-
-func (g *GitHubCore) ListOrgAdvisories(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/security-advisories", nil)
-}
-
-func (g *GitHubCore) ListRepoAdvisories(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/security-advisories", nil)
-}
-
-func (g *GitHubCore) CreateRepoAdvisory(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/security-advisories", payload)
-}
-
-func (g *GitHubCore) ReportVulnerability(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/security-advisories/reports", payload)
-}
-
-func (g *GitHubCore) GetRepoAdvisory(owner, repo, ghsaID string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/security-advisories/" + ghsaID, nil)
-}
-
-func (g *GitHubCore) UpdateRepoAdvisory(owner, repo, ghsaID string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/security-advisories/" + ghsaID, payload)
-}
-
-func (g *GitHubCore) RequestCVE(owner, repo, ghsaID string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/security-advisories/" + ghsaID + "/cve", nil)
-}
-
-func (g *GitHubCore) CreatePrivateFork(owner, repo, ghsaID string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/security-advisories/" + ghsaID + "/forks", nil)
-}
-
 // ── Code Scanning — Extended ─────────────────────────────────────────────────
-
-func (g *GitHubCore) UpdateCodeScanningAlert(owner, repo string, alertNumber int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/code-scanning/alerts/" + strconv.Itoa(alertNumber), payload)
-}
-
-func (g *GitHubCore) GetCodeScanningAutofix(owner, repo string, alertNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/alerts/" + strconv.Itoa(alertNumber) + "/autofix", nil)
-}
-
-func (g *GitHubCore) CreateCodeScanningAutofix(owner, repo string, alertNumber int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/code-scanning/alerts/" + strconv.Itoa(alertNumber) + "/autofix", nil)
-}
-
-func (g *GitHubCore) ListCodeScanningAlertInstances(owner, repo string, alertNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/alerts/" + strconv.Itoa(alertNumber) + "/instances", nil)
-}
-
-func (g *GitHubCore) ListCodeScanningAnalyses(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/analyses", nil)
-}
-
-func (g *GitHubCore) GetCodeScanningAnalysis(owner, repo string, analysisID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/analyses/" + strconv.Itoa(analysisID), nil)
-}
-
-func (g *GitHubCore) DeleteCodeScanningAnalysis(owner, repo string, analysisID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/code-scanning/analyses/" + strconv.Itoa(analysisID))
-	return err
-}
-
-func (g *GitHubCore) ListCodeQLDatabases(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/codeql/databases", nil)
-}
-
-func (g *GitHubCore) GetCodeQLDatabase(owner, repo, lang string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/codeql/databases/" + lang, nil)
-}
-
-func (g *GitHubCore) GetCodeScanningDefaultSetup(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/default-setup", nil)
-}
-
-func (g *GitHubCore) UpdateCodeScanningDefaultSetup(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/code-scanning/default-setup", payload)
-}
-
-func (g *GitHubCore) UploadSARIF(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/code-scanning/sarifs", payload)
-}
-
-func (g *GitHubCore) GetSARIFUpload(owner, repo, sarifID string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/code-scanning/sarifs/" + sarifID, nil)
-}
-
-func (g *GitHubCore) ListOrgCodeScanningAlerts(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/code-scanning/alerts", nil)
-}
 
 // ── Dependabot — Extended ────────────────────────────────────────────────────
 
-func (g *GitHubCore) GetDependabotAlert(owner, repo string, alertNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/dependabot/alerts/" + strconv.Itoa(alertNumber), nil)
-}
-
-func (g *GitHubCore) UpdateDependabotAlert(owner, repo string, alertNumber int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/dependabot/alerts/" + strconv.Itoa(alertNumber), payload)
-}
-
-func (g *GitHubCore) ListRepoDependabotSecrets(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/dependabot/secrets", nil)
-}
-
-func (g *GitHubCore) GetRepoDependabotPublicKey(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/dependabot/secrets/public-key", nil)
-}
-
-func (g *GitHubCore) GetRepoDependabotSecret(owner, repo, name string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/dependabot/secrets/" + name, nil)
-}
-
-func (g *GitHubCore) CreateOrUpdateRepoDependabotSecret(owner, repo, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo) + "/dependabot/secrets/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteRepoDependabotSecret(owner, repo, name string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/dependabot/secrets/" + name)
-	return err
-}
-
-func (g *GitHubCore) ListOrgDependabotSecrets(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/dependabot/secrets", nil)
-}
-
-func (g *GitHubCore) GetOrgDependabotPublicKey(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/dependabot/secrets/public-key", nil)
-}
-
-func (g *GitHubCore) GetOrgDependabotSecret(org, name string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/dependabot/secrets/" + name, nil)
-}
-
-func (g *GitHubCore) CreateOrUpdateOrgDependabotSecret(org, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/dependabot/secrets/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteOrgDependabotSecret(org, name string) error {
-	_, err := g.apiDelete("/orgs/" + org + "/dependabot/secrets/" + name)
-	return err
-}
-
-func (g *GitHubCore) ListOrgDependabotAlerts(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/dependabot/alerts", nil)
-}
-
 // ── Secret Scanning — Extended ───────────────────────────────────────────────
 
-func (g *GitHubCore) GetSecretScanningAlert(owner, repo string, alertNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/secret-scanning/alerts/" + strconv.Itoa(alertNumber), nil)
-}
-
-func (g *GitHubCore) UpdateSecretScanningAlert(owner, repo string, alertNumber int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/secret-scanning/alerts/" + strconv.Itoa(alertNumber), payload)
-}
-
-func (g *GitHubCore) ListSecretScanningAlertLocations(owner, repo string, alertNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/secret-scanning/alerts/" + strconv.Itoa(alertNumber) + "/locations", nil)
-}
-
-func (g *GitHubCore) CreatePushProtectionBypass(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/secret-scanning/push-protection-bypasses", payload)
-}
-
-func (g *GitHubCore) GetSecretScanHistory(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/secret-scanning/scan-history", nil)
-}
-
-func (g *GitHubCore) ListOrgSecretScanningAlerts(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/secret-scanning/alerts", nil)
-}
-
 // ── Organizations — Webhooks ─────────────────────────────────────────────────
-
-func (g *GitHubCore) ListOrgWebhooks(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/hooks", nil)
-}
-
-func (g *GitHubCore) CreateOrgWebhook(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/hooks", payload)
-}
-
-func (g *GitHubCore) GetOrgWebhook(org string, hookID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/hooks/" + strconv.Itoa(hookID), nil)
-}
-
-func (g *GitHubCore) UpdateOrgWebhook(org string, hookID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/orgs/" + org + "/hooks/" + strconv.Itoa(hookID), payload)
-}
-
-func (g *GitHubCore) DeleteOrgWebhook(org string, hookID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/hooks/" + strconv.Itoa(hookID))
-	return err
-}
-
-func (g *GitHubCore) PingOrgWebhook(org string, hookID int) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/hooks/" + strconv.Itoa(hookID) + "/pings", nil)
-}
 
 // ── Organizations — Blocks ───────────────────────────────────────────────────
 
@@ -6083,67 +4299,9 @@ func (g *GitHubCore) GetUserOrgMembership(org string) (json.RawMessage, error) {
 
 // ── Organizations — Custom Properties ────────────────────────────────────────
 
-func (g *GitHubCore) ListOrgCustomProperties(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/properties/schema", nil)
-}
-
-func (g *GitHubCore) CreateOrgCustomProperties(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/orgs/" + org + "/properties/schema", payload)
-}
-
-func (g *GitHubCore) GetOrgCustomProperty(org, name string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/properties/schema/" + name, nil)
-}
-
-func (g *GitHubCore) CreateOrUpdateOrgCustomProperty(org, name string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/properties/schema/" + name, payload)
-}
-
-func (g *GitHubCore) DeleteOrgCustomProperty(org, name string) error {
-	_, err := g.apiDelete("/orgs/" + org + "/properties/schema/" + name)
-	return err
-}
-
 // ── Organizations — PAT Management ───────────────────────────────────────────
 
-func (g *GitHubCore) ListOrgPATRequests(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/personal-access-token-requests", nil)
-}
-
-func (g *GitHubCore) ReviewOrgPATRequests(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/personal-access-token-requests", payload)
-}
-
-func (g *GitHubCore) ReviewOrgPATRequest(org string, requestID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/personal-access-token-requests/" + strconv.Itoa(requestID), payload)
-}
-
-func (g *GitHubCore) ListOrgPATs(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/personal-access-tokens", nil)
-}
-
-func (g *GitHubCore) UpdateOrgPATs(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/personal-access-tokens", payload)
-}
-
-func (g *GitHubCore) UpdateOrgPAT(org string, patID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/personal-access-tokens/" + strconv.Itoa(patID), payload)
-}
-
 // ── Organizations — Security Managers ────────────────────────────────────────
-
-func (g *GitHubCore) ListSecurityManagers(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/security-managers", nil)
-}
-
-func (g *GitHubCore) AddSecurityManagerTeam(org, teamSlug string) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/security-managers/teams/" + teamSlug, nil)
-}
-
-func (g *GitHubCore) RemoveSecurityManagerTeam(org, teamSlug string) error {
-	_, err := g.apiDelete("/orgs/" + org + "/security-managers/teams/" + teamSlug)
-	return err
-}
 
 // ── Organizations — Public Members ───────────────────────────────────────────
 
@@ -6205,23 +4363,6 @@ func (g *GitHubCore) ListPublicEmails() (json.RawMessage, error) {
 	return g.apiGet("/user/public_emails", nil)
 }
 
-func (g *GitHubCore) ListSSHSigningKeys() (json.RawMessage, error) {
-	return g.apiGet("/user/ssh_signing_keys", nil)
-}
-
-func (g *GitHubCore) CreateSSHSigningKey(payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/user/ssh_signing_keys", payload)
-}
-
-func (g *GitHubCore) GetSSHSigningKey(keyID int) (json.RawMessage, error) {
-	return g.apiGet("/user/ssh_signing_keys/" + strconv.Itoa(keyID), nil)
-}
-
-func (g *GitHubCore) DeleteSSHSigningKey(keyID int) error {
-	_, err := g.apiDelete("/user/ssh_signing_keys/" + strconv.Itoa(keyID))
-	return err
-}
-
 // ── Search — Extended ────────────────────────────────────────────────────────
 
 func (g *GitHubCore) SearchIssuesAndPRs(query string, params map[string]string) (json.RawMessage, error) {
@@ -6249,32 +4390,6 @@ func (g *GitHubCore) SearchUsers(query string, params map[string]string) (json.R
 }
 
 // ── Checks — Extended ────────────────────────────────────────────────────────
-
-func (g *GitHubCore) ListCheckRunAnnotations(owner, repo string, checkRunID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/check-runs/" + strconv.Itoa(checkRunID) + "/annotations", nil)
-}
-
-func (g *GitHubCore) RerequestCheckRun(owner, repo string, checkRunID int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/check-runs/" + strconv.Itoa(checkRunID) + "/rerequest", nil)
-}
-
-func (g *GitHubCore) UpdateCheckSuitePreferences(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo) + "/check-suites/preferences", payload)
-}
-
-func (g *GitHubCore) GetCheckSuite(owner, repo string, checkSuiteID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/check-suites/" + strconv.Itoa(checkSuiteID), nil)
-}
-
-func (g *GitHubCore) RerequestCheckSuite(owner, repo string, checkSuiteID int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/check-suites/" + strconv.Itoa(checkSuiteID) + "/rerequest", nil)
-}
-
-func (g *GitHubCore) ListCheckSuiteCheckRuns(owner, repo string, checkSuiteID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/check-suites/" + strconv.Itoa(checkSuiteID) + "/check-runs", nil)
-}
-
-
 
 // ── Gists — Extended ─────────────────────────────────────────────────────────
 
@@ -6308,53 +4423,7 @@ func (g *GitHubCore) ListUserGists(username string) (json.RawMessage, error) {
 
 // ── Packages — Extended ─────────────────────────────────────────────────────
 
-func (g *GitHubCore) RestoreOrgPackage(org, packageType, packageName string) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/packages/" + packageType + "/" + packageName + "/restore", nil)
-}
-
-func (g *GitHubCore) GetOrgPackageVersion(org, packageType, packageName string, versionID int) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/packages/" + packageType + "/" + packageName + "/versions/" + strconv.Itoa(versionID), nil)
-}
-
-func (g *GitHubCore) DeleteOrgPackageVersion(org, packageType, packageName string, versionID int) error {
-	_, err := g.apiDelete("/orgs/" + org + "/packages/" + packageType + "/" + packageName + "/versions/" + strconv.Itoa(versionID))
-	return err
-}
-
-func (g *GitHubCore) RestoreOrgPackageVersion(org, packageType, packageName string, versionID int) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/packages/" + packageType + "/" + packageName + "/versions/" + strconv.Itoa(versionID) + "/restore", nil)
-}
-
-func (g *GitHubCore) RestoreUserPackage(packageType, packageName string) (json.RawMessage, error) {
-	return g.apiPost("/user/packages/" + packageType + "/" + packageName + "/restore", nil)
-}
-
-func (g *GitHubCore) GetUserPackageVersion(packageType, packageName string, versionID int) (json.RawMessage, error) {
-	return g.apiGet("/user/packages/" + packageType + "/" + packageName + "/versions/" + strconv.Itoa(versionID), nil)
-}
-
-func (g *GitHubCore) DeleteUserPackageVersion(packageType, packageName string, versionID int) error {
-	_, err := g.apiDelete("/user/packages/" + packageType + "/" + packageName + "/versions/" + strconv.Itoa(versionID))
-	return err
-}
-
-func (g *GitHubCore) RestoreUserPackageVersion(packageType, packageName string, versionID int) (json.RawMessage, error) {
-	return g.apiPost("/user/packages/" + packageType + "/" + packageName + "/versions/" + strconv.Itoa(versionID) + "/restore", nil)
-}
-
 // ── Dependency Graph ─────────────────────────────────────────────────────────
-
-func (g *GitHubCore) GetDependencyDiff(owner, repo, basehead string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/dependency-graph/compare/" + basehead, nil)
-}
-
-func (g *GitHubCore) ExportSBOM(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/dependency-graph/sbom", nil)
-}
-
-func (g *GitHubCore) CreateDependencySnapshot(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo) + "/dependency-graph/snapshots", payload)
-}
 
 // ── Interactions ─────────────────────────────────────────────────────────────
 
@@ -6399,78 +4468,13 @@ func (g *GitHubCore) RemoveUserInteractionLimits() error {
 
 // ── Billing ──────────────────────────────────────────────────────────────────
 
-func (g *GitHubCore) ListOrgBudgets(org string) (json.RawMessage, error) {
-	return g.apiGet("/organizations/" + org + "/settings/billing/budgets", nil)
-}
-
-func (g *GitHubCore) GetOrgBudget(org string, budgetID int) (json.RawMessage, error) {
-	return g.apiGet("/organizations/" + org + "/settings/billing/budgets/" + strconv.Itoa(budgetID), nil)
-}
-
-func (g *GitHubCore) UpdateOrgBudget(org string, budgetID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPatch("/organizations/" + org + "/settings/billing/budgets/" + strconv.Itoa(budgetID), payload)
-}
-
-func (g *GitHubCore) DeleteOrgBudget(org string, budgetID int) error {
-	_, err := g.apiDelete("/organizations/" + org + "/settings/billing/budgets/" + strconv.Itoa(budgetID))
-	return err
-}
-
-func (g *GitHubCore) GetOrgBillingUsage(org string) (json.RawMessage, error) {
-	return g.apiGet("/organizations/" + org + "/settings/billing/usage", nil)
-}
-
-func (g *GitHubCore) GetOrgBillingUsageSummary(org string) (json.RawMessage, error) {
-	return g.apiGet("/organizations/" + org + "/settings/billing/usage/summary", nil)
-}
-
 // ── Licenses ─────────────────────────────────────────────────────────────────
-
-func (g *GitHubCore) ListLicenses() (json.RawMessage, error) {
-	return g.apiGet("/licenses", nil)
-}
-
-func (g *GitHubCore) GetLicense(license string) (json.RawMessage, error) {
-	return g.apiGet("/licenses/" + license, nil)
-}
-
-func (g *GitHubCore) GetRepoLicense(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo) + "/license", nil)
-}
 
 // ── Meta / Server Info ───────────────────────────────────────────────────────
 
-func (g *GitHubCore) GetAPIRoot() (json.RawMessage, error) {
-	return g.apiGet("/", nil)
-}
-
-func (g *GitHubCore) GetMeta() (json.RawMessage, error) {
-	return g.apiGet("/meta", nil)
-}
-
-func (g *GitHubCore) GetAPIVersions() (json.RawMessage, error) {
-	return g.apiGet("/versions", nil)
-}
-
 // ── Gitignore Templates ──────────────────────────────────────────────────────
 
-func (g *GitHubCore) ListGitignoreTemplates() (json.RawMessage, error) {
-	return g.apiGet("/gitignore/templates", nil)
-}
-
-func (g *GitHubCore) GetGitignoreTemplate(name string) (json.RawMessage, error) {
-	return g.apiGet("/gitignore/templates/" + name, nil)
-}
-
 // ── Codes of Conduct ─────────────────────────────────────────────────────────
-
-func (g *GitHubCore) ListCodesOfConduct() (json.RawMessage, error) {
-	return g.apiGet("/codes_of_conduct", nil)
-}
-
-func (g *GitHubCore) GetCodeOfConduct(key string) (json.RawMessage, error) {
-	return g.apiGet("/codes_of_conduct/" + key, nil)
-}
 
 // ── Projects V2 — GraphQL-based ──────────────────────────────────────────────
 
@@ -6539,47 +4543,7 @@ func (g *GitHubCore) CopyProjectV2(projectID, ownerID, title string) (json.RawMe
 
 // ── Classroom ────────────────────────────────────────────────────────────────
 
-func (g *GitHubCore) GetAssignment(assignmentID int) (json.RawMessage, error) {
-	return g.apiGet("/assignments/" + strconv.Itoa(assignmentID), nil)
-}
-
-func (g *GitHubCore) ListAcceptedAssignments(assignmentID int) (json.RawMessage, error) {
-	return g.apiGet("/assignments/" + strconv.Itoa(assignmentID) + "/accepted_assignments", nil)
-}
-
-func (g *GitHubCore) GetAssignmentGrades(assignmentID int) (json.RawMessage, error) {
-	return g.apiGet("/assignments/" + strconv.Itoa(assignmentID) + "/grades", nil)
-}
-
-func (g *GitHubCore) ListClassrooms() (json.RawMessage, error) {
-	return g.apiGet("/classrooms", nil)
-}
-
-func (g *GitHubCore) GetClassroom(classroomID int) (json.RawMessage, error) {
-	return g.apiGet("/classrooms/" + strconv.Itoa(classroomID), nil)
-}
-
-func (g *GitHubCore) ListClassroomAssignments(classroomID int) (json.RawMessage, error) {
-	return g.apiGet("/classrooms/" + strconv.Itoa(classroomID) + "/assignments", nil)
-}
-
 // ── OIDC (Org-level) ─────────────────────────────────────────────────────────
-
-func (g *GitHubCore) GetOrgOIDCSubjectClaim(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/oidc/customization/sub", nil)
-}
-
-func (g *GitHubCore) SetOrgOIDCSubjectClaim(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut("/orgs/" + org + "/actions/oidc/customization/sub", payload)
-}
-
-func (g *GitHubCore) GetOrgOIDCProperties(org string) (json.RawMessage, error) {
-	return g.apiGet("/orgs/" + org + "/actions/oidc/customization/properties/repo", nil)
-}
-
-func (g *GitHubCore) SetOrgOIDCProperties(org string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost("/orgs/" + org + "/actions/oidc/customization/properties/repo", payload)
-}
 
 func (g *GitHubCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, ghPlatform)

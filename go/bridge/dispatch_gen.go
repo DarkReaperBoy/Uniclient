@@ -7752,15 +7752,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "AddCodespacesAccessUsers":
-		var req pbcores.GithubAddCodespacesAccessUsersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddCodespacesAccessUsers(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddCodespacesAccessUsersResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "AddCollaborator":
 		var req pbcores.GithubAddCollaboratorRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -7776,24 +7767,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.AddContact(req.Param_1, req.FirstName, req.Param_3)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "AddCopilotTeams":
-		var req pbcores.GithubAddCopilotTeamsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddCopilotTeams(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddCopilotTeamsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "AddCopilotUsers":
-		var req pbcores.GithubAddCopilotUsersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddCopilotUsers(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddCopilotUsersResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "AddDiscussionComment":
 		var req pbcores.GithubAddDiscussionCommentRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -7836,84 +7809,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.AddMembers(req.ChatId, req.UserIds)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "AddOrgEnabledRepo":
-		var req pbcores.GithubAddOrgEnabledRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddOrgEnabledRepo(req.Org, int(req.RepoId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddOrgEnabledRepoResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "AddOrgRunnerLabels":
-		var req pbcores.GithubAddOrgRunnerLabelsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddOrgRunnerLabels(req.Org, int(req.RunnerId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddOrgRunnerLabelsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "AddOrgSecretRepo":
-		var req pbcores.GithubAddOrgSecretRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddOrgSecretRepo(req.Org, req.Name, int(req.RepoId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddOrgSecretRepoResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "AddProjectV2Item":
 		var req pbcores.GithubAddProjectV2ItemRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.AddProjectV2Item(req.ProjectId, req.ContentId)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubAddProjectV2ItemResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "AddRepoRunnerLabels":
-		var req pbcores.GithubAddRepoRunnerLabelsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddRepoRunnerLabels(req.Owner, req.Repo, int(req.RunnerId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddRepoRunnerLabelsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "AddRepoToInstallation":
-		var req pbcores.GithubAddRepoToInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddRepoToInstallation(int(req.InstallationId), int(req.RepoId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddRepoToInstallationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "AddRunnerGroupRepo":
-		var req pbcores.GithubAddRunnerGroupRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddRunnerGroupRepo(req.Org, int(req.GroupId), int(req.RepoId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddRunnerGroupRepoResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "AddRunnerGroupRunner":
-		var req pbcores.GithubAddRunnerGroupRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddRunnerGroupRunner(req.Org, int(req.GroupId), int(req.RunnerId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddRunnerGroupRunnerResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "AddSecurityManagerTeam":
-		var req pbcores.GithubAddSecurityManagerTeamRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.AddSecurityManagerTeam(req.Org, req.TeamSlug)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubAddSecurityManagerTeamResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -7950,15 +7851,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.AddTeamRepo(req.Org, req.TeamSlug, req.Owner, req.Repo, bytesToMap(req.Payload))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubAddTeamRepoResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ApproveWorkflowRun":
-		var req pbcores.GithubApproveWorkflowRunRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ApproveWorkflowRun(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubApproveWorkflowRunResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -8013,46 +7905,16 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.BlockUser(req.UserId)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "CancelImport":
-		var req pbcores.GithubCancelImportRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.CancelImport(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		return nil, nil
 	case "CancelOrgInvitation":
 		var req pbcores.GithubCancelOrgInvitationRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.CancelOrgInvitation(req.Org, int(req.InvitationId))
 		if err != nil { return nil, err }
 		return nil, nil
-	case "CancelPagesDeployment":
-		var req pbcores.GithubCancelPagesDeploymentRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CancelPagesDeployment(req.Owner, req.Repo, int(req.DeploymentId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCancelPagesDeploymentResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CancelWorkflowRun":
-		var req pbcores.GithubCancelWorkflowRunRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.CancelWorkflowRun(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		return nil, nil
 	case "Capabilities":
 		r1 := c.Capabilities()
 		resp := &pbcores.GithubCapabilitiesResponse{
 			Result_1: r1,
-		}
-		return proto.Marshal(resp)
-	case "CheckAppToken":
-		var req pbcores.GithubCheckAppTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CheckAppToken(req.ClientId, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCheckAppTokenResponse{
-			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
 	case "CheckAssignable":
@@ -8070,15 +7932,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.CheckCollaborator(req.Owner, req.Repo, req.Username)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCheckCollaboratorResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CheckDevContainerPermissions":
-		var req pbcores.GithubCheckDevContainerPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CheckDevContainerPermissions(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCheckDevContainerPermissionsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -8113,15 +7966,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.CheckTeamRepo(req.Org, req.TeamSlug, req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCheckTeamRepoResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CheckVulnerabilityAlerts":
-		var req pbcores.GithubCheckVulnerabilityAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CheckVulnerabilityAlerts(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCheckVulnerabilityAlertsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -8162,51 +8006,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "CreateAppFromManifest":
-		var req pbcores.GithubCreateAppFromManifestRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateAppFromManifest(req.Code)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateAppFromManifestResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateAttestation":
-		var req pbcores.GithubCreateAttestationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateAttestation(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateAttestationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateAutolink":
-		var req pbcores.GithubCreateAutolinkRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateAutolink(req.Owner, req.Repo, req.KeyPrefix, req.UrlTemplate, req.IsAlphanumeric)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateAutolinkResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateBlob":
-		var req pbcores.GithubCreateBlobRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateBlob(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateBlobResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateBranchProtection":
-		var req pbcores.GithubCreateBranchProtectionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateBranchProtection(req.Owner, req.Repo, req.Branch, bytesToMap(req.Rules))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateBranchProtectionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "CreateChannel":
 		var req pbcores.GithubCreateChannelRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -8214,33 +8013,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCreateChannelResponse{
 			Result_1: DialogToProto(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateCheckRun":
-		var req pbcores.GithubCreateCheckRunRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateCheckRun(req.Owner, req.Repo, req.Name, req.HeadSHA)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateCheckRunResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateCodeScanningAutofix":
-		var req pbcores.GithubCreateCodeScanningAutofixRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateCodeScanningAutofix(req.Owner, req.Repo, int(req.AlertNumber))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateCodeScanningAutofixResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateCodespaceFromPR":
-		var req pbcores.GithubCreateCodespaceFromPRRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateCodespaceFromPR(req.Owner, req.Repo, int(req.PrNumber), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateCodespaceFromPRResponse{
-			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
 	case "CreateCommitComment":
@@ -8261,84 +8033,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "CreateCommitStatus":
-		var req pbcores.GithubCreateCommitStatusRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateCommitStatus(req.Owner, req.Repo, req.Sha, req.State, req.TargetUrl, req.Description, req.Context)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateCommitStatusResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateDependencySnapshot":
-		var req pbcores.GithubCreateDependencySnapshotRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateDependencySnapshot(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateDependencySnapshotResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateDeployKey":
-		var req pbcores.GithubCreateDeployKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateDeployKey(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateDeployKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateDeployment":
-		var req pbcores.GithubCreateDeploymentRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateDeployment(req.Owner, req.Repo, req.Ref, req.Environment, req.Description)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateDeploymentResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateDeploymentBranchPolicy":
-		var req pbcores.GithubCreateDeploymentBranchPolicyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateDeploymentBranchPolicy(req.Owner, req.Repo, req.Env, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateDeploymentBranchPolicyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateDeploymentProtectionRule":
-		var req pbcores.GithubCreateDeploymentProtectionRuleRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateDeploymentProtectionRule(req.Owner, req.Repo, req.Env, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateDeploymentProtectionRuleResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateDeploymentStatus":
-		var req pbcores.GithubCreateDeploymentStatusRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateDeploymentStatus(req.Owner, req.Repo, int(req.DeploymentId), req.State, req.LogUrl, req.Description)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateDeploymentStatusResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "CreateDiscussion":
 		var req pbcores.GithubCreateDiscussionRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.CreateDiscussion(req.RepoId, req.CategoryId, req.Title, req.Body)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCreateDiscussionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateEnvironmentVariable":
-		var req pbcores.GithubCreateEnvironmentVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateEnvironmentVariable(req.Owner, req.Repo, req.Env, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateEnvironmentVariableResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -8349,15 +8049,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCreateFolderResponse{
 			Result_1: FolderToProto(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateGPGKey":
-		var req pbcores.GithubCreateGPGKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateGPGKey(req.ArmoredPublicKey)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateGPGKeyResponse{
-			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
 	case "CreateGist":
@@ -8378,24 +8069,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "CreateGitCommit":
-		var req pbcores.GithubCreateGitCommitRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateGitCommit(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateGitCommitResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateGitTag":
-		var req pbcores.GithubCreateGitTagRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateGitTag(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateGitTagResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "CreateGroup":
 		var req pbcores.GithubCreateGroupRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -8403,15 +8076,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCreateGroupResponse{
 			Result_1: DialogToProto(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateInstallationAccessToken":
-		var req pbcores.GithubCreateInstallationAccessTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateInstallationAccessToken(int(req.InstallationId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateInstallationAccessTokenResponse{
-			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
 	case "CreateIssueCommentReaction":
@@ -8429,15 +8093,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.CreateIssueReaction(req.Owner, req.Repo, int(req.IssueNumber), bytesToMap(req.Payload))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCreateIssueReactionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateJITRunnerConfig":
-		var req pbcores.GithubCreateJITRunnerConfigRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateJITRunnerConfig(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateJITRunnerConfigResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -8459,24 +8114,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "CreateOrUpdateEnvironment":
-		var req pbcores.GithubCreateOrUpdateEnvironmentRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrUpdateEnvironment(req.Owner, req.Repo, req.EnvName, bytesToMap(req.Config))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrUpdateEnvironmentResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrUpdateEnvironmentSecret":
-		var req pbcores.GithubCreateOrUpdateEnvironmentSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrUpdateEnvironmentSecret(req.Owner, req.Repo, req.Env, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrUpdateEnvironmentSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "CreateOrUpdateFileContents":
 		var req pbcores.GithubCreateOrUpdateFileContentsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -8486,135 +8123,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "CreateOrUpdateOrgCodespaceSecret":
-		var req pbcores.GithubCreateOrUpdateOrgCodespaceSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrUpdateOrgCodespaceSecret(req.Org, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrUpdateOrgCodespaceSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrUpdateOrgCustomProperty":
-		var req pbcores.GithubCreateOrUpdateOrgCustomPropertyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrUpdateOrgCustomProperty(req.Org, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrUpdateOrgCustomPropertyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrUpdateOrgDependabotSecret":
-		var req pbcores.GithubCreateOrUpdateOrgDependabotSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrUpdateOrgDependabotSecret(req.Org, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrUpdateOrgDependabotSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrUpdateOrgSecret":
-		var req pbcores.GithubCreateOrUpdateOrgSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrUpdateOrgSecret(req.Org, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrUpdateOrgSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrUpdateRepoDependabotSecret":
-		var req pbcores.GithubCreateOrUpdateRepoDependabotSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrUpdateRepoDependabotSecret(req.Owner, req.Repo, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrUpdateRepoDependabotSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrUpdateSecret":
-		var req pbcores.GithubCreateOrUpdateSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.CreateOrUpdateSecret(req.Owner, req.Repo, req.Name, req.EncryptedValue, req.KeyId)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "CreateOrgCustomProperties":
-		var req pbcores.GithubCreateOrgCustomPropertiesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrgCustomProperties(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrgCustomPropertiesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrgHostedRunner":
-		var req pbcores.GithubCreateOrgHostedRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrgHostedRunner(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrgHostedRunnerResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "CreateOrgInvitation":
 		var req pbcores.GithubCreateOrgInvitationRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.CreateOrgInvitation(req.Org, bytesToMap(req.Payload))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCreateOrgInvitationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrgJITRunnerConfig":
-		var req pbcores.GithubCreateOrgJITRunnerConfigRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrgJITRunnerConfig(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrgJITRunnerConfigResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrgRunnerGroup":
-		var req pbcores.GithubCreateOrgRunnerGroupRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrgRunnerGroup(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrgRunnerGroupResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrgRunnerRegistrationToken":
-		var req pbcores.GithubCreateOrgRunnerRegistrationTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrgRunnerRegistrationToken(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrgRunnerRegistrationTokenResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrgRunnerRemoveToken":
-		var req pbcores.GithubCreateOrgRunnerRemoveTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrgRunnerRemoveToken(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrgRunnerRemoveTokenResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrgVariable":
-		var req pbcores.GithubCreateOrgVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrgVariable(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrgVariableResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateOrgWebhook":
-		var req pbcores.GithubCreateOrgWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateOrgWebhook(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateOrgWebhookResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -8654,24 +8168,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "CreatePagesDeployment":
-		var req pbcores.GithubCreatePagesDeploymentRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreatePagesDeployment(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreatePagesDeploymentResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreatePagesSite":
-		var req pbcores.GithubCreatePagesSiteRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreatePagesSite(req.Owner, req.Repo, req.Branch, req.Path)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreatePagesSiteResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "CreatePoll":
 		var req pbcores.GithubCreatePollRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -8679,33 +8175,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCreatePollResponse{
 			Result_1: MessageToProto(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreatePrivateFork":
-		var req pbcores.GithubCreatePrivateForkRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreatePrivateFork(req.Owner, req.Repo, req.GhsaId)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreatePrivateForkResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateProject":
-		var req pbcores.GithubCreateProjectRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateProject(req.Owner, req.Repo, req.Name, req.Body)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateProjectResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateProjectCard":
-		var req pbcores.GithubCreateProjectCardRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateProjectCard(int(req.ColumnId), req.Note)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateProjectCardResponse{
-			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
 	case "CreateProjectV2DraftItem":
@@ -8735,24 +8204,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "CreatePushProtectionBypass":
-		var req pbcores.GithubCreatePushProtectionBypassRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreatePushProtectionBypass(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreatePushProtectionBypassResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRef":
-		var req pbcores.GithubCreateRefRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRef(req.Owner, req.Repo, req.Ref, req.Sha)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRefResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "CreateRelease":
 		var req pbcores.GithubCreateReleaseRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -8768,114 +8219,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.CreateReleaseReaction(req.Owner, req.Repo, int(req.ReleaseId), bytesToMap(req.Payload))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubCreateReleaseReactionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRepoAdvisory":
-		var req pbcores.GithubCreateRepoAdvisoryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRepoAdvisory(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRepoAdvisoryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRepoCodespace":
-		var req pbcores.GithubCreateRepoCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRepoCodespace(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRepoCodespaceResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRepoFromTemplate":
-		var req pbcores.GithubCreateRepoFromTemplateRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRepoFromTemplate(req.TemplateOwner, req.TemplateRepo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRepoFromTemplateResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRepoVariable":
-		var req pbcores.GithubCreateRepoVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRepoVariable(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRepoVariableResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRepositoryDispatch":
-		var req pbcores.GithubCreateRepositoryDispatchRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRepositoryDispatch(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRepositoryDispatchResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRuleset":
-		var req pbcores.GithubCreateRulesetRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRuleset(req.Owner, req.Repo, bytesToMap(req.Ruleset))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRulesetResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRunnerRegistrationToken":
-		var req pbcores.GithubCreateRunnerRegistrationTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRunnerRegistrationToken(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRunnerRegistrationTokenResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateRunnerRemoveToken":
-		var req pbcores.GithubCreateRunnerRemoveTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateRunnerRemoveToken(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateRunnerRemoveTokenResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateSSHKey":
-		var req pbcores.GithubCreateSSHKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateSSHKey(req.Title, req.Key)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateSSHKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateSSHSigningKey":
-		var req pbcores.GithubCreateSSHSigningKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateSSHSigningKey(bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateSSHSigningKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateScopedAccessToken":
-		var req pbcores.GithubCreateScopedAccessTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateScopedAccessToken(req.ClientId, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateScopedAccessTokenResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateTag":
-		var req pbcores.GithubCreateTagRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateTag(req.Owner, req.Repo, req.Tag, req.Message, req.Sha, req.ObjectType)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateTagResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -8897,33 +8240,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: DialogToProto(r1),
 		}
 		return proto.Marshal(resp)
-	case "CreateUserCodespace":
-		var req pbcores.GithubCreateUserCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateUserCodespace(bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateUserCodespaceResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateWebhook":
-		var req pbcores.GithubCreateWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateWebhook(req.Owner, req.Repo, req.Url, req.ContentType, req.Secret, req.Events)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateWebhookResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "CreateWorkflowDispatch":
-		var req pbcores.GithubCreateWorkflowDispatchRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.CreateWorkflowDispatch(req.Owner, req.Repo, int(req.WorkflowId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubCreateWorkflowDispatchResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "DeclineCall":
 		var req pbcores.GithubDeclineCallRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -8934,54 +8250,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		var req pbcores.GithubDeclineInvitationRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.DeclineInvitation(int(req.InvitationId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteAppAuthorization":
-		var req pbcores.GithubDeleteAppAuthorizationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteAppAuthorization(req.ClientId)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteAppInstallation":
-		var req pbcores.GithubDeleteAppInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteAppInstallation(int(req.InstallationId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteAppToken":
-		var req pbcores.GithubDeleteAppTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteAppToken(req.ClientId)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteAutolink":
-		var req pbcores.GithubDeleteAutolinkRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteAutolink(req.Owner, req.Repo, int(req.AutolinkId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteBranchProtection":
-		var req pbcores.GithubDeleteBranchProtectionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteBranchProtection(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteBranchRestrictions":
-		var req pbcores.GithubDeleteBranchRestrictionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteBranchRestrictions(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteCodeScanningAnalysis":
-		var req pbcores.GithubDeleteCodeScanningAnalysisRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteCodeScanningAnalysis(req.Owner, req.Repo, int(req.AnalysisId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteCodespace":
-		var req pbcores.GithubDeleteCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteCodespace(req.Name)
 		if err != nil { return nil, err }
 		return nil, nil
 	case "DeleteCommitComment":
@@ -9000,18 +8268,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		var req pbcores.GithubDeleteContactRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.DeleteContact(req.UserId)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteDeployKey":
-		var req pbcores.GithubDeleteDeployKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteDeployKey(req.Owner, req.Repo, int(req.KeyId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteDeploymentBranchPolicy":
-		var req pbcores.GithubDeleteDeploymentBranchPolicyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteDeploymentBranchPolicy(req.Owner, req.Repo, req.Env, int(req.PolicyId))
 		if err != nil { return nil, err }
 		return nil, nil
 	case "DeleteDiscussion":
@@ -9038,34 +8294,10 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.DeleteEmail(req.Emails)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "DeleteEnvironment":
-		var req pbcores.GithubDeleteEnvironmentRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteEnvironment(req.Owner, req.Repo, req.EnvName)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteEnvironmentSecret":
-		var req pbcores.GithubDeleteEnvironmentSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteEnvironmentSecret(req.Owner, req.Repo, req.Env, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteEnvironmentVariable":
-		var req pbcores.GithubDeleteEnvironmentVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteEnvironmentVariable(req.Owner, req.Repo, req.Env, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
 	case "DeleteFileContents":
 		var req pbcores.GithubDeleteFileContentsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.DeleteFileContents(req.Owner, req.Repo, req.Path, req.Message, req.Sha, req.Branch)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteGPGKey":
-		var req pbcores.GithubDeleteGPGKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteGPGKey(int(req.KeyId))
 		if err != nil { return nil, err }
 		return nil, nil
 	case "DeleteGist":
@@ -9110,106 +8342,16 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.DeleteMilestone(req.Owner, req.Repo, int(req.Number))
 		if err != nil { return nil, err }
 		return nil, nil
-	case "DeleteOrgBudget":
-		var req pbcores.GithubDeleteOrgBudgetRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgBudget(req.Org, int(req.BudgetId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgCodespaceSecret":
-		var req pbcores.GithubDeleteOrgCodespaceSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgCodespaceSecret(req.Org, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgCustomProperty":
-		var req pbcores.GithubDeleteOrgCustomPropertyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgCustomProperty(req.Org, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgDependabotSecret":
-		var req pbcores.GithubDeleteOrgDependabotSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgDependabotSecret(req.Org, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgHostedRunner":
-		var req pbcores.GithubDeleteOrgHostedRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgHostedRunner(req.Org, int(req.RunnerId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgMigrationArchive":
-		var req pbcores.GithubDeleteOrgMigrationArchiveRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgMigrationArchive(req.Org, int(req.MigrationId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgPackageVersion":
-		var req pbcores.GithubDeleteOrgPackageVersionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgPackageVersion(req.Org, req.PackageType, req.PackageName, int(req.VersionId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgRunner":
-		var req pbcores.GithubDeleteOrgRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgRunner(req.Org, int(req.RunnerId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgRunnerGroup":
-		var req pbcores.GithubDeleteOrgRunnerGroupRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgRunnerGroup(req.Org, int(req.GroupId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgSecret":
-		var req pbcores.GithubDeleteOrgSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgSecret(req.Org, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgVariable":
-		var req pbcores.GithubDeleteOrgVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgVariable(req.Org, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteOrgWebhook":
-		var req pbcores.GithubDeleteOrgWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteOrgWebhook(req.Org, int(req.HookId))
-		if err != nil { return nil, err }
-		return nil, nil
 	case "DeletePRCommentReaction":
 		var req pbcores.GithubDeletePRCommentReactionRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.DeletePRCommentReaction(req.Owner, req.Repo, int(req.CommentId), int(req.ReactionId))
 		if err != nil { return nil, err }
 		return nil, nil
-	case "DeletePackage":
-		var req pbcores.GithubDeletePackageRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeletePackage(req.PackageType, req.PackageName)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeletePagesSite":
-		var req pbcores.GithubDeletePagesSiteRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeletePagesSite(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		return nil, nil
 	case "DeletePendingPRReview":
 		var req pbcores.GithubDeletePendingPRReviewRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.DeletePendingPRReview(req.Owner, req.Repo, int(req.PrNumber), int(req.ReviewId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteProject":
-		var req pbcores.GithubDeleteProjectRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteProject(int(req.ProjectId))
 		if err != nil { return nil, err }
 		return nil, nil
 	case "DeleteProjectV2":
@@ -9230,12 +8372,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "DeleteRef":
-		var req pbcores.GithubDeleteRefRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteRef(req.Owner, req.Repo, req.Ref)
-		if err != nil { return nil, err }
-		return nil, nil
 	case "DeleteRelease":
 		var req pbcores.GithubDeleteReleaseRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -9260,70 +8396,10 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.DeleteRepo(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "DeleteRepoCacheByID":
-		var req pbcores.GithubDeleteRepoCacheByIDRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteRepoCacheByID(req.Owner, req.Repo, int(req.CacheId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteRepoCachesByKey":
-		var req pbcores.GithubDeleteRepoCachesByKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteRepoCachesByKey(req.Owner, req.Repo, req.Key)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteRepoDependabotSecret":
-		var req pbcores.GithubDeleteRepoDependabotSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteRepoDependabotSecret(req.Owner, req.Repo, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteRepoRunner":
-		var req pbcores.GithubDeleteRepoRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteRepoRunner(req.Owner, req.Repo, int(req.RunnerId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteRepoVariable":
-		var req pbcores.GithubDeleteRepoVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteRepoVariable(req.Owner, req.Repo, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteRuleset":
-		var req pbcores.GithubDeleteRulesetRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteRuleset(req.Owner, req.Repo, int(req.RulesetId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteSSHKey":
-		var req pbcores.GithubDeleteSSHKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteSSHKey(int(req.KeyId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteSSHSigningKey":
-		var req pbcores.GithubDeleteSSHSigningKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteSSHSigningKey(int(req.KeyId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteSecret":
-		var req pbcores.GithubDeleteSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteSecret(req.Owner, req.Repo, req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
 	case "DeleteSocialAccount":
 		var req pbcores.GithubDeleteSocialAccountRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.DeleteSocialAccount(req.AccountUrls)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteTag":
-		var req pbcores.GithubDeleteTagRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteTag(req.Owner, req.Repo, req.Tag)
 		if err != nil { return nil, err }
 		return nil, nil
 	case "DeleteTeam":
@@ -9332,111 +8408,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.DeleteTeam(req.Org, req.TeamSlug)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "DeleteUserMigrationArchive":
-		var req pbcores.GithubDeleteUserMigrationArchiveRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteUserMigrationArchive(int(req.MigrationId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteUserPackageVersion":
-		var req pbcores.GithubDeleteUserPackageVersionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteUserPackageVersion(req.PackageType, req.PackageName, int(req.VersionId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteWebhook":
-		var req pbcores.GithubDeleteWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteWebhook(req.Owner, req.Repo, int(req.HookId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteWorkflowRun":
-		var req pbcores.GithubDeleteWorkflowRunRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteWorkflowRun(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DeleteWorkflowRunLogs":
-		var req pbcores.GithubDeleteWorkflowRunLogsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DeleteWorkflowRunLogs(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DisableVulnerabilityAlerts":
-		var req pbcores.GithubDisableVulnerabilityAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.DisableVulnerabilityAlerts(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "DisableWorkflow":
-		var req pbcores.GithubDisableWorkflowRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.DisableWorkflow(req.Owner, req.Repo, int(req.WorkflowId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubDisableWorkflowResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "DismissPRReview":
 		var req pbcores.GithubDismissPRReviewRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.DismissPRReview(req.Owner, req.Repo, int(req.PrNumber), int(req.ReviewId), req.Message)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubDismissPRReviewResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "DownloadArtifact":
-		var req pbcores.GithubDownloadArtifactRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.DownloadArtifact(req.Owner, req.Repo, int(req.ArtifactId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubDownloadArtifactResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "DownloadOrgMigrationArchive":
-		var req pbcores.GithubDownloadOrgMigrationArchiveRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.DownloadOrgMigrationArchive(req.Org, int(req.MigrationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubDownloadOrgMigrationArchiveResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "DownloadUserMigrationArchive":
-		var req pbcores.GithubDownloadUserMigrationArchiveRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.DownloadUserMigrationArchive(int(req.MigrationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubDownloadUserMigrationArchiveResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "DownloadWorkflowJobLogs":
-		var req pbcores.GithubDownloadWorkflowJobLogsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.DownloadWorkflowJobLogs(req.Owner, req.Repo, int(req.JobId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubDownloadWorkflowJobLogsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "DownloadWorkflowRunAttemptLogs":
-		var req pbcores.GithubDownloadWorkflowRunAttemptLogsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.DownloadWorkflowRunAttemptLogs(req.Owner, req.Repo, int(req.RunId), int(req.Attempt))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubDownloadWorkflowRunAttemptLogsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "DownloadWorkflowRunLogs":
-		var req pbcores.GithubDownloadWorkflowRunLogsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.DownloadWorkflowRunLogs(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubDownloadWorkflowRunLogsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -9461,57 +8438,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: MessageToProto(r1),
 		}
 		return proto.Marshal(resp)
-	case "EnableVulnerabilityAlerts":
-		var req pbcores.GithubEnableVulnerabilityAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.EnableVulnerabilityAlerts(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubEnableVulnerabilityAlertsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "EnableWorkflow":
-		var req pbcores.GithubEnableWorkflowRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.EnableWorkflow(req.Owner, req.Repo, int(req.WorkflowId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubEnableWorkflowResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "EndCall":
 		var req pbcores.GithubEndCallRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.EndCall(req.Param_1)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "ExportCodespace":
-		var req pbcores.GithubExportCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ExportCodespace(req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubExportCodespaceResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ExportSBOM":
-		var req pbcores.GithubExportSBOMRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ExportSBOM(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubExportSBOMResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ForceCancelWorkflowRun":
-		var req pbcores.GithubForceCancelWorkflowRunRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ForceCancelWorkflowRun(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubForceCancelWorkflowRunResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ForkGist":
 		var req pbcores.GithubForkGistRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -9548,63 +8480,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetAPIRoot":
-		r1, err := c.GetAPIRoot()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAPIRootResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetAPIVersions":
-		r1, err := c.GetAPIVersions()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAPIVersionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetAdminEnforcement":
-		var req pbcores.GithubGetAdminEnforcementRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetAdminEnforcement(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAdminEnforcementResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetAppBySlug":
-		var req pbcores.GithubGetAppBySlugRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetAppBySlug(req.AppSlug)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAppBySlugResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetAppInstallation":
-		var req pbcores.GithubGetAppInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetAppInstallation(int(req.InstallationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAppInstallationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetAppWebhookConfig":
-		r1, err := c.GetAppWebhookConfig()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAppWebhookConfigResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetAppWebhookDelivery":
-		var req pbcores.GithubGetAppWebhookDeliveryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetAppWebhookDelivery(int(req.DeliveryId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAppWebhookDeliveryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetArchiveLink":
 		var req pbcores.GithubGetArchiveLinkRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -9612,40 +8487,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetArchiveLinkResponse{
 			Result_1: r1,
-		}
-		return proto.Marshal(resp)
-	case "GetAssignment":
-		var req pbcores.GithubGetAssignmentRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetAssignment(int(req.AssignmentId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAssignmentResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetAssignmentGrades":
-		var req pbcores.GithubGetAssignmentGradesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetAssignmentGrades(int(req.AssignmentId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAssignmentGradesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetAuthenticatedApp":
-		r1, err := c.GetAuthenticatedApp()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetAuthenticatedAppResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetBlob":
-		var req pbcores.GithubGetBlobRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetBlob(req.Owner, req.Repo, req.Sha)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetBlobResponse{
-			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
 	case "GetBlockedUsers":
@@ -9664,24 +8505,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetBranchRestrictions":
-		var req pbcores.GithubGetBranchRestrictionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetBranchRestrictions(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetBranchRestrictionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetBranchRules":
-		var req pbcores.GithubGetBranchRulesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetBranchRules(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetBranchRulesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetChatInfo":
 		var req pbcores.GithubGetChatInfoRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -9689,132 +8512,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetChatInfoResponse{
 			Result_1: DialogToProto(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCheckRun":
-		var req pbcores.GithubGetCheckRunRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCheckRun(req.Owner, req.Repo, int(req.CheckRunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCheckRunResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCheckSuite":
-		var req pbcores.GithubGetCheckSuiteRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCheckSuite(req.Owner, req.Repo, int(req.CheckSuiteId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCheckSuiteResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetClassroom":
-		var req pbcores.GithubGetClassroomRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetClassroom(int(req.ClassroomId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetClassroomResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodeFrequencyStats":
-		var req pbcores.GithubGetCodeFrequencyStatsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodeFrequencyStats(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodeFrequencyStatsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodeOfConduct":
-		var req pbcores.GithubGetCodeOfConductRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodeOfConduct(req.Key)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodeOfConductResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodeQLDatabase":
-		var req pbcores.GithubGetCodeQLDatabaseRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodeQLDatabase(req.Owner, req.Repo, req.Lang)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodeQLDatabaseResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodeScanningAlert":
-		var req pbcores.GithubGetCodeScanningAlertRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodeScanningAlert(req.Owner, req.Repo, int(req.AlertNumber))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodeScanningAlertResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodeScanningAnalysis":
-		var req pbcores.GithubGetCodeScanningAnalysisRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodeScanningAnalysis(req.Owner, req.Repo, int(req.AnalysisId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodeScanningAnalysisResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodeScanningAutofix":
-		var req pbcores.GithubGetCodeScanningAutofixRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodeScanningAutofix(req.Owner, req.Repo, int(req.AlertNumber))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodeScanningAutofixResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodeScanningDefaultSetup":
-		var req pbcores.GithubGetCodeScanningDefaultSetupRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodeScanningDefaultSetup(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodeScanningDefaultSetupResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodeownersErrors":
-		var req pbcores.GithubGetCodeownersErrorsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodeownersErrors(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodeownersErrorsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodespace":
-		var req pbcores.GithubGetCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodespace(req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodespaceResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodespaceDefaults":
-		var req pbcores.GithubGetCodespaceDefaultsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodespaceDefaults(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodespaceDefaultsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCodespaceExport":
-		var req pbcores.GithubGetCodespaceExportRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCodespaceExport(req.Name, req.ExportId)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCodespaceExportResponse{
-			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
 	case "GetCollaboratorPermission":
@@ -9826,30 +8523,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetCombinedStatus":
-		var req pbcores.GithubGetCombinedStatusRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCombinedStatus(req.Owner, req.Repo, req.Ref)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCombinedStatusResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetCommit":
 		var req pbcores.GithubGetCommitRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.GetCommit(req.Owner, req.Repo, req.Sha)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetCommitResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCommitActivityStats":
-		var req pbcores.GithubGetCommitActivityStatsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCommitActivityStats(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCommitActivityStatsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -9869,96 +8548,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: UsersToProto(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetContributorStats":
-		var req pbcores.GithubGetContributorStatsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetContributorStats(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetContributorStatsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCopilotMetrics":
-		var req pbcores.GithubGetCopilotMetricsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCopilotMetrics(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCopilotMetricsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCopilotSeatInfo":
-		var req pbcores.GithubGetCopilotSeatInfoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCopilotSeatInfo(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCopilotSeatInfoResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCopilotTeamMetrics":
-		var req pbcores.GithubGetCopilotTeamMetricsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCopilotTeamMetrics(req.Org, req.TeamSlug)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCopilotTeamMetricsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCopilotUserSeat":
-		var req pbcores.GithubGetCopilotUserSeatRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCopilotUserSeat(req.Org, req.Username)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCopilotUserSeatResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetCustomPropertyValues":
-		var req pbcores.GithubGetCustomPropertyValuesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetCustomPropertyValues(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetCustomPropertyValuesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetDependabotAlert":
-		var req pbcores.GithubGetDependabotAlertRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetDependabotAlert(req.Owner, req.Repo, int(req.AlertNumber))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetDependabotAlertResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetDependencyDiff":
-		var req pbcores.GithubGetDependencyDiffRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetDependencyDiff(req.Owner, req.Repo, req.Basehead)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetDependencyDiffResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetDeployKey":
-		var req pbcores.GithubGetDeployKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetDeployKey(req.Owner, req.Repo, int(req.KeyId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetDeployKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetDeploymentBranchPolicy":
-		var req pbcores.GithubGetDeploymentBranchPolicyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetDeploymentBranchPolicy(req.Owner, req.Repo, req.Env, int(req.PolicyId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetDeploymentBranchPolicyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetDialogs":
 		var req pbcores.GithubGetDialogsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -9974,42 +8563,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.GetDirREADME(req.Owner, req.Repo, req.Dir)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetDirREADMEResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetEnvironment":
-		var req pbcores.GithubGetEnvironmentRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetEnvironment(req.Owner, req.Repo, req.EnvName)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetEnvironmentResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetEnvironmentPublicKey":
-		var req pbcores.GithubGetEnvironmentPublicKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetEnvironmentPublicKey(req.Owner, req.Repo, req.Env)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetEnvironmentPublicKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetEnvironmentSecret":
-		var req pbcores.GithubGetEnvironmentSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetEnvironmentSecret(req.Owner, req.Repo, req.Env, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetEnvironmentSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetEnvironmentVariable":
-		var req pbcores.GithubGetEnvironmentVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetEnvironmentVariable(req.Owner, req.Repo, req.Env, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetEnvironmentVariableResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -10045,51 +8598,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetGitCommit":
-		var req pbcores.GithubGetGitCommitRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetGitCommit(req.Owner, req.Repo, req.Sha)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetGitCommitResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetGitTag":
-		var req pbcores.GithubGetGitTagRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetGitTag(req.Owner, req.Repo, req.Sha)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetGitTagResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetGitignoreTemplate":
-		var req pbcores.GithubGetGitignoreTemplateRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetGitignoreTemplate(req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetGitignoreTemplateResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetGlobalAdvisory":
-		var req pbcores.GithubGetGlobalAdvisoryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetGlobalAdvisory(req.GhsaId)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetGlobalAdvisoryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetImportStatus":
-		var req pbcores.GithubGetImportStatusRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetImportStatus(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetImportStatusResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetInviteLink":
 		var req pbcores.GithubGetInviteLinkRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -10117,30 +8625,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetLatestPagesBuild":
-		var req pbcores.GithubGetLatestPagesBuildRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetLatestPagesBuild(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetLatestPagesBuildResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetLatestRelease":
 		var req pbcores.GithubGetLatestReleaseRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.GetLatestRelease(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetLatestReleaseResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetLicense":
-		var req pbcores.GithubGetLicenseRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetLicense(req.License)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetLicenseResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -10162,13 +8652,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: MessagesToProto(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetMeta":
-		r1, err := c.GetMeta()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetMetaResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetNotificationThread":
 		var req pbcores.GithubGetNotificationThreadRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -10184,168 +8667,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.GetOrg(req.Org)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetOrgResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgActionsPermissions":
-		var req pbcores.GithubGetOrgActionsPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgActionsPermissions(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgActionsPermissionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgAllowedActions":
-		var req pbcores.GithubGetOrgAllowedActionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgAllowedActions(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgAllowedActionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgArtifactRetention":
-		var req pbcores.GithubGetOrgArtifactRetentionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgArtifactRetention(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgArtifactRetentionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgBillingUsage":
-		var req pbcores.GithubGetOrgBillingUsageRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgBillingUsage(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgBillingUsageResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgBillingUsageSummary":
-		var req pbcores.GithubGetOrgBillingUsageSummaryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgBillingUsageSummary(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgBillingUsageSummaryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgBudget":
-		var req pbcores.GithubGetOrgBudgetRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgBudget(req.Org, int(req.BudgetId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgBudgetResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgCacheUsage":
-		var req pbcores.GithubGetOrgCacheUsageRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgCacheUsage(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgCacheUsageResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgCacheUsageByRepo":
-		var req pbcores.GithubGetOrgCacheUsageByRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgCacheUsageByRepo(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgCacheUsageByRepoResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgCodespacePublicKey":
-		var req pbcores.GithubGetOrgCodespacePublicKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgCodespacePublicKey(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgCodespacePublicKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgCodespaceSecret":
-		var req pbcores.GithubGetOrgCodespaceSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgCodespaceSecret(req.Org, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgCodespaceSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgCustomProperty":
-		var req pbcores.GithubGetOrgCustomPropertyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgCustomProperty(req.Org, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgCustomPropertyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgDefaultWorkflowPermissions":
-		var req pbcores.GithubGetOrgDefaultWorkflowPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgDefaultWorkflowPermissions(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgDefaultWorkflowPermissionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgDependabotPublicKey":
-		var req pbcores.GithubGetOrgDependabotPublicKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgDependabotPublicKey(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgDependabotPublicKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgDependabotSecret":
-		var req pbcores.GithubGetOrgDependabotSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgDependabotSecret(req.Org, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgDependabotSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgEnabledRepos":
-		var req pbcores.GithubGetOrgEnabledReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgEnabledRepos(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgEnabledReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgForkPRApproval":
-		var req pbcores.GithubGetOrgForkPRApprovalRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgForkPRApproval(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgForkPRApprovalResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgHostedRunner":
-		var req pbcores.GithubGetOrgHostedRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgHostedRunner(req.Org, int(req.RunnerId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgHostedRunnerResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgInstallation":
-		var req pbcores.GithubGetOrgInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgInstallation(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgInstallationResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -10367,102 +8688,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetOrgMigration":
-		var req pbcores.GithubGetOrgMigrationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgMigration(req.Org, int(req.MigrationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgMigrationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgOIDCProperties":
-		var req pbcores.GithubGetOrgOIDCPropertiesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgOIDCProperties(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgOIDCPropertiesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgOIDCSubjectClaim":
-		var req pbcores.GithubGetOrgOIDCSubjectClaimRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgOIDCSubjectClaim(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgOIDCSubjectClaimResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgPackageVersion":
-		var req pbcores.GithubGetOrgPackageVersionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgPackageVersion(req.Org, req.PackageType, req.PackageName, int(req.VersionId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgPackageVersionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgPublicKey":
-		var req pbcores.GithubGetOrgPublicKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgPublicKey(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgPublicKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetOrgRole":
 		var req pbcores.GithubGetOrgRoleRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.GetOrgRole(req.Org, int(req.RoleId))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetOrgRoleResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgRunner":
-		var req pbcores.GithubGetOrgRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgRunner(req.Org, int(req.RunnerId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgRunnerResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgRunnerGroup":
-		var req pbcores.GithubGetOrgRunnerGroupRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgRunnerGroup(req.Org, int(req.GroupId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgRunnerGroupResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgSecret":
-		var req pbcores.GithubGetOrgSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgSecret(req.Org, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgVariable":
-		var req pbcores.GithubGetOrgVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgVariable(req.Org, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgVariableResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetOrgWebhook":
-		var req pbcores.GithubGetOrgWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetOrgWebhook(req.Org, int(req.HookId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetOrgWebhookResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -10475,75 +8706,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetPackage":
-		var req pbcores.GithubGetPackageRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetPackage(req.PackageType, req.PackageName)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetPackageResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetPages":
-		var req pbcores.GithubGetPagesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetPages(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetPagesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetPagesBuild":
-		var req pbcores.GithubGetPagesBuildRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetPagesBuild(req.Owner, req.Repo, int(req.BuildId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetPagesBuildResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetPagesDNSHealth":
-		var req pbcores.GithubGetPagesDNSHealthRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetPagesDNSHealth(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetPagesDNSHealthResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetPagesDeploymentStatus":
-		var req pbcores.GithubGetPagesDeploymentStatusRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetPagesDeploymentStatus(req.Owner, req.Repo, int(req.DeploymentId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetPagesDeploymentStatusResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetParentIssue":
 		var req pbcores.GithubGetParentIssueRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.GetParentIssue(req.Owner, req.Repo, int(req.IssueNumber))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetParentIssueResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetParticipationStats":
-		var req pbcores.GithubGetParticipationStatsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetParticipationStats(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetParticipationStatsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetPendingDeployments":
-		var req pbcores.GithubGetPendingDeploymentsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetPendingDeployments(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetPendingDeploymentsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -10574,15 +8742,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetPunchCardStats":
-		var req pbcores.GithubGetPunchCardStatsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetPunchCardStats(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetPunchCardStatsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetReadState":
 		var req pbcores.GithubGetReadStateRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -10610,102 +8769,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetRepoActionsAccessSettings":
-		var req pbcores.GithubGetRepoActionsAccessSettingsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoActionsAccessSettings(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoActionsAccessSettingsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoActionsPermissions":
-		var req pbcores.GithubGetRepoActionsPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoActionsPermissions(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoActionsPermissionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetRepoActivity":
 		var req pbcores.GithubGetRepoActivityRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.GetRepoActivity(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetRepoActivityResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoAdvisory":
-		var req pbcores.GithubGetRepoAdvisoryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoAdvisory(req.Owner, req.Repo, req.GhsaId)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoAdvisoryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoAllowedActions":
-		var req pbcores.GithubGetRepoAllowedActionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoAllowedActions(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoAllowedActionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoCacheUsage":
-		var req pbcores.GithubGetRepoCacheUsageRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoCacheUsage(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoCacheUsageResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoClones":
-		var req pbcores.GithubGetRepoClonesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoClones(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoClonesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoDefaultWorkflowPermissions":
-		var req pbcores.GithubGetRepoDefaultWorkflowPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoDefaultWorkflowPermissions(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoDefaultWorkflowPermissionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoDependabotPublicKey":
-		var req pbcores.GithubGetRepoDependabotPublicKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoDependabotPublicKey(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoDependabotPublicKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoDependabotSecret":
-		var req pbcores.GithubGetRepoDependabotSecretRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoDependabotSecret(req.Owner, req.Repo, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoDependabotSecretResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoInstallation":
-		var req pbcores.GithubGetRepoInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoInstallation(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoInstallationResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -10718,48 +8787,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetRepoLicense":
-		var req pbcores.GithubGetRepoLicenseRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoLicense(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoLicenseResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoOIDCSubjectClaim":
-		var req pbcores.GithubGetRepoOIDCSubjectClaimRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoOIDCSubjectClaim(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoOIDCSubjectClaimResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoPageViews":
-		var req pbcores.GithubGetRepoPageViewsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoPageViews(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoPageViewsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetRepoREADME":
 		var req pbcores.GithubGetRepoREADMERequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.GetRepoREADME(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetRepoREADMEResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRepoRunner":
-		var req pbcores.GithubGetRepoRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoRunner(req.Owner, req.Repo, int(req.RunnerId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoRunnerResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -10772,15 +8805,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetRepoVariable":
-		var req pbcores.GithubGetRepoVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRepoVariable(req.Owner, req.Repo, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRepoVariableResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetRequestedReviewers":
 		var req pbcores.GithubGetRequestedReviewersRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -10790,128 +8814,11 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetRequiredPRReviews":
-		var req pbcores.GithubGetRequiredPRReviewsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRequiredPRReviews(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRequiredPRReviewsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRequiredSignatures":
-		var req pbcores.GithubGetRequiredSignaturesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRequiredSignatures(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRequiredSignaturesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRequiredStatusChecks":
-		var req pbcores.GithubGetRequiredStatusChecksRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRequiredStatusChecks(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRequiredStatusChecksResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRuleSuite":
-		var req pbcores.GithubGetRuleSuiteRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRuleSuite(req.Owner, req.Repo, int(req.SuiteId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRuleSuiteResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRuleset":
-		var req pbcores.GithubGetRulesetRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRuleset(req.Owner, req.Repo, int(req.RulesetId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRulesetResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRulesetHistory":
-		var req pbcores.GithubGetRulesetHistoryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRulesetHistory(req.Owner, req.Repo, int(req.RulesetId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRulesetHistoryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetRulesetVersion":
-		var req pbcores.GithubGetRulesetVersionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetRulesetVersion(req.Owner, req.Repo, int(req.RulesetId), int(req.VersionId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetRulesetVersionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetSARIFUpload":
-		var req pbcores.GithubGetSARIFUploadRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetSARIFUpload(req.Owner, req.Repo, req.SarifId)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetSARIFUploadResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetSSHSigningKey":
-		var req pbcores.GithubGetSSHSigningKeyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetSSHSigningKey(int(req.KeyId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetSSHSigningKeyResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetSecretScanHistory":
-		var req pbcores.GithubGetSecretScanHistoryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetSecretScanHistory(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetSecretScanHistoryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetSecretScanningAlert":
-		var req pbcores.GithubGetSecretScanningAlertRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetSecretScanningAlert(req.Owner, req.Repo, int(req.AlertNumber))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetSecretScanningAlertResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetSessions":
 		r1, err := c.GetSessions()
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetSessionsResponse{
 			Result_1: SessionsToProto(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetTopReferralPaths":
-		var req pbcores.GithubGetTopReferralPathsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetTopReferralPaths(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetTopReferralPathsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetTopReferrers":
-		var req pbcores.GithubGetTopReferrersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetTopReferrers(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetTopReferrersResponse{
-			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
 	case "GetUserHovercard":
@@ -10923,28 +8830,10 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "GetUserInstallation":
-		var req pbcores.GithubGetUserInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetUserInstallation(req.Username)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetUserInstallationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "GetUserInteractionLimits":
 		r1, err := c.GetUserInteractionLimits()
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetUserInteractionLimitsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetUserMigration":
-		var req pbcores.GithubGetUserMigrationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetUserMigration(int(req.MigrationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetUserMigrationResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -10954,96 +8843,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.GetUserOrgMembership(req.Org)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubGetUserOrgMembershipResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetUserPackageVersion":
-		var req pbcores.GithubGetUserPackageVersionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetUserPackageVersion(req.PackageType, req.PackageName, int(req.VersionId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetUserPackageVersionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWebhookConfig":
-		var req pbcores.GithubGetWebhookConfigRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWebhookConfig(req.Owner, req.Repo, int(req.HookId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWebhookConfigResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWebhookDelivery":
-		var req pbcores.GithubGetWebhookDeliveryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWebhookDelivery(req.Owner, req.Repo, int(req.HookId), int(req.DeliveryId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWebhookDeliveryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWorkflow":
-		var req pbcores.GithubGetWorkflowRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWorkflow(req.Owner, req.Repo, int(req.WorkflowId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWorkflowResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWorkflowJob":
-		var req pbcores.GithubGetWorkflowJobRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWorkflowJob(req.Owner, req.Repo, int(req.JobId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWorkflowJobResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWorkflowRun":
-		var req pbcores.GithubGetWorkflowRunRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWorkflowRun(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWorkflowRunResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWorkflowRunApprovals":
-		var req pbcores.GithubGetWorkflowRunApprovalsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWorkflowRunApprovals(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWorkflowRunApprovalsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWorkflowRunAttempt":
-		var req pbcores.GithubGetWorkflowRunAttemptRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWorkflowRunAttempt(req.Owner, req.Repo, int(req.RunId), int(req.Attempt))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWorkflowRunAttemptResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWorkflowRunTiming":
-		var req pbcores.GithubGetWorkflowRunTimingRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWorkflowRunTiming(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWorkflowRunTimingResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "GetWorkflowTiming":
-		var req pbcores.GithubGetWorkflowTimingRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.GetWorkflowTiming(req.Owner, req.Repo, int(req.WorkflowId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubGetWorkflowTimingResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11062,51 +8861,10 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.LeaveChat(req.ChatId)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "ListAcceptedAssignments":
-		var req pbcores.GithubListAcceptedAssignmentsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListAcceptedAssignments(int(req.AssignmentId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListAcceptedAssignmentsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListAppInstallations":
-		r1, err := c.ListAppInstallations()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListAppInstallationsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListAppWebhookDeliveries":
-		r1, err := c.ListAppWebhookDeliveries()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListAppWebhookDeliveriesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListAttestations":
-		var req pbcores.GithubListAttestationsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListAttestations(req.Owner, req.Repo, req.SubjectDigest)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListAttestationsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListAuthenticatedUserIssues":
 		r1, err := c.ListAuthenticatedUserIssues()
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListAuthenticatedUserIssuesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListAutolinks":
-		var req pbcores.GithubListAutolinksRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListAutolinks(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListAutolinksResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11128,134 +8886,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListBranchesForHEADCommit":
-		var req pbcores.GithubListBranchesForHEADCommitRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListBranchesForHEADCommit(req.Owner, req.Repo, req.Sha)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListBranchesForHEADCommitResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCheckRunAnnotations":
-		var req pbcores.GithubListCheckRunAnnotationsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCheckRunAnnotations(req.Owner, req.Repo, int(req.CheckRunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCheckRunAnnotationsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCheckRuns":
-		var req pbcores.GithubListCheckRunsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCheckRuns(req.Owner, req.Repo, req.Ref)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCheckRunsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCheckSuiteCheckRuns":
-		var req pbcores.GithubListCheckSuiteCheckRunsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCheckSuiteCheckRuns(req.Owner, req.Repo, int(req.CheckSuiteId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCheckSuiteCheckRunsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCheckSuites":
-		var req pbcores.GithubListCheckSuitesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCheckSuites(req.Owner, req.Repo, req.Ref)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCheckSuitesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListChildTeams":
 		var req pbcores.GithubListChildTeamsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.ListChildTeams(req.Org, req.TeamSlug)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListChildTeamsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListClassroomAssignments":
-		var req pbcores.GithubListClassroomAssignmentsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListClassroomAssignments(int(req.ClassroomId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListClassroomAssignmentsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListClassrooms":
-		r1, err := c.ListClassrooms()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListClassroomsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCodeQLDatabases":
-		var req pbcores.GithubListCodeQLDatabasesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCodeQLDatabases(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCodeQLDatabasesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCodeScanningAlertInstances":
-		var req pbcores.GithubListCodeScanningAlertInstancesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCodeScanningAlertInstances(req.Owner, req.Repo, int(req.AlertNumber))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCodeScanningAlertInstancesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCodeScanningAlerts":
-		var req pbcores.GithubListCodeScanningAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCodeScanningAlerts(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCodeScanningAlertsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCodeScanningAnalyses":
-		var req pbcores.GithubListCodeScanningAnalysesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCodeScanningAnalyses(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCodeScanningAnalysesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCodesOfConduct":
-		r1, err := c.ListCodesOfConduct()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCodesOfConductResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCodespaceMachineTypes":
-		var req pbcores.GithubListCodespaceMachineTypesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCodespaceMachineTypes(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCodespaceMachineTypesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCodespaceMachines":
-		var req pbcores.GithubListCodespaceMachinesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCodespaceMachines(req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCodespaceMachinesResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11286,15 +8922,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListCommitStatuses":
-		var req pbcores.GithubListCommitStatusesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCommitStatuses(req.Owner, req.Repo, req.Ref)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCommitStatusesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListCommits":
 		var req pbcores.GithubListCommitsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -11310,87 +8937,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.ListContributors(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListContributorsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListCopilotSeats":
-		var req pbcores.GithubListCopilotSeatsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListCopilotSeats(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListCopilotSeatsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListDependabotAlerts":
-		var req pbcores.GithubListDependabotAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListDependabotAlerts(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListDependabotAlertsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListDeployKeys":
-		var req pbcores.GithubListDeployKeysRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListDeployKeys(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListDeployKeysResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListDeploymentBranchPolicies":
-		var req pbcores.GithubListDeploymentBranchPoliciesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListDeploymentBranchPolicies(req.Owner, req.Repo, req.Env)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListDeploymentBranchPoliciesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListDeploymentProtectionRuleApps":
-		var req pbcores.GithubListDeploymentProtectionRuleAppsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListDeploymentProtectionRuleApps(req.Owner, req.Repo, req.Env)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListDeploymentProtectionRuleAppsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListDeploymentProtectionRules":
-		var req pbcores.GithubListDeploymentProtectionRulesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListDeploymentProtectionRules(req.Owner, req.Repo, req.Env)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListDeploymentProtectionRulesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListDeploymentStatuses":
-		var req pbcores.GithubListDeploymentStatusesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListDeploymentStatuses(req.Owner, req.Repo, int(req.DeploymentId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListDeploymentStatusesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListDeployments":
-		var req pbcores.GithubListDeploymentsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListDeployments(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListDeploymentsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListDevContainerConfigs":
-		var req pbcores.GithubListDevContainerConfigsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListDevContainerConfigs(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListDevContainerConfigsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11414,33 +8960,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.ListEmojis()
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListEmojisResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListEnvironmentSecrets":
-		var req pbcores.GithubListEnvironmentSecretsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListEnvironmentSecrets(req.Owner, req.Repo, req.Env)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListEnvironmentSecretsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListEnvironmentVariables":
-		var req pbcores.GithubListEnvironmentVariablesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListEnvironmentVariables(req.Owner, req.Repo, req.Env)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListEnvironmentVariablesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListEnvironments":
-		var req pbcores.GithubListEnvironmentsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListEnvironments(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListEnvironmentsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11468,13 +8987,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.ListForks(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListForksResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListGPGKeys":
-		r1, err := c.ListGPGKeys()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListGPGKeysResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11511,52 +9023,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.ListGists(int(req.PerPage))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListGistsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListGitignoreTemplates":
-		r1, err := c.ListGitignoreTemplates()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListGitignoreTemplatesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListGlobalAdvisories":
-		r1, err := c.ListGlobalAdvisories()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListGlobalAdvisoriesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListImportAuthors":
-		var req pbcores.GithubListImportAuthorsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListImportAuthors(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListImportAuthorsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListImportLargeFiles":
-		var req pbcores.GithubListImportLargeFilesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListImportLargeFiles(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListImportLargeFilesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListInstallationRepos":
-		r1, err := c.ListInstallationRepos()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListInstallationReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListInstallationRequests":
-		r1, err := c.ListInstallationRequests()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListInstallationRequestsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11614,22 +9080,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListLicenses":
-		r1, err := c.ListLicenses()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListLicensesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListMatchingRefs":
-		var req pbcores.GithubListMatchingRefsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListMatchingRefs(req.Owner, req.Repo, req.Ref)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListMatchingRefsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListMilestoneLabels":
 		var req pbcores.GithubListMilestoneLabelsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -11657,93 +9107,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListOrgAdvisories":
-		var req pbcores.GithubListOrgAdvisoriesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgAdvisories(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgAdvisoriesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListOrgBlockedUsers":
 		var req pbcores.GithubListOrgBlockedUsersRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.ListOrgBlockedUsers(req.Org)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListOrgBlockedUsersResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgBudgets":
-		var req pbcores.GithubListOrgBudgetsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgBudgets(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgBudgetsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgCodeScanningAlerts":
-		var req pbcores.GithubListOrgCodeScanningAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgCodeScanningAlerts(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgCodeScanningAlertsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgCodespaceSecrets":
-		var req pbcores.GithubListOrgCodespaceSecretsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgCodespaceSecrets(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgCodespaceSecretsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgCodespaces":
-		var req pbcores.GithubListOrgCodespacesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgCodespaces(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgCodespacesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgCustomProperties":
-		var req pbcores.GithubListOrgCustomPropertiesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgCustomProperties(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgCustomPropertiesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgDependabotAlerts":
-		var req pbcores.GithubListOrgDependabotAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgDependabotAlerts(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgDependabotAlertsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgDependabotSecrets":
-		var req pbcores.GithubListOrgDependabotSecretsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgDependabotSecrets(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgDependabotSecretsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgHostedRunners":
-		var req pbcores.GithubListOrgHostedRunnersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgHostedRunners(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgHostedRunnersResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11774,42 +9143,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListOrgMigrationRepos":
-		var req pbcores.GithubListOrgMigrationReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgMigrationRepos(req.Org, int(req.MigrationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgMigrationReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgMigrations":
-		var req pbcores.GithubListOrgMigrationsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgMigrations(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgMigrationsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgPATRequests":
-		var req pbcores.GithubListOrgPATRequestsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgPATRequests(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgPATRequestsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgPATs":
-		var req pbcores.GithubListOrgPATsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgPATs(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgPATsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListOrgProjectsV2":
 		var req pbcores.GithubListOrgProjectsV2Request
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -11828,93 +9161,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListOrgRunnerApplications":
-		var req pbcores.GithubListOrgRunnerApplicationsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgRunnerApplications(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgRunnerApplicationsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgRunnerGroups":
-		var req pbcores.GithubListOrgRunnerGroupsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgRunnerGroups(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgRunnerGroupsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgRunnerLabels":
-		var req pbcores.GithubListOrgRunnerLabelsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgRunnerLabels(req.Org, int(req.RunnerId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgRunnerLabelsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgRunners":
-		var req pbcores.GithubListOrgRunnersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgRunners(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgRunnersResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgSecretRepos":
-		var req pbcores.GithubListOrgSecretReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgSecretRepos(req.Org, req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgSecretReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgSecretScanningAlerts":
-		var req pbcores.GithubListOrgSecretScanningAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgSecretScanningAlerts(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgSecretScanningAlertsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgSecrets":
-		var req pbcores.GithubListOrgSecretsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgSecrets(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgSecretsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListOrgTeams":
 		var req pbcores.GithubListOrgTeamsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.ListOrgTeams(req.Org)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListOrgTeamsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgVariables":
-		var req pbcores.GithubListOrgVariablesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgVariables(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgVariablesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListOrgWebhooks":
-		var req pbcores.GithubListOrgWebhooksRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListOrgWebhooks(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListOrgWebhooksResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -11997,42 +9249,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListPackageVersions":
-		var req pbcores.GithubListPackageVersionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListPackageVersions(req.PackageType, req.PackageName)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListPackageVersionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListPackages":
-		var req pbcores.GithubListPackagesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListPackages(req.PackageType)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListPackagesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListPagesBuilds":
-		var req pbcores.GithubListPagesBuildsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListPagesBuilds(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListPagesBuildsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListProjectColumns":
-		var req pbcores.GithubListProjectColumnsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListProjectColumns(int(req.ProjectId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListProjectColumnsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListProjectV2Fields":
 		var req pbcores.GithubListProjectV2FieldsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -12048,15 +9264,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.ListProjectV2Items(req.ProjectId)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListProjectV2ItemsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListProjects":
-		var req pbcores.GithubListProjectsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListProjects(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListProjectsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -12092,15 +9299,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListRefs":
-		var req pbcores.GithubListRefsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRefs(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRefsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListReleaseAssets":
 		var req pbcores.GithubListReleaseAssetsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -12128,48 +9326,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListRepoAdvisories":
-		var req pbcores.GithubListRepoAdvisoriesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRepoAdvisories(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRepoAdvisoriesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListRepoAssignees":
 		var req pbcores.GithubListRepoAssigneesRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.ListRepoAssignees(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListRepoAssigneesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRepoCaches":
-		var req pbcores.GithubListRepoCachesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRepoCaches(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRepoCachesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRepoCodespaces":
-		var req pbcores.GithubListRepoCodespacesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRepoCodespaces(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRepoCodespacesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRepoDependabotSecrets":
-		var req pbcores.GithubListRepoDependabotSecretsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRepoDependabotSecrets(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRepoDependabotSecretsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -12200,24 +9362,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListRepoRunnerLabels":
-		var req pbcores.GithubListRepoRunnerLabelsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRepoRunnerLabels(req.Owner, req.Repo, int(req.RunnerId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRepoRunnerLabelsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRepoRunners":
-		var req pbcores.GithubListRepoRunnersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRepoRunners(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRepoRunnersResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListRepoTeams":
 		var req pbcores.GithubListRepoTeamsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -12227,116 +9371,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListRepoVariables":
-		var req pbcores.GithubListRepoVariablesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRepoVariables(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRepoVariablesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRepositorySecrets":
-		var req pbcores.GithubListRepositorySecretsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRepositorySecrets(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRepositorySecretsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListRepositoryTree":
 		var req pbcores.GithubListRepositoryTreeRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.ListRepositoryTree(req.Owner, req.Repo, req.Sha, req.Recursive)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListRepositoryTreeResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRuleSuites":
-		var req pbcores.GithubListRuleSuitesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRuleSuites(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRuleSuitesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRulesets":
-		var req pbcores.GithubListRulesetsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRulesets(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRulesetsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRunnerApplications":
-		var req pbcores.GithubListRunnerApplicationsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRunnerApplications(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRunnerApplicationsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRunnerGroupRepos":
-		var req pbcores.GithubListRunnerGroupReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRunnerGroupRepos(req.Org, int(req.GroupId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRunnerGroupReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListRunnerGroupRunners":
-		var req pbcores.GithubListRunnerGroupRunnersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListRunnerGroupRunners(req.Org, int(req.GroupId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListRunnerGroupRunnersResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListSSHKeys":
-		r1, err := c.ListSSHKeys()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListSSHKeysResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListSSHSigningKeys":
-		r1, err := c.ListSSHSigningKeys()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListSSHSigningKeysResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListSecretScanningAlertLocations":
-		var req pbcores.GithubListSecretScanningAlertLocationsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListSecretScanningAlertLocations(req.Owner, req.Repo, int(req.AlertNumber))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListSecretScanningAlertLocationsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListSecretScanningAlerts":
-		var req pbcores.GithubListSecretScanningAlertsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListSecretScanningAlerts(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListSecretScanningAlertsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListSecurityManagers":
-		var req pbcores.GithubListSecurityManagersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListSecurityManagers(req.Org)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListSecurityManagersResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -12408,13 +9448,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListUserCodespaces":
-		r1, err := c.ListUserCodespaces()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListUserCodespacesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ListUserEvents":
 		var req pbcores.GithubListUserEventsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -12430,38 +9463,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.ListUserGists(req.Username)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubListUserGistsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListUserInstallationRepos":
-		var req pbcores.GithubListUserInstallationReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListUserInstallationRepos(int(req.InstallationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListUserInstallationReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListUserInstallations":
-		r1, err := c.ListUserInstallations()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListUserInstallationsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListUserMigrationRepos":
-		var req pbcores.GithubListUserMigrationReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListUserMigrationRepos(int(req.MigrationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListUserMigrationReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListUserMigrations":
-		r1, err := c.ListUserMigrations()
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListUserMigrationsResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -12497,60 +9498,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "ListWebhookDeliveries":
-		var req pbcores.GithubListWebhookDeliveriesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListWebhookDeliveries(req.Owner, req.Repo, int(req.HookId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListWebhookDeliveriesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListWorkflowRunArtifacts":
-		var req pbcores.GithubListWorkflowRunArtifactsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListWorkflowRunArtifacts(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListWorkflowRunArtifactsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListWorkflowRunAttemptJobs":
-		var req pbcores.GithubListWorkflowRunAttemptJobsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListWorkflowRunAttemptJobs(req.Owner, req.Repo, int(req.RunId), int(req.Attempt))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListWorkflowRunAttemptJobsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListWorkflowRunJobs":
-		var req pbcores.GithubListWorkflowRunJobsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListWorkflowRunJobs(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListWorkflowRunJobsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListWorkflowRuns":
-		var req pbcores.GithubListWorkflowRunsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListWorkflowRuns(req.Owner, req.Repo, int(req.PerPage))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListWorkflowRunsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ListWorkflows":
-		var req pbcores.GithubListWorkflowsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ListWorkflows(req.Owner, req.Repo)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubListWorkflowsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "LockIssue":
 		var req pbcores.GithubLockIssueRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -12561,15 +9508,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.Logout()
 		if err != nil { return nil, err }
 		return nil, nil
-	case "MapImportAuthor":
-		var req pbcores.GithubMapImportAuthorRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.MapImportAuthor(req.Owner, req.Repo, int(req.AuthorId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubMapImportAuthorResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "MarkAllNotificationsRead":
 		err := c.MarkAllNotificationsRead()
 		if err != nil { return nil, err }
@@ -12601,30 +9539,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.MarkUnread(req.ChatId, req.Unread)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "MergeBranch":
-		var req pbcores.GithubMergeBranchRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.MergeBranch(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubMergeBranchResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "MergePullRequest":
 		var req pbcores.GithubMergePullRequestRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.MergePullRequest(req.Owner, req.Repo, int(req.Number), req.MergeMethod, req.CommitTitle, req.CommitMessage)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubMergePullRequestResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "MoveProjectCard":
-		var req pbcores.GithubMoveProjectCardRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.MoveProjectCard(int(req.CardId), req.Position, int(req.ColumnId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubMoveProjectCardResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -12646,21 +9566,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.PinMessage(req.ChatId, req.MsgId)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "PingOrgWebhook":
-		var req pbcores.GithubPingOrgWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.PingOrgWebhook(req.Org, int(req.HookId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubPingOrgWebhookResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "PingWebhook":
-		var req pbcores.GithubPingWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.PingWebhook(req.Owner, req.Repo, int(req.HookId))
-		if err != nil { return nil, err }
-		return nil, nil
 	case "PublicizeMembership":
 		var req pbcores.GithubPublicizeMembershipRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -12670,49 +9575,10 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "PublishCodespace":
-		var req pbcores.GithubPublishCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.PublishCodespace(req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubPublishCodespaceResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ReRunWorkflow":
-		var req pbcores.GithubReRunWorkflowRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.ReRunWorkflow(req.Owner, req.Repo, int(req.RunId))
-		if err != nil { return nil, err }
-		return nil, nil
 	case "ReactToMessage":
 		var req pbcores.GithubReactToMessageRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.ReactToMessage(req.ChatId, req.MsgId, req.Emoji)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RedeliverAppWebhook":
-		var req pbcores.GithubRedeliverAppWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RedeliverAppWebhook(int(req.DeliveryId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRedeliverAppWebhookResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RedeliverWebhook":
-		var req pbcores.GithubRedeliverWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RedeliverWebhook(req.Owner, req.Repo, int(req.HookId), int(req.DeliveryId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRedeliverWebhookResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RemoveAdminEnforcement":
-		var req pbcores.GithubRemoveAdminEnforcementRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveAdminEnforcement(req.Owner, req.Repo, req.Branch)
 		if err != nil { return nil, err }
 		return nil, nil
 	case "RemoveBlockingDependency":
@@ -12721,28 +9587,10 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.RemoveBlockingDependency(req.Owner, req.Repo, int(req.IssueNumber), int(req.DepId))
 		if err != nil { return nil, err }
 		return nil, nil
-	case "RemoveCodespacesAccessUsers":
-		var req pbcores.GithubRemoveCodespacesAccessUsersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveCodespacesAccessUsers(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		return nil, nil
 	case "RemoveCollaborator":
 		var req pbcores.GithubRemoveCollaboratorRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.RemoveCollaborator(req.Owner, req.Repo, req.Username)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveCopilotTeams":
-		var req pbcores.GithubRemoveCopilotTeamsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveCopilotTeams(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveCopilotUsers":
-		var req pbcores.GithubRemoveCopilotUsersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveCopilotUsers(req.Org, bytesToMap(req.Payload))
 		if err != nil { return nil, err }
 		return nil, nil
 	case "RemoveIssueAssignees":
@@ -12763,12 +9611,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.RemoveMember(req.ChatId, req.UserId)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "RemoveOrgEnabledRepo":
-		var req pbcores.GithubRemoveOrgEnabledRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveOrgEnabledRepo(req.Org, int(req.RepoId))
-		if err != nil { return nil, err }
-		return nil, nil
 	case "RemoveOrgInteractionLimits":
 		var req pbcores.GithubRemoveOrgInteractionLimitsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -12781,28 +9623,10 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.RemoveOrgMembership(req.Org, req.Username)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "RemoveOrgRunnerLabel":
-		var req pbcores.GithubRemoveOrgRunnerLabelRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveOrgRunnerLabel(req.Org, int(req.RunnerId), req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveOrgSecretRepo":
-		var req pbcores.GithubRemoveOrgSecretRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveOrgSecretRepo(req.Org, req.Name, int(req.RepoId))
-		if err != nil { return nil, err }
-		return nil, nil
 	case "RemoveOutsideCollaborator":
 		var req pbcores.GithubRemoveOutsideCollaboratorRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.RemoveOutsideCollaborator(req.Org, req.Username)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveRepoFromInstallation":
-		var req pbcores.GithubRemoveRepoFromInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveRepoFromInstallation(int(req.InstallationId), int(req.RepoId))
 		if err != nil { return nil, err }
 		return nil, nil
 	case "RemoveRepoInteractionLimits":
@@ -12811,52 +9635,10 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.RemoveRepoInteractionLimits(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "RemoveRepoRunnerLabel":
-		var req pbcores.GithubRemoveRepoRunnerLabelRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveRepoRunnerLabel(req.Owner, req.Repo, int(req.RunnerId), req.Name)
-		if err != nil { return nil, err }
-		return nil, nil
 	case "RemoveRequestedReviewers":
 		var req pbcores.GithubRemoveRequestedReviewersRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.RemoveRequestedReviewers(req.Owner, req.Repo, int(req.PrNumber), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveRequiredPRReviews":
-		var req pbcores.GithubRemoveRequiredPRReviewsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveRequiredPRReviews(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveRequiredSignatures":
-		var req pbcores.GithubRemoveRequiredSignaturesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveRequiredSignatures(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveRequiredStatusChecks":
-		var req pbcores.GithubRemoveRequiredStatusChecksRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveRequiredStatusChecks(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveRunnerGroupRepo":
-		var req pbcores.GithubRemoveRunnerGroupRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveRunnerGroupRepo(req.Org, int(req.GroupId), int(req.RepoId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveRunnerGroupRunner":
-		var req pbcores.GithubRemoveRunnerGroupRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveRunnerGroupRunner(req.Org, int(req.GroupId), int(req.RunnerId))
-		if err != nil { return nil, err }
-		return nil, nil
-	case "RemoveSecurityManagerTeam":
-		var req pbcores.GithubRemoveSecurityManagerTeamRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.RemoveSecurityManagerTeam(req.Org, req.TeamSlug)
 		if err != nil { return nil, err }
 		return nil, nil
 	case "RemoveSubIssue":
@@ -12920,30 +9702,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: MessageToProto(r1),
 		}
 		return proto.Marshal(resp)
-	case "ReportVulnerability":
-		var req pbcores.GithubReportVulnerabilityRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ReportVulnerability(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubReportVulnerabilityResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "ReprioritizeSubIssue":
 		var req pbcores.GithubReprioritizeSubIssueRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.ReprioritizeSubIssue(req.Owner, req.Repo, int(req.IssueNumber), bytesToMap(req.Payload))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubReprioritizeSubIssueResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RequestCVE":
-		var req pbcores.GithubRequestCVERequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RequestCVE(req.Owner, req.Repo, req.GhsaId)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRequestCVEResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -12956,118 +9720,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "RerequestCheckRun":
-		var req pbcores.GithubRerequestCheckRunRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RerequestCheckRun(req.Owner, req.Repo, int(req.CheckRunId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRerequestCheckRunResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RerequestCheckSuite":
-		var req pbcores.GithubRerequestCheckSuiteRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RerequestCheckSuite(req.Owner, req.Repo, int(req.CheckSuiteId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRerequestCheckSuiteResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RerunFailedJobs":
-		var req pbcores.GithubRerunFailedJobsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RerunFailedJobs(req.Owner, req.Repo, int(req.RunId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRerunFailedJobsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RerunWorkflowJob":
-		var req pbcores.GithubRerunWorkflowJobRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RerunWorkflowJob(req.Owner, req.Repo, int(req.JobId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRerunWorkflowJobResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ResetAppToken":
-		var req pbcores.GithubResetAppTokenRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ResetAppToken(req.ClientId, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubResetAppTokenResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RestoreOrgPackage":
-		var req pbcores.GithubRestoreOrgPackageRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RestoreOrgPackage(req.Org, req.PackageType, req.PackageName)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRestoreOrgPackageResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RestoreOrgPackageVersion":
-		var req pbcores.GithubRestoreOrgPackageVersionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RestoreOrgPackageVersion(req.Org, req.PackageType, req.PackageName, int(req.VersionId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRestoreOrgPackageVersionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RestoreUserPackage":
-		var req pbcores.GithubRestoreUserPackageRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RestoreUserPackage(req.PackageType, req.PackageName)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRestoreUserPackageResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RestoreUserPackageVersion":
-		var req pbcores.GithubRestoreUserPackageVersionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.RestoreUserPackageVersion(req.PackageType, req.PackageName, int(req.VersionId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubRestoreUserPackageVersionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ReviewOrgPATRequest":
-		var req pbcores.GithubReviewOrgPATRequestRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ReviewOrgPATRequest(req.Org, int(req.RequestId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubReviewOrgPATRequestResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ReviewOrgPATRequests":
-		var req pbcores.GithubReviewOrgPATRequestsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ReviewOrgPATRequests(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubReviewOrgPATRequestsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "ReviewPendingDeployments":
-		var req pbcores.GithubReviewPendingDeploymentsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.ReviewPendingDeployments(req.Owner, req.Repo, int(req.RunId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubReviewPendingDeploymentsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "RevokeInstallationAccessToken":
-		err := c.RevokeInstallationAccessToken()
-		if err != nil { return nil, err }
-		return nil, nil
 	case "SearchCode":
 		var req pbcores.GithubSearchCodeRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -13197,30 +9849,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.SetAdmin(req.ChatId, req.UserId, req.Admin)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "SetAdminEnforcement":
-		var req pbcores.GithubSetAdminEnforcementRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetAdminEnforcement(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetAdminEnforcementResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "SetCallMuted":
 		var req pbcores.GithubSetCallMutedRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.SetCallMuted(req.Param_1, req.Param_2)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "SetCustomPropertyValues":
-		var req pbcores.GithubSetCustomPropertyValuesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetCustomPropertyValues(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetCustomPropertyValuesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "SetEmailVisibility":
 		var req pbcores.GithubSetEmailVisibilityRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -13236,69 +9870,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.SetLabels(req.Owner, req.Repo, int(req.Number), req.Labels)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubSetLabelsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgActionsPermissions":
-		var req pbcores.GithubSetOrgActionsPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgActionsPermissions(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgActionsPermissionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgAllowedActions":
-		var req pbcores.GithubSetOrgAllowedActionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgAllowedActions(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgAllowedActionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgArtifactRetention":
-		var req pbcores.GithubSetOrgArtifactRetentionRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgArtifactRetention(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgArtifactRetentionResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgCodespacesAccess":
-		var req pbcores.GithubSetOrgCodespacesAccessRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgCodespacesAccess(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgCodespacesAccessResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgDefaultWorkflowPermissions":
-		var req pbcores.GithubSetOrgDefaultWorkflowPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgDefaultWorkflowPermissions(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgDefaultWorkflowPermissionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgEnabledRepos":
-		var req pbcores.GithubSetOrgEnabledReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgEnabledRepos(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgEnabledReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgForkPRApproval":
-		var req pbcores.GithubSetOrgForkPRApprovalRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgForkPRApproval(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgForkPRApprovalResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -13320,78 +9891,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "SetOrgOIDCProperties":
-		var req pbcores.GithubSetOrgOIDCPropertiesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgOIDCProperties(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgOIDCPropertiesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgOIDCSubjectClaim":
-		var req pbcores.GithubSetOrgOIDCSubjectClaimRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgOIDCSubjectClaim(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgOIDCSubjectClaimResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgRunnerLabels":
-		var req pbcores.GithubSetOrgRunnerLabelsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgRunnerLabels(req.Org, int(req.RunnerId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgRunnerLabelsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetOrgSecretRepos":
-		var req pbcores.GithubSetOrgSecretReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetOrgSecretRepos(req.Org, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetOrgSecretReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetRepoActionsAccessSettings":
-		var req pbcores.GithubSetRepoActionsAccessSettingsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRepoActionsAccessSettings(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRepoActionsAccessSettingsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetRepoActionsPermissions":
-		var req pbcores.GithubSetRepoActionsPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRepoActionsPermissions(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRepoActionsPermissionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetRepoAllowedActions":
-		var req pbcores.GithubSetRepoAllowedActionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRepoAllowedActions(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRepoAllowedActionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetRepoDefaultWorkflowPermissions":
-		var req pbcores.GithubSetRepoDefaultWorkflowPermissionsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRepoDefaultWorkflowPermissions(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRepoDefaultWorkflowPermissionsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "SetRepoInteractionLimits":
 		var req pbcores.GithubSetRepoInteractionLimitsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -13401,57 +9900,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "SetRepoOIDCSubjectClaim":
-		var req pbcores.GithubSetRepoOIDCSubjectClaimRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRepoOIDCSubjectClaim(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRepoOIDCSubjectClaimResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetRepoRunnerLabels":
-		var req pbcores.GithubSetRepoRunnerLabelsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRepoRunnerLabels(req.Owner, req.Repo, int(req.RunnerId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRepoRunnerLabelsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "SetRepoTopics":
 		var req pbcores.GithubSetRepoTopicsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.SetRepoTopics(req.Owner, req.Repo, req.Topics)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubSetRepoTopicsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetRequiredSignatures":
-		var req pbcores.GithubSetRequiredSignaturesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRequiredSignatures(req.Owner, req.Repo, req.Branch)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRequiredSignaturesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetRunnerGroupRepos":
-		var req pbcores.GithubSetRunnerGroupReposRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRunnerGroupRepos(req.Org, int(req.GroupId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRunnerGroupReposResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SetRunnerGroupRunners":
-		var req pbcores.GithubSetRunnerGroupRunnersRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SetRunnerGroupRunners(req.Org, int(req.GroupId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSetRunnerGroupRunnersResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -13485,51 +9939,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: CallSessionToProto(r1),
 		}
 		return proto.Marshal(resp)
-	case "StartCodespace":
-		var req pbcores.GithubStartCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.StartCodespace(req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubStartCodespaceResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "StartImport":
-		var req pbcores.GithubStartImportRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.StartImport(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubStartImportResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "StartOrgMigration":
-		var req pbcores.GithubStartOrgMigrationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.StartOrgMigration(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubStartOrgMigrationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "StartUserMigration":
-		var req pbcores.GithubStartUserMigrationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.StartUserMigration(bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubStartUserMigrationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "StopCodespace":
-		var req pbcores.GithubStopCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.StopCodespace(req.Name)
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubStopCodespaceResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "SubmitPRReview":
 		var req pbcores.GithubSubmitPRReviewRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -13545,24 +9954,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		r1, err := c.SubscribeThread(req.ThreadId)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubSubscribeThreadResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SuspendAppInstallation":
-		var req pbcores.GithubSuspendAppInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SuspendAppInstallation(int(req.InstallationId))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSuspendAppInstallationResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "SyncForkWithUpstream":
-		var req pbcores.GithubSyncForkWithUpstreamRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.SyncForkWithUpstream(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubSyncForkWithUpstreamResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -13605,18 +9996,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.UnlockIssue(req.Owner, req.Repo, int(req.Number))
 		if err != nil { return nil, err }
 		return nil, nil
-	case "UnlockOrgMigrationRepo":
-		var req pbcores.GithubUnlockOrgMigrationRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.UnlockOrgMigrationRepo(req.Org, int(req.MigrationId), req.RepoName)
-		if err != nil { return nil, err }
-		return nil, nil
-	case "UnlockUserMigrationRepo":
-		var req pbcores.GithubUnlockUserMigrationRepoRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.UnlockUserMigrationRepo(int(req.MigrationId), req.RepoName)
-		if err != nil { return nil, err }
-		return nil, nil
 	case "UnpinAllMessages":
 		var req pbcores.GithubUnpinAllMessagesRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -13647,87 +10026,18 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.UnsubscribeThread(req.ThreadId)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "UnsuspendAppInstallation":
-		var req pbcores.GithubUnsuspendAppInstallationRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.UnsuspendAppInstallation(int(req.InstallationId))
-		if err != nil { return nil, err }
-		return nil, nil
 	case "UnwatchRepo":
 		var req pbcores.GithubUnwatchRepoRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.UnwatchRepo(req.Owner, req.Repo)
 		if err != nil { return nil, err }
 		return nil, nil
-	case "UpdateAppWebhookConfig":
-		var req pbcores.GithubUpdateAppWebhookConfigRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateAppWebhookConfig(bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateAppWebhookConfigResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateCheckSuitePreferences":
-		var req pbcores.GithubUpdateCheckSuitePreferencesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateCheckSuitePreferences(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateCheckSuitePreferencesResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateCodeScanningAlert":
-		var req pbcores.GithubUpdateCodeScanningAlertRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateCodeScanningAlert(req.Owner, req.Repo, int(req.AlertNumber), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateCodeScanningAlertResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateCodeScanningDefaultSetup":
-		var req pbcores.GithubUpdateCodeScanningDefaultSetupRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateCodeScanningDefaultSetup(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateCodeScanningDefaultSetupResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateCodespace":
-		var req pbcores.GithubUpdateCodespaceRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateCodespace(req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateCodespaceResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "UpdateCommitComment":
 		var req pbcores.GithubUpdateCommitCommentRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.UpdateCommitComment(req.Owner, req.Repo, int(req.CommentId), req.Body)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubUpdateCommitCommentResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateDependabotAlert":
-		var req pbcores.GithubUpdateDependabotAlertRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateDependabotAlert(req.Owner, req.Repo, int(req.AlertNumber), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateDependabotAlertResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateDeploymentBranchPolicy":
-		var req pbcores.GithubUpdateDeploymentBranchPolicyRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateDeploymentBranchPolicy(req.Owner, req.Repo, req.Env, int(req.PolicyId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateDeploymentBranchPolicyResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -13749,39 +10059,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "UpdateEnvironmentVariable":
-		var req pbcores.GithubUpdateEnvironmentVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateEnvironmentVariable(req.Owner, req.Repo, req.Env, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateEnvironmentVariableResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "UpdateGist":
 		var req pbcores.GithubUpdateGistRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.UpdateGist(req.GistId, req.Description, bytesToMapStringMapStringString(req.Files))
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubUpdateGistResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateImport":
-		var req pbcores.GithubUpdateImportRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateImport(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateImportResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateImportLFS":
-		var req pbcores.GithubUpdateImportLFSRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateImportLFS(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateImportLFSResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -13812,69 +10095,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "UpdateOrgBudget":
-		var req pbcores.GithubUpdateOrgBudgetRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateOrgBudget(req.Org, int(req.BudgetId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateOrgBudgetResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateOrgHostedRunner":
-		var req pbcores.GithubUpdateOrgHostedRunnerRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateOrgHostedRunner(req.Org, int(req.RunnerId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateOrgHostedRunnerResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateOrgPAT":
-		var req pbcores.GithubUpdateOrgPATRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateOrgPAT(req.Org, int(req.PatId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateOrgPATResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateOrgPATs":
-		var req pbcores.GithubUpdateOrgPATsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateOrgPATs(req.Org, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateOrgPATsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateOrgRunnerGroup":
-		var req pbcores.GithubUpdateOrgRunnerGroupRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateOrgRunnerGroup(req.Org, int(req.GroupId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateOrgRunnerGroupResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateOrgVariable":
-		var req pbcores.GithubUpdateOrgVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateOrgVariable(req.Org, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateOrgVariableResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateOrgWebhook":
-		var req pbcores.GithubUpdateOrgWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateOrgWebhook(req.Org, int(req.HookId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateOrgWebhookResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "UpdatePRBranch":
 		var req pbcores.GithubUpdatePRBranchRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -13893,30 +10113,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "UpdatePagesSite":
-		var req pbcores.GithubUpdatePagesSiteRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdatePagesSite(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdatePagesSiteResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "UpdateProfile":
 		var req pbcores.GithubUpdateProfileRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.UpdateProfile(req.Name, req.Bio, req.Blog, req.Company, req.Location)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubUpdateProfileResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateProject":
-		var req pbcores.GithubUpdateProjectRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateProject(int(req.ProjectId), bytesToMap(req.Updates))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateProjectResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
@@ -13965,60 +10167,6 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "UpdateRepoAdvisory":
-		var req pbcores.GithubUpdateRepoAdvisoryRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateRepoAdvisory(req.Owner, req.Repo, req.GhsaId, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateRepoAdvisoryResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateRepoVariable":
-		var req pbcores.GithubUpdateRepoVariableRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateRepoVariable(req.Owner, req.Repo, req.Name, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateRepoVariableResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateRequiredPRReviews":
-		var req pbcores.GithubUpdateRequiredPRReviewsRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateRequiredPRReviews(req.Owner, req.Repo, req.Branch, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateRequiredPRReviewsResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateRequiredStatusChecks":
-		var req pbcores.GithubUpdateRequiredStatusChecksRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateRequiredStatusChecks(req.Owner, req.Repo, req.Branch, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateRequiredStatusChecksResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateRuleset":
-		var req pbcores.GithubUpdateRulesetRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateRuleset(req.Owner, req.Repo, int(req.RulesetId), bytesToMap(req.Updates))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateRulesetResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateSecretScanningAlert":
-		var req pbcores.GithubUpdateSecretScanningAlertRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateSecretScanningAlert(req.Owner, req.Repo, int(req.AlertNumber), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateSecretScanningAlertResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "UpdateTeam":
 		var req pbcores.GithubUpdateTeamRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -14028,39 +10176,12 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)
-	case "UpdateWebhook":
-		var req pbcores.GithubUpdateWebhookRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateWebhook(req.Owner, req.Repo, int(req.HookId), bytesToMap(req.Updates))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateWebhookResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UpdateWebhookConfig":
-		var req pbcores.GithubUpdateWebhookConfigRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UpdateWebhookConfig(req.Owner, req.Repo, int(req.HookId), bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUpdateWebhookConfigResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
 	case "UploadReleaseAsset":
 		var req pbcores.GithubUploadReleaseAssetRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		r1, err := c.UploadReleaseAsset(req.Owner, req.Repo, int(req.ReleaseId), req.Name, req.Data, req.ContentType)
 		if err != nil { return nil, err }
 		resp := &pbcores.GithubUploadReleaseAssetResponse{
-			Result_1: []byte(r1),
-		}
-		return proto.Marshal(resp)
-	case "UploadSARIF":
-		var req pbcores.GithubUploadSARIFRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		r1, err := c.UploadSARIF(req.Owner, req.Repo, bytesToMap(req.Payload))
-		if err != nil { return nil, err }
-		resp := &pbcores.GithubUploadSARIFResponse{
 			Result_1: []byte(r1),
 		}
 		return proto.Marshal(resp)

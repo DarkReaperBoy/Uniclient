@@ -22,7 +22,7 @@ msg, err := tg.SendMessage("@channel", "Hello from Go!")
 | Core | Platform | Methods | Auth | Docs |
 |------|----------|---------|------|------|
 | [Telegram](telegram.md) | Telegram (MTProto) | 771 | Bot token / Phone+OTP | Full MTProto via gotd/td |
-| [GitHub](github.md) | GitHub | 768 | Personal Access Token | REST API, chat-via-issues |
+| [GitHub](github.md) | GitHub | 282 | Personal Access Token | REST API, chat-via-issues |
 | [Bale](bale.md) | Bale Messenger | 456 | Bot token / Phone+OTP | Bot API + User gRPC |
 | [IRC](irc.md) | IRC Networks | 418 | NickServ / SASL | RFC 2812 + IRCv3 |
 | [XMPP](xmpp.md) | XMPP/Jabber | 379 | JID + Password (SASL) | RFC 6120 + 30 XEPs |
