@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 14 — Write /docs — DONE
+**Current Step:** Step 15 — Build GUI — Phase A (Engine Foundation) — DONE
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 9 — Step 14.2 done, all 3,526 methods + base.go documented)
+**Last Updated:** 2026-04-14 (session 10 — Engine layer built: 10 files, 16 tests pass)
 
-**NEXT:** Step 15 — Build GUI (Flutter)
+**NEXT:** Step 15 Phase B — Bridge Integration (wire engine into protobuf bridge)
 
 ## Steps
 
@@ -27,7 +27,36 @@
 | 13.0 | Type the untyped methods (~250 fixable, ~400 inherently untyped → `bytes`) | **DONE** |
 | 13 | Protobuf bridge (all 4,051 methods, codegen) | **DONE** (3,564 dispatched, 412 skipped, 5 tests pass) |
 | 14 | Write /docs | **DONE** |
-| 15 | Build GUI | NOT STARTED |
+| 15 | Build GUI | **IN PROGRESS** — Phase A (engine) DONE |
+
+### Step 15 — Build GUI — IN PROGRESS
+
+#### Phase A: Engine Foundation — DONE
+
+Built `go/engine/` — the orchestration layer between 10 cores and Flutter.
+
+Files created (10 source + 1 test):
+- `db.go` — SQLite open, WAL mode, schema (7 tables + FTS5 + triggers), migrations, integrity check, corruption recovery
+- `engine.go` — Engine struct, Init/Shutdown, event callback, active chat tracking, config updates
+- `accounts.go` — Account CRUD (add/remove/list/reorder), vault credential storage, core factory
+- `events.go` — 16 event types, typed event structs, dedup (typing), core update handler dispatch
+- `cache_chats.go` — Chat list upsert/query (unified + per-account), sync from network, mute/pin/archive/draft
+- `cache_msgs.go` — Message cache (insert/query/paginate), pending→confirmed flow, media ref caching
+- `cache_users.go` — User profile upsert/query, bulk insert, get-or-fetch from core
+- `pending.go` — Offline-first outbox queue (send/edit/delete/react/forward), retry with backoff, crash recovery, per-chat ordering
+- `health.go` — Connection state machine (5 states), reconnect with exponential backoff + jitter, staggered startup, heartbeat monitoring
+- `auth.go` — Generic auth FSM (7 states) for all 10 platforms, per-platform advance functions, credential persistence
+- `media.go` — Priority download queue, LRU eviction, progress reporting, cache size tracking
+- `search.go` — Cross-account FTS5 search, chat title search
+- `engine_test.go` — 16 tests: DB, corruption recovery, migration idempotency, engine init, account CRUD, chat list, message cache + FTS5, pending messages, user cache, shutdown, vault persistence, events, active chat, wrong password, concurrent access
+
+Dependencies added: `modernc.org/sqlite` v1.48.2 (pure Go, CGO_ENABLED=0)
+
+AppConfig expanded with: AccentColor, FontScale, MaxCacheSize, SendReadReceipts, SendTyping, NotifyDMs, NotifyGroups, NotifyMentionsOnly
+
+All 16 tests pass. Build succeeds with CGO_ENABLED=0.
+
+**Next: Phase B** — Wire engine into protobuf bridge (define engine.proto, route `__engine` core_id, update Dart bridge)
 
 ## Detailed Progress
 

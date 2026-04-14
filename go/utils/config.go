@@ -17,23 +17,47 @@ type ProxyConfig struct {
 
 // AppConfig holds the application configuration.
 type AppConfig struct {
-	Theme        string            `json:"theme"`
-	Language     string            `json:"language"`
-	DownloadDir  string            `json:"download_dir"`
+	// Display
+	Theme       string  `json:"theme"`
+	AccentColor string  `json:"accent_color"`
+	FontScale   float64 `json:"font_scale"`
+	Language    string  `json:"language"`
+
+	// Downloads
+	DownloadDir  string `json:"download_dir"`
+	MaxCacheSize int64  `json:"max_cache_size"` // bytes, 0 = unlimited, default 1GB
+
+	// Network
 	ProxyConfig  ProxyConfig       `json:"proxy_config"`
 	DNSOverrides map[string]string `json:"dns_overrides"`
 	DNSFallback  bool              `json:"dns_fallback"`
+
+	// Privacy
+	SendReadReceipts bool `json:"send_read_receipts"`
+	SendTyping       bool `json:"send_typing"`
+
+	// Notifications
+	NotifyDMs          bool `json:"notify_dms"`
+	NotifyGroups       bool `json:"notify_groups"`
+	NotifyMentionsOnly bool `json:"notify_mentions_only"`
 }
 
 // DefaultConfig returns an AppConfig populated with sensible defaults.
 func DefaultConfig() AppConfig {
 	return AppConfig{
-		Theme:        "dark",
-		Language:     "en",
-		DownloadDir:  "",
-		ProxyConfig:  ProxyConfig{Type: "none", Host: "127.0.0.1", Port: "1080"},
-		DNSOverrides: make(map[string]string),
-		DNSFallback:  true,
+		Theme:            "dark",
+		AccentColor:      "#4f6ef7",
+		FontScale:        1.0,
+		Language:         "en",
+		DownloadDir:      "",
+		MaxCacheSize:     1 << 30, // 1GB
+		ProxyConfig:      ProxyConfig{Type: "none", Host: "127.0.0.1", Port: "1080"},
+		DNSOverrides:     make(map[string]string),
+		DNSFallback:      true,
+		SendReadReceipts: true,
+		SendTyping:       true,
+		NotifyDMs:        true,
+		NotifyGroups:     true,
 	}
 }
 

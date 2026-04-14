@@ -159,6 +159,7 @@ When the user says "add X", follow these steps in order:
 - `research/ice_protocol.md` — ZeroC Ice wire protocol for Murmur admin (encap format, identities, tested methods)
 - `research/xmpp_protocol.md` — XMPP (RFC 6120/6121 + 30+ XEPs, Jingle)
 - `research/protobuf_type_audit.md` — Pre-Step 13 audit: which method sigs are proto-compatible, fixable, or inherently untyped
+- `research/engine_architecture.md` — Engine layer spec: SQLite cache, auth FSM, events, pending queue, media pipeline, content normalization
 - `research/gui-idea.md` — UI/UX design exploration, Discord/Telegram hybrid rationale
 - `checklist/roadmap.md` — pre-GUI roadmap progress tracker (current step, core, method)
 - `checklist/gui.md` — GUI component checklist, current state of demo_ui.html
