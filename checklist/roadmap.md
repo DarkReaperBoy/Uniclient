@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 13 — Protobuf Bridge — IN PROGRESS (13.1–13.11 DONE)
+**Current Step:** Step 14 — Write /docs — DONE
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 7 — Go + Dart bridge complete, round-trip tested)
+**Last Updated:** 2026-04-14 (session 7 — Steps 13 + 14 done)
 
-**NEXT:** Step 13.6 — Dart typed wrapper codegen, then 13.12 — docs update
+**NEXT:** Step 15 — Build GUI
 
 ## Steps
 
@@ -25,8 +25,8 @@
 | 12 | Test every unified method | **DONE** |
 | 12.5 | Fix all skipped tests | **DONE** — 32 skips fixed (3 TS3 + 6 IRC + 23 Rubika) |
 | 13.0 | Type the untyped methods (~250 fixable, ~400 inherently untyped → `bytes`) | **DONE** |
-| 13 | Protobuf bridge (all 4,051 methods, codegen) | IN PROGRESS (13.1–13.11 done, Go complete, 3564 dispatched) |
-| 14 | Write /docs | NOT STARTED |
+| 13 | Protobuf bridge (all 4,051 methods, codegen) | **DONE** (3,564 dispatched, 412 skipped, 5 tests pass) |
+| 14 | Write /docs | **DONE** (README + 10 per-core docs) |
 | 15 | Build GUI | NOT STARTED |
 
 ## Detailed Progress
@@ -468,21 +468,23 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
 - [x] 13.3 — Per-core `.proto` files (10 files, ~34k lines, all ~4,051 methods) — DONE
 - [x] 13.4 — `go/bridge/convert.go` (668 lines, hand-written Go ↔ proto converters) — DONE
 - [x] 13.5 — `go/bridge/dispatch_gen.go` (28,706 lines, 3,564 dispatched, 412 skipped) — DONE (compiles clean)
-- [ ] 13.6 — Codegen: emit `dart/lib/bridge/cores/*.dart` (typed Dart wrapper classes)
+- [ ] 13.6 — Codegen: emit `dart/lib/bridge/cores/*.dart` (typed Dart wrappers) — DEFERRED to Step 15 (needs protoc-gen-dart + Flutter)
 - [x] 13.7 — `scripts/gen_proto.sh` (full pipeline: codegen → protoc → dispatch → verify) — DONE
 - [x] 13.8 — FFI layer: `go/bridge/bridge.go` (Call, RegisterCore, PushEvent, error categorization) + `go/cmd/bridge/main.go` (C exports: BridgeCallWithLen, BridgeFree, BridgeSetEventCallback) — DONE, builds to 129MB .so with 3 exported symbols
 - [x] 13.9 — `dart/lib/bridge/bridge.dart` (FFI loader, BridgeCallWithLen/Free, event stream) — DONE
 - [x] 13.10 — Verify: `go build` + `go vet` clean, c-shared builds — DONE
 - [x] 13.11 — Test: 5 round-trip tests (unknown core, invalid request, error categorization, dispatch round-trip, unknown method) — ALL PASS
-- [ ] 13.12 — Update docs (SPEC.md, roadmap.md)
+- [x] 13.12 — Update docs (SPEC.md bridge section rewritten, roadmap.md updated) — DONE
 
 **Method counts per core (4,051 total exported):**
 - Telegram: 771 | Bale: 456 | IRC: 418 | XMPP: 379
 - TeamSpeak: 296 | DeltaChat: 245 | Rubika: 242 | Matrix: 240
 - Mumble: 236 | GitHub: 768
 
-### Step 14 — Write /docs
-- [ ] Document each core as standalone Go library
+### Step 14 — Write /docs — DONE
+- [x] `docs/README.md` — overview, quick start, core comparison table, shared types, build requirements
+- [x] 10 per-core docs: telegram.md, github.md, bale.md, irc.md, xmpp.md, teamspeak.md, deltachat.md, rubika.md, matrix.md, mumble.md
+- Each doc covers: setup, auth flow, key features, capabilities, examples, dependencies
 
 ### Step 15 — Build GUI
 - [ ] Flutter GUI (see research/gui-idea.md, checklist/gui.md)
