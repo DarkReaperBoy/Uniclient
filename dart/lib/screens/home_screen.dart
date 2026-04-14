@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
+import '../utils/debug.dart';
 import '../widgets/platform_rail.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/chat_view.dart';
@@ -55,38 +56,45 @@ class HomeScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      body: Row(
-        children: [
-          // Platform rail (left edge)
-          const PlatformRail(),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 600;
+          final dividerColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
 
-          // Vertical divider
-          VerticalDivider(
-            width: 1,
-            thickness: 1,
-            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          ),
+          // Skip rendering during initial layout pass with tiny constraints.
+          if (constraints.maxWidth < AppSizes.railWidth + 2) {
+            return const SizedBox.shrink();
+          }
 
-          // Sidebar (chat list)
-          const SizedBox(
-            width: AppSizes.sidebarWidth,
-            child: Sidebar(),
-          ),
+          return Row(
+            children: [
+              // Platform rail (left edge)
+              SizedBox(
+                width: AppSizes.railWidth,
+                child: const PlatformRail(),
+              ),
 
-          // Vertical divider
-          VerticalDivider(
-            width: 1,
-            thickness: 1,
-            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-          ),
+              if (wide) ...[
+                Container(width: 1, color: dividerColor),
 
-          // Main chat area
-          Expanded(
-            child: chatState.activeChat != null
-                ? const ChatView()
-                : _buildEmptyState(context, appState),
-          ),
-        ],
+                // Sidebar (chat list)
+                SizedBox(
+                  width: (constraints.maxWidth - AppSizes.railWidth - 3).clamp(0, AppSizes.sidebarWidth).toDouble(),
+                  child: const Sidebar(),
+                ),
+              ],
+
+              Container(width: 1, color: dividerColor),
+
+              // Main chat area
+              Expanded(
+                child: chatState.activeChat != null
+                    ? const ChatView()
+                    : _buildEmptyState(context, appState),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

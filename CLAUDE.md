@@ -34,6 +34,9 @@ scripts/build_go.sh darwin    # → go/build/libcores.dylib
 scripts/build_go.sh android   # → go/build/android/*/libcores.so (needs ANDROID_NDK_HOME)
 scripts/build_go.sh web       # → go/build/cores.wasm + wasm_exec.js
 
+# Build Flutter app (requires nix develop)
+scripts/build_flutter.sh      # → dart/build/linux/x64/debug/bundle/uniclient
+
 # Shell aliases (defined in flake.nix)
 build-go                      # → scripts/build_go.sh (current platform)
 test-go                       # → cd go && go test ./...

@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../models/engine_models.dart';
 import '../screens/auth_screen.dart';
 import '../theme/theme.dart';
+import '../utils/debug.dart';
 
 /// Platform icons and their brand colors.
 const _platformMeta = <String, ({IconData icon, Color color, String label})>{
@@ -32,10 +33,9 @@ class PlatformRail extends StatelessWidget {
     return Container(
       width: AppSizes.railWidth,
       color: isDark ? AppColors.darkRail : AppColors.lightRail,
-      child: Column(
+      child: ListView(
+        padding: const EdgeInsets.only(top: 8, bottom: 12),
         children: [
-          const SizedBox(height: 8),
-
           // "All" button — shows unified chat list
           _RailIcon(
             icon: Icons.all_inclusive_rounded,
@@ -54,34 +54,25 @@ class PlatformRail extends StatelessWidget {
           ),
 
           // Platform icons
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              children: [
-                for (final platform in appState.platforms)
-                  _RailIcon(
-                    icon: _platformMeta[platform]?.icon ?? Icons.extension_rounded,
-                    color: _platformMeta[platform]?.color ?? AppColors.accent,
-                    label: _platformMeta[platform]?.label ?? platform,
-                    isActive: appState.activePlatform == platform,
-                    connState: _bestConnState(appState, platform),
-                    unreadCount: appState.unreadForPlatform(platform),
-                    onTap: () => appState.setActivePlatform(platform),
-                  ),
-              ],
+          for (final platform in appState.platforms)
+            _RailIcon(
+              icon: _platformMeta[platform]?.icon ?? Icons.extension_rounded,
+              color: _platformMeta[platform]?.color ?? AppColors.accent,
+              label: _platformMeta[platform]?.label ?? platform,
+              isActive: appState.activePlatform == platform,
+              connState: _bestConnState(appState, platform),
+              unreadCount: appState.unreadForPlatform(platform),
+              onTap: () => appState.setActivePlatform(platform),
             ),
-          ),
 
           // Add platform button
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: _RailIcon(
-              icon: Icons.add_rounded,
-              color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
-              label: 'Add',
-              isActive: false,
-              onTap: () => _showAddPlatformDialog(context),
-            ),
+          const SizedBox(height: 8),
+          _RailIcon(
+            icon: Icons.add_rounded,
+            color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
+            label: 'Add',
+            isActive: false,
+            onTap: () => _showAddPlatformDialog(context),
           ),
         ],
       ),
@@ -110,18 +101,25 @@ class PlatformRail extends StatelessWidget {
           for (final entry in _platformMeta.entries)
             SimpleDialogOption(
               onPressed: () {
+                Debug.log('UI', 'Add platform: ${entry.key}');
                 Navigator.pop(ctx);
-                final appState = context.read<AppState>();
-                final id = appState.addAccount(entry.key);
-                showDialog<void>(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (_) => AuthScreen(accountId: id, platform: entry.key),
-                ).then((_) {
-                  if (context.mounted) {
-                    appState.setActivePlatform(entry.key);
-                  }
-                });
+                try {
+                  final appState = context.read<AppState>();
+                  final id = appState.addAccount(entry.key);
+                  Debug.log('UI', 'Opening auth dialog for $id (${entry.key})');
+                  showDialog<void>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => AuthScreen(accountId: id, platform: entry.key),
+                  ).then((_) {
+                    Debug.log('UI', 'Auth dialog closed for ${entry.key}');
+                    if (context.mounted) {
+                      appState.setActivePlatform(entry.key);
+                    }
+                  });
+                } catch (e, stack) {
+                  Debug.error('UI', 'Add platform failed', e, stack);
+                }
               },
               child: Row(
                 children: [

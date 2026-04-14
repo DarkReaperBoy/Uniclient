@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../utils/debug.dart';
 
 /// Top-level app state: accounts, connection, config, active platform.
 class AppState extends ChangeNotifier {
@@ -85,12 +86,14 @@ class AppState extends ChangeNotifier {
       _accounts = _engine.listAccounts();
       _config = _engine.getConfig();
       _initialized = true;
+      Debug.log('APP', 'Engine initialized, ${_accounts.length} accounts');
       notifyListeners();
 
-      // Connect all accounts.
+      // Connect all accounts (async — don't block init).
       _engine.connectAllAccounts();
-    } catch (e) {
+    } catch (e, stack) {
       _initError = e.toString();
+      Debug.error('APP', 'Engine init failed', e, stack);
       notifyListeners();
     }
   }
@@ -101,10 +104,17 @@ class AppState extends ChangeNotifier {
   }
 
   String addAccount(String platform) {
-    final id = _engine.addAccount(platform);
-    _accounts = _engine.listAccounts();
-    notifyListeners();
-    return id;
+    Debug.log('APP', 'Adding account: $platform');
+    try {
+      final id = _engine.addAccount(platform);
+      _accounts = _engine.listAccounts();
+      Debug.log('APP', 'Account added: $platform → $id (${_accounts.length} total)');
+      notifyListeners();
+      return id;
+    } catch (e, stack) {
+      Debug.error('APP', 'addAccount($platform) failed', e, stack);
+      rethrow;
+    }
   }
 
   void removeAccount(String accountId) {

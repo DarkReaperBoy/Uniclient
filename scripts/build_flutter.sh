@@ -52,6 +52,14 @@ case "$PLATFORM" in
       PATCHED_SDK="$ENGINE_DIR/common/flutter_patched_sdk_product/"
     fi
 
+    # Use Flutter's asset bundler for proper font/asset manifests
+    cd "$DART_DIR"
+    CI=true FLUTTER_SUPPRESS_ANALYTICS=true "$FLUTTER_SDK/bin/flutter" build bundle \
+      --debug --target lib/main.dart \
+      --asset-dir "$BUILD_DIR/flutter_assets" 2>&1 | tail -3
+    cd - >/dev/null
+
+    # Compile Dart with Flutter's frontend_server (overwrite the kernel_blob from bundle)
     "$DARTAOT" "$ENGINE_DIR/$ENGINE_VARIANT/frontend_server_aot.dart.snapshot" \
       --sdk-root "$PATCHED_SDK" \
       --target=flutter \
@@ -64,12 +72,6 @@ case "$PLATFORM" in
     chmod u+w "$BUILD_DIR/flutter_assets/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/isolate_snapshot.bin" 2>/dev/null || true
     cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
     cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
-
-    # Create minimal asset manifests
-    echo '{"fonts":[],"assets":[],"packages":[]}' > "$BUILD_DIR/flutter_assets/AssetManifest.json"
-    echo '{}' > "$BUILD_DIR/flutter_assets/AssetManifest.bin"
-    echo '{}' > "$BUILD_DIR/flutter_assets/FontManifest.json"
-    echo "NOTICES" > "$BUILD_DIR/flutter_assets/NOTICES.Z"
     echo "  Dart compilation done."
 
     echo ""
@@ -122,6 +124,15 @@ case "$PLATFORM" in
       cmake '$DART_DIR/linux' -DCMAKE_BUILD_TYPE=Debug -G Ninja 2>&1 | tail -3 &&
       ninja install 2>&1
     " 2>/dev/null
+
+    # Copy Go shared library into bundle
+    GO_LIB="$(cd "$(dirname "$0")/../go/build" && pwd)/libcores.so"
+    if [[ -f "$GO_LIB" ]]; then
+      cp -f "$GO_LIB" "$BUILD_DIR/bundle/lib/libcores.so"
+      echo "  Copied libcores.so into bundle."
+    else
+      echo "  WARNING: libcores.so not found at $GO_LIB — run scripts/build_go.sh first"
+    fi
 
     echo ""
     echo "=== Build complete ==="

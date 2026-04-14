@@ -41,6 +41,8 @@ class BridgeImpl {
     return jsResp.toDart;
   }
 
+  Future<Uint8List> callAsync(Uint8List requestBytes) async => call(requestBytes);
+
   void dispose() {
     if (!_initialized) return;
     _jsBridgeSetEventCallback(null);

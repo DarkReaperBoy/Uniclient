@@ -109,7 +109,9 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		return proto.Marshal(authStateToProto(state))
+		return proto.Marshal(&pb.EngineStartAuthResponse{
+			State: authStateToProto(state),
+		})
 
 	case "SubmitAuthInput":
 		var req pb.EngineSubmitAuthInputRequest

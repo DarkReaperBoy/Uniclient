@@ -87,37 +87,40 @@ class ChatState extends ChangeNotifier {
   }
 
   /// Send a message in the active chat.
-  String? sendMessage(String text, {String replyToId = ''}) {
+  Future<String?> sendMessage(String text, {String replyToId = ''}) async {
     final chat = _activeChat;
     if (chat == null || text.trim().isEmpty) return null;
 
-    final localId = _engine.sendMessage(chat.accountId, chat.chatId, text, replyToId: replyToId);
+    // Generate temporary local ID for optimistic insert.
+    final tempId = 'pending_${DateTime.now().millisecondsSinceEpoch}';
 
     // Optimistic insert.
     _messages.insert(0, CachedMessage(
       accountId: chat.accountId,
       chatId: chat.chatId,
-      msgId: localId,
-      localId: localId,
+      msgId: tempId,
+      localId: tempId,
       contentText: text,
       timestamp: DateTime.now().millisecondsSinceEpoch,
       status: MsgStatus.sending,
       replyToId: replyToId,
     ));
     notifyListeners();
+
+    final localId = await _engine.sendMessage(chat.accountId, chat.chatId, text, replyToId: replyToId);
     return localId;
   }
 
-  void editMessage(String msgId, String newText) {
+  Future<void> editMessage(String msgId, String newText) async {
     final chat = _activeChat;
     if (chat == null) return;
-    _engine.editMessage(chat.accountId, chat.chatId, msgId, newText);
+    await _engine.editMessage(chat.accountId, chat.chatId, msgId, newText);
   }
 
-  void deleteMessage(String msgId) {
+  Future<void> deleteMessage(String msgId) async {
     final chat = _activeChat;
     if (chat == null) return;
-    _engine.deleteMessage(chat.accountId, chat.chatId, msgId);
+    await _engine.deleteMessage(chat.accountId, chat.chatId, msgId);
   }
 
   void retryPending(String localId) {

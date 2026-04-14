@@ -1,5 +1,6 @@
 import 'dart:io' show Directory, Platform;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,9 +10,24 @@ import 'state/chat_state.dart';
 import 'state/auth_state.dart';
 import 'screens/home_screen.dart';
 import 'theme/theme.dart';
+import 'utils/debug.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Catch all Flutter framework errors and print to stderr.
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    Debug.error('FLUTTER', details.exceptionAsString(),
+      details.exception, details.stack);
+  };
+
+  // Catch uncaught async errors.
+  PlatformDispatcher.instance.onError = (error, stack) {
+    Debug.error('ASYNC', error.toString(), error, stack);
+    return true;
+  };
+
   final engineService = EngineService();
 
   runApp(

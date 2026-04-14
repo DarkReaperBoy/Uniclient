@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — Phase D (account flow wiring) — IN PROGRESS
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 12 — Phase D: add account → auth → connect flow wired)
+**Last Updated:** 2026-04-14 (session 13 — Phase D: async bridge, automated tests, layout/proto fixes)
 
-**NEXT:** Phase D cont. — Build + test add account flow end-to-end with live backend
+**NEXT:** Phase D cont. — Fix remaining auth flow issues (Telegram needs API ID/hash), test all 10 platform auth flows via automated tests
 
 ## Steps
 
@@ -109,7 +109,7 @@ Dart analyze: 0 issues (17 files). `pub get` resolved 31 dependencies.
 
 Wired the end-to-end flow: Add button → platform picker → auth dialog → connect account → chat list.
 
-Changes:
+Session 12 changes:
 - `platform_rail.dart` — After `addAccount()`, opens `AuthScreen` dialog; on close, sets active platform
 - `auth_screen.dart` — "Continue" button on auth success calls `connectAccount()` before closing
 - `sidebar.dart` — Settings button wired to push `SettingsScreen`
@@ -117,8 +117,21 @@ Changes:
 - `app_state.dart` — `addAccount` changed from `Future<String>` to synchronous `String`
 - `auth_state.dart` — `startAuth` wrapped in try-catch, shows error state on failure
 - `home_screen.dart` — Loading spinner during engine init, error state on init failure, context-aware empty state ("Add a platform" vs "Select a chat")
+- `go/bridge/bridge.go` — Added core factory registration in `InitEngine()` for all 10 platforms
+- `scripts/build_flutter.sh` — Auto-copies `libcores.so` into bundle; `chmod u+w` for nix store files
+- `dart/utils/debug.dart` — Global debug logger (stderr), togglable from settings
+- Fonts: Downloaded Inter .ttf files; build script uses `flutter build bundle` for proper asset manifests
 
-**Next:** Build + test the full flow with live Go backend
+Session 13 changes:
+- **Async bridge** — `bridge_ffi.dart` now has `callAsync()` using `Isolate.run` to avoid UI freeze on blocking Go FFI calls. Network-hitting ops (auth, connect, send, edit, delete, download) use async path; local ops stay sync.
+- **NativeCallable.listener** — Event callback uses `NativeCallable.listener` instead of `Pointer.fromFunction` so Go goroutines can safely push events to the Dart isolate without "Cannot invoke native callback outside an isolate" crashes.
+- **Layout overflow fix** — LayoutBuilder's first pass gives `maxWidth=1.0`; added guard to return `SizedBox.shrink()` when constraints are too small. Replaced `VerticalDivider` (hidden Material 3 sizing) with `Container(width: 1)`.
+- **Protobuf fix** — Go `StartAuth` was returning raw `EngineAuthState` instead of `EngineStartAuthResponse` wrapper. Fixed in `dispatch_engine.go`.
+- **Automated tests** — `dart/test/bridge_test.dart` (14 tests): FFI load, engine init, add/remove accounts, multi-platform add, config get/set, cache, search, auth flow multi-step (IRC, Matrix, Telegram). `dart/test/widget_test.dart` (2 tests): loading state, multi-size rendering. All run via `flutter test` (no user interaction needed).
+
+**Testing approach:** Claude runs `flutter test` autonomously — no GUI interaction needed. Bridge tests exercise the full FFI → Go → Engine path. Widget tests verify rendering. Both run headlessly.
+
+**Next:** Fix remaining auth flow issues, expand automated test coverage
 
 ## Detailed Progress
 

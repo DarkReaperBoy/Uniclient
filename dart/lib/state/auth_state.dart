@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../utils/debug.dart';
 
 /// Auth flow state — tracks in-progress authentication for accounts.
 class AuthState extends ChangeNotifier {
@@ -45,12 +46,15 @@ class AuthState extends ChangeNotifier {
   // ── Actions ──
 
   /// Start auth flow for an account.
-  void startAuth(String accountId) {
+  Future<void> startAuth(String accountId) async {
+    Debug.log('AUTH', 'startAuth($accountId)');
     _error = null;
     _submitting = false;
+    notifyListeners();
     try {
-      _currentAuth = _engine.startAuth(accountId);
-    } catch (e) {
+      _currentAuth = await _engine.startAuth(accountId);
+      Debug.log('AUTH', 'startAuth → state=${_currentAuth?.state} label=${_currentAuth?.label}');
+    } catch (e, stack) {
       _error = e.toString();
       _currentAuth = AuthStateData(
         accountId: accountId,
@@ -58,26 +62,30 @@ class AuthState extends ChangeNotifier {
         error: e.toString(),
         recoverable: true,
       );
+      Debug.error('AUTH', 'startAuth($accountId) failed', e, stack);
     }
     notifyListeners();
   }
 
   /// Submit user input (phone number, password, OTP, etc.).
-  void submitInput(String input) {
+  Future<void> submitInput(String input) async {
     final auth = _currentAuth;
     if (auth == null) return;
 
+    Debug.log('AUTH', 'submitInput(${input.length > 20 ? '${input.substring(0, 20)}...' : input}) for ${auth.accountId}');
     _submitting = true;
     _error = null;
     notifyListeners();
 
     try {
-      final result = _engine.submitAuthInput(auth.accountId, input);
+      final result = await _engine.submitAuthInput(auth.accountId, input);
       _currentAuth = result;
       _submitting = false;
-    } catch (e) {
+      Debug.log('AUTH', 'submitInput → state=${result?.state} label=${result?.label}');
+    } catch (e, stack) {
       _error = e.toString();
       _submitting = false;
+      Debug.error('AUTH', 'submitInput failed', e, stack);
     }
     notifyListeners();
   }
@@ -105,6 +113,7 @@ class AuthState extends ChangeNotifier {
   // ── Internal ──
 
   void _handleAuthEvent(AuthStateEvent event) {
+    Debug.log('AUTH', 'event: account=${event.accountId} state=${event.state} error=${event.error}');
     if (_currentAuth == null || _currentAuth!.accountId != event.accountId) return;
 
     _currentAuth = AuthStateData(

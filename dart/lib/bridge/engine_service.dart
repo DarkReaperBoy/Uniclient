@@ -8,6 +8,7 @@ import 'bridge.dart';
 import '../models/engine_models.dart';
 import '../proto/models.pb.dart' as pb;
 import '../proto/engine.pb.dart' as epb;
+import '../utils/debug.dart';
 
 /// High-level wrapper around the FFI bridge for engine operations.
 ///
@@ -101,34 +102,34 @@ class EngineService {
     _callRaw('__engine', 'ReorderAccounts', req.writeToBuffer());
   }
 
-  void connectAccount(String accountId) {
+  Future<void> connectAccount(String accountId) async {
     final req = epb.EngineConnectAccountRequest()..accountId = accountId;
-    _callRaw('__engine', 'ConnectAccount', req.writeToBuffer());
+    await _callAsync('__engine', 'ConnectAccount', req.writeToBuffer());
   }
 
-  void connectAllAccounts() {
-    _callRaw('__engine', 'ConnectAllAccounts', Uint8List(0));
+  Future<void> connectAllAccounts() async {
+    await _callAsync('__engine', 'ConnectAllAccounts', Uint8List(0));
   }
 
-  void disconnectAccount(String accountId) {
+  Future<void> disconnectAccount(String accountId) async {
     final req = epb.EngineDisconnectAccountRequest()..accountId = accountId;
-    _callRaw('__engine', 'DisconnectAccount', req.writeToBuffer());
+    await _callAsync('__engine', 'DisconnectAccount', req.writeToBuffer());
   }
 
   // ── Auth flow ──
 
-  AuthStateData? startAuth(String accountId) {
+  Future<AuthStateData?> startAuth(String accountId) async {
     final req = epb.EngineStartAuthRequest()..accountId = accountId;
-    final respBytes = _callRaw('__engine', 'StartAuth', req.writeToBuffer());
+    final respBytes = await _callAsync('__engine', 'StartAuth', req.writeToBuffer());
     final resp = epb.EngineStartAuthResponse.fromBuffer(respBytes);
     return resp.hasState() ? _authStateFromProto(resp.state) : null;
   }
 
-  AuthStateData? submitAuthInput(String accountId, String input) {
+  Future<AuthStateData?> submitAuthInput(String accountId, String input) async {
     final req = epb.EngineSubmitAuthInputRequest()
       ..accountId = accountId
       ..input = input;
-    final respBytes = _callRaw('__engine', 'SubmitAuthInput', req.writeToBuffer());
+    final respBytes = await _callAsync('__engine', 'SubmitAuthInput', req.writeToBuffer());
     final resp = epb.EngineSubmitAuthInputResponse.fromBuffer(respBytes);
     return resp.hasState() ? _authStateFromProto(resp.state) : null;
   }
@@ -204,32 +205,32 @@ class EngineService {
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
-  String sendMessage(String accountId, String chatId, String text, {String replyToId = ''}) {
+  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = ''}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..text = text
       ..replyToId = replyToId;
-    final respBytes = _callRaw('__engine', 'SendMessage', req.writeToBuffer());
+    final respBytes = await _callAsync('__engine', 'SendMessage', req.writeToBuffer());
     final resp = epb.EngineSendMessageResponse.fromBuffer(respBytes);
     return resp.localId;
   }
 
-  void editMessage(String accountId, String chatId, String msgId, String newText) {
+  Future<void> editMessage(String accountId, String chatId, String msgId, String newText) async {
     final req = epb.EngineEditMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..msgId = msgId
       ..newText = newText;
-    _callRaw('__engine', 'EditMessage', req.writeToBuffer());
+    await _callAsync('__engine', 'EditMessage', req.writeToBuffer());
   }
 
-  void deleteMessage(String accountId, String chatId, String msgId) {
+  Future<void> deleteMessage(String accountId, String chatId, String msgId) async {
     final req = epb.EngineDeleteMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..msgId = msgId;
-    _callRaw('__engine', 'DeleteMessage', req.writeToBuffer());
+    await _callAsync('__engine', 'DeleteMessage', req.writeToBuffer());
   }
 
   void retryPending(String localId) {
@@ -273,14 +274,14 @@ class EngineService {
 
   // ── Media ──
 
-  void requestDownload(String accountId, String chatId, String msgId, {int seq = 0, int priority = 2}) {
+  Future<void> requestDownload(String accountId, String chatId, String msgId, {int seq = 0, int priority = 2}) async {
     final req = epb.EngineRequestDownloadRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..msgId = msgId
       ..seq = seq
       ..priority = priority;
-    _callRaw('__engine', 'RequestDownload', req.writeToBuffer());
+    await _callAsync('__engine', 'RequestDownload', req.writeToBuffer());
   }
 
   void cancelDownload(String accountId, String chatId, String msgId, {int seq = 0}) {
@@ -359,24 +360,65 @@ class EngineService {
 
   // ── Internal ──
 
-  /// Call a bridge method. Returns the response payload bytes.
+  /// Synchronous bridge call — for fast local ops only.
   Uint8List _callRaw(String coreId, String method, Uint8List payload) {
+    Debug.log('ENGINE', '→ $coreId.$method (${payload.length}B)');
     final req = pb.BridgeRequest()
       ..coreId = coreId
       ..method = method
       ..payload = payload;
 
-    final respBytes = _bridge.call(Uint8List.fromList(req.writeToBuffer()));
-    if (respBytes.isEmpty) return Uint8List(0);
+    try {
+      final respBytes = _bridge.call(Uint8List.fromList(req.writeToBuffer()));
+      if (respBytes.isEmpty) {
+        Debug.log('ENGINE', '← $coreId.$method = empty');
+        return Uint8List(0);
+      }
 
-    final resp = pb.BridgeResponse.fromBuffer(respBytes);
-    if (!resp.ok) {
-      throw EngineException(
-        resp.error.isNotEmpty ? resp.error : 'unknown error',
-        code: resp.errorCode,
-      );
+      final resp = pb.BridgeResponse.fromBuffer(respBytes);
+      if (!resp.ok) {
+        final err = resp.error.isNotEmpty ? resp.error : 'unknown error';
+        Debug.error('ENGINE', '← $coreId.$method FAILED: $err (code=${resp.errorCode})');
+        throw EngineException(err, code: resp.errorCode);
+      }
+      Debug.log('ENGINE', '← $coreId.$method OK (${resp.payload.length}B)');
+      return Uint8List.fromList(resp.payload);
+    } catch (e, stack) {
+      if (e is EngineException) rethrow;
+      Debug.error('ENGINE', '$coreId.$method crashed', e, stack);
+      rethrow;
     }
-    return Uint8List.fromList(resp.payload);
+  }
+
+  /// Async bridge call — runs on background isolate to avoid UI freeze.
+  /// Use for any operation that may hit the network.
+  Future<Uint8List> _callAsync(String coreId, String method, Uint8List payload) async {
+    Debug.log('ENGINE', '→ $coreId.$method (${payload.length}B) [async]');
+    final req = pb.BridgeRequest()
+      ..coreId = coreId
+      ..method = method
+      ..payload = payload;
+
+    try {
+      final respBytes = await _bridge.callAsync(Uint8List.fromList(req.writeToBuffer()));
+      if (respBytes.isEmpty) {
+        Debug.log('ENGINE', '← $coreId.$method = empty');
+        return Uint8List(0);
+      }
+
+      final resp = pb.BridgeResponse.fromBuffer(respBytes);
+      if (!resp.ok) {
+        final err = resp.error.isNotEmpty ? resp.error : 'unknown error';
+        Debug.error('ENGINE', '← $coreId.$method FAILED: $err (code=${resp.errorCode})');
+        throw EngineException(err, code: resp.errorCode);
+      }
+      Debug.log('ENGINE', '← $coreId.$method OK (${resp.payload.length}B)');
+      return Uint8List.fromList(resp.payload);
+    } catch (e, stack) {
+      if (e is EngineException) rethrow;
+      Debug.error('ENGINE', '$coreId.$method crashed', e, stack);
+      rethrow;
+    }
   }
 
   /// Handle raw BridgeEvent bytes from Go.
@@ -398,6 +440,7 @@ class EngineService {
   void _dispatchEngineEvent(Map<String, dynamic> event) {
     final type = event['type'] as String? ?? '';
     final data = event['data'];
+    Debug.log('EVENT', 'type=$type accountId=${event['account_id'] ?? ''}');
 
     switch (type) {
       case 'auth_state':

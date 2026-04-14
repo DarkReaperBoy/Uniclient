@@ -6,10 +6,12 @@
 package bridge
 
 import (
+	"fmt"
 	"sync"
 
 	"google.golang.org/protobuf/proto"
 
+	"uniclient/cores"
 	"uniclient/engine"
 	pb "uniclient/proto"
 )
@@ -113,6 +115,35 @@ func Call(reqData []byte) []byte {
 // InitEngine initializes the engine and wires its event callback into the bridge.
 // Call this from the FFI Init handler before any other engine operations.
 func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
+	// Register core factory so the engine can create platform instances.
+	engine.SetCoreFactory(func(platform string) (cores.Core, error) {
+		sessionDir := configDir + "/sessions/" + platform
+		switch platform {
+		case "telegram":
+			return cores.NewTelegramCore(cores.TelegramConfig{}), nil
+		case "bale":
+			return cores.NewBaleCore(sessionDir), nil
+		case "matrix":
+			return cores.NewMatrixCore(sessionDir), nil
+		case "irc":
+			return cores.NewIRCCore(sessionDir), nil
+		case "xmpp":
+			return cores.NewXMPPCore(sessionDir), nil
+		case "github":
+			return cores.NewGitHubCore(sessionDir), nil
+		case "rubika":
+			return cores.NewRubikaCore(sessionDir), nil
+		case "deltachat":
+			return cores.NewDeltaChatCore(sessionDir), nil
+		case "teamspeak":
+			return cores.NewTeamSpeakCore(sessionDir), nil
+		case "mumble":
+			return &cores.MumbleCore{}, nil
+		default:
+			return nil, fmt.Errorf("unknown platform: %s", platform)
+		}
+	})
+
 	eng, err := engine.Init(configDir, cacheDir, downloadDir, vaultPassword)
 	if err != nil {
 		return err

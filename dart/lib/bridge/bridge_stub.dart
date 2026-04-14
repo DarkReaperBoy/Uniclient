@@ -17,5 +17,9 @@ class BridgeImpl {
     throw UnsupportedError('No bridge implementation available for this platform');
   }
 
+  Future<Uint8List> callAsync(Uint8List requestBytes) {
+    throw UnsupportedError('No bridge implementation available for this platform');
+  }
+
   void dispose() {}
 }

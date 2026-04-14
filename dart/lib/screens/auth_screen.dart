@@ -316,10 +316,12 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         const SizedBox(height: 20),
         ElevatedButton(
-          onPressed: () {
+          onPressed: () async {
             context.read<EngineService>().connectAccount(widget.accountId);
-            context.read<AuthState>().clear();
-            Navigator.pop(context);
+            if (context.mounted) {
+              context.read<AuthState>().clear();
+              Navigator.pop(context);
+            }
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.accent,

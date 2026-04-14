@@ -6,6 +6,7 @@ import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import 'auth_screen.dart';
 import '../theme/theme.dart';
+import '../utils/debug.dart';
 
 /// Settings screen — theme, notifications, cache, account management.
 class SettingsScreen extends StatelessWidget {
@@ -135,6 +136,12 @@ class SettingsScreen extends StatelessWidget {
                 splashRadius: 18,
               ),
             ),
+
+          const SizedBox(height: 16),
+
+          // ── Developer ──
+          const _SectionTitle(title: 'Developer'),
+          _DebugToggle(),
 
           const SizedBox(height: 32),
 
@@ -302,6 +309,33 @@ class _SettingSwitch extends StatelessWidget {
       title: Text(title, style: const TextStyle(fontSize: 14)),
       value: value,
       onChanged: onChanged,
+      dense: true,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      activeThumbColor: AppColors.accent,
+    );
+  }
+}
+
+class _DebugToggle extends StatefulWidget {
+  @override
+  State<_DebugToggle> createState() => _DebugToggleState();
+}
+
+class _DebugToggleState extends State<_DebugToggle> {
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      secondary: const Icon(Icons.bug_report, size: 22),
+      title: const Text('Debug mode', style: TextStyle(fontSize: 14)),
+      subtitle: Text(
+        Debug.enabled ? 'Logging to terminal' : 'Off',
+        style: const TextStyle(fontSize: 12),
+      ),
+      value: Debug.enabled,
+      onChanged: (v) {
+        setState(() => Debug.enabled = v);
+        Debug.log('DEBUG', 'Debug mode ${v ? 'ENABLED' : 'DISABLED'}');
+      },
       dense: true,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       activeThumbColor: AppColors.accent,
