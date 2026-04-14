@@ -210,6 +210,42 @@ func (e *Engine) UpdateConfig(changes *utils.AppConfig) error {
 	return utils.SaveConfig(cfgPath, e.config)
 }
 
+// ConfigChanges holds partial config updates from the bridge layer.
+// Zero values are treated as "no change" (except MaxCacheSize where 0 means unlimited).
+type ConfigChanges struct {
+	Theme        string
+	AccentColor  string
+	FontScale    float64
+	Language     string
+	MaxCacheSize int64
+}
+
+// UpdateConfigFromBridge applies partial config changes from the bridge layer.
+func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if changes.Theme != "" {
+		e.config.Theme = changes.Theme
+	}
+	if changes.AccentColor != "" {
+		e.config.AccentColor = changes.AccentColor
+	}
+	if changes.FontScale != 0 {
+		e.config.FontScale = changes.FontScale
+	}
+	if changes.Language != "" {
+		e.config.Language = changes.Language
+	}
+	if changes.MaxCacheSize > 0 {
+		e.config.MaxCacheSize = changes.MaxCacheSize
+		e.maxCache = changes.MaxCacheSize
+	}
+
+	cfgPath := filepath.Join(e.configDir, "config.json")
+	return utils.SaveConfig(cfgPath, e.config)
+}
+
 // Shutdown gracefully shuts down the engine: stops accepting operations,
 // flushes pending writes, closes all cores, saves vault, closes DB.
 func (e *Engine) Shutdown() error {

@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — Phase A (Engine Foundation) — DONE
+**Current Step:** Step 15 — Build GUI — Phase C (Flutter UI) — IN PROGRESS
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 10 — Engine layer built: 10 files, 16 tests pass)
+**Last Updated:** 2026-04-14 (session 10 — Phase B done, Phase C scaffolding started)
 
-**NEXT:** Step 15 Phase B — Bridge Integration (wire engine into protobuf bridge)
+**NEXT:** Phase C cont. — Auth flow screen, settings screen, linux/ runner, first desktop build
 
 ## Steps
 
@@ -56,7 +56,44 @@ AppConfig expanded with: AccentColor, FontScale, MaxCacheSize, SendReadReceipts,
 
 All 16 tests pass. Build succeeds with CGO_ENABLED=0.
 
-**Next: Phase B** — Wire engine into protobuf bridge (define engine.proto, route `__engine` core_id, update Dart bridge)
+### Phase B — Bridge Integration — DONE
+
+Wired the engine layer into the existing protobuf bridge:
+
+- `proto/engine.proto` — ~45 message types: EngineEvent, AccountInfo, EngineAuthState, EngineChatInfo, EngineCachedMessage, EngineSearchResult, Init/config/media/search request/response types
+- `go/proto/engine.pb.go` — generated (3,477 lines)
+- `go/bridge/dispatch_engine.go` — 30+ method cases routing `__engine` calls to Engine, proto converters (authStateToProto, chatInfoToProto, cachedMsgToProto), Init handling
+- `go/bridge/bridge.go` — Call() intercepts `core_id == "__engine"` before registry lookup, `InitEngine()` wires engine events through BridgeEvent{CoreId: "__engine", EngineEvent: jsonBytes}
+- `proto/models.proto` — BridgeEvent extended with `bytes engine_event = 3` for engine event passthrough
+- `go/engine/engine.go` — Added `ConfigChanges` struct + `UpdateConfigFromBridge` method
+
+Build passes: `CGO_ENABLED=0 go build -tags goolm ./...`
+All 21 tests pass (16 engine + 5 bridge).
+
+### Phase C — Flutter UI — IN PROGRESS (scaffolding done)
+
+Flutter app scaffolded, analyzed, zero issues:
+
+- `dart/pubspec.yaml` — Flutter 3.41.5, deps: ffi, protobuf, provider, collection
+- `dart/lib/main.dart` — App entry, MultiProvider setup (AppState, ChatState, AuthState, EngineService)
+- `dart/lib/theme/theme.dart` — Dark/light themes matching demo_ui.html (charcoal #101318, accent #4f6ef7, Inter font), AppColors + AppSizes constants
+- `dart/lib/bridge/engine_service.dart` — Typed Dart wrapper over FFI bridge: all engine methods (accounts, auth, chat, messages, search, media, config), 13 typed event streams, JSON event dispatch
+- `dart/lib/models/engine_models.dart` — Full model layer: AccountInfo, AuthStateData, ChatInfo, CachedMessage, SearchResult, AppConfig, 8 event types, ChatType/MsgStatus/ConnState enums
+- `dart/lib/state/app_state.dart` — Account list, connection states, platform filter, config, theme mode
+- `dart/lib/state/chat_state.dart` — Chat list, active chat, message list with pagination, optimistic sends, real-time event handlers (received/edited/deleted/status/typing)
+- `dart/lib/state/auth_state.dart` — Auth flow FSM tracking, submit/cancel, event-driven state updates
+- `dart/lib/screens/home_screen.dart` — 3-column layout: PlatformRail + Sidebar + ChatView
+- `dart/lib/widgets/platform_rail.dart` — 10 platform icons with brand colors, active/hover animation, conn status dots, unread badges, add platform dialog
+- `dart/lib/widgets/sidebar.dart` — Chat list with search, pinned/regular sections, chat items (avatar, preview, time, unread, typing, draft, mute/pin indicators), user panel
+- `dart/lib/widgets/chat_view.dart` — Chat header (call/search/more buttons), message list with date separators, message bubbles (sent/received styling, reply preview, edit/status indicators, sender colors), message input with attach/emoji/send, channel read-only notice
+
+- `dart/lib/screens/auth_screen.dart` — Full auth flow dialog: 7 states (choose/input/otp/2fa/qr/ready/error), code entry with auto-sizing, 2FA recovery, QR placeholder, error retry
+- `dart/lib/screens/settings_screen.dart` — Settings: theme picker, font scale, privacy toggles, notification toggles, cache management, account list with remove
+- `dart/linux/` — Linux desktop runner: CMakeLists.txt, main.cc, my_application.cc/h, flutter/ managed files
+
+Dart analyze: 0 issues (14 files). `pub get` resolved 31 dependencies.
+
+**Next:** Phase C cont. — First desktop build (`flutter build linux`), integration test with Go backend
 
 ## Detailed Progress
 

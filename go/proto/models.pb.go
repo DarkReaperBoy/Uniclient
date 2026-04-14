@@ -1934,7 +1934,8 @@ func (x *BridgeResponse) GetPayload() []byte {
 type BridgeEvent struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CoreId        string                 `protobuf:"bytes,1,opt,name=core_id,json=coreId,proto3" json:"core_id,omitempty"`
-	Update        *Update                `protobuf:"bytes,2,opt,name=update,proto3" json:"update,omitempty"`
+	Update        *Update                `protobuf:"bytes,2,opt,name=update,proto3" json:"update,omitempty"`                              // core events (core_id != "__engine")
+	EngineEvent   []byte                 `protobuf:"bytes,3,opt,name=engine_event,json=engineEvent,proto3" json:"engine_event,omitempty"` // engine events (core_id == "__engine"), JSON-encoded EngineEvent
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1979,6 +1980,13 @@ func (x *BridgeEvent) GetCoreId() string {
 func (x *BridgeEvent) GetUpdate() *Update {
 	if x != nil {
 		return x.Update
+	}
+	return nil
+}
+
+func (x *BridgeEvent) GetEngineEvent() []byte {
+	if x != nil {
+		return x.EngineEvent
 	}
 	return nil
 }
@@ -2162,10 +2170,11 @@ const file_proto_models_proto_rawDesc = "" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x1d\n" +
 	"\n" +
 	"error_code\x18\x03 \x01(\tR\terrorCode\x12\x18\n" +
-	"\apayload\x18\x04 \x01(\fR\apayload\"Q\n" +
+	"\apayload\x18\x04 \x01(\fR\apayload\"t\n" +
 	"\vBridgeEvent\x12\x17\n" +
 	"\acore_id\x18\x01 \x01(\tR\x06coreId\x12)\n" +
-	"\x06update\x18\x02 \x01(\v2\x11.uniclient.UpdateR\x06update*x\n" +
+	"\x06update\x18\x02 \x01(\v2\x11.uniclient.UpdateR\x06update\x12!\n" +
+	"\fengine_event\x18\x03 \x01(\fR\vengineEvent*x\n" +
 	"\bChatType\x12\x19\n" +
 	"\x15CHAT_TYPE_UNSPECIFIED\x10\x00\x12\x10\n" +
 	"\fCHAT_TYPE_DM\x10\x01\x12\x13\n" +

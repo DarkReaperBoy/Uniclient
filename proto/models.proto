@@ -240,6 +240,7 @@ message BridgeResponse {
 
 // Event from Go → Dart (async updates)
 message BridgeEvent {
-  string core_id = 1;
-  Update update  = 2;
+  string core_id      = 1;
+  Update update       = 2; // core events (core_id != "__engine")
+  bytes  engine_event = 3; // engine events (core_id == "__engine"), JSON-encoded EngineEvent
 }

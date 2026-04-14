@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"uniclient/engine"
 	pb "uniclient/proto"
 )
 
@@ -75,6 +76,20 @@ func Call(reqData []byte) []byte {
 		return marshalError("invalid request: " + err.Error())
 	}
 
+	// Engine dispatch — core_id "__engine" routes to the engine layer.
+	if req.CoreId == "__engine" {
+		respPayload, err := dispatchEngine(req.Method, req.Payload)
+		if err != nil {
+			return marshalErrorCategorized(err)
+		}
+		resp := &pb.BridgeResponse{
+			Ok:      true,
+			Payload: respPayload,
+		}
+		data, _ := proto.Marshal(resp)
+		return data
+	}
+
 	mu.RLock()
 	entry, ok := registry[req.CoreId]
 	mu.RUnlock()
@@ -93,6 +108,28 @@ func Call(reqData []byte) []byte {
 	}
 	data, _ := proto.Marshal(resp)
 	return data
+}
+
+// InitEngine initializes the engine and wires its event callback into the bridge.
+// Call this from the FFI Init handler before any other engine operations.
+func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
+	eng, err := engine.Init(configDir, cacheDir, downloadDir, vaultPassword)
+	if err != nil {
+		return err
+	}
+	SetEngine(eng)
+
+	// Wire engine events through the bridge event system.
+	// Engine emits JSON-encoded EngineEvent bytes; we wrap them in BridgeEvent.
+	eng.SetEventCallback(func(data []byte) {
+		event := &pb.BridgeEvent{
+			CoreId:      "__engine",
+			EngineEvent: data,
+		}
+		PushEvent(event)
+	})
+
+	return nil
 }
 
 // marshalError returns a serialized BridgeResponse with the given error message.
