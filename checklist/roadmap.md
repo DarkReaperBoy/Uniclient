@@ -1,9 +1,9 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 10 — Fresh Checklists + Optimize Every Core + Retest Modified
-**Current Core:** All 10 optimized, need retest
+**Current Step:** Step 11 — Unify Every Core
+**Current Core:** Not started
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 4 — 10.1 checklists + 10.2 all optimizations DONE)
+**Last Updated:** 2026-04-14 (session 4 — Step 10 COMPLETE)
 
 ## Steps
 
@@ -18,8 +18,8 @@
 | 7 | Complete Telegram & Matrix method coverage | **DONE** |
 | 8 | Fresh checklists + deduplicate + implement missing + optimize | **DONE** |
 | 9 | Test every core (official harnesses, multi-account) | **DONE** — 10/10 cores, 0 failures |
-| 10 | Fresh checklists + optimize every core + retest modified | **IN PROGRESS** |
-| 11 | Unify every core (identical behavior for shared ops) | NOT STARTED |
+| 10 | Fresh checklists + optimize every core + retest modified | **DONE** |
+| 11 | Unify every core (identical behavior for shared ops) | **IN PROGRESS** |
 | 12 | Test every unified method | NOT STARTED |
 | 13 | Protobuf bridge | NOT STARTED |
 | 14 | Write /docs | NOT STARTED |
@@ -303,9 +303,9 @@ Completed cores:
 - [x] Delete all existing per-core checklists — DONE
 - [x] Create fresh checklists (4,079 methods across 10 cores, all marked done) — DONE
 - [x] Performance-optimize every core — DONE (all 10 cores)
-- [ ] Track every modified method in the checklist (mark as needs-retest)
-- [ ] Test every modified method against live APIs to confirm no regressions
-- [ ] Fix any failures, prune passing tests
+- [x] Track every modified method in the checklist (mark as needs-retest) — DONE
+- [x] Test every modified method against live APIs to confirm no regressions — DONE (0 regressions across all 10 cores)
+- [x] Fix any failures, prune passing tests — DONE (no new failures)
 
 **10.1 Fresh Checklists — DONE**
 All 10 per-core checklists recreated with every exported method, grouped by category.
@@ -324,6 +324,9 @@ All 10 per-core checklists recreated with every exported method, grouped by cate
 | XMPP | 29 | sync.Once caps cache, pre-computed disco response, sendIQSync builder, xmppPBKDF2 |
 | IRC | 72 | 81→2 fmt.Sprintf, parseIRCMsg lazy tags map, sendRaw split writes |
 | Mumble | 30+ | sync.Pool protobuf encoders, in-place OCB2 crypto, stack voice packets, binary.LittleEndian |
+
+**10.3 Retest — DONE (0 regressions)**
+All 10 cores retested against live APIs after optimizations. Results: all pass with same SKIP counts as Step 9.
 
 ### Step 11 — Unify Every Core (Identical Behavior for Shared Ops)
 - [ ] Unified interface: cores.X.SendMessage() behaves the same across all cores
