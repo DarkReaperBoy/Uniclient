@@ -63,7 +63,7 @@ class AccountInfo {
   final String displayName;
   final String avatarPath;
   final int sortOrder;
-  final int connState;
+  final ConnState connState;
 
   const AccountInfo({
     required this.id,
@@ -71,7 +71,7 @@ class AccountInfo {
     this.displayName = '',
     this.avatarPath = '',
     this.sortOrder = 0,
-    this.connState = 0,
+    this.connState = ConnState.disconnected,
   });
 
   factory AccountInfo.fromJson(Map<String, dynamic> j) => AccountInfo(
@@ -80,7 +80,7 @@ class AccountInfo {
     displayName: j['display_name'] as String? ?? '',
     avatarPath: j['avatar_path'] as String? ?? '',
     sortOrder: j['sort_order'] as int? ?? 0,
-    connState: j['conn_state'] as int? ?? 0,
+    connState: ConnState.values[(j['conn_state'] as int? ?? 0).clamp(0, ConnState.values.length - 1)],
   );
 }
 
@@ -98,7 +98,9 @@ class AuthStateData {
   final int timeoutSecs;
   final bool canResend;
   final bool hasRecovery;
+  final List<int> qrData;
   final String displayName;
+  final String avatarB64;
   final String message;
   final bool recoverable;
   final List<AuthOption> options;
@@ -116,7 +118,9 @@ class AuthStateData {
     this.timeoutSecs = 0,
     this.canResend = false,
     this.hasRecovery = false,
+    this.qrData = const [],
     this.displayName = '',
+    this.avatarB64 = '',
     this.message = '',
     this.recoverable = false,
     this.options = const [],

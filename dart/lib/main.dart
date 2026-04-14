@@ -1,3 +1,5 @@
+import 'dart:io' show Directory, Platform;
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -25,8 +27,43 @@ void main() {
   );
 }
 
-class UniClientApp extends StatelessWidget {
+class UniClientApp extends StatefulWidget {
   const UniClientApp({super.key});
+
+  @override
+  State<UniClientApp> createState() => _UniClientAppState();
+}
+
+class _UniClientAppState extends State<UniClientApp> {
+  bool _initStarted = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initStarted) {
+      _initStarted = true;
+      _initEngine();
+    }
+  }
+
+  Future<void> _initEngine() async {
+    final appState = context.read<AppState>();
+    final home = Platform.environment['HOME'] ?? '/tmp';
+    final configDir = '$home/.config/uniclient';
+    final cacheDir = '$home/.cache/uniclient';
+    final downloadDir = '$home/Downloads/uniclient';
+
+    // Ensure directories exist.
+    for (final dir in [configDir, cacheDir, downloadDir]) {
+      Directory(dir).createSync(recursive: true);
+    }
+
+    await appState.initialize(
+      configDir: configDir,
+      cacheDir: cacheDir,
+      downloadDir: downloadDir,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -2,18 +2,22 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:fixnum/fixnum.dart';
+
 import 'bridge.dart';
 import '../models/engine_models.dart';
+import '../proto/models.pb.dart' as pb;
+import '../proto/engine.pb.dart' as epb;
 
 /// High-level wrapper around the FFI bridge for engine operations.
 ///
-/// Handles protobuf serialization, event stream parsing, and provides
-/// typed Dart APIs for all engine methods.
+/// Serializes requests as protobuf BridgeRequest, deserializes BridgeResponse.
+/// Engine events arrive as protobuf BridgeEvent with JSON-encoded engine_event.
 class EngineService {
   final Bridge _bridge = Bridge();
   bool _initialized = false;
 
-  // Event streams — engine pushes JSON events, we parse and dispatch.
+  // Event streams — engine pushes events, we parse and dispatch.
   final _authStateController = StreamController<AuthStateEvent>.broadcast();
   final _connStateController = StreamController<ConnStateEvent>.broadcast();
   final _accountListController = StreamController<List<AccountInfo>>.broadcast();
@@ -55,20 +59,18 @@ class EngineService {
     if (_initialized) return;
 
     _bridge.init(libraryPath: libraryPath);
-
-    // Listen to bridge events and dispatch to typed streams.
     _bridge.events.listen(_handleBridgeEvent);
 
-    // Call engine Init via the bridge.
-    final result = _callEngine('Init', {
-      'config_dir': configDir,
-      'cache_dir': cacheDir,
-      'download_dir': downloadDir,
-      'vault_password': vaultPassword,
-    });
+    final req = epb.EngineInitRequest()
+      ..configDir = configDir
+      ..cacheDir = cacheDir
+      ..downloadDir = downloadDir
+      ..vaultPassword = vaultPassword;
 
-    if (result != null && result['ok'] == false) {
-      throw EngineException(result['error'] as String? ?? 'init failed');
+    final respBytes = _callRaw('__engine', 'Init', req.writeToBuffer());
+    final resp = epb.EngineInitResponse.fromBuffer(respBytes);
+    if (!resp.ok) {
+      throw EngineException(resp.error.isNotEmpty ? resp.error : 'init failed');
     }
 
     _initialized = true;
@@ -77,201 +79,264 @@ class EngineService {
   // ── Account management ──
 
   List<AccountInfo> listAccounts() {
-    final resp = _callEngine('ListAccounts', null);
-    if (resp == null) return [];
-    final accounts = resp['accounts'] as List<dynamic>? ?? [];
-    return accounts.map((a) => AccountInfo.fromJson(a as Map<String, dynamic>)).toList();
+    final respBytes = _callRaw('__engine', 'ListAccounts', Uint8List(0));
+    final resp = epb.EngineListAccountsResponse.fromBuffer(respBytes);
+    return resp.accounts.map(_accountInfoFromProto).toList();
   }
 
   String addAccount(String platform) {
-    final resp = _callEngine('AddAccount', {'platform': platform});
-    return resp?['account_id'] as String? ?? '';
+    final req = epb.EngineAddAccountRequest()..platform = platform;
+    final respBytes = _callRaw('__engine', 'AddAccount', req.writeToBuffer());
+    final resp = epb.EngineAddAccountResponse.fromBuffer(respBytes);
+    return resp.accountId;
   }
 
   void removeAccount(String accountId) {
-    _callEngine('RemoveAccount', {'account_id': accountId});
+    final req = epb.EngineRemoveAccountRequest()..accountId = accountId;
+    _callRaw('__engine', 'RemoveAccount', req.writeToBuffer());
   }
 
   void reorderAccounts(List<String> accountIds) {
-    _callEngine('ReorderAccounts', {'account_ids': accountIds});
+    final req = epb.EngineReorderAccountsRequest()..accountIds.addAll(accountIds);
+    _callRaw('__engine', 'ReorderAccounts', req.writeToBuffer());
   }
 
   void connectAccount(String accountId) {
-    _callEngine('ConnectAccount', {'account_id': accountId});
+    final req = epb.EngineConnectAccountRequest()..accountId = accountId;
+    _callRaw('__engine', 'ConnectAccount', req.writeToBuffer());
   }
 
   void connectAllAccounts() {
-    _callEngine('ConnectAllAccounts', null);
+    _callRaw('__engine', 'ConnectAllAccounts', Uint8List(0));
   }
 
   void disconnectAccount(String accountId) {
-    _callEngine('DisconnectAccount', {'account_id': accountId});
+    final req = epb.EngineDisconnectAccountRequest()..accountId = accountId;
+    _callRaw('__engine', 'DisconnectAccount', req.writeToBuffer());
   }
 
   // ── Auth flow ──
 
   AuthStateData? startAuth(String accountId) {
-    final resp = _callEngine('StartAuth', {'account_id': accountId});
-    if (resp == null) return null;
-    return AuthStateData.fromJson(resp);
+    final req = epb.EngineStartAuthRequest()..accountId = accountId;
+    final respBytes = _callRaw('__engine', 'StartAuth', req.writeToBuffer());
+    final resp = epb.EngineStartAuthResponse.fromBuffer(respBytes);
+    return resp.hasState() ? _authStateFromProto(resp.state) : null;
   }
 
   AuthStateData? submitAuthInput(String accountId, String input) {
-    final resp = _callEngine('SubmitAuthInput', {
-      'account_id': accountId,
-      'input': input,
-    });
-    if (resp == null) return null;
-    final state = resp['state'] as Map<String, dynamic>?;
-    return state != null ? AuthStateData.fromJson(state) : null;
+    final req = epb.EngineSubmitAuthInputRequest()
+      ..accountId = accountId
+      ..input = input;
+    final respBytes = _callRaw('__engine', 'SubmitAuthInput', req.writeToBuffer());
+    final resp = epb.EngineSubmitAuthInputResponse.fromBuffer(respBytes);
+    return resp.hasState() ? _authStateFromProto(resp.state) : null;
   }
 
   void cancelAuth(String accountId) {
-    _callEngine('CancelAuth', {'account_id': accountId});
+    final req = epb.EngineCancelAuthRequest()..accountId = accountId;
+    _callRaw('__engine', 'CancelAuth', req.writeToBuffer());
   }
 
   // ── Chat list ──
 
   List<ChatInfo> getChatList({String accountId = '', bool archived = false, int limit = 50, int offset = 0}) {
-    final resp = _callEngine('GetChatList', {
-      'account_id': accountId,
-      'archived': archived,
-      'limit': limit,
-      'offset': offset,
-    });
-    if (resp == null) return [];
-    final chats = resp['chats'] as List<dynamic>? ?? [];
-    return chats.map((c) => ChatInfo.fromJson(c as Map<String, dynamic>)).toList();
+    final req = epb.EngineGetChatListRequest()
+      ..accountId = accountId
+      ..archived = archived
+      ..limit = limit
+      ..offset = offset;
+    final respBytes = _callRaw('__engine', 'GetChatList', req.writeToBuffer());
+    final resp = epb.EngineGetChatListResponse.fromBuffer(respBytes);
+    return resp.chats.map(_chatInfoFromProto).toList();
   }
 
   void saveDraft(String accountId, String chatId, String text) {
-    _callEngine('SaveDraft', {'account_id': accountId, 'chat_id': chatId, 'text': text});
+    final req = epb.EngineSaveDraftRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..text = text;
+    _callRaw('__engine', 'SaveDraft', req.writeToBuffer());
   }
 
   void muteChat(String accountId, String chatId, bool muted) {
-    _callEngine('MuteChat', {'account_id': accountId, 'chat_id': chatId, 'muted': muted});
+    final req = epb.EngineMuteChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..muted = muted;
+    _callRaw('__engine', 'MuteChat', req.writeToBuffer());
   }
 
   void pinChat(String accountId, String chatId, bool pinned) {
-    _callEngine('PinChat', {'account_id': accountId, 'chat_id': chatId, 'pinned': pinned});
+    final req = epb.EnginePinChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..pinned = pinned;
+    _callRaw('__engine', 'PinChat', req.writeToBuffer());
   }
 
   void archiveChat(String accountId, String chatId, bool archived) {
-    _callEngine('ArchiveChat', {'account_id': accountId, 'chat_id': chatId, 'archived': archived});
+    final req = epb.EngineArchiveChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..archived = archived;
+    _callRaw('__engine', 'ArchiveChat', req.writeToBuffer());
   }
 
   void markChatRead(String accountId, String chatId, String upToMsgId) {
-    _callEngine('MarkChatRead', {'account_id': accountId, 'chat_id': chatId, 'up_to_msg_id': upToMsgId});
+    final req = epb.EngineMarkChatReadRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..upToMsgId = upToMsgId;
+    _callRaw('__engine', 'MarkChatRead', req.writeToBuffer());
   }
 
   // ── Messages ──
 
   List<CachedMessage> getMessages(String accountId, String chatId, {int beforeMs = 0, int limit = 50}) {
-    final resp = _callEngine('GetMessages', {
-      'account_id': accountId,
-      'chat_id': chatId,
-      'before_ms': beforeMs,
-      'limit': limit,
-    });
-    if (resp == null) return [];
-    final msgs = resp['messages'] as List<dynamic>? ?? [];
-    return msgs.map((m) => CachedMessage.fromJson(m as Map<String, dynamic>)).toList();
+    final req = epb.EngineGetMessagesRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..beforeMs = Int64(beforeMs)
+      ..limit = limit;
+    final respBytes = _callRaw('__engine', 'GetMessages', req.writeToBuffer());
+    final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+    return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
   String sendMessage(String accountId, String chatId, String text, {String replyToId = ''}) {
-    final resp = _callEngine('SendMessage', {
-      'account_id': accountId,
-      'chat_id': chatId,
-      'text': text,
-      'reply_to_id': replyToId,
-    });
-    return resp?['local_id'] as String? ?? '';
+    final req = epb.EngineSendMessageRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..text = text
+      ..replyToId = replyToId;
+    final respBytes = _callRaw('__engine', 'SendMessage', req.writeToBuffer());
+    final resp = epb.EngineSendMessageResponse.fromBuffer(respBytes);
+    return resp.localId;
   }
 
   void editMessage(String accountId, String chatId, String msgId, String newText) {
-    _callEngine('EditMessage', {'account_id': accountId, 'chat_id': chatId, 'msg_id': msgId, 'new_text': newText});
+    final req = epb.EngineEditMessageRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..newText = newText;
+    _callRaw('__engine', 'EditMessage', req.writeToBuffer());
   }
 
   void deleteMessage(String accountId, String chatId, String msgId) {
-    _callEngine('DeleteMessage', {'account_id': accountId, 'chat_id': chatId, 'msg_id': msgId});
+    final req = epb.EngineDeleteMessageRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId;
+    _callRaw('__engine', 'DeleteMessage', req.writeToBuffer());
   }
 
   void retryPending(String localId) {
-    _callEngine('RetryPending', {'local_id': localId});
+    final req = epb.EngineRetryPendingRequest()..localId = localId;
+    _callRaw('__engine', 'RetryPending', req.writeToBuffer());
   }
 
   // ── Active chat ──
 
   void setActiveChat(String accountId, String chatId) {
-    _callEngine('SetActiveChat', {'account_id': accountId, 'chat_id': chatId});
+    final req = epb.EngineSetActiveChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    _callRaw('__engine', 'SetActiveChat', req.writeToBuffer());
   }
 
   void clearActiveChat() {
-    _callEngine('ClearActiveChat', null);
+    _callRaw('__engine', 'ClearActiveChat', Uint8List(0));
   }
 
   // ── Search ──
 
   List<SearchResult> searchMessages(String query, {String accountId = '', int limit = 50}) {
-    final resp = _callEngine('SearchMessages', {'query': query, 'account_id': accountId, 'limit': limit});
-    if (resp == null) return [];
-    final results = resp['results'] as List<dynamic>? ?? [];
-    return results.map((r) => SearchResult.fromJson(r as Map<String, dynamic>)).toList();
+    final req = epb.EngineSearchMessagesRequest()
+      ..query = query
+      ..accountId = accountId
+      ..limit = limit;
+    final respBytes = _callRaw('__engine', 'SearchMessages', req.writeToBuffer());
+    final resp = epb.EngineSearchMessagesResponse.fromBuffer(respBytes);
+    return resp.results.map(_searchResultFromProto).toList();
   }
 
   List<ChatInfo> searchChats(String query, {int limit = 20}) {
-    final resp = _callEngine('SearchChats', {'query': query, 'limit': limit});
-    if (resp == null) return [];
-    final chats = resp['chats'] as List<dynamic>? ?? [];
-    return chats.map((c) => ChatInfo.fromJson(c as Map<String, dynamic>)).toList();
+    final req = epb.EngineSearchChatsRequest()
+      ..query = query
+      ..limit = limit;
+    final respBytes = _callRaw('__engine', 'SearchChats', req.writeToBuffer());
+    final resp = epb.EngineSearchChatsResponse.fromBuffer(respBytes);
+    return resp.chats.map(_chatInfoFromProto).toList();
   }
 
   // ── Media ──
 
   void requestDownload(String accountId, String chatId, String msgId, {int seq = 0, int priority = 2}) {
-    _callEngine('RequestDownload', {
-      'account_id': accountId, 'chat_id': chatId, 'msg_id': msgId,
-      'seq': seq, 'priority': priority,
-    });
+    final req = epb.EngineRequestDownloadRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..seq = seq
+      ..priority = priority;
+    _callRaw('__engine', 'RequestDownload', req.writeToBuffer());
   }
 
   void cancelDownload(String accountId, String chatId, String msgId, {int seq = 0}) {
-    _callEngine('CancelDownload', {
-      'account_id': accountId, 'chat_id': chatId, 'msg_id': msgId, 'seq': seq,
-    });
+    final req = epb.EngineCancelDownloadRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..seq = seq;
+    _callRaw('__engine', 'CancelDownload', req.writeToBuffer());
   }
 
   int getCacheSize() {
-    final resp = _callEngine('GetCacheSize', null);
-    return resp?['size_bytes'] as int? ?? 0;
+    final respBytes = _callRaw('__engine', 'GetCacheSize', Uint8List(0));
+    final resp = epb.EngineGetCacheSizeResponse.fromBuffer(respBytes);
+    return resp.sizeBytes.toInt();
   }
 
   void clearCache({String accountId = ''}) {
-    _callEngine('ClearCache', {'account_id': accountId});
+    final req = epb.EngineClearCacheRequest()..accountId = accountId;
+    _callRaw('__engine', 'ClearCache', req.writeToBuffer());
   }
 
   // ── Config ──
 
   AppConfig getConfig() {
-    final resp = _callEngine('GetConfig', null);
-    if (resp == null) return AppConfig.defaults();
-    return AppConfig.fromJson(resp);
+    final respBytes = _callRaw('__engine', 'GetConfig', Uint8List(0));
+    final resp = epb.EngineGetConfigResponse.fromBuffer(respBytes);
+    return AppConfig(
+      theme: resp.theme.isNotEmpty ? resp.theme : 'dark',
+      accentColor: resp.accentColor.isNotEmpty ? resp.accentColor : '#4f6ef7',
+      fontScale: resp.fontScale > 0 ? resp.fontScale : 1.0,
+      language: resp.language.isNotEmpty ? resp.language : 'en',
+      downloadDir: resp.downloadDir,
+      maxCacheSize: resp.maxCacheSize.toInt(),
+      sendReadReceipts: resp.sendReadReceipts,
+      sendTyping: resp.sendTyping,
+      notifyDms: resp.notifyDms,
+      notifyGroups: resp.notifyGroups,
+      notifyMentionsOnly: resp.notifyMentionsOnly,
+    );
   }
 
   void updateConfig({String? theme, String? accentColor, double? fontScale, String? language, int? maxCacheSize}) {
-    _callEngine('UpdateConfig', {
-      if (theme != null) 'theme': theme,
-      if (accentColor != null) 'accent_color': accentColor,
-      if (fontScale != null) 'font_scale': fontScale,
-      if (language != null) 'language': language,
-      if (maxCacheSize != null) 'max_cache_size': maxCacheSize,
-    });
+    final req = epb.EngineUpdateConfigRequest();
+    if (theme != null) req.theme = theme;
+    if (accentColor != null) req.accentColor = accentColor;
+    if (fontScale != null) req.fontScale = fontScale;
+    if (language != null) req.language = language;
+    if (maxCacheSize != null) req.maxCacheSize = Int64(maxCacheSize);
+    _callRaw('__engine', 'UpdateConfig', req.writeToBuffer());
   }
 
   // ── Shutdown ──
 
   void shutdown() {
-    _callEngine('Shutdown', null);
+    _callRaw('__engine', 'Shutdown', Uint8List(0));
     _initialized = false;
   }
 
@@ -294,47 +359,34 @@ class EngineService {
 
   // ── Internal ──
 
-  /// Call an engine method via the bridge. Returns decoded JSON response payload,
-  /// or null on error.
-  Map<String, dynamic>? _callEngine(String method, Map<String, dynamic>? params) {
-    // For now, engine calls use JSON encoding through the bridge.
-    // TODO: Switch to protobuf once Dart proto codegen is wired.
-    final request = {
-      'core_id': '__engine',
-      'method': method,
-      if (params != null) 'payload': params,
-    };
+  /// Call a bridge method. Returns the response payload bytes.
+  Uint8List _callRaw(String coreId, String method, Uint8List payload) {
+    final req = pb.BridgeRequest()
+      ..coreId = coreId
+      ..method = method
+      ..payload = payload;
 
-    final reqBytes = Uint8List.fromList(utf8.encode(json.encode(request)));
-    final respBytes = _bridge.call(reqBytes);
-    if (respBytes.isEmpty) return null;
+    final respBytes = _bridge.call(Uint8List.fromList(req.writeToBuffer()));
+    if (respBytes.isEmpty) return Uint8List(0);
 
-    final resp = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
-    if (resp['ok'] != true) {
-      final error = resp['error'] as String? ?? 'unknown error';
-      final code = resp['error_code'] as String? ?? '';
-      throw EngineException(error, code: code);
+    final resp = pb.BridgeResponse.fromBuffer(respBytes);
+    if (!resp.ok) {
+      throw EngineException(
+        resp.error.isNotEmpty ? resp.error : 'unknown error',
+        code: resp.errorCode,
+      );
     }
-    return resp['payload'] as Map<String, dynamic>?;
+    return Uint8List.fromList(resp.payload);
   }
 
   /// Handle raw BridgeEvent bytes from Go.
   void _handleBridgeEvent(Uint8List bytes) {
-    // Engine events come as JSON in the engine_event field of BridgeEvent.
-    // For now, we parse the entire blob as JSON since the bridge currently
-    // sends JSON-encoded EngineEvents for __engine core_id.
     try {
-      final event = json.decode(utf8.decode(bytes)) as Map<String, dynamic>;
-      final coreId = event['core_id'] as String?;
+      final event = pb.BridgeEvent.fromBuffer(bytes);
 
-      if (coreId == '__engine') {
-        final engineEventBytes = event['engine_event'];
-        if (engineEventBytes != null) {
-          final engineEvent = json.decode(
-            engineEventBytes is String ? engineEventBytes : utf8.decode(engineEventBytes as List<int>),
-          ) as Map<String, dynamic>;
-          _dispatchEngineEvent(engineEvent);
-        }
+      if (event.coreId == '__engine' && event.engineEvent.isNotEmpty) {
+        final engineEvent = json.decode(utf8.decode(event.engineEvent)) as Map<String, dynamic>;
+        _dispatchEngineEvent(engineEvent);
       }
       // Non-engine core events will be handled when per-core UI is built.
     } catch (_) {
@@ -429,6 +481,85 @@ class EngineService {
         }
     }
   }
+
+  // ── Proto → Model converters ──
+
+  static AccountInfo _accountInfoFromProto(epb.AccountInfo p) => AccountInfo(
+    id: p.id,
+    platform: p.platform,
+    displayName: p.displayName,
+    avatarPath: p.avatarPath,
+    sortOrder: p.sortOrder,
+    connState: ConnState.values[p.connState.clamp(0, ConnState.values.length - 1)],
+  );
+
+  static AuthStateData _authStateFromProto(epb.EngineAuthState p) => AuthStateData(
+    accountId: p.accountId,
+    platform: p.platform,
+    state: p.state,
+    options: p.options.map((o) => AuthOption(id: o.id, label: o.label)).toList(),
+    fieldType: p.fieldType,
+    label: p.label,
+    hint: p.hint,
+    error: p.error,
+    codeLength: p.codeLength,
+    sentTo: p.sentTo,
+    timeoutSecs: p.timeoutSecs,
+    canResend: p.canResend,
+    hasRecovery: p.hasRecovery,
+    qrData: p.qrData,
+    displayName: p.displayName,
+    avatarB64: p.avatarB64,
+    message: p.message,
+    recoverable: p.recoverable,
+  );
+
+  static ChatInfo _chatInfoFromProto(epb.EngineChatInfo p) => ChatInfo(
+    accountId: p.accountId,
+    chatId: p.chatId,
+    type: ChatType.values[p.type.clamp(0, ChatType.values.length - 1)],
+    title: p.title,
+    avatarPath: p.avatarPath,
+    lastMsgId: p.lastMsgId,
+    lastMsgText: p.lastMsgText,
+    lastMsgTime: p.lastMsgTime.toInt(),
+    lastMsgSender: p.lastMsgSender,
+    unreadCount: p.unreadCount,
+    isMuted: p.isMuted,
+    isPinned: p.isPinned,
+    isArchived: p.isArchived,
+    draftText: p.draftText,
+    memberCount: p.memberCount,
+    parentId: p.parentId,
+  );
+
+  static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) => CachedMessage(
+    accountId: p.accountId,
+    chatId: p.chatId,
+    msgId: p.msgId,
+    localId: p.localId,
+    senderId: p.senderId,
+    senderName: p.senderName,
+    contentText: p.contentText,
+    timestamp: p.timestamp.toInt(),
+    editedAt: p.editedAt.toInt(),
+    status: MsgStatus.values[p.status.clamp(0, MsgStatus.values.length - 1)],
+    replyToId: p.replyToId,
+    replyPreview: p.replyPreview,
+    forwardFrom: p.forwardFrom,
+    isPinned: p.isPinned,
+    hasMedia: p.hasMedia,
+  );
+
+  static SearchResult _searchResultFromProto(epb.EngineSearchResult p) => SearchResult(
+    accountId: p.accountId,
+    chatId: p.chatId,
+    msgId: p.msgId,
+    senderName: p.senderName,
+    text: p.text,
+    timestamp: p.timestamp.toInt(),
+    chatTitle: p.chatTitle,
+  );
 }
 
 class EngineException implements Exception {
