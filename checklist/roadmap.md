@@ -1,9 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 13 — Protobuf Bridge
+**Current Step:** Step 12.5 — Fix All Skipped Tests
 **Current Core:** Not started
 **Current Method:** —
 **Last Updated:** 2026-04-14 (session 4 — Step 12 COMPLETE, Steps 9-12 done in one session)
+
+**NEXT SESSION PRIORITY (user request):** Before Step 13, go through ALL skipped tests across all 10 cores. For each skip: figure out WHY it's skipped, implement the missing functionality or add proper waits/retries to unblock it, then run the test. The goal is zero skips that are caused by our code — only skip if the platform genuinely doesn't support the feature.
 
 ## Steps
 
