@@ -545,7 +545,7 @@ func (c *IRCCore) connect() error {
 	case <-c.registered:
 	case <-time.After(30 * time.Second):
 		conn.Close()
-		return fmt.Errorf("registration timeout")
+		return fmt.Errorf("irc: registration timeout: %w", ErrTimeout)
 	case <-c.ctx.Done():
 		conn.Close()
 		return c.ctx.Err()
@@ -1257,7 +1257,7 @@ func (c *IRCCore) handleJoin(msg *ircMsg) {
 		Type:     UpdateGroupMembers,
 		ChatID:   channel,
 		UserID:   nick,
-		Platform: "irc",
+		Platform: ircPlatform,
 	})
 }
 
@@ -1286,7 +1286,7 @@ func (c *IRCCore) handlePart(msg *ircMsg) {
 		Type:     UpdateGroupMembers,
 		ChatID:   channel,
 		UserID:   nick,
-		Platform: "irc",
+		Platform: ircPlatform,
 	})
 }
 
@@ -1314,7 +1314,7 @@ func (c *IRCCore) handleKick(msg *ircMsg) {
 		Type:     UpdateGroupMembers,
 		ChatID:   channel,
 		UserID:   kicked,
-		Platform: "irc",
+		Platform: ircPlatform,
 	})
 }
 
@@ -1557,7 +1557,7 @@ func (c *IRCCore) handleMode(msg *ircMsg) {
 	c.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   target,
-		Platform: "irc",
+		Platform: ircPlatform,
 	})
 }
 
@@ -1579,7 +1579,7 @@ func (c *IRCCore) handleWhoisUser(msg *ircMsg) {
 		ID:          nick,
 		Username:    username + "@" + host,
 		DisplayName: realname,
-		Platform:    "irc",
+		Platform:    ircPlatform,
 	}
 
 	c.whoisCacheMu.Lock()
@@ -1658,7 +1658,8 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 		SenderName: nick,
 		Text:       text,
 		Timestamp:  ts,
-		Platform:   "irc",
+		Platform:   ircPlatform,
+		Status:     MessageStatusDelivered,
 	}
 
 	// Check if message ID is in tags
@@ -1674,7 +1675,7 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  m,
-		Platform: "irc",
+		Platform: ircPlatform,
 	})
 }
 
@@ -1704,7 +1705,8 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 		SenderName: nick,
 		Text:       "[NOTICE] " + text,
 		Timestamp:  time.Now(),
-		Platform:   "irc",
+		Platform:   ircPlatform,
+		Status:     MessageStatusDelivered,
 	}
 	c.bufferMessage(chatID, m)
 
@@ -1712,7 +1714,7 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  m,
-		Platform: "irc",
+		Platform: ircPlatform,
 	})
 }
 
@@ -1765,7 +1767,8 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 			SenderName: nick,
 			Text:       "* " + nick + " " + actionText,
 			Timestamp:  time.Now(),
-			Platform:   "irc",
+			Platform:   ircPlatform,
+			Status:     MessageStatusDelivered,
 		}
 		c.bufferMessage(chatID, m)
 
@@ -1773,7 +1776,7 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 			Type:     UpdateNewMessage,
 			ChatID:   chatID,
 			Message:  m,
-			Platform: "irc",
+			Platform: ircPlatform,
 		})
 
 	case "DCC":
@@ -1822,14 +1825,15 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 			SenderName: nick,
 			Text:       "[DCC " + dccType + "] " + parts[1],
 			Timestamp:  time.Now(),
-			Platform:   "irc",
+			Platform:   ircPlatform,
+			Status:     MessageStatusDelivered,
 		}
 		c.bufferMessage(dccChatID, dccMsg)
 		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   dccChatID,
 			Message:  dccMsg,
-			Platform: "irc",
+			Platform: ircPlatform,
 		})
 	}
 }
@@ -1913,7 +1917,7 @@ func (c *IRCCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			Type:        ChatTypeGroup,
 			Title:       ch.Name,
 			MemberCount: len(ch.Members),
-			Platform:    "irc",
+			Platform:    ircPlatform,
 		}
 		// Last message
 		c.messagesMu.RLock()
@@ -1933,7 +1937,7 @@ func (c *IRCCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			ID:       nick,
 			Type:     ChatTypeDM,
 			Title:    nick,
-			Platform: "irc",
+			Platform: ircPlatform,
 		}
 		c.messagesMu.RLock()
 		if msgs, ok := c.messages[nick]; ok && len(msgs) > 0 {
@@ -1945,11 +1949,22 @@ func (c *IRCCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	}
 	c.dmPartnersMu.RUnlock()
 
-	// Apply pagination
+	// Apply pagination — offset then limit
+	if opts.Offset != "" {
+		if off, err := strconv.Atoi(opts.Offset); err == nil && off > 0 {
+			if off >= len(dialogs) {
+				return []Dialog{}, nil
+			}
+			dialogs = dialogs[off:]
+		}
+	}
 	if opts.Limit > 0 && len(dialogs) > opts.Limit {
 		dialogs = dialogs[:opts.Limit]
 	}
 
+	if dialogs == nil {
+		dialogs = []Dialog{}
+	}
 	return dialogs, nil
 }
 
@@ -1973,7 +1988,7 @@ func (c *IRCCore) CreateGroup(name string, members []string) (*Dialog, error) {
 		ID:       name,
 		Type:     ChatTypeGroup,
 		Title:    name,
-		Platform: "irc",
+		Platform: ircPlatform,
 	}, nil
 }
 
@@ -2054,7 +2069,8 @@ func (c *IRCCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, err
 				SenderName: myNick,
 				Text:       chunk,
 				Timestamp:  time.Now(),
-				Platform:   "irc",
+				Platform:   ircPlatform,
+				Status:     MessageStatusSent,
 			}
 			c.bufferMessage(chatID, lastMsg)
 		}
@@ -2336,7 +2352,7 @@ func (c *IRCCore) GetChatInfo(chatID string) (*Dialog, error) {
 			ID:       chatID,
 			Type:     ChatTypeDM,
 			Title:    chatID,
-			Platform: "irc",
+			Platform: ircPlatform,
 		}, nil
 	}
 
@@ -2355,7 +2371,7 @@ func (c *IRCCore) GetChatInfo(chatID string) (*Dialog, error) {
 		Type:        ChatTypeGroup,
 		Title:       ch.Name,
 		MemberCount: len(ch.Members),
-		Platform:    "irc",
+		Platform:    ircPlatform,
 	}, nil
 }
 
@@ -2455,7 +2471,7 @@ func (c *IRCCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error)
 			ID:          nick,
 			Username:    nick,
 			DisplayName: displayName,
-			Platform:    "irc",
+			Platform:    ircPlatform,
 		})
 	}
 	c.channelsMu.RUnlock()
@@ -2469,6 +2485,9 @@ func (c *IRCCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error)
 		users = users[:opts.Limit]
 	}
 
+	if users == nil {
+		users = []User{}
+	}
 	return users, nil
 }
 
@@ -2525,8 +2544,11 @@ func (c *IRCCore) GetBlockedUsers() ([]User, error) {
 		users = append(users, User{
 			ID:       nick,
 			Username: nick,
-			Platform: "irc",
+			Platform: ircPlatform,
 		})
+	}
+	if users == nil {
+		users = []User{}
 	}
 	return users, nil
 }
@@ -2561,6 +2583,9 @@ func (c *IRCCore) SearchMessages(chatID string, query string, opts PaginationOpt
 		results = results[len(results)-opts.Limit:]
 	}
 
+	if results == nil {
+		results = []Message{}
+	}
 	return results, nil
 }
 
@@ -2582,7 +2607,7 @@ func (c *IRCCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, err
 				Type:        ChatTypeGroup,
 				Title:       ch.Name,
 				MemberCount: len(ch.Members),
-				Platform:    "irc",
+				Platform:    ircPlatform,
 			})
 		}
 	}
@@ -2595,7 +2620,7 @@ func (c *IRCCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, err
 				ID:       nick,
 				Type:     ChatTypeDM,
 				Title:    nick,
-				Platform: "irc",
+				Platform: ircPlatform,
 			})
 		}
 	}
@@ -2605,6 +2630,9 @@ func (c *IRCCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, err
 		results = results[:opts.Limit]
 	}
 
+	if results == nil {
+		results = []Dialog{}
+	}
 	return results, nil
 }
 
@@ -2954,7 +2982,7 @@ func (c *IRCCore) handleAwayNotify(msg *ircMsg) {
 		Type:     UpdateUserStatus,
 		UserID:   nick,
 		IsOnline: &notAway,
-		Platform: "irc",
+		Platform: ircPlatform,
 	})
 }
 
@@ -2989,14 +3017,15 @@ func (c *IRCCore) handleInvite(msg *ircMsg) {
 			Type:     UpdateNewMessage,
 			ChatID:   channel,
 			UserID:   nick,
-			Platform: "irc",
+			Platform: ircPlatform,
 			Message: &Message{
 				ChatID:     channel,
 				SenderID:   nick,
 				SenderName: nick,
 				Text:       nick + " invited you to " + channel,
 				Timestamp:  time.Now(),
-				Platform:   "irc",
+				Platform:   ircPlatform,
+				Status:     MessageStatusDelivered,
 			},
 		})
 	}
@@ -3027,7 +3056,7 @@ func (c *IRCCore) handleMonitorOnline(msg *ircMsg) {
 			Type:     UpdateUserStatus,
 			UserID:   nick,
 			IsOnline: &online,
-			Platform: "irc",
+			Platform: ircPlatform,
 		})
 	}
 }
@@ -3040,7 +3069,7 @@ func (c *IRCCore) handleMonitorOffline(msg *ircMsg) {
 			Type:     UpdateUserStatus,
 			UserID:   strings.TrimSpace(nick),
 			IsOnline: &offline,
-			Platform: "irc",
+			Platform: ircPlatform,
 		})
 	}
 }
@@ -3070,7 +3099,7 @@ func (c *IRCCore) handleTagMsg(msg *ircMsg) {
 			Type:     UpdateTyping,
 			ChatID:   chatID,
 			UserID:   nick,
-			Platform: "irc",
+			Platform: ircPlatform,
 		})
 	}
 
@@ -3098,14 +3127,15 @@ func (c *IRCCore) handleTagMsg(msg *ircMsg) {
 			SenderName: nick,
 			Text:       "[React: " + reaction + " to " + replyTo + "]",
 			Timestamp:  time.Now(),
-			Platform:   "irc",
+			Platform:   ircPlatform,
+			Status:     MessageStatusDelivered,
 		}
 		c.bufferMessage(chatID, reactMsg)
 		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   chatID,
 			Message:  reactMsg,
-			Platform: "irc",
+			Platform: ircPlatform,
 		})
 	}
 }
@@ -3119,7 +3149,7 @@ func (c *IRCCore) handleWatchEvent(msg *ircMsg, online bool) {
 		Type:     UpdateUserStatus,
 		UserID:   nick,
 		IsOnline: &online,
-		Platform: "irc",
+		Platform: ircPlatform,
 	})
 }
 
@@ -3136,7 +3166,8 @@ func (c *IRCCore) handleErrorNumeric(msg *ircMsg) {
 		SenderName: "Server",
 		Text:       "[" + msg.Command + "] " + text,
 		Timestamp:  time.Now(),
-		Platform:   "irc",
+		Platform:   ircPlatform,
+		Status:     MessageStatusDelivered,
 	}
 	c.bufferMessage("*server*", m)
 }
@@ -3151,7 +3182,8 @@ func (c *IRCCore) handleServerError(msg *ircMsg) {
 		SenderName: "Server",
 		Text:       "[ERROR] " + text,
 		Timestamp:  time.Now(),
-		Platform:   "irc",
+		Platform:   ircPlatform,
+		Status:     MessageStatusDelivered,
 	}
 	c.bufferMessage("*server*", m)
 }
@@ -3309,7 +3341,8 @@ func (c *IRCCore) SendAction(target, text string) {
 		SenderName: myNick,
 		Text:       "* " + myNick + " " + text,
 		Timestamp:  time.Now(),
-		Platform:   "irc",
+		Platform:   ircPlatform,
+		Status:     MessageStatusSent,
 	}
 	c.bufferMessage(target, m)
 }

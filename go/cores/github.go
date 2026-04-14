@@ -349,7 +349,7 @@ func (g *GitHubCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		return nil, ErrAuth
 	}
 
-	var dialogs []Dialog
+	dialogs := []Dialog{}
 
 	// 1. Fetch DM threads (issues on our inbox repo and issues we created on others' inbox repos)
 	dms, err := g.fetchDMDialogs()
@@ -376,7 +376,19 @@ func (g *GitHubCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		return ti.After(tj)
 	})
 
-	// Apply pagination
+	// Apply offset
+	offset := 0
+	if opts.Offset != "" {
+		offset, _ = strconv.Atoi(opts.Offset)
+	}
+	if offset > 0 {
+		if offset >= len(dialogs) {
+			return []Dialog{}, nil
+		}
+		dialogs = dialogs[offset:]
+	}
+
+	// Apply limit
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 50
@@ -1546,7 +1558,7 @@ func (g *GitHubCore) dmIssueLocation(peerUser string, issueNum int) (owner, repo
 
 // fetchDMDialogs finds all DM conversations on profile repos.
 func (g *GitHubCore) fetchDMDialogs() ([]Dialog, error) {
-	var dialogs []Dialog
+	dialogs := []Dialog{}
 	seen := make(map[string]bool)
 
 	// 1. Issues on OUR profile repo (people messaging us via {us}/{us})
@@ -1646,7 +1658,7 @@ func (g *GitHubCore) fetchGroupDialogs() ([]Dialog, error) {
 	var repos []map[string]any
 	json.Unmarshal(resp, &repos)
 
-	var dialogs []Dialog
+	dialogs := []Dialog{}
 	newChecks := 0
 
 	for _, r := range repos {

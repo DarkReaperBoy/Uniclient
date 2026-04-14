@@ -1395,7 +1395,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 				Type:     UpdateTyping,
 				ChatID:   chatID,
 				UserID:   senderID,
-				Platform: "xmpp",
+				Platform: xmppPlatform,
 			})
 		}
 		return
@@ -1421,7 +1421,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 			ReadState: &ReadState{
 				PeerLastRead: map[string]string{fromBare: parsed.DisplayedID},
 			},
-			Platform: "xmpp",
+			Platform: xmppPlatform,
 		})
 		return
 	}
@@ -1466,14 +1466,14 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 			Text:       fmt.Sprintf("[MUC invitation to %s from %s]", parsed.MUCInviteRoom, parsed.MUCInviteFrom),
 			Timestamp:  time.Now(),
 			Status:     MessageStatusDelivered,
-			Platform:   "xmpp",
+			Platform:   xmppPlatform,
 		}
 		c.bufferMessage(chatID, m)
 		c.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   chatID,
 			Message:  m,
-			Platform: "xmpp",
+			Platform: xmppPlatform,
 		})
 		return
 	}
@@ -1496,7 +1496,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 						Type:     UpdateEditMessage,
 						ChatID:   chatID,
 						Message:  m,
-						Platform: "xmpp",
+						Platform: xmppPlatform,
 					})
 					return
 				}
@@ -1545,7 +1545,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		Text:       parsed.Body,
 		Timestamp:  ts,
 		Status:     MessageStatusDelivered,
-		Platform:   "xmpp",
+		Platform:   xmppPlatform,
 	}
 
 	if parsed.ReplyID != "" {
@@ -1566,7 +1566,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  m,
-		Platform: "xmpp",
+		Platform: xmppPlatform,
 	})
 }
 
@@ -1600,9 +1600,9 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 				Text:      "[Subscription request]",
 				Timestamp: time.Now(),
 				Status:    MessageStatusDelivered,
-				Platform:  "xmpp",
+				Platform:  xmppPlatform,
 			},
-			Platform: "xmpp",
+			Platform: xmppPlatform,
 		})
 
 	case "subscribed":
@@ -1618,7 +1618,7 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 			Type:     UpdateUserStatus,
 			UserID:   fromBare,
 			IsOnline: &isOnline,
-			Platform: "xmpp",
+			Platform: xmppPlatform,
 		})
 
 	case "", "available":
@@ -1628,7 +1628,7 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 			Type:     UpdateUserStatus,
 			UserID:   fromBare,
 			IsOnline: &isOnline,
-			Platform: "xmpp",
+			Platform: xmppPlatform,
 		})
 
 	case "error":
@@ -1657,7 +1657,7 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 			Type:   UpdateGroupMembers,
 			ChatID: roomJID,
 			UserID: nick,
-			Platform: "xmpp",
+			Platform: xmppPlatform,
 		})
 		return
 	}
@@ -1685,7 +1685,7 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 		Type:   UpdateGroupMembers,
 		ChatID: roomJID,
 		UserID: nick,
-		Platform: "xmpp",
+		Platform: xmppPlatform,
 	})
 }
 
@@ -1923,7 +1923,7 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	c.rosterMu.RLock()
 	defer c.rosterMu.RUnlock()
 
-	var dialogs []Dialog
+	dialogs := []Dialog{}
 
 	// DM dialogs from roster
 	for _, item := range c.roster {
@@ -1934,7 +1934,7 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			ID:       item.JID,
 			Type:     ChatTypeDM,
 			Title:    item.Name,
-			Platform: "xmpp",
+			Platform: xmppPlatform,
 		}
 		if d.Title == "" {
 			d.Title = item.JID
@@ -1959,7 +1959,7 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			Type:        ChatTypeGroup,
 			Title:       room.Name,
 			MemberCount: len(room.Occupants),
-			Platform:    "xmpp",
+			Platform:    xmppPlatform,
 		}
 		if d.Title == "" {
 			d.Title = room.JID
@@ -1972,6 +1972,23 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		dialogs = append(dialogs, d)
 	}
 	c.roomsMu.RUnlock()
+
+	// Apply offset
+	offset := 0
+	if opts.Offset != "" {
+		offset, _ = strconv.Atoi(opts.Offset)
+	}
+	if offset > 0 {
+		if offset >= len(dialogs) {
+			return []Dialog{}, nil
+		}
+		dialogs = dialogs[offset:]
+	}
+
+	// Apply limit
+	if opts.Limit > 0 && len(dialogs) > opts.Limit {
+		dialogs = dialogs[:opts.Limit]
+	}
 
 	return dialogs, nil
 }
@@ -2011,7 +2028,7 @@ func (c *XMPPCore) CreateGroup(name string, members []string) (*Dialog, error) {
 		ID:       roomJID,
 		Type:     ChatTypeGroup,
 		Title:    name,
-		Platform: "xmpp",
+		Platform: xmppPlatform,
 	}
 	return d, nil
 }
@@ -2154,7 +2171,7 @@ func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
 		ReplyToID: msg.ReplyToID,
-		Platform:  "xmpp",
+		Platform:  xmppPlatform,
 	}
 
 	// Don't buffer groupchat messages — we'll get them back from the server
@@ -2187,7 +2204,7 @@ func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, e
 
 	msgs, ok := c.messages[chatID]
 	if !ok {
-		return nil, nil
+		return []Message{}, nil
 	}
 
 	result := make([]Message, len(msgs))
@@ -2241,7 +2258,7 @@ func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Messa
 		Text:      text,
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
-		Platform:  "xmpp",
+		Platform:  xmppPlatform,
 	}, nil
 }
 
@@ -2540,13 +2557,13 @@ func (c *XMPPCore) GetProfile(userID string) (*User, error) {
 			return &User{
 				ID:          item.JID,
 				DisplayName: item.Name,
-				Platform:    "xmpp",
+				Platform:    xmppPlatform,
 			}, nil
 		}
 		return &User{
 			ID:          userID,
 			DisplayName: userID,
-			Platform:    "xmpp",
+			Platform:    xmppPlatform,
 		}, nil
 	}
 
@@ -2554,7 +2571,7 @@ func (c *XMPPCore) GetProfile(userID string) (*User, error) {
 		ID:          userID,
 		DisplayName: vcard["FN"],
 		Username:    vcard["NICKNAME"],
-		Platform:    "xmpp",
+		Platform:    xmppPlatform,
 	}
 	if u.DisplayName == "" {
 		u.DisplayName = vcard["NICKNAME"]
@@ -2626,7 +2643,7 @@ func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 					Type:        ChatTypeGroup,
 					Title:       room.Name,
 					MemberCount: len(room.Occupants),
-					Platform:    "xmpp",
+					Platform:    xmppPlatform,
 				}, nil
 			}
 		}
@@ -2642,7 +2659,7 @@ func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 		ID:       chatID,
 		Type:     ChatTypeDM,
 		Title:    chatID,
-		Platform: "xmpp",
+		Platform: xmppPlatform,
 	}
 	if ok && item.Name != "" {
 		d.Title = item.Name
@@ -2783,8 +2800,8 @@ func (c *XMPPCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error
 	}
 	// DM — return self and the other party
 	return []User{
-		{ID: c.bareJID, DisplayName: c.bareJID, Platform: "xmpp"},
-		{ID: chatID, DisplayName: chatID, Platform: "xmpp"},
+		{ID: c.bareJID, DisplayName: c.bareJID, Platform: xmppPlatform},
+		{ID: chatID, DisplayName: chatID, Platform: xmppPlatform},
 	}, nil
 }
 
@@ -2821,7 +2838,7 @@ func (c *XMPPCore) GetContacts() ([]User, error) {
 	c.rosterMu.RLock()
 	defer c.rosterMu.RUnlock()
 
-	var users []User
+	users := []User{}
 	for _, item := range c.roster {
 		if item.Subscription == "remove" {
 			continue
@@ -2833,7 +2850,7 @@ func (c *XMPPCore) GetContacts() ([]User, error) {
 		users = append(users, User{
 			ID:          item.JID,
 			DisplayName: name,
-			Platform:    "xmpp",
+			Platform:    xmppPlatform,
 		})
 	}
 	return users, nil
@@ -2898,12 +2915,12 @@ func (c *XMPPCore) GetBlockedUsers() ([]User, error) {
 	if err != nil {
 		return nil, err
 	}
-	var users []User
+	users := []User{}
 	for _, jid := range jids {
 		users = append(users, User{
 			ID:          jid,
 			DisplayName: jid,
-			Platform:    "xmpp",
+			Platform:    xmppPlatform,
 		})
 	}
 	return users, nil
@@ -2925,7 +2942,7 @@ func (c *XMPPCore) SearchMessages(chatID string, query string, opts PaginationOp
 	c.messagesMu.RLock()
 	defer c.messagesMu.RUnlock()
 
-	var results []Message
+	results := []Message{}
 	q := strings.ToLower(query)
 
 	if chatID != "" {
@@ -2959,7 +2976,7 @@ func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 
 	// Search roster and rooms
 	q := strings.ToLower(query)
-	var results []Dialog
+	results := []Dialog{}
 
 	c.rosterMu.RLock()
 	for _, item := range c.roster {
@@ -2972,7 +2989,7 @@ func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 				ID:       item.JID,
 				Type:     ChatTypeDM,
 				Title:    name,
-				Platform: "xmpp",
+				Platform: xmppPlatform,
 			})
 		}
 	}
@@ -2989,7 +3006,7 @@ func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 				ID:       room.JID,
 				Type:     ChatTypeGroup,
 				Title:    name,
-				Platform: "xmpp",
+				Platform: xmppPlatform,
 			})
 		}
 	}
@@ -3044,7 +3061,7 @@ func (c *XMPPCore) GetSessions() ([]Session, error) {
 	return []Session{{
 		ID:         c.jid,
 		Device:     "uniclient",
-		Platform:   "xmpp",
+		Platform:   xmppPlatform,
 		LastActive: time.Now(),
 		IsCurrent:  true,
 	}}, nil
@@ -3478,7 +3495,7 @@ func (c *XMPPCore) GetMUCOccupants(roomJID string) ([]User, error) {
 		u := User{
 			ID:          nick,
 			DisplayName: nick,
-			Platform:    "xmpp",
+			Platform:    xmppPlatform,
 		}
 		if occ.RealJID != "" {
 			u.ID = occ.RealJID
@@ -3503,7 +3520,7 @@ func (c *XMPPCore) GetMUCInfo(roomJID string) (*Dialog, error) {
 		ID:       roomJID,
 		Type:     ChatTypeGroup,
 		Title:    roomJID,
-		Platform: "xmpp",
+		Platform: xmppPlatform,
 	}
 
 	// Parse disco#info response for room name
@@ -3993,7 +4010,7 @@ func (c *XMPPCore) SendFileURL(chatID, url, caption string) (*Message, error) {
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
 		Attachments: []FileRef{{URL: url, Name: caption}},
-		Platform:  "xmpp",
+		Platform:  xmppPlatform,
 	}
 	c.bufferMessage(chatID, m)
 	return m, nil

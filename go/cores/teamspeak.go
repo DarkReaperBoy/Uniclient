@@ -2220,7 +2220,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		t.channelsMu.Unlock()
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifychanneldeleted":
 		cid, _ := strconv.Atoi(cmd.params["cid"])
@@ -2229,7 +2229,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		t.channelsMu.Unlock()
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifychanneledited", "notifychannelmoved":
 		cid, _ := strconv.Atoi(cmd.params["cid"])
@@ -2252,7 +2252,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		t.channelsMu.Unlock()
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifyclientupdated":
 		clid, _ := strconv.Atoi(cmd.params["clid"])
@@ -2274,14 +2274,14 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Text:       "[poke] " + cmd.params["msg"],
 			Timestamp:  time.Now(),
 			Status:     MessageStatusDelivered,
-			Platform:   "teamspeak",
+			Platform:   ts3Platform,
 		}
 		t.tsAddMessage(msg.ChatID, &msg)
 		t.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   msg.ChatID,
 			Message:  &msg,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifyconnectioninforequest":
 		// Server requests connection stats — auto-respond
@@ -2290,7 +2290,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		// Channel description changed — could fetch new desc if needed
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifychannelpasswordchanged":
 		// Channel password changed
@@ -2300,7 +2300,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			ChatID:   fmt.Sprintf("ch:%d", cid),
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifychannelunsubscribed":
 		// We unsubscribed from a channel
@@ -2308,24 +2308,24 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			ChatID:   fmt.Sprintf("ch:%d", cid),
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifyserveredited", "notifyserverupdated":
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifyservergroupclientadded", "notifyservergroupclientdeleted":
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifytokenused":
 		// Privilege key was used — informational
 	case "notifyclientchannelgroupchanged":
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifyclientneededpermissions":
 		// Server tells us what permissions we need — informational
@@ -2335,7 +2335,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Type:     UpdateTyping,
 			ChatID:   fmt.Sprintf("dm:%d", clid),
 			UserID:   strconv.Itoa(clid),
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	case "notifyclientchatclosed":
 		// The other client closed the chat window — informational
@@ -2350,14 +2350,14 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Text:       "[plugin:" + cmd.params["name"] + "] " + cmd.params["data"],
 			Timestamp:  time.Now(),
 			Status:     MessageStatusDelivered,
-			Platform:   "teamspeak",
+			Platform:   ts3Platform,
 		}
 		t.tsAddMessage(msg.ChatID, &msg)
 		t.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   msg.ChatID,
 			Message:  &msg,
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		})
 	}
 
@@ -2534,7 +2534,7 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 		Text:       kv["msg"],
 		Timestamp:  time.Now(),
 		Status:     MessageStatusDelivered,
-		Platform:   "teamspeak",
+		Platform:   ts3Platform,
 	}
 	t.tsAddMessage(chatID, &msg)
 
@@ -2542,7 +2542,7 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  &msg,
-		Platform: "teamspeak",
+		Platform: ts3Platform,
 	})
 }
 
@@ -2568,7 +2568,7 @@ func (t *TeamSpeakCore) tsHandleClientEnter(kv map[string]string) {
 		Type:     UpdateGroupMembers,
 		ChatID:   fmt.Sprintf("ch:%d", cid),
 		UserID:   strconv.Itoa(dbid),
-		Platform: "teamspeak",
+		Platform: ts3Platform,
 	})
 }
 
@@ -2583,7 +2583,7 @@ func (t *TeamSpeakCore) tsHandleClientLeave(kv map[string]string) {
 	t.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   fmt.Sprintf("ch:%d", cid),
-		Platform: "teamspeak",
+		Platform: ts3Platform,
 	})
 }
 
@@ -2605,7 +2605,7 @@ func (t *TeamSpeakCore) tsHandleClientMoved(kv map[string]string) {
 	t.fireUpdate(Update{
 		Type:     UpdateGroupMembers,
 		ChatID:   fmt.Sprintf("ch:%d", cid),
-		Platform: "teamspeak",
+		Platform: ts3Platform,
 	})
 }
 
@@ -2983,7 +2983,7 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		ID:       "server",
 		Type:     ChatTypeChannel,
 		Title:    "Server Chat",
-		Platform: "teamspeak",
+		Platform: ts3Platform,
 	})
 
 	for _, ch := range t.channels {
@@ -2992,7 +2992,7 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			Type:        ChatTypeChannel,
 			Title:       ch.name,
 			MemberCount: ch.totalClients,
-			Platform:    "teamspeak",
+			Platform:    ts3Platform,
 		}
 		if ch.pid > 0 {
 			d.ParentID = fmt.Sprintf("ch:%d", ch.pid)
@@ -3018,7 +3018,7 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 				Type:        ChatTypeDM,
 				Title:       last.SenderName,
 				LastMessage: &last,
-				Platform:    "teamspeak",
+				Platform:    ts3Platform,
 			})
 		}
 	}
@@ -3073,7 +3073,7 @@ func (t *TeamSpeakCore) CreateChannel(name string, description string) (*Dialog,
 		ID:       fmt.Sprintf("ch:%s", cid),
 		Type:     ChatTypeChannel,
 		Title:    name,
-		Platform: "teamspeak",
+		Platform: ts3Platform,
 	}, nil
 }
 
@@ -3125,7 +3125,7 @@ func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 		Text:       msg.Text,
 		Timestamp:  time.Now(),
 		Status:     MessageStatusSent,
-		Platform:   "teamspeak",
+		Platform:   ts3Platform,
 	}
 	t.tsAddMessage(chatID, m)
 	return m, nil
@@ -3275,7 +3275,7 @@ func (t *TeamSpeakCore) UploadFile(chatID string, file FileUpload, progress func
 		Text:       fmt.Sprintf("[File: %s]", file.Name),
 		Timestamp:  time.Now(),
 		Status:     MessageStatusSent,
-		Platform:   "teamspeak",
+		Platform:   ts3Platform,
 		Attachments: []FileRef{{
 			Name:     file.Name,
 			MimeType: file.MimeType,
@@ -3409,7 +3409,7 @@ func (t *TeamSpeakCore) GetProfile(userID string) (*User, error) {
 		DisplayName: row["client_nickname"],
 		IsBot:       row["client_type"] == "1",
 		IsOnline:    true,
-		Platform:    "teamspeak",
+		Platform:    ts3Platform,
 	}
 
 	if ts := row["client_lastconnected"]; ts != "" {
@@ -3465,7 +3465,7 @@ func (t *TeamSpeakCore) GetChatInfo(chatID string) (*Dialog, error) {
 			ID:       "server",
 			Type:     ChatTypeChannel,
 			Title:    "Server Chat",
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		}, nil
 	}
 
@@ -3474,7 +3474,7 @@ func (t *TeamSpeakCore) GetChatInfo(chatID string) (*Dialog, error) {
 			ID:       chatID,
 			Type:     ChatTypeDM,
 			Title:    fmt.Sprintf("DM %d", id),
-			Platform: "teamspeak",
+			Platform: ts3Platform,
 		}, nil
 	}
 
@@ -3493,7 +3493,7 @@ func (t *TeamSpeakCore) GetChatInfo(chatID string) (*Dialog, error) {
 		ID:       chatID,
 		Type:     ChatTypeChannel,
 		Title:    row["channel_name"],
-		Platform: "teamspeak",
+		Platform: ts3Platform,
 	}
 	if pid > 0 {
 		d.ParentID = fmt.Sprintf("ch:%d", pid)
@@ -3663,7 +3663,7 @@ func (t *TeamSpeakCore) GetMembers(chatID string, opts PaginationOpts) ([]User, 
 			DisplayName: ci.nickname,
 			IsBot:       ci.isQuery,
 			IsOnline:    true,
-			Platform:    "teamspeak",
+			Platform:    ts3Platform,
 		}
 		users = append(users, u)
 	}
@@ -3741,7 +3741,7 @@ func (t *TeamSpeakCore) GetContacts() ([]User, error) {
 			ID:          row["cldbid"],
 			Username:    row["client_unique_identifier"],
 			DisplayName: row["client_nickname"],
-			Platform:    "teamspeak",
+			Platform:    ts3Platform,
 		}
 		if ts := row["client_lastconnected"]; ts != "" {
 			if epoch, err := strconv.ParseInt(ts, 10, 64); err == nil {
@@ -3791,7 +3791,7 @@ func (t *TeamSpeakCore) GetBlockedUsers() ([]User, error) {
 			ID:          row["banid"],
 			Username:    row["uid"],
 			DisplayName: row["name"],
-			Platform:    "teamspeak",
+			Platform:    ts3Platform,
 		}
 		users = append(users, u)
 	}
@@ -3811,7 +3811,7 @@ func (t *TeamSpeakCore) SearchMessages(_ string, query string, opts PaginationOp
 	defer t.msgBufMu.RUnlock()
 
 	queryLower := strings.ToLower(query)
-	var results []Message
+	results := []Message{}
 	for _, msgs := range t.msgBuffer {
 		for _, msg := range msgs {
 			if strings.Contains(strings.ToLower(msg.Text), queryLower) {
@@ -3843,7 +3843,7 @@ func (t *TeamSpeakCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 	}
 
 	queryLower := strings.ToLower(query)
-	var results []Dialog
+	results := []Dialog{}
 	for _, row := range rows {
 		name := row["channel_name"]
 		if strings.Contains(strings.ToLower(name), queryLower) {
@@ -3851,7 +3851,7 @@ func (t *TeamSpeakCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 				ID:       fmt.Sprintf("ch:%s", row["cid"]),
 				Type:     ChatTypeChannel,
 				Title:    name,
-				Platform: "teamspeak",
+				Platform: ts3Platform,
 			})
 		}
 	}

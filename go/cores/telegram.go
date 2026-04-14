@@ -93,7 +93,12 @@ type TelegramCore struct {
 	channelAccessHash map[int64]int64  // channelID → accessHash
 	fileAccessHash    map[int64]int64  // fileID → accessHash
 	fileReference     map[int64][]byte // fileID → fileReference
+	userNames         map[int64]string // userID → display name (first + last)
 	peerMu            sync.RWMutex
+
+	// Self user info (populated after auth)
+	selfID   int64
+	selfName string
 
 	// Interactive auth support (user mode)
 	// When OTP/2FA aren't provided upfront, the auth flow blocks on these channels.
@@ -175,6 +180,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		channelAccessHash: make(map[int64]int64),
 		fileAccessHash:    make(map[int64]int64),
 		fileReference:     make(map[int64][]byte),
+		userNames:         make(map[int64]string),
 		activeCalls:        make(map[int64]*tgCall),
 		pendingDH:          make(map[int64]*pendingDHState),
 		rawSigInInterceptors:  make(map[int64]func([]byte)),
@@ -229,7 +235,7 @@ func (t *TelegramCore) initClient() {
 			Type:     UpdateNewMessage,
 			ChatID:   converted.ChatID,
 			Message:  converted,
-			Platform: "telegram",
+			Platform: tgPlatform,
 		})
 		return nil
 	})
@@ -244,7 +250,7 @@ func (t *TelegramCore) initClient() {
 			Type:     UpdateEditMessage,
 			ChatID:   converted.ChatID,
 			Message:  converted,
-			Platform: "telegram",
+			Platform: tgPlatform,
 		})
 		return nil
 	})
@@ -254,7 +260,7 @@ func (t *TelegramCore) initClient() {
 			t.fireUpdate(Update{
 				Type:      UpdateDeleteMessage,
 				MessageID: strconv.Itoa(msgID),
-				Platform:  "telegram",
+				Platform:  tgPlatform,
 			})
 		}
 		return nil
@@ -271,7 +277,7 @@ func (t *TelegramCore) initClient() {
 			Type:     UpdateNewMessage,
 			ChatID:   converted.ChatID,
 			Message:  converted,
-			Platform: "telegram",
+			Platform: tgPlatform,
 		})
 		return nil
 	})
@@ -286,7 +292,7 @@ func (t *TelegramCore) initClient() {
 			Type:     UpdateEditMessage,
 			ChatID:   converted.ChatID,
 			Message:  converted,
-			Platform: "telegram",
+			Platform: tgPlatform,
 		})
 		return nil
 	})
@@ -301,7 +307,7 @@ func (t *TelegramCore) initClient() {
 				Type:      UpdateDeleteMessage,
 				ChatID:    chatID,
 				MessageID: strconv.Itoa(msgID),
-				Platform:  "telegram",
+				Platform:  tgPlatform,
 			})
 		}
 		return nil
@@ -359,7 +365,7 @@ func (t *TelegramCore) initClient() {
 			}
 			t.fireUpdate(Update{
 				Type:     UpdateCallState,
-				Platform: "telegram",
+				Platform: tgPlatform,
 				Call:     &CallSession{ID: strconv.FormatInt(c.ID, 10), State: CallStateEnded, Meta: meta},
 			})
 		case *tg.PhoneCallWaiting:
@@ -381,7 +387,7 @@ func (t *TelegramCore) initClient() {
 			t.mu.Unlock()
 			t.fireUpdate(Update{
 				Type:     UpdateCallState,
-				Platform: "telegram",
+				Platform: tgPlatform,
 				Call: &CallSession{
 					ID:      strconv.FormatInt(c.ID, 10),
 					IsVideo: c.Video,
@@ -418,7 +424,7 @@ func (t *TelegramCore) initClient() {
 			if call != nil {
 				t.fireUpdate(Update{
 					Type:     UpdateCallState,
-					Platform: "telegram",
+					Platform: tgPlatform,
 					Call: &CallSession{
 						ID:    strconv.FormatInt(gc.ID, 10),
 						State: CallStateActive,
@@ -443,7 +449,7 @@ func (t *TelegramCore) initClient() {
 			t.mu.Unlock()
 			t.fireUpdate(Update{
 				Type:     UpdateCallState,
-				Platform: "telegram",
+				Platform: tgPlatform,
 				Call:     &CallSession{ID: strconv.FormatInt(gc.ID, 10), State: CallStateEnded, IsGroup: true},
 			})
 		}
@@ -519,7 +525,7 @@ func (t *TelegramCore) initClient() {
 
 		t.fireUpdate(Update{
 			Type:     UpdateCallState,
-			Platform: "telegram",
+			Platform: tgPlatform,
 			Call: &CallSession{
 				ID:           strconv.FormatInt(gcID, 10),
 				State:        call.state,
@@ -628,6 +634,25 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 			t.authed = true
 			t.mu.Unlock()
 
+			// Cache self user info for SenderName population
+			if me, err := api.UsersGetUsers(ctx, []tg.InputUserClass{&tg.InputUserSelf{}}); err == nil && len(me) > 0 {
+				if u, ok := me[0].(*tg.User); ok {
+					t.mu.Lock()
+					t.selfID = u.ID
+					t.selfName = strings.TrimSpace(u.FirstName + " " + u.LastName)
+					if t.selfName == "" {
+						t.selfName = u.Username
+					}
+					t.mu.Unlock()
+					t.peerMu.Lock()
+					t.userAccessHash[u.ID] = u.AccessHash
+					if t.selfName != "" {
+						t.userNames[u.ID] = t.selfName
+					}
+					t.peerMu.Unlock()
+				}
+			}
+
 			close(authDone)
 
 			// Block to keep the connection alive for updates
@@ -694,10 +719,17 @@ func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		limit = 100
 	}
 
-	result, err := t.api.MessagesGetDialogs(t.ctx, &tg.MessagesGetDialogsRequest{
+	req := &tg.MessagesGetDialogsRequest{
 		Limit:      limit,
 		OffsetPeer: &tg.InputPeerEmpty{},
-	})
+	}
+	if opts.Offset != "" {
+		if offsetDate, err := strconv.Atoi(opts.Offset); err == nil {
+			req.OffsetDate = offsetDate
+		}
+	}
+
+	result, err := t.api.MessagesGetDialogs(t.ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("get dialogs: %w", err)
 	}
@@ -1143,7 +1175,7 @@ func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string
 
 	msg := t.extractMessageFromUpdates(updates, chatID)
 	if msg != nil { return msg, nil }
-	return &Message{ChatID: chatID, Text: caption, Platform: "telegram"}, nil
+	return &Message{ChatID: chatID, Text: caption, Platform: tgPlatform}, nil
 }
 
 
@@ -1403,7 +1435,7 @@ func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 	}
 	t.fireUpdate(Update{
 		Type:     UpdateCallState,
-		Platform: "telegram",
+		Platform: tgPlatform,
 		Call: &CallSession{
 			ID:    strconv.FormatInt(call.id, 10),
 			State: call.state,
@@ -2227,7 +2259,7 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 		call.mu.Unlock()
 		t.fireUpdate(Update{
 			Type:     UpdateCallState,
-			Platform: "telegram",
+			Platform: tgPlatform,
 			Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: CallStateActive},
 		})
 
@@ -4208,7 +4240,7 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		if state == webrtc.ICEConnectionStateConnected || state == webrtc.ICEConnectionStateFailed {
 			t.fireUpdate(Update{
 				Type:     UpdateCallState,
-				Platform: "telegram",
+				Platform: tgPlatform,
 				Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: call.state},
 			})
 		}
@@ -4689,7 +4721,7 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 		if state == webrtc.ICEConnectionStateConnected || state == webrtc.ICEConnectionStateFailed {
 			t.fireUpdate(Update{
 				Type:     UpdateCallState,
-				Platform: "telegram",
+				Platform: tgPlatform,
 				Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: call.state},
 			})
 		}
@@ -8464,7 +8496,7 @@ func (t *TelegramCore) CreateGroup(name string, members []string) (*Dialog, erro
 	if result != nil && result.Updates != nil {
 		return t.extractDialogFromUpdates(result.Updates), nil
 	}
-	return &Dialog{Title: name, Type: ChatTypeGroup, Platform: "telegram"}, nil
+	return &Dialog{Title: name, Type: ChatTypeGroup, Platform: tgPlatform}, nil
 }
 
 func (t *TelegramCore) CreateChannel(name string, description string) (*Dialog, error) {
@@ -8518,7 +8550,7 @@ func (t *TelegramCore) CreateTopic(chatID string, name string) (*Dialog, error) 
 		Title:    name,
 		Type:     ChatTypeTopic,
 		ParentID: chatID,
-		Platform: "telegram",
+		Platform: tgPlatform,
 	}, nil
 }
 
@@ -8773,6 +8805,13 @@ func (t *TelegramCore) getCachedUserHash(userID int64) int64 {
 	return 0
 }
 
+func (t *TelegramCore) getCachedUserName(userID int64) string {
+	t.peerMu.RLock()
+	name := t.userNames[userID]
+	t.peerMu.RUnlock()
+	return name
+}
+
 func (t *TelegramCore) cacheChannelHash(channelID, accessHash int64) {
 	t.peerMu.Lock()
 	t.channelAccessHash[channelID] = accessHash
@@ -8816,6 +8855,13 @@ func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass)
 	for _, u := range users {
 		if user, ok := u.(*tg.User); ok {
 			t.userAccessHash[user.ID] = user.AccessHash
+			name := strings.TrimSpace(user.FirstName + " " + user.LastName)
+			if name == "" {
+				name = user.Username
+			}
+			if name != "" {
+				t.userNames[user.ID] = name
+			}
 		}
 	}
 	for _, c := range chats {
@@ -8860,11 +8906,14 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		Timestamp:  time.Unix(int64(msg.Date), 0),
 		Status:     MessageStatusSent,
 		IsPinned:   msg.Pinned,
-		Platform:   "telegram",
+		Platform:   tgPlatform,
 	}
 
 	if from := msg.FromID; from != nil {
 		m.SenderID = peerToID(from)
+		if peer, ok := from.(*tg.PeerUser); ok {
+			m.SenderName = t.getCachedUserName(peer.UserID)
+		}
 	}
 
 	if msg.EditDate != 0 {
@@ -8946,7 +8995,7 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		DisplayName: strings.TrimSpace(user.FirstName + " " + user.LastName),
 		Phone:       user.Phone,
 		IsBot:       user.Bot,
-		Platform:    "telegram",
+		Platform:    tgPlatform,
 	}
 
 	if status := user.Status; status != nil {
@@ -9009,7 +9058,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 		dialog := Dialog{
 			UnreadCount: dlg.UnreadCount,
 			IsPinned:    dlg.Pinned,
-			Platform:    "telegram",
+			Platform:    tgPlatform,
 		}
 
 		switch p := dlg.Peer.(type) {
@@ -9075,14 +9124,17 @@ func (t *TelegramCore) extractMessageFromUpdates(updates tg.UpdatesClass, chatID
 		}
 	case *tg.UpdateShortSentMessage:
 		return &Message{
-			ID:        strconv.Itoa(u.ID),
-			ChatID:    chatID,
-			Timestamp: time.Unix(int64(u.Date), 0),
-			Status:    MessageStatusSent,
-			Platform:  "telegram",
+			ID:         strconv.Itoa(u.ID),
+			ChatID:     chatID,
+			SenderID:   strconv.FormatInt(t.selfID, 10),
+			SenderName: t.selfName,
+			Timestamp:  time.Unix(int64(u.Date), 0),
+			Status:     MessageStatusSent,
+			Platform:   tgPlatform,
 		}
 	}
-	return &Message{ChatID: chatID, Platform: "telegram", Status: MessageStatusSent}
+	// Fallback — at minimum provide timestamp and status
+	return &Message{ChatID: chatID, Platform: tgPlatform, Status: MessageStatusSent, Timestamp: time.Now()}
 }
 
 func (t *TelegramCore) extractDialogFromUpdates(updates tg.UpdatesClass) *Dialog {
@@ -9097,19 +9149,19 @@ func (t *TelegramCore) extractDialogFromUpdates(updates tg.UpdatesClass) *Dialog
 					Type:        ChatTypeGroup,
 					Title:       c.Title,
 					MemberCount: c.ParticipantsCount,
-					Platform:    "telegram",
+					Platform:    tgPlatform,
 				}
 			case *tg.Channel:
 				return &Dialog{
 					ID:       strconv.FormatInt(-1000000000000-c.ID, 10),
 					Type:     ChatTypeChannel,
 					Title:    c.Title,
-					Platform: "telegram",
+					Platform: tgPlatform,
 				}
 			}
 		}
 	}
-	return &Dialog{Platform: "telegram"}
+	return &Dialog{Platform: tgPlatform}
 }
 
 func (t *TelegramCore) convertMessages(result tg.MessagesMessagesClass) []Message {
@@ -9550,7 +9602,7 @@ func (t *TelegramCore) PromoteAdmin(chatID, userID string, rights tg.ChatAdminRi
 	}
 	ch, ok := peer.(*tg.PeerChannel)
 	if !ok {
-		return fmt.Errorf("promote only works on channels/supergroups")
+		return fmt.Errorf("telegram: promote only works on channels/supergroups: %w", ErrNotSupported)
 	}
 
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
@@ -9950,7 +10002,7 @@ func (t *TelegramCore) GetFullChannel(chatID string) (*Dialog, error) {
 	result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash})
 	if err != nil { return nil, err }
 	t.cacheEntities(result.Users, result.Chats)
-	d := &Dialog{Platform: "telegram", ID: chatID}
+	d := &Dialog{Platform: tgPlatform, ID: chatID}
 	if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
 		d.MemberCount = fc.ParticipantsCount
 	}
@@ -9996,10 +10048,10 @@ func (t *TelegramCore) GetCommonChats(userID string, limit int) ([]Dialog, error
 	if mc, ok := result.(*tg.MessagesChats); ok {
 		for _, c := range mc.Chats {
 			switch ch := c.(type) {
-			case *tg.Chat: dialogs = append(dialogs, Dialog{ID: strconv.FormatInt(-ch.ID, 10), Title: ch.Title, Type: ChatTypeGroup, Platform: "telegram"})
+			case *tg.Chat: dialogs = append(dialogs, Dialog{ID: strconv.FormatInt(-ch.ID, 10), Title: ch.Title, Type: ChatTypeGroup, Platform: tgPlatform})
 			case *tg.Channel:
 				ctype := ChatTypeGroup; if ch.Broadcast { ctype = ChatTypeChannel }
-				dialogs = append(dialogs, Dialog{ID: strconv.FormatInt(-1000000000000-ch.ID, 10), Title: ch.Title, Type: ctype, Platform: "telegram"})
+				dialogs = append(dialogs, Dialog{ID: strconv.FormatInt(-1000000000000-ch.ID, 10), Title: ch.Title, Type: ctype, Platform: tgPlatform})
 			}
 		}
 	}
@@ -10131,7 +10183,7 @@ func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]Dialog, error
 	var topics []Dialog
 	for _, topic := range result.Topics {
 		if ft, ok := topic.(*tg.ForumTopic); ok {
-			topics = append(topics, Dialog{ID: strconv.Itoa(ft.ID), Title: ft.Title, Type: ChatTypeTopic, ParentID: chatID, Platform: "telegram"})
+			topics = append(topics, Dialog{ID: strconv.Itoa(ft.ID), Title: ft.Title, Type: ChatTypeTopic, ParentID: chatID, Platform: tgPlatform})
 		}
 	}
 	return topics, nil
@@ -10451,7 +10503,7 @@ func (t *TelegramCore) GetFullChat(chatID string) (*Dialog, error) {
 	result, err := t.api.MessagesGetFullChat(t.ctx, chat.ChatID)
 	if err != nil { return nil, err }
 	t.cacheEntities(result.Users, result.Chats)
-	d := &Dialog{Platform: "telegram", ID: chatID, Type: ChatTypeGroup}
+	d := &Dialog{Platform: tgPlatform, ID: chatID, Type: ChatTypeGroup}
 	if cf, ok := result.FullChat.(*tg.ChatFull); ok {
 		d.Title = cf.About
 	}
@@ -14793,7 +14845,7 @@ func (t *TelegramCore) EditChatTitle(chatID string, title string) error {
 		})
 		return err
 	}
-	return fmt.Errorf("cannot edit title for this chat type")
+	return fmt.Errorf("telegram: cannot edit title for this chat type: %w", ErrNotSupported)
 }
 
 func (t *TelegramCore) EditChatDescription(chatID string, description string) error {
@@ -14841,7 +14893,7 @@ func (t *TelegramCore) LeaveChat(chatID string) error {
 		}
 		return fmt.Errorf("could not determine self user")
 	}
-	return fmt.Errorf("cannot leave this chat type")
+	return fmt.Errorf("telegram: cannot leave this chat type: %w", ErrNotSupported)
 }
 
 func (t *TelegramCore) GetInviteLink(chatID string) (string, error) {
@@ -14884,7 +14936,7 @@ func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
 		}
 		return nil
 	}
-	return fmt.Errorf("cannot add members to this chat type")
+	return fmt.Errorf("telegram: cannot add members to this chat type: %w", ErrNotSupported)
 }
 
 func (t *TelegramCore) RemoveMember(chatID string, userID string) error {
@@ -14914,7 +14966,7 @@ func (t *TelegramCore) RemoveMember(chatID string, userID string) error {
 		})
 		return err
 	}
-	return fmt.Errorf("cannot remove member from this chat type")
+	return fmt.Errorf("telegram: cannot remove member from this chat type: %w", ErrNotSupported)
 }
 
 func (t *TelegramCore) BanMember(chatID string, userID string) error {
@@ -14929,7 +14981,7 @@ func (t *TelegramCore) BanMember(chatID string, userID string) error {
 	}
 	ch, ok := peer.(*tg.PeerChannel)
 	if !ok {
-		return fmt.Errorf("ban only works on channels/supergroups")
+		return fmt.Errorf("telegram: ban only works on channels/supergroups: %w", ErrNotSupported)
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
 	uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -14954,7 +15006,7 @@ func (t *TelegramCore) UnbanMember(chatID string, userID string) error {
 	}
 	ch, ok := peer.(*tg.PeerChannel)
 	if !ok {
-		return fmt.Errorf("unban only works on channels/supergroups")
+		return fmt.Errorf("telegram: unban only works on channels/supergroups: %w", ErrNotSupported)
 	}
 	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
 	uid, _ := strconv.ParseInt(userID, 10, 64)
@@ -15083,7 +15135,7 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 		if user, ok := u.(*tg.User); ok {
 			dialogs = append(dialogs, Dialog{
 				ID: strconv.FormatInt(user.ID, 10), Title: strings.TrimSpace(user.FirstName + " " + user.LastName),
-				Type: ChatTypeDM, Platform: "telegram",
+				Type: ChatTypeDM, Platform: tgPlatform,
 			})
 		}
 	}
@@ -15092,7 +15144,7 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 		case *tg.Chat:
 			dialogs = append(dialogs, Dialog{
 				ID: strconv.FormatInt(-ch.ID, 10), Title: ch.Title,
-				Type: ChatTypeGroup, Platform: "telegram",
+				Type: ChatTypeGroup, Platform: tgPlatform,
 			})
 		case *tg.Channel:
 			ctype := ChatTypeGroup
@@ -15101,7 +15153,7 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 			}
 			dialogs = append(dialogs, Dialog{
 				ID: strconv.FormatInt(-1000000000000-ch.ID, 10), Title: ch.Title,
-				Type: ctype, Platform: "telegram",
+				Type: ctype, Platform: tgPlatform,
 			})
 		}
 	}

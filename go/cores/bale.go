@@ -664,7 +664,7 @@ func (b *BaleCore) processUpdate(u map[string]interface{}) {
 	b.updateMu.RUnlock()
 
 	var update Update
-	update.Platform = "bale"
+	update.Platform = balePlatform
 
 	if msg, ok := u["message"].(map[string]interface{}); ok {
 		update.Type = UpdateNewMessage
@@ -712,13 +712,13 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		return nil, err
 	}
 	// Response field 3 = repeated PeerData (dialogs)
-	var dialogs []Dialog
+	dialogs := []Dialog{}
 	for _, item := range pbGetList(resp, "3") {
 		pd, ok := item.(map[string]interface{})
 		if !ok {
 			continue
 		}
-		d := Dialog{Platform: "bale"}
+		d := Dialog{Platform: balePlatform}
 		// Field 1 = Peer{1=type, 2=id}
 		if peer := pbGetMsg(pd, "1"); peer != nil {
 			peerID := pbGetInt64(peer, "2")
@@ -739,7 +739,7 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		// Field 3 = sortDate, field 6 = last message date
 		// Field 7 = MessageContent (last message content)
 		if content := pbGetMsg(pd, "7"); content != nil {
-			lastMsg := &Message{Platform: "bale"}
+			lastMsg := &Message{Platform: balePlatform}
 			b.mapUserMessageContent(pd, "7", lastMsg)
 			if lastMsg.Text != "" {
 				lastMsg.Text = truncateText(lastMsg.Text, 100)
@@ -776,7 +776,7 @@ func (b *BaleCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	return &Dialog{
 		Title:    name,
 		Type:     ChatTypeGroup,
-		Platform: "bale",
+		Platform: balePlatform,
 	}, nil
 }
 
@@ -846,12 +846,14 @@ func (b *BaleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 		// - mid: server sequential ID, used for group pin (PinMessage field 4)
 		msgID := int64Triple(ourRID, dateMs, mid, ':')
 		return &Message{
-			ID:        msgID,
-			ChatID:    chatID,
-			Text:      msg.Text,
-			Timestamp: time.Now(),
-			Status:    MessageStatusSent,
-			Platform:  "bale",
+			ID:         msgID,
+			ChatID:     chatID,
+			Text:       msg.Text,
+			Timestamp:  time.Now(),
+			Status:     MessageStatusSent,
+			SenderID:   strconv.FormatInt(b.userID, 10),
+			SenderName: b.userPhone,
+			Platform:   balePlatform,
 		}, nil
 	}
 
@@ -875,7 +877,7 @@ func (b *BaleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 
 	result, ok := resp["result"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected sendMessage response")
+		return nil, fmt.Errorf("%w: unexpected sendMessage response", ErrNetwork)
 	}
 
 	parsed := b.mapMessage(result)
@@ -901,7 +903,7 @@ func (b *BaleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, e
 		return nil, err
 	}
 	// Response field 1 = repeated MessageContainer
-	var messages []Message
+	messages := []Message{}
 	for _, item := range pbGetList(resp, "1") {
 		mc, ok := item.(map[string]interface{})
 		if !ok {
@@ -928,7 +930,7 @@ func (b *BaleCore) EditMessage(chatID string, msgID string, text string) (*Messa
 		if err != nil {
 			return nil, err
 		}
-		return &Message{ID: msgID, ChatID: chatID, Text: text, Platform: "bale"}, nil
+		return &Message{ID: msgID, ChatID: chatID, Text: text, Platform: balePlatform}, nil
 	}
 
 	messageID, err := strconv.ParseInt(msgID, 10, 64)
@@ -949,7 +951,7 @@ func (b *BaleCore) EditMessage(chatID string, msgID string, text string) (*Messa
 
 	result, ok := resp["result"].(map[string]interface{})
 	if !ok {
-		return &Message{ID: msgID, ChatID: chatID, Text: text, Platform: "bale"}, nil
+		return &Message{ID: msgID, ChatID: chatID, Text: text, Platform: balePlatform}, nil
 	}
 
 	parsed := b.mapMessage(result)
@@ -1005,7 +1007,7 @@ func (b *BaleCore) ForwardMessage(fromChatID string, msgID string, toChatID stri
 		if err != nil {
 			return nil, err
 		}
-		return &Message{ChatID: toChatID, Platform: "bale", Status: MessageStatusSent}, nil
+		return &Message{ChatID: toChatID, Platform: balePlatform, Status: MessageStatusSent}, nil
 	}
 
 	messageID, err := strconv.ParseInt(msgID, 10, 64)
@@ -1026,7 +1028,7 @@ func (b *BaleCore) ForwardMessage(fromChatID string, msgID string, toChatID stri
 
 	result, ok := resp["result"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected forwardMessage response")
+		return nil, fmt.Errorf("%w: unexpected forwardMessage response", ErrNetwork)
 	}
 
 	parsed := b.mapMessage(result)
@@ -1244,7 +1246,7 @@ func (b *BaleCore) userUploadFile(chatID string, file FileUpload, progress func(
 	return &Message{
 		ID:       msgID,
 		ChatID:   chatID,
-		Platform: "bale",
+		Platform: balePlatform,
 		Status:   MessageStatusSent,
 	}, nil
 }
@@ -1560,7 +1562,7 @@ func (b *BaleCore) StartCall(chatID string, video bool) (*CallSession, error) {
 
 	callID, room, token, wsURL := baleExtractCallData(resp)
 	if callID == 0 {
-		return nil, fmt.Errorf("StartCall: no call_id in response")
+		return nil, fmt.Errorf("%w: StartCall: no call_id in response", ErrNetwork)
 	}
 
 	// If we didn't get a ws_url from the response, try GetWssURL
@@ -1822,7 +1824,7 @@ func (b *BaleCore) GetProfile(userID string) (*User, error) {
 			ID:          userID,
 			DisplayName: name,
 			Username:    nick,
-			Platform:    "bale",
+			Platform:    balePlatform,
 		}, nil
 	}
 
@@ -1838,7 +1840,7 @@ func (b *BaleCore) GetProfile(userID string) (*User, error) {
 
 	result, ok := resp["result"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected getChat response")
+		return nil, fmt.Errorf("%w: unexpected getChat response", ErrNetwork)
 	}
 
 	return b.mapChatToUser(result), nil
@@ -2125,7 +2127,7 @@ func (b *BaleCore) SendMessageWithKeyboard(chatID string, text string, keyboard 
 
 	result, ok := resp["result"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("unexpected sendMessage response")
+		return nil, fmt.Errorf("%w: unexpected sendMessage response", ErrNetwork)
 	}
 
 	parsed := b.mapMessage(result)
@@ -2212,7 +2214,7 @@ func (b *BaleCore) SendSticker(chatID string, stickerFileID string) (*Message, e
 
 func (b *BaleCore) mapMessage(m map[string]interface{}) Message {
 	msg := Message{
-		Platform: "bale",
+		Platform: balePlatform,
 	}
 
 	msg.ID = strconv.FormatInt(jsonInt64(m, "message_id"), 10)
@@ -2272,7 +2274,7 @@ func (b *BaleCore) mapMessage(m map[string]interface{}) Message {
 
 func (b *BaleCore) mapCallbackQuery(cb map[string]interface{}) Message {
 	msg := Message{
-		Platform: "bale",
+		Platform: balePlatform,
 		Status:   MessageStatusSent,
 	}
 
@@ -2297,7 +2299,7 @@ func (b *BaleCore) mapCallbackQuery(cb map[string]interface{}) Message {
 
 func (b *BaleCore) mapUser(u map[string]interface{}) *User {
 	user := &User{
-		Platform: "bale",
+		Platform: balePlatform,
 	}
 
 	user.ID = strconv.FormatInt(jsonInt64(u, "id"), 10)
@@ -2314,7 +2316,7 @@ func (b *BaleCore) mapUser(u map[string]interface{}) *User {
 
 func (b *BaleCore) mapChatToUser(chat map[string]interface{}) *User {
 	user := &User{
-		Platform: "bale",
+		Platform: balePlatform,
 	}
 
 	user.ID = strconv.FormatInt(jsonInt64(chat, "id"), 10)
@@ -3010,7 +3012,7 @@ func (b *BaleCore) fireConnState(state string) {
 	handlers := make([]func(Update), len(b.updateHandlers))
 	copy(handlers, b.updateHandlers)
 	b.updateMu.RUnlock()
-	u := Update{Type: UpdateConnectivity, ConnState: state, Platform: "bale"}
+	u := Update{Type: UpdateConnectivity, ConnState: state, Platform: balePlatform}
 	for _, h := range handlers {
 		go h(u)
 	}
@@ -3073,13 +3075,13 @@ func (b *BaleCore) wsHandleUpdate(wsUpdate map[string]interface{}) {
 	// Field 55 = new message
 	if msgUpdate := pbGetMsg(composed, "55"); msgUpdate != nil {
 		msg := b.mapUserMessage(msgUpdate)
-		dispatch(Update{Type: UpdateNewMessage, ChatID: msg.ChatID, Message: &msg, Platform: "bale"})
+		dispatch(Update{Type: UpdateNewMessage, ChatID: msg.ChatID, Message: &msg, Platform: balePlatform})
 	}
 
 	// Field 162 = message edited (UpdatedMessage)
 	if editUpdate := pbGetMsg(composed, "162"); editUpdate != nil {
 		msg := b.mapUpdatedMessage(editUpdate)
-		dispatch(Update{Type: UpdateEditMessage, ChatID: msg.ChatID, Message: &msg, Platform: "bale"})
+		dispatch(Update{Type: UpdateEditMessage, ChatID: msg.ChatID, Message: &msg, Platform: balePlatform})
 	}
 
 	// Field 46 = message deleted (SelectedMessages)
@@ -3090,7 +3092,7 @@ func (b *BaleCore) wsHandleUpdate(wsUpdate map[string]interface{}) {
 			peerType := pbGetInt64(peer, "1")
 			chatID = int64Pair(peerID, peerType, '|')
 		}
-		dispatch(Update{Type: UpdateDeleteMessage, ChatID: chatID, Platform: "bale"})
+		dispatch(Update{Type: UpdateDeleteMessage, ChatID: chatID, Platform: balePlatform})
 	}
 
 	// Field 4 = message sent confirmation (InfoMessage)
@@ -4279,7 +4281,7 @@ func (b *BaleCore) UserSignUp(transactionHash string, name string) (map[string]i
 // UpdateMessage fields: 1=peer, 2=sender_uid, 3=date(ms), 4=rid, 5=message, 7=quoted_message
 func (b *BaleCore) mapUserMessage(um map[string]interface{}) Message {
 	msg := Message{
-		Platform: "bale",
+		Platform: balePlatform,
 		Status:   MessageStatusSent,
 	}
 
@@ -4331,7 +4333,7 @@ func (b *BaleCore) mapUserMessage(um map[string]interface{}) Message {
 // UpdatedMessage: 1=Peer, 2=message_id, 3=MessageContent, 4=IntValue{date}, 5=IntValue{sender_id}
 func (b *BaleCore) mapUpdatedMessage(um map[string]interface{}) Message {
 	msg := Message{
-		Platform: "bale",
+		Platform: balePlatform,
 		Status:   MessageStatusSent,
 	}
 	rid := pbGetInt64(um, "2")
@@ -4475,7 +4477,7 @@ func (b *BaleCore) mapUserMessageContent(parent map[string]interface{}, field st
 // 14=Int64Value(groupedId), 15=BoolValue(hasComment), 16=RepliesInfo, 17=Int64Value(replyToTopId)
 func (b *BaleCore) mapHistoryMessage(mc map[string]interface{}) Message {
 	msg := Message{
-		Platform: "bale",
+		Platform: balePlatform,
 		Status:   MessageStatusSent,
 	}
 
@@ -4539,7 +4541,7 @@ func (b *BaleCore) GetChatInfo(chatID string) (*Dialog, error) {
 		if err != nil {
 			return nil, err
 		}
-		d := &Dialog{Platform: "bale", ID: chatID}
+		d := &Dialog{Platform: balePlatform, ID: chatID}
 		if t, ok := raw["title"].(string); ok {
 			d.Title = t
 		}
@@ -4560,7 +4562,7 @@ func (b *BaleCore) GetChatInfo(chatID string) (*Dialog, error) {
 		return d, nil
 	}
 	// User mode — no direct GetChat, return basic dialog from ID
-	return &Dialog{Platform: "bale", ID: chatID}, nil
+	return &Dialog{Platform: balePlatform, ID: chatID}, nil
 }
 
 func (b *BaleCore) EditChatTitle(chatID string, title string) error {
@@ -4667,9 +4669,9 @@ func (b *BaleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error
 		if err != nil {
 			return nil, err
 		}
-		var users []User
+		users := []User{}
 		for _, a := range admins {
-			u := User{Platform: "bale"}
+			u := User{Platform: balePlatform}
 			if user, ok := a["user"].(map[string]interface{}); ok {
 				u.ID = strconv.FormatInt(jsonInt64(user, "id"), 10)
 				u.DisplayName = jsonString(user, "first_name")
@@ -4708,11 +4710,11 @@ func (b *BaleCore) GetContacts() ([]User, error) {
 		if err != nil {
 			return nil, err
 		}
-		var users []User
+		users := []User{}
 		if userList, ok := raw["1"].([]interface{}); ok {
 			for _, item := range userList {
 				if u, ok := item.(map[string]interface{}); ok {
-					user := User{Platform: "bale"}
+					user := User{Platform: balePlatform}
 					if id, ok := u["1"].(float64); ok {
 						user.ID = strconv.FormatInt(int64(id), 10)
 					}
@@ -4774,11 +4776,11 @@ func (b *BaleCore) GetBlockedUsers() ([]User, error) {
 		if err != nil {
 			return nil, err
 		}
-		var users []User
+		users := []User{}
 		if userList, ok := raw["1"].([]interface{}); ok {
 			for _, item := range userList {
 				if u, ok := item.(map[string]interface{}); ok {
-					user := User{Platform: "bale"}
+					user := User{Platform: balePlatform}
 					if id, ok := u["1"].(float64); ok {
 						user.ID = strconv.FormatInt(int64(id), 10)
 					}
@@ -4805,7 +4807,7 @@ func (b *BaleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 		if userList, ok := raw["1"].([]interface{}); ok {
 			for _, item := range userList {
 				if u, ok := item.(map[string]interface{}); ok {
-					d := Dialog{Platform: "bale", Type: ChatTypeDM}
+					d := Dialog{Platform: balePlatform, Type: ChatTypeDM}
 					if id, ok := u["1"].(float64); ok {
 						d.ID = strconv.FormatInt(int64(id), 10)
 					}
@@ -4858,7 +4860,7 @@ func (b *BaleCore) GetSessions() ([]Session, error) {
 		}
 		sessions = append(sessions, Session{
 			ID:       fmt.Sprintf("%d", pbGetInt64(s, "1")),
-			Platform: "bale",
+			Platform: balePlatform,
 		})
 	}
 	return sessions, nil

@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -522,6 +523,17 @@ func (d *DeltaChatCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	})
 
 	// Apply pagination
+	offset := 0
+	if opts.Offset != "" {
+		offset, _ = strconv.Atoi(opts.Offset)
+	}
+	if offset > 0 {
+		if offset >= len(dts) {
+			return []Dialog{}, nil
+		}
+		dts = dts[offset:]
+	}
+
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 50
@@ -797,7 +809,7 @@ func (d *DeltaChatCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 		Timestamp:  now,
 		Status:     MessageStatusSent,
 		ReplyToID:  msg.ReplyToID,
-		Platform:   "deltachat",
+		Platform:   dcPlatform,
 	}
 
 	d.cacheMessage(chatID, m)
@@ -829,7 +841,7 @@ func (d *DeltaChatCore) GetMessages(chatID string, opts PaginationOpts) ([]Messa
 		limit = 50
 	}
 
-	var result []Message
+	result := []Message{}
 	for _, m := range msgs {
 		result = append(result, *m)
 	}
@@ -891,7 +903,7 @@ func (d *DeltaChatCore) EditMessage(chatID string, msgID string, text string) (*
 		Timestamp:  now,
 		EditedAt:   &now,
 		Status:     MessageStatusSent,
-		Platform:   "deltachat",
+		Platform:   dcPlatform,
 	}
 
 	// Update cache
@@ -1014,7 +1026,7 @@ func (d *DeltaChatCore) ReplyToMessage(chatID string, replyToMsgID string, msg O
 		Status:       MessageStatusSent,
 		ReplyToID:    replyToMsgID,
 		ReplyPreview: replyPreview,
-		Platform:     "deltachat",
+		Platform:     dcPlatform,
 	}
 
 	d.cacheMessage(chatID, m)
@@ -1083,7 +1095,7 @@ func (d *DeltaChatCore) ForwardMessage(fromChatID string, msgID string, toChatID
 		Timestamp:   now,
 		Status:      MessageStatusSent,
 		ForwardFrom: original.SenderName,
-		Platform:    "deltachat",
+		Platform:    dcPlatform,
 	}
 
 	d.cacheMessage(toChatID, m)
@@ -1296,7 +1308,7 @@ func (d *DeltaChatCore) UploadFile(chatID string, file FileUpload, progress func
 			MimeType: file.MimeType,
 			Size:     int64(len(fileData)),
 		}},
-		Platform: "deltachat",
+		Platform: dcPlatform,
 	}
 
 	d.cacheMessage(chatID, m)
@@ -1510,7 +1522,7 @@ func (d *DeltaChatCore) StartCall(chatID string, video bool) (*CallSession, erro
 				IsVideo: video,
 				State:   CallState(state.String()),
 			},
-			Platform: "deltachat",
+			Platform: dcPlatform,
 		})
 	})
 
@@ -1757,7 +1769,7 @@ func (d *DeltaChatCore) GetProfile(userID string) (*User, error) {
 			ID:          d.myAddr,
 			Username:    d.myAddr,
 			DisplayName: d.myName,
-			Platform:    "deltachat",
+			Platform:    dcPlatform,
 		}, nil
 	}
 
@@ -1769,7 +1781,7 @@ func (d *DeltaChatCore) GetProfile(userID string) (*User, error) {
 		ID:          email,
 		Username:    email,
 		DisplayName: email,
-		Platform:    "deltachat",
+		Platform:    dcPlatform,
 	}
 
 	if ps != nil {
@@ -2126,13 +2138,13 @@ func (d *DeltaChatCore) GetMembers(chatID string, opts PaginationOpts) ([]User, 
 		return nil, ErrNotFound
 	}
 
-	var users []User
+	users := []User{}
 	for _, email := range cs.Members {
 		u := User{
 			ID:          email,
 			Username:    email,
 			DisplayName: email,
-			Platform:    "deltachat",
+			Platform:    dcPlatform,
 		}
 		d.peerKeysMu.RLock()
 		if ps := d.peerStates[email]; ps != nil && ps.DisplayName != "" {
@@ -2165,7 +2177,7 @@ func (d *DeltaChatCore) GetContacts() ([]User, error) {
 	d.peerKeysMu.RLock()
 	defer d.peerKeysMu.RUnlock()
 
-	var contacts []User
+	contacts := []User{}
 	for email, ps := range d.peerStates {
 		name := email
 		if ps.DisplayName != "" {
@@ -2176,7 +2188,7 @@ func (d *DeltaChatCore) GetContacts() ([]User, error) {
 			Username:    email,
 			DisplayName: name,
 			AvatarB64:   ps.AvatarB64,
-			Platform:    "deltachat",
+			Platform:    dcPlatform,
 		})
 	}
 	return contacts, nil
@@ -2225,13 +2237,13 @@ func (d *DeltaChatCore) UnblockUser(userID string) error {
 func (d *DeltaChatCore) GetBlockedUsers() ([]User, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	var users []User
+	users := []User{}
 	for email := range d.blocked {
 		users = append(users, User{
 			ID:          email,
 			Username:    email,
 			DisplayName: email,
-			Platform:    "deltachat",
+			Platform:    dcPlatform,
 		})
 	}
 	return users, nil
@@ -2247,7 +2259,7 @@ func (d *DeltaChatCore) SearchMessages(chatID string, query string, opts Paginat
 	}
 
 	queryLower := strings.ToLower(query)
-	var results []Message
+	results := []Message{}
 
 	d.msgsMu.RLock()
 	msgs := d.messages[chatID]
@@ -2278,7 +2290,7 @@ func (d *DeltaChatCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 	}
 
 	queryLower := strings.ToLower(query)
-	var results []Dialog
+	results := []Dialog{}
 
 	d.chatsMu.RLock()
 	for _, cs := range d.chats {
@@ -2429,7 +2441,7 @@ func (d *DeltaChatCore) SendSticker(chatID string, stickerID string) (*Message, 
 			MimeType: mimeType,
 			Size:     int64(len(data)),
 		}},
-		Platform: "deltachat",
+		Platform: dcPlatform,
 	}
 
 	d.cacheMessage(chatID, m)
@@ -2449,7 +2461,7 @@ func (d *DeltaChatCore) GetSessions() ([]Session, error) {
 	return []Session{{
 		ID:         "current",
 		Device:     "uniclient",
-		Platform:   "deltachat",
+		Platform:   dcPlatform,
 		AppName:    "uniclient",
 		AppVersion: "1.0.0",
 		LastActive: time.Now(),
@@ -2829,7 +2841,7 @@ func (d *DeltaChatCore) ImportVCard(vcard string) ([]User, error) {
 				ID:          addr,
 				Username:    addr,
 				DisplayName: name,
-				Platform:    "deltachat",
+				Platform:    dcPlatform,
 			})
 			name, email = "", ""
 		}
@@ -2972,7 +2984,7 @@ sent:
 		Text:       plaintext,
 		Timestamp:  now,
 		Status:     MessageStatusSent,
-		Platform:   "deltachat",
+		Platform:   dcPlatform,
 	}
 	d.cacheMessage(chatID, m)
 	d.updateChatTime(chatID, now)
@@ -3228,7 +3240,7 @@ func (d *DeltaChatCore) SendContact(chatID string, contactEmail string) (*Messag
 			Name:     "contact.vcf",
 			MimeType: "text/vcard",
 		}},
-		Platform: "deltachat",
+		Platform: dcPlatform,
 	}
 	d.cacheMessage(chatID, m)
 	return m, nil
@@ -3283,7 +3295,7 @@ func (d *DeltaChatCore) SendVideochatInvitation(chatID string) (*Message, error)
 		Text:       "Video call invitation",
 		Timestamp:  now,
 		Status:     MessageStatusSent,
-		Platform:   "deltachat",
+		Platform:   dcPlatform,
 	}
 	d.cacheMessage(chatID, m)
 	return m, nil
@@ -4376,7 +4388,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 			}
 		}
 		d.msgsMu.Unlock()
-		d.fireUpdate(Update{Type: UpdateEditMessage, ChatID: chatID, MessageID: editID, Platform: "deltachat"})
+		d.fireUpdate(Update{Type: UpdateEditMessage, ChatID: chatID, MessageID: editID, Platform: dcPlatform})
 		return
 	}
 
@@ -4392,7 +4404,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 			}
 		}
 		d.msgsMu.Unlock()
-		d.fireUpdate(Update{Type: UpdateDeleteMessage, ChatID: chatID, MessageID: deleteID, Platform: "deltachat"})
+		d.fireUpdate(Update{Type: UpdateDeleteMessage, ChatID: chatID, MessageID: deleteID, Platform: dcPlatform})
 		return
 	}
 
@@ -4531,7 +4543,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 		Status:     status,
 		ReplyToID:  replyToID,
 		IsPinned:   isPinned,
-		Platform:   "deltachat",
+		Platform:   dcPlatform,
 	}
 
 	// Cache and fire update
@@ -4550,7 +4562,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  m,
-		Platform: "deltachat",
+		Platform: dcPlatform,
 	})
 }
 
@@ -4633,7 +4645,7 @@ func (d *DeltaChatCore) reconnectIDLE(clientPtr **imapclient.Client, folder stri
 
 	d.fireUpdate(Update{
 		Type:      UpdateConnectivity,
-		Platform:  "deltachat",
+		Platform:  dcPlatform,
 		ChatID:    label,
 		ConnState: "disconnected",
 	})
@@ -4683,7 +4695,7 @@ func (d *DeltaChatCore) reconnectIDLE(clientPtr **imapclient.Client, folder stri
 
 		d.fireUpdate(Update{
 			Type:      UpdateConnectivity,
-			Platform:  "deltachat",
+			Platform:  dcPlatform,
 			ChatID:    label,
 			ConnState: "connected",
 		})
@@ -4702,7 +4714,7 @@ func (d *DeltaChatCore) reconnectIDLE(clientPtr **imapclient.Client, folder stri
 	// All retries exhausted — fire permanent disconnect
 	d.fireUpdate(Update{
 		Type:      UpdateConnectivity,
-		Platform:  "deltachat",
+		Platform:  dcPlatform,
 		ChatID:    label,
 		ConnState: "disconnected",
 	})
@@ -5033,7 +5045,7 @@ func (d *DeltaChatCore) chatStateToDialog(cs *dcChatState) Dialog {
 		IsPinned:    cs.Visibility == 2,
 		IsArchived:  cs.Visibility == 1,
 		MemberCount: len(cs.Members),
-		Platform:    "deltachat",
+		Platform:    dcPlatform,
 	}
 }
 
@@ -5903,7 +5915,7 @@ func (d *DeltaChatCore) AddDeviceMessage(label, text string) error {
 		Text:       text,
 		Timestamp:  time.Now(),
 		Status:     MessageStatusSent,
-		Platform:   "deltachat",
+		Platform:   dcPlatform,
 	}
 	d.cacheMessage(deviceChatID, msg)
 	d.fireUpdate(Update{Type: UpdateNewMessage, ChatID: deviceChatID, Message: msg})

@@ -2987,7 +2987,7 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 		// Connected!
 	case <-time.After(30 * time.Second):
 		c.Close()
-		return fmt.Errorf("mumble: connection timed out waiting for ServerSync")
+		return fmt.Errorf("%w: mumble: connection timed out waiting for ServerSync", ErrTimeout)
 	case <-c.ctx.Done():
 		return fmt.Errorf("mumble: connection cancelled")
 	}
@@ -3035,7 +3035,7 @@ func (c *MumbleCore) tcpRecvLoop() {
 				return
 			default:
 				// Connection lost — notify listeners
-				c.fireUpdate(Update{Type: UpdateCallState, Platform: "mumble", ChatID: "disconnected"})
+				c.fireUpdate(Update{Type: UpdateCallState, Platform: mumblePlatform, ChatID: "disconnected"})
 
 				// Attempt auto-reconnect if enabled (in separate goroutine
 				// because Reconnect calls Close which waits on wg)
@@ -3071,7 +3071,7 @@ func (c *MumbleCore) attemptAutoReconnect() {
 
 		c.fireUpdate(Update{
 			Type:     UpdateCallState,
-			Platform: "mumble",
+			Platform: mumblePlatform,
 			ChatID:   fmt.Sprintf("reconnecting:%d/%d", attempt+1, maxRetries),
 		})
 
@@ -3081,7 +3081,7 @@ func (c *MumbleCore) attemptAutoReconnect() {
 		if err == nil {
 			c.fireUpdate(Update{
 				Type:     UpdateCallState,
-				Platform: "mumble",
+				Platform: mumblePlatform,
 				ChatID:   "reconnected",
 			})
 			return
@@ -3091,7 +3091,7 @@ func (c *MumbleCore) attemptAutoReconnect() {
 	// All retries exhausted
 	c.fireUpdate(Update{
 		Type:     UpdateCallState,
-		Platform: "mumble",
+		Platform: mumblePlatform,
 		ChatID:   "reconnect_failed",
 	})
 }
@@ -3393,7 +3393,7 @@ func (c *MumbleCore) handleUserState(msg *mumbleUserStateMsg) {
 			c.fireUpdateLocked(Update{
 				Type:     UpdateGroupMembers,
 				ChatID:   strconv.FormatUint(uint64(msg.ChannelID), 10),
-				Platform: "mumble",
+				Platform: mumblePlatform,
 			})
 		}
 	}
@@ -3441,7 +3441,7 @@ func (c *MumbleCore) handleUserState(msg *mumbleUserStateMsg) {
 			Type:     UpdateUserStatus,
 			UserID:   strconv.FormatUint(uint64(msg.Session), 10),
 			IsOnline: &isOnline,
-			Platform: "mumble",
+			Platform: mumblePlatform,
 		})
 	}
 }
@@ -3462,7 +3462,7 @@ func (c *MumbleCore) handleUserRemove(msg *mumbleUserRemoveMsg) {
 			Type:     UpdateGroupMembers,
 			ChatID:   strconv.FormatUint(uint64(channelID), 10),
 			UserID:   strconv.FormatUint(uint64(msg.Session), 10),
-			Platform: "mumble",
+			Platform: mumblePlatform,
 		})
 	}
 }
@@ -3514,14 +3514,14 @@ func (c *MumbleCore) handleTextMessage(msg *mumbleTextMsg) {
 		Text:       msg.Message,
 		Timestamp:  entry.Timestamp,
 		Status:     MessageStatusDelivered,
-		Platform:   "mumble",
+		Platform:   mumblePlatform,
 	}
 
 	c.fireUpdate(Update{
 		Type:     UpdateNewMessage,
 		ChatID:   chatID,
 		Message:  coreMsg,
-		Platform: "mumble",
+		Platform: mumblePlatform,
 	})
 }
 
@@ -3787,7 +3787,7 @@ func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
 		username = cfg.Phone
 	}
 	if username == "" {
-		return fmt.Errorf("mumble: username required")
+		return fmt.Errorf("%w: mumble: username required", ErrInvalidInput)
 	}
 
 	password := cfg.Extra["password"]
@@ -3862,7 +3862,7 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	}
 	defer c.mu.RUnlock()
 
-	var dialogs []Dialog
+	dialogs := []Dialog{}
 	// Sort channels by position then ID
 	type chSort struct {
 		pos int32
@@ -3895,7 +3895,7 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			Type:        ChatTypeGroup,
 			Title:       ch.Name,
 			MemberCount: memberCount,
-			Platform:    "mumble",
+			Platform:    mumblePlatform,
 		}
 		if ch.ParentID != ch.ID {
 			dlg.ParentID = strconv.FormatUint(uint64(ch.ParentID), 10)
@@ -3914,7 +3914,7 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 					SenderName: c.messages[i].SenderName,
 					Text:       c.messages[i].Message,
 					Timestamp:  c.messages[i].Timestamp,
-					Platform:   "mumble",
+					Platform:   mumblePlatform,
 				}
 				break
 			}
@@ -3933,7 +3933,7 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		limit = 100
 	}
 	if offset >= len(dialogs) {
-		return nil, nil
+		return []Dialog{}, nil
 	}
 	end := offset + limit
 	if end > len(dialogs) {
@@ -4010,7 +4010,7 @@ func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool)
 			return &Dialog{
 				Type:     ChatTypeGroup,
 				Title:    name,
-				Platform: "mumble",
+				Platform: mumblePlatform,
 			}, nil
 		case <-ticker.C:
 			c.mu.RLock()
@@ -4021,7 +4021,7 @@ func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool)
 						ID:       strconv.FormatUint(uint64(id), 10),
 						Type:     ChatTypeGroup,
 						Title:    name,
-						Platform: "mumble",
+						Platform: mumblePlatform,
 					}, nil
 				}
 			}
@@ -4092,7 +4092,7 @@ func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 		Text:       msg.Text,
 		Timestamp:  entry.Timestamp,
 		Status:     MessageStatusSent,
-		Platform:   "mumble",
+		Platform:   mumblePlatform,
 	}, nil
 }
 
@@ -4104,7 +4104,7 @@ func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 	}
 	defer c.mu.RUnlock()
 
-	var msgs []Message
+	msgs := []Message{}
 	isPrivate := strings.HasPrefix(chatID, "user:")
 
 	for _, entry := range c.messages {
@@ -4131,7 +4131,7 @@ func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 				Text:       entry.Message,
 				Timestamp:  entry.Timestamp,
 				Status:     MessageStatusDelivered,
-				Platform:   "mumble",
+				Platform:   mumblePlatform,
 			})
 		}
 	}
@@ -4298,7 +4298,7 @@ func (c *MumbleCore) GetProfile(userID string) (*User, error) {
 		DisplayName: u.Name,
 		IsBot:       false,
 		IsOnline:    true,
-		Platform:    "mumble",
+		Platform:    mumblePlatform,
 	}
 	c.mu.RUnlock()
 	return user, nil
@@ -4336,7 +4336,7 @@ func (c *MumbleCore) GetChatInfo(chatID string) (*Dialog, error) {
 		Type:        ChatTypeGroup,
 		Title:       ch.Name,
 		MemberCount: memberCount,
-		Platform:    "mumble",
+		Platform:    mumblePlatform,
 	}, nil
 }
 
@@ -4512,7 +4512,7 @@ func (c *MumbleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	}
 	defer c.mu.RUnlock()
 
-	var users []User
+	users := []User{}
 	for _, u := range c.users {
 		if u.ChannelID == uint32(channelID) {
 			users = append(users, User{
@@ -4520,7 +4520,7 @@ func (c *MumbleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 				Username:    u.Name,
 				DisplayName: u.Name,
 				IsOnline:    true,
-				Platform:    "mumble",
+				Platform:    mumblePlatform,
 			})
 		}
 	}
@@ -4542,14 +4542,14 @@ func (c *MumbleCore) GetContacts() ([]User, error) {
 	}
 	defer c.mu.RUnlock()
 
-	var users []User
+	users := []User{}
 	for _, u := range c.users {
 		users = append(users, User{
 			ID:          strconv.FormatUint(uint64(u.Session), 10),
 			Username:    u.Name,
 			DisplayName: u.Name,
 			IsOnline:    true,
-			Platform:    "mumble",
+			Platform:    mumblePlatform,
 		})
 	}
 	return users, nil
@@ -4600,7 +4600,7 @@ func (c *MumbleCore) GetBlockedUsers() ([]User, error) {
 	}
 	defer c.mu.RUnlock()
 
-	var users []User
+	users := []User{}
 	for session := range c.localMutes {
 		name := ""
 		if u, ok := c.users[session]; ok {
@@ -4609,7 +4609,7 @@ func (c *MumbleCore) GetBlockedUsers() ([]User, error) {
 		users = append(users, User{
 			ID:          strconv.FormatUint(uint64(session), 10),
 			DisplayName: name,
-			Platform:    "mumble",
+			Platform:    mumblePlatform,
 		})
 	}
 	return users, nil
@@ -4626,7 +4626,7 @@ func (c *MumbleCore) SearchMessages(chatID, query string, opts PaginationOpts) (
 	defer c.mu.RUnlock()
 
 	queryLower := strings.ToLower(query)
-	var msgs []Message
+	msgs := []Message{}
 	for _, entry := range c.messages {
 		if strings.Contains(strings.ToLower(entry.Message), queryLower) {
 			msgs = append(msgs, Message{
@@ -4636,7 +4636,7 @@ func (c *MumbleCore) SearchMessages(chatID, query string, opts PaginationOpts) (
 				SenderName: entry.SenderName,
 				Text:       entry.Message,
 				Timestamp:  entry.Timestamp,
-				Platform:   "mumble",
+				Platform:   mumblePlatform,
 			})
 		}
 	}
@@ -4652,14 +4652,14 @@ func (c *MumbleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, 
 	defer c.mu.RUnlock()
 
 	queryLower := strings.ToLower(query)
-	var results []Dialog
+	results := []Dialog{}
 	for _, ch := range c.channels {
 		if strings.Contains(strings.ToLower(ch.Name), queryLower) {
 			results = append(results, Dialog{
 				ID:       strconv.FormatUint(uint64(ch.ID), 10),
 				Type:     ChatTypeGroup,
 				Title:    ch.Name,
-				Platform: "mumble",
+				Platform: mumblePlatform,
 			})
 		}
 	}
@@ -4702,7 +4702,7 @@ func (c *MumbleCore) GetSessions() ([]Session, error) {
 		sessions = append(sessions, Session{
 			ID:        strconv.FormatUint(uint64(u.Session), 10),
 			Device:    u.Name,
-			Platform:  "mumble",
+			Platform:  mumblePlatform,
 			IsCurrent: u.Session == c.mySession,
 		})
 	}

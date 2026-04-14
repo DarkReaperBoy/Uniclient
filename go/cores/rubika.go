@@ -1464,7 +1464,7 @@ func (r *RubikaCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		return nil, err
 	}
 
-	var dialogs []Dialog
+	dialogs := []Dialog{}
 	if chats, ok := data["chats"].([]interface{}); ok {
 		for _, c := range chats {
 			chatMap, ok := c.(map[string]interface{})
@@ -1474,6 +1474,10 @@ func (r *RubikaCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			d := r.mapChatToDialog(chatMap)
 			dialogs = append(dialogs, d)
 		}
+	}
+
+	if opts.Limit > 0 && len(dialogs) > opts.Limit {
+		dialogs = dialogs[:opts.Limit]
 	}
 
 	return dialogs, nil
@@ -1513,7 +1517,7 @@ func (r *RubikaCore) mapChatToDialog(chatMap map[string]interface{}) Dialog {
 		UnreadCount: unread,
 		IsPinned:    isPinned,
 		IsMuted:     isMuted,
-		Platform:    "rubika",
+		Platform:    rubikaPlatform,
 	}
 }
 
@@ -1565,7 +1569,7 @@ func (r *RubikaCore) CreateGroup(name string, members []string) (*Dialog, error)
 		ID:       guid,
 		Type:     ChatTypeGroup,
 		Title:    name,
-		Platform: "rubika",
+		Platform: rubikaPlatform,
 	}, nil
 }
 
@@ -1597,7 +1601,7 @@ func (r *RubikaCore) CreateChannel(name string, description string) (*Dialog, er
 		ID:       guid,
 		Type:     ChatTypeChannel,
 		Title:    name,
-		Platform: "rubika",
+		Platform: rubikaPlatform,
 	}, nil
 }
 
@@ -1752,7 +1756,7 @@ func (r *RubikaCore) botUploadAndSendFile(chatID string, file FileUpload, progre
 			MimeType: file.MimeType,
 			Size:     file.Size,
 		}},
-		Platform: "rubika",
+		Platform: rubikaPlatform,
 	}, nil
 }
 
@@ -1766,7 +1770,7 @@ func (r *RubikaCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 
 	limit := opts.Limit
 	if limit <= 0 {
-		limit = 20
+		limit = 50
 	}
 
 	input := map[string]interface{}{
@@ -1785,7 +1789,7 @@ func (r *RubikaCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 		return nil, err
 	}
 
-	var messages []Message
+	messages := []Message{}
 	if msgList, ok := data["messages"].([]interface{}); ok {
 		for _, m := range msgList {
 			mm, ok := m.(map[string]interface{})
@@ -1812,7 +1816,7 @@ func (r *RubikaCore) EditMessage(chatID string, msgID string, text string) (*Mes
 		if err != nil {
 			return nil, err
 		}
-		return &Message{ID: msgID, ChatID: chatID, Text: text, Timestamp: time.Now(), Platform: "rubika"}, nil
+		return &Message{ID: msgID, ChatID: chatID, Text: text, Timestamp: time.Now(), Platform: rubikaPlatform}, nil
 	}
 
 	input := map[string]interface{}{
@@ -1869,7 +1873,7 @@ func (r *RubikaCore) ForwardMessage(fromChatID string, msgID string, toChatID st
 		if err != nil {
 			return nil, err
 		}
-		return &Message{ID: newMsgID, ChatID: toChatID, Timestamp: time.Now(), Platform: "rubika"}, nil
+		return &Message{ID: newMsgID, ChatID: toChatID, Timestamp: time.Now(), Platform: rubikaPlatform}, nil
 	}
 
 	input := map[string]interface{}{
@@ -2730,7 +2734,7 @@ func (r *RubikaCore) GetProfile(userID string) (*User, error) {
 			ID:          userID,
 			Username:    username,
 			DisplayName: displayName,
-			Platform:    "rubika",
+			Platform:    rubikaPlatform,
 		}, nil
 	}
 
@@ -2765,7 +2769,7 @@ func (r *RubikaCore) GetProfile(userID string) (*User, error) {
 		Username:    username,
 		DisplayName: displayName,
 		Phone:       phone,
-		Platform:    "rubika",
+		Platform:    rubikaPlatform,
 	}, nil
 }
 
@@ -2875,7 +2879,7 @@ func (r *RubikaCore) fireConnState(state string) {
 	handlers := make([]func(Update), len(r.updateHandlers))
 	copy(handlers, r.updateHandlers)
 	r.updateMu.RUnlock()
-	u := Update{Type: UpdateConnectivity, ConnState: state, Platform: "rubika"}
+	u := Update{Type: UpdateConnectivity, ConnState: state, Platform: rubikaPlatform}
 	for _, h := range handlers {
 		go h(u)
 	}
@@ -2984,7 +2988,7 @@ func (r *RubikaCore) handleWSMessage(data []byte) {
 				Type:     UpdateNewMessage,
 				ChatID:   chatID,
 				Message:  &parsedMsg,
-				Platform: "rubika",
+				Platform: rubikaPlatform,
 			}
 
 			for _, h := range handlers {
@@ -3004,7 +3008,7 @@ func (r *RubikaCore) handleWSMessage(data []byte) {
 				update := Update{
 					Type:     UpdateReadState,
 					ChatID:   chatID,
-					Platform: "rubika",
+					Platform: rubikaPlatform,
 				}
 				for _, h := range handlers {
 					h(update)
@@ -3096,7 +3100,7 @@ func (r *RubikaCore) handleWSMessage(data []byte) {
 
 func (r *RubikaCore) mapResponseToMessage(data map[string]interface{}, chatID string) *Message {
 	if data == nil {
-		return &Message{ChatID: chatID, Platform: "rubika", Timestamp: time.Now()}
+		return &Message{ChatID: chatID, Platform: rubikaPlatform, Timestamp: time.Now(), Status: MessageStatusSent}
 	}
 
 	// Response structure: {message_update: {message_id, message: {...}}, chat_update: {...}}
@@ -3146,7 +3150,7 @@ func (r *RubikaCore) mapResponseToMessage(data map[string]interface{}, chatID st
 		Text:      text,
 		Timestamp: ts,
 		Status:    MessageStatusSent,
-		Platform:  "rubika",
+		Platform:  rubikaPlatform,
 	}
 }
 
@@ -3211,13 +3215,13 @@ func (r *RubikaCore) mapDataToMessage(mm map[string]interface{}, chatID string) 
 		ForwardFrom: forwardFrom,
 		Attachments: attachments,
 		Status:      MessageStatusSent,
-		Platform:    "rubika",
+		Platform:    rubikaPlatform,
 	}
 }
 
 func (r *RubikaCore) mapBotResponseToMessage(data map[string]interface{}, chatID string) *Message {
 	if data == nil {
-		return &Message{ChatID: chatID, Platform: "rubika", Timestamp: time.Now()}
+		return &Message{ChatID: chatID, Platform: rubikaPlatform, Timestamp: time.Now(), Status: MessageStatusSent}
 	}
 
 	result, _ := data["result"].(map[string]interface{})
@@ -3240,7 +3244,7 @@ func (r *RubikaCore) mapBotResponseToMessage(data map[string]interface{}, chatID
 		Text:      text,
 		Timestamp: time.Now(),
 		Status:    MessageStatusSent,
-		Platform:  "rubika",
+		Platform:  rubikaPlatform,
 	}
 }
 
@@ -4834,7 +4838,7 @@ func mapGetString(m map[string]interface{}, key string) (string, bool) {
 
 func (r *RubikaCore) GetChatInfo(chatID string) (*Dialog, error) {
 	ct := r.guidToChatType(chatID)
-	d := &Dialog{Platform: "rubika", ID: chatID, Type: ct}
+	d := &Dialog{Platform: rubikaPlatform, ID: chatID, Type: ct}
 	switch ct {
 	case ChatTypeGroup:
 		raw, err := r.GetGroupInfo(chatID)
@@ -4983,13 +4987,13 @@ func (r *RubikaCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	if err != nil {
 		return nil, err
 	}
-	var users []User
+	users := []User{}
 	// Response: {"in_chat_members": [{"member_guid": "u0...", "first_name": "...", ...}]}
 	memberKey := "in_chat_members"
 	if members, ok := raw[memberKey].([]interface{}); ok {
 		for _, m := range members {
 			if member, ok := m.(map[string]interface{}); ok {
-				u := User{Platform: "rubika"}
+				u := User{Platform: rubikaPlatform}
 				if guid, ok := member["member_guid"].(string); ok {
 					u.ID = guid
 				}
@@ -5031,11 +5035,11 @@ func (r *RubikaCore) GetContacts() ([]User, error) {
 	if err != nil {
 		return nil, err
 	}
-	var users []User
+	users := []User{}
 	if contacts, ok := raw["users"].([]interface{}); ok {
 		for _, c := range contacts {
 			if cu, ok := c.(map[string]interface{}); ok {
-				u := User{Platform: "rubika"}
+				u := User{Platform: rubikaPlatform}
 				if guid, ok := cu["user_guid"].(string); ok {
 					u.ID = guid
 				}
@@ -5081,11 +5085,11 @@ func (r *RubikaCore) GetBlockedUsers() ([]User, error) {
 	if err != nil {
 		return nil, err
 	}
-	var users []User
+	users := []User{}
 	if blocked, ok := raw["users"].([]interface{}); ok {
 		for _, b := range blocked {
 			if bu, ok := b.(map[string]interface{}); ok {
-				u := User{Platform: "rubika"}
+				u := User{Platform: rubikaPlatform}
 				if guid, ok := bu["user_guid"].(string); ok {
 					u.ID = guid
 				}
@@ -5110,11 +5114,11 @@ func (r *RubikaCore) SearchMessages(chatID string, query string, opts Pagination
 	if err != nil {
 		return nil, err
 	}
-	var msgs []Message
+	msgs := []Message{}
 	if messages, ok := raw["messages"].([]interface{}); ok {
 		for _, m := range messages {
 			if mm, ok := m.(map[string]interface{}); ok {
-				msg := Message{Platform: "rubika", ChatID: chatID}
+				msg := Message{Platform: rubikaPlatform, ChatID: chatID}
 				if id, ok := mm["message_id"].(string); ok {
 					msg.ID = id
 				}
@@ -5136,11 +5140,11 @@ func (r *RubikaCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, 
 	if err != nil {
 		return nil, err
 	}
-	var dialogs []Dialog
+	dialogs := []Dialog{}
 	if objects, ok := raw["objects"].([]interface{}); ok {
 		for _, o := range objects {
 			if obj, ok := o.(map[string]interface{}); ok {
-				d := Dialog{Platform: "rubika"}
+				d := Dialog{Platform: rubikaPlatform}
 				if guid, ok := obj["object_guid"].(string); ok {
 					d.ID = guid
 					d.Type = r.guidToChatType(guid)
@@ -5169,7 +5173,7 @@ func (r *RubikaCore) CreatePoll(chatID string, question string, options []string
 	if err != nil {
 		return nil, err
 	}
-	msg := &Message{Platform: "rubika", ChatID: chatID}
+	msg := &Message{Platform: rubikaPlatform, ChatID: chatID}
 	if msgData, ok := raw["message"].(map[string]interface{}); ok {
 		if id, ok := msgData["message_id"].(string); ok {
 			msg.ID = id
@@ -5197,7 +5201,7 @@ func (r *RubikaCore) GetSessions() ([]Session, error) {
 	if sessionList, ok := raw["sessions"].([]interface{}); ok {
 		for _, s := range sessionList {
 			if sess, ok := s.(map[string]interface{}); ok {
-				session := Session{Platform: "rubika"}
+				session := Session{Platform: rubikaPlatform}
 				if key, ok := sess["session_key"].(string); ok {
 					session.ID = key
 				}
