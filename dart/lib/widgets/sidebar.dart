@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../models/engine_models.dart';
+import '../screens/settings_screen.dart';
 import '../theme/theme.dart';
 
 /// Sidebar — chat list with search, folders, and chat items.
@@ -491,7 +492,12 @@ class _UserPanel extends StatelessWidget {
           // Settings
           IconButton(
             icon: const Icon(Icons.settings, size: 18),
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
             splashRadius: 16,
             tooltip: 'Settings',
           ),

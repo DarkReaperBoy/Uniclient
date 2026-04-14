@@ -48,7 +48,17 @@ class AuthState extends ChangeNotifier {
   void startAuth(String accountId) {
     _error = null;
     _submitting = false;
-    _currentAuth = _engine.startAuth(accountId);
+    try {
+      _currentAuth = _engine.startAuth(accountId);
+    } catch (e) {
+      _error = e.toString();
+      _currentAuth = AuthStateData(
+        accountId: accountId,
+        state: 'error',
+        error: e.toString(),
+        recoverable: true,
+      );
+    }
     notifyListeners();
   }
 

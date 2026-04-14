@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../models/engine_models.dart';
+import '../screens/auth_screen.dart';
 import '../theme/theme.dart';
 
 /// Platform icons and their brand colors.
@@ -110,7 +111,17 @@ class PlatformRail extends StatelessWidget {
             SimpleDialogOption(
               onPressed: () {
                 Navigator.pop(ctx);
-                context.read<AppState>().addAccount(entry.key);
+                final appState = context.read<AppState>();
+                final id = appState.addAccount(entry.key);
+                showDialog<void>(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => AuthScreen(accountId: id, platform: entry.key),
+                ).then((_) {
+                  if (context.mounted) {
+                    appState.setActivePlatform(entry.key);
+                  }
+                });
               },
               child: Row(
                 children: [

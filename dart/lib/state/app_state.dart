@@ -100,7 +100,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<String> addAccount(String platform) async {
+  String addAccount(String platform) {
     final id = _engine.addAccount(platform);
     _accounts = _engine.listAccounts();
     notifyListeners();

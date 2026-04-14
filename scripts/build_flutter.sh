@@ -60,9 +60,10 @@ case "$PLATFORM" in
       --track-widget-creation \
       "$DART_DIR/lib/main.dart" 2>&1 | tail -1
 
-    # Copy VM snapshots
-    cp -L "$ENGINE_DIR/$ENGINE_VARIANT/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
-    cp -L "$ENGINE_DIR/$ENGINE_VARIANT/isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
+    # Copy VM snapshots (chmod in case previous copies from nix store are read-only)
+    chmod u+w "$BUILD_DIR/flutter_assets/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/isolate_snapshot.bin" 2>/dev/null || true
+    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
+    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
 
     # Create minimal asset manifests
     echo '{"fonts":[],"assets":[],"packages":[]}' > "$BUILD_DIR/flutter_assets/AssetManifest.json"
@@ -76,32 +77,36 @@ case "$PLATFORM" in
     mkdir -p "$EPHEMERAL/cpp_client_wrapper/include/flutter"
     mkdir -p "$EPHEMERAL/flutter_linux"
 
-    # Engine library + ICU data (dereference symlinks)
-    cp -L "$ENGINE_DIR/$ENGINE_VARIANT/libflutter_linux_gtk.so" "$EPHEMERAL/"
-    cp -L "$ENGINE_DIR/$ENGINE_VARIANT/icudtl.dat" "$EPHEMERAL/"
+    # Engine library + ICU data (dereference symlinks, force overwrite read-only from nix store)
+    chmod u+w "$EPHEMERAL/libflutter_linux_gtk.so" "$EPHEMERAL/icudtl.dat" 2>/dev/null || true
+    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/libflutter_linux_gtk.so" "$EPHEMERAL/"
+    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/icudtl.dat" "$EPHEMERAL/"
 
     # GTK headers
-    cp -Ln "$ENGINE_DIR/$ENGINE_VARIANT/flutter_linux/"*.h "$EPHEMERAL/flutter_linux/" 2>/dev/null || true
+    chmod u+w "$EPHEMERAL/flutter_linux/"*.h 2>/dev/null || true
+    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/flutter_linux/"*.h "$EPHEMERAL/flutter_linux/" 2>/dev/null || true
 
     # C API headers
     PUBLIC_HEADERS="$FLUTTER_SDK/engine/src/flutter/shell/platform/common/public"
     if [[ -d "$PUBLIC_HEADERS" ]]; then
-      cp -Ln "$PUBLIC_HEADERS"/*.h "$EPHEMERAL/" 2>/dev/null || true
+      chmod u+w "$EPHEMERAL/"*.h 2>/dev/null || true
+      cp -Lf "$PUBLIC_HEADERS"/*.h "$EPHEMERAL/" 2>/dev/null || true
     fi
 
     # C++ client wrapper (from engine source tree)
     COMMON_WRAPPER="$FLUTTER_SDK/engine/src/flutter/shell/platform/common/client_wrapper"
     if [[ -d "$COMMON_WRAPPER" ]]; then
+      chmod -R u+w "$EPHEMERAL/cpp_client_wrapper/" 2>/dev/null || true
       # Source files
       for f in core_implementations.cc standard_codec.cc plugin_registrar.cc engine_method_result.cc; do
-        cp -n "$COMMON_WRAPPER/$f" "$EPHEMERAL/cpp_client_wrapper/" 2>/dev/null || true
+        cp -f "$COMMON_WRAPPER/$f" "$EPHEMERAL/cpp_client_wrapper/" 2>/dev/null || true
       done
       # Private headers
       for f in binary_messenger_impl.h byte_buffer_streams.h texture_registrar_impl.h; do
-        cp -n "$COMMON_WRAPPER/$f" "$EPHEMERAL/cpp_client_wrapper/" 2>/dev/null || true
+        cp -f "$COMMON_WRAPPER/$f" "$EPHEMERAL/cpp_client_wrapper/" 2>/dev/null || true
       done
       # Public headers
-      cp -n "$COMMON_WRAPPER/include/flutter/"*.h "$EPHEMERAL/cpp_client_wrapper/include/flutter/" 2>/dev/null || true
+      cp -f "$COMMON_WRAPPER/include/flutter/"*.h "$EPHEMERAL/cpp_client_wrapper/include/flutter/" 2>/dev/null || true
     fi
     echo "  Ephemeral populated."
 

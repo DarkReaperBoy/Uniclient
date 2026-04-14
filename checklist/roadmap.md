@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — Phase C (Flutter UI) — IN PROGRESS
+**Current Step:** Step 15 — Build GUI — Phase D (account flow wiring) — IN PROGRESS
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 11 — cross-platform done, Linux desktop builds + runs)
+**Last Updated:** 2026-04-14 (session 12 — Phase D: add account → auth → connect flow wired)
 
-**NEXT:** Phase C cont. — First desktop build (`flutter build linux`), integration test with Go backend
+**NEXT:** Phase D cont. — Build + test add account flow end-to-end with live backend
 
 ## Steps
 
@@ -103,9 +103,22 @@ Cross-platform bridge + runners:
 
 Dart analyze: 0 issues (17 files). `pub get` resolved 31 dependencies.
 
-**DONE:** First desktop build + launch on NixOS. Go shared lib (134MB) + Flutter runner (71KB) + engine (47MB) bundle runs successfully.
+**DONE:** Desktop build, protobuf bridge, engine auto-init all working. App launches and initializes engine cleanly.
 
-**Next:** Phase D — GUI screens, real Go backend integration, auth flow end-to-end
+#### Phase D: Add Account Flow — IN PROGRESS
+
+Wired the end-to-end flow: Add button → platform picker → auth dialog → connect account → chat list.
+
+Changes:
+- `platform_rail.dart` — After `addAccount()`, opens `AuthScreen` dialog; on close, sets active platform
+- `auth_screen.dart` — "Continue" button on auth success calls `connectAccount()` before closing
+- `sidebar.dart` — Settings button wired to push `SettingsScreen`
+- `settings_screen.dart` — Account tiles clickable to re-authenticate when `authRequired`/`disconnected`; typed `_connLabel`
+- `app_state.dart` — `addAccount` changed from `Future<String>` to synchronous `String`
+- `auth_state.dart` — `startAuth` wrapped in try-catch, shows error state on failure
+- `home_screen.dart` — Loading spinner during engine init, error state on init failure, context-aware empty state ("Add a platform" vs "Select a chat")
+
+**Next:** Build + test the full flow with live Go backend
 
 ## Detailed Progress
 

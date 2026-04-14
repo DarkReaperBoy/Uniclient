@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../state/auth_state.dart';
 import '../models/engine_models.dart';
 import '../theme/theme.dart';
@@ -316,6 +317,7 @@ class _AuthScreenState extends State<AuthScreen> {
         const SizedBox(height: 20),
         ElevatedButton(
           onPressed: () {
+            context.read<EngineService>().connectAccount(widget.accountId);
             context.read<AuthState>().clear();
             Navigator.pop(context);
           },

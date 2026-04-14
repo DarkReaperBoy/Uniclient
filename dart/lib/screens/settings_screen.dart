@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
 import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
+import 'auth_screen.dart';
 import '../theme/theme.dart';
 
 /// Settings screen — theme, notifications, cache, account management.
@@ -117,7 +119,16 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.account_circle_outlined,
               title: account.displayName.isNotEmpty ? account.displayName : account.platform,
               subtitle: '${account.platform} — ${_connLabel(appState.connStateFor(account.id))}',
-              onTap: () {},
+              onTap: () {
+                final connState = appState.connStateFor(account.id);
+                if (connState == ConnState.authRequired || connState == ConnState.disconnected) {
+                  showDialog<void>(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (_) => AuthScreen(accountId: account.id, platform: account.platform),
+                  );
+                }
+              },
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
                 onPressed: () => _confirmRemoveAccount(context, appState, account.id, account.platform),
@@ -212,12 +223,12 @@ class SettingsScreen extends StatelessWidget {
     return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
-  String _connLabel(dynamic state) => switch (state.toString()) {
-    'ConnState.connected' => 'Connected',
-    'ConnState.connecting' => 'Connecting...',
-    'ConnState.unstable' => 'Unstable',
-    'ConnState.authRequired' => 'Auth required',
-    _ => 'Disconnected',
+  String _connLabel(ConnState state) => switch (state) {
+    ConnState.connected => 'Connected',
+    ConnState.connecting => 'Connecting...',
+    ConnState.unstable => 'Unstable',
+    ConnState.authRequired => 'Auth required',
+    ConnState.disconnected => 'Disconnected',
   };
 }
 
