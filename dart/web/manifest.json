@@ -1,0 +1,11 @@
+{
+  "name": "UniClient",
+  "short_name": "UniClient",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#101318",
+  "theme_color": "#4f6ef7",
+  "description": "Unified multi-platform messaging client.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

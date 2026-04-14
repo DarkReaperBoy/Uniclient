@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="UniClient — unified multi-platform messaging">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="UniClient">
+  <link rel="manifest" href="manifest.json">
+  <title>UniClient</title>
+  <!-- Load Go WASM runtime and bridge -->
+  <script src="wasm_exec.js"></script>
+  <script>
+    // Initialize Go WASM bridge before Flutter starts.
+    const go = new Go();
+    let bridgeReadyResolve;
+    window.bridgeReady = new Promise(r => bridgeReadyResolve = r);
+
+    WebAssembly.instantiateStreaming(fetch("cores.wasm"), go.importObject)
+      .then(result => {
+        go.run(result.instance);
+        bridgeReadyResolve();
+      });
+  </script>
+</head>
+<body>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
