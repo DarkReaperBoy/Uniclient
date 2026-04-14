@@ -5,7 +5,11 @@
 **Current Method:** —
 **Last Updated:** 2026-04-14 (session 7 — Step 13 done, Step 14 brief docs done)
 
-**NEXT:** Rewrite all docs as full Telethon-style API reference tutorials (every method, every param, examples)
+**NEXT:** Rewrite all 10 docs as full Telethon-style API reference tutorials:
+- For each core: document EVERY exported method with signature, params, return type, usage example
+- Organize by category (auth, messaging, groups, channels, admin, media, calls, etc.)
+- Like Telethon's docs — someone importing a single core should have a complete reference
+- Start with smallest cores first (Mumble 233 → Matrix 240 → Rubika 242 → ... → Telegram 771)
 
 ## Steps
 
