@@ -381,8 +381,15 @@ func (d *DeltaChatCore) Authenticate(cfg AuthConfig) error {
 		d.acceptInvalidCerts = true
 	}
 
-	// Try loading existing session
-	isBot := d.isBot // preserve cfg.Mode over saved session
+	// Try loading existing session (preserves keypair, peer states, chats)
+	// Save auth fields from cfg — loadSession may overwrite them with stale values
+	freshAddr := d.myAddr
+	freshPass := d.password
+	freshIMAPHost := d.imapHost
+	freshSMTPHost := d.smtpHost
+	freshName := d.myName
+	isBot := d.isBot
+
 	if err := d.loadSession(); err == nil && d.myEntity != nil {
 		// Session loaded, just reconnect
 	} else {
@@ -393,7 +400,20 @@ func (d *DeltaChatCore) Authenticate(cfg AuthConfig) error {
 		}
 		d.myEntity = entity
 	}
-	d.isBot = isBot // cfg.Mode always takes priority over saved session
+
+	// cfg always takes priority over saved session for auth fields
+	d.isBot = isBot
+	d.myAddr = freshAddr
+	d.password = freshPass
+	if freshIMAPHost != "" {
+		d.imapHost = freshIMAPHost
+	}
+	if freshSMTPHost != "" {
+		d.smtpHost = freshSMTPHost
+	}
+	if freshName != "" {
+		d.myName = freshName
+	}
 
 	// Connect IMAP (main ops)
 	imapClient, err := d.connectIMAP()

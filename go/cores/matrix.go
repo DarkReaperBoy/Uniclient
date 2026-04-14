@@ -1661,6 +1661,9 @@ func (m *MatrixCore) GetProfile(userID string) (*User, error) {
 		return nil, ErrAuth
 	}
 
+	if userID == "" {
+		userID = m.client.UserID.String()
+	}
 	mxid := id.UserID(userID)
 	profile, err := m.client.GetProfile(m.ctx, mxid)
 	if err != nil {

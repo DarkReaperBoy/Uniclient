@@ -2056,13 +2056,18 @@ func (c *XMPPCore) GetFolders() ([]Folder, error) {
 	}
 	c.mu.RUnlock()
 
-	// Return bookmarks as folders
+	// Load bookmarks if empty (without holding read lock — loadBookmarks takes write lock)
 	c.bookmarksMu.RLock()
-	defer c.bookmarksMu.RUnlock()
+	empty := len(c.bookmarks) == 0
+	c.bookmarksMu.RUnlock()
 
-	if len(c.bookmarks) == 0 {
+	if empty {
 		c.loadBookmarks()
 	}
+
+	// Now read bookmarks under read lock
+	c.bookmarksMu.RLock()
+	defer c.bookmarksMu.RUnlock()
 
 	var chatIDs []string
 	for _, bm := range c.bookmarks {

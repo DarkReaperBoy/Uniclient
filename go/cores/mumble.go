@@ -3931,6 +3931,14 @@ func (c *MumbleCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 }
 
 func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool) (*Dialog, error) {
+	// Snapshot current channel IDs before sending
+	c.mu.RLock()
+	before := make(map[uint32]bool, len(c.channels))
+	for id := range c.channels {
+		before[id] = true
+	}
+	c.mu.RUnlock()
+
 	msg := &mumbleChannelStateMsg{
 		Parent:    parentID,
 		HasParent: true,
@@ -3941,11 +3949,35 @@ func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool)
 		return nil, err
 	}
 
-	return &Dialog{
-		Type:     ChatTypeGroup,
-		Title:    name,
-		Platform: "mumble",
-	}, nil
+	// Wait for server to send back ChannelState with the new channel ID
+	deadline := time.After(5 * time.Second)
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-deadline:
+			// Timeout — return without ID (best effort)
+			return &Dialog{
+				Type:     ChatTypeGroup,
+				Title:    name,
+				Platform: "mumble",
+			}, nil
+		case <-ticker.C:
+			c.mu.RLock()
+			for id, ch := range c.channels {
+				if !before[id] && ch.Name == name {
+					c.mu.RUnlock()
+					return &Dialog{
+						ID:       strconv.FormatUint(uint64(id), 10),
+						Type:     ChatTypeGroup,
+						Title:    name,
+						Platform: "mumble",
+					}, nil
+				}
+			}
+			c.mu.RUnlock()
+		}
+	}
 }
 
 func (c *MumbleCore) GetFolders() ([]Folder, error) {
@@ -4838,7 +4870,7 @@ func (c *MumbleCore) GetBanList() ([]mumbleBanEntry, error) {
 	if err := c.tcpSend(mumbleMsgBanList, query.marshal()); err != nil {
 		return nil, err
 	}
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1000 * time.Millisecond)
 	c.mu.RLock()
 	bans := make([]mumbleBanEntry, len(c.banList))
 	copy(bans, c.banList)
@@ -4859,8 +4891,13 @@ func (c *MumbleCore) AddBan(address []byte, mask uint32, name, hash, reason stri
 	if err != nil {
 		return err
 	}
+	// Normalize address to 16-byte IPv4-mapped IPv6 — Mumble expects this format
+	addr := net.IP(address).To16()
+	if addr == nil {
+		addr = address
+	}
 	current = append(current, mumbleBanEntry{
-		Address:  address,
+		Address:  addr,
 		Mask:     mask,
 		Name:     name,
 		Hash:     hash,
@@ -5358,9 +5395,13 @@ func (c *MumbleCore) RemoveBan(address []byte, mask uint32) error {
 	if err != nil {
 		return err
 	}
+	// Normalize the target address to net.IP for consistent comparison
+	// Mumble may store IPv4 as 4 bytes or as 16-byte IPv4-mapped IPv6
+	targetIP := net.IP(address)
 	filtered := bans[:0]
 	for _, b := range bans {
-		if bytes.Equal(b.Address, address) && b.Mask == mask {
+		banIP := net.IP(b.Address)
+		if banIP.Equal(targetIP) && b.Mask == mask {
 			continue
 		}
 		filtered = append(filtered, b)
