@@ -1487,7 +1487,7 @@ func (m *mumbleCodecVersionMsg) unmarshal(data []byte) error {
 	return nil
 }
 
-type mumbleServerConfigMsg struct {
+type MumbleServerConfig struct {
 	MaxBandwidth       uint32
 	WelcomeText        string
 	AllowHTML          bool
@@ -1497,7 +1497,7 @@ type mumbleServerConfigMsg struct {
 	RecordingAllowed   bool
 }
 
-func (m *mumbleServerConfigMsg) unmarshal(data []byte) error {
+func (m *MumbleServerConfig) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -1640,15 +1640,15 @@ func (m *mumblePermissionQueryMsg) unmarshal(data []byte) error {
 }
 
 // ACL message
-type mumbleACLMsg struct {
+type MumbleACLMsg struct {
 	ChannelID  uint32
 	InheritACLs bool
-	Groups     []mumbleACLGroup
-	ACLs       []mumbleACLEntry
+	Groups     []MumbleACLGroup
+	ACLs       []MumbleACLEntry
 	Query      bool
 }
 
-type mumbleACLGroup struct {
+type MumbleACLGroup struct {
 	Name             string
 	Inherited        bool
 	Inherit          bool
@@ -1658,7 +1658,7 @@ type mumbleACLGroup struct {
 	InheritedMembers []uint32
 }
 
-type mumbleACLEntry struct {
+type MumbleACLEntry struct {
 	ApplyHere bool
 	ApplySubs bool
 	Inherited bool
@@ -1669,7 +1669,7 @@ type mumbleACLEntry struct {
 	HasUserID bool
 }
 
-func (m *mumbleACLMsg) marshal() []byte {
+func (m *MumbleACLMsg) marshal() []byte {
 	var e pbEncoder
 	e.writeUint32Always(1, m.ChannelID)
 	if m.InheritACLs {
@@ -1703,7 +1703,7 @@ func (m *mumbleACLMsg) marshal() []byte {
 	return e.bytes()
 }
 
-func (m *mumbleACLMsg) unmarshal(data []byte) error {
+func (m *MumbleACLMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -1717,7 +1717,7 @@ func (m *mumbleACLMsg) unmarshal(data []byte) error {
 			m.InheritACLs = v != 0
 		case 3:
 			b, err := d.readBytes(); if err != nil { return err }
-			var g mumbleACLGroup
+			var g MumbleACLGroup
 			g.Inherited = true; g.Inherit = true; g.Inheritable = true // defaults
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
@@ -1752,7 +1752,7 @@ func (m *mumbleACLMsg) unmarshal(data []byte) error {
 			m.Groups = append(m.Groups, g)
 		case 4:
 			b, err := d.readBytes(); if err != nil { return err }
-			var a mumbleACLEntry
+			var a MumbleACLEntry
 			a.ApplyHere = true; a.ApplySubs = true; a.Inherited = true // defaults
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
@@ -1828,11 +1828,11 @@ func (m *mumbleQueryUsersMsg) unmarshal(data []byte) error {
 
 // BanList message
 type mumbleBanListMsg struct {
-	Bans  []mumbleBanEntry
+	Bans  []MumbleBanEntry
 	Query bool
 }
 
-type mumbleBanEntry struct {
+type MumbleBanEntry struct {
 	Address  []byte
 	Mask     uint32
 	Name     string
@@ -1867,7 +1867,7 @@ func (m *mumbleBanListMsg) unmarshal(data []byte) error {
 		switch field {
 		case 1:
 			b, err := d.readBytes(); if err != nil { return err }
-			var ban mumbleBanEntry
+			var ban MumbleBanEntry
 			sd := newPBDecoder(b)
 			for sd.remaining() > 0 {
 				sf, swt, serr := sd.readTag()
@@ -1975,10 +1975,10 @@ func (m *mumbleUserListMsg) unmarshal(data []byte) error {
 // VoiceTarget message
 type mumbleVoiceTargetMsg struct {
 	ID      uint32
-	Targets []mumbleVoiceTargetEntry
+	Targets []MumbleVoiceTargetEntry
 }
 
-type mumbleVoiceTargetEntry struct {
+type MumbleVoiceTargetEntry struct {
 	Sessions  []uint32
 	ChannelID uint32
 	Group     string
@@ -2381,7 +2381,7 @@ type MumbleCore struct {
 
 	// server info
 	serverVersion   mumbleVersion
-	serverConfig    mumbleServerConfigMsg
+	serverConfig    MumbleServerConfig
 	maxBandwidth    uint32
 	welcomeText     string
 	rootPermissions uint64
@@ -2399,7 +2399,7 @@ type MumbleCore struct {
 	permissions   map[uint32]uint32 // channelID → permission bits
 	contextActions map[string]mumbleContextActionEntry
 	localMutes    map[uint32]bool
-	banList       []mumbleBanEntry
+	banList       []MumbleBanEntry
 
 	// text message buffer
 	messages   []mumbleTextEntry
@@ -3220,7 +3220,7 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 		}
 
 	case mumbleMsgServerConfig:
-		var msg mumbleServerConfigMsg
+		var msg MumbleServerConfig
 		if err := msg.unmarshal(payload); err == nil {
 			c.mu.Lock()
 			c.serverConfig = msg
@@ -4469,7 +4469,7 @@ func (c *MumbleCore) UnbanMember(chatID, userID string) error {
 	time.Sleep(500 * time.Millisecond)
 
 	c.mu.RLock()
-	bans := make([]mumbleBanEntry, len(c.banList))
+	bans := make([]MumbleBanEntry, len(c.banList))
 	copy(bans, c.banList)
 	c.mu.RUnlock()
 
@@ -4488,7 +4488,7 @@ func (c *MumbleCore) UnbanMember(chatID, userID string) error {
 		return ErrNotFound
 	}
 
-	var filtered []mumbleBanEntry
+	var filtered []MumbleBanEntry
 	for _, b := range bans {
 		if b.Hash != targetHash {
 			filtered = append(filtered, b)
@@ -4915,21 +4915,21 @@ func (c *MumbleCore) UnregisterUser(userID uint32) error {
 }
 
 // GetBanList queries the server's ban list.
-func (c *MumbleCore) GetBanList() ([]mumbleBanEntry, error) {
+func (c *MumbleCore) GetBanList() ([]MumbleBanEntry, error) {
 	query := &mumbleBanListMsg{Query: true}
 	if err := c.tcpSend(mumbleMsgBanList, query.marshal()); err != nil {
 		return nil, err
 	}
 	time.Sleep(1000 * time.Millisecond)
 	c.mu.RLock()
-	bans := make([]mumbleBanEntry, len(c.banList))
+	bans := make([]MumbleBanEntry, len(c.banList))
 	copy(bans, c.banList)
 	c.mu.RUnlock()
 	return bans, nil
 }
 
 // SetBanList replaces the server's ban list.
-func (c *MumbleCore) SetBanList(bans []mumbleBanEntry) error {
+func (c *MumbleCore) SetBanList(bans []MumbleBanEntry) error {
 	msg := &mumbleBanListMsg{Bans: bans, Query: false}
 	return c.tcpSend(mumbleMsgBanList, msg.marshal())
 }
@@ -4946,7 +4946,7 @@ func (c *MumbleCore) AddBan(address []byte, mask uint32, name, hash, reason stri
 	if addr == nil {
 		addr = address
 	}
-	current = append(current, mumbleBanEntry{
+	current = append(current, MumbleBanEntry{
 		Address:  addr,
 		Mask:     mask,
 		Name:     name,
@@ -4959,8 +4959,8 @@ func (c *MumbleCore) AddBan(address []byte, mask uint32, name, hash, reason stri
 }
 
 // GetACL queries ACLs for a channel.
-func (c *MumbleCore) GetACL(channelID uint32) (*mumbleACLMsg, error) {
-	msg := &mumbleACLMsg{ChannelID: channelID, Query: true}
+func (c *MumbleCore) GetACL(channelID uint32) (*MumbleACLMsg, error) {
+	msg := &MumbleACLMsg{ChannelID: channelID, Query: true}
 	if err := c.tcpSend(mumbleMsgACL, msg.marshal()); err != nil {
 		return nil, err
 	}
@@ -4969,8 +4969,8 @@ func (c *MumbleCore) GetACL(channelID uint32) (*mumbleACLMsg, error) {
 }
 
 // SetACL sets ACLs for a channel.
-func (c *MumbleCore) SetACL(channelID uint32, groups []mumbleACLGroup, acls []mumbleACLEntry, inheritACLs bool) error {
-	msg := &mumbleACLMsg{
+func (c *MumbleCore) SetACL(channelID uint32, groups []MumbleACLGroup, acls []MumbleACLEntry, inheritACLs bool) error {
+	msg := &MumbleACLMsg{
 		ChannelID:   channelID,
 		InheritACLs: inheritACLs,
 		Groups:      groups,
@@ -5106,7 +5106,7 @@ func (c *MumbleCore) TriggerContextAction(action string, session, channelID uint
 }
 
 // SetVoiceTarget registers a whisper target.
-func (c *MumbleCore) SetVoiceTarget(id uint32, targets []mumbleVoiceTargetEntry) error {
+func (c *MumbleCore) SetVoiceTarget(id uint32, targets []MumbleVoiceTargetEntry) error {
 	msg := &mumbleVoiceTargetMsg{
 		ID:      id,
 		Targets: targets,
@@ -5115,7 +5115,7 @@ func (c *MumbleCore) SetVoiceTarget(id uint32, targets []mumbleVoiceTargetEntry)
 }
 
 // GetServerConfig returns the cached server config.
-func (c *MumbleCore) GetServerConfig() mumbleServerConfigMsg {
+func (c *MumbleCore) GetServerConfig() MumbleServerConfig {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.serverConfig

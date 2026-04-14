@@ -128,27 +128,47 @@ The `scripts/build_go.sh` script detects the target platform (or accepts it as a
 
 ## FFI Bridge (`go/bridge/` ↔ `dart/lib/bridge/`)
 
-### Go side (`bridge.go`)
+**Protocol Buffers** are used for all bridge communication. A codegen tool (`scripts/gen_bridge/main.go`) parses Go AST from all 10 core files and generates:
+- Per-core `.proto` files (`proto/cores/*.proto`) with typed request/response messages for 3,564 methods
+- Go dispatch code (`go/bridge/dispatch_gen.go`, 28.7k lines) with per-core switch dispatchers
+- Shared model converters (`go/bridge/convert.go`, 668 lines) for Go ↔ proto type mapping
 
-Exports C functions via `//export` directives (Go's built-in c-shared buildmode). Every exported function:
-- Takes and returns C types only (`*C.char`, `C.int`, `C.int64_t`, byte buffers with length).
-- Is **non-blocking from the caller's perspective**: long-running operations (auth, send, download) are dispatched onto Go goroutines internally. Results are delivered back to Dart via a callback mechanism or a shared event channel.
-- JSON-encodes complex return types (messages, dialogs, user profiles) as `*C.char` strings. Dart deserializes on its side.
-- Errors are returned as JSON `{"error": "...", "code": "..."}` — never panics across the FFI boundary.
-- **Before building the Flutter GUI**, replace JSON encoding with **Protocol Buffers**: define `.proto` files for all bridge request/response types, generate Go structs and Dart classes from the same source. This ensures both sides stay in sync — when the schema changes, `protoc` regenerates both languages and the compiler catches every mismatch at build time. No runtime surprises from shape drift.
+**Regenerate:** `scripts/gen_proto.sh` runs the full pipeline (codegen → protoc → dispatch → verify).
 
-### Dart side (`ffi_bridge.dart` / `wasm_bridge.dart`)
+### Go side
 
-- `ffi_bridge.dart`: uses `dart:ffi` + `DynamicLibrary` to load the Go shared lib. Generated with `package:ffigen` from a C header that mirrors bridge.go's exports.
-- `wasm_bridge.dart`: uses `dart:js_interop` to call the Go WASM module's exported functions.
-- `bridge.dart`: conditional export — `ffi_bridge.dart` on native platforms, `wasm_bridge.dart` on web. The rest of the app imports only `bridge.dart` and never knows which backend is active.
+Three FFI exports via `go/cmd/bridge/main.go` (c-shared buildmode):
+- `BridgeCallWithLen(data, len, outLen)` → serialized `BridgeResponse` proto. Single entry point for all 3,564 methods.
+- `BridgeFree(ptr)` → frees response memory allocated by BridgeCallWithLen.
+- `BridgeSetEventCallback(cb)` → sets C callback for async Go → Dart events.
+
+The Go bridge layer (`go/bridge/bridge.go`) provides:
+- `RegisterCore(id, type, instance)` / `UnregisterCore(id)` — core instance registry
+- `Call(reqBytes) → respBytes` — unmarshal `BridgeRequest`, dispatch to core, marshal `BridgeResponse`
+- `PushEvent(event)` — push async `BridgeEvent` to Dart via registered callback
+- Error categorization: auth, network, timeout, not_found, rate_limited, permission, not_supported
+
+Envelope types (`proto/models.proto`):
+```protobuf
+message BridgeRequest  { string core_id = 1; string method = 2; bytes payload = 3; }
+message BridgeResponse { bool ok = 1; string error = 2; string error_code = 3; bytes payload = 4; }
+message BridgeEvent    { string core_id = 1; Update update = 2; }
+```
+
+### Dart side (`dart/lib/bridge/bridge.dart`)
+
+- `Bridge` class: loads native library, calls `BridgeCallWithLen` via `dart:ffi`, streams events
+- Platform auto-detection: `.so` (Linux/Android), `.dylib` (macOS), `.dll` (Windows)
+- `bridge.call(requestBytes)` → `Uint8List` response (serialized BridgeResponse)
+- `bridge.events` → `Stream<Uint8List>` of async events (serialized BridgeEvent)
 
 ### Event stream (Go → Dart)
 
-Real-time updates (new messages, status changes, progress callbacks) flow from Go to Dart via a **port-based callback**:
-- On native: Go calls a Dart `NativePort` (`Dart_PostCObject`) to push events. Dart listens via a `ReceivePort`.
-- On web: Go WASM calls a JS callback registered at init, which Dart picks up via a `StreamController`.
-- All events are JSON-encoded with a `type` discriminator field. Dart deserializes into the appropriate model.
+Real-time updates (new messages, status changes, typing indicators) flow from Go to Dart via a C callback set by `BridgeSetEventCallback`. Go serializes a `BridgeEvent` proto and invokes the callback with (data, length). Dart copies the data and pushes to a broadcast `StreamController`.
+
+### Skipped methods (412)
+
+Methods with complex external types in parameters (e.g., `*tg.AccountAcceptAuthorizationRequest`, `map[id.UserID]map[id.DeviceID]*event.Content`) that can't be auto-converted from proto bytes. These are platform-specific pass-throughs that the GUI won't call directly.
 
 ---
 

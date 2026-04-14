@@ -1,0 +1,3926 @@
+syntax = "proto3";
+
+package uniclient.bale;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message BaleChatInfo {
+  int64 id = 1;
+  string type = 2;
+  string title = 3;
+  string username = 4;
+  string first_name = 5;
+  string last_name = 6;
+}
+
+message BaleChatMember {
+  BaleUserInfo user = 1;
+  string status = 2;
+}
+
+message BaleFileInfo {
+  string file_id = 1;
+  int64 file_size = 2;
+  string file_path = 3;
+}
+
+message BaleStickerSet {
+  string name = 1;
+  string title = 2;
+  bool is_animated = 3;
+}
+
+message BaleUserInfo {
+  int64 id = 1;
+  bool is_bot = 2;
+  string first_name = 3;
+  string last_name = 4;
+  string username = 5;
+}
+
+message BaleUserProfilePhotos {
+  int64 total_count = 1;
+}
+
+message BaleWebhookInfo {
+  string url = 1;
+  bool has_custom_certificate = 2;
+  int64 pending_update_count = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message BaleAcceptCallRequest {
+  string call_id = 1;
+}
+
+message BaleAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message BaleAddContactRequest {
+  string phone = 1;
+  string first_name = 2;
+  string last_name = 3;
+}
+
+message BaleAddContactResponse {
+}
+
+message BaleAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message BaleAddMembersResponse {
+}
+
+message BaleAddStickerToSetRequest {
+  int64 user_id = 1;
+  string name = 2;
+  bytes sticker = 3;
+}
+
+message BaleAddStickerToSetResponse {
+}
+
+message BaleAnswerCallbackQueryRequest {
+  string callback_query_id = 1;
+  string text = 2;
+  bool show_alert = 3;
+}
+
+message BaleAnswerCallbackQueryResponse {
+}
+
+message BaleAnswerInlineQueryRequest {
+  string inline_query_id = 1;
+  bytes results = 2;
+  int64 cache_time = 3;
+}
+
+message BaleAnswerInlineQueryResponse {
+}
+
+message BaleArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message BaleArchiveChatResponse {
+}
+
+message BaleAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message BaleAuthenticateResponse {
+}
+
+message BaleBanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message BaleBanMemberResponse {
+}
+
+message BaleBlockUserRequest {
+  string user_id = 1;
+}
+
+message BaleBlockUserResponse {
+}
+
+message BaleCapabilitiesRequest {
+}
+
+message BaleCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message BaleChangePhoneRequest {
+  string new_phone = 1;
+}
+
+message BaleChangePhoneResponse {
+  bytes result_1 = 1;
+}
+
+message BaleChangePhoneNumberRequest {
+  string new_phone = 1;
+}
+
+message BaleChangePhoneNumberResponse {
+  bytes result_1 = 1;
+}
+
+message BaleCheckRamzPasswordRequest {
+  string password = 1;
+}
+
+message BaleCheckRamzPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message BaleCheckRamzPasswordSetRequest {
+}
+
+message BaleCheckRamzPasswordSetResponse {
+  bytes result_1 = 1;
+}
+
+message BaleCloseRequest {
+}
+
+message BaleCloseResponse {
+}
+
+message BaleClosePollRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  int64 date = 3;
+}
+
+message BaleClosePollResponse {
+  bytes result_1 = 1;
+}
+
+message BaleConfirmPhoneNumberRequest {
+  string transaction_hash = 1;
+  string code = 2;
+}
+
+message BaleConfirmPhoneNumberResponse {
+  bytes result_1 = 1;
+}
+
+message BaleCopyMessageRequest {
+  string chat_id = 1;
+  string from_chat_id = 2;
+  int64 msg_id = 3;
+}
+
+message BaleCopyMessageResponse {
+  int64 result_1 = 1;
+}
+
+message BaleCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message BaleCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message BaleCreateChatInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message BaleCreateChatInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message BaleCreateFolderRequest {
+  string name = 1;
+  repeated string chat_ids = 2;
+}
+
+message BaleCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message BaleCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message BaleCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message BaleCreateNewStickerSetRequest {
+  int64 user_id = 1;
+  string name = 2;
+  string title = 3;
+  bytes stickers = 4;
+}
+
+message BaleCreateNewStickerSetResponse {
+}
+
+message BaleCreatePollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+}
+
+message BaleCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleCreateTopicRequest {
+  string chat_id = 1;
+  string name = 2;
+}
+
+message BaleCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message BaleDeclineCallRequest {
+  string call_id = 1;
+}
+
+message BaleDeclineCallResponse {
+}
+
+message BaleDeleteAccountRequest {
+  string reason = 1;
+}
+
+message BaleDeleteAccountResponse {
+  bytes result_1 = 1;
+}
+
+message BaleDeleteChatPhotoRequest {
+  string chat_id = 1;
+}
+
+message BaleDeleteChatPhotoResponse {
+}
+
+message BaleDeleteContactRequest {
+  string user_id = 1;
+}
+
+message BaleDeleteContactResponse {
+}
+
+message BaleDeleteFolderRequest {
+  int64 folder_id = 1;
+}
+
+message BaleDeleteFolderResponse {
+  bytes result_1 = 1;
+}
+
+message BaleDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleDeleteMessageResponse {
+}
+
+message BaleDeleteMyCommandsRequest {
+}
+
+message BaleDeleteMyCommandsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleDeleteRamzPasswordRequest {
+  string password = 1;
+}
+
+message BaleDeleteRamzPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message BaleDeleteStickerFromSetRequest {
+  string sticker = 1;
+}
+
+message BaleDeleteStickerFromSetResponse {
+}
+
+message BaleDeleteTopicRequest {
+  string chat_id = 1;
+  int64 topic_id = 2;
+}
+
+message BaleDeleteTopicResponse {
+  bytes result_1 = 1;
+}
+
+message BaleDeleteWebhookRequest {
+}
+
+message BaleDeleteWebhookResponse {
+}
+
+message BaleDisableTwoFactorAuthenticationRequest {
+  string password = 1;
+}
+
+message BaleDisableTwoFactorAuthenticationResponse {
+  bytes result_1 = 1;
+}
+
+message BaleDiscardCallRequest {
+  int64 call_id = 1;
+}
+
+message BaleDiscardCallResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEditAvatarGRPCRequest {
+  int64 file_id = 1;
+  int64 access_hash = 2;
+}
+
+message BaleEditAvatarGRPCResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEditBirthDateRequest {
+  string birth_date = 1;
+}
+
+message BaleEditBirthDateResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message BaleEditChatDescriptionResponse {
+}
+
+message BaleEditChatTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message BaleEditChatTitleResponse {
+}
+
+message BaleEditFolderRequest {
+  int64 folder_id = 1;
+  string title = 2;
+}
+
+message BaleEditFolderResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEditMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string text = 3;
+}
+
+message BaleEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleEditMessageCaptionRequest {
+  string chat_id = 1;
+  int64 msg_id = 2;
+  string caption = 3;
+}
+
+message BaleEditMessageCaptionResponse {
+}
+
+message BaleEditMessageReplyMarkupRequest {
+  string chat_id = 1;
+  int64 msg_id = 2;
+  bytes reply_markup = 3;
+}
+
+message BaleEditMessageReplyMarkupResponse {
+}
+
+message BaleEditMyPreferredLanguagesRequest {
+  repeated string langs = 1;
+}
+
+message BaleEditMyPreferredLanguagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEditMyTimeZoneRequest {
+  string timezone = 1;
+}
+
+message BaleEditMyTimeZoneResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEditSexRequest {
+  int64 sex = 1;
+}
+
+message BaleEditSexResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEditTopicRequest {
+  string chat_id = 1;
+  int64 topic_id = 2;
+  string title = 3;
+}
+
+message BaleEditTopicResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEnableTwoFactorAuthenticationRequest {
+  string password = 1;
+  string hint = 2;
+}
+
+message BaleEnableTwoFactorAuthenticationResponse {
+  bytes result_1 = 1;
+}
+
+message BaleEndCallRequest {
+  string call_id = 1;
+}
+
+message BaleEndCallResponse {
+}
+
+message BaleExportChatInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message BaleExportChatInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message BaleFanoosSendRequest {
+  string event_name = 1;
+  map<string, string> event_data = 2;
+}
+
+message BaleFanoosSendResponse {
+  bytes result_1 = 1;
+}
+
+message BaleForgetRamzPasswordRequest {
+  string otp = 1;
+}
+
+message BaleForgetRamzPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message BaleForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message BaleForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleGetBlockedUsersRequest {
+}
+
+message BaleGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message BaleGetBotMenuButtonsRequest {
+  int64 bot_id = 1;
+}
+
+message BaleGetBotMenuButtonsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetCallLogsRequest {
+  int64 page = 1;
+  int64 count = 2;
+}
+
+message BaleGetCallLogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetChatRequest {
+  string chat_id = 1;
+}
+
+message BaleGetChatResponse {
+  BaleChatInfo result_1 = 1;
+}
+
+message BaleGetChatAdministratorsRequest {
+  string chat_id = 1;
+}
+
+message BaleGetChatAdministratorsResponse {
+  repeated BaleChatMember result_1 = 1;
+}
+
+message BaleGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message BaleGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message BaleGetChatMemberRequest {
+  string chat_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleGetChatMemberResponse {
+  BaleChatMember result_1 = 1;
+}
+
+message BaleGetChatMembersCountRequest {
+  string chat_id = 1;
+}
+
+message BaleGetChatMembersCountResponse {
+  int64 result_1 = 1;
+}
+
+message BaleGetContactsRequest {
+}
+
+message BaleGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message BaleGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message BaleGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message BaleGetFileRequest {
+  string file_id = 1;
+}
+
+message BaleGetFileResponse {
+  BaleFileInfo result_1 = 1;
+}
+
+message BaleGetFoldersRequest {
+}
+
+message BaleGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message BaleGetFullPollResultRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  int64 date = 3;
+  int64 option_index = 4;
+}
+
+message BaleGetFullPollResultResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetFullUserRequest {
+  int64 user_id = 1;
+}
+
+message BaleGetFullUserResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetGroupCallRequest {
+  string chat_id = 1;
+}
+
+message BaleGetGroupCallResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetInAppUpdateRequest {
+}
+
+message BaleGetInAppUpdateResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message BaleGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message BaleGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message BaleGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message BaleGetMessageUpvotersRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  int64 date = 3;
+}
+
+message BaleGetMessageUpvotersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message BaleGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message BaleGetMiniAppUrlRequest {
+  int64 bot_id = 1;
+  string short_name = 2;
+}
+
+message BaleGetMiniAppUrlResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetMyCommandsRequest {
+}
+
+message BaleGetMyCommandsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetOngoingCallsRequest {
+}
+
+message BaleGetOngoingCallsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetPollResultsRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  int64 date = 3;
+}
+
+message BaleGetPollResultsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetProfileRequest {
+  string user_id = 1;
+}
+
+message BaleGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message BaleGetReadStateRequest {
+  string chat_id = 1;
+}
+
+message BaleGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message BaleGetSessionsRequest {
+}
+
+message BaleGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message BaleGetStickerSetRequest {
+  string name = 1;
+}
+
+message BaleGetStickerSetResponse {
+  BaleStickerSet result_1 = 1;
+}
+
+message BaleGetTranscriptRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  int64 date = 3;
+}
+
+message BaleGetTranscriptResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetUpdatesRequest {
+  int64 offset = 1;
+  int64 limit = 2;
+  int64 timeout = 3;
+}
+
+message BaleGetUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetUserFullPrivacyRequest {
+}
+
+message BaleGetUserFullPrivacyResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetUserIDRequest {
+}
+
+message BaleGetUserIDResponse {
+  int64 result_1 = 1;
+}
+
+message BaleGetUserPrivacyStatusRequest {
+}
+
+message BaleGetUserPrivacyStatusResponse {
+  bytes result_1 = 1;
+}
+
+message BaleGetUserProfilePhotosRequest {
+  int64 user_id = 1;
+  int64 offset = 2;
+  int64 limit = 3;
+}
+
+message BaleGetUserProfilePhotosResponse {
+  BaleUserProfilePhotos result_1 = 1;
+}
+
+message BaleGetWebhookInfoRequest {
+}
+
+message BaleGetWebhookInfoResponse {
+  BaleWebhookInfo result_1 = 1;
+}
+
+message BaleGetWssURLRequest {
+  string call_id = 1;
+}
+
+message BaleGetWssURLResponse {
+  string result_1 = 1;
+}
+
+message BaleGlobalChannelSearchRequest {
+  string query = 1;
+  int64 limit = 2;
+}
+
+message BaleGlobalChannelSearchResponse {
+  bytes result_1 = 1;
+}
+
+message BaleInviteUserRequest {
+  string chat_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleInviteUserResponse {
+}
+
+message BaleInvokeCustomMethodRequest {
+  int64 bot_id = 1;
+  string method = 2;
+  string params = 3;
+}
+
+message BaleInvokeCustomMethodResponse {
+  bytes result_1 = 1;
+}
+
+message BaleIsNameAllowedRequest {
+  string name = 1;
+}
+
+message BaleIsNameAllowedResponse {
+  bytes result_1 = 1;
+}
+
+message BaleIsTwoFactorAuthenticationEnabledRequest {
+}
+
+message BaleIsTwoFactorAuthenticationEnabledResponse {
+  bytes result_1 = 1;
+}
+
+message BaleJoinGroupCallRequest {
+  string chat_id = 1;
+}
+
+message BaleJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message BaleLeaveChatRequest {
+  string chat_id = 1;
+}
+
+message BaleLeaveChatResponse {
+}
+
+message BaleLoadAvatarsRequest {
+  int64 user_id = 1;
+}
+
+message BaleLoadAvatarsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleLoadDialogsFilteredRequest {
+  int64 offset_date = 1;
+  int64 limit = 2;
+  int64 folder_id = 3;
+  bool archived = 4;
+  bool exclude_pinned = 5;
+}
+
+message BaleLoadDialogsFilteredResponse {
+  bytes result_1 = 1;
+}
+
+message BaleLoadFoldersRequest {
+}
+
+message BaleLoadFoldersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleLogoutRequest {
+}
+
+message BaleLogoutResponse {
+}
+
+message BaleMarkAsReadRequest {
+  string chat_id = 1;
+  string up_to_msg_id = 2;
+}
+
+message BaleMarkAsReadResponse {
+}
+
+message BaleMarkAsUnreadRequest {
+  string chat_id = 1;
+}
+
+message BaleMarkAsUnreadResponse {
+  bytes result_1 = 1;
+}
+
+message BaleMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message BaleMarkUnreadResponse {
+}
+
+message BaleMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message BaleMuteChatResponse {
+}
+
+message BaleNameRequest {
+}
+
+message BaleNameResponse {
+  string result_1 = 1;
+}
+
+message BaleNotifyAboutDeviceInfoRequest {
+  string device_model = 1;
+  string os_version = 2;
+  string app_version = 3;
+}
+
+message BaleNotifyAboutDeviceInfoResponse {
+  bytes result_1 = 1;
+}
+
+message BalePinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BalePinMessageResponse {
+}
+
+message BalePromoteChatMemberRequest {
+  string chat_id = 1;
+  int64 user_id = 2;
+  map<string, bool> perms = 3;
+}
+
+message BalePromoteChatMemberResponse {
+}
+
+message BalePushSetConfigRequest {
+  bytes config = 1;
+}
+
+message BalePushSetConfigResponse {
+  bytes result_1 = 1;
+}
+
+message BaleReactToMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string emoji = 3;
+}
+
+message BaleReactToMessageResponse {
+}
+
+message BaleReceiveCallRequest {
+  int64 call_id = 1;
+}
+
+message BaleReceiveCallResponse {
+  bytes result_1 = 1;
+}
+
+message BaleRecoverPasswordRequest {
+}
+
+message BaleRecoverPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message BaleRegisterGooglePushRequest {
+  string token = 1;
+}
+
+message BaleRegisterGooglePushResponse {
+  bytes result_1 = 1;
+}
+
+message BaleRegisterPushRequest {
+  string token = 1;
+  int64 platform = 2;
+}
+
+message BaleRegisterPushResponse {
+  bytes result_1 = 1;
+}
+
+message BaleRemoveAvatarRequest {
+}
+
+message BaleRemoveAvatarResponse {
+  bytes result_1 = 1;
+}
+
+message BaleRemoveMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message BaleRemoveMemberResponse {
+}
+
+message BaleReorderFoldersRequest {
+  repeated int64 folder_ids = 1;
+}
+
+message BaleReorderFoldersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleReplyToMessageRequest {
+  string chat_id = 1;
+  string reply_to_msg_id = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message BaleReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleReportDismissRequest {
+  string chat_id = 1;
+}
+
+message BaleReportDismissResponse {
+  bytes result_1 = 1;
+}
+
+message BaleReportInappropriateContentRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  string reason = 3;
+}
+
+message BaleReportInappropriateContentResponse {
+  bytes result_1 = 1;
+}
+
+message BaleResolveGroupIDRequest {
+  int64 peer_id = 1;
+}
+
+message BaleResolveGroupIDResponse {
+  int64 result_1 = 1;
+}
+
+message BaleRestrictChatMemberRequest {
+  string chat_id = 1;
+  int64 user_id = 2;
+  map<string, bool> permissions = 3;
+}
+
+message BaleRestrictChatMemberResponse {
+}
+
+message BaleRevokeUpvotedPostRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  int64 date = 3;
+}
+
+message BaleRevokeUpvotedPostResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message BaleSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message BaleSearchLinksRequest {
+  string chat_id = 1;
+  int64 limit = 2;
+}
+
+message BaleSearchLinksResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSearchMembersRequest {
+  string chat_id = 1;
+  string query = 2;
+}
+
+message BaleSearchMembersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message BaleSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message BaleSearchPeerMediaRequest {
+  string chat_id = 1;
+  int64 media_type = 2;
+  int64 limit = 3;
+}
+
+message BaleSearchPeerMediaResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSearchPeerMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  int64 limit = 3;
+}
+
+message BaleSearchPeerMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendAnimatedStickerRequest {
+  string chat_id = 1;
+  bytes sticker_data = 2;
+}
+
+message BaleSendAnimatedStickerResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendAnimationRequest {
+  string chat_id = 1;
+  string animation = 2;
+  string caption = 3;
+}
+
+message BaleSendAnimationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendAudioRequest {
+  string chat_id = 1;
+  string audio = 2;
+  string caption = 3;
+  int64 duration = 4;
+}
+
+message BaleSendAudioResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendBankMessageRequest {
+  string chat_id = 1;
+  bytes bank_data = 2;
+}
+
+message BaleSendBankMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendChangePhoneVerificationCodeRequest {
+  string new_phone = 1;
+}
+
+message BaleSendChangePhoneVerificationCodeResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendChatActionRequest {
+  string chat_id = 1;
+  string action = 2;
+}
+
+message BaleSendChatActionResponse {
+}
+
+message BaleSendContactRequest {
+  string chat_id = 1;
+  string phone = 2;
+  string first_name = 3;
+  string last_name = 4;
+}
+
+message BaleSendContactResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendDeleteAccountVerificationCodeRequest {
+}
+
+message BaleSendDeleteAccountVerificationCodeResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendDocumentRequest {
+  string chat_id = 1;
+  string document = 2;
+  string caption = 3;
+}
+
+message BaleSendDocumentResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendImageBase64Request {
+  string chat_id = 1;
+  string b64 = 2;
+  string caption = 3;
+}
+
+message BaleSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendJsonMessageRequest {
+  string chat_id = 1;
+  string json_data = 2;
+}
+
+message BaleSendJsonMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendLiveMessageRequest {
+  string chat_id = 1;
+  bytes live_data = 2;
+}
+
+message BaleSendLiveMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message BaleSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendLongTextMessageRequest {
+  string chat_id = 1;
+  string text = 2;
+}
+
+message BaleSendLongTextMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendMediaGroupRequest {
+  string chat_id = 1;
+  bytes media = 2;
+}
+
+message BaleSendMediaGroupResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message BaleSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendMessageWithKeyboardRequest {
+  string chat_id = 1;
+  string text = 2;
+  bytes keyboard = 3;
+}
+
+message BaleSendMessageWithKeyboardResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendOrderMessageRequest {
+  string chat_id = 1;
+  bytes order_data = 2;
+}
+
+message BaleSendOrderMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendPhotoRequest {
+  string chat_id = 1;
+  string photo = 2;
+  string caption = 3;
+}
+
+message BaleSendPhotoResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendProtectedMessageRequest {
+  string chat_id = 1;
+  string text = 2;
+}
+
+message BaleSendProtectedMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendRamzOTPRequest {
+}
+
+message BaleSendRamzOTPResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendScheduledMessageRequest {
+  string chat_id = 1;
+  string text = 2;
+  int64 schedule_date = 3;
+}
+
+message BaleSendScheduledMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSendStickerRequest {
+  string chat_id = 1;
+  string sticker_file_id = 2;
+}
+
+message BaleSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendTypingRequest {
+  string chat_id = 1;
+}
+
+message BaleSendTypingResponse {
+}
+
+message BaleSendVenueRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+  string title = 4;
+  string address = 5;
+}
+
+message BaleSendVenueResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendVideoRequest {
+  string chat_id = 1;
+  string video = 2;
+  string caption = 3;
+  int64 duration = 4;
+}
+
+message BaleSendVideoResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendVideoNoteRequest {
+  string chat_id = 1;
+  string video_note = 2;
+  int64 duration = 3;
+  int64 length = 4;
+}
+
+message BaleSendVideoNoteResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSendVoiceRequest {
+  string chat_id = 1;
+  string voice = 2;
+  string caption = 3;
+  int64 duration = 4;
+}
+
+message BaleSendVoiceResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message BaleSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message BaleSetAdminResponse {
+}
+
+message BaleSetCallMutedRequest {
+  string call_id = 1;
+  bool muted = 2;
+}
+
+message BaleSetCallMutedResponse {
+}
+
+message BaleSetChatPhotoRequest {
+  string chat_id = 1;
+  bytes photo = 2;
+  string file_name = 3;
+}
+
+message BaleSetChatPhotoResponse {
+}
+
+message BaleSetMyCommandsRequest {
+  bytes commands = 1;
+}
+
+message BaleSetMyCommandsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSetNewPasswordRequest {
+  string transaction_hash = 1;
+  string new_password = 2;
+  string hint = 3;
+}
+
+message BaleSetNewPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSetRamzPasswordRequest {
+  string password = 1;
+}
+
+message BaleSetRamzPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSetUserPrivacyStatusRequest {
+  string key = 1;
+  int64 value = 2;
+}
+
+message BaleSetUserPrivacyStatusResponse {
+  bytes result_1 = 1;
+}
+
+message BaleSetWebhookRequest {
+  string url = 1;
+  int64 max_connections = 2;
+}
+
+message BaleSetWebhookResponse {
+}
+
+message BaleStartCallRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message BaleStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message BaleTerminateAllSessionsRequest {
+}
+
+message BaleTerminateAllSessionsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleTerminateSessionRequest {
+  string session_id = 1;
+}
+
+message BaleTerminateSessionResponse {
+}
+
+message BaleUnbanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message BaleUnbanMemberResponse {
+}
+
+message BaleUnblockUserRequest {
+  string user_id = 1;
+}
+
+message BaleUnblockUserResponse {
+}
+
+message BaleUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message BaleUnpinAllMessagesResponse {
+}
+
+message BaleUnpinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUnpinMessageResponse {
+}
+
+message BaleUnregisterAllPushCredentialsRequest {
+}
+
+message BaleUnregisterAllPushCredentialsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUnregisterGooglePushRequest {
+  string token = 1;
+}
+
+message BaleUnregisterGooglePushResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUnregisterPushRequest {
+  string token = 1;
+}
+
+message BaleUnregisterPushResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUploadRawPUTRequest {
+  string url = 1;
+  bytes data = 2;
+}
+
+message BaleUploadRawPUTResponse {
+}
+
+message BaleUploadStickerFileRequest {
+  int64 user_id = 1;
+  bytes sticker = 2;
+  string sticker_format = 3;
+}
+
+message BaleUploadStickerFileResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUpvotePostRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  int64 date = 3;
+}
+
+message BaleUpvotePostResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAIGetTranscriptRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserAIGetTranscriptResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAISendEventRequest {
+  bytes event_data = 1;
+}
+
+message BaleUserAISendEventResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAcceptCallMeetRequest {
+  int64 call_id = 1;
+}
+
+message BaleUserAcceptCallMeetResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAddBotStoryRequest {
+  int64 bot_id = 1;
+  bytes content = 2;
+}
+
+message BaleUserAddBotStoryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAddChannelStoryRequest {
+  int64 channel_id = 1;
+  bytes content = 2;
+}
+
+message BaleUserAddChannelStoryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAddContactRequest {
+  int64 user_id = 1;
+}
+
+message BaleUserAddContactResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAddDiscussionGroupAdminRequest {
+  int64 channel_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleUserAddDiscussionGroupAdminResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAddGifRequest {
+  int64 file_id = 1;
+  int64 access_hash = 2;
+}
+
+message BaleUserAddGifResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAddStickerCollectionRequest {
+  int64 collection_id = 1;
+}
+
+message BaleUserAddStickerCollectionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAddStickerPackRequest {
+  int64 pack_id = 1;
+}
+
+message BaleUserAddStickerPackResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAddStoryRequest {
+  bytes content = 1;
+}
+
+message BaleUserAddStoryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAnswerCallJoinRequestRequest {
+  int64 call_id = 1;
+  int64 user_id = 2;
+  bool accept = 3;
+}
+
+message BaleUserAnswerCallJoinRequestResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserArchiveDialogsRequest {
+  repeated string chat_ids = 1;
+}
+
+message BaleUserArchiveDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserAskToJoinCallRequest {
+  int64 call_id = 1;
+}
+
+message BaleUserAskToJoinCallResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserBlockUserRequest {
+  int64 user_id = 1;
+}
+
+message BaleUserBlockUserResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCanAddBotStoryRequest {
+  int64 bot_id = 1;
+}
+
+message BaleUserCanAddBotStoryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCancelMessageStreamRequest {
+  int64 stream_id = 1;
+}
+
+message BaleUserCancelMessageStreamResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCheckNickNameRequest {
+  string nick = 1;
+}
+
+message BaleUserCheckNickNameResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCheckStoryLinkValidityRequest {
+  string link = 1;
+}
+
+message BaleUserCheckStoryLinkValidityResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserClearChatRequest {
+  string chat_id = 1;
+}
+
+message BaleUserClearChatResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserClosePollServiceRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserClosePollServiceResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCreateFolderRequest {
+  string title = 1;
+  repeated string peer_ids = 2;
+}
+
+message BaleUserCreateFolderResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCreateGroupRequest {
+  string title = 1;
+  repeated int64 user_ids = 2;
+}
+
+message BaleUserCreateGroupResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCreateGroupFullRequest {
+  string title = 1;
+  repeated int64 user_ids = 2;
+  int64 group_type = 3;
+  string username = 4;
+  int64 restriction = 5;
+}
+
+message BaleUserCreateGroupFullResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCreatePollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+  bool multiple_choice = 4;
+  bool anonymous = 5;
+}
+
+message BaleUserCreatePollResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCreateReservedFolderRequest {
+  string title = 1;
+}
+
+message BaleUserCreateReservedFolderResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCreateThreadRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserCreateThreadResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserCreateTopicRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message BaleUserCreateTopicResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserDeleteCallLogsRequest {
+  repeated int64 call_ids = 1;
+}
+
+message BaleUserDeleteCallLogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserDeleteChatRequest {
+  string chat_id = 1;
+}
+
+message BaleUserDeleteChatResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserDeleteMessageRequest {
+  string chat_id = 1;
+  repeated int64 rids = 2;
+  repeated int64 dates = 3;
+}
+
+message BaleUserDeleteMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserDeleteMyCommandsRequest {
+}
+
+message BaleUserDeleteMyCommandsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserDeleteStreamRequest {
+  int64 call_id = 1;
+}
+
+message BaleUserDeleteStreamResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditAboutRequest {
+  string about = 1;
+}
+
+message BaleUserEditAboutResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditChannelNickRequest {
+  int64 group_id = 1;
+  string nick = 2;
+}
+
+message BaleUserEditChannelNickResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditGroupAboutRequest {
+  int64 group_id = 1;
+  string about = 2;
+}
+
+message BaleUserEditGroupAboutResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditGroupAvatarRequest {
+  int64 group_id = 1;
+  int64 file_id = 2;
+  int64 access_hash = 3;
+}
+
+message BaleUserEditGroupAvatarResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditGroupDefaultCardNumberRequest {
+  int64 group_id = 1;
+  string card_number = 2;
+}
+
+message BaleUserEditGroupDefaultCardNumberResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditGroupTitleRequest {
+  int64 group_id = 1;
+  string title = 2;
+}
+
+message BaleUserEditGroupTitleResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditLocalNameRequest {
+  int64 user_id = 1;
+  string local_name = 2;
+}
+
+message BaleUserEditLocalNameResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditNameRequest {
+  string name = 1;
+}
+
+message BaleUserEditNameResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditNickNameRequest {
+  string nick = 1;
+}
+
+message BaleUserEditNickNameResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEditParameterRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message BaleUserEditParameterResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserEnableShowReactionFlagRequest {
+  bool enabled = 1;
+}
+
+message BaleUserEnableShowReactionFlagResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserExecuteTaskNowRequest {
+  int64 task_id = 1;
+}
+
+message BaleUserExecuteTaskNowResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserFetchGroupAdminsRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserFetchGroupAdminsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserFetchProtectedMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserFetchProtectedMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserFileUploadCancelRequest {
+  int64 file_id = 1;
+}
+
+message BaleUserFileUploadCancelResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserForwardMessagesRequest {
+  string to_chat_id = 1;
+  bytes from_peer = 2;
+  repeated int64 rids = 3;
+  repeated int64 dates = 4;
+}
+
+message BaleUserForwardMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGenerateCallLinkRequest {
+  int64 call_id = 1;
+}
+
+message BaleUserGenerateCallLinkResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetActiveSharedMediaRequest {
+  string chat_id = 1;
+}
+
+message BaleUserGetActiveSharedMediaResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetAnonymousContactPageRequest {
+}
+
+message BaleUserGetAnonymousContactPageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetBannedUsersRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetBannedUsersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetBotGroupPermissionsRequest {
+  int64 bot_id = 1;
+  int64 group_id = 2;
+}
+
+message BaleUserGetBotGroupPermissionsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetBotInfoRequest {
+  int64 bot_id = 1;
+}
+
+message BaleUserGetBotInfoResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetBotStoriesRequest {
+  int64 bot_id = 1;
+}
+
+message BaleUserGetBotStoriesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetBotWhiteListRequest {
+}
+
+message BaleUserGetBotWhiteListResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetBotsRequest {
+}
+
+message BaleUserGetBotsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetCallLinkDetailsRequest {
+  string link = 1;
+}
+
+message BaleUserGetCallLinkDetailsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetCallStateRequest {
+  int64 call_id = 1;
+}
+
+message BaleUserGetCallStateResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetCanSeeMessagesRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetCanSeeMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetChannelRecommendationsRequest {
+  int64 channel_id = 1;
+}
+
+message BaleUserGetChannelRecommendationsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetChannelStoriesRequest {
+  int64 channel_id = 1;
+}
+
+message BaleUserGetChannelStoriesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetContactsRequest {
+}
+
+message BaleUserGetContactsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetContactsPresencesRequest {
+}
+
+message BaleUserGetContactsPresencesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetDefaultStoryBackgroundsRequest {
+}
+
+message BaleUserGetDefaultStoryBackgroundsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetDifferenceRequest {
+  int64 seq = 1;
+}
+
+message BaleUserGetDifferenceResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetDiscussionMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserGetDiscussionMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetFileURLRequest {
+  int64 file_id = 1;
+  int64 access_hash = 2;
+}
+
+message BaleUserGetFileURLResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetFileUploadURLRequest {
+  int64 size = 1;
+  string name = 2;
+  string mime_type = 3;
+}
+
+message BaleUserGetFileUploadURLResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetFullGroupRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetFullGroupResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetFullPollResultServiceRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_index = 3;
+}
+
+message BaleUserGetFullPollResultServiceResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetGroupDefaultCardNumberRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetGroupDefaultCardNumberResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetGroupInviteURLRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetGroupInviteURLResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetGroupMembersCountRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetGroupMembersCountResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetGroupMembersPresencesRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetGroupMembersPresencesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetGroupOnlineCountRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetGroupOnlineCountResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetGroupPreviewRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetGroupPreviewResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetGroupRecommendationsRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetGroupRecommendationsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetGroupsRecommendationRequest {
+}
+
+message BaleUserGetGroupsRecommendationResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetInlineBotResultsRequest {
+  int64 bot_id = 1;
+  string query = 2;
+  string offset = 3;
+}
+
+message BaleUserGetInlineBotResultsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetLLMAuthTokenRequest {
+}
+
+message BaleUserGetLLMAuthTokenResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetLinkPreviewRequest {
+  string url = 1;
+}
+
+message BaleUserGetLinkPreviewResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetLinkStatusRequest {
+  string link = 1;
+}
+
+message BaleUserGetLinkStatusResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetLinkSummaryRequest {
+  string url = 1;
+}
+
+message BaleUserGetLinkSummaryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMemberPermissionsRequest {
+  int64 group_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleUserGetMemberPermissionsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMenuButtonRequest {
+  int64 bot_id = 1;
+}
+
+message BaleUserGetMenuButtonResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMessageSeenListRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserGetMessageSeenListResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMessageViewsRequest {
+  string chat_id = 1;
+  repeated int64 dates = 2;
+  repeated int64 rids = 3;
+}
+
+message BaleUserGetMessageViewsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMessagesRepliesInfoRequest {
+  string chat_id = 1;
+  repeated string msg_ids = 2;
+}
+
+message BaleUserGetMessagesRepliesInfoResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMiniAppUrlAppzarRequest {
+  int64 bot_id = 1;
+  string short_name = 2;
+}
+
+message BaleUserGetMiniAppUrlAppzarResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMostPopularStoriesRequest {
+}
+
+message BaleUserGetMostPopularStoriesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMutualGroupsRequest {
+  int64 user_id = 1;
+}
+
+message BaleUserGetMutualGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMyCommandsRequest {
+}
+
+message BaleUserGetMyCommandsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMyGroupsRequest {
+}
+
+message BaleUserGetMyGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetMyUpvotesRequest {
+  int64 offset = 1;
+  int64 limit = 2;
+}
+
+message BaleUserGetMyUpvotesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetNasimFilePublicUrlRequest {
+  int64 file_id = 1;
+  int64 access_hash = 2;
+}
+
+message BaleUserGetNasimFilePublicUrlResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetNasimFileUploadResumeRequest {
+  int64 file_id = 1;
+}
+
+message BaleUserGetNasimFileUploadResumeResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetNasimFileUrlsRequest {
+  bytes file_ids = 1;
+}
+
+message BaleUserGetNasimFileUrlsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetOrganizationInfoRequest {
+}
+
+message BaleUserGetOrganizationInfoResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetOrganizationalContactsRequest {
+}
+
+message BaleUserGetOrganizationalContactsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetParametersRequest {
+}
+
+message BaleUserGetParametersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetPaymentDetailsRequest {
+  string payment_id = 1;
+}
+
+message BaleUserGetPaymentDetailsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetPinsRequest {
+  int64 group_id = 1;
+  int64 page = 2;
+  int64 limit = 3;
+}
+
+message BaleUserGetPinsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetPollResultsServiceRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserGetPollResultsServiceResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetReactionsRequest {
+  string chat_id = 1;
+  repeated int64 rids = 2;
+  repeated int64 dates = 3;
+}
+
+message BaleUserGetReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetReactionsListRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  int64 date_ms = 3;
+  string emoji = 4;
+}
+
+message BaleUserGetReactionsListResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetRelatedChannelsRequest {
+  int64 channel_id = 1;
+}
+
+message BaleUserGetRelatedChannelsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetRelatedGroupsRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserGetRelatedGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetSavedGifsRequest {
+}
+
+message BaleUserGetSavedGifsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetShowReactionFlagRequest {
+}
+
+message BaleUserGetShowReactionFlagResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetSimilarPostsRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserGetSimilarPostsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoriesRequest {
+  int64 peer_id = 1;
+}
+
+message BaleUserGetStoriesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoriesByListRequest {
+  repeated int64 story_ids = 1;
+}
+
+message BaleUserGetStoriesByListResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoryByIDRequest {
+  int64 story_id = 1;
+}
+
+message BaleUserGetStoryByIDResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoryPrivacyConfigRequest {
+}
+
+message BaleUserGetStoryPrivacyConfigResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoryReactionEmojisRequest {
+}
+
+message BaleUserGetStoryReactionEmojisResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoryTagsRequest {
+}
+
+message BaleUserGetStoryTagsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoryViewersRequest {
+  int64 story_id = 1;
+  int64 offset = 2;
+  int64 limit = 3;
+}
+
+message BaleUserGetStoryViewersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoryViewersCountRequest {
+  int64 story_id = 1;
+}
+
+message BaleUserGetStoryViewersCountResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetStoryWidgetsRequest {
+}
+
+message BaleUserGetStoryWidgetsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetTopPeerRequest {
+}
+
+message BaleUserGetTopPeerResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetTopicByIDRequest {
+  string chat_id = 1;
+  int64 topic_id = 2;
+}
+
+message BaleUserGetTopicByIDResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetTopicsRequest {
+  string chat_id = 1;
+}
+
+message BaleUserGetTopicsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetUserContextRequest {
+  int64 bot_id = 1;
+}
+
+message BaleUserGetUserContextResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetUserStoryConfigRequest {
+}
+
+message BaleUserGetUserStoryConfigResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetUsersPresenceRequest {
+  repeated int64 user_ids = 1;
+}
+
+message BaleUserGetUsersPresenceResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserGetWebappHashRequest {
+  int64 bot_id = 1;
+}
+
+message BaleUserGetWebappHashResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserHTTPPostRequest {
+  string service = 1;
+  string method = 2;
+  bytes payload = 3;
+}
+
+message BaleUserHTTPPostResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserImportContactsRequest {
+  bytes contacts = 1;
+}
+
+message BaleUserImportContactsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserInviteToCallRequest {
+  int64 call_id = 1;
+  repeated int64 user_ids = 2;
+}
+
+message BaleUserInviteToCallResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserInviteUserRequest {
+  int64 group_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleUserInviteUserResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserInviteUsersRequest {
+  int64 group_id = 1;
+  repeated int64 user_ids = 2;
+}
+
+message BaleUserInviteUsersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserInvokeCustomActionRequest {
+  int64 bot_id = 1;
+  string action = 2;
+  string data = 3;
+}
+
+message BaleUserInvokeCustomActionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserInvokeCustomMethodAppzarRequest {
+  int64 bot_id = 1;
+  string method = 2;
+  string params = 3;
+}
+
+message BaleUserInvokeCustomMethodAppzarResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserJoinGroupRequest {
+  string token = 1;
+}
+
+message BaleUserJoinGroupResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserJoinPublicGroupRequest {
+  int64 peer_id = 1;
+  int64 peer_type = 2;
+}
+
+message BaleUserJoinPublicGroupResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserKickUserRequest {
+  int64 group_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleUserKickUserResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLeaveGroupRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserLeaveGroupResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserListScheduledTasksRequest {
+  string chat_id = 1;
+}
+
+message BaleUserListScheduledTasksResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadBlockedUsersRequest {
+}
+
+message BaleUserLoadBlockedUsersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadCategoryFeedMessagesRequest {
+  int64 category_id = 1;
+  int64 offset = 2;
+  int64 limit = 3;
+}
+
+message BaleUserLoadCategoryFeedMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadDialogsRequest {
+  int64 offset_date = 1;
+  int64 limit = 2;
+}
+
+message BaleUserLoadDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadDialogsFilteredRequest {
+  int64 filter_type = 1;
+  int64 offset = 2;
+  int64 limit = 3;
+}
+
+message BaleUserLoadDialogsFilteredResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadFeedMessagesRequest {
+  int64 offset = 1;
+  int64 limit = 2;
+}
+
+message BaleUserLoadFeedMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadFolderDialogsRequest {
+  int64 folder_id = 1;
+  int64 offset_date = 2;
+  int64 limit = 3;
+}
+
+message BaleUserLoadFolderDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadFullGroupsRequest {
+  repeated int64 group_ids = 1;
+}
+
+message BaleUserLoadFullGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadFullUsersRequest {
+  repeated int64 user_ids = 1;
+}
+
+message BaleUserLoadFullUsersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadGroupAvatarsRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserLoadGroupAvatarsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadGroupedDialogsRequest {
+  int64 offset_date = 1;
+  int64 limit = 2;
+}
+
+message BaleUserLoadGroupedDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadGroupsRequest {
+  repeated int64 group_ids = 1;
+}
+
+message BaleUserLoadGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadHistoryRequest {
+  string chat_id = 1;
+  int64 date = 2;
+  int64 limit = 3;
+  int64 load_mode = 4;
+}
+
+message BaleUserLoadHistoryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadInternalFeedMessagesRequest {
+  int64 offset = 1;
+  int64 limit = 2;
+}
+
+message BaleUserLoadInternalFeedMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadMagazineCategoriesRequest {
+}
+
+message BaleUserLoadMagazineCategoriesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadMembersRequest {
+  int64 group_id = 1;
+  int64 limit = 2;
+  bytes next = 3;
+}
+
+message BaleUserLoadMembersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadOwnStickersRequest {
+}
+
+message BaleUserLoadOwnStickersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadPeerDialogsRequest {
+  repeated string peer_ids = 1;
+}
+
+message BaleUserLoadPeerDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadPeersRequest {
+  repeated string peer_ids = 1;
+}
+
+message BaleUserLoadPeersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadPinnedDialogsRequest {
+}
+
+message BaleUserLoadPinnedDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadPinnedMessagesRequest {
+  string chat_id = 1;
+}
+
+message BaleUserLoadPinnedMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadReactionsRequest {
+}
+
+message BaleUserLoadReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadRepliesRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 offset_date = 3;
+  int64 limit = 4;
+}
+
+message BaleUserLoadRepliesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadSharedMediaRequest {
+  string chat_id = 1;
+  int64 media_type = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+}
+
+message BaleUserLoadSharedMediaResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadStickerCollectionRequest {
+  int64 collection_id = 1;
+}
+
+message BaleUserLoadStickerCollectionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserLoadUsersRequest {
+  repeated int64 user_ids = 1;
+}
+
+message BaleUserLoadUsersResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMakePaymentRequest {
+  string payment_id = 1;
+}
+
+message BaleUserMakePaymentResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMakeUserAdminRequest {
+  int64 group_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleUserMakeUserAdminResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMarkAsUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message BaleUserMarkAsUnreadResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMarkDialogsAsReadRequest {
+  repeated string chat_ids = 1;
+}
+
+message BaleUserMarkDialogsAsReadResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMentionReadRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserMentionReadResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMessageReactionsReadRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message BaleUserMessageReactionsReadResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMessageReadRequest {
+  string chat_id = 1;
+  int64 date = 2;
+}
+
+message BaleUserMessageReadResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMessageReceivedRequest {
+  string chat_id = 1;
+  int64 date_ms = 2;
+}
+
+message BaleUserMessageReceivedResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserMuteCallParticipantRequest {
+  int64 call_id = 1;
+  int64 user_id = 2;
+  bool muted = 3;
+}
+
+message BaleUserMuteCallParticipantResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserPeersWithScheduleTaskRequest {
+}
+
+message BaleUserPeersWithScheduleTaskResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserPinDialogsRequest {
+  repeated string chat_ids = 1;
+}
+
+message BaleUserPinDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserPinMessageRequest {
+  string chat_id = 1;
+  int64 msg_r_id = 2;
+  int64 date = 3;
+  int64 mid = 4;
+}
+
+message BaleUserPinMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserPushSetConfigRequest {
+  bytes config = 1;
+}
+
+message BaleUserPushSetConfigResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserReScheduleTaskRequest {
+  int64 task_id = 1;
+  int64 new_date = 2;
+}
+
+message BaleUserReScheduleTaskResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserReactToStoryRequest {
+  int64 story_id = 1;
+  string reaction = 2;
+}
+
+message BaleUserReactToStoryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserReceiveMessageStreamRequest {
+  int64 stream_id = 1;
+}
+
+message BaleUserReceiveMessageStreamResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveAllPinsRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserRemoveAllPinsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveCallParticipantRequest {
+  int64 call_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleUserRemoveCallParticipantResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveContactRequest {
+  int64 user_id = 1;
+}
+
+message BaleUserRemoveContactResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveDiscussionGroupRequest {
+  int64 channel_id = 1;
+}
+
+message BaleUserRemoveDiscussionGroupResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveGifRequest {
+  int64 file_id = 1;
+}
+
+message BaleUserRemoveGifResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveGroupAvatarRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserRemoveGroupAvatarResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemovePinRequest {
+  int64 group_id = 1;
+  int64 msg_r_id = 2;
+  int64 date = 3;
+}
+
+message BaleUserRemovePinResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveReactionRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  string emoji = 3;
+  int64 date = 4;
+}
+
+message BaleUserRemoveReactionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveStickerCollectionRequest {
+  int64 collection_id = 1;
+}
+
+message BaleUserRemoveStickerCollectionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveStickerPackRequest {
+  int64 pack_id = 1;
+}
+
+message BaleUserRemoveStickerPackResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveStoryRequest {
+  int64 story_id = 1;
+}
+
+message BaleUserRemoveStoryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveTopPeerRequest {
+  string peer_id = 1;
+}
+
+message BaleUserRemoveTopPeerResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRemoveUserAdminRequest {
+  int64 group_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleUserRemoveUserAdminResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserReorderPinnedDialogsRequest {
+  repeated string chat_ids = 1;
+}
+
+message BaleUserReorderPinnedDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserResetContactsRequest {
+}
+
+message BaleUserResetContactsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserRevokeInviteURLRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserRevokeInviteURLResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserScheduleTaskRequest {
+  string chat_id = 1;
+  bytes task = 2;
+}
+
+message BaleUserScheduleTaskResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSearchContactsRequest {
+  string query = 1;
+}
+
+message BaleUserSearchContactsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSearchContentRequest {
+  string query = 1;
+  int64 limit = 2;
+}
+
+message BaleUserSearchContentResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSearchDialogRequest {
+  string query = 1;
+  int64 limit = 2;
+}
+
+message BaleUserSearchDialogResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSearchMediaServiceRequest {
+  string chat_id = 1;
+  int64 media_type = 2;
+  int64 limit = 3;
+}
+
+message BaleUserSearchMediaServiceResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSearchMembersServiceRequest {
+  string chat_id = 1;
+  string query = 2;
+}
+
+message BaleUserSearchMembersServiceResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSearchMessageMoreRequest {
+  string query = 1;
+  string chat_id = 2;
+  int64 offset = 3;
+  int64 limit = 4;
+}
+
+message BaleUserSearchMessageMoreResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSearchMessagesRequest {
+  string query = 1;
+  string chat_id = 2;
+  int64 limit = 3;
+}
+
+message BaleUserSearchMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSearchPeerRequest {
+  string query = 1;
+  int64 limit = 2;
+}
+
+message BaleUserSearchPeerResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendAnimatedStickerRequest {
+  string chat_id = 1;
+  bytes sticker_data = 2;
+}
+
+message BaleUserSendAnimatedStickerResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendAuthenticatedInlineCallBackDataRequest {
+  int64 bot_id = 1;
+  string query_id = 2;
+  string data = 3;
+}
+
+message BaleUserSendAuthenticatedInlineCallBackDataResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendBankMessageRequest {
+  string chat_id = 1;
+  bytes bank_msg = 2;
+}
+
+message BaleUserSendBankMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendCallFanoosEventRequest {
+  int64 call_id = 1;
+  string event_name = 2;
+}
+
+message BaleUserSendCallFanoosEventResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendCallReactionRequest {
+  int64 call_id = 1;
+  string reaction = 2;
+}
+
+message BaleUserSendCallReactionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendInlineCallBackDataRequest {
+  int64 bot_id = 1;
+  string query_id = 2;
+  string data = 3;
+}
+
+message BaleUserSendInlineCallBackDataResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendInlineCallbackRequest {
+  int64 bot_id = 1;
+  string query_id = 2;
+  string data = 3;
+}
+
+message BaleUserSendInlineCallbackResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendJsonMessageRequest {
+  string chat_id = 1;
+  string json_data = 2;
+}
+
+message BaleUserSendJsonMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendLiveMessageRequest {
+  string chat_id = 1;
+  bytes live_data = 2;
+}
+
+message BaleUserSendLiveMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendLongTextMessageRequest {
+  string chat_id = 1;
+  string text = 2;
+}
+
+message BaleUserSendLongTextMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendMessageRequest {
+  string chat_id = 1;
+  string text = 2;
+  int64 reply_to_r_id = 3;
+  int64 reply_to_date = 4;
+}
+
+message BaleUserSendMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendMiniAppDataRequest {
+  int64 bot_id = 1;
+  string data = 2;
+}
+
+message BaleUserSendMiniAppDataResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendMultiMediaMessageRequest {
+  string chat_id = 1;
+  bytes media_messages = 2;
+}
+
+message BaleUserSendMultiMediaMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendOrderMessageRequest {
+  string chat_id = 1;
+  bytes order = 2;
+}
+
+message BaleUserSendOrderMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendProtectedMessageRequest {
+  string chat_id = 1;
+  bytes msg = 2;
+}
+
+message BaleUserSendProtectedMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendRawRequest {
+  string service = 1;
+  string method = 2;
+  bytes payload = 3;
+}
+
+message BaleUserSendRawResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSendScheduledMessageRequest {
+  string chat_id = 1;
+  int64 date = 2;
+  bytes msg = 3;
+}
+
+message BaleUserSendScheduledMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetAvailableReactionsRequest {
+  int64 group_id = 1;
+  repeated string reactions = 2;
+}
+
+message BaleUserSetAvailableReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetCallLinkTitleRequest {
+  int64 call_id = 1;
+  string title = 2;
+}
+
+message BaleUserSetCallLinkTitleResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetCanSeeHistoryRequest {
+  int64 group_id = 1;
+  bool can_see = 2;
+}
+
+message BaleUserSetCanSeeHistoryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetCanSeeMessagesRequest {
+  int64 group_id = 1;
+  bool can_see = 2;
+}
+
+message BaleUserSetCanSeeMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetDiscussionGroupRequest {
+  int64 channel_id = 1;
+  int64 group_id = 2;
+}
+
+message BaleUserSetDiscussionGroupResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetGroupDefaultPermissionsRequest {
+  int64 group_id = 1;
+  bytes perms = 2;
+}
+
+message BaleUserSetGroupDefaultPermissionsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetMemberCustomTitleRequest {
+  int64 group_id = 1;
+  int64 user_id = 2;
+  string title = 3;
+}
+
+message BaleUserSetMemberCustomTitleResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetMemberPermissionsRequest {
+  int64 group_id = 1;
+  int64 user_id = 2;
+  bytes perms = 3;
+}
+
+message BaleUserSetMemberPermissionsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetMyCommandsRequest {
+  bytes commands = 1;
+}
+
+message BaleUserSetMyCommandsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetOnlineRequest {
+  bool is_online = 1;
+  int64 duration = 2;
+}
+
+message BaleUserSetOnlineResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetReactionRequest {
+  string chat_id = 1;
+  int64 rid = 2;
+  string emoji = 3;
+  int64 date = 4;
+}
+
+message BaleUserSetReactionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetRestrictionRequest {
+  int64 group_id = 1;
+  int64 restriction = 2;
+  repeated string username = 3;
+}
+
+message BaleUserSetRestrictionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetStoryPrivacyConfigRequest {
+  bytes config = 1;
+}
+
+message BaleUserSetStoryPrivacyConfigResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSetUserStoryConfigRequest {
+  bytes config = 1;
+}
+
+message BaleUserSetUserStoryConfigResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSignOutRequest {
+}
+
+message BaleUserSignOutResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSignUpRequest {
+  string transaction_hash = 1;
+  string name = 2;
+}
+
+message BaleUserSignUpResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserStartRecordingRequest {
+  int64 call_id = 1;
+}
+
+message BaleUserStartRecordingResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserStartStreamRequest {
+  int64 call_id = 1;
+}
+
+message BaleUserStartStreamResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserStopRecordingRequest {
+  int64 call_id = 1;
+}
+
+message BaleUserStopRecordingResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserStopTypingRequest {
+  string chat_id = 1;
+}
+
+message BaleUserStopTypingResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSubmitCallFeedbackRequest {
+  int64 call_id = 1;
+  int64 rating = 2;
+  string comment = 3;
+}
+
+message BaleUserSubmitCallFeedbackResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSubscribeFromGroupOnlineRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserSubscribeFromGroupOnlineResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSubscribeFromOnlineRequest {
+  repeated int64 user_ids = 1;
+}
+
+message BaleUserSubscribeFromOnlineResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSubscribeToGroupOnlineRequest {
+  int64 group_id = 1;
+}
+
+message BaleUserSubscribeToGroupOnlineResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSubscribeToOnlineRequest {
+  repeated int64 user_ids = 1;
+}
+
+message BaleUserSubscribeToOnlineResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSubscribeToThreadUpdatesRequest {
+  string chat_id = 1;
+  int64 thread_id = 2;
+}
+
+message BaleUserSubscribeToThreadUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserSubscribeToUpdatesRequest {
+}
+
+message BaleUserSubscribeToUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserTakeCallActionRequest {
+  int64 call_id = 1;
+  int64 action = 2;
+}
+
+message BaleUserTakeCallActionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserTerminateSessionRequest {
+  int64 session_id = 1;
+}
+
+message BaleUserTerminateSessionResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserTransferOwnershipRequest {
+  int64 group_id = 1;
+  int64 new_owner_id = 2;
+}
+
+message BaleUserTransferOwnershipResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserTypingRequest {
+  string chat_id = 1;
+}
+
+message BaleUserTypingResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUnArchiveDialogsRequest {
+  repeated string chat_ids = 1;
+}
+
+message BaleUserUnArchiveDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUnBanUserRequest {
+  int64 group_id = 1;
+  int64 user_id = 2;
+}
+
+message BaleUserUnBanUserResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUnPinMessagesRequest {
+  string chat_id = 1;
+  bytes msgs = 2;
+  bool all = 3;
+}
+
+message BaleUserUnPinMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUnScheduleTaskRequest {
+  int64 task_id = 1;
+}
+
+message BaleUserUnScheduleTaskResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUnblockUserRequest {
+  int64 user_id = 1;
+}
+
+message BaleUserUnblockUserResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUnpinDialogsRequest {
+  repeated string chat_ids = 1;
+}
+
+message BaleUserUnpinDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUnsubscribeFromThreadUpdatesRequest {
+  string chat_id = 1;
+  int64 thread_id = 2;
+}
+
+message BaleUserUnsubscribeFromThreadUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUpdateCallLayoutRequest {
+  int64 call_id = 1;
+  int64 layout = 2;
+}
+
+message BaleUserUpdateCallLayoutResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUpdateMessageRequest {
+  string chat_id = 1;
+  int64 msg_r_id = 2;
+  int64 date_ms = 3;
+  string new_text = 4;
+}
+
+message BaleUserUpdateMessageResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUpdateSearchContentClickRequest {
+  string content_id = 1;
+}
+
+message BaleUserUpdateSearchContentClickResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserUseGifRequest {
+  int64 file_id = 1;
+}
+
+message BaleUserUseGifResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserValidatePasswordRequest {
+  string transaction_hash = 1;
+  string password = 2;
+}
+
+message BaleUserValidatePasswordResponse {
+  bytes result_1 = 1;
+}
+
+message BaleUserVotePollServiceRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  repeated int64 option_indices = 3;
+}
+
+message BaleUserVotePollServiceResponse {
+  bytes result_1 = 1;
+}
+
+message BaleValidateRamzOTPRequest {
+  string otp = 1;
+}
+
+message BaleValidateRamzOTPResponse {
+  bytes result_1 = 1;
+}
+
+message BaleVerifyEmailRequest {
+  string email = 1;
+  string code = 2;
+}
+
+message BaleVerifyEmailResponse {
+  bytes result_1 = 1;
+}
+
+message BaleVerifyPasswordRecoveryRequest {
+  string code = 1;
+}
+
+message BaleVerifyPasswordRecoveryResponse {
+  bytes result_1 = 1;
+}
+
+message BaleVotePollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_index = 3;
+}
+
+message BaleVotePollResponse {
+}
+

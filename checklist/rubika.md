@@ -1,4 +1,4 @@
-# Rubika Checklist — 273 methods
+# Rubika Checklist — 241 methods
 
 
 ## Core Interface
@@ -127,39 +127,6 @@
 - [x] SearchContacts
 - [x] SearchGlobalMessages
 - [x] SearchMessages
-
-## Rubino (Social)
-- [x] RubinoAddComment
-- [x] RubinoAddPicture
-- [x] RubinoAddPost
-- [x] RubinoAddPostViewCount
-- [x] RubinoAddVideo
-- [x] RubinoBookmarkPost
-- [x] RubinoCreatePage
-- [x] RubinoGetBlockedProfiles
-- [x] RubinoGetBookmarkedPosts
-- [x] RubinoGetComments
-- [x] RubinoGetExplorePosts
-- [x] RubinoGetMyArchiveStories
-- [x] RubinoGetMyProfileInfo
-- [x] RubinoGetPostByShareLink
-- [x] RubinoGetProfileFollowers
-- [x] RubinoGetProfileFollowings
-- [x] RubinoGetProfileHighlights
-- [x] RubinoGetProfileInfo
-- [x] RubinoGetProfileList
-- [x] RubinoGetProfilePosts
-- [x] RubinoGetProfilesStories
-- [x] RubinoGetRecentFollowingPosts
-- [x] RubinoIsExistUsername
-- [x] RubinoLikePostAction
-- [x] RubinoRemovePage
-- [x] RubinoRemoveRecord
-- [x] RubinoRequestFollow
-- [x] RubinoRequestUploadFile
-- [x] RubinoSetBlockProfile
-- [x] RubinoUpdateProfile
-- [x] RubinoUploadFile
 
 ## Bot API
 - [x] BotBanChatMember

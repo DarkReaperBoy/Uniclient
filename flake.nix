@@ -62,6 +62,10 @@
             libxkbcommon
             dbus
 
+            # Protobuf
+            protobuf          # protoc compiler
+            protoc-gen-go     # Go codegen plugin
+
             # Dev tools
             jq
             ripgrep

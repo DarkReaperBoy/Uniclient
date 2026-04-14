@@ -1,0 +1,245 @@
+// Shared types for the uniclient bridge layer.
+// Generated from go/cores/base.go — keep in sync.
+syntax = "proto3";
+
+package uniclient;
+
+option go_package = "uniclient/proto";
+
+// ═══════════════════════════════════════════════════════════════════════
+// Enums
+// ═══════════════════════════════════════════════════════════════════════
+
+enum ChatType {
+  CHAT_TYPE_UNSPECIFIED = 0;
+  CHAT_TYPE_DM         = 1;
+  CHAT_TYPE_GROUP      = 2;
+  CHAT_TYPE_CHANNEL    = 3;
+  CHAT_TYPE_TOPIC      = 4;
+}
+
+enum MessageStatus {
+  MESSAGE_STATUS_UNSPECIFIED = 0;
+  MESSAGE_STATUS_SENDING    = 1;
+  MESSAGE_STATUS_SENT       = 2;
+  MESSAGE_STATUS_DELIVERED  = 3;
+  MESSAGE_STATUS_READ       = 4;
+  MESSAGE_STATUS_FAILED     = 5;
+}
+
+enum UpdateType {
+  UPDATE_TYPE_UNSPECIFIED    = 0;
+  UPDATE_TYPE_NEW_MESSAGE    = 1;
+  UPDATE_TYPE_EDIT_MESSAGE   = 2;
+  UPDATE_TYPE_DELETE_MESSAGE = 3;
+  UPDATE_TYPE_READ_STATE     = 4;
+  UPDATE_TYPE_USER_STATUS    = 5;
+  UPDATE_TYPE_TYPING         = 6;
+  UPDATE_TYPE_CALL_STATE     = 7;
+  UPDATE_TYPE_GROUP_MEMBERS  = 8;
+  UPDATE_TYPE_VERIFICATION   = 9;
+  UPDATE_TYPE_CONNECTIVITY   = 10;
+}
+
+enum CallState {
+  CALL_STATE_UNSPECIFIED = 0;
+  CALL_STATE_RINGING     = 1;
+  CALL_STATE_CONNECTING  = 2;
+  CALL_STATE_ACTIVE      = 3;
+  CALL_STATE_ENDED       = 4;
+}
+
+enum AuthMode {
+  AUTH_MODE_UNSPECIFIED = 0;
+  AUTH_MODE_BOT        = 1;
+  AUTH_MODE_USER       = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Models (mirrors go/cores/base.go structs)
+// ═══════════════════════════════════════════════════════════════════════
+
+message AuthConfig {
+  AuthMode          mode         = 1;
+  string            bot_token    = 2;
+  string            phone        = 3;
+  string            otp          = 4;
+  string            password_2f  = 5;
+  map<string,string> extra       = 6;
+}
+
+message PaginationOpts {
+  int32  limit  = 1;
+  string offset = 2;
+}
+
+message User {
+  string id           = 1;
+  string username      = 2;
+  string display_name  = 3;
+  string phone         = 4;
+  string avatar_url    = 5;
+  string avatar_b64    = 6;
+  bool   is_bot        = 7;
+  bool   is_online     = 8;
+  int64  last_seen_ms  = 9;  // unix millis, 0 = unset
+  string platform      = 10;
+}
+
+message Dialog {
+  string        id            = 1;
+  ChatType      type          = 2;
+  string        title         = 3;
+  string        avatar_url    = 4;
+  string        avatar_b64    = 5;
+  Message       last_message  = 6;
+  int32         unread_count  = 7;
+  bool          is_muted      = 8;
+  bool          is_pinned     = 9;
+  bool          is_archived   = 10;
+  int32         member_count  = 11;
+  string        parent_id     = 12;
+  string        platform      = 13;
+}
+
+message Message {
+  string        id              = 1;
+  string        chat_id         = 2;
+  string        sender_id       = 3;
+  string        sender_name     = 4;
+  string        text            = 5;
+  int64         timestamp_ms    = 6;  // unix millis
+  int64         edited_at_ms    = 7;  // 0 = not edited
+  MessageStatus status          = 8;
+  string        reply_to_id     = 9;
+  string        reply_preview   = 10;
+  string        forward_from    = 11;
+  bool          is_encrypted    = 12;
+  bool          decrypt_failed  = 13;
+  repeated FileRef  attachments = 14;
+  repeated Reaction reactions   = 15;
+  bool          is_pinned       = 16;
+  string        platform        = 17;
+  bytes         extra_json      = 18; // platform-specific JSON blob
+}
+
+message OutgoingMessage {
+  string          text        = 1;
+  string          reply_to_id = 2;
+  repeated FileRef attachments = 3;
+  bytes           extra_json  = 4;
+}
+
+message FileRef {
+  string id        = 1;
+  string name      = 2;
+  string mime_type  = 3;
+  int64  size       = 4;
+  string url        = 5;
+  string thumb_b64  = 6;
+  string extra      = 7;
+}
+
+message FileUploadRequest {
+  string name      = 1;
+  string mime_type  = 2;
+  int64  size       = 3;
+  string file_path  = 4; // local path — replaces io.Reader
+}
+
+message Reaction {
+  string emoji = 1;
+  int32  count = 2;
+  bool   by_me = 3;
+}
+
+message ReadState {
+  string              my_last_read  = 1;
+  map<string,string>  peer_last_read = 2;
+}
+
+message CallSession {
+  string                    id           = 1;
+  string                    chat_id      = 2;
+  bool                      is_video     = 3;
+  bool                      is_group     = 4;
+  repeated CallParticipant  participants = 5;
+  CallState                 state        = 6;
+  map<string,string>        meta         = 7;
+}
+
+message CallParticipant {
+  string user_id      = 1;
+  string display_name = 2;
+  bool   is_muted     = 3;
+  bool   is_speaking  = 4;
+  bool   has_video    = 5;
+}
+
+message Folder {
+  string          id       = 1;
+  string          name     = 2;
+  repeated string chat_ids = 3;
+}
+
+message Session {
+  string id          = 1;
+  string device      = 2;
+  string platform    = 3;
+  string app_name    = 4;
+  string app_version = 5;
+  string ip          = 6;
+  string location    = 7;
+  int64  last_active_ms = 8;
+  bool   is_current  = 9;
+}
+
+message VerificationInfo {
+  string          transaction_id = 1;
+  string          state          = 2;
+  string          from_user      = 3;
+  string          from_device    = 4;
+  repeated string emojis         = 5;
+  repeated string emoji_symbols  = 6;
+  repeated int32  decimals       = 7;
+  string          cancel_code    = 8;
+  string          cancel_reason  = 9;
+}
+
+message Update {
+  UpdateType       type           = 1;
+  string           chat_id        = 2;
+  Message          message        = 3;
+  string           message_id     = 4;
+  string           user_id        = 5;
+  ReadState        read_state     = 6;
+  CallSession      call           = 7;
+  bool             is_online      = 8;
+  bool             has_is_online  = 9; // distinguishes false from unset
+  VerificationInfo verification   = 10;
+  string           conn_state     = 11;
+  string           platform       = 12;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Bridge Envelope — single entry point for all RPC calls
+// ═══════════════════════════════════════════════════════════════════════
+
+message BridgeRequest {
+  string core_id = 1; // which core instance to call
+  string method  = 2; // fully-qualified method name (e.g. "SendMessage")
+  bytes  payload = 3; // serialized per-method request proto
+}
+
+message BridgeResponse {
+  bool   ok       = 1;
+  string error    = 2; // empty on success
+  string error_code = 3; // sentinel category: "auth", "network", "not_found", etc.
+  bytes  payload  = 4; // serialized per-method response proto
+}
+
+// Event from Go → Dart (async updates)
+message BridgeEvent {
+  string core_id = 1;
+  Update update  = 2;
+}

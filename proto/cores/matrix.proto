@@ -1,0 +1,2014 @@
+syntax = "proto3";
+
+package uniclient.matrix;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message MatrixCapabilities {
+  bytes change_password = 1;
+  bytes room_versions = 2;
+  bytes set_display_name = 3;
+  bytes set_avatar_url = 4;
+  bytes third_party_id = 5;
+}
+
+message MatrixDeviceInfo {
+  string device_id = 1;
+  string display_name = 2;
+  string last_seen_ip = 3;
+  int64 last_seen_t_s = 4;
+}
+
+message MatrixLoginFlow {
+  string type = 1;
+}
+
+message MatrixMediaConfig {
+  int64 upload_size = 1;
+}
+
+message MatrixRoomSummary {
+  string room_id = 1;
+  string name = 2;
+  string canonical_alias = 3;
+  string topic = 4;
+  string avatar_url = 5;
+  int64 num_joined_members = 6;
+  string room_type = 7;
+  string join_rule = 8;
+  bool world_readable = 9;
+  bool guest_can_join = 10;
+  string membership = 11;
+  bool encryption_enabled = 12;
+  repeated string allowed_room_ids = 13;
+}
+
+message MatrixTurnServer {
+  string username = 1;
+  string password = 2;
+  repeated string uris = 3;
+  int64 ttl = 4;
+}
+
+message MatrixURLPreview {
+  string title = 1;
+  string description = 2;
+  string image_url = 3;
+  string image_type = 4;
+  int64 image_width = 5;
+  int64 image_height = 6;
+  string matrix_image = 7;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message MatrixAcceptCallRequest {
+  string call_id = 1;
+}
+
+message MatrixAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message MatrixAcceptCallSelectAnswerRequest {
+  string call_id = 1;
+  string selected_party_id = 2;
+}
+
+message MatrixAcceptCallSelectAnswerResponse {
+}
+
+message MatrixAcceptSASVerificationRequest {
+  string txn_id = 1;
+}
+
+message MatrixAcceptSASVerificationResponse {
+}
+
+message MatrixAdd3PIDRequest {
+  string client_secret = 1;
+  string sid = 2;
+}
+
+message MatrixAdd3PIDResponse {
+}
+
+message MatrixAddContactRequest {
+  string phone = 1;
+  string first_name = 2;
+  string last_name = 3;
+}
+
+message MatrixAddContactResponse {
+}
+
+message MatrixAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message MatrixAddMembersResponse {
+}
+
+message MatrixAddSpaceChildRequest {
+  string space_id = 1;
+  string child_id = 2;
+}
+
+message MatrixAddSpaceChildResponse {
+}
+
+message MatrixArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message MatrixArchiveChatResponse {
+}
+
+message MatrixAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message MatrixAuthenticateResponse {
+}
+
+message MatrixBanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message MatrixBanMemberResponse {
+}
+
+message MatrixBind3PIDRequest {
+  string client_secret = 1;
+  string sid = 2;
+  string id_server = 3;
+  string id_access_token = 4;
+}
+
+message MatrixBind3PIDResponse {
+}
+
+message MatrixBlockUserRequest {
+  string user_id = 1;
+}
+
+message MatrixBlockUserResponse {
+}
+
+message MatrixCallNotifyRequest {
+  string call_id = 1;
+  string room_id = 2;
+  int64 lifetime = 3;
+}
+
+message MatrixCallNotifyResponse {
+}
+
+message MatrixCallReplacesRequest {
+  string call_id = 1;
+  string target_room_id = 2;
+  string target_call_id = 3;
+}
+
+message MatrixCallReplacesResponse {
+}
+
+message MatrixCancelVerificationRequest {
+  string txn_id = 1;
+}
+
+message MatrixCancelVerificationResponse {
+}
+
+message MatrixCapabilitiesRequest {
+}
+
+message MatrixCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message MatrixChangePasswordRequest {
+  string old_password = 1;
+  string new_password = 2;
+}
+
+message MatrixChangePasswordResponse {
+}
+
+message MatrixCheckRegistrationTokenRequest {
+  string token = 1;
+}
+
+message MatrixCheckRegistrationTokenResponse {
+  bool result_1 = 1;
+}
+
+message MatrixCheckUsernameAvailabilityRequest {
+  string username = 1;
+}
+
+message MatrixCheckUsernameAvailabilityResponse {
+  bool result_1 = 1;
+}
+
+message MatrixCloseRequest {
+}
+
+message MatrixCloseResponse {
+}
+
+message MatrixConfirmSASEmojisRequest {
+  string txn_id = 1;
+}
+
+message MatrixConfirmSASEmojisResponse {
+}
+
+message MatrixCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message MatrixCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MatrixCreateDelayedEventRequest {
+  string room_id = 1;
+  string event_type = 2;
+  bytes content = 3;
+  int64 delay_ms = 4;
+}
+
+message MatrixCreateDelayedEventResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixCreateFilterRequest {
+  bytes filter = 1;
+}
+
+message MatrixCreateFilterResponse {
+  string result_1 = 1;
+}
+
+message MatrixCreateFolderRequest {
+  string name = 1;
+  repeated string chat_ids = 2;
+}
+
+message MatrixCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message MatrixCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message MatrixCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MatrixCreateKeyBackupRequest {
+}
+
+message MatrixCreateKeyBackupResponse {
+  string recovery_key = 1;
+  string version = 2;
+}
+
+message MatrixCreateMXCURIRequest {
+}
+
+message MatrixCreateMXCURIResponse {
+  string result_1 = 1;
+  string result_2 = 2;
+}
+
+message MatrixCreatePollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+}
+
+message MatrixCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MatrixCreateTopicRequest {
+  string chat_id = 1;
+  string name = 2;
+}
+
+message MatrixCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MatrixDeactivateAccountRequest {
+  string password = 1;
+}
+
+message MatrixDeactivateAccountResponse {
+}
+
+message MatrixDeclineCallRequest {
+  string call_id = 1;
+}
+
+message MatrixDeclineCallResponse {
+}
+
+message MatrixDeclineRTCSessionRequest {
+  string room_id = 1;
+  string session_id = 2;
+}
+
+message MatrixDeclineRTCSessionResponse {
+}
+
+message MatrixDelete3PIDRequest {
+  string medium = 1;
+  string address = 2;
+}
+
+message MatrixDelete3PIDResponse {
+}
+
+message MatrixDelete3PIDByAddressRequest {
+  string medium = 1;
+  string address = 2;
+}
+
+message MatrixDelete3PIDByAddressResponse {
+}
+
+message MatrixDeleteContactRequest {
+  string user_id = 1;
+}
+
+message MatrixDeleteContactResponse {
+}
+
+message MatrixDeleteDehydratedDeviceRequest {
+}
+
+message MatrixDeleteDehydratedDeviceResponse {
+}
+
+message MatrixDeleteDevicesRequest {
+  repeated string device_ids = 1;
+  string password = 2;
+}
+
+message MatrixDeleteDevicesResponse {
+}
+
+message MatrixDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message MatrixDeleteMessageResponse {
+}
+
+message MatrixDeleteProfileFieldRequest {
+  string field_key = 1;
+}
+
+message MatrixDeleteProfileFieldResponse {
+}
+
+message MatrixDeletePushRuleRequest {
+  string scope = 1;
+  string kind = 2;
+  string rule_id = 3;
+}
+
+message MatrixDeletePushRuleResponse {
+}
+
+message MatrixDeleteRoomAliasRequest {
+  string alias = 1;
+}
+
+message MatrixDeleteRoomAliasResponse {
+}
+
+message MatrixDeviceAuthGrantRequest {
+  string scope = 1;
+}
+
+message MatrixDeviceAuthGrantResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixDownloadMediaAuthRequest {
+  string server_name = 1;
+  string media_id = 2;
+}
+
+message MatrixDownloadMediaAuthResponse {
+  bytes result_1 = 1;
+  string result_2 = 2;
+}
+
+message MatrixDownloadMediaAuthFilenameRequest {
+  string server_name = 1;
+  string media_id = 2;
+  string file_name = 3;
+}
+
+message MatrixDownloadMediaAuthFilenameResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixDownloadThumbnailRequest {
+  string mxc_uri = 1;
+  int64 width = 2;
+  int64 height = 3;
+  string dest = 4;
+}
+
+message MatrixDownloadThumbnailResponse {
+}
+
+message MatrixDownloadThumbnailAuthRequest {
+  string server_name = 1;
+  string media_id = 2;
+  int64 width = 3;
+  int64 height = 4;
+  string method = 5;
+}
+
+message MatrixDownloadThumbnailAuthResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message MatrixEditChatDescriptionResponse {
+}
+
+message MatrixEditChatTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message MatrixEditChatTitleResponse {
+}
+
+message MatrixEditMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string text = 3;
+}
+
+message MatrixEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MatrixEnableEncryptionRequest {
+  string chat_id = 1;
+}
+
+message MatrixEnableEncryptionResponse {
+}
+
+message MatrixEnablePushRuleRequest {
+  string scope = 1;
+  string kind = 2;
+  string rule_id = 3;
+  bool enabled = 4;
+}
+
+message MatrixEnablePushRuleResponse {
+}
+
+message MatrixEndCallRequest {
+  string call_id = 1;
+}
+
+message MatrixEndCallResponse {
+}
+
+message MatrixEndPollRequest {
+  string room_id = 1;
+  string poll_start_event_id = 2;
+  string text = 3;
+}
+
+message MatrixEndPollResponse {
+  string result_1 = 1;
+}
+
+message MatrixExportKeysRequest {
+  string passphrase = 1;
+}
+
+message MatrixExportKeysResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixForgetRoomRequest {
+  string chat_id = 1;
+}
+
+message MatrixForgetRoomResponse {
+}
+
+message MatrixForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message MatrixForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MatrixGenerateCrossSigningKeysRequest {
+}
+
+message MatrixGenerateCrossSigningKeysResponse {
+  bytes master = 1;
+  bytes self_signing = 2;
+  bytes user_signing = 3;
+}
+
+message MatrixGet3PIDsRequest {
+}
+
+message MatrixGet3PIDsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetAccountDataRequest {
+  string name = 1;
+  bytes output = 2;
+}
+
+message MatrixGetAccountDataResponse {
+}
+
+message MatrixGetAuthMetadataRequest {
+}
+
+message MatrixGetAuthMetadataResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetBlockedUsersRequest {
+}
+
+message MatrixGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message MatrixGetCapabilitiesRequest {
+}
+
+message MatrixGetCapabilitiesResponse {
+  MatrixCapabilities result_1 = 1;
+}
+
+message MatrixGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MatrixGetClientWellKnownRequest {
+  string domain = 1;
+}
+
+message MatrixGetClientWellKnownResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetContactsRequest {
+}
+
+message MatrixGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message MatrixGetDehydratedDeviceRequest {
+}
+
+message MatrixGetDehydratedDeviceResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetDehydratedDeviceEventsRequest {
+  string device_id = 1;
+}
+
+message MatrixGetDehydratedDeviceEventsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetDeviceInfoRequest {
+  string device_id = 1;
+}
+
+message MatrixGetDeviceInfoResponse {
+  MatrixDeviceInfo result_1 = 1;
+}
+
+message MatrixGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message MatrixGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message MatrixGetDirectChatsRequest {
+}
+
+message MatrixGetDirectChatsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetEncryptionInfoRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetEncryptionInfoResponse {
+  bool result_1 = 1;
+  string result_2 = 2;
+}
+
+message MatrixGetEventRequest {
+  string chat_id = 1;
+  string event_id = 2;
+}
+
+message MatrixGetEventResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetEventContextRequest {
+  string chat_id = 1;
+  string event_id = 2;
+  int64 limit = 3;
+}
+
+message MatrixGetEventContextResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetFilterRequest {
+  string filter_id = 1;
+}
+
+message MatrixGetFilterResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetFoldersRequest {
+}
+
+message MatrixGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message MatrixGetForgetOnLeaveRequest {
+}
+
+message MatrixGetForgetOnLeaveResponse {
+  bool result_1 = 1;
+}
+
+message MatrixGetFullyReadMarkerRequest {
+  string room_id = 1;
+}
+
+message MatrixGetFullyReadMarkerResponse {
+  string result_1 = 1;
+}
+
+message MatrixGetIgnoredUsersRequest {
+}
+
+message MatrixGetIgnoredUsersResponse {
+  repeated string result_1 = 1;
+}
+
+message MatrixGetInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message MatrixGetKeyBackupInfoRequest {
+}
+
+message MatrixGetKeyBackupInfoResponse {
+  string version = 1;
+  int64 count = 2;
+}
+
+message MatrixGetKeyChangesRequest {
+  string from = 1;
+  string to = 2;
+}
+
+message MatrixGetKeyChangesResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetLoginFlowsRequest {
+}
+
+message MatrixGetLoginFlowsResponse {
+  repeated MatrixLoginFlow result_1 = 1;
+}
+
+message MatrixGetLoginTokenRequest {
+}
+
+message MatrixGetLoginTokenResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetMediaConfigRequest {
+}
+
+message MatrixGetMediaConfigResponse {
+  int64 result_1 = 1;
+}
+
+message MatrixGetMediaConfigAuthRequest {
+}
+
+message MatrixGetMediaConfigAuthResponse {
+  MatrixMediaConfig result_1 = 1;
+}
+
+message MatrixGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message MatrixGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message MatrixGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message MatrixGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message MatrixGetMutualRoomsRequest {
+  string user_id = 1;
+}
+
+message MatrixGetMutualRoomsResponse {
+  repeated string result_1 = 1;
+}
+
+message MatrixGetNonCrossSignedExclusionRequest {
+}
+
+message MatrixGetNonCrossSignedExclusionResponse {
+  bool result_1 = 1;
+}
+
+message MatrixGetNotificationsRequest {
+  string from = 1;
+  int64 limit = 2;
+  string only = 3;
+}
+
+message MatrixGetNotificationsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetPresenceRequest {
+  string user_id = 1;
+}
+
+message MatrixGetPresenceResponse {
+  uniclient.User result_1 = 1;
+}
+
+message MatrixGetProfileRequest {
+  string user_id = 1;
+}
+
+message MatrixGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message MatrixGetProfileFieldRequest {
+  string user_id = 1;
+  string field_key = 2;
+}
+
+message MatrixGetProfileFieldResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetProfileFieldsCapRequest {
+}
+
+message MatrixGetProfileFieldsCapResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetPublicRoomsRequest {
+  string query = 1;
+  int64 limit = 2;
+}
+
+message MatrixGetPublicRoomsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message MatrixGetPushRuleActionsRequest {
+  string kind = 1;
+  string rule_id = 2;
+}
+
+message MatrixGetPushRuleActionsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetPushRuleEnabledRequest {
+  string kind = 1;
+  string rule_id = 2;
+}
+
+message MatrixGetPushRuleEnabledResponse {
+  bool result_1 = 1;
+}
+
+message MatrixGetPushRulesRequest {
+}
+
+message MatrixGetPushRulesResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetPushersRequest {
+}
+
+message MatrixGetPushersResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetRTCTransportsRequest {
+}
+
+message MatrixGetRTCTransportsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetReadStateRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message MatrixGetRecentEmojiRequest {
+}
+
+message MatrixGetRecentEmojiResponse {
+  repeated string result_1 = 1;
+}
+
+message MatrixGetRoomAccountDataRequest {
+  string chat_id = 1;
+  string name = 2;
+  bytes output = 3;
+}
+
+message MatrixGetRoomAccountDataResponse {
+}
+
+message MatrixGetRoomAliasesRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetRoomAliasesResponse {
+  repeated string result_1 = 1;
+}
+
+message MatrixGetRoomCreationEventRequest {
+  string room_id = 1;
+}
+
+message MatrixGetRoomCreationEventResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetRoomStateRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetRoomStateResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetRoomSummaryRequest {
+  string room_id_or_alias = 1;
+}
+
+message MatrixGetRoomSummaryResponse {
+  MatrixRoomSummary result_1 = 1;
+}
+
+message MatrixGetRoomTombstoneRequest {
+  string room_id = 1;
+}
+
+message MatrixGetRoomTombstoneResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetRoomVisibilityRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetRoomVisibilityResponse {
+  string result_1 = 1;
+}
+
+message MatrixGetSecretStorageKeyRequest {
+  string key_id = 1;
+}
+
+message MatrixGetSecretStorageKeyResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetSessionsRequest {
+}
+
+message MatrixGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message MatrixGetSpaceChildrenRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetSpaceChildrenResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message MatrixGetSupportContactsRequest {
+  string domain = 1;
+}
+
+message MatrixGetSupportContactsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetTagsRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetTagsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetThirdPartyInvitesRequest {
+  string room_id = 1;
+}
+
+message MatrixGetThirdPartyInvitesResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetThirdPartyProtocolsRequest {
+}
+
+message MatrixGetThirdPartyProtocolsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetThreadRepliesRequest {
+  string chat_id = 1;
+  string thread_root_id = 2;
+}
+
+message MatrixGetThreadRepliesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message MatrixGetThreadsRequest {
+  string chat_id = 1;
+}
+
+message MatrixGetThreadsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message MatrixGetTurnServerRequest {
+}
+
+message MatrixGetTurnServerResponse {
+  MatrixTurnServer result_1 = 1;
+}
+
+message MatrixGetURLPreviewRequest {
+  string url = 1;
+}
+
+message MatrixGetURLPreviewResponse {
+  MatrixURLPreview result_1 = 1;
+}
+
+message MatrixGetURLPreviewAuthRequest {
+  string url = 1;
+  int64 ts = 2;
+}
+
+message MatrixGetURLPreviewAuthResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixGetVersionsRequest {
+}
+
+message MatrixGetVersionsResponse {
+  repeated string result_1 = 1;
+  map<string, bool> result_2 = 2;
+}
+
+message MatrixGroupCallEncryptionKeysRequest {
+  string call_id = 1;
+  string room_id = 2;
+  bytes keys = 3;
+}
+
+message MatrixGroupCallEncryptionKeysResponse {
+}
+
+message MatrixHandleUserLimitExceededRequest {
+}
+
+message MatrixHandleUserLimitExceededResponse {
+  bool result_1 = 1;
+}
+
+message MatrixImportKeysRequest {
+  bytes data = 1;
+  string passphrase = 2;
+}
+
+message MatrixImportKeysResponse {
+  int64 result_1 = 1;
+  int64 result_2 = 2;
+}
+
+message MatrixInviteBy3PIDRequest {
+  string room_id = 1;
+  string medium = 2;
+  string address = 3;
+  string id_server = 4;
+  string id_access_token = 5;
+}
+
+message MatrixInviteBy3PIDResponse {
+}
+
+message MatrixJoinGroupCallRequest {
+  string chat_id = 1;
+}
+
+message MatrixJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message MatrixJoinRoomRequest {
+  string room_id = 1;
+}
+
+message MatrixJoinRoomResponse {
+}
+
+message MatrixJoinRoomByAliasRequest {
+  string alias = 1;
+}
+
+message MatrixJoinRoomByAliasResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MatrixKnockRoomRequest {
+  string chat_id = 1;
+  string reason = 2;
+}
+
+message MatrixKnockRoomResponse {
+}
+
+message MatrixLeaveChatRequest {
+  string chat_id = 1;
+}
+
+message MatrixLeaveChatResponse {
+}
+
+message MatrixLockUserRequest {
+  string user_id = 1;
+  bool lock = 2;
+}
+
+message MatrixLockUserResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixLogoutRequest {
+}
+
+message MatrixLogoutResponse {
+}
+
+message MatrixLogoutAllRequest {
+}
+
+message MatrixLogoutAllResponse {
+}
+
+message MatrixLookupThirdPartyLocationRequest {
+  string protocol = 1;
+  map<string, string> fields = 2;
+}
+
+message MatrixLookupThirdPartyLocationResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixLookupThirdPartyUserRequest {
+  string protocol = 1;
+  map<string, string> fields = 2;
+}
+
+message MatrixLookupThirdPartyUserResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixMarkAsReadRequest {
+  string chat_id = 1;
+  string up_to_msg_id = 2;
+}
+
+message MatrixMarkAsReadResponse {
+}
+
+message MatrixMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message MatrixMarkUnreadResponse {
+}
+
+message MatrixMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message MatrixMuteChatResponse {
+}
+
+message MatrixNameRequest {
+}
+
+message MatrixNameResponse {
+  string result_1 = 1;
+}
+
+message MatrixPinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message MatrixPinMessageResponse {
+}
+
+message MatrixReactToMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string emoji = 3;
+}
+
+message MatrixReactToMessageResponse {
+}
+
+message MatrixRedactAllUserEventsRequest {
+  string room_id = 1;
+  string user_id = 2;
+  string reason = 3;
+}
+
+message MatrixRedactAllUserEventsResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixRefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message MatrixRefreshTokenResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixRegisterRequest {
+  string homeserver_url = 1;
+  string username = 2;
+  string password = 3;
+}
+
+message MatrixRegisterResponse {
+}
+
+message MatrixRejectCallRequest {
+  string call_id = 1;
+}
+
+message MatrixRejectCallResponse {
+}
+
+message MatrixRemoveMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message MatrixRemoveMemberResponse {
+}
+
+message MatrixRemoveRoomTagRequest {
+  string chat_id = 1;
+  string tag = 2;
+}
+
+message MatrixRemoveRoomTagResponse {
+}
+
+message MatrixRemoveSpaceChildRequest {
+  string space_id = 1;
+  string child_id = 2;
+}
+
+message MatrixRemoveSpaceChildResponse {
+}
+
+message MatrixReplyToMessageRequest {
+  string chat_id = 1;
+  string reply_to_msg_id = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message MatrixReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MatrixReportEventRequest {
+  string chat_id = 1;
+  string event_id = 2;
+  string reason = 3;
+}
+
+message MatrixReportEventResponse {
+}
+
+message MatrixReportRoomRequest {
+  string chat_id = 1;
+  string reason = 2;
+}
+
+message MatrixReportRoomResponse {
+}
+
+message MatrixReportUserRequest {
+  string user_id = 1;
+  string reason = 2;
+}
+
+message MatrixReportUserResponse {
+}
+
+message MatrixRequestEmailTokenRequest {
+  string email = 1;
+  string client_secret = 2;
+  int64 send_attempt = 3;
+}
+
+message MatrixRequestEmailTokenResponse {
+  string result_1 = 1;
+}
+
+message MatrixRequestMsisdnTokenRequest {
+  string country = 1;
+  string phone_number = 2;
+  string client_secret = 3;
+  int64 send_attempt = 4;
+}
+
+message MatrixRequestMsisdnTokenResponse {
+  string result_1 = 1;
+}
+
+message MatrixRequestOpenIDTokenRequest {
+}
+
+message MatrixRequestOpenIDTokenResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixResolveAliasRequest {
+  string alias = 1;
+}
+
+message MatrixResolveAliasResponse {
+  string result_1 = 1;
+  repeated string result_2 = 2;
+}
+
+message MatrixRestoreKeyBackupRequest {
+  string recovery_key = 1;
+}
+
+message MatrixRestoreKeyBackupResponse {
+  int64 result_1 = 1;
+  int64 result_2 = 2;
+}
+
+message MatrixSDPStreamMetadataChangedRequest {
+  string call_id = 1;
+  bytes metadata = 2;
+}
+
+message MatrixSDPStreamMetadataChangedResponse {
+}
+
+message MatrixSSORedirectRequest {
+  string redirect_url = 1;
+}
+
+message MatrixSSORedirectResponse {
+  string result_1 = 1;
+}
+
+message MatrixSSORedirectIdPRequest {
+  string idp_id = 1;
+  string redirect_url = 2;
+}
+
+message MatrixSSORedirectIdPResponse {
+  string result_1 = 1;
+}
+
+message MatrixSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message MatrixSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message MatrixSearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message MatrixSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message MatrixSearchUsersRequest {
+  string query = 1;
+  int64 limit = 2;
+}
+
+message MatrixSearchUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message MatrixSendCallAssertedIdentityRequest {
+  string room_id = 1;
+  string call_id = 2;
+  bytes identity = 3;
+}
+
+message MatrixSendCallAssertedIdentityResponse {
+}
+
+message MatrixSendCallCandidatesRequest {
+  string call_id = 1;
+  bytes candidates = 2;
+}
+
+message MatrixSendCallCandidatesResponse {
+}
+
+message MatrixSendCallNegotiateRequest {
+  string room_id = 1;
+  string call_id = 2;
+  string sdp = 3;
+  string sdp_type = 4;
+}
+
+message MatrixSendCallNegotiateResponse {
+}
+
+message MatrixSendEmoteMessageRequest {
+  string room_id = 1;
+  string body = 2;
+}
+
+message MatrixSendEmoteMessageResponse {
+  string result_1 = 1;
+}
+
+message MatrixSendGroupCallEncryptionKeysRequest {
+  string room_id = 1;
+  bytes keys = 2;
+}
+
+message MatrixSendGroupCallEncryptionKeysResponse {
+}
+
+message MatrixSendImageBase64Request {
+  string chat_id = 1;
+  string b64 = 2;
+  string caption = 3;
+}
+
+message MatrixSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message MatrixSendLiveLocationRequest {
+  string room_id = 1;
+  string geo_uri = 2;
+  string description = 3;
+  int64 timeout = 4;
+}
+
+message MatrixSendLiveLocationResponse {
+}
+
+message MatrixSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message MatrixSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MatrixSendLocationMessageRequest {
+  string room_id = 1;
+  string geo_uri = 2;
+  string body = 3;
+}
+
+message MatrixSendLocationMessageResponse {
+  string result_1 = 1;
+}
+
+message MatrixSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message MatrixSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MatrixSendPrivateReadReceiptRequest {
+  string chat_id = 1;
+  string event_id = 2;
+}
+
+message MatrixSendPrivateReadReceiptResponse {
+}
+
+message MatrixSendRTCNotificationRequest {
+  string room_id = 1;
+  bytes content = 2;
+}
+
+message MatrixSendRTCNotificationResponse {
+}
+
+message MatrixSendSecretRequestRequest {
+  string requesting_device_id = 1;
+  string secret_name = 2;
+  string request_id = 3;
+}
+
+message MatrixSendSecretRequestResponse {
+}
+
+message MatrixSendSecretSendRequest {
+  string target_device_id = 1;
+  string request_id = 2;
+  string secret = 3;
+}
+
+message MatrixSendSecretSendResponse {
+}
+
+message MatrixSendStickerRequest {
+  string chat_id = 1;
+  string sticker_id = 2;
+}
+
+message MatrixSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MatrixSendToDeviceRequest {
+  string event_type = 1;
+  bytes messages = 2;
+}
+
+message MatrixSendToDeviceResponse {
+}
+
+message MatrixSendTypingRequest {
+  string chat_id = 1;
+}
+
+message MatrixSendTypingResponse {
+}
+
+message MatrixSetAccountDataRequest {
+  string name = 1;
+  bytes data = 2;
+}
+
+message MatrixSetAccountDataResponse {
+}
+
+message MatrixSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message MatrixSetAdminResponse {
+}
+
+message MatrixSetAvatarRequest {
+  string mxc_uri = 1;
+}
+
+message MatrixSetAvatarResponse {
+}
+
+message MatrixSetCallMutedRequest {
+  string call_id = 1;
+  bool muted = 2;
+}
+
+message MatrixSetCallMutedResponse {
+}
+
+message MatrixSetCanonicalAliasRequest {
+  string room_id = 1;
+  string alias = 2;
+  repeated string alt_aliases = 3;
+}
+
+message MatrixSetCanonicalAliasResponse {
+}
+
+message MatrixSetDehydratedDeviceRequest {
+  bytes device_data = 1;
+}
+
+message MatrixSetDehydratedDeviceResponse {
+}
+
+message MatrixSetDeviceNameRequest {
+  string device_id = 1;
+  string name = 2;
+}
+
+message MatrixSetDeviceNameResponse {
+}
+
+message MatrixSetDirectChatRequest {
+  string user_id = 1;
+  string room_id = 2;
+}
+
+message MatrixSetDirectChatResponse {
+}
+
+message MatrixSetDisplayNameRequest {
+  string name = 1;
+}
+
+message MatrixSetDisplayNameResponse {
+}
+
+message MatrixSetGuestAccessRequest {
+  string chat_id = 1;
+  string access = 2;
+}
+
+message MatrixSetGuestAccessResponse {
+}
+
+message MatrixSetHistoryVisibilityRequest {
+  string chat_id = 1;
+  string visibility = 2;
+}
+
+message MatrixSetHistoryVisibilityResponse {
+}
+
+message MatrixSetInviteBlockingRequest {
+  bool block = 1;
+}
+
+message MatrixSetInviteBlockingResponse {
+}
+
+message MatrixSetJoinRulesRequest {
+  string chat_id = 1;
+  string rule = 2;
+}
+
+message MatrixSetJoinRulesResponse {
+}
+
+message MatrixSetPolicyRuleRequest {
+  string room_id = 1;
+  string rule_type = 2;
+  string entity = 3;
+  string reason = 4;
+  string recommendation = 5;
+}
+
+message MatrixSetPolicyRuleResponse {
+}
+
+message MatrixSetPowerLevelsRequest {
+  string chat_id = 1;
+  bytes levels = 2;
+}
+
+message MatrixSetPowerLevelsResponse {
+}
+
+message MatrixSetPresenceRequest {
+  string status = 1;
+  string status_msg = 2;
+}
+
+message MatrixSetPresenceResponse {
+}
+
+message MatrixSetProfileFieldRequest {
+  string field_key = 1;
+  bytes value = 2;
+}
+
+message MatrixSetProfileFieldResponse {
+}
+
+message MatrixSetPushRuleRequest {
+  string scope = 1;
+  string kind = 2;
+  string rule_id = 3;
+  bytes rule = 4;
+}
+
+message MatrixSetPushRuleResponse {
+}
+
+message MatrixSetPushRuleActionsRequest {
+  string kind = 1;
+  string rule_id = 2;
+  bytes actions = 3;
+}
+
+message MatrixSetPushRuleActionsResponse {
+}
+
+message MatrixSetPusherRequest {
+  bytes pusher = 1;
+}
+
+message MatrixSetPusherResponse {
+}
+
+message MatrixSetRTCMemberStateRequest {
+  string room_id = 1;
+  bytes member_content = 2;
+}
+
+message MatrixSetRTCMemberStateResponse {
+}
+
+message MatrixSetReadMarkersRequest {
+  string chat_id = 1;
+  string fully_read = 2;
+  string read = 3;
+}
+
+message MatrixSetReadMarkersResponse {
+}
+
+message MatrixSetRoomAccountDataRequest {
+  string chat_id = 1;
+  string name = 2;
+  bytes data = 3;
+}
+
+message MatrixSetRoomAccountDataResponse {
+}
+
+message MatrixSetRoomAliasRequest {
+  string chat_id = 1;
+  string alias = 2;
+}
+
+message MatrixSetRoomAliasResponse {
+}
+
+message MatrixSetRoomAvatarRequest {
+  string chat_id = 1;
+  string mxc_uri = 2;
+}
+
+message MatrixSetRoomAvatarResponse {
+}
+
+message MatrixSetRoomTagRequest {
+  string chat_id = 1;
+  string tag = 2;
+}
+
+message MatrixSetRoomTagResponse {
+}
+
+message MatrixSetRoomVisibilityRequest {
+  string chat_id = 1;
+  string visibility = 2;
+}
+
+message MatrixSetRoomVisibilityResponse {
+}
+
+message MatrixSetSecretStorageKeyRequest {
+  string key_id = 1;
+  bytes key_data = 2;
+}
+
+message MatrixSetSecretStorageKeyResponse {
+}
+
+message MatrixSetServerACLRequest {
+  string chat_id = 1;
+  repeated string allow = 2;
+  repeated string deny = 3;
+  bool allow_ip_literals = 4;
+}
+
+message MatrixSetServerACLResponse {
+}
+
+message MatrixSetTimezoneRequest {
+  string timezone = 1;
+}
+
+message MatrixSetTimezoneResponse {
+}
+
+message MatrixSlidingSyncRequest {
+  bytes body = 1;
+}
+
+message MatrixSlidingSyncResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixStartCallRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message MatrixStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message MatrixStartQRVerificationRequest {
+  string room_id = 1;
+  string transaction_id = 2;
+  string shared_secret = 3;
+}
+
+message MatrixStartQRVerificationResponse {
+}
+
+message MatrixStartSASVerificationRequest {
+  string user_id = 1;
+}
+
+message MatrixStartSASVerificationResponse {
+  string result_1 = 1;
+}
+
+message MatrixSuspendUserRequest {
+  string user_id = 1;
+  bool suspend = 2;
+}
+
+message MatrixSuspendUserResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixSyncStateAfterRequest {
+  string since = 1;
+  int64 timeout = 2;
+}
+
+message MatrixSyncStateAfterResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixTerminateSessionRequest {
+  string session_id = 1;
+}
+
+message MatrixTerminateSessionResponse {
+}
+
+message MatrixTimestampToEventRequest {
+  string room_id = 1;
+  int64 timestamp = 2;
+  string dir = 3;
+}
+
+message MatrixTimestampToEventResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixUnbanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message MatrixUnbanMemberResponse {
+}
+
+message MatrixUnbind3PIDRequest {
+  string medium = 1;
+  string address = 2;
+  string id_server = 3;
+}
+
+message MatrixUnbind3PIDResponse {
+}
+
+message MatrixUnblockUserRequest {
+  string user_id = 1;
+}
+
+message MatrixUnblockUserResponse {
+}
+
+message MatrixUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message MatrixUnpinAllMessagesResponse {
+}
+
+message MatrixUnpinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message MatrixUnpinMessageResponse {
+}
+
+message MatrixUpdateDelayedEventRequest {
+  string delay_id = 1;
+  string action = 2;
+}
+
+message MatrixUpdateDelayedEventResponse {
+}
+
+message MatrixUpgradeRoomRequest {
+  string chat_id = 1;
+  string version = 2;
+}
+
+message MatrixUpgradeRoomResponse {
+  string result_1 = 1;
+}
+
+message MatrixUploadCrossSigningKeysRequest {
+  bytes master_key = 1;
+  bytes self_signing_key = 2;
+  bytes user_signing_key = 3;
+  string password = 4;
+}
+
+message MatrixUploadCrossSigningKeysResponse {
+}
+
+message MatrixUploadMediaAsyncRequest {
+  string server_name = 1;
+  string media_id = 2;
+  string content_type = 3;
+  bytes data = 4;
+}
+
+message MatrixUploadMediaAsyncResponse {
+}
+
+message MatrixUploadSignaturesRequest {
+  bytes signatures = 1;
+}
+
+message MatrixUploadSignaturesResponse {
+}
+
+message MatrixValidateEmailForAccountRequest {
+  string email = 1;
+  string client_secret = 2;
+  int64 send_attempt = 3;
+}
+
+message MatrixValidateEmailForAccountResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixValidatePhoneForAccountRequest {
+  string country = 1;
+  string phone = 2;
+  string client_secret = 3;
+  int64 send_attempt = 4;
+}
+
+message MatrixValidatePhoneForAccountResponse {
+  bytes result_1 = 1;
+}
+
+message MatrixVerifyDeviceRequest {
+  string user_id = 1;
+  string device_id = 2;
+}
+
+message MatrixVerifyDeviceResponse {
+}
+
+message MatrixVotePollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_index = 3;
+}
+
+message MatrixVotePollResponse {
+}
+
+message MatrixWhoisUserRequest {
+  string user_id = 1;
+}
+
+message MatrixWhoisUserResponse {
+  bytes result_1 = 1;
+}
+

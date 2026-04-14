@@ -1,0 +1,2273 @@
+syntax = "proto3";
+
+package uniclient.teamspeak;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message TsBandwidthSnapshot {
+  bytes sent_last_second = 1;
+  bytes recv_last_second = 2;
+  bytes sent_last_minute = 3;
+  bytes recv_last_minute = 4;
+  bytes total_sent_pkts = 5;
+  bytes total_sent_bytes = 6;
+  bytes total_recv_pkts = 7;
+  bytes total_recv_bytes = 8;
+  double voice_packet_loss = 9;
+}
+
+message VoicePacket {
+  int64 sender_client_id = 1;
+  int32 codec = 2;
+  bytes audio_data = 3;
+  bytes packet_counter = 4;
+  bool is_whisper = 5;
+  int32 server_flag = 6;
+  bool has_server_flag = 7;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message TeamspeakAcceptCallRequest {
+  string call_id = 1;
+}
+
+message TeamspeakAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TeamspeakAcquireCustomPlaybackDataRequest {
+  string device_id = 1;
+  int64 samples = 2;
+}
+
+message TeamspeakAcquireCustomPlaybackDataResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakActivateCaptureDeviceRequest {
+}
+
+message TeamspeakActivateCaptureDeviceResponse {
+}
+
+message TeamspeakAddContactRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message TeamspeakAddContactResponse {
+}
+
+message TeamspeakAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message TeamspeakAddMembersResponse {
+}
+
+message TeamspeakApiKeyAddRequest {
+  string scope = 1;
+  int64 lifetime = 2;
+  int64 cldbid = 3;
+}
+
+message TeamspeakApiKeyAddResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakApiKeyDelRequest {
+  int64 id = 1;
+}
+
+message TeamspeakApiKeyDelResponse {
+}
+
+message TeamspeakApiKeyListRequest {
+  int64 cldbid = 1;
+  int64 start = 2;
+  int64 duration = 3;
+}
+
+message TeamspeakApiKeyListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message TeamspeakArchiveChatResponse {
+}
+
+message TeamspeakAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message TeamspeakAuthenticateResponse {
+}
+
+message TeamspeakBanAddRequest {
+  string ip = 1;
+  string name = 2;
+  string uid = 3;
+  int64 time_seconds = 4;
+  string reason = 5;
+}
+
+message TeamspeakBanAddResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakBanAddMyTSIDRequest {
+  string mytsid = 1;
+  int64 time_seconds = 2;
+  string reason = 3;
+}
+
+message TeamspeakBanAddMyTSIDResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakBanClientRequest {
+  int64 clid = 1;
+  int64 time_seconds = 2;
+  string reason = 3;
+}
+
+message TeamspeakBanClientResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakBanClientDBIDRequest {
+  int64 cldbid = 1;
+  int64 time_seconds = 2;
+  string reason = 3;
+}
+
+message TeamspeakBanClientDBIDResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakBanDelRequest {
+  int64 ban_id = 1;
+}
+
+message TeamspeakBanDelResponse {
+}
+
+message TeamspeakBanDelAllRequest {
+}
+
+message TeamspeakBanDelAllResponse {
+}
+
+message TeamspeakBanListPaginatedRequest {
+  int64 start = 1;
+  int64 duration = 2;
+}
+
+message TeamspeakBanListPaginatedResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakBanMemberRequest {
+  string param_1 = 1;
+  string user_id = 2;
+}
+
+message TeamspeakBanMemberResponse {
+}
+
+message TeamspeakBindingListRequest {
+}
+
+message TeamspeakBindingListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakBlockUserRequest {
+  string user_id = 1;
+}
+
+message TeamspeakBlockUserResponse {
+}
+
+message TeamspeakCancelTalkPowerRequestRequest {
+}
+
+message TeamspeakCancelTalkPowerRequestResponse {
+}
+
+message TeamspeakCapabilitiesRequest {
+}
+
+message TeamspeakCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message TeamspeakChannelAddPermRequest {
+  int64 cid = 1;
+  int64 perm_id = 2;
+  int64 perm_value = 3;
+}
+
+message TeamspeakChannelAddPermResponse {
+}
+
+message TeamspeakChannelClientAddPermRequest {
+  int64 cid = 1;
+  int64 cldbid = 2;
+  int64 perm_id = 3;
+  int64 perm_value = 4;
+}
+
+message TeamspeakChannelClientAddPermResponse {
+}
+
+message TeamspeakChannelClientDelPermRequest {
+  int64 cid = 1;
+  int64 cldbid = 2;
+  int64 perm_id = 3;
+}
+
+message TeamspeakChannelClientDelPermResponse {
+}
+
+message TeamspeakChannelClientPermListRequest {
+  int64 cid = 1;
+  int64 cldbid = 2;
+}
+
+message TeamspeakChannelClientPermListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakChannelDelPermRequest {
+  int64 cid = 1;
+  int64 perm_id = 2;
+}
+
+message TeamspeakChannelDelPermResponse {
+}
+
+message TeamspeakChannelGroupAddRequest {
+  string name = 1;
+}
+
+message TeamspeakChannelGroupAddResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakChannelGroupAddPermRequest {
+  int64 cgid = 1;
+  int64 perm_id = 2;
+  int64 perm_value = 3;
+}
+
+message TeamspeakChannelGroupAddPermResponse {
+}
+
+message TeamspeakChannelGroupClientListRequest {
+  int64 cgid = 1;
+  int64 cid = 2;
+}
+
+message TeamspeakChannelGroupClientListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakChannelGroupCopyRequest {
+  int64 source_c_g_id = 1;
+  string name = 2;
+  int64 target_type = 3;
+}
+
+message TeamspeakChannelGroupCopyResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakChannelGroupDelRequest {
+  int64 cgid = 1;
+  bool force = 2;
+}
+
+message TeamspeakChannelGroupDelResponse {
+}
+
+message TeamspeakChannelGroupDelPermRequest {
+  int64 cgid = 1;
+  int64 perm_id = 2;
+}
+
+message TeamspeakChannelGroupDelPermResponse {
+}
+
+message TeamspeakChannelGroupListRequest {
+}
+
+message TeamspeakChannelGroupListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakChannelGroupPermListRequest {
+  int64 cgid = 1;
+}
+
+message TeamspeakChannelGroupPermListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakChannelGroupRenameRequest {
+  int64 cgid = 1;
+  string name = 2;
+}
+
+message TeamspeakChannelGroupRenameResponse {
+}
+
+message TeamspeakChannelGroupsByClientIDRequest {
+  int64 cldbid = 1;
+}
+
+message TeamspeakChannelGroupsByClientIDResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakChannelInfoRequestRequest {
+  int64 cid = 1;
+}
+
+message TeamspeakChannelInfoRequestResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakChannelListExtendedRequest {
+  repeated string flags = 1;
+}
+
+message TeamspeakChannelListExtendedResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakChannelPermListRequest {
+  int64 cid = 1;
+}
+
+message TeamspeakChannelPermListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakClientAddPermRequest {
+  int64 cldbid = 1;
+  int64 perm_id = 2;
+  int64 perm_value = 3;
+}
+
+message TeamspeakClientAddPermResponse {
+}
+
+message TeamspeakClientAddServerGroupRequest {
+  int64 cldbid = 1;
+  repeated int64 sgids = 2;
+}
+
+message TeamspeakClientAddServerGroupResponse {
+}
+
+message TeamspeakClientChatClosedRequest {
+  int64 clid = 1;
+}
+
+message TeamspeakClientChatClosedResponse {
+}
+
+message TeamspeakClientChatComposingRequest {
+  int64 clid = 1;
+}
+
+message TeamspeakClientChatComposingResponse {
+}
+
+message TeamspeakClientDBDeleteRequest {
+  int64 cldbid = 1;
+}
+
+message TeamspeakClientDBDeleteResponse {
+}
+
+message TeamspeakClientDBEditRequest {
+  int64 cldbid = 1;
+  map<string, string> props = 2;
+}
+
+message TeamspeakClientDBEditResponse {
+}
+
+message TeamspeakClientDBFindRequest {
+  string pattern = 1;
+  bool is_u_id = 2;
+}
+
+message TeamspeakClientDBFindResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakClientDBInfoRequest {
+  int64 cldbid = 1;
+}
+
+message TeamspeakClientDBInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakClientDBListRequest {
+  int64 start = 1;
+  int64 duration = 2;
+}
+
+message TeamspeakClientDBListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakClientDelPermRequest {
+  int64 cldbid = 1;
+  int64 perm_id = 2;
+}
+
+message TeamspeakClientDelPermResponse {
+}
+
+message TeamspeakClientDelServerGroupRequest {
+  int64 cldbid = 1;
+  repeated int64 sgids = 2;
+}
+
+message TeamspeakClientDelServerGroupResponse {
+}
+
+message TeamspeakClientEditRequest {
+  int64 clid = 1;
+  map<string, string> props = 2;
+}
+
+message TeamspeakClientEditResponse {
+}
+
+message TeamspeakClientFindRequest {
+  string pattern = 1;
+}
+
+message TeamspeakClientFindResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakClientGetDBIDFromUIDRequest {
+  string cluid = 1;
+}
+
+message TeamspeakClientGetDBIDFromUIDResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakClientGetIDsRequest {
+  string cluid = 1;
+}
+
+message TeamspeakClientGetIDsResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakClientGetNameFromDBIDRequest {
+  int64 cldbid = 1;
+}
+
+message TeamspeakClientGetNameFromDBIDResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakClientGetNameFromUIDRequest {
+  string cluid = 1;
+}
+
+message TeamspeakClientGetNameFromUIDResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakClientGetUIDFromCLIDRequest {
+  int64 clid = 1;
+}
+
+message TeamspeakClientGetUIDFromCLIDResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakClientKickRequest {
+  int64 clid = 1;
+  int64 reason_id = 2;
+  string message = 3;
+}
+
+message TeamspeakClientKickResponse {
+}
+
+message TeamspeakClientListExtendedRequest {
+  repeated string flags = 1;
+}
+
+message TeamspeakClientListExtendedResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakClientMuteRequest {
+  int64 clid = 1;
+}
+
+message TeamspeakClientMuteResponse {
+}
+
+message TeamspeakClientPermListRequest {
+  int64 cldbid = 1;
+}
+
+message TeamspeakClientPermListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakClientPokeRequest {
+  int64 clid = 1;
+  string message = 2;
+}
+
+message TeamspeakClientPokeResponse {
+}
+
+message TeamspeakClientUnmuteRequest {
+  int64 clid = 1;
+}
+
+message TeamspeakClientUnmuteResponse {
+}
+
+message TeamspeakClientUpdateRequest {
+  map<string, string> params = 1;
+}
+
+message TeamspeakClientUpdateResponse {
+}
+
+message TeamspeakClientVariableRequest {
+  int64 clid = 1;
+  repeated string var_names = 2;
+}
+
+message TeamspeakClientVariableResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakCloseRequest {
+}
+
+message TeamspeakCloseResponse {
+}
+
+message TeamspeakCloseCaptureDeviceRequest {
+}
+
+message TeamspeakCloseCaptureDeviceResponse {
+}
+
+message TeamspeakClosePlaybackDeviceRequest {
+}
+
+message TeamspeakClosePlaybackDeviceResponse {
+}
+
+message TeamspeakCloseWaveFileHandleRequest {
+  int64 handle = 1;
+}
+
+message TeamspeakCloseWaveFileHandleResponse {
+}
+
+message TeamspeakComplainAddRequest {
+  int64 tcldbid = 1;
+  string message = 2;
+}
+
+message TeamspeakComplainAddResponse {
+}
+
+message TeamspeakComplainDelRequest {
+  int64 tcldbid = 1;
+  int64 fcldbid = 2;
+}
+
+message TeamspeakComplainDelResponse {
+}
+
+message TeamspeakComplainDelAllRequest {
+  int64 tcldbid = 1;
+}
+
+message TeamspeakComplainDelAllResponse {
+}
+
+message TeamspeakComplainListRequest {
+  int64 tcldbid = 1;
+}
+
+message TeamspeakComplainListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakCreateBookmarkRequest {
+  string name = 1;
+  string address = 2;
+  string nickname = 3;
+  string password = 4;
+  bool is_default = 5;
+}
+
+message TeamspeakCreateBookmarkResponse {
+}
+
+message TeamspeakCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message TeamspeakCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TeamspeakCreateChannelFullRequest {
+  string name = 1;
+  map<string, string> opts = 2;
+}
+
+message TeamspeakCreateChannelFullResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakCreateFolderRequest {
+  string param_1 = 1;
+  repeated string param_2 = 2;
+}
+
+message TeamspeakCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message TeamspeakCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message TeamspeakCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TeamspeakCreatePollRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  repeated string param_3 = 3;
+}
+
+message TeamspeakCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TeamspeakCreateTopicRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message TeamspeakCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TeamspeakCustomDeleteRequest {
+  int64 cldbid = 1;
+  string ident = 2;
+}
+
+message TeamspeakCustomDeleteResponse {
+}
+
+message TeamspeakCustomInfoRequest {
+  int64 cldbid = 1;
+}
+
+message TeamspeakCustomInfoResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakCustomSearchRequest {
+  string ident = 1;
+  string pattern = 2;
+}
+
+message TeamspeakCustomSearchResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakCustomSetRequest {
+  int64 cldbid = 1;
+  string ident = 2;
+  string value = 3;
+}
+
+message TeamspeakCustomSetResponse {
+}
+
+message TeamspeakDeclineCallRequest {
+  string call_id = 1;
+}
+
+message TeamspeakDeclineCallResponse {
+}
+
+message TeamspeakDecodeLegacyCodecRequest {
+  int64 codec_type = 1;
+  bytes data = 2;
+}
+
+message TeamspeakDecodeLegacyCodecResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakDeleteChannelRequest {
+  int64 cid = 1;
+  bool force = 2;
+}
+
+message TeamspeakDeleteChannelResponse {
+}
+
+message TeamspeakDeleteContactRequest {
+  string param_1 = 1;
+}
+
+message TeamspeakDeleteContactResponse {
+}
+
+message TeamspeakDeleteMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message TeamspeakDeleteMessageResponse {
+}
+
+message TeamspeakEditChannelRequest {
+  int64 cid = 1;
+  map<string, string> props = 2;
+}
+
+message TeamspeakEditChannelResponse {
+}
+
+message TeamspeakEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message TeamspeakEditChatDescriptionResponse {
+}
+
+message TeamspeakEditChatTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message TeamspeakEditChatTitleResponse {
+}
+
+message TeamspeakEditMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message TeamspeakEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TeamspeakEndCallRequest {
+  string param_1 = 1;
+}
+
+message TeamspeakEndCallResponse {
+}
+
+message TeamspeakFTCreateDirRequest {
+  int64 cid = 1;
+  string dirname = 2;
+  string channel_password = 3;
+}
+
+message TeamspeakFTCreateDirResponse {
+}
+
+message TeamspeakFTDeleteFileRequest {
+  int64 cid = 1;
+  repeated string names = 2;
+  string channel_password = 3;
+}
+
+message TeamspeakFTDeleteFileResponse {
+}
+
+message TeamspeakFTGetFileInfoRequest {
+  int64 cid = 1;
+  string name = 2;
+  string channel_password = 3;
+}
+
+message TeamspeakFTGetFileInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakFTGetFileListRequest {
+  int64 cid = 1;
+  string path = 2;
+  string channel_password = 3;
+}
+
+message TeamspeakFTGetFileListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakFTInitDownloadRequest {
+  int64 clientftfid = 1;
+  int64 cid = 2;
+  string name = 3;
+  string cpw = 4;
+  int64 seekpos = 5;
+}
+
+message TeamspeakFTInitDownloadResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakFTInitUploadRequest {
+  int64 clientftfid = 1;
+  int64 cid = 2;
+  string name = 3;
+  string cpw = 4;
+  int64 size = 5;
+  bool overwrite = 6;
+  bool resume = 7;
+}
+
+message TeamspeakFTInitUploadResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakFTListRequest {
+}
+
+message TeamspeakFTListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakFTRenameFileRequest {
+  int64 cid = 1;
+  string old_name = 2;
+  string new_name = 3;
+  string channel_password = 4;
+  int64 target_c_id = 5;
+  string target_password = 6;
+}
+
+message TeamspeakFTRenameFileResponse {
+}
+
+message TeamspeakFTStopRequest {
+  int64 server_f_t_f_id = 1;
+  bool del = 2;
+}
+
+message TeamspeakFTStopResponse {
+}
+
+message TeamspeakFindChannelRequest {
+  string pattern = 1;
+}
+
+message TeamspeakFindChannelResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakForwardMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message TeamspeakForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TeamspeakGetAvatarRequest {
+  int64 clid = 1;
+}
+
+message TeamspeakGetAvatarResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakGetBandwidthStatsRequest {
+}
+
+message TeamspeakGetBandwidthStatsResponse {
+  TsBandwidthSnapshot result_1 = 1;
+}
+
+message TeamspeakGetBlockedUsersRequest {
+}
+
+message TeamspeakGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message TeamspeakGetBookmarkListRequest {
+}
+
+message TeamspeakGetBookmarkListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakGetCaptureDeviceListRequest {
+}
+
+message TeamspeakGetCaptureDeviceListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakGetCaptureModeListRequest {
+}
+
+message TeamspeakGetCaptureModeListResponse {
+  repeated string result_1 = 1;
+}
+
+message TeamspeakGetChannelDescriptionRequest {
+  int64 cid = 1;
+}
+
+message TeamspeakGetChannelDescriptionResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message TeamspeakGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TeamspeakGetConnectionInfoRequest {
+  int64 clid = 1;
+}
+
+message TeamspeakGetConnectionInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakGetContactsRequest {
+}
+
+message TeamspeakGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message TeamspeakGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message TeamspeakGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message TeamspeakGetFoldersRequest {
+}
+
+message TeamspeakGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message TeamspeakGetInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message TeamspeakGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message TeamspeakGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message TeamspeakGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message TeamspeakGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message TeamspeakGetPlaybackConfigRequest {
+  string key = 1;
+}
+
+message TeamspeakGetPlaybackConfigResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakGetPlaybackDeviceListRequest {
+}
+
+message TeamspeakGetPlaybackDeviceListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakGetPlaybackModeListRequest {
+}
+
+message TeamspeakGetPlaybackModeListResponse {
+  repeated string result_1 = 1;
+}
+
+message TeamspeakGetPreProcessorConfigRequest {
+  string key = 1;
+}
+
+message TeamspeakGetPreProcessorConfigResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakGetPreProcessorInfoRequest {
+  string key = 1;
+}
+
+message TeamspeakGetPreProcessorInfoResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakGetProfileRequest {
+  string user_id = 1;
+}
+
+message TeamspeakGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message TeamspeakGetProfileListRequest {
+}
+
+message TeamspeakGetProfileListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakGetReadStateRequest {
+  string param_1 = 1;
+}
+
+message TeamspeakGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message TeamspeakGetSessionsRequest {
+}
+
+message TeamspeakGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message TeamspeakGlobalMessageRequest {
+  string message = 1;
+}
+
+message TeamspeakGlobalMessageResponse {
+}
+
+message TeamspeakHostInfoRequest {
+}
+
+message TeamspeakHostInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakInstanceEditRequest {
+  map<string, string> props = 1;
+}
+
+message TeamspeakInstanceEditResponse {
+}
+
+message TeamspeakInstanceInfoRequest {
+}
+
+message TeamspeakInstanceInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakIsReceivingWhisperRequest {
+  int64 clid = 1;
+}
+
+message TeamspeakIsReceivingWhisperResponse {
+  bool result_1 = 1;
+}
+
+message TeamspeakIsWhisperingRequest {
+}
+
+message TeamspeakIsWhisperingResponse {
+  bool result_1 = 1;
+}
+
+message TeamspeakJoinChannelRequest {
+  int64 cid = 1;
+  string password = 2;
+}
+
+message TeamspeakJoinChannelResponse {
+}
+
+message TeamspeakJoinGroupCallRequest {
+  string param_1 = 1;
+}
+
+message TeamspeakJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TeamspeakLeaveChatRequest {
+  string param_1 = 1;
+}
+
+message TeamspeakLeaveChatResponse {
+}
+
+message TeamspeakLogAddRequest {
+  int64 log_level = 1;
+  string log_msg = 2;
+}
+
+message TeamspeakLogAddResponse {
+}
+
+message TeamspeakLogViewRequest {
+  int64 lines = 1;
+  int64 reverse = 2;
+  int64 instance = 3;
+  uint64 begin_pos = 4;
+}
+
+message TeamspeakLogViewResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakLogoutRequest {
+}
+
+message TeamspeakLogoutResponse {
+}
+
+message TeamspeakMarkAsReadRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message TeamspeakMarkAsReadResponse {
+}
+
+message TeamspeakMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message TeamspeakMarkUnreadResponse {
+}
+
+message TeamspeakMessageAddRequest {
+  string cluid = 1;
+  string subject = 2;
+  string message = 3;
+}
+
+message TeamspeakMessageAddResponse {
+}
+
+message TeamspeakMessageDelRequest {
+  int64 msg_id = 1;
+}
+
+message TeamspeakMessageDelResponse {
+}
+
+message TeamspeakMessageGetRequest {
+  int64 msg_id = 1;
+}
+
+message TeamspeakMessageGetResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakMessageListRequest {
+}
+
+message TeamspeakMessageListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakMessageUpdateFlagRequest {
+  int64 msg_id = 1;
+  bool read = 2;
+}
+
+message TeamspeakMessageUpdateFlagResponse {
+}
+
+message TeamspeakMoveChannelRequest {
+  int64 cid = 1;
+  int64 new_parent = 2;
+  int64 order = 3;
+}
+
+message TeamspeakMoveChannelResponse {
+}
+
+message TeamspeakMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message TeamspeakMuteChatResponse {
+}
+
+message TeamspeakNameRequest {
+}
+
+message TeamspeakNameResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakOpenCaptureDeviceRequest {
+  string mode = 1;
+  string device_id = 2;
+}
+
+message TeamspeakOpenCaptureDeviceResponse {
+}
+
+message TeamspeakOpenPlaybackDeviceRequest {
+  string mode = 1;
+  string device_id = 2;
+}
+
+message TeamspeakOpenPlaybackDeviceResponse {
+}
+
+message TeamspeakPauseWaveFileHandleRequest {
+  int64 handle = 1;
+  bool pause = 2;
+}
+
+message TeamspeakPauseWaveFileHandleResponse {
+}
+
+message TeamspeakPermCommandsPermSIDRequest {
+  string command = 1;
+  string perm_s_id = 2;
+  int64 perm_value = 3;
+}
+
+message TeamspeakPermCommandsPermSIDResponse {
+}
+
+message TeamspeakPermFindRequest {
+  int64 perm_id = 1;
+}
+
+message TeamspeakPermFindResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakPermGetRequest {
+  int64 perm_id = 1;
+}
+
+message TeamspeakPermGetResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakPermIDGetByNameRequest {
+  string permsid = 1;
+}
+
+message TeamspeakPermIDGetByNameResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakPermOverviewRequest {
+  int64 cid = 1;
+  int64 cldbid = 2;
+}
+
+message TeamspeakPermOverviewResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakPermResetRequest {
+}
+
+message TeamspeakPermResetResponse {
+}
+
+message TeamspeakPermissionListRequest {
+}
+
+message TeamspeakPermissionListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakPermissionListNewRequest {
+}
+
+message TeamspeakPermissionListNewResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakPinMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message TeamspeakPinMessageResponse {
+}
+
+message TeamspeakPlayWaveFileRequest {
+  string path = 1;
+}
+
+message TeamspeakPlayWaveFileResponse {
+}
+
+message TeamspeakPlayWaveFileHandleRequest {
+  string path = 1;
+  bool loop = 2;
+}
+
+message TeamspeakPlayWaveFileHandleResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakPrivilegeKeyAddRequest {
+  int64 token_type = 1;
+  int64 token_id1 = 2;
+  int64 token_id2 = 3;
+}
+
+message TeamspeakPrivilegeKeyAddResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakPrivilegeKeyDeleteRequest {
+  string token = 1;
+}
+
+message TeamspeakPrivilegeKeyDeleteResponse {
+}
+
+message TeamspeakPrivilegeKeyListRequest {
+}
+
+message TeamspeakPrivilegeKeyListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakPrivilegeKeyUseRequest {
+  string token = 1;
+}
+
+message TeamspeakPrivilegeKeyUseResponse {
+}
+
+message TeamspeakProcessCustomCaptureDataRequest {
+  string device_id = 1;
+  bytes pcm = 2;
+}
+
+message TeamspeakProcessCustomCaptureDataResponse {
+}
+
+message TeamspeakQueryLoginAddRequest {
+  string name = 1;
+  int64 cldbid = 2;
+}
+
+message TeamspeakQueryLoginAddResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakQueryLoginDelRequest {
+  int64 cldbid = 1;
+}
+
+message TeamspeakQueryLoginDelResponse {
+}
+
+message TeamspeakQueryLoginListRequest {
+}
+
+message TeamspeakQueryLoginListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakRawExecRequest {
+  string cmd = 1;
+}
+
+message TeamspeakRawExecResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakReactToMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message TeamspeakReactToMessageResponse {
+}
+
+message TeamspeakRegisterCustomDeviceRequest {
+  string device_id = 1;
+  string device_display_name = 2;
+  int64 cap_frequency = 3;
+  int64 cap_channels = 4;
+  int64 play_frequency = 5;
+  int64 play_channels = 6;
+}
+
+message TeamspeakRegisterCustomDeviceResponse {
+}
+
+message TeamspeakRemoveMemberRequest {
+  string param_1 = 1;
+  string user_id = 2;
+}
+
+message TeamspeakRemoveMemberResponse {
+}
+
+message TeamspeakReplyToMessageRequest {
+  string chat_id = 1;
+  string param_2 = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message TeamspeakReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TeamspeakRequestClientEditDescriptionRequest {
+  int64 clid = 1;
+  string description = 2;
+}
+
+message TeamspeakRequestClientEditDescriptionResponse {
+}
+
+message TeamspeakRequestClientsKickFromChannelRequest {
+  repeated int64 clids = 1;
+  string message = 2;
+}
+
+message TeamspeakRequestClientsKickFromChannelResponse {
+}
+
+message TeamspeakRequestClientsKickFromServerRequest {
+  repeated int64 clids = 1;
+  string message = 2;
+}
+
+message TeamspeakRequestClientsKickFromServerResponse {
+}
+
+message TeamspeakRequestClientsMoveRequest {
+  repeated int64 clids = 1;
+  int64 cid = 2;
+  string password = 3;
+}
+
+message TeamspeakRequestClientsMoveResponse {
+}
+
+message TeamspeakRequestInfoUpdateRequest {
+  string info_type = 1;
+  int64 id = 2;
+}
+
+message TeamspeakRequestInfoUpdateResponse {
+}
+
+message TeamspeakRequestMuteClientsTemporaryRequest {
+  repeated int64 clids = 1;
+}
+
+message TeamspeakRequestMuteClientsTemporaryResponse {
+}
+
+message TeamspeakRequestTalkPowerRequest {
+  string message = 1;
+}
+
+message TeamspeakRequestTalkPowerResponse {
+}
+
+message TeamspeakRequestUnmuteClientsTemporaryRequest {
+  repeated int64 clids = 1;
+}
+
+message TeamspeakRequestUnmuteClientsTemporaryResponse {
+}
+
+message TeamspeakSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message TeamspeakSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message TeamspeakSearchMessagesRequest {
+  string param_1 = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message TeamspeakSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message TeamspeakSendImageBase64Request {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message TeamspeakSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message TeamspeakSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message TeamspeakSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TeamspeakSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message TeamspeakSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TeamspeakSendPluginCommandRequest {
+  string name = 1;
+  string data = 2;
+  int64 target_mode = 3;
+}
+
+message TeamspeakSendPluginCommandResponse {
+}
+
+message TeamspeakSendStickerRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message TeamspeakSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TeamspeakSendTypingRequest {
+  string chat_id = 1;
+}
+
+message TeamspeakSendTypingResponse {
+}
+
+message TeamspeakSendVoiceRequest {
+  int32 codec = 1;
+  bytes audio_data = 2;
+}
+
+message TeamspeakSendVoiceResponse {
+}
+
+message TeamspeakSendVoiceGroupWhisperRequest {
+  int32 codec = 1;
+  bytes audio_data = 2;
+  int32 whisper_type = 3;
+  int32 whisper_target = 4;
+  uint64 target_id = 5;
+}
+
+message TeamspeakSendVoiceGroupWhisperResponse {
+}
+
+message TeamspeakSendVoiceWhisperRequest {
+  int32 codec = 1;
+  bytes audio_data = 2;
+  repeated uint64 channel_ids = 3;
+  bytes client_ids = 4;
+}
+
+message TeamspeakSendVoiceWhisperResponse {
+}
+
+message TeamspeakServerAddPermRequest {
+  int64 perm_id = 1;
+  int64 perm_value = 2;
+  bool perm_negated = 3;
+  bool perm_skip = 4;
+}
+
+message TeamspeakServerAddPermResponse {
+}
+
+message TeamspeakServerCreateRequest {
+  string name = 1;
+  map<string, string> props = 2;
+}
+
+message TeamspeakServerCreateResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakServerDelPermRequest {
+  int64 perm_id = 1;
+}
+
+message TeamspeakServerDelPermResponse {
+}
+
+message TeamspeakServerDeleteRequest {
+  int64 sid = 1;
+}
+
+message TeamspeakServerDeleteResponse {
+}
+
+message TeamspeakServerEditRequest {
+  map<string, string> props = 1;
+}
+
+message TeamspeakServerEditResponse {
+}
+
+message TeamspeakServerGroupAddRequest {
+  string name = 1;
+}
+
+message TeamspeakServerGroupAddResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakServerGroupAddClientRequest {
+  int64 sgid = 1;
+  int64 cldbid = 2;
+}
+
+message TeamspeakServerGroupAddClientResponse {
+}
+
+message TeamspeakServerGroupAddPermRequest {
+  int64 sgid = 1;
+  int64 perm_id = 2;
+  int64 perm_value = 3;
+}
+
+message TeamspeakServerGroupAddPermResponse {
+}
+
+message TeamspeakServerGroupAutoAddPermRequest {
+  int64 sgtype = 1;
+  int64 perm_id = 2;
+  int64 perm_value = 3;
+  bool perm_negated = 4;
+  bool perm_skip = 5;
+}
+
+message TeamspeakServerGroupAutoAddPermResponse {
+}
+
+message TeamspeakServerGroupAutoDelPermRequest {
+  int64 sgtype = 1;
+  int64 perm_id = 2;
+}
+
+message TeamspeakServerGroupAutoDelPermResponse {
+}
+
+message TeamspeakServerGroupClientListRequest {
+  int64 sgid = 1;
+}
+
+message TeamspeakServerGroupClientListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakServerGroupCopyRequest {
+  int64 source_s_g_id = 1;
+  string name = 2;
+  int64 target_type = 3;
+}
+
+message TeamspeakServerGroupCopyResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakServerGroupDelRequest {
+  int64 sgid = 1;
+  bool force = 2;
+}
+
+message TeamspeakServerGroupDelResponse {
+}
+
+message TeamspeakServerGroupDelClientRequest {
+  int64 sgid = 1;
+  int64 cldbid = 2;
+}
+
+message TeamspeakServerGroupDelClientResponse {
+}
+
+message TeamspeakServerGroupDelPermRequest {
+  int64 sgid = 1;
+  int64 perm_id = 2;
+}
+
+message TeamspeakServerGroupDelPermResponse {
+}
+
+message TeamspeakServerGroupListRequest {
+}
+
+message TeamspeakServerGroupListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakServerGroupPermListRequest {
+  int64 sgid = 1;
+}
+
+message TeamspeakServerGroupPermListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakServerGroupRenameRequest {
+  int64 sgid = 1;
+  string name = 2;
+}
+
+message TeamspeakServerGroupRenameResponse {
+}
+
+message TeamspeakServerGroupsByClientIDRequest {
+  int64 cldbid = 1;
+}
+
+message TeamspeakServerGroupsByClientIDResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakServerIdGetByPortRequest {
+  int64 port = 1;
+}
+
+message TeamspeakServerIdGetByPortResponse {
+  int64 result_1 = 1;
+}
+
+message TeamspeakServerInfoRequest {
+}
+
+message TeamspeakServerInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakServerListRequest {
+}
+
+message TeamspeakServerListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakServerListExtendedRequest {
+  repeated string flags = 1;
+}
+
+message TeamspeakServerListExtendedResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakServerNotifyRegisterRequest {
+  string event = 1;
+  int64 cid = 2;
+}
+
+message TeamspeakServerNotifyRegisterResponse {
+}
+
+message TeamspeakServerNotifyUnregisterRequest {
+}
+
+message TeamspeakServerNotifyUnregisterResponse {
+}
+
+message TeamspeakServerPermListRequest {
+}
+
+message TeamspeakServerPermListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakServerProcessStopRequest {
+}
+
+message TeamspeakServerProcessStopResponse {
+}
+
+message TeamspeakServerRequestConnectionInfoRequest {
+}
+
+message TeamspeakServerRequestConnectionInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakServerSnapshotCreateRequest {
+}
+
+message TeamspeakServerSnapshotCreateResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakServerSnapshotDeployRequest {
+  string snapshot = 1;
+}
+
+message TeamspeakServerSnapshotDeployResponse {
+}
+
+message TeamspeakServerSnapshotDeployKeepFilesRequest {
+  string snapshot = 1;
+}
+
+message TeamspeakServerSnapshotDeployKeepFilesResponse {
+}
+
+message TeamspeakServerSnapshotPasswordRequest {
+  string password = 1;
+}
+
+message TeamspeakServerSnapshotPasswordResponse {
+  string result_1 = 1;
+}
+
+message TeamspeakServerStartRequest {
+  int64 sid = 1;
+}
+
+message TeamspeakServerStartResponse {
+}
+
+message TeamspeakServerStopRequest {
+  int64 sid = 1;
+}
+
+message TeamspeakServerStopResponse {
+}
+
+message TeamspeakServerTempPasswordAddRequest {
+  string password = 1;
+  string description = 2;
+  int64 duration = 3;
+  int64 target_c_id = 4;
+}
+
+message TeamspeakServerTempPasswordAddResponse {
+}
+
+message TeamspeakServerTempPasswordDelRequest {
+  string password = 1;
+}
+
+message TeamspeakServerTempPasswordDelResponse {
+}
+
+message TeamspeakServerTempPasswordListRequest {
+}
+
+message TeamspeakServerTempPasswordListResponse {
+  bytes result_1 = 1;
+}
+
+message TeamspeakServerVersionRequest {
+}
+
+message TeamspeakServerVersionResponse {
+  map<string, string> result_1 = 1;
+}
+
+message TeamspeakSet3DListenerAttributesRequest {
+  repeated float position = 1;
+  repeated float forward = 2;
+  repeated float up = 3;
+}
+
+message TeamspeakSet3DListenerAttributesResponse {
+}
+
+message TeamspeakSet3DWaveAttributesRequest {
+  int64 wave_handle = 1;
+  repeated float position = 2;
+}
+
+message TeamspeakSet3DWaveAttributesResponse {
+}
+
+message TeamspeakSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message TeamspeakSetAdminResponse {
+}
+
+message TeamspeakSetAvatarRequest {
+  string md5_hex = 1;
+}
+
+message TeamspeakSetAvatarResponse {
+}
+
+message TeamspeakSetAwayRequest {
+  bool away = 1;
+  string message = 2;
+}
+
+message TeamspeakSetAwayResponse {
+}
+
+message TeamspeakSetBadgesRequest {
+  string badges = 1;
+}
+
+message TeamspeakSetBadgesResponse {
+}
+
+message TeamspeakSetCallMutedRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message TeamspeakSetCallMutedResponse {
+}
+
+message TeamspeakSetChannel3DAttributesRequest {
+  int64 clid = 1;
+  repeated float position = 2;
+}
+
+message TeamspeakSetChannel3DAttributesResponse {
+}
+
+message TeamspeakSetChannelCommanderRequest {
+  bool enabled = 1;
+}
+
+message TeamspeakSetChannelCommanderResponse {
+}
+
+message TeamspeakSetClientChannelGroupRequest {
+  int64 cgid = 1;
+  int64 cid = 2;
+  int64 cldbid = 3;
+}
+
+message TeamspeakSetClientChannelGroupResponse {
+}
+
+message TeamspeakSetClientVolumeModifierRequest {
+  int64 clid = 1;
+  float modifier = 2;
+}
+
+message TeamspeakSetClientVolumeModifierResponse {
+}
+
+message TeamspeakSetConnectionInfoRequest {
+}
+
+message TeamspeakSetConnectionInfoResponse {
+}
+
+message TeamspeakSetDescriptionRequest {
+  string description = 1;
+}
+
+message TeamspeakSetDescriptionResponse {
+}
+
+message TeamspeakSetInputHardwareRequest {
+  bool enabled = 1;
+}
+
+message TeamspeakSetInputHardwareResponse {
+}
+
+message TeamspeakSetInputMutedRequest {
+  bool muted = 1;
+}
+
+message TeamspeakSetInputMutedResponse {
+}
+
+message TeamspeakSetIsTalkerRequest {
+  int64 clid = 1;
+  bool is_talker = 2;
+}
+
+message TeamspeakSetIsTalkerResponse {
+}
+
+message TeamspeakSetMetaDataRequest {
+  string metadata = 1;
+}
+
+message TeamspeakSetMetaDataResponse {
+}
+
+message TeamspeakSetNicknameRequest {
+  string nickname = 1;
+}
+
+message TeamspeakSetNicknameResponse {
+}
+
+message TeamspeakSetOutputHardwareRequest {
+  bool enabled = 1;
+}
+
+message TeamspeakSetOutputHardwareResponse {
+}
+
+message TeamspeakSetOutputMutedRequest {
+  bool muted = 1;
+}
+
+message TeamspeakSetOutputMutedResponse {
+}
+
+message TeamspeakSetPhoneticNicknameRequest {
+  string name = 1;
+}
+
+message TeamspeakSetPhoneticNicknameResponse {
+}
+
+message TeamspeakSetPlaybackConfigRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message TeamspeakSetPlaybackConfigResponse {
+}
+
+message TeamspeakSetPreProcessorConfigRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message TeamspeakSetPreProcessorConfigResponse {
+}
+
+message TeamspeakSetRecordingRequest {
+  bool enabled = 1;
+}
+
+message TeamspeakSetRecordingResponse {
+}
+
+message TeamspeakSetWhisperListRequest {
+  repeated int64 target_channel_ids = 1;
+  repeated int64 target_client_ids = 2;
+}
+
+message TeamspeakSetWhisperListResponse {
+}
+
+message TeamspeakStartCallRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message TeamspeakStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TeamspeakStartVoiceRecordingRequest {
+}
+
+message TeamspeakStartVoiceRecordingResponse {
+}
+
+message TeamspeakStopVoiceRecordingRequest {
+}
+
+message TeamspeakStopVoiceRecordingResponse {
+}
+
+message TeamspeakSubscribeAllChannelsRequest {
+}
+
+message TeamspeakSubscribeAllChannelsResponse {
+}
+
+message TeamspeakSubscribeChannelRequest {
+  repeated int64 cids = 1;
+}
+
+message TeamspeakSubscribeChannelResponse {
+}
+
+message TeamspeakSystem3DSettingsRequest {
+  float distance_factor = 1;
+  float rolloff_scale = 2;
+}
+
+message TeamspeakSystem3DSettingsResponse {
+}
+
+message TeamspeakTerminateSessionRequest {
+  string session_id = 1;
+}
+
+message TeamspeakTerminateSessionResponse {
+}
+
+message TeamspeakUnbanMemberRequest {
+  string param_1 = 1;
+  string user_id = 2;
+}
+
+message TeamspeakUnbanMemberResponse {
+}
+
+message TeamspeakUnblockUserRequest {
+  string user_id = 1;
+}
+
+message TeamspeakUnblockUserResponse {
+}
+
+message TeamspeakUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message TeamspeakUnpinAllMessagesResponse {
+}
+
+message TeamspeakUnpinMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message TeamspeakUnpinMessageResponse {
+}
+
+message TeamspeakUnregisterCustomDeviceRequest {
+  string device_id = 1;
+}
+
+message TeamspeakUnregisterCustomDeviceResponse {
+}
+
+message TeamspeakUnsubscribeAllChannelsRequest {
+}
+
+message TeamspeakUnsubscribeAllChannelsResponse {
+}
+
+message TeamspeakUnsubscribeChannelRequest {
+  repeated int64 cids = 1;
+}
+
+message TeamspeakUnsubscribeChannelResponse {
+}
+
+message TeamspeakVerifyChannelPasswordRequest {
+  int64 cid = 1;
+  string password = 2;
+}
+
+message TeamspeakVerifyChannelPasswordResponse {
+}
+
+message TeamspeakVerifyServerPasswordRequest {
+  string password = 1;
+}
+
+message TeamspeakVerifyServerPasswordResponse {
+}
+
+message TeamspeakVotePollRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  int64 param_3 = 3;
+}
+
+message TeamspeakVotePollResponse {
+}
+
+message TeamspeakWhoAmIRequest {
+}
+
+message TeamspeakWhoAmIResponse {
+  map<string, string> result_1 = 1;
+}
+

@@ -93,8 +93,11 @@ All cores expose the same unified interface where possible — same Go signature
 ### Step 12: Test Every Unified Method
 Test every method again after unification — full pass, including ones that passed in Step 9. Once a method passes here, don't re-run it.
 
+### Step 13.0: Type the Untyped Methods
+~250 methods return `map[string]interface{}` or unexported structs for known shapes. Define proper Go structs before protobuf codegen. Telegram `tg.*` pass-throughs (~200) get typed via TL schema → proto codegen tool. ~205 truly untyped methods (GitHub `json.RawMessage`, `RawAPI`/`RawExec`) stay as `bytes` in proto. See `research/protobuf_type_audit.md` for full breakdown.
+
 ### Step 13: Protobuf Bridge
-Replace JSON bridge encoding with Protocol Buffers. Define `.proto` files for all bridge types. Generate Go + Dart code. Schema changes break at compile time, not runtime.
+Replace JSON bridge with Protocol Buffers for ALL 4,051 exported methods across all 10 cores. Codegen tool parses Go AST → generates per-core `.proto` files, Go dispatch, Dart wrappers. Single FFI entry point. See `checklist/roadmap.md` for substeps.
 
 ### Step 14: Write `/docs`
 Create a `/docs` folder documenting how to use each core independently as a standalone Go library. Usage examples, method reference, auth flows — as if someone is importing just one core into their own project.
@@ -155,6 +158,7 @@ When the user says "add X", follow these steps in order:
 - `research/mumble_protocol.md` — Mumble protocol spec (TCP/UDP, OCB2 crypto)
 - `research/ice_protocol.md` — ZeroC Ice wire protocol for Murmur admin (encap format, identities, tested methods)
 - `research/xmpp_protocol.md` — XMPP (RFC 6120/6121 + 30+ XEPs, Jingle)
+- `research/protobuf_type_audit.md` — Pre-Step 13 audit: which method sigs are proto-compatible, fixable, or inherently untyped
 - `research/gui-idea.md` — UI/UX design exploration, Discord/Telegram hybrid rationale
 - `checklist/roadmap.md` — pre-GUI roadmap progress tracker (current step, core, method)
 - `checklist/gui.md` — GUI component checklist, current state of demo_ui.html

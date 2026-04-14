@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 12.5 — Fix All Skipped Tests — DONE
-**Current Core:** All 10 cores audited
+**Current Step:** Step 13 — Protobuf Bridge — IN PROGRESS (13.1–13.11 DONE)
+**Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 5 — Step 12.5 COMPLETE)
+**Last Updated:** 2026-04-14 (session 7 — Go + Dart bridge complete, round-trip tested)
 
-**NEXT:** Step 13 — Protobuf Bridge
+**NEXT:** Step 13.6 — Dart typed wrapper codegen, then 13.12 — docs update
 
 ## Steps
 
@@ -24,7 +24,8 @@
 | 11 | Unify every core (identical behavior for shared ops) | **DONE** |
 | 12 | Test every unified method | **DONE** |
 | 12.5 | Fix all skipped tests | **DONE** — 32 skips fixed (3 TS3 + 6 IRC + 23 Rubika) |
-| 13 | Protobuf bridge | NOT STARTED |
+| 13.0 | Type the untyped methods (~250 fixable, ~400 inherently untyped → `bytes`) | **DONE** |
+| 13 | Protobuf bridge (all 4,051 methods, codegen) | IN PROGRESS (13.1–13.11 done, Go complete, 3564 dispatched) |
 | 14 | Write /docs | NOT STARTED |
 | 15 | Build GUI | NOT STARTED |
 
@@ -397,8 +398,88 @@ Audited all 143 skips across 10 cores. Fixed code bugs, converted reversible tes
 - GitHub (0): No skips
 - Rubika (~35): Destructive account ops (Logout/DeleteAccount/ResetContacts), 2FA operations, Rubino content creation (public posts), Rubino uploads (Iran-only), interactive calls, ownership transfers
 
-### Step 13 — Protobuf Bridge
-- [ ] Replace JSON bridge with protobuf, generate Go + Dart code
+### Step 13.0 — Type the Untyped Methods (~250 methods)
+
+Replace `map[string]interface{}`, `map[string]string`, `*xmppIQ`, and unexported structs with
+proper typed Go structs so the protobuf bridge gets real type safety instead of opaque blobs.
+
+**Completed — typed/exported structs across all 10 cores. Build+vet clean.**
+
+**Mumble (6 structs exported):**
+- [x] `mumbleBanEntry` → `MumbleBanEntry`, `mumbleACLMsg` → `MumbleACLMsg`
+- [x] `mumbleACLGroup` → `MumbleACLGroup`, `mumbleACLEntry` → `MumbleACLEntry`
+- [x] `mumbleVoiceTargetEntry` → `MumbleVoiceTargetEntry`, `mumbleServerConfigMsg` → `MumbleServerConfig`
+
+**DeltaChat (3 structs exported):**
+- [x] `dcWebxdcUpdate` → `DCWebxdcUpdate`, `dcLocation` → `DCLocation`, `dcTransport` → `DCTransport`
+
+**Rubika (~30 methods typed + 20 new structs):**
+- [x] GetGroupInfo → `RubikaGroupInfo`, GetChannelInfo → `RubikaChannelInfo`, GetUserInfo → `RubikaUserInfo`
+- [x] GetGroupAllMembers/GetChannelAllMembers + 4 admin/banned variants → `RubikaMemberList`
+- [x] GetGroupLink/SetGroupLink/GetChannelLink/SetChannelLink/GetNewGroupLink → `RubikaLinkInfo`
+- [x] GetGroupAdminAccessList/GetChannelAdminAccessList/GetGroupDefaultAccess → `[]string`
+- [x] GetAvatars → `RubikaAvatarList`, GetPrivacySetting → `RubikaPrivacySettings`
+- [x] GetTwoPasscodeStatus → `RubikaTwoStepInfo`, AddFolder → `RubikaFolderInfo`
+- [x] GetGroupOnlineCount → `int`, GetGroupMemberCount → `int`
+- [x] BotGetMe → `RubikaBotInfo`, BotGetChat → `RubikaBotChatInfo`, BotCheckJoin → `RubikaBotJoinStatus`
+- [x] RemoveGroupAdmin/DeleteGroupAvatar/SetPrivacySetting simplified to `error` returns
+- [x] Updated all internal callers (GetChatInfo, GetMembers, GetInviteLink, GetUserProfile, voice chat discovery)
+- [x] Added generic helpers: `rubikaParseData[T]`, `rubikaParseFlat[T]`
+
+**XMPP (2 structs exported):**
+- [x] `xmppIQ` → `XMPPIQ`, `xmppStanzaError` → `XMPPStanzaError`
+- 43 methods now return exported `*XMPPIQ` (proto-compatible)
+
+**Bale (8 structs defined, 7 methods typed):**
+- [x] GetChat → `BaleChatInfo`, GetChatMember → `BaleChatMember`, GetChatAdministrators → `[]BaleChatMember`
+- [x] GetFile → `BaleFileInfo`, GetWebhookInfo → `BaleWebhookInfo`, GetStickerSet → `BaleStickerSet`
+- [x] GetUserProfilePhotos → `BaleUserProfilePhotos`
+- [x] Updated internal callers (GetChatInfo, GetMembers)
+- [x] Added generic helper: `baleParseResult[T]`
+- ~155 User API methods stay as `map[string]interface{}` → `bytes` in proto (gRPC pass-throughs with unknown shapes)
+
+**Matrix (8 structs defined, 8 methods typed):**
+- [x] GetURLPreview → `MatrixURLPreview`, GetTurnServer → `MatrixTurnServer`
+- [x] GetDeviceInfo → `MatrixDeviceInfo`, GetCapabilities → `MatrixCapabilities`
+- [x] GetLoginFlows → `[]MatrixLoginFlow`, GetRoomSummary → `MatrixRoomSummary`
+- [x] GetMediaConfigAuth → `MatrixMediaConfig`
+- [x] Added generic helper: `matrixParseJSON[T]`
+- ~33 remaining methods stay as `map[string]interface{}` → `bytes` (admin/sync/freeform operations)
+
+**TeamSpeak:** `map[string]string` already proto-compatible as `map<string, string>`. No changes needed.
+
+**IRC:** All 6 struct types already exported. No changes needed.
+
+**Telegram `tg.*` pass-throughs (~200):** Deferred to Step 13 codegen — TL schema → proto codegen tool will handle these.
+
+**Truly untyped (~205 methods):** GitHub `json.RawMessage` (~200) + `RawAPI`/`RawExec` (~5) → `bytes` in proto. Correct by design.
+
+**Non-type issues:** Handled in Step 13 codegen (callbacks → event port, io.Reader → file_path, etc.)
+
+### Step 13 — Protobuf Bridge (ALL 4,051 exported methods across 10 cores)
+
+**Architecture:** Codegen tool parses Go AST → generates proto + Go dispatch + Dart wrappers.
+Single FFI entry `BridgeCall(coreID, method, reqBytes) → respBytes` with generic envelope.
+Event port for async updates (Go → Dart). Per-core protos for full type safety.
+
+**Substeps:**
+- [x] 13.1 — `proto/models.proto`: shared types from base.go (enums, models, envelope) — DONE
+- [x] 13.2 — `scripts/gen_bridge/main.go`: codegen tool (Go AST → proto + dispatch) — DONE
+- [x] 13.3 — Per-core `.proto` files (10 files, ~34k lines, all ~4,051 methods) — DONE
+- [x] 13.4 — `go/bridge/convert.go` (668 lines, hand-written Go ↔ proto converters) — DONE
+- [x] 13.5 — `go/bridge/dispatch_gen.go` (28,706 lines, 3,564 dispatched, 412 skipped) — DONE (compiles clean)
+- [ ] 13.6 — Codegen: emit `dart/lib/bridge/cores/*.dart` (typed Dart wrapper classes)
+- [x] 13.7 — `scripts/gen_proto.sh` (full pipeline: codegen → protoc → dispatch → verify) — DONE
+- [x] 13.8 — FFI layer: `go/bridge/bridge.go` (Call, RegisterCore, PushEvent, error categorization) + `go/cmd/bridge/main.go` (C exports: BridgeCallWithLen, BridgeFree, BridgeSetEventCallback) — DONE, builds to 129MB .so with 3 exported symbols
+- [x] 13.9 — `dart/lib/bridge/bridge.dart` (FFI loader, BridgeCallWithLen/Free, event stream) — DONE
+- [x] 13.10 — Verify: `go build` + `go vet` clean, c-shared builds — DONE
+- [x] 13.11 — Test: 5 round-trip tests (unknown core, invalid request, error categorization, dispatch round-trip, unknown method) — ALL PASS
+- [ ] 13.12 — Update docs (SPEC.md, roadmap.md)
+
+**Method counts per core (4,051 total exported):**
+- Telegram: 771 | Bale: 456 | IRC: 418 | XMPP: 379
+- TeamSpeak: 296 | DeltaChat: 245 | Rubika: 242 | Matrix: 240
+- Mumble: 236 | GitHub: 768
 
 ### Step 14 — Write /docs
 - [ ] Document each core as standalone Go library

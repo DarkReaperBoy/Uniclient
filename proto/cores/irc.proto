@@ -1,0 +1,3283 @@
+syntax = "proto3";
+
+package uniclient.irc;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message IRCBanEntry {
+  string mask = 1;
+  string set_by = 2;
+  int64 set_at = 3;
+}
+
+message IRCDCCOffer {
+  string type = 1;
+  string filename = 2;
+  string ip = 3;
+  int64 port = 4;
+  int64 size = 5;
+  string from = 6;
+}
+
+message IRCListEntry {
+  string channel = 1;
+  int64 users = 2;
+  string topic = 3;
+}
+
+message IRCServerInfo {
+  string network = 1;
+  string server_name = 2;
+  string server_ver = 3;
+  string user_modes = 4;
+  string chan_modes = 5;
+  string case_mapping = 6;
+  string chan_types = 7;
+  string prefix = 8;
+  int64 max_nick_len = 9;
+  int64 max_chan_len = 10;
+  int64 max_topic_len = 11;
+  int64 max_targets = 12;
+  int64 max_modes = 13;
+  int64 max_channels = 14;
+  map<string, string> raw = 15;
+}
+
+message IRCUserhostEntry {
+  string nick = 1;
+  bool is_oper = 2;
+  bool is_away = 3;
+  string hostname = 4;
+}
+
+message IRCWhoEntry {
+  string channel = 1;
+  string user = 2;
+  string host = 3;
+  string server = 4;
+  string nick = 5;
+  string flags = 6;
+  int64 hopcount = 7;
+  string realname = 8;
+}
+
+message IRCWhowasEntry {
+  string nick = 1;
+  string user = 2;
+  string host = 3;
+  string realname = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message IrcAcceptRequest {
+  string args = 1;
+}
+
+message IrcAcceptResponse {
+}
+
+message IrcAcceptCallRequest {
+  string call_id = 1;
+}
+
+message IrcAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message IrcAddContactRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message IrcAddContactResponse {
+}
+
+message IrcAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message IrcAddMembersResponse {
+}
+
+message IrcAddmotdRequest {
+  string line = 1;
+}
+
+message IrcAddmotdResponse {
+}
+
+message IrcAddomotdRequest {
+  string line = 1;
+}
+
+message IrcAddomotdResponse {
+}
+
+message IrcAlltimeRequest {
+}
+
+message IrcAlltimeResponse {
+}
+
+message IrcArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message IrcArchiveChatResponse {
+}
+
+message IrcAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message IrcAuthenticateResponse {
+}
+
+message IrcAwayRequest {
+  string message = 1;
+}
+
+message IrcAwayResponse {
+}
+
+message IrcBanMaskRequest {
+  string channel = 1;
+  string mask = 2;
+}
+
+message IrcBanMaskResponse {
+}
+
+message IrcBanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message IrcBanMemberResponse {
+}
+
+message IrcBatchEndRequest {
+  string ref_tag = 1;
+}
+
+message IrcBatchEndResponse {
+}
+
+message IrcBatchStartRequest {
+  string ref_tag = 1;
+  string batch_type = 2;
+  repeated string params = 3;
+}
+
+message IrcBatchStartResponse {
+}
+
+message IrcBlockUserRequest {
+  string user_id = 1;
+}
+
+message IrcBlockUserResponse {
+}
+
+message IrcBotServActRequest {
+  string channel = 1;
+  string text = 2;
+}
+
+message IrcBotServActResponse {
+}
+
+message IrcBotServAssignRequest {
+  string channel = 1;
+  string bot_nick = 2;
+}
+
+message IrcBotServAssignResponse {
+}
+
+message IrcBotServBadwordsRequest {
+  string channel = 1;
+  string action = 2;
+  string word = 3;
+}
+
+message IrcBotServBadwordsResponse {
+}
+
+message IrcBotServBotAddRequest {
+  string nick = 1;
+  string ident = 2;
+  string host = 3;
+  string realname = 4;
+}
+
+message IrcBotServBotAddResponse {
+}
+
+message IrcBotServBotChangeRequest {
+  string old_nick = 1;
+  string new_nick = 2;
+  string ident = 3;
+  string host = 4;
+  string realname = 5;
+}
+
+message IrcBotServBotChangeResponse {
+}
+
+message IrcBotServBotDelRequest {
+  string nick = 1;
+}
+
+message IrcBotServBotDelResponse {
+}
+
+message IrcBotServBotListRequest {
+}
+
+message IrcBotServBotListResponse {
+}
+
+message IrcBotServInfoRequest {
+  string target = 1;
+}
+
+message IrcBotServInfoResponse {
+}
+
+message IrcBotServKickConfigRequest {
+  string channel = 1;
+  string option = 2;
+  string value = 3;
+}
+
+message IrcBotServKickConfigResponse {
+}
+
+message IrcBotServSayRequest {
+  string channel = 1;
+  string text = 2;
+}
+
+message IrcBotServSayResponse {
+}
+
+message IrcBotServSetRequest {
+  string channel = 1;
+  string option = 2;
+  string value = 3;
+}
+
+message IrcBotServSetResponse {
+}
+
+message IrcBotServUnassignRequest {
+  string channel = 1;
+}
+
+message IrcBotServUnassignResponse {
+}
+
+message IrcBotmotdRequest {
+}
+
+message IrcBotmotdResponse {
+}
+
+message IrcBounceListNetworksRequest {
+}
+
+message IrcBounceListNetworksResponse {
+}
+
+message IrcBouncerBindRequest {
+  string network_id = 1;
+}
+
+message IrcBouncerBindResponse {
+}
+
+message IrcCNoticeRequest {
+  string nick = 1;
+  string channel = 2;
+  string text = 3;
+}
+
+message IrcCNoticeResponse {
+}
+
+message IrcCPrivmsgRequest {
+  string nick = 1;
+  string channel = 2;
+  string text = 3;
+}
+
+message IrcCPrivmsgResponse {
+}
+
+message IrcCTCPAvatarRequest {
+  string nick = 1;
+  string url = 2;
+}
+
+message IrcCTCPAvatarResponse {
+}
+
+message IrcCTCPErrMsgRequest {
+  string nick = 1;
+  string query = 2;
+  string message = 3;
+}
+
+message IrcCTCPErrMsgResponse {
+}
+
+message IrcCTCPFingerRequest {
+  string target = 1;
+}
+
+message IrcCTCPFingerResponse {
+}
+
+message IrcCTCPSourceRequest {
+  string target = 1;
+}
+
+message IrcCTCPSourceResponse {
+}
+
+message IrcCTCPUserinfoRequest {
+  string target = 1;
+}
+
+message IrcCTCPUserinfoResponse {
+}
+
+message IrcCapabilitiesRequest {
+}
+
+message IrcCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message IrcCbanRequest {
+  string channel = 1;
+  string reason = 2;
+}
+
+message IrcCbanResponse {
+}
+
+message IrcCbanDelRequest {
+  string channel = 1;
+}
+
+message IrcCbanDelResponse {
+}
+
+message IrcChanServAccessRequest {
+  string channel = 1;
+  string action = 2;
+  string mask = 3;
+  string level = 4;
+}
+
+message IrcChanServAccessResponse {
+}
+
+message IrcChanServAkickRequest {
+  string channel = 1;
+  string action = 2;
+  string mask = 3;
+  string reason = 4;
+}
+
+message IrcChanServAkickResponse {
+}
+
+message IrcChanServAopRequest {
+  string channel = 1;
+  string action = 2;
+  string nick = 3;
+}
+
+message IrcChanServAopResponse {
+}
+
+message IrcChanServAppendTopicRequest {
+  string channel = 1;
+  string text = 2;
+}
+
+message IrcChanServAppendTopicResponse {
+}
+
+message IrcChanServBanRequest {
+  string channel = 1;
+  string nick = 2;
+}
+
+message IrcChanServBanResponse {
+}
+
+message IrcChanServClearRequest {
+  string channel = 1;
+  string what = 2;
+}
+
+message IrcChanServClearResponse {
+}
+
+message IrcChanServCloneRequest {
+  string source = 1;
+  string target = 2;
+}
+
+message IrcChanServCloneResponse {
+}
+
+message IrcChanServCountRequest {
+  string channel = 1;
+}
+
+message IrcChanServCountResponse {
+}
+
+message IrcChanServDownRequest {
+  string channel = 1;
+}
+
+message IrcChanServDownResponse {
+}
+
+message IrcChanServDropRequest {
+  string channel = 1;
+}
+
+message IrcChanServDropResponse {
+}
+
+message IrcChanServEnforceRequest {
+  string channel = 1;
+}
+
+message IrcChanServEnforceResponse {
+}
+
+message IrcChanServEntryMsgRequest {
+  string channel = 1;
+  string message = 2;
+}
+
+message IrcChanServEntryMsgResponse {
+}
+
+message IrcChanServFlagsRequest {
+  string channel = 1;
+  string nick = 2;
+  string flags = 3;
+}
+
+message IrcChanServFlagsResponse {
+}
+
+message IrcChanServForbidRequest {
+  string channel = 1;
+  string reason = 2;
+}
+
+message IrcChanServForbidResponse {
+}
+
+message IrcChanServGetKeyRequest {
+  string channel = 1;
+}
+
+message IrcChanServGetKeyResponse {
+}
+
+message IrcChanServHopRequest {
+  string channel = 1;
+  string action = 2;
+  string nick = 3;
+}
+
+message IrcChanServHopResponse {
+}
+
+message IrcChanServIdentifyRequest {
+  string channel = 1;
+  string password = 2;
+}
+
+message IrcChanServIdentifyResponse {
+}
+
+message IrcChanServInfoRequest {
+  string channel = 1;
+}
+
+message IrcChanServInfoResponse {
+}
+
+message IrcChanServInviteRequest {
+  string channel = 1;
+}
+
+message IrcChanServInviteResponse {
+}
+
+message IrcChanServKickRequest {
+  string channel = 1;
+  string nick = 2;
+  string reason = 3;
+}
+
+message IrcChanServKickResponse {
+}
+
+message IrcChanServLevelsRequest {
+  string channel = 1;
+  string action = 2;
+  string level = 3;
+  string value = 4;
+}
+
+message IrcChanServLevelsResponse {
+}
+
+message IrcChanServListRequest {
+  string pattern = 1;
+}
+
+message IrcChanServListResponse {
+}
+
+message IrcChanServLogRequest {
+  string channel = 1;
+}
+
+message IrcChanServLogResponse {
+}
+
+message IrcChanServModeRequest {
+  string channel = 1;
+  string modes = 2;
+}
+
+message IrcChanServModeResponse {
+}
+
+message IrcChanServModeCmdRequest {
+  string channel = 1;
+  string nick = 2;
+  string command = 3;
+}
+
+message IrcChanServModeCmdResponse {
+}
+
+message IrcChanServQopRequest {
+  string channel = 1;
+  string action = 2;
+  string nick = 3;
+}
+
+message IrcChanServQopResponse {
+}
+
+message IrcChanServRegisterRequest {
+  string channel = 1;
+  string password = 2;
+  string description = 3;
+}
+
+message IrcChanServRegisterResponse {
+}
+
+message IrcChanServSetRequest {
+  string channel = 1;
+  string option = 2;
+  string value = 3;
+}
+
+message IrcChanServSetResponse {
+}
+
+message IrcChanServSopRequest {
+  string channel = 1;
+  string action = 2;
+  string nick = 3;
+}
+
+message IrcChanServSopResponse {
+}
+
+message IrcChanServStatusRequest {
+  string channel = 1;
+  string nick = 2;
+}
+
+message IrcChanServStatusResponse {
+}
+
+message IrcChanServSuspendRequest {
+  string channel = 1;
+  string reason = 2;
+}
+
+message IrcChanServSuspendResponse {
+}
+
+message IrcChanServSyncRequest {
+  string channel = 1;
+}
+
+message IrcChanServSyncResponse {
+}
+
+message IrcChanServTopicRequest {
+  string channel = 1;
+  string topic = 2;
+}
+
+message IrcChanServTopicResponse {
+}
+
+message IrcChanServUnbanRequest {
+  string channel = 1;
+  string nick = 2;
+}
+
+message IrcChanServUnbanResponse {
+}
+
+message IrcChanServUnsuspendRequest {
+  string channel = 1;
+}
+
+message IrcChanServUnsuspendResponse {
+}
+
+message IrcChanServUpRequest {
+  string channel = 1;
+}
+
+message IrcChanServUpResponse {
+}
+
+message IrcChanServVopRequest {
+  string channel = 1;
+  string action = 2;
+  string nick = 3;
+}
+
+message IrcChanServVopResponse {
+}
+
+message IrcChangeNickRequest {
+  string new_nick = 1;
+}
+
+message IrcChangeNickResponse {
+}
+
+message IrcChatHistoryAfterRequest {
+  string target = 1;
+  string reference = 2;
+  int64 limit = 3;
+}
+
+message IrcChatHistoryAfterResponse {
+}
+
+message IrcChatHistoryAroundRequest {
+  string target = 1;
+  string reference = 2;
+  int64 limit = 3;
+}
+
+message IrcChatHistoryAroundResponse {
+}
+
+message IrcChatHistoryBeforeRequest {
+  string target = 1;
+  string reference = 2;
+  int64 limit = 3;
+}
+
+message IrcChatHistoryBeforeResponse {
+}
+
+message IrcChatHistoryBetweenRequest {
+  string target = 1;
+  string start_ref = 2;
+  string end_ref = 3;
+  int64 limit = 4;
+}
+
+message IrcChatHistoryBetweenResponse {
+}
+
+message IrcChatHistoryLatestRequest {
+  string target = 1;
+  int64 limit = 2;
+}
+
+message IrcChatHistoryLatestResponse {
+}
+
+message IrcChatHistoryTargetsRequest {
+  string from_time = 1;
+  string to_time = 2;
+  int64 limit = 3;
+}
+
+message IrcChatHistoryTargetsResponse {
+}
+
+message IrcCheckRequest {
+  string target = 1;
+}
+
+message IrcCheckResponse {
+}
+
+message IrcChgHostRequest {
+  string nick = 1;
+  string new_host = 2;
+}
+
+message IrcChgHostResponse {
+}
+
+message IrcChgIdentRequest {
+  string nick = 1;
+  string new_ident = 2;
+}
+
+message IrcChgIdentResponse {
+}
+
+message IrcChgNameRequest {
+  string nick = 1;
+  string new_name = 2;
+}
+
+message IrcChgNameResponse {
+}
+
+message IrcClearDCCOffersRequest {
+}
+
+message IrcClearDCCOffersResponse {
+}
+
+message IrcClearchanRequest {
+  string channel = 1;
+  string action = 2;
+}
+
+message IrcClearchanResponse {
+}
+
+message IrcClonesRequest {
+}
+
+message IrcClonesResponse {
+}
+
+message IrcCloseRequest {
+}
+
+message IrcCloseResponse {
+}
+
+message IrcCloseConnectionsRequest {
+}
+
+message IrcCloseConnectionsResponse {
+}
+
+message IrcConnectRequest {
+  string target = 1;
+  int64 port = 2;
+  string remote = 3;
+}
+
+message IrcConnectResponse {
+}
+
+message IrcConnectHTTPProxyRequest {
+  string proxy_addr = 1;
+  string target_addr = 2;
+}
+
+message IrcConnectHTTPProxyResponse {
+}
+
+message IrcConnectSOCKSRequest {
+  string proxy_addr = 1;
+  string target_addr = 2;
+}
+
+message IrcConnectSOCKSResponse {
+}
+
+message IrcConnectWebSocketRequest {
+  string url = 1;
+}
+
+message IrcConnectWebSocketResponse {
+}
+
+message IrcCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message IrcCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message IrcCreateFolderRequest {
+  string param_1 = 1;
+  repeated string param_2 = 2;
+}
+
+message IrcCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message IrcCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message IrcCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message IrcCreatePollRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  repeated string param_3 = 3;
+}
+
+message IrcCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message IrcCreateTopicRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message IrcCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message IrcCycleRequest {
+  string channel = 1;
+}
+
+message IrcCycleResponse {
+}
+
+message IrcDCCAcceptRequest {
+  string nick = 1;
+  string filename = 2;
+  int64 port = 3;
+  int64 position = 4;
+}
+
+message IrcDCCAcceptResponse {
+}
+
+message IrcDCCChatRequest {
+  string nick = 1;
+  int64 port = 2;
+}
+
+message IrcDCCChatResponse {
+}
+
+message IrcDCCResumeRequest {
+  string nick = 1;
+  string filename = 2;
+  int64 port = 3;
+  int64 position = 4;
+}
+
+message IrcDCCResumeResponse {
+}
+
+message IrcDCCReverseRequest {
+  string nick = 1;
+  string filename = 2;
+  int64 size = 3;
+  string token = 4;
+}
+
+message IrcDCCReverseResponse {
+}
+
+message IrcDCCSecureChatRequest {
+  string nick = 1;
+  int64 port = 2;
+}
+
+message IrcDCCSecureChatResponse {
+}
+
+message IrcDCCSecureSendRequest {
+  string nick = 1;
+  string filename = 2;
+  int64 port = 3;
+  int64 size = 4;
+}
+
+message IrcDCCSecureSendResponse {
+}
+
+message IrcDCCSendRequest {
+  string nick = 1;
+  string filename = 2;
+  int64 port = 3;
+  int64 size = 4;
+}
+
+message IrcDCCSendResponse {
+}
+
+message IrcDccallowRequest {
+  string args = 1;
+}
+
+message IrcDccallowResponse {
+}
+
+message IrcDccdenyRequest {
+  string file_pattern = 1;
+  string reason = 2;
+}
+
+message IrcDccdenyResponse {
+}
+
+message IrcDeclineCallRequest {
+  string call_id = 1;
+}
+
+message IrcDeclineCallResponse {
+}
+
+message IrcDeleteContactRequest {
+  string param_1 = 1;
+}
+
+message IrcDeleteContactResponse {
+}
+
+message IrcDeleteMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message IrcDeleteMessageResponse {
+}
+
+message IrcDieRequest {
+}
+
+message IrcDieResponse {
+}
+
+message IrcDnsInfoRequest {
+  string args = 1;
+}
+
+message IrcDnsInfoResponse {
+}
+
+message IrcEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message IrcEditChatDescriptionResponse {
+}
+
+message IrcEditChatTitleRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message IrcEditChatTitleResponse {
+}
+
+message IrcEditMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message IrcEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message IrcElineRequest {
+  string mask = 1;
+  string duration = 2;
+  string reason = 3;
+}
+
+message IrcElineResponse {
+}
+
+message IrcEndCallRequest {
+  string param_1 = 1;
+}
+
+message IrcEndCallResponse {
+}
+
+message IrcFilehostUploadRequest {
+  string filename = 1;
+}
+
+message IrcFilehostUploadResponse {
+}
+
+message IrcFilterAddRequest {
+  string pattern = 1;
+}
+
+message IrcFilterAddResponse {
+}
+
+message IrcFilterDelRequest {
+  string pattern = 1;
+}
+
+message IrcFilterDelResponse {
+}
+
+message IrcForcePartRequest {
+  string nick = 1;
+  string channel = 2;
+  string reason = 3;
+}
+
+message IrcForcePartResponse {
+}
+
+message IrcForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message IrcForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message IrcGLineRequest {
+  string mask = 1;
+  string duration = 2;
+  string reason = 3;
+}
+
+message IrcGLineResponse {
+}
+
+message IrcGZLineRequest {
+  string ip = 1;
+  string duration = 2;
+  string reason = 3;
+}
+
+message IrcGZLineResponse {
+}
+
+message IrcGetAwayRequest {
+}
+
+message IrcGetAwayResponse {
+  string result_1 = 1;
+}
+
+message IrcGetBanListRequest {
+  string channel = 1;
+}
+
+message IrcGetBanListResponse {
+  repeated IRCBanEntry result_1 = 1;
+}
+
+message IrcGetBlockedUsersRequest {
+}
+
+message IrcGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message IrcGetCTCPClientInfoRequest {
+}
+
+message IrcGetCTCPClientInfoResponse {
+  string result_1 = 1;
+}
+
+message IrcGetChannelTopicRequest {
+  string channel = 1;
+}
+
+message IrcGetChannelTopicResponse {
+  string result_1 = 1;
+  string result_2 = 2;
+}
+
+message IrcGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message IrcGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message IrcGetContactsRequest {
+}
+
+message IrcGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message IrcGetDCCOffersRequest {
+}
+
+message IrcGetDCCOffersResponse {
+  repeated IRCDCCOffer result_1 = 1;
+}
+
+message IrcGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message IrcGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message IrcGetEnabledCapsRequest {
+}
+
+message IrcGetEnabledCapsResponse {
+  repeated string result_1 = 1;
+}
+
+message IrcGetExceptListRequest {
+  string channel = 1;
+}
+
+message IrcGetExceptListResponse {
+  repeated IRCBanEntry result_1 = 1;
+}
+
+message IrcGetFoldersRequest {
+}
+
+message IrcGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message IrcGetInviteExceptListRequest {
+  string channel = 1;
+}
+
+message IrcGetInviteExceptListResponse {
+  repeated IRCBanEntry result_1 = 1;
+}
+
+message IrcGetInviteLinkRequest {
+  string param_1 = 1;
+}
+
+message IrcGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message IrcGetMOTDRequest {
+}
+
+message IrcGetMOTDResponse {
+  repeated string result_1 = 1;
+}
+
+message IrcGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message IrcGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message IrcGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message IrcGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message IrcGetMonitoredRequest {
+}
+
+message IrcGetMonitoredResponse {
+  repeated string result_1 = 1;
+}
+
+message IrcGetNetworkIconRequest {
+}
+
+message IrcGetNetworkIconResponse {
+  string result_1 = 1;
+}
+
+message IrcGetNickRequest {
+}
+
+message IrcGetNickResponse {
+  string result_1 = 1;
+}
+
+message IrcGetProfileRequest {
+  string user_id = 1;
+}
+
+message IrcGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message IrcGetReadStateRequest {
+  string chat_id = 1;
+}
+
+message IrcGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message IrcGetServerInfoRequest {
+}
+
+message IrcGetServerInfoResponse {
+  IRCServerInfo result_1 = 1;
+}
+
+message IrcGetSessionsRequest {
+}
+
+message IrcGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message IrcGetUserModeRequest {
+}
+
+message IrcGetUserModeResponse {
+}
+
+message IrcGlobopsRequest {
+  string message = 1;
+}
+
+message IrcGlobopsResponse {
+}
+
+message IrcGroupServFlagsRequest {
+  string group = 1;
+  string target = 2;
+  string flags = 3;
+}
+
+message IrcGroupServFlagsResponse {
+}
+
+message IrcGroupServInfoRequest {
+  string group = 1;
+}
+
+message IrcGroupServInfoResponse {
+}
+
+message IrcGroupServJoinRequest {
+  string group = 1;
+}
+
+message IrcGroupServJoinResponse {
+}
+
+message IrcGroupServLeaveRequest {
+  string group = 1;
+}
+
+message IrcGroupServLeaveResponse {
+}
+
+message IrcHasCapabilityRequest {
+  string cap = 1;
+}
+
+message IrcHasCapabilityResponse {
+  bool result_1 = 1;
+}
+
+message IrcHostServActivateRequest {
+  string nick = 1;
+}
+
+message IrcHostServActivateResponse {
+}
+
+message IrcHostServDelRequest {
+  string nick = 1;
+}
+
+message IrcHostServDelResponse {
+}
+
+message IrcHostServDelAllRequest {
+  string nick = 1;
+}
+
+message IrcHostServDelAllResponse {
+}
+
+message IrcHostServGroupRequest {
+}
+
+message IrcHostServGroupResponse {
+}
+
+message IrcHostServListRequest {
+}
+
+message IrcHostServListResponse {
+}
+
+message IrcHostServOffRequest {
+}
+
+message IrcHostServOffResponse {
+}
+
+message IrcHostServOnRequest {
+}
+
+message IrcHostServOnResponse {
+}
+
+message IrcHostServRejectRequest {
+  string nick = 1;
+  string reason = 2;
+}
+
+message IrcHostServRejectResponse {
+}
+
+message IrcHostServRequestRequest {
+  string vhost = 1;
+}
+
+message IrcHostServRequestResponse {
+}
+
+message IrcHostServSetRequest {
+  string nick = 1;
+  string vhost = 2;
+}
+
+message IrcHostServSetResponse {
+}
+
+message IrcHostServSetAllRequest {
+  string nick = 1;
+  string vhost = 2;
+}
+
+message IrcHostServSetAllResponse {
+}
+
+message IrcHostServWaitingRequest {
+}
+
+message IrcHostServWaitingResponse {
+}
+
+message IrcIrcopsRequest {
+}
+
+message IrcIrcopsResponse {
+}
+
+message IrcIsonRequest {
+  repeated string nicks = 1;
+}
+
+message IrcIsonResponse {
+  repeated string result_1 = 1;
+}
+
+message IrcJoinGroupCallRequest {
+  string param_1 = 1;
+}
+
+message IrcJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message IrcJoinKeyRequest {
+  string channel = 1;
+  string key = 2;
+}
+
+message IrcJoinKeyResponse {
+}
+
+message IrcJoinMultipleRequest {
+  repeated string channels = 1;
+  repeated string keys = 2;
+}
+
+message IrcJoinMultipleResponse {
+}
+
+message IrcJumpserverRequest {
+  string addr = 1;
+  string port = 2;
+  string reason = 3;
+}
+
+message IrcJumpserverResponse {
+}
+
+message IrcKLineRequest {
+  string mask = 1;
+  string duration = 2;
+  string reason = 3;
+}
+
+message IrcKLineResponse {
+}
+
+message IrcKickWithReasonRequest {
+  string channel = 1;
+  string nick = 2;
+  string reason = 3;
+}
+
+message IrcKickWithReasonResponse {
+}
+
+message IrcKillRequest {
+  string nick = 1;
+  string reason = 2;
+}
+
+message IrcKillResponse {
+}
+
+message IrcKnockRequest {
+  string channel = 1;
+}
+
+message IrcKnockResponse {
+}
+
+message IrcLeaveAllChannelsRequest {
+}
+
+message IrcLeaveAllChannelsResponse {
+}
+
+message IrcLeaveChatRequest {
+  string chat_id = 1;
+}
+
+message IrcLeaveChatResponse {
+}
+
+message IrcListRequest {
+  string filter = 1;
+}
+
+message IrcListResponse {
+  repeated IRCListEntry result_1 = 1;
+}
+
+message IrcLogoutRequest {
+}
+
+message IrcLogoutResponse {
+}
+
+message IrcMarkAsReadRequest {
+  string chat_id = 1;
+  string up_to_msg_id = 2;
+}
+
+message IrcMarkAsReadResponse {
+}
+
+message IrcMarkReadRequest {
+  string target = 1;
+  string msgid = 2;
+}
+
+message IrcMarkReadResponse {
+}
+
+message IrcMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message IrcMarkUnreadResponse {
+}
+
+message IrcMemoServCancelRequest {
+  string target = 1;
+}
+
+message IrcMemoServCancelResponse {
+}
+
+message IrcMemoServCheckRequest {
+  string target = 1;
+}
+
+message IrcMemoServCheckResponse {
+}
+
+message IrcMemoServDeleteRequest {
+  string which = 1;
+}
+
+message IrcMemoServDeleteResponse {
+}
+
+message IrcMemoServForwardRequest {
+  string memo_id = 1;
+  string target = 2;
+}
+
+message IrcMemoServForwardResponse {
+}
+
+message IrcMemoServIgnoreRequest {
+  string action = 1;
+  string nick = 2;
+}
+
+message IrcMemoServIgnoreResponse {
+}
+
+message IrcMemoServInfoRequest {
+  string target = 1;
+}
+
+message IrcMemoServInfoResponse {
+}
+
+message IrcMemoServListRequest {
+}
+
+message IrcMemoServListResponse {
+}
+
+message IrcMemoServRSendRequest {
+  string target = 1;
+  string text = 2;
+}
+
+message IrcMemoServRSendResponse {
+}
+
+message IrcMemoServReadRequest {
+  string which = 1;
+}
+
+message IrcMemoServReadResponse {
+}
+
+message IrcMemoServSendRequest {
+  string target = 1;
+  string text = 2;
+}
+
+message IrcMemoServSendResponse {
+}
+
+message IrcMemoServSendGroupRequest {
+  string group = 1;
+  string text = 2;
+}
+
+message IrcMemoServSendGroupResponse {
+}
+
+message IrcMemoServSendOpsRequest {
+  string channel = 1;
+  string text = 2;
+}
+
+message IrcMemoServSendOpsResponse {
+}
+
+message IrcMemoServSetRequest {
+  string option = 1;
+  string value = 2;
+}
+
+message IrcMemoServSetResponse {
+}
+
+message IrcMemoServStaffRequest {
+  string text = 1;
+}
+
+message IrcMemoServStaffResponse {
+}
+
+message IrcMetadataGetRequest {
+  string target = 1;
+  string key = 2;
+}
+
+message IrcMetadataGetResponse {
+}
+
+message IrcMetadataListRequest {
+  string target = 1;
+}
+
+message IrcMetadataListResponse {
+}
+
+message IrcMetadataSetRequest {
+  string target = 1;
+  string key = 2;
+  string value = 3;
+}
+
+message IrcMetadataSetResponse {
+}
+
+message IrcMetadataSubRequest {
+  string target = 1;
+  string key = 2;
+}
+
+message IrcMetadataSubResponse {
+}
+
+message IrcMetadataUnsubRequest {
+  string target = 1;
+  string key = 2;
+}
+
+message IrcMetadataUnsubResponse {
+}
+
+message IrcMkpasswdRequest {
+  string hash_type = 1;
+  string password = 2;
+}
+
+message IrcMkpasswdResponse {
+}
+
+message IrcModuleManageRequest {
+  string action = 1;
+  string module_name = 2;
+}
+
+message IrcModuleManageResponse {
+}
+
+message IrcMonitorAddRequest {
+  repeated string nicks = 1;
+}
+
+message IrcMonitorAddResponse {
+}
+
+message IrcMonitorClearRequest {
+}
+
+message IrcMonitorClearResponse {
+}
+
+message IrcMonitorListRequest {
+}
+
+message IrcMonitorListResponse {
+}
+
+message IrcMonitorRemoveRequest {
+  repeated string nicks = 1;
+}
+
+message IrcMonitorRemoveResponse {
+}
+
+message IrcMonitorStatusRequest {
+}
+
+message IrcMonitorStatusResponse {
+}
+
+message IrcMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message IrcMuteChatResponse {
+}
+
+message IrcNameRequest {
+}
+
+message IrcNameResponse {
+  string result_1 = 1;
+}
+
+message IrcNickServAccRequest {
+  string nick = 1;
+}
+
+message IrcNickServAccResponse {
+}
+
+message IrcNickServAccessRequest {
+  string action = 1;
+  string mask = 2;
+}
+
+message IrcNickServAccessResponse {
+}
+
+message IrcNickServAjoinRequest {
+  string action = 1;
+  string channel = 2;
+}
+
+message IrcNickServAjoinResponse {
+}
+
+message IrcNickServAlistRequest {
+}
+
+message IrcNickServAlistResponse {
+}
+
+message IrcNickServCertRequest {
+  string action = 1;
+  string fingerprint = 2;
+}
+
+message IrcNickServCertResponse {
+}
+
+message IrcNickServConfirmRequest {
+  string code = 1;
+}
+
+message IrcNickServConfirmResponse {
+}
+
+message IrcNickServDropRequest {
+  string nick = 1;
+}
+
+message IrcNickServDropResponse {
+}
+
+message IrcNickServForbidRequest {
+  string nick = 1;
+  string reason = 2;
+}
+
+message IrcNickServForbidResponse {
+}
+
+message IrcNickServGListRequest {
+}
+
+message IrcNickServGListResponse {
+}
+
+message IrcNickServGhostRequest {
+  string nick = 1;
+  string password = 2;
+}
+
+message IrcNickServGhostResponse {
+}
+
+message IrcNickServGroupRequest {
+  string target = 1;
+  string password = 2;
+}
+
+message IrcNickServGroupResponse {
+}
+
+message IrcNickServIdentifyRequest {
+  string password = 1;
+}
+
+message IrcNickServIdentifyResponse {
+}
+
+message IrcNickServInfoRequest {
+  string nick = 1;
+}
+
+message IrcNickServInfoResponse {
+}
+
+message IrcNickServListRequest {
+  string pattern = 1;
+}
+
+message IrcNickServListResponse {
+}
+
+message IrcNickServLogoutRequest {
+}
+
+message IrcNickServLogoutResponse {
+}
+
+message IrcNickServRecoverRequest {
+  string nick = 1;
+  string password = 2;
+}
+
+message IrcNickServRecoverResponse {
+}
+
+message IrcNickServRegainRequest {
+  string nick = 1;
+  string password = 2;
+}
+
+message IrcNickServRegainResponse {
+}
+
+message IrcNickServRegisterRequest {
+  string password = 1;
+  string email = 2;
+}
+
+message IrcNickServRegisterResponse {
+}
+
+message IrcNickServReleaseRequest {
+  string nick = 1;
+  string password = 2;
+}
+
+message IrcNickServReleaseResponse {
+}
+
+message IrcNickServSaSetRequest {
+  string nick = 1;
+  string option = 2;
+  string value = 3;
+}
+
+message IrcNickServSaSetResponse {
+}
+
+message IrcNickServSendPassRequest {
+  string nick = 1;
+}
+
+message IrcNickServSendPassResponse {
+}
+
+message IrcNickServSetRequest {
+  string option = 1;
+  string value = 2;
+}
+
+message IrcNickServSetResponse {
+}
+
+message IrcNickServSetPasswordRequest {
+  string new_password = 1;
+}
+
+message IrcNickServSetPasswordResponse {
+}
+
+message IrcNickServStatusRequest {
+  string nick = 1;
+}
+
+message IrcNickServStatusResponse {
+}
+
+message IrcNickServSuspendRequest {
+  string nick = 1;
+  string reason = 2;
+}
+
+message IrcNickServSuspendResponse {
+}
+
+message IrcNickServUngroupRequest {
+  string nick = 1;
+}
+
+message IrcNickServUngroupResponse {
+}
+
+message IrcNickServUnsuspendRequest {
+  string nick = 1;
+}
+
+message IrcNickServUnsuspendResponse {
+}
+
+message IrcNickServUpdateRequest {
+}
+
+message IrcNickServUpdateResponse {
+}
+
+message IrcNicklockRequest {
+  string nick = 1;
+  string new_nick = 2;
+}
+
+message IrcNicklockResponse {
+}
+
+message IrcNickunlockRequest {
+  string nick = 1;
+}
+
+message IrcNickunlockResponse {
+}
+
+message IrcOjoinRequest {
+  string channel = 1;
+}
+
+message IrcOjoinResponse {
+}
+
+message IrcOperRequest {
+  string name = 1;
+  string password = 2;
+}
+
+message IrcOperResponse {
+}
+
+message IrcOperServAkillRequest {
+  string action = 1;
+  string mask = 2;
+  string reason = 3;
+}
+
+message IrcOperServAkillResponse {
+}
+
+message IrcOperServDefconRequest {
+  int64 level = 1;
+}
+
+message IrcOperServDefconResponse {
+}
+
+message IrcOperServGlobalRequest {
+  string message = 1;
+}
+
+message IrcOperServGlobalResponse {
+}
+
+message IrcOperServJupeRequest {
+  string server = 1;
+  string reason = 2;
+}
+
+message IrcOperServJupeResponse {
+}
+
+message IrcOperServNoopRequest {
+  string server = 1;
+  string action = 2;
+}
+
+message IrcOperServNoopResponse {
+}
+
+message IrcOperServReloadRequest {
+  string module = 1;
+}
+
+message IrcOperServReloadResponse {
+}
+
+message IrcOperServRestartRequest {
+}
+
+message IrcOperServRestartResponse {
+}
+
+message IrcOperServSessionRequest {
+  string action = 1;
+  string host = 2;
+}
+
+message IrcOperServSessionResponse {
+}
+
+message IrcOperServShutdownRequest {
+}
+
+message IrcOperServShutdownResponse {
+}
+
+message IrcOperServSnlineRequest {
+  string action = 1;
+  string mask = 2;
+  string reason = 3;
+}
+
+message IrcOperServSnlineResponse {
+}
+
+message IrcOperServSqlineRequest {
+  string action = 1;
+  string mask = 2;
+  string reason = 3;
+}
+
+message IrcOperServSqlineResponse {
+}
+
+message IrcOperServStatsRequest {
+  string what = 1;
+}
+
+message IrcOperServStatsResponse {
+}
+
+message IrcOpermotdRequest {
+}
+
+message IrcOpermotdResponse {
+}
+
+message IrcParseAccountExtbanRequest {
+  string account = 1;
+}
+
+message IrcParseAccountExtbanResponse {
+  string result_1 = 1;
+}
+
+message IrcPartMessageRequest {
+  string channel = 1;
+  string reason = 2;
+}
+
+message IrcPartMessageResponse {
+}
+
+message IrcPartMultipleRequest {
+  repeated string channels = 1;
+  string reason = 2;
+}
+
+message IrcPartMultipleResponse {
+}
+
+message IrcPinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message IrcPinMessageResponse {
+}
+
+message IrcQlineRequest {
+  string nick = 1;
+  string reason = 2;
+}
+
+message IrcQlineResponse {
+}
+
+message IrcQlineDelRequest {
+  string nick = 1;
+}
+
+message IrcQlineDelResponse {
+}
+
+message IrcQuitMessageRequest {
+  string message = 1;
+}
+
+message IrcQuitMessageResponse {
+}
+
+message IrcRDCCRequest {
+  string nick = 1;
+}
+
+message IrcRDCCResponse {
+}
+
+message IrcRconnectRequest {
+  string server_mask = 1;
+  string remote_target = 2;
+}
+
+message IrcRconnectResponse {
+}
+
+message IrcReactToMessageRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message IrcReactToMessageResponse {
+}
+
+message IrcRedactRequest {
+  string target = 1;
+  string msgid = 2;
+  string reason = 3;
+}
+
+message IrcRedactResponse {
+}
+
+message IrcRegisterRequest {
+  string account = 1;
+  string email = 2;
+  string password = 3;
+}
+
+message IrcRegisterResponse {
+}
+
+message IrcRehashRequest {
+}
+
+message IrcRehashResponse {
+}
+
+message IrcRelaymsgRequest {
+  string channel = 1;
+  string nick = 2;
+  string text = 3;
+}
+
+message IrcRelaymsgResponse {
+}
+
+message IrcRemoveMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message IrcRemoveMemberResponse {
+}
+
+message IrcRenameChannelRequest {
+  string old_name = 1;
+  string new_name = 2;
+  string reason = 3;
+}
+
+message IrcRenameChannelResponse {
+}
+
+message IrcReplyToMessageRequest {
+  string chat_id = 1;
+  string reply_to_msg_id = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message IrcReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message IrcRequestAdminRequest {
+}
+
+message IrcRequestAdminResponse {
+}
+
+message IrcRequestCAPRequest {
+  repeated string caps = 1;
+}
+
+message IrcRequestCAPResponse {
+}
+
+message IrcRequestCAPListRequest {
+}
+
+message IrcRequestCAPListResponse {
+}
+
+message IrcRequestExtendedIsupportRequest {
+}
+
+message IrcRequestExtendedIsupportResponse {
+}
+
+message IrcRequestExtendedMonitorRequest {
+}
+
+message IrcRequestExtendedMonitorResponse {
+}
+
+message IrcRequestHelpRequest {
+  string topic = 1;
+}
+
+message IrcRequestHelpResponse {
+}
+
+message IrcRequestInfoRequest {
+}
+
+message IrcRequestInfoResponse {
+}
+
+message IrcRequestInviteListRequest {
+  string channel = 1;
+}
+
+message IrcRequestInviteListResponse {
+}
+
+message IrcRequestLinksRequest {
+  string mask = 1;
+}
+
+message IrcRequestLinksResponse {
+}
+
+message IrcRequestLusersRequest {
+}
+
+message IrcRequestLusersResponse {
+}
+
+message IrcRequestMOTDRequest {
+}
+
+message IrcRequestMOTDResponse {
+}
+
+message IrcRequestMapRequest {
+}
+
+message IrcRequestMapResponse {
+}
+
+message IrcRequestNamesRequest {
+  string channel = 1;
+}
+
+message IrcRequestNamesResponse {
+}
+
+message IrcRequestNoImplicitNamesRequest {
+}
+
+message IrcRequestNoImplicitNamesResponse {
+}
+
+message IrcRequestRulesRequest {
+}
+
+message IrcRequestRulesResponse {
+}
+
+message IrcRequestStatsRequest {
+  string query = 1;
+}
+
+message IrcRequestStatsResponse {
+}
+
+message IrcRequestTimeRequest {
+}
+
+message IrcRequestTimeResponse {
+}
+
+message IrcRequestTraceRequest {
+  string target = 1;
+}
+
+message IrcRequestTraceResponse {
+}
+
+message IrcRequestUsersRequest {
+  string target = 1;
+}
+
+message IrcRequestUsersResponse {
+}
+
+message IrcRequestVersionRequest {
+}
+
+message IrcRequestVersionResponse {
+}
+
+message IrcRequestWhoisRequest {
+  string nick = 1;
+}
+
+message IrcRequestWhoisResponse {
+}
+
+message IrcRestartRequest {
+}
+
+message IrcRestartResponse {
+}
+
+message IrcResumeRequest {
+  string token = 1;
+  int64 timestamp = 2;
+}
+
+message IrcResumeResponse {
+}
+
+message IrcRlineRequest {
+  string regex = 1;
+  string duration = 2;
+  string reason = 3;
+}
+
+message IrcRlineResponse {
+}
+
+message IrcRlineDelRequest {
+  string regex = 1;
+}
+
+message IrcRlineDelResponse {
+}
+
+message IrcRmodeRequest {
+  string mask = 1;
+  string modes = 2;
+}
+
+message IrcRmodeResponse {
+}
+
+message IrcRmtklRequest {
+  string tkl_type = 1;
+  string pattern = 2;
+}
+
+message IrcRmtklResponse {
+}
+
+message IrcRsquitRequest {
+  string server_mask = 1;
+  string reason = 2;
+}
+
+message IrcRsquitResponse {
+}
+
+message IrcSASLECDSAChallengeRequest {
+  string account_name = 1;
+}
+
+message IrcSASLECDSAChallengeResponse {
+}
+
+message IrcSASLExternalRequest {
+}
+
+message IrcSASLExternalResponse {
+}
+
+message IrcSASLScramSHA256Request {
+  string username = 1;
+  string password = 2;
+}
+
+message IrcSASLScramSHA256Response {
+}
+
+message IrcSTSAutoUpgradeRequest {
+  string domain = 1;
+  int64 port = 2;
+}
+
+message IrcSTSAutoUpgradeResponse {
+}
+
+message IrcSTSRememberRequest {
+  string domain = 1;
+  int64 port = 2;
+  int64 duration = 3;
+}
+
+message IrcSTSRememberResponse {
+}
+
+message IrcSaJoinRequest {
+  string nick = 1;
+  string channel = 2;
+}
+
+message IrcSaJoinResponse {
+}
+
+message IrcSaModeRequest {
+  string target = 1;
+  string modes = 2;
+}
+
+message IrcSaModeResponse {
+}
+
+message IrcSaNickRequest {
+  string old_nick = 1;
+  string new_nick = 2;
+}
+
+message IrcSaNickResponse {
+}
+
+message IrcSaPartRequest {
+  string nick = 1;
+  string channel = 2;
+}
+
+message IrcSaPartResponse {
+}
+
+message IrcSakickRequest {
+  string channel = 1;
+  string nick = 2;
+  string reason = 3;
+}
+
+message IrcSakickResponse {
+}
+
+message IrcSaquitRequest {
+  string nick = 1;
+  string reason = 2;
+}
+
+message IrcSaquitResponse {
+}
+
+message IrcSatopicRequest {
+  string channel = 1;
+  string topic = 2;
+}
+
+message IrcSatopicResponse {
+}
+
+message IrcSdescRequest {
+  string desc = 1;
+}
+
+message IrcSdescResponse {
+}
+
+message IrcSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message IrcSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message IrcSearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message IrcSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message IrcSendActionRequest {
+  string target = 1;
+  string text = 2;
+}
+
+message IrcSendActionResponse {
+}
+
+message IrcSendCTCPRequest {
+  string target = 1;
+  string command = 2;
+  string params = 3;
+}
+
+message IrcSendCTCPResponse {
+}
+
+message IrcSendCTCPReplyRequest {
+  string target = 1;
+  string command = 2;
+  string params = 3;
+}
+
+message IrcSendCTCPReplyResponse {
+}
+
+message IrcSendChannelContextTagRequest {
+  string target = 1;
+  string channel_ctx = 2;
+  string tags = 3;
+}
+
+message IrcSendChannelContextTagResponse {
+}
+
+message IrcSendClientBatchRequest {
+  string batch_id = 1;
+  string batch_type = 2;
+  string target = 3;
+  bool start = 4;
+}
+
+message IrcSendClientBatchResponse {
+}
+
+message IrcSendImageBase64Request {
+  string param_1 = 1;
+  string param_2 = 2;
+  string param_3 = 3;
+}
+
+message IrcSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message IrcSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message IrcSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message IrcSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message IrcSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message IrcSendMultilineRequest {
+  string target = 1;
+  repeated string lines = 2;
+}
+
+message IrcSendMultilineResponse {
+}
+
+message IrcSendNoticeRequest {
+  string target = 1;
+  string text = 2;
+}
+
+message IrcSendNoticeResponse {
+}
+
+message IrcSendPassRequest {
+  string password = 1;
+}
+
+message IrcSendPassResponse {
+}
+
+message IrcSendRawCommandRequest {
+  string line = 1;
+}
+
+message IrcSendRawCommandResponse {
+}
+
+message IrcSendReactTagRequest {
+  string target = 1;
+  string msg_id = 2;
+  string emoji = 3;
+}
+
+message IrcSendReactTagResponse {
+}
+
+message IrcSendStatusMsgRequest {
+  string prefix = 1;
+  string channel = 2;
+  string text = 3;
+}
+
+message IrcSendStatusMsgResponse {
+}
+
+message IrcSendStatusNoticeRequest {
+  string prefix = 1;
+  string channel = 2;
+  string text = 3;
+}
+
+message IrcSendStatusNoticeResponse {
+}
+
+message IrcSendStickerRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+}
+
+message IrcSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message IrcSendTagMsgRequest {
+  string target = 1;
+  map<string, string> tags = 2;
+}
+
+message IrcSendTagMsgResponse {
+}
+
+message IrcSendTypingRequest {
+  string chat_id = 1;
+}
+
+message IrcSendTypingResponse {
+}
+
+message IrcSendTypingIndicatorRequest {
+  string target = 1;
+  bool typing = 2;
+}
+
+message IrcSendTypingIndicatorResponse {
+}
+
+message IrcSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message IrcSetAdminResponse {
+}
+
+message IrcSetBanExceptRequest {
+  string channel = 1;
+  string mask = 2;
+  bool add = 3;
+}
+
+message IrcSetBanExceptResponse {
+}
+
+message IrcSetCallMutedRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message IrcSetCallMutedResponse {
+}
+
+message IrcSetChannelHistoryRequest {
+  string channel = 1;
+  int64 lines = 2;
+  int64 seconds = 3;
+}
+
+message IrcSetChannelHistoryResponse {
+}
+
+message IrcSetChannelInviteOnlyRequest {
+  string channel = 1;
+  bool invite_only = 2;
+}
+
+message IrcSetChannelInviteOnlyResponse {
+}
+
+message IrcSetChannelKeyRequest {
+  string channel = 1;
+  string key = 2;
+}
+
+message IrcSetChannelKeyResponse {
+}
+
+message IrcSetChannelLimitRequest {
+  string channel = 1;
+  int64 limit = 2;
+}
+
+message IrcSetChannelLimitResponse {
+}
+
+message IrcSetChannelModeFlagRequest {
+  string channel = 1;
+  int32 mode = 2;
+  bool on = 3;
+}
+
+message IrcSetChannelModeFlagResponse {
+}
+
+message IrcSetChannelModeratedRequest {
+  string channel = 1;
+  bool moderated = 2;
+}
+
+message IrcSetChannelModeratedResponse {
+}
+
+message IrcSetChannelNoExternalRequest {
+  string channel = 1;
+  bool no_external = 2;
+}
+
+message IrcSetChannelNoExternalResponse {
+}
+
+message IrcSetChannelRedirectRequest {
+  string channel = 1;
+  string target = 2;
+}
+
+message IrcSetChannelRedirectResponse {
+}
+
+message IrcSetChannelSecretRequest {
+  string channel = 1;
+  bool secret = 2;
+}
+
+message IrcSetChannelSecretResponse {
+}
+
+message IrcSetChannelTopicLockRequest {
+  string channel = 1;
+  bool locked = 2;
+}
+
+message IrcSetChannelTopicLockResponse {
+}
+
+message IrcSetExtbanRequest {
+  string channel = 1;
+  int32 mode_char = 2;
+  string extban_type = 3;
+  string value = 4;
+}
+
+message IrcSetExtbanResponse {
+}
+
+message IrcSetFloodProtectionRequest {
+  string channel = 1;
+  string params = 2;
+}
+
+message IrcSetFloodProtectionResponse {
+}
+
+message IrcSetHalfopRequest {
+  string channel = 1;
+  string nick = 2;
+  bool halfop = 3;
+}
+
+message IrcSetHalfopResponse {
+}
+
+message IrcSetHostRequest {
+  string vhost = 1;
+}
+
+message IrcSetHostResponse {
+}
+
+message IrcSetInviteExceptRequest {
+  string channel = 1;
+  string mask = 2;
+  bool add = 3;
+}
+
+message IrcSetInviteExceptResponse {
+}
+
+message IrcSetJoinThrottleRequest {
+  string channel = 1;
+  int64 joins = 2;
+  int64 seconds = 3;
+}
+
+message IrcSetJoinThrottleResponse {
+}
+
+message IrcSetModeRequest {
+  string target = 1;
+  string modes = 2;
+  repeated string params = 3;
+}
+
+message IrcSetModeResponse {
+}
+
+message IrcSetNameRequest {
+  string realname = 1;
+}
+
+message IrcSetNameResponse {
+}
+
+message IrcSetUserModeRequest {
+  string modes = 1;
+}
+
+message IrcSetUserModeResponse {
+}
+
+message IrcSetUserModeFlagRequest {
+  int32 mode = 1;
+  bool on = 2;
+}
+
+message IrcSetUserModeFlagResponse {
+}
+
+message IrcSetVoiceRequest {
+  string channel = 1;
+  string nick = 2;
+  bool voice = 3;
+}
+
+message IrcSetVoiceResponse {
+}
+
+message IrcSetidleRequest {
+  int64 seconds = 1;
+}
+
+message IrcSetidleResponse {
+}
+
+message IrcShowCreditsRequest {
+}
+
+message IrcShowCreditsResponse {
+}
+
+message IrcShowLicenseRequest {
+}
+
+message IrcShowLicenseResponse {
+}
+
+message IrcShowStaffRequest {
+}
+
+message IrcShowStaffResponse {
+}
+
+message IrcShunRequest {
+  string mask = 1;
+  string duration = 2;
+  string reason = 3;
+}
+
+message IrcShunResponse {
+}
+
+message IrcSilenceRequest {
+  string mask = 1;
+}
+
+message IrcSilenceResponse {
+}
+
+message IrcSpamfilterAddRequest {
+  string target = 1;
+  string action = 2;
+  string tkltime = 3;
+  string reason = 4;
+  string regex = 5;
+}
+
+message IrcSpamfilterAddResponse {
+}
+
+message IrcSpamfilterDelRequest {
+  string target = 1;
+  string action = 2;
+  string regex = 3;
+}
+
+message IrcSpamfilterDelResponse {
+}
+
+message IrcStartCallRequest {
+  string param_1 = 1;
+  bool param_2 = 2;
+}
+
+message IrcStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message IrcStarttlsRequest {
+}
+
+message IrcStarttlsResponse {
+}
+
+message IrcStatServAkillRequest {
+}
+
+message IrcStatServAkillResponse {
+}
+
+message IrcStatServInfoRequest {
+}
+
+message IrcStatServInfoResponse {
+}
+
+message IrcSwhoisRequest {
+  string nick = 1;
+  string line = 2;
+}
+
+message IrcSwhoisResponse {
+}
+
+message IrcTempshunRequest {
+  string nick = 1;
+  string reason = 2;
+}
+
+message IrcTempshunResponse {
+}
+
+message IrcTerminateSessionRequest {
+  string param_1 = 1;
+}
+
+message IrcTerminateSessionResponse {
+}
+
+message IrcTlineRequest {
+  string mask = 1;
+}
+
+message IrcTlineResponse {
+}
+
+message IrcTsctlRequest {
+  string subcmd = 1;
+}
+
+message IrcTsctlResponse {
+}
+
+message IrcUnbanMaskRequest {
+  string channel = 1;
+  string mask = 2;
+}
+
+message IrcUnbanMaskResponse {
+}
+
+message IrcUnbanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message IrcUnbanMemberResponse {
+}
+
+message IrcUnblockUserRequest {
+  string user_id = 1;
+}
+
+message IrcUnblockUserResponse {
+}
+
+message IrcUndccdenyRequest {
+  string file_pattern = 1;
+}
+
+message IrcUndccdenyResponse {
+}
+
+message IrcUninviteRequest {
+  string nick = 1;
+  string channel = 2;
+}
+
+message IrcUninviteResponse {
+}
+
+message IrcUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message IrcUnpinAllMessagesResponse {
+}
+
+message IrcUnpinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message IrcUnpinMessageResponse {
+}
+
+message IrcUserIPRequest {
+  repeated string nicks = 1;
+}
+
+message IrcUserIPResponse {
+}
+
+message IrcUserhostRequest {
+  repeated string nicks = 1;
+}
+
+message IrcUserhostResponse {
+  repeated IRCUserhostEntry result_1 = 1;
+}
+
+message IrcVerifyRequest {
+  string account = 1;
+  string code = 2;
+}
+
+message IrcVerifyResponse {
+}
+
+message IrcVhostRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message IrcVhostResponse {
+}
+
+message IrcVotePollRequest {
+  string param_1 = 1;
+  string param_2 = 2;
+  int64 param_3 = 3;
+}
+
+message IrcVotePollResponse {
+}
+
+message IrcWallopsRequest {
+  string message = 1;
+}
+
+message IrcWallopsResponse {
+}
+
+message IrcWatchAddRequest {
+  repeated string nicks = 1;
+}
+
+message IrcWatchAddResponse {
+}
+
+message IrcWatchClearRequest {
+}
+
+message IrcWatchClearResponse {
+}
+
+message IrcWatchListRequest {
+}
+
+message IrcWatchListResponse {
+}
+
+message IrcWatchRemoveRequest {
+  repeated string nicks = 1;
+}
+
+message IrcWatchRemoveResponse {
+}
+
+message IrcWatchStatusRequest {
+}
+
+message IrcWatchStatusResponse {
+}
+
+message IrcWebIRCRequest {
+  string password = 1;
+  string gateway = 2;
+  string hostname = 3;
+  string ip = 4;
+}
+
+message IrcWebIRCResponse {
+}
+
+message IrcWebPushRegisterRequest {
+  string endpoint = 1;
+  string vapid_key = 2;
+  string p256dh = 3;
+  string auth = 4;
+}
+
+message IrcWebPushRegisterResponse {
+}
+
+message IrcWebPushUnregisterRequest {
+  string endpoint = 1;
+}
+
+message IrcWebPushUnregisterResponse {
+}
+
+message IrcWhoRequest {
+  string mask = 1;
+}
+
+message IrcWhoResponse {
+  repeated IRCWhoEntry result_1 = 1;
+}
+
+message IrcWhoXRequest {
+  string mask = 1;
+  string fields = 2;
+}
+
+message IrcWhoXResponse {
+}
+
+message IrcWhowasRequest {
+  string nick = 1;
+  int64 count = 2;
+}
+
+message IrcWhowasResponse {
+  repeated IRCWhowasEntry result_1 = 1;
+}
+
+message IrcXDCCBatchRequest {
+  string bot_nick = 1;
+  repeated int64 pack_nums = 2;
+}
+
+message IrcXDCCBatchResponse {
+}
+
+message IrcXDCCCancelRequest {
+  string bot_nick = 1;
+}
+
+message IrcXDCCCancelResponse {
+}
+
+message IrcXDCCInfoRequest {
+  string bot_nick = 1;
+  int64 pack_num = 2;
+}
+
+message IrcXDCCInfoResponse {
+}
+
+message IrcXDCCListRequest {
+  string bot_nick = 1;
+}
+
+message IrcXDCCListResponse {
+}
+
+message IrcXDCCRemoveRequest {
+  string bot_nick = 1;
+  int64 pack_num = 2;
+}
+
+message IrcXDCCRemoveResponse {
+}
+
+message IrcXDCCSearchRequest {
+  string bot_nick = 1;
+  string query = 2;
+}
+
+message IrcXDCCSearchResponse {
+}
+
+message IrcXDCCSendRequest {
+  string bot_nick = 1;
+  int64 pack_num = 2;
+}
+
+message IrcXDCCSendResponse {
+}
+
+message IrcZLineRequest {
+  string ip = 1;
+  string duration = 2;
+  string reason = 3;
+}
+
+message IrcZLineResponse {
+}
+

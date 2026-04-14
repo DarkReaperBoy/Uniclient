@@ -1,0 +1,6093 @@
+syntax = "proto3";
+
+package uniclient.telegram;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message ActiveSession {
+  int64 hash = 1;
+  string device = 2;
+  string platform = 3;
+  string app_name = 4;
+  string app_version = 5;
+  string ip = 6;
+  string country = 7;
+  int64 date_created = 8;
+  int64 date_active = 9;
+  bool is_current = 10;
+}
+
+message CallInfo {
+  int64 id = 1;
+  int64 access_hash = 2;
+  int64 peer_id = 3;
+  bool is_outgoing = 4;
+  bool p2_p_allowed = 5;
+  bytes auth_key = 6;
+  bytes connections = 7;
+  bytes protocol = 8;
+}
+
+message TelegramConfig {
+  int64 a_p_i_id = 1;
+  string a_p_i_hash = 2;
+  bool use_test_d_c = 3;
+  bytes session_storage = 4;
+  bytes dial_func = 5;
+  bool force_relay_i_c_e = 6;
+  bool force_v2_sig = 7;
+  bool force_v2_impl = 8;
+  bool force_v2_ref = 9;
+  bool force_v1_framing = 10;
+  bool force_instance_impl = 11;
+  bool no_own_offer = 12;
+  string max_call_version = 13;
+  string min_call_version = 14;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message TelegramAcceptCallRequest {
+  string call_id = 1;
+}
+
+message TelegramAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TelegramAccountAcceptAuthorizationRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountAcceptAuthorizationResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountCancelPasswordEmailRequest {
+}
+
+message TelegramAccountCancelPasswordEmailResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountChangeAuthorizationSettingsRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountChangeAuthorizationSettingsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountChangePhoneRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountChangePhoneResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountCheckUsernameRequest {
+  string username = 1;
+}
+
+message TelegramAccountCheckUsernameResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountClearRecentEmojiStatusesRequest {
+}
+
+message TelegramAccountClearRecentEmojiStatusesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountConfirmPasswordEmailRequest {
+  string code = 1;
+}
+
+message TelegramAccountConfirmPasswordEmailResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountConfirmPhoneRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountConfirmPhoneResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountCreateBusinessChatLinkRequest {
+  bytes link = 1;
+}
+
+message TelegramAccountCreateBusinessChatLinkResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountCreateThemeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountCreateThemeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountDeclinePasswordResetRequest {
+}
+
+message TelegramAccountDeclinePasswordResetResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountDeleteAccountRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountDeleteAccountResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountDeleteAutoSaveExceptionsRequest {
+}
+
+message TelegramAccountDeleteAutoSaveExceptionsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountDeleteBusinessChatLinkRequest {
+  string slug = 1;
+}
+
+message TelegramAccountDeleteBusinessChatLinkResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountDeletePasskeyRequest {
+  string id = 1;
+}
+
+message TelegramAccountDeletePasskeyResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountDeleteSecureValueRequest {
+  bytes types = 1;
+}
+
+message TelegramAccountDeleteSecureValueResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountDisablePeerConnectedBotRequest {
+  bytes peer = 1;
+}
+
+message TelegramAccountDisablePeerConnectedBotResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountEditBusinessChatLinkRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountEditBusinessChatLinkResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountFinishTakeoutSessionRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountFinishTakeoutSessionResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountGetAllSecureValuesRequest {
+}
+
+message TelegramAccountGetAllSecureValuesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetAuthorizationFormRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountGetAuthorizationFormResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetAutoDownloadSettingsRequest {
+}
+
+message TelegramAccountGetAutoDownloadSettingsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetAutoSaveSettingsRequest {
+}
+
+message TelegramAccountGetAutoSaveSettingsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetBotBusinessConnectionRequest {
+  string connectionid = 1;
+}
+
+message TelegramAccountGetBotBusinessConnectionResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetBusinessChatLinksRequest {
+}
+
+message TelegramAccountGetBusinessChatLinksResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetChannelDefaultEmojiStatusesRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetChannelDefaultEmojiStatusesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetChannelRestrictedStatusEmojisRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetChannelRestrictedStatusEmojisResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetChatThemesRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetChatThemesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetCollectibleEmojiStatusesRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetCollectibleEmojiStatusesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetConnectedBotsRequest {
+}
+
+message TelegramAccountGetConnectedBotsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetContactSignUpNotificationRequest {
+}
+
+message TelegramAccountGetContactSignUpNotificationResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountGetContentSettingsRequest {
+}
+
+message TelegramAccountGetContentSettingsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetDefaultBackgroundEmojisRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetDefaultBackgroundEmojisResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetDefaultEmojiStatusesRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetDefaultEmojiStatusesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetDefaultGroupPhotoEmojisRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetDefaultGroupPhotoEmojisResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetDefaultProfilePhotoEmojisRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetDefaultProfilePhotoEmojisResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetMultiWallPapersRequest {
+  bytes wallpapers = 1;
+}
+
+message TelegramAccountGetMultiWallPapersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetNotifyExceptionsRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountGetNotifyExceptionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetNotifySettingsRequest {
+  bytes peer = 1;
+}
+
+message TelegramAccountGetNotifySettingsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetPaidMessagesRevenueRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountGetPaidMessagesRevenueResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetPasskeysRequest {
+}
+
+message TelegramAccountGetPasskeysResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetPasswordSettingsRequest {
+  bytes password = 1;
+}
+
+message TelegramAccountGetPasswordSettingsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetReactionsNotifySettingsRequest {
+}
+
+message TelegramAccountGetReactionsNotifySettingsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetRecentEmojiStatusesRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetRecentEmojiStatusesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetSavedMusicIDsRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetSavedMusicIDsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetSavedRingtonesRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetSavedRingtonesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetSecureValueRequest {
+  bytes types = 1;
+}
+
+message TelegramAccountGetSecureValueResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetThemeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountGetThemeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetThemesRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountGetThemesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetTmpPasswordRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountGetTmpPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetUniqueGiftChatThemesRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountGetUniqueGiftChatThemesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetWallPaperRequest {
+  bytes wallpaper = 1;
+}
+
+message TelegramAccountGetWallPaperResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetWallPapersRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountGetWallPapersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountGetWebAuthorizationsRequest {
+}
+
+message TelegramAccountGetWebAuthorizationsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountInitPasskeyRegistrationRequest {
+}
+
+message TelegramAccountInitPasskeyRegistrationResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountInitTakeoutSessionRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountInitTakeoutSessionResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountInstallThemeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountInstallThemeResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountInstallWallPaperRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountInstallWallPaperResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountInvalidateSignInCodesRequest {
+  repeated string codes = 1;
+}
+
+message TelegramAccountInvalidateSignInCodesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountRegisterDeviceRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountRegisterDeviceResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountRegisterPasskeyRequest {
+  bytes credential = 1;
+}
+
+message TelegramAccountRegisterPasskeyResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountReorderUsernamesRequest {
+  repeated string order = 1;
+}
+
+message TelegramAccountReorderUsernamesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountReportPeerRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountReportPeerResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountReportProfilePhotoRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountReportProfilePhotoResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountResendPasswordEmailRequest {
+}
+
+message TelegramAccountResendPasswordEmailResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountResetNotifySettingsRequest {
+}
+
+message TelegramAccountResetNotifySettingsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountResetPasswordRequest {
+}
+
+message TelegramAccountResetPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountResetWallPapersRequest {
+}
+
+message TelegramAccountResetWallPapersResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountResetWebAuthorizationRequest {
+  int64 hash = 1;
+}
+
+message TelegramAccountResetWebAuthorizationResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountResetWebAuthorizationsRequest {
+}
+
+message TelegramAccountResetWebAuthorizationsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountResolveBusinessChatLinkRequest {
+  string slug = 1;
+}
+
+message TelegramAccountResolveBusinessChatLinkResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountSaveAutoDownloadSettingsRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSaveAutoDownloadSettingsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSaveAutoSaveSettingsRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSaveAutoSaveSettingsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSaveMusicRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSaveMusicResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSaveRingtoneRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSaveRingtoneResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountSaveSecureValueRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSaveSecureValueResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountSaveThemeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSaveThemeResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSaveWallPaperRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSaveWallPaperResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSendChangePhoneCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSendChangePhoneCodeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountSendConfirmPhoneCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSendConfirmPhoneCodeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountSendVerifyEmailCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSendVerifyEmailCodeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountSendVerifyPhoneCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSendVerifyPhoneCodeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountSetAuthorizationTTLRequest {
+  int64 authorizationttldays = 1;
+}
+
+message TelegramAccountSetAuthorizationTTLResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSetContactSignUpNotificationRequest {
+  bool silent = 1;
+}
+
+message TelegramAccountSetContactSignUpNotificationResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSetContentSettingsRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountSetContentSettingsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSetMainProfileTabRequest {
+  bytes tab = 1;
+}
+
+message TelegramAccountSetMainProfileTabResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountSetReactionsNotifySettingsRequest {
+  bytes settings = 1;
+}
+
+message TelegramAccountSetReactionsNotifySettingsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountToggleConnectedBotPausedRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountToggleConnectedBotPausedResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountToggleNoPaidMessagesExceptionRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountToggleNoPaidMessagesExceptionResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountToggleSponsoredMessagesRequest {
+  bool enabled = 1;
+}
+
+message TelegramAccountToggleSponsoredMessagesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountToggleUsernameRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountToggleUsernameResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUnregisterDeviceRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUnregisterDeviceResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateBusinessAwayMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateBusinessAwayMessageResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateBusinessGreetingMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateBusinessGreetingMessageResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateBusinessIntroRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateBusinessIntroResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateBusinessLocationRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateBusinessLocationResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateBusinessWorkHoursRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateBusinessWorkHoursResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateColorRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateColorResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateConnectedBotRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateConnectedBotResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountUpdateDeviceLockedRequest {
+  int64 period = 1;
+}
+
+message TelegramAccountUpdateDeviceLockedResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateEmojiStatusRequest {
+  bytes emojistatus = 1;
+}
+
+message TelegramAccountUpdateEmojiStatusResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateNotifySettingsRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateNotifySettingsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdatePasswordSettingsRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdatePasswordSettingsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdatePersonalChannelRequest {
+  bytes channel = 1;
+}
+
+message TelegramAccountUpdatePersonalChannelResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAccountUpdateThemeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUpdateThemeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountUploadRingtoneRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUploadRingtoneResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountUploadThemeRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUploadThemeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountUploadWallPaperRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountUploadWallPaperResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountVerifyEmailRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountVerifyEmailResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAccountVerifyPhoneRequest {
+  bytes request = 1;
+}
+
+message TelegramAccountVerifyPhoneResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAddChatUserRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramAddChatUserResponse {
+}
+
+message TelegramAddContactRequest {
+  string phone = 1;
+  string first_name = 2;
+  string last_name = 3;
+}
+
+message TelegramAddContactResponse {
+}
+
+message TelegramAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message TelegramAddMembersResponse {
+}
+
+message TelegramArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message TelegramArchiveChatResponse {
+}
+
+message TelegramAuthAcceptLoginTokenRequest {
+  bytes token = 1;
+}
+
+message TelegramAuthAcceptLoginTokenResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthBindTempAuthKeyRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthBindTempAuthKeyResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAuthCancelCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthCancelCodeResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAuthCheckPaidAuthRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthCheckPaidAuthResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthCheckPasswordRequest {
+  bytes password = 1;
+}
+
+message TelegramAuthCheckPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthCheckRecoveryPasswordRequest {
+  string code = 1;
+}
+
+message TelegramAuthCheckRecoveryPasswordResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAuthCodeRequestedRequest {
+}
+
+message TelegramAuthCodeRequestedResponse {
+}
+
+message TelegramAuthDropTempAuthKeysRequest {
+  repeated int64 exceptauthkeys = 1;
+}
+
+message TelegramAuthDropTempAuthKeysResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAuthExportAuthorizationRequest {
+  int64 dcid = 1;
+}
+
+message TelegramAuthExportAuthorizationResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthExportLoginTokenRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthExportLoginTokenResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthFinishPasskeyLoginRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthFinishPasskeyLoginResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthImportAuthorizationRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthImportAuthorizationResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthImportBotAuthorizationRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthImportBotAuthorizationResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthImportLoginTokenRequest {
+  bytes token = 1;
+}
+
+message TelegramAuthImportLoginTokenResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthImportWebTokenAuthorizationRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthImportWebTokenAuthorizationResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthInitPasskeyLoginRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthInitPasskeyLoginResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthPasswordRequestedRequest {
+}
+
+message TelegramAuthPasswordRequestedResponse {
+}
+
+message TelegramAuthRecoverPasswordRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthRecoverPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthReportMissingCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthReportMissingCodeResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAuthRequestFirebaseSMSRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthRequestFirebaseSMSResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAuthRequestPasswordRecoveryRequest {
+}
+
+message TelegramAuthRequestPasswordRecoveryResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthResendCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthResendCodeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthResetAuthorizationsRequest {
+}
+
+message TelegramAuthResetAuthorizationsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramAuthResetLoginEmailRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthResetLoginEmailResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthSendCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthSendCodeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthSignInRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthSignInResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthSignUpRequest {
+  bytes request = 1;
+}
+
+message TelegramAuthSignUpResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message TelegramAuthenticateResponse {
+}
+
+message TelegramBanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramBanMemberResponse {
+}
+
+message TelegramBlockUserRequest {
+  string user_id = 1;
+}
+
+message TelegramBlockUserResponse {
+}
+
+message TelegramBotsAddPreviewMediaRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsAddPreviewMediaResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsAllowSendMessageRequest {
+  bytes bot = 1;
+}
+
+message TelegramBotsAllowSendMessageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsAnswerWebhookJSONQueryRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsAnswerWebhookJSONQueryResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsCanSendMessageRequest {
+  bytes bot = 1;
+}
+
+message TelegramBotsCanSendMessageResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsCheckDownloadFileParamsRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsCheckDownloadFileParamsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsCheckUsernameRequest {
+  string username = 1;
+}
+
+message TelegramBotsCheckUsernameResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsCreateBotRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsCreateBotResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsDeletePreviewMediaRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsDeletePreviewMediaResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsEditPreviewMediaRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsEditPreviewMediaResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsExportBotTokenRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsExportBotTokenResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetAdminedBotsRequest {
+}
+
+message TelegramBotsGetAdminedBotsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetBotCommandsRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsGetBotCommandsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetBotInfoRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsGetBotInfoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetBotMenuButtonRequest {
+  bytes userid = 1;
+}
+
+message TelegramBotsGetBotMenuButtonResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetBotRecommendationsRequest {
+  bytes bot = 1;
+}
+
+message TelegramBotsGetBotRecommendationsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetPopularAppBotsRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsGetPopularAppBotsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetPreviewInfoRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsGetPreviewInfoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetPreviewMediasRequest {
+  bytes bot = 1;
+}
+
+message TelegramBotsGetPreviewMediasResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsGetRequestedWebViewButtonRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsGetRequestedWebViewButtonResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsInvokeWebViewCustomMethodRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsInvokeWebViewCustomMethodResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsReorderPreviewMediasRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsReorderPreviewMediasResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsReorderUsernamesRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsReorderUsernamesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsRequestWebViewButtonRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsRequestWebViewButtonResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsResetBotCommandsRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsResetBotCommandsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsSendCustomRequestRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsSendCustomRequestResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsSetBotBroadcastDefaultAdminRightsRequest {
+  bytes adminrights = 1;
+}
+
+message TelegramBotsSetBotBroadcastDefaultAdminRightsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsSetBotCommandsRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsSetBotCommandsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsSetBotGroupDefaultAdminRightsRequest {
+  bytes adminrights = 1;
+}
+
+message TelegramBotsSetBotGroupDefaultAdminRightsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsSetBotInfoRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsSetBotInfoResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsSetBotMenuButtonRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsSetBotMenuButtonResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsSetCustomVerificationRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsSetCustomVerificationResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsToggleUserEmojiStatusPermissionRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsToggleUserEmojiStatusPermissionResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsToggleUsernameRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsToggleUsernameResponse {
+  bool result_1 = 1;
+}
+
+message TelegramBotsUpdateStarRefProgramRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsUpdateStarRefProgramResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramBotsUpdateUserEmojiStatusRequest {
+  bytes request = 1;
+}
+
+message TelegramBotsUpdateUserEmojiStatusResponse {
+  bool result_1 = 1;
+}
+
+message TelegramCapabilitiesRequest {
+}
+
+message TelegramCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message TelegramChannelsCheckSearchPostsFloodRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsCheckSearchPostsFloodResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsCheckUsernameRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsCheckUsernameResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsConvertToGigagroupRequest {
+  bytes channel = 1;
+}
+
+message TelegramChannelsConvertToGigagroupResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsDeactivateAllUsernamesRequest {
+  bytes channel = 1;
+}
+
+message TelegramChannelsDeactivateAllUsernamesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsDeleteHistoryRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsDeleteHistoryResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsDeleteParticipantHistoryRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsDeleteParticipantHistoryResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsEditLocationRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsEditLocationResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsGetAdminedPublicChannelsRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsGetAdminedPublicChannelsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsGetChannelRecommendationsRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsGetChannelRecommendationsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsGetGroupsForDiscussionRequest {
+}
+
+message TelegramChannelsGetGroupsForDiscussionResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsGetInactiveChannelsRequest {
+}
+
+message TelegramChannelsGetInactiveChannelsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsGetLeftChannelsRequest {
+  int64 offset = 1;
+}
+
+message TelegramChannelsGetLeftChannelsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsGetMessageAuthorRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsGetMessageAuthorResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsGetMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsGetMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsReadMessageContentsRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsReadMessageContentsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsReorderUsernamesRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsReorderUsernamesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsReportAntiSpamFalsePositiveRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsReportAntiSpamFalsePositiveResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsReportSpamRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsReportSpamResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsRestrictSponsoredMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsRestrictSponsoredMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsSearchPostsRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsSearchPostsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsSetBoostsToUnblockRestrictionsRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsSetBoostsToUnblockRestrictionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsSetDiscussionGroupRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsSetDiscussionGroupResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsSetEmojiStickersRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsSetEmojiStickersResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsSetMainProfileTabRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsSetMainProfileTabResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsSetStickersRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsSetStickersResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsToggleUsernameRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsToggleUsernameResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChannelsUpdateEmojiStatusRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsUpdateEmojiStatusResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChannelsUpdatePaidMessagesPriceRequest {
+  bytes request = 1;
+}
+
+message TelegramChannelsUpdatePaidMessagesPriceResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChatlistsCheckChatlistInviteRequest {
+  string slug = 1;
+}
+
+message TelegramChatlistsCheckChatlistInviteResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChatlistsEditExportedInviteRequest {
+  bytes request = 1;
+}
+
+message TelegramChatlistsEditExportedInviteResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChatlistsGetChatlistUpdatesRequest {
+  bytes chatlist = 1;
+}
+
+message TelegramChatlistsGetChatlistUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChatlistsGetLeaveChatlistSuggestionsRequest {
+  bytes chatlist = 1;
+}
+
+message TelegramChatlistsGetLeaveChatlistSuggestionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChatlistsHideChatlistUpdatesRequest {
+  bytes chatlist = 1;
+}
+
+message TelegramChatlistsHideChatlistUpdatesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramChatlistsJoinChatlistUpdatesRequest {
+  bytes request = 1;
+}
+
+message TelegramChatlistsJoinChatlistUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramChatlistsLeaveChatlistRequest {
+  bytes request = 1;
+}
+
+message TelegramChatlistsLeaveChatlistResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramCheckChatInviteRequest {
+  string hash = 1;
+}
+
+message TelegramCheckChatInviteResponse {
+  string result_1 = 1;
+}
+
+message TelegramClearDraftRequest {
+  string chat_id = 1;
+}
+
+message TelegramClearDraftResponse {
+}
+
+message TelegramCloseRequest {
+}
+
+message TelegramCloseResponse {
+}
+
+message TelegramContactsAcceptContactRequest {
+  bytes id = 1;
+}
+
+message TelegramContactsAcceptContactResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramContactsBlockFromRepliesRequest {
+  bytes request = 1;
+}
+
+message TelegramContactsBlockFromRepliesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramContactsDeleteByPhonesRequest {
+  repeated string phones = 1;
+}
+
+message TelegramContactsDeleteByPhonesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramContactsExportContactTokenRequest {
+}
+
+message TelegramContactsExportContactTokenResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramContactsGetLocatedRequest {
+  bytes request = 1;
+}
+
+message TelegramContactsGetLocatedResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramContactsGetSavedRequest {
+}
+
+message TelegramContactsGetSavedResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramContactsGetSponsoredPeersRequest {
+  string q = 1;
+}
+
+message TelegramContactsGetSponsoredPeersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramContactsGetStatusesRequest {
+}
+
+message TelegramContactsGetStatusesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramContactsImportContactTokenRequest {
+  string token = 1;
+}
+
+message TelegramContactsImportContactTokenResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramContactsResetSavedRequest {
+}
+
+message TelegramContactsResetSavedResponse {
+  bool result_1 = 1;
+}
+
+message TelegramContactsResetTopPeerRatingRequest {
+  bytes request = 1;
+}
+
+message TelegramContactsResetTopPeerRatingResponse {
+  bool result_1 = 1;
+}
+
+message TelegramContactsSetBlockedRequest {
+  bytes request = 1;
+}
+
+message TelegramContactsSetBlockedResponse {
+  bool result_1 = 1;
+}
+
+message TelegramContactsToggleTopPeersRequest {
+  bool enabled = 1;
+}
+
+message TelegramContactsToggleTopPeersResponse {
+  bool result_1 = 1;
+}
+
+message TelegramContactsUpdateContactNoteRequest {
+  bytes request = 1;
+}
+
+message TelegramContactsUpdateContactNoteResponse {
+  bool result_1 = 1;
+}
+
+message TelegramCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message TelegramCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TelegramCreateFolderRequest {
+  string name = 1;
+  repeated string chat_ids = 2;
+}
+
+message TelegramCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message TelegramCreateForumTopicRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message TelegramCreateForumTopicResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message TelegramCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TelegramCreateGroupCallRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message TelegramCreateGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TelegramCreatePollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+}
+
+message TelegramCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramCreateScheduledGroupCallRequest {
+  string chat_id = 1;
+  string title = 2;
+  int64 schedule_date = 3;
+}
+
+message TelegramCreateScheduledGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TelegramCreateTopicRequest {
+  string chat_id = 1;
+  string name = 2;
+}
+
+message TelegramCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TelegramDeclineCallRequest {
+  string call_id = 1;
+}
+
+message TelegramDeclineCallResponse {
+}
+
+message TelegramDeleteChannelRequest {
+  string chat_id = 1;
+}
+
+message TelegramDeleteChannelResponse {
+}
+
+message TelegramDeleteChatHistoryRequest {
+  string chat_id = 1;
+}
+
+message TelegramDeleteChatHistoryResponse {
+}
+
+message TelegramDeleteChatInviteRequest {
+  string chat_id = 1;
+  string link = 2;
+}
+
+message TelegramDeleteChatInviteResponse {
+}
+
+message TelegramDeleteChatUserRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramDeleteChatUserResponse {
+}
+
+message TelegramDeleteChatlistInviteRequest {
+  int64 folder_id = 1;
+  string slug = 2;
+}
+
+message TelegramDeleteChatlistInviteResponse {
+}
+
+message TelegramDeleteContactRequest {
+  string user_id = 1;
+}
+
+message TelegramDeleteContactResponse {
+}
+
+message TelegramDeleteContactsRequest {
+  repeated string user_ids = 1;
+}
+
+message TelegramDeleteContactsResponse {
+}
+
+message TelegramDeleteFolderRequest {
+  int64 filter_id = 1;
+}
+
+message TelegramDeleteFolderResponse {
+}
+
+message TelegramDeleteHistoryRequest {
+  string chat_id = 1;
+}
+
+message TelegramDeleteHistoryResponse {
+}
+
+message TelegramDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramDeleteMessageResponse {
+}
+
+message TelegramDeleteProfilePhotosRequest {
+}
+
+message TelegramDeleteProfilePhotosResponse {
+}
+
+message TelegramDeleteScheduledMessagesRequest {
+  string chat_id = 1;
+  repeated int64 msg_ids = 2;
+}
+
+message TelegramDeleteScheduledMessagesResponse {
+}
+
+message TelegramDeleteStoriesRequest {
+  repeated int64 ids = 1;
+}
+
+message TelegramDeleteStoriesResponse {
+}
+
+message TelegramDeleteTopicHistoryRequest {
+  string chat_id = 1;
+  int64 topic_id = 2;
+}
+
+message TelegramDeleteTopicHistoryResponse {
+}
+
+message TelegramDemoteAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramDemoteAdminResponse {
+}
+
+message TelegramEditChannelPhotoRequest {
+  string chat_id = 1;
+  bytes photo_data = 2;
+}
+
+message TelegramEditChannelPhotoResponse {
+}
+
+message TelegramEditChannelTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message TelegramEditChannelTitleResponse {
+}
+
+message TelegramEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message TelegramEditChatDescriptionResponse {
+}
+
+message TelegramEditChatInviteRequest {
+  string chat_id = 1;
+  string link = 2;
+  int64 expire_date = 3;
+}
+
+message TelegramEditChatInviteResponse {
+  string result_1 = 1;
+}
+
+message TelegramEditChatTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message TelegramEditChatTitleResponse {
+}
+
+message TelegramEditCloseFriendsRequest {
+  repeated int64 user_ids = 1;
+}
+
+message TelegramEditCloseFriendsResponse {
+}
+
+message TelegramEditForumTopicRequest {
+  string chat_id = 1;
+  int64 topic_id = 2;
+  string title = 3;
+}
+
+message TelegramEditForumTopicResponse {
+}
+
+message TelegramEditMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string text = 3;
+}
+
+message TelegramEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramEndCallRequest {
+  string call_id = 1;
+}
+
+message TelegramEndCallResponse {
+}
+
+message TelegramExportChatInviteRequest {
+  string chat_id = 1;
+}
+
+message TelegramExportChatInviteResponse {
+  string result_1 = 1;
+}
+
+message TelegramExportChatlistInviteRequest {
+  int64 folder_id = 1;
+  string title = 2;
+  repeated string peer_ids = 3;
+}
+
+message TelegramExportChatlistInviteResponse {
+  string result_1 = 1;
+}
+
+message TelegramExportMessageLinkRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramExportMessageLinkResponse {
+  string result_1 = 1;
+}
+
+message TelegramFaveStickerRequest {
+  int64 file_id = 1;
+  bool unfave = 2;
+}
+
+message TelegramFaveStickerResponse {
+}
+
+message TelegramForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message TelegramForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramGetAccountTTLRequest {
+}
+
+message TelegramGetAccountTTLResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetActiveSessionsRequest {
+}
+
+message TelegramGetActiveSessionsResponse {
+  repeated ActiveSession result_1 = 1;
+}
+
+message TelegramGetAdminLogRequest {
+  string chat_id = 1;
+  int64 limit = 2;
+}
+
+message TelegramGetAdminLogResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetAllDraftsRequest {
+}
+
+message TelegramGetAllDraftsResponse {
+}
+
+message TelegramGetAllStickerSetsRequest {
+}
+
+message TelegramGetAllStickerSetsResponse {
+  repeated string result_1 = 1;
+}
+
+message TelegramGetAllStoriesRequest {
+}
+
+message TelegramGetAllStoriesResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetAppConfigRequest {
+}
+
+message TelegramGetAppConfigResponse {
+  bool result_1 = 1;
+}
+
+message TelegramGetAppConfigCheckRequest {
+}
+
+message TelegramGetAppConfigCheckResponse {
+}
+
+message TelegramGetBirthdaysCountRequest {
+}
+
+message TelegramGetBirthdaysCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetBlockedUsersRequest {
+}
+
+message TelegramGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message TelegramGetBotCallbackAnswerRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  bytes data = 3;
+}
+
+message TelegramGetBotCallbackAnswerResponse {
+  string result_1 = 1;
+}
+
+message TelegramGetBroadcastStatsRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetBroadcastStatsResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetCallConfigRequest {
+}
+
+message TelegramGetCallConfigResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetChannelDifferenceRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetChannelDifferenceResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetChatlistInvitesRequest {
+  int64 folder_id = 1;
+}
+
+message TelegramGetChatlistInvitesResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetCommonChatsRequest {
+  string user_id = 1;
+  int64 limit = 2;
+}
+
+message TelegramGetCommonChatsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetConfigRequest {
+}
+
+message TelegramGetConfigResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetConfigDCCountRequest {
+}
+
+message TelegramGetConfigDCCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetContactIDsRequest {
+}
+
+message TelegramGetContactIDsResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetContactsRequest {
+}
+
+message TelegramGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message TelegramGetCountriesListRequest {
+}
+
+message TelegramGetCountriesListResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetDefaultHistoryTTLRequest {
+}
+
+message TelegramGetDefaultHistoryTTLResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetDialogUnreadMarksCountRequest {
+}
+
+message TelegramGetDialogUnreadMarksCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message TelegramGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetDifferenceCheckRequest {
+}
+
+message TelegramGetDifferenceCheckResponse {
+}
+
+message TelegramGetFavedStickersRequest {
+}
+
+message TelegramGetFavedStickersResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetFeaturedStickersCountRequest {
+}
+
+message TelegramGetFeaturedStickersCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetFoldersRequest {
+}
+
+message TelegramGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message TelegramGetForumTopicsRequest {
+  string chat_id = 1;
+  int64 limit = 2;
+}
+
+message TelegramGetForumTopicsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetFullChannelRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetFullChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetFullChatRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetFullChatResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetFullChatParticipantsCountRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetFullChatParticipantsCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetFullUserRequest {
+  string user_id = 1;
+}
+
+message TelegramGetFullUserResponse {
+  uniclient.User result_1 = 1;
+}
+
+message TelegramGetGlobalPrivacyRequest {
+}
+
+message TelegramGetGlobalPrivacyResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramGetGroupCallRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TelegramGetGroupCallStreamChannelsRequest {
+  string call_id = 1;
+}
+
+message TelegramGetGroupCallStreamChannelsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramGetGroupCallStreamRtmpURLRequest {
+  string chat_id = 1;
+  bool revoke = 2;
+}
+
+message TelegramGetGroupCallStreamRtmpURLResponse {
+  string result_1 = 1;
+  string result_2 = 2;
+}
+
+message TelegramGetInlineBotResultsRequest {
+  string bot_id = 1;
+  string query = 2;
+}
+
+message TelegramGetInlineBotResultsResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetInviteImportersRequest {
+  string chat_id = 1;
+  string link = 2;
+  int64 limit = 3;
+}
+
+message TelegramGetInviteImportersResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message TelegramGetMegagroupStatsRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetMegagroupStatsResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message TelegramGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message TelegramGetMessageReactionsListRequest {
+  string chat_id = 1;
+  int64 msg_id = 2;
+  int64 limit = 3;
+}
+
+message TelegramGetMessageReactionsListResponse {
+  repeated uniclient.Reaction result_1 = 1;
+}
+
+message TelegramGetMessageReadParticipantsRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramGetMessageReadParticipantsResponse {
+  repeated int64 result_1 = 1;
+}
+
+message TelegramGetMessageViewsRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramGetMessageViewsResponse {
+  repeated int64 result_1 = 1;
+}
+
+message TelegramGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message TelegramGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message TelegramGetNearestDCRequest {
+}
+
+message TelegramGetNearestDCResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetOnlineCountRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetOnlineCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetOutboxReadDateRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramGetOutboxReadDateResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetParticipantInfoRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramGetParticipantInfoResponse {
+  uniclient.User result_1 = 1;
+}
+
+message TelegramGetParticipantsRequest {
+  string chat_id = 1;
+  int64 limit = 2;
+}
+
+message TelegramGetParticipantsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message TelegramGetPasswordRequest {
+}
+
+message TelegramGetPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramGetPeerSettingsCheckRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetPeerSettingsCheckResponse {
+}
+
+message TelegramGetPeerStoriesRequest {
+  string peer_id = 1;
+}
+
+message TelegramGetPeerStoriesResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetPinnedDialogsRequest {
+}
+
+message TelegramGetPinnedDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetPinnedStoriesRequest {
+  string user_id = 1;
+}
+
+message TelegramGetPinnedStoriesResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetPollResultsRequest {
+  string chat_id = 1;
+  int64 msg_id = 2;
+}
+
+message TelegramGetPollResultsResponse {
+}
+
+message TelegramGetPollVotesRequest {
+  string chat_id = 1;
+  int64 msg_id = 2;
+  int64 limit = 3;
+}
+
+message TelegramGetPollVotesResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetPrivacyRequest {
+  bytes key = 1;
+}
+
+message TelegramGetPrivacyResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramGetProfileRequest {
+  string user_id = 1;
+}
+
+message TelegramGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message TelegramGetReactionsListRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 limit = 3;
+}
+
+message TelegramGetReactionsListResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetReadStateRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message TelegramGetRecentStickersCountRequest {
+}
+
+message TelegramGetRecentStickersCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetScheduledMessagesRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetScheduledMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message TelegramGetSearchCalendarRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetSearchCalendarResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetSearchCountersRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetSearchCountersResponse {
+  repeated int64 result_1 = 1;
+}
+
+message TelegramGetSendAsRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetSendAsResponse {
+  repeated string result_1 = 1;
+}
+
+message TelegramGetSessionsRequest {
+}
+
+message TelegramGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message TelegramGetStickerSetRequest {
+  string short_name = 1;
+}
+
+message TelegramGetStickerSetResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramGetStoryViewsRequest {
+  repeated int64 ids = 1;
+}
+
+message TelegramGetStoryViewsResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetSuggestedFoldersCountRequest {
+}
+
+message TelegramGetSuggestedFoldersCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetTopPeersCountRequest {
+}
+
+message TelegramGetTopPeersCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetUnreadMentionsRequest {
+  string chat_id = 1;
+  int64 limit = 2;
+}
+
+message TelegramGetUnreadMentionsResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message TelegramGetUnreadReactionsRequest {
+  string chat_id = 1;
+  int64 limit = 2;
+}
+
+message TelegramGetUnreadReactionsResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message TelegramGetUserPhotosRequest {
+  string user_id = 1;
+  int64 limit = 2;
+}
+
+message TelegramGetUserPhotosResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramGetWebPagePreviewRequest {
+  string url = 1;
+}
+
+message TelegramGetWebPagePreviewResponse {
+  string result_1 = 1;
+}
+
+message TelegramHelpAcceptTermsOfServiceRequest {
+  bytes id = 1;
+}
+
+message TelegramHelpAcceptTermsOfServiceResponse {
+  bool result_1 = 1;
+}
+
+message TelegramHelpDismissSuggestionRequest {
+  bytes request = 1;
+}
+
+message TelegramHelpDismissSuggestionResponse {
+  bool result_1 = 1;
+}
+
+message TelegramHelpEditUserInfoRequest {
+  bytes request = 1;
+}
+
+message TelegramHelpEditUserInfoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetAppUpdateRequest {
+  string source = 1;
+}
+
+message TelegramHelpGetAppUpdateResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetCDNConfigRequest {
+}
+
+message TelegramHelpGetCDNConfigResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetDeepLinkInfoRequest {
+  string path = 1;
+}
+
+message TelegramHelpGetDeepLinkInfoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetInviteTextRequest {
+}
+
+message TelegramHelpGetInviteTextResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetPassportConfigRequest {
+  int64 hash = 1;
+}
+
+message TelegramHelpGetPassportConfigResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetPeerColorsRequest {
+  int64 hash = 1;
+}
+
+message TelegramHelpGetPeerColorsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetPeerProfileColorsRequest {
+  int64 hash = 1;
+}
+
+message TelegramHelpGetPeerProfileColorsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetPremiumPromoRequest {
+}
+
+message TelegramHelpGetPremiumPromoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetPromoDataRequest {
+}
+
+message TelegramHelpGetPromoDataResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetRecentMeURLsRequest {
+  string referer = 1;
+}
+
+message TelegramHelpGetRecentMeURLsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetSupportRequest {
+}
+
+message TelegramHelpGetSupportResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetSupportNameRequest {
+}
+
+message TelegramHelpGetSupportNameResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetTermsOfServiceUpdateRequest {
+}
+
+message TelegramHelpGetTermsOfServiceUpdateResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetTimezonesListRequest {
+  int64 hash = 1;
+}
+
+message TelegramHelpGetTimezonesListResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpGetUserInfoRequest {
+  bytes userid = 1;
+}
+
+message TelegramHelpGetUserInfoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramHelpHidePromoDataRequest {
+  bytes peer = 1;
+}
+
+message TelegramHelpHidePromoDataResponse {
+  bool result_1 = 1;
+}
+
+message TelegramHelpSaveAppLogRequest {
+  bytes events = 1;
+}
+
+message TelegramHelpSaveAppLogResponse {
+  bool result_1 = 1;
+}
+
+message TelegramHelpSetBotUpdatesStatusRequest {
+  bytes request = 1;
+}
+
+message TelegramHelpSetBotUpdatesStatusResponse {
+  bool result_1 = 1;
+}
+
+message TelegramHideChatJoinRequestRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool approved = 3;
+}
+
+message TelegramHideChatJoinRequestResponse {
+}
+
+message TelegramImportChatInviteRequest {
+  string hash = 1;
+}
+
+message TelegramImportChatInviteResponse {
+}
+
+message TelegramImportContactsRequest {
+  bytes contacts = 1;
+}
+
+message TelegramImportContactsResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramInviteToChannelRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message TelegramInviteToChannelResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramInvokeJSONRequest {
+  string json_data = 1;
+  bool use_snake_case = 2;
+}
+
+message TelegramInvokeJSONResponse {
+  string result_1 = 1;
+}
+
+message TelegramJoinChannelRequest {
+  string chat_id = 1;
+}
+
+message TelegramJoinChannelResponse {
+}
+
+message TelegramJoinChatlistInviteRequest {
+  string slug = 1;
+  repeated string peer_ids = 2;
+}
+
+message TelegramJoinChatlistInviteResponse {
+}
+
+message TelegramJoinGroupCallRequest {
+  string chat_id = 1;
+}
+
+message TelegramJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TelegramJoinGroupCallWithVideoRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message TelegramJoinGroupCallWithVideoResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TelegramLangpackGetDifferenceRequest {
+  bytes request = 1;
+}
+
+message TelegramLangpackGetDifferenceResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramLangpackGetLangPackRequest {
+  bytes request = 1;
+}
+
+message TelegramLangpackGetLangPackResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramLangpackGetLanguageRequest {
+  bytes request = 1;
+}
+
+message TelegramLangpackGetLanguageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramLangpackGetLanguagesRequest {
+  string langpack = 1;
+}
+
+message TelegramLangpackGetLanguagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramLangpackGetStringsRequest {
+  bytes request = 1;
+}
+
+message TelegramLangpackGetStringsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramLeaveChannelRequest {
+  string chat_id = 1;
+}
+
+message TelegramLeaveChannelResponse {
+}
+
+message TelegramLeaveChatRequest {
+  string chat_id = 1;
+}
+
+message TelegramLeaveChatResponse {
+}
+
+message TelegramLeaveGroupCallRequest {
+  string call_id = 1;
+}
+
+message TelegramLeaveGroupCallResponse {
+}
+
+message TelegramLogoutRequest {
+}
+
+message TelegramLogoutResponse {
+}
+
+message TelegramMarkAsReadRequest {
+  string chat_id = 1;
+  string up_to_msg_id = 2;
+}
+
+message TelegramMarkAsReadResponse {
+}
+
+message TelegramMarkDialogUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message TelegramMarkDialogUnreadResponse {
+}
+
+message TelegramMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message TelegramMarkUnreadResponse {
+}
+
+message TelegramMessagesAcceptEncryptionRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesAcceptEncryptionResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesAcceptURLAuthRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesAcceptURLAuthResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesAddPollAnswerRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesAddPollAnswerResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesAppendTodoListRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesAppendTodoListResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesCheckHistoryImportRequest {
+  string importhead = 1;
+}
+
+message TelegramMessagesCheckHistoryImportResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesCheckHistoryImportPeerRequest {
+  bytes peer = 1;
+}
+
+message TelegramMessagesCheckHistoryImportPeerResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesCheckQuickReplyShortcutRequest {
+  string shortcut = 1;
+}
+
+message TelegramMessagesCheckQuickReplyShortcutResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesCheckURLAuthMatchCodeRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesCheckURLAuthMatchCodeResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesClearAllDraftsRequest {
+}
+
+message TelegramMessagesClearAllDraftsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesClearRecentReactionsRequest {
+}
+
+message TelegramMessagesClearRecentReactionsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesClearRecentStickersRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesClearRecentStickersResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesClickSponsoredMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesClickSponsoredMessageResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesComposeMessageWithAIRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesComposeMessageWithAIResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesDeclineURLAuthRequest {
+  string url = 1;
+}
+
+message TelegramMessagesDeclineURLAuthResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesDeleteChatRequest {
+  int64 chatid = 1;
+}
+
+message TelegramMessagesDeleteChatResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesDeleteFactCheckRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesDeleteFactCheckResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesDeletePhoneCallHistoryRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesDeletePhoneCallHistoryResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesDeletePollAnswerRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesDeletePollAnswerResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesDeleteQuickReplyMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesDeleteQuickReplyMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesDeleteQuickReplyShortcutRequest {
+  int64 shortcutid = 1;
+}
+
+message TelegramMessagesDeleteQuickReplyShortcutResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesDeleteRevokedExportedChatInvitesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesDeleteRevokedExportedChatInvitesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesDeleteSavedHistoryRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesDeleteSavedHistoryResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesDiscardEncryptionRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesDiscardEncryptionResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesEditChatAboutRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditChatAboutResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesEditChatAdminRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditChatAdminResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesEditChatCreatorRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditChatCreatorResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesEditChatParticipantRankRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditChatParticipantRankResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesEditChatPhotoRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditChatPhotoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesEditChatTitleRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditChatTitleResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesEditFactCheckRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditFactCheckResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesEditInlineBotMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditInlineBotMessageResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesEditQuickReplyShortcutRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesEditQuickReplyShortcutResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesGetAdminsWithInvitesRequest {
+  bytes peer = 1;
+}
+
+message TelegramMessagesGetAdminsWithInvitesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetArchivedStickersRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetArchivedStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetAttachMenuBotRequest {
+  bytes bot = 1;
+}
+
+message TelegramMessagesGetAttachMenuBotResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetAttachMenuBotsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetAttachMenuBotsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetAttachedStickersRequest {
+  bytes media = 1;
+}
+
+message TelegramMessagesGetAttachedStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetAvailableEffectsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetAvailableEffectsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetAvailableReactionsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetAvailableReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetBotAppRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetBotAppResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetChatsRequest {
+  repeated int64 id = 1;
+}
+
+message TelegramMessagesGetChatsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetCustomEmojiDocumentsRequest {
+  repeated int64 documentid = 1;
+}
+
+message TelegramMessagesGetCustomEmojiDocumentsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetDefaultTagReactionsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetDefaultTagReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetDiscussionMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetDiscussionMessageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetDocumentByHashRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetDocumentByHashResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiGameInfoRequest {
+}
+
+message TelegramMessagesGetEmojiGameInfoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiGroupsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetEmojiGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiKeywordsRequest {
+  string langcode = 1;
+}
+
+message TelegramMessagesGetEmojiKeywordsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiKeywordsDifferenceRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetEmojiKeywordsDifferenceResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiKeywordsLanguagesRequest {
+  repeated string langcodes = 1;
+}
+
+message TelegramMessagesGetEmojiKeywordsLanguagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiProfilePhotoGroupsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetEmojiProfilePhotoGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiStatusGroupsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetEmojiStatusGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiStickerGroupsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetEmojiStickerGroupsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiStickersRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetEmojiStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetEmojiURLRequest {
+  string langcode = 1;
+}
+
+message TelegramMessagesGetEmojiURLResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetExportedChatInviteRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetExportedChatInviteResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetExportedChatInvitesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetExportedChatInvitesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetExtendedMediaRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetExtendedMediaResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetFactCheckRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetFactCheckResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetFeaturedEmojiStickersRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetFeaturedEmojiStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetForumTopicsByIDRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetForumTopicsByIDResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetFutureChatCreatorAfterLeaveRequest {
+  bytes peer = 1;
+}
+
+message TelegramMessagesGetFutureChatCreatorAfterLeaveResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetGameHighScoresRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetGameHighScoresResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetInlineGameHighScoresRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetInlineGameHighScoresResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetMaskStickersRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetMaskStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetMessageEditDataRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetMessageEditDataResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetMessagesRequest {
+  bytes id = 1;
+}
+
+message TelegramMessagesGetMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetMessagesReactionsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetMessagesReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetMyStickersRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetMyStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetOldFeaturedStickersRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetOldFeaturedStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetPaidReactionPrivacyRequest {
+}
+
+message TelegramMessagesGetPaidReactionPrivacyResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetPeerDialogsRequest {
+  bytes peers = 1;
+}
+
+message TelegramMessagesGetPeerDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetPinnedSavedDialogsRequest {
+}
+
+message TelegramMessagesGetPinnedSavedDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetPreparedInlineMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetPreparedInlineMessageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetQuickRepliesRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetQuickRepliesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetQuickReplyMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetQuickReplyMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetRecentLocationsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetRecentLocationsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetRecentReactionsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetRecentReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetRepliesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetRepliesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetSavedDialogsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetSavedDialogsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetSavedDialogsByIDRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetSavedDialogsByIDResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetSavedGifsRequest {
+  int64 hash = 1;
+}
+
+message TelegramMessagesGetSavedGifsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetSavedHistoryRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetSavedHistoryResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetSavedReactionTagsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetSavedReactionTagsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetScheduledMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetScheduledMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetSearchResultsPositionsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetSearchResultsPositionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetSplitRangesRequest {
+}
+
+message TelegramMessagesGetSplitRangesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetSponsoredMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetSponsoredMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetStickersRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetTopReactionsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetTopReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetUnreadPollVotesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetUnreadPollVotesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesGetWebPageRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesGetWebPageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesHideAllChatJoinRequestsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesHideAllChatJoinRequestsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesHidePeerSettingsBarRequest {
+  bytes peer = 1;
+}
+
+message TelegramMessagesHidePeerSettingsBarResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesInitHistoryImportRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesInitHistoryImportResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesInstallStickerSetRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesInstallStickerSetResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesProlongWebViewRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesProlongWebViewResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesRateTranscribedAudioRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesRateTranscribedAudioResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReadDiscussionRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReadDiscussionResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReadEncryptedHistoryRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReadEncryptedHistoryResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReadFeaturedStickersRequest {
+  repeated int64 id = 1;
+}
+
+message TelegramMessagesReadFeaturedStickersResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReadMessageContentsRequest {
+  repeated int64 id = 1;
+}
+
+message TelegramMessagesReadMessageContentsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesReadPollVotesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReadPollVotesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesReadSavedHistoryRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReadSavedHistoryResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReceivedMessagesRequest {
+  int64 maxid = 1;
+}
+
+message TelegramMessagesReceivedMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesReceivedQueueRequest {
+  int64 maxqts = 1;
+}
+
+message TelegramMessagesReceivedQueueResponse {
+  repeated int64 result_1 = 1;
+}
+
+message TelegramMessagesReorderPinnedSavedDialogsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReorderPinnedSavedDialogsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReorderQuickRepliesRequest {
+  repeated int64 order = 1;
+}
+
+message TelegramMessagesReorderQuickRepliesResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReorderStickerSetsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReorderStickerSetsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReportRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReportResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesReportEncryptedSpamRequest {
+  bytes peer = 1;
+}
+
+message TelegramMessagesReportEncryptedSpamResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReportMessagesDeliveryRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReportMessagesDeliveryResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReportMusicListenRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReportMusicListenResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReportReactionRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReportReactionResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReportReadMetricsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReportReadMetricsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReportSpamRequest {
+  bytes peer = 1;
+}
+
+message TelegramMessagesReportSpamResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesReportSponsoredMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesReportSponsoredMessageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesRequestAppWebViewRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesRequestAppWebViewResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesRequestEncryptionRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesRequestEncryptionResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesRequestMainWebViewRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesRequestMainWebViewResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesRequestSimpleWebViewRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesRequestSimpleWebViewResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesRequestURLAuthRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesRequestURLAuthResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesRequestWebViewRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesRequestWebViewResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSaveDefaultSendAsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSaveDefaultSendAsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSaveGifRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSaveGifResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSavePreparedInlineMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSavePreparedInlineMessageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSaveRecentStickerRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSaveRecentStickerResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSearchCustomEmojiRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSearchCustomEmojiResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSearchEmojiStickerSetsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSearchEmojiStickerSetsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSearchSentMediaRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSearchSentMediaResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSearchStickersRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSearchStickersResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendBotRequestedPeerRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendBotRequestedPeerResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendEncryptedRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendEncryptedResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendEncryptedFileRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendEncryptedFileResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendEncryptedServiceRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendEncryptedServiceResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendPaidReactionRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendPaidReactionResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendQuickReplyMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendQuickReplyMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendScreenshotNotificationRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendScreenshotNotificationResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendWebViewDataRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendWebViewDataResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSendWebViewResultMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSendWebViewResultMessageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSetBotCallbackAnswerRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSetBotCallbackAnswerResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSetBotPrecheckoutResultsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSetBotPrecheckoutResultsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSetBotShippingResultsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSetBotShippingResultsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSetDefaultHistoryTTLRequest {
+  int64 period = 1;
+}
+
+message TelegramMessagesSetDefaultHistoryTTLResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSetEncryptedTypingRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSetEncryptedTypingResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSetGameScoreRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSetGameScoreResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesSetInlineBotResultsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSetInlineBotResultsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSetInlineGameScoreRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSetInlineGameScoreResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesStartHistoryImportRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesStartHistoryImportResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesSummarizeTextRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesSummarizeTextResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesToggleBotInAttachMenuRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesToggleBotInAttachMenuResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesToggleDialogFilterTagsRequest {
+  bool enabled = 1;
+}
+
+message TelegramMessagesToggleDialogFilterTagsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesTogglePaidReactionPrivacyRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesTogglePaidReactionPrivacyResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesTogglePeerTranslationsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesTogglePeerTranslationsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesToggleSavedDialogPinRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesToggleSavedDialogPinResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesToggleStickerSetsRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesToggleStickerSetsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesToggleSuggestedPostApprovalRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesToggleSuggestedPostApprovalResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesToggleTodoCompletedRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesToggleTodoCompletedResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesTranscribeAudioRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesTranscribeAudioResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesUninstallStickerSetRequest {
+  bytes stickerset = 1;
+}
+
+message TelegramMessagesUninstallStickerSetResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesUpdateSavedReactionTagRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesUpdateSavedReactionTagResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMessagesUploadEncryptedFileRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesUploadEncryptedFileResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesUploadImportedMediaRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesUploadImportedMediaResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesUploadMediaRequest {
+  bytes request = 1;
+}
+
+message TelegramMessagesUploadMediaResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramMessagesViewSponsoredMessageRequest {
+  bytes randomid = 1;
+}
+
+message TelegramMessagesViewSponsoredMessageResponse {
+  bool result_1 = 1;
+}
+
+message TelegramMigrateChatRequest {
+  string chat_id = 1;
+}
+
+message TelegramMigrateChatResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message TelegramMuteChatResponse {
+}
+
+message TelegramNameRequest {
+}
+
+message TelegramNameResponse {
+  string result_1 = 1;
+}
+
+message TelegramPhoneCheckGroupCallRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneCheckGroupCallResponse {
+  repeated int64 result_1 = 1;
+}
+
+message TelegramPhoneCreateConferenceCallRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneCreateConferenceCallResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneCreateGroupCallRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneCreateGroupCallResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneDeclineConferenceCallInviteRequest {
+  int64 msgid = 1;
+}
+
+message TelegramPhoneDeclineConferenceCallInviteResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneDeleteConferenceCallParticipantsRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneDeleteConferenceCallParticipantsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneDeleteGroupCallMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneDeleteGroupCallMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneDeleteGroupCallParticipantMessagesRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneDeleteGroupCallParticipantMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneDiscardGroupCallRequest {
+  bytes call = 1;
+}
+
+message TelegramPhoneDiscardGroupCallResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneEditGroupCallParticipantRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneEditGroupCallParticipantResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneEditGroupCallTitleRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneEditGroupCallTitleResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneExportGroupCallInviteRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneExportGroupCallInviteResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneGetGroupCallRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneGetGroupCallResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneGetGroupCallChainBlocksRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneGetGroupCallChainBlocksResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneGetGroupCallJoinAsRequest {
+  bytes peer = 1;
+}
+
+message TelegramPhoneGetGroupCallJoinAsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneGetGroupCallStarsRequest {
+  bytes call = 1;
+}
+
+message TelegramPhoneGetGroupCallStarsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneGetGroupCallStreamChannelsRequest {
+  bytes call = 1;
+}
+
+message TelegramPhoneGetGroupCallStreamChannelsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneGetGroupCallStreamRtmpURLRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneGetGroupCallStreamRtmpURLResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneGetGroupParticipantsRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneGetGroupParticipantsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneInviteConferenceCallParticipantRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneInviteConferenceCallParticipantResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneInviteToGroupCallRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneInviteToGroupCallResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneJoinGroupCallRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneJoinGroupCallResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneJoinGroupCallPresentationRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneJoinGroupCallPresentationResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneLeaveGroupCallRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneLeaveGroupCallResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneLeaveGroupCallPresentationRequest {
+  bytes call = 1;
+}
+
+message TelegramPhoneLeaveGroupCallPresentationResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneReceivedCallRequest {
+  bytes peer = 1;
+}
+
+message TelegramPhoneReceivedCallResponse {
+  bool result_1 = 1;
+}
+
+message TelegramPhoneSaveCallDebugRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneSaveCallDebugResponse {
+  bool result_1 = 1;
+}
+
+message TelegramPhoneSaveCallLogRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneSaveCallLogResponse {
+  bool result_1 = 1;
+}
+
+message TelegramPhoneSaveDefaultGroupCallJoinAsRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneSaveDefaultGroupCallJoinAsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramPhoneSaveDefaultSendAsRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneSaveDefaultSendAsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramPhoneSendConferenceCallBroadcastRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneSendConferenceCallBroadcastResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneSendGroupCallEncryptedMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneSendGroupCallEncryptedMessageResponse {
+  bool result_1 = 1;
+}
+
+message TelegramPhoneSendGroupCallMessageRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneSendGroupCallMessageResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneSetCallRatingRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneSetCallRatingResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneStartScheduledGroupCallRequest {
+  bytes call = 1;
+}
+
+message TelegramPhoneStartScheduledGroupCallResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneToggleGroupCallRecordRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneToggleGroupCallRecordResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneToggleGroupCallSettingsRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneToggleGroupCallSettingsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhoneToggleGroupCallStartSubscriptionRequest {
+  bytes request = 1;
+}
+
+message TelegramPhoneToggleGroupCallStartSubscriptionResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhotosUpdateProfilePhotoRequest {
+  bytes request = 1;
+}
+
+message TelegramPhotosUpdateProfilePhotoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPhotosUploadContactProfilePhotoRequest {
+  bytes request = 1;
+}
+
+message TelegramPhotosUploadContactProfilePhotoResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramPinDialogRequest {
+  string chat_id = 1;
+}
+
+message TelegramPinDialogResponse {
+}
+
+message TelegramPinForumTopicRequest {
+  string chat_id = 1;
+  int64 topic_id = 2;
+  bool pinned = 3;
+}
+
+message TelegramPinForumTopicResponse {
+}
+
+message TelegramPinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramPinMessageResponse {
+}
+
+message TelegramPromoteAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bytes rights = 3;
+}
+
+message TelegramPromoteAdminResponse {
+}
+
+message TelegramProvideAuthCodeRequest {
+  string code = 1;
+}
+
+message TelegramProvideAuthCodeResponse {
+}
+
+message TelegramProvideAuthPasswordRequest {
+  string password = 1;
+}
+
+message TelegramProvideAuthPasswordResponse {
+}
+
+message TelegramRawCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+  bool broadcast = 3;
+  bool megagroup = 4;
+}
+
+message TelegramRawCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message TelegramReactToMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string emoji = 3;
+}
+
+message TelegramReactToMessageResponse {
+}
+
+message TelegramReactToStoryRequest {
+  string user_id = 1;
+  int64 story_id = 2;
+  string emoji = 3;
+}
+
+message TelegramReactToStoryResponse {
+}
+
+message TelegramReadMentionsRequest {
+  string chat_id = 1;
+}
+
+message TelegramReadMentionsResponse {
+}
+
+message TelegramReadReactionsRequest {
+  string chat_id = 1;
+}
+
+message TelegramReadReactionsResponse {
+}
+
+message TelegramRemoveMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramRemoveMemberResponse {
+}
+
+message TelegramReorderDialogFiltersRequest {
+  repeated int64 ids = 1;
+}
+
+message TelegramReorderDialogFiltersResponse {
+}
+
+message TelegramReorderPinnedDialogsRequest {
+  repeated string chat_ids = 1;
+}
+
+message TelegramReorderPinnedDialogsResponse {
+}
+
+message TelegramReorderPinnedForumTopicsRequest {
+  string chat_id = 1;
+  repeated int64 topic_ids = 2;
+}
+
+message TelegramReorderPinnedForumTopicsResponse {
+}
+
+message TelegramReplyToMessageRequest {
+  string chat_id = 1;
+  string reply_to_msg_id = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message TelegramReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramResolvePhoneRequest {
+  string phone = 1;
+}
+
+message TelegramResolvePhoneResponse {
+  string result_1 = 1;
+}
+
+message TelegramResolveUsernameRequest {
+  string username = 1;
+}
+
+message TelegramResolveUsernameResponse {
+  string result_1 = 1;
+}
+
+message TelegramRestrictUserRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bytes rights = 3;
+}
+
+message TelegramRestrictUserResponse {
+}
+
+message TelegramSaveDraftRequest {
+  string chat_id = 1;
+  string text = 2;
+}
+
+message TelegramSaveDraftResponse {
+}
+
+message TelegramSearchContactsCountRequest {
+  string query = 1;
+}
+
+message TelegramSearchContactsCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message TelegramSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message TelegramSearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message TelegramSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message TelegramSearchMessagesGlobalRequest {
+  string query = 1;
+  int64 limit = 2;
+}
+
+message TelegramSearchMessagesGlobalResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message TelegramSearchStickerSetsCountRequest {
+  string query = 1;
+}
+
+message TelegramSearchStickerSetsCountResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramSendAudioFrameRequest {
+  string call_id = 1;
+  bytes opus_data = 2;
+}
+
+message TelegramSendAudioFrameResponse {
+}
+
+message TelegramSendCallRatingRequest {
+  string call_id = 1;
+  int64 rating = 2;
+  string comment = 3;
+}
+
+message TelegramSendCallRatingResponse {
+}
+
+message TelegramSendImageBase64Request {
+  string chat_id = 1;
+  string b64 = 2;
+  string caption = 3;
+}
+
+message TelegramSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramSendInlineBotResultRequest {
+  string chat_id = 1;
+  int64 query_id = 2;
+  string result_id = 3;
+}
+
+message TelegramSendInlineBotResultResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message TelegramSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message TelegramSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramSendMultiMediaRequest {
+  string chat_id = 1;
+  bytes media_inputs = 2;
+}
+
+message TelegramSendMultiMediaResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramSendPollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string answers = 3;
+}
+
+message TelegramSendPollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramSendScheduledRequest {
+  string chat_id = 1;
+  string text = 2;
+  int64 schedule_date = 3;
+}
+
+message TelegramSendScheduledResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramSendScheduledNowRequest {
+  string chat_id = 1;
+  repeated int64 msg_ids = 2;
+}
+
+message TelegramSendScheduledNowResponse {
+}
+
+message TelegramSendScreenFrameRequest {
+  string call_id = 1;
+  bytes vp8_frame = 2;
+}
+
+message TelegramSendScreenFrameResponse {
+}
+
+message TelegramSendScreenFrameYUVRequest {
+  string call_id = 1;
+  bytes yuv420p = 2;
+  int64 width = 3;
+  int64 height = 4;
+}
+
+message TelegramSendScreenFrameYUVResponse {
+}
+
+message TelegramSendStickerRequest {
+  string chat_id = 1;
+  string sticker_id = 2;
+}
+
+message TelegramSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message TelegramSendStoryRequest {
+  string text = 1;
+}
+
+message TelegramSendStoryResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramSendStoryWithPhotoRequest {
+  string text = 1;
+  bytes photo_data = 2;
+}
+
+message TelegramSendStoryWithPhotoResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramSendTypingRequest {
+  string chat_id = 1;
+}
+
+message TelegramSendTypingResponse {
+}
+
+message TelegramSendVideoFrameRequest {
+  string call_id = 1;
+  bytes vp8_frame = 2;
+}
+
+message TelegramSendVideoFrameResponse {
+}
+
+message TelegramSendVideoFrameYUVRequest {
+  string call_id = 1;
+  bytes yuv420p = 2;
+  int64 width = 3;
+  int64 height = 4;
+}
+
+message TelegramSendVideoFrameYUVResponse {
+}
+
+message TelegramSetAccountTTLRequest {
+  int64 days = 1;
+}
+
+message TelegramSetAccountTTLResponse {
+}
+
+message TelegramSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message TelegramSetAdminResponse {
+}
+
+message TelegramSetAudioFrameDurationRequest {
+  string call_id = 1;
+  int64 duration_ms = 2;
+}
+
+message TelegramSetAudioFrameDurationResponse {
+}
+
+message TelegramSetCallMutedRequest {
+  string call_id = 1;
+  bool muted = 2;
+}
+
+message TelegramSetCallMutedResponse {
+}
+
+message TelegramSetCallVideoRequest {
+  string call_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramSetCallVideoResponse {
+}
+
+message TelegramSetChatReactionsRequest {
+  string chat_id = 1;
+  bytes reactions = 2;
+}
+
+message TelegramSetChatReactionsResponse {
+}
+
+message TelegramSetChatThemeRequest {
+  string chat_id = 1;
+  string emoticon = 2;
+}
+
+message TelegramSetChatThemeResponse {
+}
+
+message TelegramSetChatWallpaperRequest {
+  string chat_id = 1;
+}
+
+message TelegramSetChatWallpaperResponse {
+}
+
+message TelegramSetDefaultReactionRequest {
+  string emoji = 1;
+}
+
+message TelegramSetDefaultReactionResponse {
+}
+
+message TelegramSetEchoModeRequest {
+  string call_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramSetEchoModeResponse {
+}
+
+message TelegramSetGlobalPrivacyRequest {
+  bytes settings = 1;
+}
+
+message TelegramSetGlobalPrivacyResponse {
+}
+
+message TelegramSetGroupCallMutedRequest {
+  string call_id = 1;
+  bool muted = 2;
+}
+
+message TelegramSetGroupCallMutedResponse {
+}
+
+message TelegramSetGroupCallParticipantVolumeRequest {
+  string call_id = 1;
+  string user_id = 2;
+  int64 volume = 3;
+}
+
+message TelegramSetGroupCallParticipantVolumeResponse {
+}
+
+message TelegramSetGroupPermissionsRequest {
+  string chat_id = 1;
+  bytes rights = 2;
+}
+
+message TelegramSetGroupPermissionsResponse {
+}
+
+message TelegramSetHistoryTTLRequest {
+  string chat_id = 1;
+  int64 period = 2;
+}
+
+message TelegramSetHistoryTTLResponse {
+}
+
+message TelegramSetPrivacyRequest {
+  bytes key = 1;
+  bytes rules = 2;
+}
+
+message TelegramSetPrivacyResponse {
+}
+
+message TelegramSetSlowModeRequest {
+  string chat_id = 1;
+  int64 seconds = 2;
+}
+
+message TelegramSetSlowModeResponse {
+}
+
+message TelegramSetTypingRequest {
+  string chat_id = 1;
+  bytes action = 2;
+}
+
+message TelegramSetTypingResponse {
+}
+
+message TelegramStartBotRequest {
+  string bot_id = 1;
+  string chat_id = 2;
+  string start_param = 3;
+}
+
+message TelegramStartBotResponse {
+}
+
+message TelegramStartCallRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message TelegramStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TelegramStartCallRecordingRequest {
+  string call_id = 1;
+  string file_path = 2;
+}
+
+message TelegramStartCallRecordingResponse {
+}
+
+message TelegramStartGroupCallScreenShareRequest {
+  string call_id = 1;
+}
+
+message TelegramStartGroupCallScreenShareResponse {
+}
+
+message TelegramStartScheduledGroupCallRequest {
+  string call_id = 1;
+}
+
+message TelegramStartScheduledGroupCallResponse {
+}
+
+message TelegramStartScreenShareRequest {
+  string call_id = 1;
+}
+
+message TelegramStartScreenShareResponse {
+}
+
+message TelegramStatsGetMessagePublicForwardsRequest {
+  bytes request = 1;
+}
+
+message TelegramStatsGetMessagePublicForwardsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStatsGetMessageStatsRequest {
+  bytes request = 1;
+}
+
+message TelegramStatsGetMessageStatsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStatsGetStoryPublicForwardsRequest {
+  bytes request = 1;
+}
+
+message TelegramStatsGetStoryPublicForwardsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStatsGetStoryStatsRequest {
+  bytes request = 1;
+}
+
+message TelegramStatsGetStoryStatsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStatsLoadAsyncGraphRequest {
+  bytes request = 1;
+}
+
+message TelegramStatsLoadAsyncGraphResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersAddStickerToSetRequest {
+  bytes request = 1;
+}
+
+message TelegramStickersAddStickerToSetResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersChangeStickerRequest {
+  bytes request = 1;
+}
+
+message TelegramStickersChangeStickerResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersChangeStickerPositionRequest {
+  bytes request = 1;
+}
+
+message TelegramStickersChangeStickerPositionResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersCheckShortNameRequest {
+  string shortname = 1;
+}
+
+message TelegramStickersCheckShortNameResponse {
+  bool result_1 = 1;
+}
+
+message TelegramStickersCreateStickerSetRequest {
+  bytes request = 1;
+}
+
+message TelegramStickersCreateStickerSetResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersDeleteStickerSetRequest {
+  bytes stickerset = 1;
+}
+
+message TelegramStickersDeleteStickerSetResponse {
+  bool result_1 = 1;
+}
+
+message TelegramStickersRemoveStickerFromSetRequest {
+  bytes sticker = 1;
+}
+
+message TelegramStickersRemoveStickerFromSetResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersRenameStickerSetRequest {
+  bytes request = 1;
+}
+
+message TelegramStickersRenameStickerSetResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersReplaceStickerRequest {
+  bytes request = 1;
+}
+
+message TelegramStickersReplaceStickerResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersSetStickerSetThumbRequest {
+  bytes request = 1;
+}
+
+message TelegramStickersSetStickerSetThumbResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStickersSuggestShortNameRequest {
+  string title = 1;
+}
+
+message TelegramStickersSuggestShortNameResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStopCallRecordingRequest {
+  string call_id = 1;
+}
+
+message TelegramStopCallRecordingResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramStopGroupCallScreenShareRequest {
+  string call_id = 1;
+}
+
+message TelegramStopGroupCallScreenShareResponse {
+}
+
+message TelegramStopScreenShareRequest {
+  string call_id = 1;
+}
+
+message TelegramStopScreenShareResponse {
+}
+
+message TelegramStoriesActivateStealthModeRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesActivateStealthModeResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesCanSendStoryRequest {
+  bytes peer = 1;
+}
+
+message TelegramStoriesCanSendStoryResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesCreateAlbumRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesCreateAlbumResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesDeleteAlbumRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesDeleteAlbumResponse {
+  bool result_1 = 1;
+}
+
+message TelegramStoriesEditStoryRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesEditStoryResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesExportStoryLinkRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesExportStoryLinkResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetAlbumStoriesRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesGetAlbumStoriesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetAlbumsRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesGetAlbumsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetAllReadPeerStoriesRequest {
+}
+
+message TelegramStoriesGetAllReadPeerStoriesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetChatsToSendRequest {
+}
+
+message TelegramStoriesGetChatsToSendResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetPeerMaxIDsRequest {
+  bytes id = 1;
+}
+
+message TelegramStoriesGetPeerMaxIDsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetStoriesArchiveRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesGetStoriesArchiveResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetStoriesByIDRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesGetStoriesByIDResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetStoryReactionsListRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesGetStoryReactionsListResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesGetStoryViewsListRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesGetStoryViewsListResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesIncrementStoryViewsRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesIncrementStoryViewsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramStoriesReadStoriesRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesReadStoriesResponse {
+  repeated int64 result_1 = 1;
+}
+
+message TelegramStoriesReorderAlbumsRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesReorderAlbumsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramStoriesReportRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesReportResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesSearchPostsRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesSearchPostsResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesStartLiveRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesStartLiveResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramStoriesToggleAllStoriesHiddenRequest {
+  bool hidden = 1;
+}
+
+message TelegramStoriesToggleAllStoriesHiddenResponse {
+  bool result_1 = 1;
+}
+
+message TelegramStoriesTogglePeerStoriesHiddenRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesTogglePeerStoriesHiddenResponse {
+  bool result_1 = 1;
+}
+
+message TelegramStoriesTogglePinnedRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesTogglePinnedResponse {
+  repeated int64 result_1 = 1;
+}
+
+message TelegramStoriesTogglePinnedToTopRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesTogglePinnedToTopResponse {
+  bool result_1 = 1;
+}
+
+message TelegramStoriesUpdateAlbumRequest {
+  bytes request = 1;
+}
+
+message TelegramStoriesUpdateAlbumResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramTerminateSessionRequest {
+  string session_id = 1;
+}
+
+message TelegramTerminateSessionResponse {
+}
+
+message TelegramTestAcceptCallRawRequest {
+  string call_id_str = 1;
+}
+
+message TelegramTestAcceptCallRawResponse {
+}
+
+message TelegramTestGetCallAudioSSRCRequest {
+  string call_id = 1;
+}
+
+message TelegramTestGetCallAudioSSRCResponse {
+  uint32 result_1 = 1;
+}
+
+message TelegramTestGetCallInfoRequest {
+  string call_id_str = 1;
+}
+
+message TelegramTestGetCallInfoResponse {
+  CallInfo result_1 = 1;
+}
+
+message TelegramTestGetCallPCStateRequest {
+  string call_id = 1;
+}
+
+message TelegramTestGetCallPCStateResponse {
+  string result_1 = 1;
+}
+
+message TelegramTestGetCallStatsRequest {
+  string call_id = 1;
+}
+
+message TelegramTestGetCallStatsResponse {
+  string result_1 = 1;
+}
+
+message TelegramTestGetGroupCallAccessHashRequest {
+  int64 gc_id = 1;
+}
+
+message TelegramTestGetGroupCallAccessHashResponse {
+  int64 result_1 = 1;
+}
+
+message TelegramTestGetSenderSSRCsRequest {
+  string call_id = 1;
+}
+
+message TelegramTestGetSenderSSRCsResponse {
+  string result_1 = 1;
+}
+
+message TelegramTestHandleSignalingDataRequest {
+  int64 call_id = 1;
+  bytes data = 2;
+}
+
+message TelegramTestHandleSignalingDataResponse {
+}
+
+message TelegramTestSendRawSignalingRequest {
+  int64 call_id = 1;
+  int64 access_hash = 2;
+  bytes data = 3;
+}
+
+message TelegramTestSendRawSignalingResponse {
+}
+
+message TelegramTestStartCallRawRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message TelegramTestStartCallRawResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message TelegramToggleAntiSpamRequest {
+  string chat_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleAntiSpamResponse {
+}
+
+message TelegramToggleAutotranslationRequest {
+  string chat_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleAutotranslationResponse {
+}
+
+message TelegramToggleForumRequest {
+  string chat_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleForumResponse {
+}
+
+message TelegramToggleGroupCallVideoRequest {
+  string call_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleGroupCallVideoResponse {
+}
+
+message TelegramToggleJoinRequestRequest {
+  string chat_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleJoinRequestResponse {
+}
+
+message TelegramToggleJoinToSendRequest {
+  string chat_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleJoinToSendResponse {
+}
+
+message TelegramToggleNoForwardsRequest {
+  string chat_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleNoForwardsResponse {
+}
+
+message TelegramToggleParticipantsHiddenRequest {
+  string chat_id = 1;
+  bool hidden = 2;
+}
+
+message TelegramToggleParticipantsHiddenResponse {
+}
+
+message TelegramTogglePreHistoryHiddenRequest {
+  string chat_id = 1;
+  bool hidden = 2;
+}
+
+message TelegramTogglePreHistoryHiddenResponse {
+}
+
+message TelegramToggleSignaturesRequest {
+  string chat_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleSignaturesResponse {
+}
+
+message TelegramToggleViewForumAsMessagesRequest {
+  string chat_id = 1;
+  bool enabled = 2;
+}
+
+message TelegramToggleViewForumAsMessagesResponse {
+}
+
+message TelegramTranslateTextRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string to_lang = 3;
+}
+
+message TelegramTranslateTextResponse {
+  string result_1 = 1;
+}
+
+message TelegramUnbanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message TelegramUnbanMemberResponse {
+}
+
+message TelegramUnblockUserRequest {
+  string user_id = 1;
+}
+
+message TelegramUnblockUserResponse {
+}
+
+message TelegramUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message TelegramUnpinAllMessagesResponse {
+}
+
+message TelegramUnpinDialogRequest {
+  string chat_id = 1;
+}
+
+message TelegramUnpinDialogResponse {
+}
+
+message TelegramUnpinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramUnpinMessageResponse {
+}
+
+message TelegramUpdateBirthdayRequest {
+  int64 day = 1;
+  int64 month = 2;
+  int64 year = 3;
+}
+
+message TelegramUpdateBirthdayResponse {
+}
+
+message TelegramUpdateChannelColorRequest {
+  string chat_id = 1;
+  int64 color_index = 2;
+}
+
+message TelegramUpdateChannelColorResponse {
+}
+
+message TelegramUpdateChannelUsernameRequest {
+  string chat_id = 1;
+  string username = 2;
+}
+
+message TelegramUpdateChannelUsernameResponse {
+}
+
+message TelegramUpdateProfileRequest {
+  string first_name = 1;
+  string last_name = 2;
+  string about = 3;
+}
+
+message TelegramUpdateProfileResponse {
+}
+
+message TelegramUpdateStatusRequest {
+  bool online = 1;
+}
+
+message TelegramUpdateStatusResponse {
+}
+
+message TelegramUpdateUsernameRequest {
+  string username = 1;
+}
+
+message TelegramUpdateUsernameResponse {
+}
+
+message TelegramUploadGetCDNFileRequest {
+  bytes request = 1;
+}
+
+message TelegramUploadGetCDNFileResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUploadGetCDNFileHashesRequest {
+  bytes request = 1;
+}
+
+message TelegramUploadGetCDNFileHashesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUploadGetFileRequest {
+  bytes request = 1;
+}
+
+message TelegramUploadGetFileResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUploadGetFileHashesRequest {
+  bytes request = 1;
+}
+
+message TelegramUploadGetFileHashesResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUploadGetWebFileRequest {
+  bytes request = 1;
+}
+
+message TelegramUploadGetWebFileResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUploadProfilePhotoRequest {
+  bytes png_data = 1;
+}
+
+message TelegramUploadProfilePhotoResponse {
+}
+
+message TelegramUploadReuploadCDNFileRequest {
+  bytes request = 1;
+}
+
+message TelegramUploadReuploadCDNFileResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUploadSaveBigFilePartRequest {
+  bytes request = 1;
+}
+
+message TelegramUploadSaveBigFilePartResponse {
+  bool result_1 = 1;
+}
+
+message TelegramUploadSaveFilePartRequest {
+  bytes request = 1;
+}
+
+message TelegramUploadSaveFilePartResponse {
+  bool result_1 = 1;
+}
+
+message TelegramUsersGetRequirementsToContactRequest {
+  bytes id = 1;
+}
+
+message TelegramUsersGetRequirementsToContactResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUsersGetSavedMusicRequest {
+  bytes request = 1;
+}
+
+message TelegramUsersGetSavedMusicResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUsersGetSavedMusicByIDRequest {
+  bytes request = 1;
+}
+
+message TelegramUsersGetSavedMusicByIDResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramUsersSetSecureValueErrorsRequest {
+  bytes request = 1;
+}
+
+message TelegramUsersSetSecureValueErrorsResponse {
+  bool result_1 = 1;
+}
+
+message TelegramUsersSuggestBirthdayRequest {
+  bytes request = 1;
+}
+
+message TelegramUsersSuggestBirthdayResponse {
+  bytes result_1 = 1;
+}
+
+message TelegramVoteInPollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_idx = 3;
+}
+
+message TelegramVoteInPollResponse {
+}
+
+message TelegramVotePollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_index = 3;
+}
+
+message TelegramVotePollResponse {
+}
+

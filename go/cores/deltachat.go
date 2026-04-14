@@ -84,15 +84,15 @@ type DeltaChatCore struct {
 	callsMu     sync.RWMutex
 
 	// Location streaming
-	locationStreaming map[string]*dcLocationStream // chatID -> stream
+	locationStreaming map[string]*DCLocationStream // chatID -> stream
 	locationMu        sync.RWMutex
 
 	// Location history
-	locations      map[string][]dcLocation // "chatID:email" -> locations
+	locations      map[string][]DCLocation // "chatID:email" -> locations
 	locationHistMu sync.RWMutex
 
 	// Webxdc state
-	webxdcUpdates     map[string][]dcWebxdcUpdate // msgID -> status updates
+	webxdcUpdates     map[string][]DCWebxdcUpdate // msgID -> status updates
 	webxdcMu          sync.RWMutex
 	webxdcIntegration string // msgID of integration webxdc
 
@@ -104,7 +104,7 @@ type DeltaChatCore struct {
 	stickerDir string
 
 	// Transports (multi-account)
-	transports  []*dcTransport
+	transports  []*DCTransport
 	transportMu sync.RWMutex
 
 	// Configuration
@@ -156,16 +156,16 @@ type dcCall struct {
 	OfferMsgID string // Message-ID of the call initiation email
 }
 
-// dcLocationStream tracks active location sharing.
-type dcLocationStream struct {
+// DCLocationStream tracks active location sharing.
+type DCLocationStream struct {
 	ChatID   string
 	Duration time.Duration
 	StartAt  time.Time
 	Cancel   context.CancelFunc
 }
 
-// dcWebxdcUpdate is a single webxdc status update.
-type dcWebxdcUpdate struct {
+// DCWebxdcUpdate is a single webxdc status update.
+type DCWebxdcUpdate struct {
 	Serial  int             `json:"serial"`
 	Payload json.RawMessage `json:"payload"`
 	Info    string          `json:"info,omitempty"`
@@ -173,8 +173,8 @@ type dcWebxdcUpdate struct {
 	Time    int64           `json:"time"`
 }
 
-// dcTransport represents an additional email transport (multi-account).
-type dcTransport struct {
+// DCTransport represents an additional email transport (multi-account).
+type DCTransport struct {
 	ID       string `json:"id"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -182,8 +182,8 @@ type dcTransport struct {
 	SMTPHost string `json:"smtp_host"`
 }
 
-// dcLocation represents a stored location point.
-type dcLocation struct {
+// DCLocation represents a stored location point.
+type DCLocation struct {
 	Lat         float64 `json:"lat"`
 	Lon         float64 `json:"lon"`
 	Time        int64   `json:"time"`
@@ -285,11 +285,11 @@ type dcSession struct {
 	Pins        map[string]map[string]bool `json:"pins"`
 	// Extended state
 	DeviceMsgLabels   map[string]bool              `json:"device_msg_labels,omitempty"`
-	WebxdcUpdates     map[string][]dcWebxdcUpdate  `json:"webxdc_updates,omitempty"`
+	WebxdcUpdates     map[string][]DCWebxdcUpdate  `json:"webxdc_updates,omitempty"`
 	WebxdcIntegration string                        `json:"webxdc_integration,omitempty"`
 	StickerDir        string                        `json:"sticker_dir,omitempty"`
-	Transports        []*dcTransport               `json:"transports,omitempty"`
-	Locations         map[string][]dcLocation      `json:"locations,omitempty"`
+	Transports        []*DCTransport               `json:"transports,omitempty"`
+	Locations         map[string][]DCLocation      `json:"locations,omitempty"`
 	ShowEmails        int                           `json:"show_emails,omitempty"`
 	DownloadLimit     int64                         `json:"download_limit,omitempty"`
 	CallFilter        int                           `json:"call_filter,omitempty"`
@@ -309,9 +309,9 @@ func NewDeltaChatCore(sessionPath string) *DeltaChatCore {
 		folders:           make(map[string]*Folder),
 		pins:              make(map[string]map[string]bool),
 		activeCalls:       make(map[string]*dcCall),
-		locationStreaming: make(map[string]*dcLocationStream),
-		locations:         make(map[string][]dcLocation),
-		webxdcUpdates:     make(map[string][]dcWebxdcUpdate),
+		locationStreaming: make(map[string]*DCLocationStream),
+		locations:         make(map[string][]DCLocation),
+		webxdcUpdates:     make(map[string][]DCWebxdcUpdate),
 		deviceMsgLabels:   make(map[string]bool),
 		pushState:         "NotConfigured",
 		sessionPath:       sessionPath,
@@ -2724,7 +2724,7 @@ func (d *DeltaChatCore) StartLocationStreaming(chatID string, seconds int) error
 	if old, ok := d.locationStreaming[chatID]; ok {
 		old.Cancel()
 	}
-	d.locationStreaming[chatID] = &dcLocationStream{
+	d.locationStreaming[chatID] = &DCLocationStream{
 		ChatID:   chatID,
 		Duration: time.Duration(seconds) * time.Second,
 		StartAt:  time.Now(),
@@ -5186,7 +5186,7 @@ func (d *DeltaChatCore) SendWebxdcStatusUpdate(chatID, msgID string, payload jso
 	d.webxdcMu.Lock()
 	updates := d.webxdcUpdates[msgID]
 	serial := len(updates) + 1
-	update := dcWebxdcUpdate{
+	update := DCWebxdcUpdate{
 		Serial:  serial,
 		Payload: payload,
 		Info:    info,
@@ -5231,7 +5231,7 @@ func (d *DeltaChatCore) SendWebxdcStatusUpdate(chatID, msgID string, payload jso
 }
 
 // GetWebxdcStatusUpdates returns status updates for a webxdc app instance since lastKnownSerial.
-func (d *DeltaChatCore) GetWebxdcStatusUpdates(msgID string, lastKnownSerial int) ([]dcWebxdcUpdate, error) {
+func (d *DeltaChatCore) GetWebxdcStatusUpdates(msgID string, lastKnownSerial int) ([]DCWebxdcUpdate, error) {
 	d.webxdcMu.RLock()
 	defer d.webxdcMu.RUnlock()
 
@@ -6296,7 +6296,7 @@ func (d *DeltaChatCore) AddTransport(email, password, imapHost, smtpHost string)
 	testClient.Close()
 
 	id := generateShortID()
-	t := &dcTransport{
+	t := &DCTransport{
 		ID:       id,
 		Email:    email,
 		Password: password,
@@ -6313,11 +6313,11 @@ func (d *DeltaChatCore) AddTransport(email, password, imapHost, smtpHost string)
 }
 
 // ListTransports returns all configured email transports.
-func (d *DeltaChatCore) ListTransports() []*dcTransport {
+func (d *DeltaChatCore) ListTransports() []*DCTransport {
 	d.transportMu.RLock()
 	defer d.transportMu.RUnlock()
 
-	result := make([]*dcTransport, len(d.transports))
+	result := make([]*DCTransport, len(d.transports))
 	copy(result, d.transports)
 	return result
 }
@@ -6342,11 +6342,11 @@ func (d *DeltaChatCore) DeleteTransport(id string) error {
 // GetLocations retrieves stored location history for a chat/contact.
 // If contactEmail is empty, returns all locations for the chat.
 // If fromTime/toTime are 0, no time filtering is applied.
-func (d *DeltaChatCore) GetLocations(chatID, contactEmail string, fromTime, toTime int64) ([]dcLocation, error) {
+func (d *DeltaChatCore) GetLocations(chatID, contactEmail string, fromTime, toTime int64) ([]DCLocation, error) {
 	d.locationHistMu.RLock()
 	defer d.locationHistMu.RUnlock()
 
-	var result []dcLocation
+	var result []DCLocation
 
 	for key, locs := range d.locations {
 		for _, loc := range locs {
@@ -6719,7 +6719,7 @@ func (d *DeltaChatCore) AddAccount(addr, password string) (string, error) {
 	d.transportMu.Lock()
 	defer d.transportMu.Unlock()
 	id := generateShortID()
-	d.transports = append(d.transports, &dcTransport{
+	d.transports = append(d.transports, &DCTransport{
 		ID:       id,
 		Email:    addr,
 		Password: password,
@@ -7562,7 +7562,7 @@ func (d *DeltaChatCore) SetStockStrings(strings map[int]string) {
 
 func (d *DeltaChatCore) DeleteAllLocations() {
 	d.locationHistMu.Lock()
-	d.locations = make(map[string][]dcLocation)
+	d.locations = make(map[string][]DCLocation)
 	d.locationHistMu.Unlock()
 }
 

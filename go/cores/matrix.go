@@ -148,6 +148,84 @@ type matrixSession struct {
 	PickleKey   string `json:"pickle_key,omitempty"`
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Typed response structs (Step 13.0 — protobuf-ready)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// MatrixURLPreview represents URL preview info.
+type MatrixURLPreview struct {
+	Title       string `json:"og:title"`
+	Description string `json:"og:description"`
+	ImageURL    string `json:"og:image"`
+	ImageType   string `json:"og:image:type"`
+	ImageWidth  int    `json:"og:image:width"`
+	ImageHeight int    `json:"og:image:height"`
+	MatrixImage string `json:"matrix:image:size"`
+}
+
+// MatrixTurnServer represents TURN server credentials.
+type MatrixTurnServer struct {
+	Username string   `json:"username"`
+	Password string   `json:"password"`
+	URIs     []string `json:"uris"`
+	TTL      int      `json:"ttl"`
+}
+
+// MatrixDeviceInfo represents a device.
+type MatrixDeviceInfo struct {
+	DeviceID    string `json:"device_id"`
+	DisplayName string `json:"display_name"`
+	LastSeenIP  string `json:"last_seen_ip"`
+	LastSeenTS  int64  `json:"last_seen_ts"`
+}
+
+// MatrixCapabilities represents server capabilities.
+type MatrixCapabilities struct {
+	ChangePassword map[string]interface{} `json:"m.change_password"`
+	RoomVersions   map[string]interface{} `json:"m.room_versions"`
+	SetDisplayName map[string]interface{} `json:"m.set_displayname"`
+	SetAvatarURL   map[string]interface{} `json:"m.set_avatar_url"`
+	ThirdPartyID   map[string]interface{} `json:"m.3pid_changes"`
+}
+
+// MatrixLoginFlow represents a login flow.
+type MatrixLoginFlow struct {
+	Type string `json:"type"`
+}
+
+// MatrixRoomSummary represents a room summary.
+type MatrixRoomSummary struct {
+	RoomID            string   `json:"room_id"`
+	Name              string   `json:"name,omitempty"`
+	CanonicalAlias    string   `json:"canonical_alias,omitempty"`
+	Topic             string   `json:"topic,omitempty"`
+	AvatarURL         string   `json:"avatar_url,omitempty"`
+	NumJoinedMembers  int      `json:"num_joined_members"`
+	RoomType          string   `json:"room_type,omitempty"`
+	JoinRule          string   `json:"join_rule,omitempty"`
+	WorldReadable     bool     `json:"world_readable"`
+	GuestCanJoin      bool     `json:"guest_can_join"`
+	Membership        string   `json:"membership,omitempty"`
+	EncryptionEnabled bool     `json:"im.nheko.summary.encryption,omitempty"`
+	AllowedRoomIDs    []string `json:"allowed_room_ids,omitempty"`
+}
+
+// MatrixMediaConfig represents media server configuration.
+type MatrixMediaConfig struct {
+	UploadSize int64 `json:"m.upload.size"`
+}
+
+// matrixParseJSON is a helper to parse a raw JSON map into a typed struct.
+func matrixParseJSON[T any](data map[string]interface{}) (T, error) {
+	var result T
+	b, err := json.Marshal(data)
+	if err != nil {
+		return result, err
+	}
+	err = json.Unmarshal(b, &result)
+	return result, err
+}
+
 // NewMatrixCore creates a new Matrix core instance.
 func NewMatrixCore(sessionPath string) *MatrixCore {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -2780,39 +2858,35 @@ func (m *MatrixCore) RemoveRoomTag(chatID string, tag string) error {
 }
 
 // GetURLPreview returns URL preview metadata.
-func (m *MatrixCore) GetURLPreview(url string) (map[string]interface{}, error) {
+func (m *MatrixCore) GetURLPreview(url string) (MatrixURLPreview, error) {
 	if !m.authed {
-		return nil, ErrAuth
+		return MatrixURLPreview{}, ErrAuth
 	}
-
 	resp, err := m.client.GetURLPreview(m.ctx, url)
 	if err != nil {
-		return nil, fmt.Errorf("url preview: %w", err)
+		return MatrixURLPreview{}, fmt.Errorf("url preview: %w", err)
 	}
-
-	return map[string]interface{}{
-		"title":       resp.Title,
-		"description": resp.Description,
-		"image_url":   resp.ImageURL,
+	return MatrixURLPreview{
+		Title:       resp.Title,
+		Description: resp.Description,
+		ImageURL:    string(resp.ImageURL),
 	}, nil
 }
 
 // GetTurnServer returns TURN server credentials for WebRTC.
-func (m *MatrixCore) GetTurnServer() (map[string]interface{}, error) {
+func (m *MatrixCore) GetTurnServer() (MatrixTurnServer, error) {
 	if !m.authed {
-		return nil, ErrAuth
+		return MatrixTurnServer{}, ErrAuth
 	}
-
 	resp, err := m.client.TurnServer(m.ctx)
 	if err != nil {
-		return nil, fmt.Errorf("turn server: %w", err)
+		return MatrixTurnServer{}, fmt.Errorf("turn server: %w", err)
 	}
-
-	return map[string]interface{}{
-		"username": resp.Username,
-		"password": resp.Password,
-		"uris":     resp.URIs,
-		"ttl":      resp.TTL,
+	return MatrixTurnServer{
+		Username: resp.Username,
+		Password: resp.Password,
+		URIs:     resp.URIs,
+		TTL:      resp.TTL,
 	}, nil
 }
 
@@ -5427,7 +5501,7 @@ func (m *MatrixCore) ResolveAlias(alias string) (string, []string, error) {
 // ──────────────────────────── Auth / Login (extended) ────────────────────────────
 
 // GetLoginFlows returns the supported login authentication types.
-func (m *MatrixCore) GetLoginFlows() ([]map[string]interface{}, error) {
+func (m *MatrixCore) GetLoginFlows() ([]MatrixLoginFlow, error) {
 	if m.client == nil {
 		return nil, fmt.Errorf("client not initialized")
 	}
@@ -5435,11 +5509,9 @@ func (m *MatrixCore) GetLoginFlows() ([]map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	var flows []map[string]interface{}
+	flows := make([]MatrixLoginFlow, 0, len(resp.Flows))
 	for _, f := range resp.Flows {
-		flows = append(flows, map[string]interface{}{
-			"type": string(f.Type),
-		})
+		flows = append(flows, MatrixLoginFlow{Type: string(f.Type)})
 	}
 	return flows, nil
 }
@@ -5516,18 +5588,18 @@ func (m *MatrixCore) SetReadMarkers(chatID, fullyRead, read string) error {
 // ──────────────────────────── Devices (extended) ────────────────────────────
 
 // GetDeviceInfo retrieves information about a specific device.
-func (m *MatrixCore) GetDeviceInfo(deviceID string) (map[string]interface{}, error) {
+func (m *MatrixCore) GetDeviceInfo(deviceID string) (MatrixDeviceInfo, error) {
 	if !m.authed {
-		return nil, ErrAuth
+		return MatrixDeviceInfo{}, ErrAuth
 	}
-	var resp map[string]interface{}
+	var resp MatrixDeviceInfo
 	_, err := m.client.MakeFullRequest(m.ctx, mautrix.FullRequest{
 		Method:       http.MethodGet,
 		URL:          m.client.BuildClientURL("v3", "devices", deviceID),
 		ResponseJSON: &resp,
 	})
 	if err != nil {
-		return nil, err
+		return MatrixDeviceInfo{}, err
 	}
 	return resp, nil
 }
@@ -5558,18 +5630,18 @@ func (m *MatrixCore) DeleteDevices(deviceIDs []string, password string) error {
 // ──────────────────────────── Server Discovery ────────────────────────────
 
 // GetCapabilities returns the server's supported capabilities.
-func (m *MatrixCore) GetCapabilities() (map[string]interface{}, error) {
+func (m *MatrixCore) GetCapabilities() (MatrixCapabilities, error) {
 	if !m.authed {
-		return nil, ErrAuth
+		return MatrixCapabilities{}, ErrAuth
 	}
-	var resp map[string]interface{}
 	capResp, err := m.client.Capabilities(m.ctx)
 	if err != nil {
-		return nil, err
+		return MatrixCapabilities{}, err
 	}
 	data, _ := json.Marshal(capResp)
-	json.Unmarshal(data, &resp)
-	return resp, nil
+	var result MatrixCapabilities
+	json.Unmarshal(data, &result)
+	return result, nil
 }
 
 // GetVersions returns the supported Matrix spec versions.
@@ -5702,10 +5774,12 @@ func (m *MatrixCore) GetRTCTransports() (map[string]interface{}, error) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // GetRoomSummary returns rich room info without joining (v1.15).
-func (m *MatrixCore) GetRoomSummary(roomIDOrAlias string) (map[string]interface{}, error) {
+func (m *MatrixCore) GetRoomSummary(roomIDOrAlias string) (MatrixRoomSummary, error) {
 	data, err := m.mxRawReq(http.MethodGet, m.client.BuildClientURL("v1", "room_summary", roomIDOrAlias), nil)
-	if err != nil { return nil, err }
-	var result map[string]interface{}
+	if err != nil {
+		return MatrixRoomSummary{}, err
+	}
+	var result MatrixRoomSummary
 	json.Unmarshal(data, &result)
 	return result, nil
 }
@@ -5952,10 +6026,12 @@ func (m *MatrixCore) DownloadThumbnailAuth(serverName, mediaID string, width, he
 }
 
 // GetMediaConfigAuth returns media configuration (authenticated, v1.11+).
-func (m *MatrixCore) GetMediaConfigAuth() (map[string]interface{}, error) {
+func (m *MatrixCore) GetMediaConfigAuth() (MatrixMediaConfig, error) {
 	data, err := m.mxRawReq(http.MethodGet, m.client.BuildClientURL("v1", "media", "config"), nil)
-	if err != nil { return nil, err }
-	var result map[string]interface{}
+	if err != nil {
+		return MatrixMediaConfig{}, err
+	}
+	var result MatrixMediaConfig
 	json.Unmarshal(data, &result)
 	return result, nil
 }

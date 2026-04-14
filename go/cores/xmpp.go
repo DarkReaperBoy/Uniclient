@@ -68,7 +68,7 @@ const (
 	xmppMsgBufSize     = 500
 	xmppPingInterval   = 60 * time.Second
 	xmppSendDelay      = 100 * time.Millisecond
-	xmppIQTimeout      = 30 * time.Second
+	XMPPIQTimeout      = 30 * time.Second
 	xmppReconnectDelay = 5 * time.Second
 )
 
@@ -165,7 +165,7 @@ type xmppSASLMechs struct {
 }
 
 // Generic stanza types
-type xmppIQ struct {
+type XMPPIQ struct {
 	XMLName xml.Name     `xml:"iq"`
 	Type    string       `xml:"type,attr"`
 	ID      string       `xml:"id,attr,omitempty"`
@@ -173,7 +173,7 @@ type xmppIQ struct {
 	From    string       `xml:"from,attr,omitempty"`
 	Lang    string       `xml:"xml:lang,attr,omitempty"`
 	Inner   string       `xml:",innerxml"`
-	Error   *xmppStanzaError `xml:"error"`
+	Error   *XMPPStanzaError `xml:"error"`
 }
 
 type xmppMessage struct {
@@ -196,7 +196,7 @@ type xmppPresence struct {
 	Inner   string   `xml:",innerxml"`
 }
 
-type xmppStanzaError struct {
+type XMPPStanzaError struct {
 	Type string `xml:"type,attr,omitempty"`
 	Code string `xml:"code,attr,omitempty"`
 	Text string `xml:"text,omitempty"`
@@ -312,7 +312,7 @@ type xmppOccupant struct {
 // ---------------------------------------------------------------------------
 
 type xmppPendingIQ struct {
-	ch      chan *xmppIQ
+	ch      chan *XMPPIQ
 	timeout *time.Timer
 }
 
@@ -1264,7 +1264,7 @@ func (c *XMPPCore) readLoop() {
 			go c.handlePresence(pres)
 
 		case "iq":
-			var iq xmppIQ
+			var iq XMPPIQ
 			if err := c.decoder.DecodeElement(&iq, &se); err != nil {
 				continue
 			}
@@ -1689,7 +1689,7 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 	})
 }
 
-func (c *XMPPCore) handleIQ(iq xmppIQ) {
+func (c *XMPPCore) handleIQ(iq XMPPIQ) {
 	// Check if this is a response to a pending IQ
 	if iq.Type == "result" || iq.Type == "error" {
 		c.pendingIQMu.Lock()
@@ -1752,7 +1752,7 @@ func (c *XMPPCore) handleIQ(iq xmppIQ) {
 	}
 }
 
-func (c *XMPPCore) handleRosterPush(iq xmppIQ) {
+func (c *XMPPCore) handleRosterPush(iq XMPPIQ) {
 	c.sendRawStanza("<iq type='result' id='" + xmlEscape(iq.ID) + "'/>")
 
 	// Parse roster item
@@ -1779,7 +1779,7 @@ func (c *XMPPCore) handleRosterPush(iq xmppIQ) {
 	c.rosterMu.Unlock()
 }
 
-func (c *XMPPCore) handleBlocklistPush(iq xmppIQ) {
+func (c *XMPPCore) handleBlocklistPush(iq XMPPIQ) {
 	c.sendRawStanza("<iq type='result' id='" + xmlEscape(iq.ID) + "'/>")
 
 	c.blockedMu.Lock()
@@ -1800,7 +1800,7 @@ func (c *XMPPCore) handleBlocklistPush(iq xmppIQ) {
 	}
 }
 
-func (c *XMPPCore) handleJingleAction(iq xmppIQ) {
+func (c *XMPPCore) handleJingleAction(iq XMPPIQ) {
 	// Stub — acknowledge and respond with session-terminate for now
 	// Full Jingle implementation would handle ICE, DTLS, RTP
 	c.sendRawStanza(fmt.Sprintf(`<iq type='result' id='%s' to='%s'/>`,
@@ -1815,10 +1815,10 @@ func (c *XMPPCore) nextIQID() string {
 	return "iq_" + strconv.FormatInt(c.iqCounter.Add(1), 10)
 }
 
-func (c *XMPPCore) sendIQSync(typ, to, inner string) (*xmppIQ, error) {
+func (c *XMPPCore) sendIQSync(typ, to, inner string) (*XMPPIQ, error) {
 	id := c.nextIQID()
-	ch := make(chan *xmppIQ, 1)
-	timer := time.NewTimer(xmppIQTimeout)
+	ch := make(chan *XMPPIQ, 1)
+	timer := time.NewTimer(XMPPIQTimeout)
 
 	c.pendingIQMu.Lock()
 	c.pendingIQ[id] = &xmppPendingIQ{ch: ch, timeout: timer}
@@ -3727,7 +3727,7 @@ func (c *XMPPCore) MUCSelfPing(roomJID string) error {
 // XMPP-specific: Service Discovery (XEP-0030)
 // ---------------------------------------------------------------------------
 
-func (c *XMPPCore) DiscoInfo(target string) (*xmppIQ, error) {
+func (c *XMPPCore) DiscoInfo(target string) (*XMPPIQ, error) {
 	if target == "" {
 		target = c.domain
 	}
@@ -3735,7 +3735,7 @@ func (c *XMPPCore) DiscoInfo(target string) (*xmppIQ, error) {
 	return c.sendIQSync("get", target, inner)
 }
 
-func (c *XMPPCore) DiscoItems(target string) (*xmppIQ, error) {
+func (c *XMPPCore) DiscoItems(target string) (*XMPPIQ, error) {
 	if target == "" {
 		target = c.domain
 	}
@@ -3835,7 +3835,7 @@ func init() {
 	xmppDiscoInfoBody = b.String()
 }
 
-func (c *XMPPCore) respondDiscoInfo(iq xmppIQ) {
+func (c *XMPPCore) respondDiscoInfo(iq XMPPIQ) {
 	var b strings.Builder
 	b.Grow(64 + len(iq.ID) + len(iq.From) + len(xmppDiscoInfoBody))
 	b.WriteString("<iq type='result' id='")
@@ -4086,7 +4086,7 @@ func (c *XMPPCore) UnsubscribePubSub(service, node string) error {
 	return err
 }
 
-func (c *XMPPCore) GetPubSubItems(service, node string) (*xmppIQ, error) {
+func (c *XMPPCore) GetPubSubItems(service, node string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
 	}
@@ -4094,7 +4094,7 @@ func (c *XMPPCore) GetPubSubItems(service, node string) (*xmppIQ, error) {
 	return c.sendIQSync("get", service, inner)
 }
 
-func (c *XMPPCore) GetPubSubSubscriptions(service string) (*xmppIQ, error) {
+func (c *XMPPCore) GetPubSubSubscriptions(service string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
 	}
@@ -5696,7 +5696,7 @@ func (c *XMPPCore) PublishOMEMODeviceList(deviceIDs []int) error {
 }
 
 // FetchOMEMODeviceList fetches the OMEMO device list for a JID.
-func (c *XMPPCore) FetchOMEMODeviceList(jid string) (*xmppIQ, error) {
+func (c *XMPPCore) FetchOMEMODeviceList(jid string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, nsOMEMO+":devices")
 }
 
@@ -5707,7 +5707,7 @@ func (c *XMPPCore) PublishOMEMOBundle(deviceID int, bundleXML string) error {
 }
 
 // FetchOMEMOBundle fetches the OMEMO key bundle for a JID's device.
-func (c *XMPPCore) FetchOMEMOBundle(jid string, deviceID int) (*xmppIQ, error) {
+func (c *XMPPCore) FetchOMEMOBundle(jid string, deviceID int) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, fmt.Sprintf("%s:bundles:%d", nsOMEMO, deviceID))
 }
 
@@ -5836,13 +5836,13 @@ func (c *XMPPCore) DisablePushNotifications(pushServiceJID, node string) error {
 const nsCommands = "http://jabber.org/protocol/commands"
 
 // DiscoverCommands discovers available ad-hoc commands on a service.
-func (c *XMPPCore) DiscoverCommands(serviceJID string) (*xmppIQ, error) {
+func (c *XMPPCore) DiscoverCommands(serviceJID string) (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s' node='%s'/>`, nsDiscoItem, nsCommands)
 	return c.sendIQSync("get", serviceJID, inner)
 }
 
 // ExecuteCommand executes an ad-hoc command.
-func (c *XMPPCore) ExecuteCommand(serviceJID, node, sessionID, action, formXML string) (*xmppIQ, error) {
+func (c *XMPPCore) ExecuteCommand(serviceJID, node, sessionID, action, formXML string) (*XMPPIQ, error) {
 	attrs := fmt.Sprintf(` xmlns='%s' node='%s'`, nsCommands, xmlEscape(node))
 	if sessionID != "" {
 		attrs += fmt.Sprintf(` sessionid='%s'`, xmlEscape(sessionID))
@@ -5870,7 +5870,7 @@ func (c *XMPPCore) CancelCommand(serviceJID, node, sessionID string) error {
 const nsPrivacyLists = "jabber:iq:privacy"
 
 // GetPrivacyLists retrieves privacy lists.
-func (c *XMPPCore) GetPrivacyLists() (*xmppIQ, error) {
+func (c *XMPPCore) GetPrivacyLists() (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsPrivacyLists)
 	return c.sendIQSync("get", "", inner)
 }
@@ -5894,19 +5894,19 @@ func (c *XMPPCore) SetDefaultList(name string) error {
 const nsOffline = "http://jabber.org/protocol/offline"
 
 // GetOfflineMessageCount returns the number of stored offline messages.
-func (c *XMPPCore) GetOfflineMessageCount() (*xmppIQ, error) {
+func (c *XMPPCore) GetOfflineMessageCount() (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsDiscoInfo)
 	return c.sendIQSync("get", c.domain, inner)
 }
 
 // GetOfflineMessageHeaders returns headers of stored offline messages.
-func (c *XMPPCore) GetOfflineMessageHeaders() (*xmppIQ, error) {
+func (c *XMPPCore) GetOfflineMessageHeaders() (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s' node='%s'/>`, nsDiscoItem, nsOffline)
 	return c.sendIQSync("get", "", inner)
 }
 
 // RetrieveOfflineMessages retrieves specific offline messages by node IDs.
-func (c *XMPPCore) RetrieveOfflineMessages(nodeIDs []string) (*xmppIQ, error) {
+func (c *XMPPCore) RetrieveOfflineMessages(nodeIDs []string) (*XMPPIQ, error) {
 	items := ""
 	for _, id := range nodeIDs {
 		items += fmt.Sprintf(`<item action='view' node='%s'/>`, xmlEscape(id))
@@ -6028,7 +6028,7 @@ func (c *XMPPCore) StorePrivateXML(innerXML string) error {
 }
 
 // RetrievePrivateXML retrieves data from private XML storage.
-func (c *XMPPCore) RetrievePrivateXML(namespace, element string) (*xmppIQ, error) {
+func (c *XMPPCore) RetrievePrivateXML(namespace, element string) (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'><%s xmlns='%s'/></query>`,
 		nsPrivate, xmlEscape(element), xmlEscape(namespace))
 	return c.sendIQSync("get", "", inner)
@@ -6094,7 +6094,7 @@ func (c *XMPPCore) ShareFileSources(toJID string, urls []string) error {
 const nsVCard4 = "urn:ietf:params:xml:ns:vcard-4.0"
 
 // GetVCard4 retrieves a vCard4 from PubSub.
-func (c *XMPPCore) GetVCard4(jid string) (*xmppIQ, error) {
+func (c *XMPPCore) GetVCard4(jid string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, nsVCard4)
 }
 
@@ -6166,7 +6166,7 @@ func (c *XMPPCore) HandleOccupantId(stanzaXML string) string {
 // ──────────────────────────── MAM Preferences (XEP-0313/0441) ────────────────────────────
 
 // GetMAMPreferences retrieves MAM archive preferences.
-func (c *XMPPCore) GetMAMPreferences() (*xmppIQ, error) {
+func (c *XMPPCore) GetMAMPreferences() (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<prefs xmlns='%s'/>`, nsMAM)
 	return c.sendIQSync("get", "", inner)
 }
@@ -6206,7 +6206,7 @@ func (c *XMPPCore) PurgeNode(service, node string) error {
 }
 
 // GetNodeAffiliations lists affiliations on a PubSub node.
-func (c *XMPPCore) GetNodeAffiliations(service, node string) (*xmppIQ, error) {
+func (c *XMPPCore) GetNodeAffiliations(service, node string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
 	}
@@ -6228,7 +6228,7 @@ func (c *XMPPCore) SetNodeAffiliation(service, node, jid, affiliation string) er
 }
 
 // GetNodeSubscribers lists all subscribers to a PubSub node.
-func (c *XMPPCore) GetNodeSubscribers(service, node string) (*xmppIQ, error) {
+func (c *XMPPCore) GetNodeSubscribers(service, node string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
 	}
@@ -6239,7 +6239,7 @@ func (c *XMPPCore) GetNodeSubscribers(service, node string) (*xmppIQ, error) {
 // ──────────────────────────── Jabber Search (XEP-0055) ────────────────────────────
 
 // SearchUsersXMPP queries a user directory via data form search.
-func (c *XMPPCore) SearchUsersXMPP(serviceJID, formXML string) (*xmppIQ, error) {
+func (c *XMPPCore) SearchUsersXMPP(serviceJID, formXML string) (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='jabber:iq:search'>%s</query>`, formXML)
 	return c.sendIQSync("set", serviceJID, inner)
 }
@@ -6321,7 +6321,7 @@ func (c *XMPPCore) SetUserNickname(nick string) error {
 }
 
 // GetUserNickname fetches a user's PEP nickname.
-func (c *XMPPCore) GetUserNickname(jid string) (*xmppIQ, error) {
+func (c *XMPPCore) GetUserNickname(jid string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, nsNick)
 }
 
@@ -6336,7 +6336,7 @@ func (c *XMPPCore) PublishOXPublicKey(fingerprint string, pubKeyB64 string) erro
 }
 
 // FetchOXPublicKey fetches a user's OpenPGP public key.
-func (c *XMPPCore) FetchOXPublicKey(jid, fingerprint string) (*xmppIQ, error) {
+func (c *XMPPCore) FetchOXPublicKey(jid, fingerprint string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, nsOX+":public-keys:"+fingerprint)
 }
 
@@ -6387,7 +6387,7 @@ func (c *XMPPCore) SetEncryptionHint(namespace, name string) string {
 // ──────────────────────────── Last User Interaction (XEP-0319) ────────────────────────────
 
 // GetLastUserInteraction queries the idle time for a contact.
-func (c *XMPPCore) GetLastUserInteraction(jid string) (*xmppIQ, error) {
+func (c *XMPPCore) GetLastUserInteraction(jid string) (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsLast)
 	return c.sendIQSync("get", jid, inner)
 }
@@ -6409,7 +6409,7 @@ func (c *XMPPCore) SetAMPRules(rules []map[string]string) string {
 const nsStickers = "urn:xmpp:stickers:0"
 
 // GetStickerPack retrieves a sticker pack from PubSub.
-func (c *XMPPCore) GetStickerPack(serviceJID, node string) (*xmppIQ, error) {
+func (c *XMPPCore) GetStickerPack(serviceJID, node string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(serviceJID, node)
 }
 
@@ -6747,7 +6747,7 @@ func (c *XMPPCore) RevokeClientAccess(clientID string) error {
 }
 
 // ListClientAccess lists authorized clients via XEP-0494.
-func (c *XMPPCore) ListClientAccess() (*xmppIQ, error) {
+func (c *XMPPCore) ListClientAccess() (*XMPPIQ, error) {
 	return c.sendIQSync("get", "", `<list xmlns='urn:xmpp:cam:0'/>`)
 }
 
@@ -6910,12 +6910,12 @@ func (c *XMPPCore) RequestStanzaIDs() error {
 }
 
 // GetInbox implements XEP-0430 — server-side inbox.
-func (c *XMPPCore) GetInbox() (*xmppIQ, error) {
+func (c *XMPPCore) GetInbox() (*XMPPIQ, error) {
 	return c.sendIQSync("get", "", `<inbox xmlns='urn:xmpp:inbox:1'/>`)
 }
 
 // SearchMAMFullText implements XEP-0431 — full-text search in MAM.
-func (c *XMPPCore) SearchMAMFullText(query string) (*xmppIQ, error) {
+func (c *XMPPCore) SearchMAMFullText(query string) (*XMPPIQ, error) {
 	return c.sendIQSync("set", "",
 		fmt.Sprintf(`<query xmlns='urn:xmpp:mam:2'>`+
 			`<x xmlns='jabber:x:data' type='submit'>`+
@@ -6960,7 +6960,7 @@ func (c *XMPPCore) SetMUCHat(room, nick, hatURI, hatTitle string) error {
 }
 
 // SearchChannels implements XEP-0433 — extended channel search.
-func (c *XMPPCore) SearchChannels(query string) (*xmppIQ, error) {
+func (c *XMPPCore) SearchChannels(query string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", "",
 		fmt.Sprintf(`<search xmlns='urn:xmpp:channel-search:0'>`+
 			`<set xmlns='http://jabber.org/protocol/rsm'><max>50</max></set>`+
@@ -7007,7 +7007,7 @@ func (c *XMPPCore) SetMUCAvatar(room string, pngData []byte) error {
 }
 
 // CreateMUCTokenInvite implements XEP-0488.
-func (c *XMPPCore) CreateMUCTokenInvite(room string) (*xmppIQ, error) {
+func (c *XMPPCore) CreateMUCTokenInvite(room string) (*XMPPIQ, error) {
 	return c.sendIQSync("set", room,
 		`<invite xmlns='urn:xmpp:muc-token-invite:0'/>`)
 }
@@ -7024,7 +7024,7 @@ func (c *XMPPCore) SetMUCSlowMode(room string, intervalSeconds int) error {
 }
 
 // GetMUCActivityIndicator implements XEP-0502.
-func (c *XMPPCore) GetMUCActivityIndicator(room string) (*xmppIQ, error) {
+func (c *XMPPCore) GetMUCActivityIndicator(room string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", room,
 		`<activity xmlns='urn:xmpp:muc-activity-indicator:0'/>`)
 }
@@ -7443,7 +7443,7 @@ func (c *XMPPCore) PublishMicroblog(content, author string) error {
 }
 
 // QueryPubSubMAM implements XEP-0442 — MAM on PubSub archives.
-func (c *XMPPCore) QueryPubSubMAM(service, node string) (*xmppIQ, error) {
+func (c *XMPPCore) QueryPubSubMAM(service, node string) (*XMPPIQ, error) {
 	return c.sendIQSync("set", service,
 		fmt.Sprintf(`<query xmlns='urn:xmpp:mam:2' node='%s'/>`, xmlEscape(node)))
 }
@@ -7459,7 +7459,7 @@ func (c *XMPPCore) SetPubSubCachingHints(node string, maxAge int) error {
 }
 
 // FilterPubSubByType implements XEP-0462.
-func (c *XMPPCore) FilterPubSubByType(service, nodeType string) (*xmppIQ, error) {
+func (c *XMPPCore) FilterPubSubByType(service, nodeType string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service,
 		fmt.Sprintf(`<query xmlns='http://jabber.org/protocol/disco#items'>`+
 			`<filter xmlns='urn:xmpp:pubsub:filter:0' type='%s'/></query>`, xmlEscape(nodeType)))
@@ -7516,7 +7516,7 @@ func (c *XMPPCore) EncryptPubSubOX(node, itemID, payload string) error {
 }
 
 // GetPubSubServerInfo implements XEP-0485.
-func (c *XMPPCore) GetPubSubServerInfo(service string) (*xmppIQ, error) {
+func (c *XMPPCore) GetPubSubServerInfo(service string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service,
 		`<query xmlns='http://jabber.org/protocol/disco#info' node='urn:xmpp:serverinfo:0'/>`)
 }
@@ -7545,7 +7545,7 @@ func (c *XMPPCore) PubSubCompareAndPublish(node, itemID, payload, prevID string)
 // ── Service Discovery (3 XEPs) ──
 
 // DiscoInfoExtended implements XEP-0128 — extended info in disco#info.
-func (c *XMPPCore) DiscoInfoExtended(to, node string) (*xmppIQ, error) {
+func (c *XMPPCore) DiscoInfoExtended(to, node string) (*XMPPIQ, error) {
 	nodeAttr := ""
 	if node != "" {
 		nodeAttr = fmt.Sprintf(` node='%s'`, xmlEscape(node))
@@ -7570,7 +7570,7 @@ func (c *XMPPCore) EntityCaps2(hashAlgo string, features []string) string {
 }
 
 // GetDOAP implements XEP-0453 — machine-readable capability descriptions.
-func (c *XMPPCore) GetDOAP(to string) (*xmppIQ, error) {
+func (c *XMPPCore) GetDOAP(to string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", to,
 		`<query xmlns='http://jabber.org/protocol/disco#info' node='urn:xmpp:doap:0'/>`)
 }
@@ -7602,7 +7602,7 @@ func ConsistentColor(jid string) (float64, float64, float64) {
 }
 
 // AvatarConversion implements XEP-0398 — server-side avatar format hint.
-func (c *XMPPCore) AvatarConversion(to string) (*xmppIQ, error) {
+func (c *XMPPCore) AvatarConversion(to string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", to,
 		`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
 			`<items node='urn:xmpp:avatar:data' max_items='1'/></pubsub>`)
@@ -7668,7 +7668,7 @@ func (c *XMPPCore) SetServerNotificationFilter(rules map[string]bool) error {
 // ── Server Interaction (10 XEPs) ──
 
 // SearchUsersExtended implements XEP-0055 — search with data forms.
-func (c *XMPPCore) SearchUsersExtended(service string, fields map[string]string) (*xmppIQ, error) {
+func (c *XMPPCore) SearchUsersExtended(service string, fields map[string]string) (*XMPPIQ, error) {
 	var fieldXML string
 	for k, v := range fields {
 		fieldXML += fmt.Sprintf(`<field var='%s'><value>%s</value></field>`,
@@ -7694,7 +7694,7 @@ func (c *XMPPCore) HandleCAPTCHA(to, challengeID, answer string) error {
 
 
 // EnableRosterVersioning implements XEP-0237 — request versioned roster.
-func (c *XMPPCore) EnableRosterVersioning(ver string) (*xmppIQ, error) {
+func (c *XMPPCore) EnableRosterVersioning(ver string) (*XMPPIQ, error) {
 	verAttr := ""
 	if ver != "" {
 		verAttr = fmt.Sprintf(` ver='%s'`, xmlEscape(ver))
@@ -7704,7 +7704,7 @@ func (c *XMPPCore) EnableRosterVersioning(ver string) (*xmppIQ, error) {
 }
 
 // CreateInvitationURI implements XEP-0401 — generate invitation URI.
-func (c *XMPPCore) CreateInvitationURI() (*xmppIQ, error) {
+func (c *XMPPCore) CreateInvitationURI() (*XMPPIQ, error) {
 	return c.sendIQSync("set", "",
 		`<invite xmlns='urn:xmpp:invite:2'/>`)
 }
@@ -7716,13 +7716,13 @@ func (c *XMPPCore) PreAuthenticatedIBR(token string) error {
 }
 
 // GetServiceOutageStatus implements XEP-0455 — server status.
-func (c *XMPPCore) GetServiceOutageStatus(domain string) (*xmppIQ, error) {
+func (c *XMPPCore) GetServiceOutageStatus(domain string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", domain,
 		`<status xmlns='urn:xmpp:service-status:0'/>`)
 }
 
 // GetDataPolicy implements XEP-0504 — data retention info.
-func (c *XMPPCore) GetDataPolicy(domain string) (*xmppIQ, error) {
+func (c *XMPPCore) GetDataPolicy(domain string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", domain,
 		`<policy xmlns='urn:xmpp:data-policy:0'/>`)
 }
@@ -7778,20 +7778,20 @@ func (c *XMPPCore) EncryptContactsMetadata(jid string, encryptedPayload []byte) 
 }
 
 // GetLinkMetadata implements XEP-0511 — rich link previews.
-func (c *XMPPCore) GetLinkMetadata(url string) (*xmppIQ, error) {
+func (c *XMPPCore) GetLinkMetadata(url string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", "",
 		fmt.Sprintf(`<link-metadata xmlns='urn:xmpp:link-metadata:0' url='%s'/>`, xmlEscape(url)))
 }
 
 // RequestOnlineMeeting implements XEP-0483 — HTTP online meetings.
-func (c *XMPPCore) RequestOnlineMeeting(service, meetingType string) (*xmppIQ, error) {
+func (c *XMPPCore) RequestOnlineMeeting(service, meetingType string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service,
 		fmt.Sprintf(`<request xmlns='urn:xmpp:http:online-meetings:invite:0' type='%s'/>`,
 			xmlEscape(meetingType)))
 }
 
 // RequestBurnerJID implements XEP-0383 — temporary anonymous JID.
-func (c *XMPPCore) RequestBurnerJID(service string) (*xmppIQ, error) {
+func (c *XMPPCore) RequestBurnerJID(service string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service,
 		`<burner xmlns='urn:xmpp:burner:0'/>`)
 }
@@ -7813,7 +7813,7 @@ func (c *XMPPCore) ForwardStanza(to, originalFrom, originalStanza string) error 
 // ── Miscellaneous (5 XEPs) ──
 
 // RSMQuery implements XEP-0059 — result set management pagination.
-func (c *XMPPCore) RSMQuery(to, queryNS string, max int, after string) (*xmppIQ, error) {
+func (c *XMPPCore) RSMQuery(to, queryNS string, max int, after string) (*XMPPIQ, error) {
 	afterXML := ""
 	if after != "" {
 		afterXML = fmt.Sprintf(`<after>%s</after>`, xmlEscape(after))

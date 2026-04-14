@@ -1,0 +1,2006 @@
+syntax = "proto3";
+
+package uniclient.deltachat;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message DCLocation {
+  double lat = 1;
+  double lon = 2;
+  int64 time = 3;
+  string sender = 4;
+  string chat_id = 5;
+  bool independent = 6;
+}
+
+message DCLocationStream {
+  string chat_id = 1;
+  int64 duration = 2;
+  int64 start_at = 3;
+  bytes cancel = 4;
+}
+
+message DCTransport {
+  string id = 1;
+  string email = 2;
+  string password = 3;
+  string i_m_a_p_host = 4;
+  string s_m_t_p_host = 5;
+}
+
+message DCWebxdcUpdate {
+  int64 serial = 1;
+  bytes payload = 2;
+  string info = 3;
+  string sender = 4;
+  int64 time = 5;
+}
+
+message DeltaChatProviderInfo {
+  int64 status = 1;
+  string before_login_hint = 2;
+  string after_login_hint = 3;
+  string overview_page = 4;
+  string i_m_a_p_host = 5;
+  int64 i_m_a_p_port = 6;
+  string s_m_t_p_host = 7;
+  int64 s_m_t_p_port = 8;
+}
+
+message DeltaChatQuotaInfo {
+  int64 current = 1;
+  int64 limit = 2;
+}
+
+message DeltaChatStorageReport {
+  int64 session_bytes = 1;
+  int64 total_bytes = 2;
+  int64 messages_count = 3;
+  int64 chats_count = 4;
+  int64 contacts_count = 5;
+}
+
+message DeltaChatWebxdcInfo {
+  string name = 1;
+  string icon = 2;
+  string source_code_url = 3;
+  string summary = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message DeltachatAcceptCallRequest {
+  string call_id = 1;
+}
+
+message DeltachatAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message DeltachatAcceptChatRequest {
+  string chat_id = 1;
+}
+
+message DeltachatAcceptChatResponse {
+}
+
+message DeltachatAcceptIncomingCallRequest {
+  string call_id = 1;
+  string offer_payload = 2;
+}
+
+message DeltachatAcceptIncomingCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message DeltachatAddAccountRequest {
+  string addr = 1;
+  string password = 2;
+}
+
+message DeltachatAddAccountResponse {
+  string result_1 = 1;
+}
+
+message DeltachatAddAddressBookRequest {
+  string csv = 1;
+}
+
+message DeltachatAddAddressBookResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatAddContactRequest {
+  string phone = 1;
+  string first_name = 2;
+  string last_name = 3;
+}
+
+message DeltachatAddContactResponse {
+}
+
+message DeltachatAddDeviceMessageRequest {
+  string label = 1;
+  string text = 2;
+}
+
+message DeltachatAddDeviceMessageResponse {
+}
+
+message DeltachatAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message DeltachatAddMembersResponse {
+}
+
+message DeltachatAddTransportRequest {
+  string email = 1;
+  string password = 2;
+  string imap_host = 3;
+  string smtp_host = 4;
+}
+
+message DeltachatAddTransportResponse {
+  string result_1 = 1;
+}
+
+message DeltachatArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message DeltachatArchiveChatResponse {
+}
+
+message DeltachatAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message DeltachatAuthenticateResponse {
+}
+
+message DeltachatBackgroundFetchRequest {
+}
+
+message DeltachatBackgroundFetchResponse {
+}
+
+message DeltachatBanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message DeltachatBanMemberResponse {
+}
+
+message DeltachatBatchGetConfigRequest {
+  repeated string keys = 1;
+}
+
+message DeltachatBatchGetConfigResponse {
+  map<string, string> result_1 = 1;
+}
+
+message DeltachatBatchSetConfigRequest {
+  map<string, string> kv = 1;
+}
+
+message DeltachatBatchSetConfigResponse {
+}
+
+message DeltachatBlockChatRequest {
+  string chat_id = 1;
+}
+
+message DeltachatBlockChatResponse {
+}
+
+message DeltachatBlockUserRequest {
+  string user_id = 1;
+}
+
+message DeltachatBlockUserResponse {
+}
+
+message DeltachatCanSendRequest {
+  string chat_id = 1;
+}
+
+message DeltachatCanSendResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatCapabilitiesRequest {
+}
+
+message DeltachatCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message DeltachatChangeContactNameRequest {
+  string email = 1;
+  string new_name = 2;
+}
+
+message DeltachatChangeContactNameResponse {
+}
+
+message DeltachatChangePassphraseRequest {
+  string old_pass = 1;
+  string new_pass = 2;
+}
+
+message DeltachatChangePassphraseResponse {
+}
+
+message DeltachatCheckEmailValidityRequest {
+  string email = 1;
+}
+
+message DeltachatCheckEmailValidityResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatCheckQRRequest {
+  string qr = 1;
+}
+
+message DeltachatCheckQRResponse {
+  map<string, string> result_1 = 1;
+}
+
+message DeltachatCloseRequest {
+}
+
+message DeltachatCloseResponse {
+}
+
+message DeltachatContinueKeyTransferRequest {
+  string msg_id = 1;
+  string setup_code = 2;
+}
+
+message DeltachatContinueKeyTransferResponse {
+}
+
+message DeltachatCreateBroadcastListRequest {
+  string name = 1;
+}
+
+message DeltachatCreateBroadcastListResponse {
+  string result_1 = 1;
+}
+
+message DeltachatCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message DeltachatCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message DeltachatCreateChatByContactIdRequest {
+  string email = 1;
+}
+
+message DeltachatCreateChatByContactIdResponse {
+  string result_1 = 1;
+}
+
+message DeltachatCreateFolderRequest {
+  string name = 1;
+  repeated string chat_ids = 2;
+}
+
+message DeltachatCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message DeltachatCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message DeltachatCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message DeltachatCreatePollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+}
+
+message DeltachatCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatCreateQRSvgRequest {
+  string data = 1;
+}
+
+message DeltachatCreateQRSvgResponse {
+  string result_1 = 1;
+}
+
+message DeltachatCreateTopicRequest {
+  string chat_id = 1;
+  string name = 2;
+}
+
+message DeltachatCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message DeltachatDeactivateAccountRequest {
+}
+
+message DeltachatDeactivateAccountResponse {
+}
+
+message DeltachatDeclineCallRequest {
+  string call_id = 1;
+}
+
+message DeltachatDeclineCallResponse {
+}
+
+message DeltachatDeleteAllLocationsRequest {
+}
+
+message DeltachatDeleteAllLocationsResponse {
+}
+
+message DeltachatDeleteChatRequest {
+  string chat_id = 1;
+}
+
+message DeltachatDeleteChatResponse {
+}
+
+message DeltachatDeleteContactRequest {
+  string user_id = 1;
+}
+
+message DeltachatDeleteContactResponse {
+}
+
+message DeltachatDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatDeleteMessageResponse {
+}
+
+message DeltachatDeleteMessagesForAllRequest {
+  string chat_id = 1;
+  repeated string msg_ids = 2;
+}
+
+message DeltachatDeleteMessagesForAllResponse {
+}
+
+message DeltachatDeleteTransportRequest {
+  string id = 1;
+}
+
+message DeltachatDeleteTransportResponse {
+}
+
+message DeltachatDownloadFullMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatDownloadFullMessageResponse {
+}
+
+message DeltachatEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message DeltachatEditChatDescriptionResponse {
+}
+
+message DeltachatEditChatTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message DeltachatEditChatTitleResponse {
+}
+
+message DeltachatEditMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string text = 3;
+}
+
+message DeltachatEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatEndCallRequest {
+  string call_id = 1;
+}
+
+message DeltachatEndCallResponse {
+}
+
+message DeltachatEstimateAutoDeletionCountRequest {
+  string chat_id = 1;
+  int64 seconds = 2;
+}
+
+message DeltachatEstimateAutoDeletionCountResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatExportBackupRequest {
+  string path = 1;
+}
+
+message DeltachatExportBackupResponse {
+}
+
+message DeltachatExportSelfKeysRequest {
+  string dir = 1;
+}
+
+message DeltachatExportSelfKeysResponse {
+}
+
+message DeltachatForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message DeltachatForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatForwardMessagesToAccountRequest {
+  repeated string msg_ids = 1;
+  string target_email = 2;
+}
+
+message DeltachatForwardMessagesToAccountResponse {
+}
+
+message DeltachatGetAccountFileSizeRequest {
+}
+
+message DeltachatGetAccountFileSizeResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatGetAllAccountIdsRequest {
+}
+
+message DeltachatGetAllAccountIdsResponse {
+  repeated string result_1 = 1;
+}
+
+message DeltachatGetBackupRequest {
+}
+
+message DeltachatGetBackupResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetBackupQRRequest {
+}
+
+message DeltachatGetBackupQRResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetBackupQRSvgRequest {
+}
+
+message DeltachatGetBackupQRSvgResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetBasicChatInfoRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetBasicChatInfoResponse {
+  bytes result_1 = 1;
+}
+
+message DeltachatGetBlobDirRequest {
+}
+
+message DeltachatGetBlobDirResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetBlockedUsersRequest {
+}
+
+message DeltachatGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message DeltachatGetCallInfoRequest {
+  string call_id = 1;
+}
+
+message DeltachatGetCallInfoResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message DeltachatGetChatColorRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetChatColorResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetChatContactsRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetChatContactsResponse {
+  repeated string result_1 = 1;
+}
+
+message DeltachatGetChatIdByContactIdRequest {
+  string email = 1;
+}
+
+message DeltachatGetChatIdByContactIdResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message DeltachatGetChatMediaRequest {
+  string chat_id = 1;
+  string viewtype = 2;
+}
+
+message DeltachatGetChatMediaResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message DeltachatGetChatTypeRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetChatTypeResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetChatlistEntriesRequest {
+  int64 list_flags = 1;
+  string query = 2;
+}
+
+message DeltachatGetChatlistEntriesResponse {
+  repeated string result_1 = 1;
+}
+
+message DeltachatGetChatlistItemsByEntriesRequest {
+  repeated string chat_ids = 1;
+}
+
+message DeltachatGetChatlistItemsByEntriesResponse {
+  bytes result_1 = 1;
+}
+
+message DeltachatGetChatlistSummaryRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetChatlistSummaryResponse {
+  bytes result_1 = 1;
+}
+
+message DeltachatGetConfigRequest {
+  string key = 1;
+}
+
+message DeltachatGetConfigResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetConnectivityRequest {
+}
+
+message DeltachatGetConnectivityResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetConnectivityHtmlRequest {
+}
+
+message DeltachatGetConnectivityHtmlResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetContactAuthNameRequest {
+  string email = 1;
+}
+
+message DeltachatGetContactAuthNameResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetContactColorRequest {
+  string email = 1;
+}
+
+message DeltachatGetContactColorResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetContactEncryptionInfoRequest {
+  string email = 1;
+}
+
+message DeltachatGetContactEncryptionInfoResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetContactLastSeenRequest {
+  string email = 1;
+}
+
+message DeltachatGetContactLastSeenResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatGetContactStatusRequest {
+  string email = 1;
+}
+
+message DeltachatGetContactStatusResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetContactVerifierIdRequest {
+  string email = 1;
+}
+
+message DeltachatGetContactVerifierIdResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetContactsRequest {
+}
+
+message DeltachatGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message DeltachatGetContextInfoRequest {
+}
+
+message DeltachatGetContextInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message DeltachatGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message DeltachatGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message DeltachatGetDraftRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetDraftResponse {
+  uniclient.OutgoingMessage result_1 = 1;
+}
+
+message DeltachatGetEncryptionInfoRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetEncryptionInfoResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetEphemeralTimerRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetEphemeralTimerResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatGetFirstUnreadMessageRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetFirstUnreadMessageResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetFoldersRequest {
+}
+
+message DeltachatGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message DeltachatGetFreshMessageCountRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetFreshMessageCountResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatGetFreshMessagesRequest {
+}
+
+message DeltachatGetFreshMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message DeltachatGetFullChatByIdRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetFullChatByIdResponse {
+  bytes result_1 = 1;
+}
+
+message DeltachatGetInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetLocationsRequest {
+  string chat_id = 1;
+  string contact_email = 2;
+  int64 from_time = 3;
+  int64 to_time = 4;
+}
+
+message DeltachatGetLocationsResponse {
+  repeated DCLocation result_1 = 1;
+}
+
+message DeltachatGetMailingListAddrRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetMailingListAddrResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message DeltachatGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message DeltachatGetMessageDownloadStateRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetMessageDownloadStateResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetMessageErrorRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetMessageErrorResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetMessageHTMLRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetMessageHTMLResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetMessageInfoRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetMessageInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message DeltachatGetMessageInfoTypeRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetMessageInfoTypeResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetMessageParentRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetMessageParentResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetMessageSortTimestampRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetMessageSortTimestampResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatGetMessageSubjectRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetMessageSubjectResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message DeltachatGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message DeltachatGetNextMessagesRequest {
+  string chat_id = 1;
+  string last_seen_msg_id = 2;
+}
+
+message DeltachatGetNextMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message DeltachatGetOAuth2URLRequest {
+  string addr = 1;
+  string redirect_uri = 2;
+}
+
+message DeltachatGetOAuth2URLResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetOriginalMsgIdRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetOriginalMsgIdResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetOverrideSenderNameRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetOverrideSenderNameResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetPastContactsRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetPastContactsResponse {
+  repeated string result_1 = 1;
+}
+
+message DeltachatGetProfileRequest {
+  string user_id = 1;
+}
+
+message DeltachatGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message DeltachatGetProviderInfoRequest {
+  string email = 1;
+}
+
+message DeltachatGetProviderInfoResponse {
+  DeltaChatProviderInfo result_1 = 1;
+}
+
+message DeltachatGetPushStateRequest {
+}
+
+message DeltachatGetPushStateResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetQuotaRequest {
+}
+
+message DeltachatGetQuotaResponse {
+  DeltaChatQuotaInfo result_1 = 1;
+}
+
+message DeltachatGetReactionsRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetReactionsResponse {
+  repeated uniclient.Reaction result_1 = 1;
+}
+
+message DeltachatGetReadReceiptCountRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetReadReceiptCountResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatGetReadReceiptsRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetReadReceiptsResponse {
+  repeated string result_1 = 1;
+}
+
+message DeltachatGetReadStateRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message DeltachatGetRemainingMuteDurationRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetRemainingMuteDurationResponse {
+  int64 result_1 = 1;
+}
+
+message DeltachatGetSavedMsgIdRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetSavedMsgIdResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetSecureJoinQRRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetSecureJoinQRResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetSecureJoinQRSvgRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetSecureJoinQRSvgResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetSessionsRequest {
+}
+
+message DeltachatGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message DeltachatGetShowPadlockRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetShowPadlockResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatGetSimilarChatsRequest {
+  string chat_id = 1;
+}
+
+message DeltachatGetSimilarChatsResponse {
+  repeated string result_1 = 1;
+}
+
+message DeltachatGetStatusRequest {
+}
+
+message DeltachatGetStatusResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetStickerFolderRequest {
+}
+
+message DeltachatGetStickerFolderResponse {
+  string result_1 = 1;
+}
+
+message DeltachatGetStickersRequest {
+}
+
+message DeltachatGetStickersResponse {
+  bytes result_1 = 1;
+}
+
+message DeltachatGetStorageUsageReportRequest {
+}
+
+message DeltachatGetStorageUsageReportResponse {
+  DeltaChatStorageReport result_1 = 1;
+}
+
+message DeltachatGetSystemInfoRequest {
+}
+
+message DeltachatGetSystemInfoResponse {
+  map<string, string> result_1 = 1;
+}
+
+message DeltachatGetWebxdcBlobRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string blob_name = 3;
+}
+
+message DeltachatGetWebxdcBlobResponse {
+  bytes result_1 = 1;
+  string result_2 = 2;
+}
+
+message DeltachatGetWebxdcInfoRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatGetWebxdcInfoResponse {
+  DeltaChatWebxdcInfo result_1 = 1;
+}
+
+message DeltachatGetWebxdcStatusUpdatesRequest {
+  string msg_id = 1;
+  int64 last_known_serial = 2;
+}
+
+message DeltachatGetWebxdcStatusUpdatesResponse {
+  repeated DCWebxdcUpdate result_1 = 1;
+}
+
+message DeltachatHasDeviatingTimestampRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatHasDeviatingTimestampResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatHasMessageHtmlRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatHasMessageHtmlResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatHasMessageLocationRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatHasMessageLocationResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatImportBackupRequest {
+  string path = 1;
+}
+
+message DeltachatImportBackupResponse {
+}
+
+message DeltachatImportSelfKeysRequest {
+  string dir = 1;
+}
+
+message DeltachatImportSelfKeysResponse {
+}
+
+message DeltachatImportVCardRequest {
+  string vcard = 1;
+}
+
+message DeltachatImportVCardResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message DeltachatInitWebxdcIntegrationRequest {
+  string filter = 1;
+}
+
+message DeltachatInitWebxdcIntegrationResponse {
+  string result_1 = 1;
+}
+
+message DeltachatInitiateKeyTransferRequest {
+}
+
+message DeltachatInitiateKeyTransferResponse {
+  string result_1 = 1;
+}
+
+message DeltachatIsChatContactRequestRequest {
+  string chat_id = 1;
+}
+
+message DeltachatIsChatContactRequestResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsChatDeviceTalkRequest {
+  string chat_id = 1;
+}
+
+message DeltachatIsChatDeviceTalkResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsChatEncryptedRequest {
+  string chat_id = 1;
+}
+
+message DeltachatIsChatEncryptedResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsChatSelfTalkRequest {
+  string chat_id = 1;
+}
+
+message DeltachatIsChatSelfTalkResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsChatUnpromotedRequest {
+  string chat_id = 1;
+}
+
+message DeltachatIsChatUnpromotedResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsConfiguredRequest {
+}
+
+message DeltachatIsConfiguredResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsContactBotRequest {
+  string email = 1;
+}
+
+message DeltachatIsContactBotResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsContactInChatRequest {
+  string chat_id = 1;
+  string email = 2;
+}
+
+message DeltachatIsContactInChatResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsContactKeyContactRequest {
+  string email = 1;
+}
+
+message DeltachatIsContactKeyContactResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsContactVerifiedRequest {
+  string email = 1;
+}
+
+message DeltachatIsContactVerifiedResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsLocationStreamingRequest {
+  string chat_id = 1;
+}
+
+message DeltachatIsLocationStreamingResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsMessageBotRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatIsMessageBotResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsMessageEditedRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatIsMessageEditedResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsMessageForwardedRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatIsMessageForwardedResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsMessageInfoRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatIsMessageInfoResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatIsSendingLocationsToChatRequest {
+  string chat_id = 1;
+}
+
+message DeltachatIsSendingLocationsToChatResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatJoinGroupCallRequest {
+  string chat_id = 1;
+}
+
+message DeltachatJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message DeltachatLeaveChatRequest {
+  string chat_id = 1;
+}
+
+message DeltachatLeaveChatResponse {
+}
+
+message DeltachatLeaveWebxdcRealtimeRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatLeaveWebxdcRealtimeResponse {
+}
+
+message DeltachatListTransportsRequest {
+}
+
+message DeltachatListTransportsResponse {
+  repeated DCTransport result_1 = 1;
+}
+
+message DeltachatLogoutRequest {
+}
+
+message DeltachatLogoutResponse {
+}
+
+message DeltachatLookupContactByAddrRequest {
+  string email = 1;
+}
+
+message DeltachatLookupContactByAddrResponse {
+  string result_1 = 1;
+}
+
+message DeltachatMakeVCardRequest {
+  repeated string emails = 1;
+}
+
+message DeltachatMakeVCardResponse {
+  string result_1 = 1;
+}
+
+message DeltachatMarkAsReadRequest {
+  string chat_id = 1;
+  string up_to_msg_id = 2;
+}
+
+message DeltachatMarkAsReadResponse {
+}
+
+message DeltachatMarkFreshChatRequest {
+  string chat_id = 1;
+}
+
+message DeltachatMarkFreshChatResponse {
+}
+
+message DeltachatMarkNoticedChatRequest {
+  string chat_id = 1;
+}
+
+message DeltachatMarkNoticedChatResponse {
+}
+
+message DeltachatMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message DeltachatMarkUnreadResponse {
+}
+
+message DeltachatMaybeNetworkRequest {
+}
+
+message DeltachatMaybeNetworkResponse {
+}
+
+message DeltachatMessageSaveFileRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string dest_path = 3;
+}
+
+message DeltachatMessageSaveFileResponse {
+}
+
+message DeltachatMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message DeltachatMuteChatResponse {
+}
+
+message DeltachatNameRequest {
+}
+
+message DeltachatNameResponse {
+  string result_1 = 1;
+}
+
+message DeltachatPinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatPinMessageResponse {
+}
+
+message DeltachatPreconfigureKeypairRequest {
+  string addr = 1;
+  string public_key = 2;
+  string private_key = 3;
+}
+
+message DeltachatPreconfigureKeypairResponse {
+}
+
+message DeltachatProvideBackupRequest {
+}
+
+message DeltachatProvideBackupResponse {
+  string result_1 = 1;
+}
+
+message DeltachatReactToMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string emoji = 3;
+}
+
+message DeltachatReactToMessageResponse {
+}
+
+message DeltachatReceiveBackupRequest {
+  string qr_data = 1;
+}
+
+message DeltachatReceiveBackupResponse {
+}
+
+message DeltachatRemoveAccountRequest {
+  string account_id = 1;
+}
+
+message DeltachatRemoveAccountResponse {
+}
+
+message DeltachatRemoveChatImageRequest {
+  string chat_id = 1;
+}
+
+message DeltachatRemoveChatImageResponse {
+}
+
+message DeltachatRemoveDraftRequest {
+  string chat_id = 1;
+}
+
+message DeltachatRemoveDraftResponse {
+}
+
+message DeltachatRemoveMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message DeltachatRemoveMemberResponse {
+}
+
+message DeltachatReplyToMessageRequest {
+  string chat_id = 1;
+  string reply_to_msg_id = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message DeltachatReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatResendMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatResendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSaveMessagesRequest {
+  repeated string msg_ids = 1;
+}
+
+message DeltachatSaveMessagesResponse {
+}
+
+message DeltachatSaveStickerRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatSaveStickerResponse {
+}
+
+message DeltachatSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message DeltachatSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message DeltachatSearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message DeltachatSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message DeltachatSecureJoinRequest {
+  string qr_data = 1;
+}
+
+message DeltachatSecureJoinResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message DeltachatSelectAccountRequest {
+  string account_id = 1;
+}
+
+message DeltachatSelectAccountResponse {
+}
+
+message DeltachatSendContactRequest {
+  string chat_id = 1;
+  string contact_email = 2;
+}
+
+message DeltachatSendContactResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSendDraftRequest {
+  string chat_id = 1;
+}
+
+message DeltachatSendDraftResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSendHTMLRequest {
+  string chat_id = 1;
+  string html = 2;
+  string plaintext = 3;
+}
+
+message DeltachatSendHTMLResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSendImageBase64Request {
+  string chat_id = 1;
+  string b64 = 2;
+  string caption = 3;
+}
+
+message DeltachatSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message DeltachatSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message DeltachatSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSendStickerRequest {
+  string chat_id = 1;
+  string sticker_id = 2;
+}
+
+message DeltachatSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSendTypingRequest {
+  string chat_id = 1;
+}
+
+message DeltachatSendTypingResponse {
+}
+
+message DeltachatSendVideochatInvitationRequest {
+  string chat_id = 1;
+}
+
+message DeltachatSendVideochatInvitationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message DeltachatSendWebxdcRealtimeAdvertisementRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatSendWebxdcRealtimeAdvertisementResponse {
+}
+
+message DeltachatSendWebxdcRealtimeDataRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  bytes data = 3;
+}
+
+message DeltachatSendWebxdcRealtimeDataResponse {
+}
+
+message DeltachatSendWebxdcStatusUpdateRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  bytes payload = 3;
+  string info = 4;
+}
+
+message DeltachatSendWebxdcStatusUpdateResponse {
+}
+
+message DeltachatSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message DeltachatSetAdminResponse {
+}
+
+message DeltachatSetAvatarRequest {
+  string image_b64 = 1;
+}
+
+message DeltachatSetAvatarResponse {
+}
+
+message DeltachatSetCallFilterRequest {
+  int64 mode = 1;
+}
+
+message DeltachatSetCallFilterResponse {
+}
+
+message DeltachatSetCallMutedRequest {
+  string call_id = 1;
+  bool muted = 2;
+}
+
+message DeltachatSetCallMutedResponse {
+}
+
+message DeltachatSetChatImageRequest {
+  string chat_id = 1;
+  string image_b64 = 2;
+}
+
+message DeltachatSetChatImageResponse {
+}
+
+message DeltachatSetChatMutedRequest {
+  string chat_id = 1;
+  int64 duration = 2;
+}
+
+message DeltachatSetChatMutedResponse {
+}
+
+message DeltachatSetChatProtectedRequest {
+  string chat_id = 1;
+  bool protected = 2;
+}
+
+message DeltachatSetChatProtectedResponse {
+}
+
+message DeltachatSetChatVisibilityRequest {
+  string chat_id = 1;
+  int64 visibility = 2;
+}
+
+message DeltachatSetChatVisibilityResponse {
+}
+
+message DeltachatSetConfigRequest {
+  string key = 1;
+  string value = 2;
+}
+
+message DeltachatSetConfigResponse {
+}
+
+message DeltachatSetConfigFromQRRequest {
+  string qr_data = 1;
+}
+
+message DeltachatSetConfigFromQRResponse {
+}
+
+message DeltachatSetDownloadLimitRequest {
+  int64 limit_bytes = 1;
+}
+
+message DeltachatSetDownloadLimitResponse {
+}
+
+message DeltachatSetDraftRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message DeltachatSetDraftResponse {
+}
+
+message DeltachatSetEphemeralTimerRequest {
+  string chat_id = 1;
+  int64 seconds = 2;
+}
+
+message DeltachatSetEphemeralTimerResponse {
+}
+
+message DeltachatSetMessageDimensionsRequest {
+  uniclient.OutgoingMessage msg = 1;
+  int64 width = 2;
+  int64 height = 3;
+}
+
+message DeltachatSetMessageDimensionsResponse {
+}
+
+message DeltachatSetMessageDurationRequest {
+  uniclient.OutgoingMessage msg = 1;
+  int64 duration = 2;
+}
+
+message DeltachatSetMessageDurationResponse {
+}
+
+message DeltachatSetMessageHtmlRequest {
+  uniclient.OutgoingMessage msg = 1;
+  string html = 2;
+}
+
+message DeltachatSetMessageHtmlResponse {
+}
+
+message DeltachatSetMessageLocationRequest {
+  uniclient.OutgoingMessage msg = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message DeltachatSetMessageLocationResponse {
+}
+
+message DeltachatSetMessageSubjectRequest {
+  uniclient.OutgoingMessage msg = 1;
+  string subject = 2;
+}
+
+message DeltachatSetMessageSubjectResponse {
+}
+
+message DeltachatSetOverrideSenderNameRequest {
+  uniclient.OutgoingMessage msg = 1;
+  string name = 2;
+}
+
+message DeltachatSetOverrideSenderNameResponse {
+}
+
+message DeltachatSetPeerPublicKeyRequest {
+  string email = 1;
+  bytes pub_key_bytes = 2;
+}
+
+message DeltachatSetPeerPublicKeyResponse {
+}
+
+message DeltachatSetPushDeviceTokenRequest {
+  string token = 1;
+}
+
+message DeltachatSetPushDeviceTokenResponse {
+}
+
+message DeltachatSetShowEmailsRequest {
+  int64 mode = 1;
+}
+
+message DeltachatSetShowEmailsResponse {
+}
+
+message DeltachatSetStatusRequest {
+  string text = 1;
+}
+
+message DeltachatSetStatusResponse {
+}
+
+message DeltachatSetStockStringsRequest {
+  bytes strings = 1;
+}
+
+message DeltachatSetStockStringsResponse {
+}
+
+message DeltachatSetWebxdcIntegrationRequest {
+  string msg_id = 1;
+}
+
+message DeltachatSetWebxdcIntegrationResponse {
+}
+
+message DeltachatStartCallRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message DeltachatStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message DeltachatStartIoRequest {
+}
+
+message DeltachatStartIoResponse {
+}
+
+message DeltachatStartIoForAllAccountsRequest {
+}
+
+message DeltachatStartIoForAllAccountsResponse {
+}
+
+message DeltachatStartLocationStreamingRequest {
+  string chat_id = 1;
+  int64 seconds = 2;
+}
+
+message DeltachatStartLocationStreamingResponse {
+}
+
+message DeltachatStopBackgroundFetchRequest {
+}
+
+message DeltachatStopBackgroundFetchResponse {
+}
+
+message DeltachatStopIoRequest {
+}
+
+message DeltachatStopIoResponse {
+}
+
+message DeltachatStopIoForAllAccountsRequest {
+}
+
+message DeltachatStopIoForAllAccountsResponse {
+}
+
+message DeltachatStopLocationStreamingRequest {
+  string chat_id = 1;
+}
+
+message DeltachatStopLocationStreamingResponse {
+}
+
+message DeltachatStopOngoingProcessRequest {
+}
+
+message DeltachatStopOngoingProcessResponse {
+}
+
+message DeltachatSyncNowRequest {
+}
+
+message DeltachatSyncNowResponse {
+}
+
+message DeltachatTerminateSessionRequest {
+  string session_id = 1;
+}
+
+message DeltachatTerminateSessionResponse {
+}
+
+message DeltachatUnbanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message DeltachatUnbanMemberResponse {
+}
+
+message DeltachatUnblockUserRequest {
+  string user_id = 1;
+}
+
+message DeltachatUnblockUserResponse {
+}
+
+message DeltachatUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message DeltachatUnpinAllMessagesResponse {
+}
+
+message DeltachatUnpinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message DeltachatUnpinMessageResponse {
+}
+
+message DeltachatVotePollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_index = 3;
+}
+
+message DeltachatVotePollResponse {
+}
+
+message DeltachatWaitNextMessagesRequest {
+  string chat_id = 1;
+  int64 timeout = 2;
+}
+
+message DeltachatWaitNextMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message DeltachatWasContactSeenRecentlyRequest {
+  string email = 1;
+}
+
+message DeltachatWasContactSeenRecentlyResponse {
+  bool result_1 = 1;
+}
+
+message DeltachatWasDeviceMsgEverAddedRequest {
+  string label = 1;
+}
+
+message DeltachatWasDeviceMsgEverAddedResponse {
+  bool result_1 = 1;
+}
+

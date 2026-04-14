@@ -1,0 +1,2183 @@
+syntax = "proto3";
+
+package uniclient.rubika;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message RubikaAccessEntry {
+  string access = 1;
+}
+
+message RubikaAvatar {
+  string avatar_id = 1;
+  string main_file_id = 2;
+  string thumb_file_id = 3;
+}
+
+message RubikaAvatarList {
+  repeated RubikaAvatar avatars = 1;
+}
+
+message RubikaBotChatInfo {
+  string chat_guid = 1;
+  string title = 2;
+  string chat_type = 3;
+  int64 count_members = 4;
+}
+
+message RubikaBotInfo {
+  string user_guid = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string username = 4;
+  bool is_bot = 5;
+}
+
+message RubikaBotJoinStatus {
+  bool is_member = 1;
+}
+
+message RubikaBotSendOpts {
+  string reply_to_message_id = 1;
+  repeated RubikaKeypadRow inline_keypad = 2;
+}
+
+message RubikaChannelEdit {
+  string title = 1;
+  string description = 2;
+  bool sign_messages = 3;
+}
+
+message RubikaChannelInfo {
+  string channel_guid = 1;
+  string channel_title = 2;
+  int64 count_members = 3;
+  string description = 4;
+  string username = 5;
+  string channel_type = 6;
+  string avatar_thumbnail = 7;
+  bool is_verified = 8;
+  bool sign_messages = 9;
+  string channel_voice_chat_id = 10;
+}
+
+message RubikaContactImportResult {
+  repeated RubikaUserInfo users = 1;
+}
+
+message RubikaFileInline {
+  string file_id = 1;
+  string file_name = 2;
+  string mime = 3;
+  int64 size = 4;
+  int64 dc_id = 5;
+  string access_hash_rec = 6;
+  string thumb_inline = 7;
+  int64 width = 8;
+  int64 height = 9;
+}
+
+message RubikaFolderInfo {
+  string folder_id = 1;
+  string name = 2;
+  repeated string include_chat_types = 3;
+  repeated string include_object_guids = 4;
+  repeated string exclude_types = 5;
+}
+
+message RubikaGroupEdit {
+  string title = 1;
+  string description = 2;
+  int64 slow_mode = 3;
+  string chat_history = 4;
+}
+
+message RubikaGroupInfo {
+  string group_guid = 1;
+  string group_title = 2;
+  int64 count_members = 3;
+  string description = 4;
+  int64 slow_mode = 5;
+  string chat_history_for_new_members = 6;
+  bool event_messages = 7;
+  string group_type = 8;
+  string username = 9;
+  string avatar_thumbnail = 10;
+  string group_voice_chat_id = 11;
+}
+
+message RubikaKeypadButton {
+  string id = 1;
+  string type = 2;
+  string button_text = 3;
+  string button_url = 4;
+  string button_query = 5;
+}
+
+message RubikaKeypadRow {
+  repeated RubikaKeypadButton buttons = 1;
+}
+
+message RubikaLinkInfo {
+  string join_link = 1;
+}
+
+message RubikaMember {
+  string member_guid = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string username = 4;
+}
+
+message RubikaMemberList {
+  repeated RubikaMember members = 1;
+  bool has_continue = 2;
+  string next_start_id = 3;
+}
+
+message RubikaMessageShareInfo {
+  string link = 1;
+}
+
+message RubikaPollStatus {
+  string state = 1;
+  bytes selection_count = 2;
+  int64 total_count = 3;
+}
+
+message RubikaPollVoters {
+  repeated RubikaMember voters = 1;
+  bool has_continue = 2;
+  string next_start_id = 3;
+}
+
+message RubikaPrivacySettings {
+  map<string, string> settings = 1;
+}
+
+message RubikaReactionInfo {
+  bytes reactions = 1;
+}
+
+message RubikaSessionInfo {
+  string session_key = 1;
+  string device_model = 2;
+  string platform = 3;
+  string app_version = 4;
+  string ip = 5;
+  string country = 6;
+  bool is_current = 7;
+}
+
+message RubikaStickerSet {
+  string sticker_set_id = 1;
+  string title = 2;
+  int64 count = 3;
+}
+
+message RubikaTwoStepInfo {
+  bool has_password = 1;
+  string password_hint = 2;
+}
+
+message RubikaUploadInfo {
+  string id = 1;
+  string upload_url = 2;
+  string access_hash_send = 3;
+  int64 dc_id = 4;
+}
+
+message RubikaUserInfo {
+  string user_guid = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string username = 4;
+  string phone = 5;
+  string bio = 6;
+  string avatar_thumbnail = 7;
+  bool is_verified = 8;
+  bool is_deleted = 9;
+  int64 last_online = 10;
+  string online_status = 11;
+}
+
+message RubikaVoiceChatInfo {
+  string voice_chat_id = 1;
+  string sdp_answer = 2;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message RubikaAcceptCallRequest {
+  string call_id = 1;
+}
+
+message RubikaAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message RubikaAcceptRequestObjectOwningRequest {
+  string object_guid = 1;
+}
+
+message RubikaAcceptRequestObjectOwningResponse {
+}
+
+message RubikaActionOnJoinRequestRequest {
+  string chat_id = 1;
+  string chat_type = 2;
+  string user_guid = 3;
+  string action = 4;
+}
+
+message RubikaActionOnJoinRequestResponse {
+}
+
+message RubikaActionOnStickerSetRequest {
+  string sticker_set_id = 1;
+  string action = 2;
+}
+
+message RubikaActionOnStickerSetResponse {
+}
+
+message RubikaAddChannelMembersRequest {
+  string channel_guid = 1;
+  repeated string member_guids = 2;
+}
+
+message RubikaAddChannelMembersResponse {
+}
+
+message RubikaAddContactRequest {
+  string phone = 1;
+  string first_name = 2;
+  string last_name = 3;
+}
+
+message RubikaAddContactResponse {
+}
+
+message RubikaAddFolderRequest {
+  string name = 1;
+  repeated string include_object_guids = 2;
+}
+
+message RubikaAddFolderResponse {
+  RubikaFolderInfo result_1 = 1;
+}
+
+message RubikaAddGroupMembersRequest {
+  string group_guid = 1;
+  repeated string member_guids = 2;
+}
+
+message RubikaAddGroupMembersResponse {
+}
+
+message RubikaAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message RubikaAddMembersResponse {
+}
+
+message RubikaAddToMyGifSetRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message RubikaAddToMyGifSetResponse {
+}
+
+message RubikaArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message RubikaArchiveChatResponse {
+}
+
+message RubikaAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message RubikaAuthenticateResponse {
+}
+
+message RubikaAutoDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  double seconds = 3;
+}
+
+message RubikaAutoDeleteMessageResponse {
+}
+
+message RubikaBanChannelMemberRequest {
+  string channel_guid = 1;
+  string member_guid = 2;
+  bool ban = 3;
+}
+
+message RubikaBanChannelMemberResponse {
+}
+
+message RubikaBanGroupMemberRequest {
+  string group_guid = 1;
+  string member_guid = 2;
+  bool ban = 3;
+}
+
+message RubikaBanGroupMemberResponse {
+}
+
+message RubikaBanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message RubikaBanMemberResponse {
+}
+
+message RubikaBlockUserRequest {
+  string user_id = 1;
+}
+
+message RubikaBlockUserResponse {
+}
+
+message RubikaBotBanChatMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message RubikaBotBanChatMemberResponse {
+}
+
+message RubikaBotCheckJoinRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message RubikaBotCheckJoinResponse {
+  RubikaBotJoinStatus result_1 = 1;
+}
+
+message RubikaBotDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message RubikaBotDeleteMessageResponse {
+}
+
+message RubikaBotEditChatKeypadRequest {
+  string chat_id = 1;
+  bytes chat_keypad = 2;
+  string keypad_type = 3;
+}
+
+message RubikaBotEditChatKeypadResponse {
+}
+
+message RubikaBotEditMessageKeypadRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  bytes inline_keypad = 3;
+}
+
+message RubikaBotEditMessageKeypadResponse {
+}
+
+message RubikaBotEditMessageTextRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string text = 3;
+}
+
+message RubikaBotEditMessageTextResponse {
+}
+
+message RubikaBotForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message RubikaBotForwardMessageResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotGetChatRequest {
+  string chat_id = 1;
+}
+
+message RubikaBotGetChatResponse {
+  RubikaBotChatInfo result_1 = 1;
+}
+
+message RubikaBotGetFileRequest {
+  string file_id = 1;
+}
+
+message RubikaBotGetFileResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotGetMeRequest {
+}
+
+message RubikaBotGetMeResponse {
+  RubikaBotInfo result_1 = 1;
+}
+
+message RubikaBotGetUpdatesRequest {
+  string offset_id = 1;
+  int64 limit = 2;
+}
+
+message RubikaBotGetUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaBotRemoveKeypadRequest {
+  string chat_id = 1;
+}
+
+message RubikaBotRemoveKeypadResponse {
+}
+
+message RubikaBotReplyMessageRequest {
+  string chat_id = 1;
+  string text = 2;
+  string reply_to_msg_id = 3;
+  bytes opts = 4;
+}
+
+message RubikaBotReplyMessageResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotRequestSendFileRequest {
+  string file_type = 1;
+}
+
+message RubikaBotRequestSendFileResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendContactRequest {
+  string chat_id = 1;
+  string phone = 2;
+  string first_name = 3;
+  string last_name = 4;
+  bytes opts = 5;
+}
+
+message RubikaBotSendContactResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendDocumentRequest {
+  string chat_id = 1;
+  string file_id = 2;
+  string caption = 3;
+  bytes opts = 4;
+}
+
+message RubikaBotSendDocumentResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendFileRequest {
+  string chat_id = 1;
+  string file_id = 2;
+  string text = 3;
+  bytes opts = 4;
+}
+
+message RubikaBotSendFileResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendGifRequest {
+  string chat_id = 1;
+  string file_id = 2;
+  string caption = 3;
+  bytes opts = 4;
+}
+
+message RubikaBotSendGifResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendImageRequest {
+  string chat_id = 1;
+  string file_id = 2;
+  string caption = 3;
+  bytes opts = 4;
+}
+
+message RubikaBotSendImageResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendLocationRequest {
+  string chat_id = 1;
+  string lat = 2;
+  string lon = 3;
+  bytes opts = 4;
+}
+
+message RubikaBotSendLocationResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendMessageRequest {
+  string chat_id = 1;
+  string text = 2;
+  bytes opts = 3;
+}
+
+message RubikaBotSendMessageResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendMusicRequest {
+  string chat_id = 1;
+  string file_id = 2;
+  string caption = 3;
+  bytes opts = 4;
+}
+
+message RubikaBotSendMusicResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendPollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+}
+
+message RubikaBotSendPollResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendStickerRequest {
+  string chat_id = 1;
+  string file_id = 2;
+  bytes opts = 3;
+}
+
+message RubikaBotSendStickerResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendVideoRequest {
+  string chat_id = 1;
+  string file_id = 2;
+  string caption = 3;
+  bytes opts = 4;
+}
+
+message RubikaBotSendVideoResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSendVoiceRequest {
+  string chat_id = 1;
+  string file_id = 2;
+  bytes opts = 3;
+}
+
+message RubikaBotSendVoiceResponse {
+  string result_1 = 1;
+}
+
+message RubikaBotSetCommandsRequest {
+  bytes commands = 1;
+}
+
+message RubikaBotSetCommandsResponse {
+}
+
+message RubikaBotUnbanChatMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message RubikaBotUnbanChatMemberResponse {
+}
+
+message RubikaBotUpdateEndpointsRequest {
+  string url = 1;
+  string endpoint_type = 2;
+}
+
+message RubikaBotUpdateEndpointsResponse {
+}
+
+message RubikaBotUploadFileRequest {
+  string file_type = 1;
+  string file_name = 2;
+  bytes data = 3;
+}
+
+message RubikaBotUploadFileResponse {
+  string result_1 = 1;
+}
+
+message RubikaCapabilitiesRequest {
+}
+
+message RubikaCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message RubikaChannelPreviewByJoinLinkRequest {
+  string hash_link = 1;
+}
+
+message RubikaChannelPreviewByJoinLinkResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaCheckChannelUsernameRequest {
+  string username = 1;
+}
+
+message RubikaCheckChannelUsernameResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaCheckUserUsernameRequest {
+  string username = 1;
+}
+
+message RubikaCheckUserUsernameResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaCloseRequest {
+}
+
+message RubikaCloseResponse {
+}
+
+message RubikaCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message RubikaCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message RubikaCreateChannelVoiceChatRequest {
+  string channel_guid = 1;
+}
+
+message RubikaCreateChannelVoiceChatResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaCreateFolderRequest {
+  string name = 1;
+  repeated string chat_ids = 2;
+}
+
+message RubikaCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message RubikaCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message RubikaCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message RubikaCreateGroupVoiceChatRequest {
+  string group_guid = 1;
+}
+
+message RubikaCreateGroupVoiceChatResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaCreateJoinLinkRequest {
+  string chat_id = 1;
+}
+
+message RubikaCreateJoinLinkResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaCreatePollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+}
+
+message RubikaCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message RubikaCreateTopicRequest {
+  string chat_id = 1;
+  string name = 2;
+}
+
+message RubikaCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message RubikaDeclineCallRequest {
+  string call_id = 1;
+}
+
+message RubikaDeclineCallResponse {
+}
+
+message RubikaDeleteAvatarRequest {
+  string object_guid = 1;
+  string avatar_id = 2;
+}
+
+message RubikaDeleteAvatarResponse {
+}
+
+message RubikaDeleteChatHistoryRequest {
+  string chat_id = 1;
+  string last_message_id = 2;
+}
+
+message RubikaDeleteChatHistoryResponse {
+}
+
+message RubikaDeleteContactRequest {
+  string user_guid = 1;
+}
+
+message RubikaDeleteContactResponse {
+}
+
+message RubikaDeleteFolderRequest {
+  string folder_id = 1;
+}
+
+message RubikaDeleteFolderResponse {
+}
+
+message RubikaDeleteGroupAvatarRequest {
+  string group_guid = 1;
+  string avatar_id = 2;
+}
+
+message RubikaDeleteGroupAvatarResponse {
+}
+
+message RubikaDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message RubikaDeleteMessageResponse {
+}
+
+message RubikaDeleteNoAccessGroupChatRequest {
+  string group_guid = 1;
+}
+
+message RubikaDeleteNoAccessGroupChatResponse {
+}
+
+message RubikaDeleteUserChatRequest {
+  string user_guid = 1;
+  string last_deleted_msg_id = 2;
+}
+
+message RubikaDeleteUserChatResponse {
+}
+
+message RubikaDiscardChannelVoiceChatRequest {
+  string channel_guid = 1;
+  string voice_chat_id = 2;
+}
+
+message RubikaDiscardChannelVoiceChatResponse {
+}
+
+message RubikaDiscardGroupVoiceChatRequest {
+  string chat_guid = 1;
+  string voice_chat_id = 2;
+}
+
+message RubikaDiscardGroupVoiceChatResponse {
+}
+
+message RubikaEditChannelInfoRequest {
+  string channel_guid = 1;
+  bytes updates = 2;
+}
+
+message RubikaEditChannelInfoResponse {
+}
+
+message RubikaEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message RubikaEditChatDescriptionResponse {
+}
+
+message RubikaEditChatTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message RubikaEditChatTitleResponse {
+}
+
+message RubikaEditFolderRequest {
+  string folder_id = 1;
+  string name = 2;
+  repeated string included_chat_guids = 3;
+  repeated string excluded_types = 4;
+}
+
+message RubikaEditFolderResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaEditGroupHistoryForNewMembersRequest {
+  string group_guid = 1;
+  bool visible = 2;
+}
+
+message RubikaEditGroupHistoryForNewMembersResponse {
+}
+
+message RubikaEditGroupInfoRequest {
+  string group_guid = 1;
+  bytes updates = 2;
+}
+
+message RubikaEditGroupInfoResponse {
+}
+
+message RubikaEditMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string text = 3;
+}
+
+message RubikaEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message RubikaEndCallRequest {
+  string call_id = 1;
+}
+
+message RubikaEndCallResponse {
+}
+
+message RubikaForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message RubikaForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message RubikaGetAbsObjectsRequest {
+  repeated string guids = 1;
+}
+
+message RubikaGetAbsObjectsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetAvatarsRequest {
+  string object_guid = 1;
+}
+
+message RubikaGetAvatarsResponse {
+  RubikaAvatarList result_1 = 1;
+}
+
+message RubikaGetBannedChannelMembersRequest {
+  string channel_guid = 1;
+  string start_id = 2;
+}
+
+message RubikaGetBannedChannelMembersResponse {
+  RubikaMemberList result_1 = 1;
+}
+
+message RubikaGetBannedGroupMembersRequest {
+  string group_guid = 1;
+  string start_id = 2;
+}
+
+message RubikaGetBannedGroupMembersResponse {
+  RubikaMemberList result_1 = 1;
+}
+
+message RubikaGetBlockedUsersRequest {
+}
+
+message RubikaGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message RubikaGetCallStatsRequest {
+}
+
+message RubikaGetCallStatsResponse {
+  int64 sent = 1;
+  int64 recv = 2;
+}
+
+message RubikaGetChannelAdminAccessListRequest {
+  string channel_guid = 1;
+  string member_guid = 2;
+}
+
+message RubikaGetChannelAdminAccessListResponse {
+  repeated string result_1 = 1;
+}
+
+message RubikaGetChannelAdminMembersRequest {
+  string channel_guid = 1;
+  string start_id = 2;
+}
+
+message RubikaGetChannelAdminMembersResponse {
+  RubikaMemberList result_1 = 1;
+}
+
+message RubikaGetChannelAllMembersRequest {
+  string channel_guid = 1;
+}
+
+message RubikaGetChannelAllMembersResponse {
+  RubikaMemberList result_1 = 1;
+}
+
+message RubikaGetChannelInfoRequest {
+  string channel_guid = 1;
+}
+
+message RubikaGetChannelInfoResponse {
+  RubikaChannelInfo result_1 = 1;
+}
+
+message RubikaGetChannelLinkRequest {
+  string channel_guid = 1;
+}
+
+message RubikaGetChannelLinkResponse {
+  RubikaLinkInfo result_1 = 1;
+}
+
+message RubikaGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message RubikaGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message RubikaGetChatInfoByUsernameRequest {
+  string username = 1;
+}
+
+message RubikaGetChatInfoByUsernameResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetChatsUpdatesRequest {
+  int64 state = 1;
+}
+
+message RubikaGetChatsUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetContactsRequest {
+}
+
+message RubikaGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message RubikaGetContactsUpdatesRequest {
+  int64 state = 1;
+}
+
+message RubikaGetContactsUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message RubikaGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message RubikaGetFoldersRequest {
+}
+
+message RubikaGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message RubikaGetGUIDRequest {
+}
+
+message RubikaGetGUIDResponse {
+  string result_1 = 1;
+}
+
+message RubikaGetGroupAdminAccessListRequest {
+  string group_guid = 1;
+  string member_guid = 2;
+}
+
+message RubikaGetGroupAdminAccessListResponse {
+  repeated string result_1 = 1;
+}
+
+message RubikaGetGroupAdminMembersRequest {
+  string group_guid = 1;
+  string start_id = 2;
+}
+
+message RubikaGetGroupAdminMembersResponse {
+  RubikaMemberList result_1 = 1;
+}
+
+message RubikaGetGroupAllMembersRequest {
+  string group_guid = 1;
+}
+
+message RubikaGetGroupAllMembersResponse {
+  RubikaMemberList result_1 = 1;
+}
+
+message RubikaGetGroupDefaultAccessRequest {
+  string group_guid = 1;
+}
+
+message RubikaGetGroupDefaultAccessResponse {
+  repeated string result_1 = 1;
+}
+
+message RubikaGetGroupInfoRequest {
+  string group_guid = 1;
+}
+
+message RubikaGetGroupInfoResponse {
+  RubikaGroupInfo result_1 = 1;
+}
+
+message RubikaGetGroupLinkRequest {
+  string group_guid = 1;
+}
+
+message RubikaGetGroupLinkResponse {
+  RubikaLinkInfo result_1 = 1;
+}
+
+message RubikaGetGroupMemberCountRequest {
+  string group_guid = 1;
+}
+
+message RubikaGetGroupMemberCountResponse {
+  int64 result_1 = 1;
+}
+
+message RubikaGetGroupMentionListRequest {
+  string group_guid = 1;
+  string search_text = 2;
+}
+
+message RubikaGetGroupMentionListResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetGroupOnlineCountRequest {
+  string group_guid = 1;
+}
+
+message RubikaGetGroupOnlineCountResponse {
+  int64 result_1 = 1;
+}
+
+message RubikaGetGroupVoiceChatParticipantsRequest {
+  string chat_guid = 1;
+  string voice_chat_id = 2;
+}
+
+message RubikaGetGroupVoiceChatParticipantsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetGroupVoiceChatUpdatesRequest {
+  string chat_guid = 1;
+  string voice_chat_id = 2;
+  int64 state = 3;
+}
+
+message RubikaGetGroupVoiceChatUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message RubikaGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message RubikaGetJoinLinksRequest {
+  string chat_id = 1;
+}
+
+message RubikaGetJoinLinksResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetJoinRequestsRequest {
+  string chat_id = 1;
+}
+
+message RubikaGetJoinRequestsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetLinkFromAppUrlRequest {
+  string app_url = 1;
+}
+
+message RubikaGetLinkFromAppUrlResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message RubikaGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message RubikaGetMessageReactionsRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message RubikaGetMessageReactionsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetMessageShareURLRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message RubikaGetMessageShareURLResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message RubikaGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message RubikaGetMessagesByIDRequest {
+  string chat_id = 1;
+  repeated string message_ids = 2;
+}
+
+message RubikaGetMessagesByIDResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetMessagesIntervalRequest {
+  string chat_id = 1;
+  string middle_msg_id = 2;
+}
+
+message RubikaGetMessagesIntervalResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetMessagesUpdatesRequest {
+  string chat_id = 1;
+  int64 state = 2;
+}
+
+message RubikaGetMessagesUpdatesResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetMyGifSetRequest {
+}
+
+message RubikaGetMyGifSetResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetMyStickerSetsRequest {
+}
+
+message RubikaGetMyStickerSetsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetMyStickersRequest {
+}
+
+message RubikaGetMyStickersResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetNewGroupLinkRequest {
+  string group_guid = 1;
+}
+
+message RubikaGetNewGroupLinkResponse {
+  RubikaLinkInfo result_1 = 1;
+}
+
+message RubikaGetObjectByUsernameRequest {
+  string username = 1;
+}
+
+message RubikaGetObjectByUsernameResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetPollOptionVotersRequest {
+  string poll_id = 1;
+  int64 selection_index = 2;
+  string start_id = 3;
+}
+
+message RubikaGetPollOptionVotersResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetPollStatusRequest {
+  string poll_id = 1;
+}
+
+message RubikaGetPollStatusResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetPrivacySettingRequest {
+}
+
+message RubikaGetPrivacySettingResponse {
+  RubikaPrivacySettings result_1 = 1;
+}
+
+message RubikaGetProfileRequest {
+  string user_id = 1;
+}
+
+message RubikaGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message RubikaGetProfileLinkItemsRequest {
+  repeated string object_guid = 1;
+}
+
+message RubikaGetProfileLinkItemsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetReadStateRequest {
+  string chat_id = 1;
+}
+
+message RubikaGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message RubikaGetRelatedObjectsRequest {
+  string object_guid = 1;
+}
+
+message RubikaGetRelatedObjectsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetSessionsRequest {
+}
+
+message RubikaGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message RubikaGetStickerSetByIDRequest {
+  string sticker_set_id = 1;
+}
+
+message RubikaGetStickerSetByIDResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetStickersByEmojiRequest {
+  string emoji = 1;
+}
+
+message RubikaGetStickersByEmojiResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetStickersBySetIDsRequest {
+  repeated string sticker_set_ids = 1;
+}
+
+message RubikaGetStickersBySetIDsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetSuggestedFoldersRequest {
+}
+
+message RubikaGetSuggestedFoldersResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetTranscriptionRequest {
+  string transcription_id = 1;
+}
+
+message RubikaGetTranscriptionResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetTrendStickerSetsRequest {
+}
+
+message RubikaGetTrendStickerSetsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaGetTwoPasscodeStatusRequest {
+}
+
+message RubikaGetTwoPasscodeStatusResponse {
+  RubikaTwoStepInfo result_1 = 1;
+}
+
+message RubikaGetUserInfoRequest {
+  string user_guid = 1;
+}
+
+message RubikaGetUserInfoResponse {
+  RubikaUserInfo result_1 = 1;
+}
+
+message RubikaGroupPreviewByJoinLinkRequest {
+  string hash_link = 1;
+}
+
+message RubikaGroupPreviewByJoinLinkResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaImportContactsRequest {
+  bytes contacts = 1;
+}
+
+message RubikaImportContactsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaJoinChannelActionRequest {
+  string channel_guid = 1;
+  string action = 2;
+}
+
+message RubikaJoinChannelActionResponse {
+}
+
+message RubikaJoinChannelByLinkRequest {
+  string hash_link = 1;
+}
+
+message RubikaJoinChannelByLinkResponse {
+}
+
+message RubikaJoinGroupRequest {
+  string group_guid = 1;
+}
+
+message RubikaJoinGroupResponse {
+}
+
+message RubikaJoinGroupCallRequest {
+  string chat_id = 1;
+}
+
+message RubikaJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message RubikaJoinVoiceChatRequest {
+  string chat_id = 1;
+  string voice_chat_id = 2;
+  string sdp_offer = 3;
+}
+
+message RubikaJoinVoiceChatResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaLeaveChannelVoiceChatRequest {
+  string channel_guid = 1;
+  string voice_chat_id = 2;
+}
+
+message RubikaLeaveChannelVoiceChatResponse {
+}
+
+message RubikaLeaveChatRequest {
+  string chat_id = 1;
+}
+
+message RubikaLeaveChatResponse {
+}
+
+message RubikaLeaveGroupRequest {
+  string group_guid = 1;
+}
+
+message RubikaLeaveGroupResponse {
+}
+
+message RubikaLeaveGroupVoiceChatRequest {
+  string chat_guid = 1;
+  string voice_chat_id = 2;
+}
+
+message RubikaLeaveGroupVoiceChatResponse {
+}
+
+message RubikaLoadMoreParticipantsRequest {
+  string chat_id = 1;
+  string voice_chat_id = 2;
+  string start_id = 3;
+}
+
+message RubikaLoadMoreParticipantsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaLoginDisableTwoStepRequest {
+  string phone_number = 1;
+  string phone_code_hash = 2;
+}
+
+message RubikaLoginDisableTwoStepResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaLoginTwoStepForgetPasswordRequest {
+  string phone_number = 1;
+  string phone_code_hash = 2;
+}
+
+message RubikaLoginTwoStepForgetPasswordResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaLogoutRequest {
+}
+
+message RubikaLogoutResponse {
+}
+
+message RubikaMarkAsReadRequest {
+  string chat_id = 1;
+  string up_to_msg_id = 2;
+}
+
+message RubikaMarkAsReadResponse {
+}
+
+message RubikaMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message RubikaMarkUnreadResponse {
+}
+
+message RubikaMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message RubikaMuteChatResponse {
+}
+
+message RubikaNameRequest {
+}
+
+message RubikaNameResponse {
+  string result_1 = 1;
+}
+
+message RubikaPinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message RubikaPinMessageResponse {
+}
+
+message RubikaRawAPIRequest {
+  string method = 1;
+  bytes input = 2;
+}
+
+message RubikaRawAPIResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaReactToMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string emoji = 3;
+}
+
+message RubikaReactToMessageResponse {
+}
+
+message RubikaRejectRequestObjectOwningRequest {
+  string object_guid = 1;
+}
+
+message RubikaRejectRequestObjectOwningResponse {
+}
+
+message RubikaRemoveChannelRequest {
+  string channel_guid = 1;
+}
+
+message RubikaRemoveChannelResponse {
+}
+
+message RubikaRemoveFromMyGifSetRequest {
+  string file_id = 1;
+}
+
+message RubikaRemoveFromMyGifSetResponse {
+}
+
+message RubikaRemoveGroupRequest {
+  string group_guid = 1;
+}
+
+message RubikaRemoveGroupResponse {
+}
+
+message RubikaRemoveGroupAdminRequest {
+  string group_guid = 1;
+  string member_guid = 2;
+}
+
+message RubikaRemoveGroupAdminResponse {
+}
+
+message RubikaRemoveMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message RubikaRemoveMemberResponse {
+}
+
+message RubikaRemoveReactionRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 reaction_id = 3;
+}
+
+message RubikaRemoveReactionResponse {
+}
+
+message RubikaReplyToMessageRequest {
+  string chat_id = 1;
+  string reply_to_msg_id = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message RubikaReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message RubikaReportObjectRequest {
+  string chat_id = 1;
+  int64 report_type = 2;
+  string description = 3;
+}
+
+message RubikaReportObjectResponse {
+}
+
+message RubikaRequestChangeObjectOwnerRequest {
+  string object_guid = 1;
+  string new_owner_guid = 2;
+}
+
+message RubikaRequestChangeObjectOwnerResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaRequestDeleteAccountRequest {
+}
+
+message RubikaRequestDeleteAccountResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaResetContactsRequest {
+}
+
+message RubikaResetContactsResponse {
+}
+
+message RubikaSearchContactsRequest {
+  string query = 1;
+}
+
+message RubikaSearchContactsResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message RubikaSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message RubikaSearchGlobalMessagesRequest {
+  string text = 1;
+  string start_id = 2;
+  int64 limit = 3;
+}
+
+message RubikaSearchGlobalMessagesResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message RubikaSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message RubikaSearchStickersRequest {
+  string search_text = 1;
+  string start_id = 2;
+}
+
+message RubikaSearchStickersResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSeenChannelMessagesRequest {
+  string channel_guid = 1;
+  string min_id = 2;
+  string max_id = 3;
+}
+
+message RubikaSeenChannelMessagesResponse {
+}
+
+message RubikaSeenChatsRequest {
+  map<string, string> seen_list = 1;
+}
+
+message RubikaSeenChatsResponse {
+}
+
+message RubikaSendAudioOpusRequest {
+  bytes opus_frame = 1;
+}
+
+message RubikaSendAudioOpusResponse {
+}
+
+message RubikaSendChatActivityRequest {
+  string chat_id = 1;
+  string activity = 2;
+}
+
+message RubikaSendChatActivityResponse {
+}
+
+message RubikaSendCodeRequest {
+  string phone = 1;
+  string pass_key = 2;
+}
+
+message RubikaSendCodeResponse {
+  string result_1 = 1;
+}
+
+message RubikaSendContactRequest {
+  string chat_guid = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string phone = 4;
+}
+
+message RubikaSendContactResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSendDocumentRequest {
+  string chat_id = 1;
+  bytes data = 2;
+  string file_name = 3;
+  string caption = 4;
+}
+
+message RubikaSendDocumentResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSendGifRequest {
+  string chat_id = 1;
+  bytes data = 2;
+  string file_name = 3;
+  string caption = 4;
+}
+
+message RubikaSendGifResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSendGroupVoiceChatActivityRequest {
+  string group_guid = 1;
+  string voice_chat_id = 2;
+  string activity = 3;
+}
+
+message RubikaSendGroupVoiceChatActivityResponse {
+}
+
+message RubikaSendImageBase64Request {
+  string chat_id = 1;
+  string b64 = 2;
+  string caption = 3;
+}
+
+message RubikaSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message RubikaSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message RubikaSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message RubikaSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message RubikaSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message RubikaSendMusicRequest {
+  string chat_id = 1;
+  bytes data = 2;
+  string file_name = 3;
+  string caption = 4;
+}
+
+message RubikaSendMusicResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSendPhotoRequest {
+  string chat_id = 1;
+  bytes data = 2;
+  string file_name = 3;
+  string caption = 4;
+}
+
+message RubikaSendPhotoResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSendStickerRequest {
+  string chat_id = 1;
+  string sticker_id = 2;
+}
+
+message RubikaSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message RubikaSendTypingRequest {
+  string chat_id = 1;
+}
+
+message RubikaSendTypingResponse {
+}
+
+message RubikaSendVideoRequest {
+  string chat_id = 1;
+  bytes data = 2;
+  string file_name = 3;
+  string caption = 4;
+}
+
+message RubikaSendVideoResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSendVideoMessageRequest {
+  string chat_id = 1;
+  bytes data = 2;
+  string file_name = 3;
+}
+
+message RubikaSendVideoMessageResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSendVoiceRequest {
+  string chat_id = 1;
+  bytes data = 2;
+  string file_name = 3;
+}
+
+message RubikaSendVoiceResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaSetActionChatRequest {
+  string chat_id = 1;
+  string action = 2;
+}
+
+message RubikaSetActionChatResponse {
+}
+
+message RubikaSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message RubikaSetAdminResponse {
+}
+
+message RubikaSetBlockUserRequest {
+  string user_guid = 1;
+  bool block = 2;
+}
+
+message RubikaSetBlockUserResponse {
+}
+
+message RubikaSetCallMutedRequest {
+  string call_id = 1;
+  bool muted = 2;
+}
+
+message RubikaSetCallMutedResponse {
+}
+
+message RubikaSetChannelLinkRequest {
+  string channel_guid = 1;
+}
+
+message RubikaSetChannelLinkResponse {
+  RubikaLinkInfo result_1 = 1;
+}
+
+message RubikaSetChannelVoiceChatSettingRequest {
+  string channel_guid = 1;
+  string voice_chat_id = 2;
+  bytes settings = 3;
+}
+
+message RubikaSetChannelVoiceChatSettingResponse {
+}
+
+message RubikaSetGroupAdminRequest {
+  string group_guid = 1;
+  string member_guid = 2;
+  repeated string access_list = 3;
+}
+
+message RubikaSetGroupAdminResponse {
+}
+
+message RubikaSetGroupDefaultAccessRequest {
+  string group_guid = 1;
+  repeated string access_list = 2;
+}
+
+message RubikaSetGroupDefaultAccessResponse {
+}
+
+message RubikaSetGroupEventMessagesRequest {
+  string group_guid = 1;
+  bool enabled = 2;
+}
+
+message RubikaSetGroupEventMessagesResponse {
+}
+
+message RubikaSetGroupLinkRequest {
+  string group_guid = 1;
+}
+
+message RubikaSetGroupLinkResponse {
+  RubikaLinkInfo result_1 = 1;
+}
+
+message RubikaSetGroupReactionsRequest {
+  string group_guid = 1;
+  string reaction_type = 2;
+  repeated string selected_reactions = 3;
+}
+
+message RubikaSetGroupReactionsResponse {
+}
+
+message RubikaSetGroupSlowModeTimeRequest {
+  string group_guid = 1;
+  int64 seconds = 2;
+}
+
+message RubikaSetGroupSlowModeTimeResponse {
+}
+
+message RubikaSetGroupVoiceChatSettingRequest {
+  string group_guid = 1;
+  string voice_chat_id = 2;
+  bytes settings = 3;
+}
+
+message RubikaSetGroupVoiceChatSettingResponse {
+}
+
+message RubikaSetPrivacySettingRequest {
+  string setting_type = 1;
+  string value = 2;
+}
+
+message RubikaSetPrivacySettingResponse {
+}
+
+message RubikaSetSettingRequest {
+  bytes settings = 1;
+}
+
+message RubikaSetSettingResponse {
+}
+
+message RubikaSetVoiceChatStateRequest {
+  string chat_id = 1;
+  string voice_chat_id = 2;
+  string state = 3;
+}
+
+message RubikaSetVoiceChatStateResponse {
+}
+
+message RubikaSetupTwoStepVerificationRequest {
+  string password = 1;
+  string hint = 2;
+  string recovery_email = 3;
+}
+
+message RubikaSetupTwoStepVerificationResponse {
+}
+
+message RubikaSignInRequest {
+  string phone = 1;
+  string otp = 2;
+  string phone_code_hash = 3;
+}
+
+message RubikaSignInResponse {
+}
+
+message RubikaStartCallRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message RubikaStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message RubikaStartWebSocketRequest {
+}
+
+message RubikaStartWebSocketResponse {
+}
+
+message RubikaTerminateOtherSessionsRequest {
+}
+
+message RubikaTerminateOtherSessionsResponse {
+}
+
+message RubikaTerminateSessionRequest {
+  string session_key = 1;
+}
+
+message RubikaTerminateSessionResponse {
+}
+
+message RubikaTranscribeVoiceRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message RubikaTranscribeVoiceResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaTurnOffTwoStepRequest {
+  string password = 1;
+}
+
+message RubikaTurnOffTwoStepResponse {
+}
+
+message RubikaUnbanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message RubikaUnbanMemberResponse {
+}
+
+message RubikaUnblockUserRequest {
+  string user_id = 1;
+}
+
+message RubikaUnblockUserResponse {
+}
+
+message RubikaUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message RubikaUnpinAllMessagesResponse {
+}
+
+message RubikaUnpinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message RubikaUnpinMessageResponse {
+}
+
+message RubikaUpdateChannelUsernameRequest {
+  string channel_guid = 1;
+  string username = 2;
+}
+
+message RubikaUpdateChannelUsernameResponse {
+}
+
+message RubikaUpdateProfileRequest {
+  string first_name = 1;
+  string last_name = 2;
+  string bio = 3;
+}
+
+message RubikaUpdateProfileResponse {
+}
+
+message RubikaUpdateUsernameRequest {
+  string username = 1;
+}
+
+message RubikaUpdateUsernameResponse {
+}
+
+message RubikaUploadAvatarRequest {
+  string object_guid = 1;
+  bytes file_inline = 2;
+}
+
+message RubikaUploadAvatarResponse {
+}
+
+message RubikaUserIsAdminRequest {
+  string chat_id = 1;
+}
+
+message RubikaUserIsAdminResponse {
+  bytes result_1 = 1;
+}
+
+message RubikaVotePollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_index = 3;
+}
+
+message RubikaVotePollResponse {
+}
+

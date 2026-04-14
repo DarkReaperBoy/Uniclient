@@ -1,0 +1,3143 @@
+syntax = "proto3";
+
+package uniclient.xmpp;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message XMPPIQ {
+  bytes x_m_l_name = 1;
+  string type = 2;
+  string id = 3;
+  string to = 4;
+  string from = 5;
+  string lang = 6;
+  string inner = 7;
+  XMPPStanzaError error = 8;
+}
+
+message XMPPStanzaError {
+  string type = 1;
+  string code = 2;
+  string text = 3;
+  string inner = 4;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message XmppAcceptCallRequest {
+  string call_id = 1;
+}
+
+message XmppAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message XmppAcceptJingleRequest {
+  string to = 1;
+  string sid = 2;
+}
+
+message XmppAcceptJingleResponse {
+}
+
+message XmppAcceptProposalRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+}
+
+message XmppAcceptProposalResponse {
+}
+
+message XmppActivateS5BRequest {
+  string proxy_j_id = 1;
+  string sid = 2;
+  string target_j_id = 3;
+}
+
+message XmppActivateS5BResponse {
+}
+
+message XmppAddContactRequest {
+  string phone = 1;
+  string first_name = 2;
+  string last_name = 3;
+}
+
+message XmppAddContactResponse {
+}
+
+message XmppAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message XmppAddMembersResponse {
+}
+
+message XmppAddRosterItemRequest {
+  string jid = 1;
+  string name = 2;
+  repeated string groups = 3;
+}
+
+message XmppAddRosterItemResponse {
+}
+
+message XmppArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message XmppArchiveChatResponse {
+}
+
+message XmppAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message XmppAuthenticateResponse {
+}
+
+message XmppAvatarConversionRequest {
+  string to = 1;
+}
+
+message XmppAvatarConversionResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppBanFromMUCRequest {
+  string room_j_id = 1;
+  string user_j_id = 2;
+  string reason = 3;
+}
+
+message XmppBanFromMUCResponse {
+}
+
+message XmppBanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message XmppBanMemberResponse {
+}
+
+message XmppBind2Request {
+  string tag = 1;
+}
+
+message XmppBind2Response {
+}
+
+message XmppBlockJIDRequest {
+  string jid = 1;
+}
+
+message XmppBlockJIDResponse {
+}
+
+message XmppBlockUserRequest {
+  string user_id = 1;
+}
+
+message XmppBlockUserResponse {
+}
+
+message XmppBookmarksConversionRequest {
+}
+
+message XmppBookmarksConversionResponse {
+}
+
+message XmppCancelCommandRequest {
+  string service_j_id = 1;
+  string node = 2;
+  string session_id = 3;
+}
+
+message XmppCancelCommandResponse {
+}
+
+message XmppCancelFormRequest {
+  string to_j_id = 1;
+  string form_x_m_l = 2;
+}
+
+message XmppCancelFormResponse {
+}
+
+message XmppCapabilitiesRequest {
+}
+
+message XmppCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message XmppChangePasswordRequest {
+  string new_password = 1;
+}
+
+message XmppChangePasswordResponse {
+}
+
+message XmppCloseRequest {
+}
+
+message XmppCloseResponse {
+}
+
+message XmppCloseIBBSessionRequest {
+  string to_j_id = 1;
+  string sid = 2;
+}
+
+message XmppCloseIBBSessionResponse {
+}
+
+message XmppConfigureMUCRequest {
+  string room_j_id = 1;
+  map<string, string> config = 2;
+}
+
+message XmppConfigureMUCResponse {
+}
+
+message XmppConfigurePubSubNodeRequest {
+  string service = 1;
+  string node = 2;
+  map<string, string> config = 3;
+}
+
+message XmppConfigurePubSubNodeResponse {
+}
+
+message XmppConnectBOSHRequest {
+  string bosh_url = 1;
+  string domain = 2;
+}
+
+message XmppConnectBOSHResponse {
+  string result_1 = 1;
+}
+
+message XmppConnectDirectTLSRequest {
+  string domain = 1;
+}
+
+message XmppConnectDirectTLSResponse {
+}
+
+message XmppConnectHappyEyeballsRequest {
+  string host = 1;
+  int64 port = 2;
+}
+
+message XmppConnectHappyEyeballsResponse {
+  bytes result_1 = 1;
+}
+
+message XmppConnectWebSocketRequest {
+  string ws_url = 1;
+}
+
+message XmppConnectWebSocketResponse {
+}
+
+message XmppCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message XmppCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message XmppCreateFolderRequest {
+  string name = 1;
+  repeated string chat_ids = 2;
+}
+
+message XmppCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message XmppCreateForumRequest {
+  string service = 1;
+  string name = 2;
+}
+
+message XmppCreateForumResponse {
+}
+
+message XmppCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message XmppCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message XmppCreateInstantMUCRequest {
+  string room_j_id = 1;
+  string nick = 2;
+}
+
+message XmppCreateInstantMUCResponse {
+}
+
+message XmppCreateInvitationURIRequest {
+}
+
+message XmppCreateInvitationURIResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppCreateMIXChannelRequest {
+  string service_j_id = 1;
+  string channel_name = 2;
+}
+
+message XmppCreateMIXChannelResponse {
+}
+
+message XmppCreateMUCTokenInviteRequest {
+  string room = 1;
+}
+
+message XmppCreateMUCTokenInviteResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppCreatePollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+}
+
+message XmppCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppCreatePubSubNodeRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppCreatePubSubNodeResponse {
+}
+
+message XmppCreateServerSpaceRequest {
+  string name = 1;
+  repeated string channels = 2;
+}
+
+message XmppCreateServerSpaceResponse {
+}
+
+message XmppCreateTopicRequest {
+  string chat_id = 1;
+  string name = 2;
+}
+
+message XmppCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message XmppDataFormsFileInputRequest {
+  string to = 1;
+  string form_type = 2;
+  string field_var = 3;
+  string upload_url = 4;
+}
+
+message XmppDataFormsFileInputResponse {
+}
+
+message XmppDeclineCallRequest {
+  string call_id = 1;
+}
+
+message XmppDeclineCallResponse {
+}
+
+message XmppDeclineMUCInvitationRequest {
+  string room_j_id = 1;
+  string inviter_j_id = 2;
+  string reason = 3;
+}
+
+message XmppDeclineMUCInvitationResponse {
+}
+
+message XmppDecryptMediaRequest {
+  bytes ciphertext = 1;
+  string iv_b64 = 2;
+  string key_b64 = 3;
+}
+
+message XmppDecryptMediaResponse {
+  bytes result_1 = 1;
+}
+
+message XmppDecryptStanzaContentRequest {
+  string envelope_x_m_l = 1;
+}
+
+message XmppDecryptStanzaContentResponse {
+  string result_1 = 1;
+}
+
+message XmppDeleteContactRequest {
+  string user_id = 1;
+}
+
+message XmppDeleteContactResponse {
+}
+
+message XmppDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message XmppDeleteMessageResponse {
+}
+
+message XmppDeletePubSubNodeRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppDeletePubSubNodeResponse {
+}
+
+message XmppDestroyMIXChannelRequest {
+  string channel_j_id = 1;
+}
+
+message XmppDestroyMIXChannelResponse {
+}
+
+message XmppDestroyMUCRequest {
+  string room_j_id = 1;
+  string reason = 2;
+}
+
+message XmppDestroyMUCResponse {
+}
+
+message XmppDisableCarbonsRequest {
+}
+
+message XmppDisableCarbonsResponse {
+}
+
+message XmppDisablePushNotificationsRequest {
+  string push_service_j_id = 1;
+  string node = 2;
+}
+
+message XmppDisablePushNotificationsResponse {
+}
+
+message XmppDiscoInfoRequest {
+  string target = 1;
+}
+
+message XmppDiscoInfoResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppDiscoInfoExtendedRequest {
+  string to = 1;
+  string node = 2;
+}
+
+message XmppDiscoInfoExtendedResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppDiscoItemsRequest {
+  string target = 1;
+}
+
+message XmppDiscoItemsResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppDiscoverAlternativeConnectionsRequest {
+  string domain = 1;
+}
+
+message XmppDiscoverAlternativeConnectionsResponse {
+  string ws_url = 1;
+  string bosh_url = 2;
+}
+
+message XmppDiscoverCommandsRequest {
+  string service_j_id = 1;
+}
+
+message XmppDiscoverCommandsResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppDiscoverExternalServicesRequest {
+}
+
+message XmppDiscoverExternalServicesResponse {
+  bytes result_1 = 1;
+}
+
+message XmppDiscoverHTTPUploadServiceRequest {
+}
+
+message XmppDiscoverHTTPUploadServiceResponse {
+  string result_1 = 1;
+  int64 result_2 = 2;
+}
+
+message XmppDiscoverHostMeta2Request {
+  string domain = 1;
+}
+
+message XmppDiscoverHostMeta2Response {
+  map<string, string> result_1 = 1;
+}
+
+message XmppDiscoverMUCServiceRequest {
+}
+
+message XmppDiscoverMUCServiceResponse {
+  string result_1 = 1;
+}
+
+message XmppEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message XmppEditChatDescriptionResponse {
+}
+
+message XmppEditChatTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message XmppEditChatTitleResponse {
+}
+
+message XmppEditMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string text = 3;
+}
+
+message XmppEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppEnableCarbonsRequest {
+}
+
+message XmppEnableCarbonsResponse {
+}
+
+message XmppEnableMUCAffiliationVersioningRequest {
+  string room = 1;
+}
+
+message XmppEnableMUCAffiliationVersioningResponse {
+}
+
+message XmppEnableMUCPresenceVersioningRequest {
+  string room = 1;
+}
+
+message XmppEnableMUCPresenceVersioningResponse {
+}
+
+message XmppEnablePushNotificationsRequest {
+  string push_service_j_id = 1;
+  string node = 2;
+  map<string, string> publish_options = 3;
+}
+
+message XmppEnablePushNotificationsResponse {
+}
+
+message XmppEnableRosterVersioningRequest {
+  string ver = 1;
+}
+
+message XmppEnableRosterVersioningResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppEnableStreamManagementRequest {
+}
+
+message XmppEnableStreamManagementResponse {
+}
+
+message XmppEncryptContactsMetadataRequest {
+  string jid = 1;
+  bytes encrypted_payload = 2;
+}
+
+message XmppEncryptContactsMetadataResponse {
+}
+
+message XmppEncryptMediaRequest {
+  bytes plaintext = 1;
+}
+
+message XmppEncryptMediaResponse {
+  bytes result_1 = 1;
+  string result_2 = 2;
+  string result_3 = 3;
+}
+
+message XmppEncryptPubSubOXRequest {
+  string node = 1;
+  string item_id = 2;
+  string payload = 3;
+}
+
+message XmppEncryptPubSubOXResponse {
+}
+
+message XmppEncryptStanzaContentRequest {
+  string payload = 1;
+  string rpad = 2;
+}
+
+message XmppEncryptStanzaContentResponse {
+  string result_1 = 1;
+}
+
+message XmppEndCallRequest {
+  string call_id = 1;
+}
+
+message XmppEndCallResponse {
+}
+
+message XmppEntityCaps2Request {
+  string hash_algo = 1;
+  repeated string features = 2;
+}
+
+message XmppEntityCaps2Response {
+  string result_1 = 1;
+}
+
+message XmppExecuteCommandRequest {
+  string service_j_id = 1;
+  string node = 2;
+  string session_id = 3;
+  string action = 4;
+  string form_x_m_l = 5;
+}
+
+message XmppExecuteCommandResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppFASTReconnectRequest {
+  string token = 1;
+  string mechanism = 2;
+}
+
+message XmppFASTReconnectResponse {
+}
+
+message XmppFastenPayloadRequest {
+  string to = 1;
+  string target_id = 2;
+  string payload = 3;
+}
+
+message XmppFastenPayloadResponse {
+}
+
+message XmppFetchOMEMOBundleRequest {
+  string jid = 1;
+  int64 device_id = 2;
+}
+
+message XmppFetchOMEMOBundleResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppFetchOMEMODeviceListRequest {
+  string jid = 1;
+}
+
+message XmppFetchOMEMODeviceListResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppFetchOXPublicKeyRequest {
+  string jid = 1;
+  string fingerprint = 2;
+}
+
+message XmppFetchOXPublicKeyResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppFilterPubSubByTypeRequest {
+  string service = 1;
+  string node_type = 2;
+}
+
+message XmppFilterPubSubByTypeResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message XmppForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppForwardStanzaRequest {
+  string to = 1;
+  string original_from = 2;
+  string original_stanza = 3;
+}
+
+message XmppForwardStanzaResponse {
+}
+
+message XmppGetAvatarPEPRequest {
+  string jid = 1;
+}
+
+message XmppGetAvatarPEPResponse {
+  bytes result_1 = 1;
+}
+
+message XmppGetBlockedUsersRequest {
+}
+
+message XmppGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message XmppGetBlocklistRequest {
+}
+
+message XmppGetBlocklistResponse {
+  repeated string result_1 = 1;
+}
+
+message XmppGetBookmarksRequest {
+}
+
+message XmppGetBookmarksResponse {
+  bytes result_1 = 1;
+}
+
+message XmppGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message XmppGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message XmppGetContactsRequest {
+}
+
+message XmppGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message XmppGetDOAPRequest {
+  string to = 1;
+}
+
+message XmppGetDOAPResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetDataPolicyRequest {
+  string domain = 1;
+}
+
+message XmppGetDataPolicyResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message XmppGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message XmppGetEntityCapabilitiesRequest {
+  string jid = 1;
+}
+
+message XmppGetEntityCapabilitiesResponse {
+  string result_1 = 1;
+}
+
+message XmppGetEntityTimeRequest {
+  string jid = 1;
+}
+
+message XmppGetEntityTimeResponse {
+  string utc = 1;
+  string tzo = 2;
+}
+
+message XmppGetFoldersRequest {
+}
+
+message XmppGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message XmppGetInboxRequest {
+}
+
+message XmppGetInboxResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message XmppGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message XmppGetLastActivityRequest {
+  string jid = 1;
+}
+
+message XmppGetLastActivityResponse {
+  int64 result_1 = 1;
+}
+
+message XmppGetLastUserInteractionRequest {
+  string jid = 1;
+}
+
+message XmppGetLastUserInteractionResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetLinkMetadataRequest {
+  string url = 1;
+}
+
+message XmppGetLinkMetadataResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetMAMPreferencesRequest {
+}
+
+message XmppGetMAMPreferencesResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetMUCActivityIndicatorRequest {
+  string room = 1;
+}
+
+message XmppGetMUCActivityIndicatorResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetMUCConfigRequest {
+  string room_j_id = 1;
+}
+
+message XmppGetMUCConfigResponse {
+  map<string, string> result_1 = 1;
+}
+
+message XmppGetMUCInfoRequest {
+  string room_j_id = 1;
+}
+
+message XmppGetMUCInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message XmppGetMUCOccupantsRequest {
+  string room_j_id = 1;
+}
+
+message XmppGetMUCOccupantsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message XmppGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message XmppGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message XmppGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message XmppGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message XmppGetNodeAffiliationsRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppGetNodeAffiliationsResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetNodeSubscribersRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppGetNodeSubscribersResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetOfflineMessageCountRequest {
+}
+
+message XmppGetOfflineMessageCountResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetOfflineMessageHeadersRequest {
+}
+
+message XmppGetOfflineMessageHeadersResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetPrivacyListsRequest {
+}
+
+message XmppGetPrivacyListsResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetProfileRequest {
+  string user_id = 1;
+}
+
+message XmppGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message XmppGetPubSubItemsRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppGetPubSubItemsResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetPubSubServerInfoRequest {
+  string service = 1;
+}
+
+message XmppGetPubSubServerInfoResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetPubSubSubscriptionsRequest {
+  string service = 1;
+}
+
+message XmppGetPubSubSubscriptionsResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetReadStateRequest {
+  string chat_id = 1;
+}
+
+message XmppGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message XmppGetRosterRequest {
+}
+
+message XmppGetRosterResponse {
+  bytes result_1 = 1;
+}
+
+message XmppGetServiceOutageStatusRequest {
+  string domain = 1;
+}
+
+message XmppGetServiceOutageStatusResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetSessionsRequest {
+}
+
+message XmppGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message XmppGetSoftwareVersionRequest {
+  string jid = 1;
+}
+
+message XmppGetSoftwareVersionResponse {
+  string name = 1;
+  string version = 2;
+  string os = 3;
+}
+
+message XmppGetStickerPackRequest {
+  string service_j_id = 1;
+  string node = 2;
+}
+
+message XmppGetStickerPackResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetStreamLimitsRequest {
+}
+
+message XmppGetStreamLimitsResponse {
+  bytes result_1 = 1;
+}
+
+message XmppGetTURNCredentialsRequest {
+}
+
+message XmppGetTURNCredentialsResponse {
+  bytes result_1 = 1;
+}
+
+message XmppGetUserNicknameRequest {
+  string jid = 1;
+}
+
+message XmppGetUserNicknameResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetVCardRequest {
+  string jid = 1;
+}
+
+message XmppGetVCardResponse {
+  map<string, string> result_1 = 1;
+}
+
+message XmppGetVCard4Request {
+  string jid = 1;
+}
+
+message XmppGetVCard4Response {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppGetVCardFieldRequest {
+  string jid = 1;
+  string field = 2;
+}
+
+message XmppGetVCardFieldResponse {
+  string result_1 = 1;
+}
+
+message XmppGrantVoiceRequest {
+  string room_j_id = 1;
+  string nick = 2;
+}
+
+message XmppGrantVoiceResponse {
+}
+
+message XmppHandleCAPTCHARequest {
+  string to = 1;
+  string challenge_id = 2;
+  string answer = 3;
+}
+
+message XmppHandleCAPTCHAResponse {
+}
+
+message XmppHandleOccupantIdRequest {
+  string stanza_x_m_l = 1;
+}
+
+message XmppHandleOccupantIdResponse {
+  string result_1 = 1;
+}
+
+message XmppInitAuthPipeliningRequest {
+  string mechanism = 1;
+  string initial_response = 2;
+}
+
+message XmppInitAuthPipeliningResponse {
+}
+
+message XmppInitiateJingleRequest {
+  string to = 1;
+  bool video = 2;
+}
+
+message XmppInitiateJingleResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message XmppInitiateS5BRequest {
+  string to_j_id = 1;
+  string sid = 2;
+  bytes stream_hosts = 3;
+}
+
+message XmppInitiateS5BResponse {
+}
+
+message XmppInstantStreamResumptionRequest {
+  string token = 1;
+}
+
+message XmppInstantStreamResumptionResponse {
+}
+
+message XmppJingleConferenceInfoRequest {
+  string to = 1;
+  string sid = 2;
+  repeated string users = 3;
+}
+
+message XmppJingleConferenceInfoResponse {
+}
+
+message XmppJingleContentAcceptRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string content_x_m_l = 3;
+}
+
+message XmppJingleContentAcceptResponse {
+}
+
+message XmppJingleContentAddRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string content_x_m_l = 3;
+}
+
+message XmppJingleContentAddResponse {
+}
+
+message XmppJingleContentCategoryRequest {
+  string to = 1;
+  string sid = 2;
+  string name = 3;
+  string category = 4;
+}
+
+message XmppJingleContentCategoryResponse {
+}
+
+message XmppJingleContentModifyRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string content_x_m_l = 3;
+}
+
+message XmppJingleContentModifyResponse {
+}
+
+message XmppJingleContentRejectRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string name = 3;
+}
+
+message XmppJingleContentRejectResponse {
+}
+
+message XmppJingleContentRemoveRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string name = 3;
+}
+
+message XmppJingleContentRemoveResponse {
+}
+
+message XmppJingleContentThumbnailRequest {
+  string to = 1;
+  string sid = 2;
+  string thumbnail_uri = 3;
+  string mime_type = 4;
+  int64 width = 5;
+  int64 height = 6;
+}
+
+message XmppJingleContentThumbnailResponse {
+}
+
+message XmppJingleDTLSSRTPRequest {
+  string to = 1;
+  string sid = 2;
+  string fingerprint = 3;
+  string setup = 4;
+}
+
+message XmppJingleDTLSSRTPResponse {
+}
+
+message XmppJingleDataChannelsRequest {
+  string to = 1;
+  string sid = 2;
+  int64 port = 3;
+}
+
+message XmppJingleDataChannelsResponse {
+}
+
+message XmppJingleEncryptedTransportRequest {
+  string to = 1;
+  string sid = 2;
+  string cipher = 3;
+  string key_b64 = 4;
+}
+
+message XmppJingleEncryptedTransportResponse {
+}
+
+message XmppJingleFileChecksumRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string algo = 3;
+  string hash = 4;
+}
+
+message XmppJingleFileChecksumResponse {
+}
+
+message XmppJingleFileOfferRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string name = 3;
+  int64 size = 4;
+  string hash = 5;
+  string desc = 6;
+}
+
+message XmppJingleFileOfferResponse {
+}
+
+message XmppJingleFileReceivedRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+}
+
+message XmppJingleFileReceivedResponse {
+}
+
+message XmppJingleFileRequestRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string name = 3;
+  int64 size = 4;
+}
+
+message XmppJingleFileRequestResponse {
+}
+
+message XmppJingleFileResumeRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  int64 offset = 3;
+}
+
+message XmppJingleFileResumeResponse {
+}
+
+message XmppJingleGroupingRequest {
+  string to = 1;
+  string sid = 2;
+  repeated string content_names = 3;
+}
+
+message XmppJingleGroupingResponse {
+}
+
+message XmppJingleJETOMEMORequest {
+  string to = 1;
+  string sid = 2;
+  int64 device_id = 3;
+  bytes key_data = 4;
+}
+
+message XmppJingleJETOMEMOResponse {
+}
+
+message XmppJingleMessageRingingRequest {
+  string to = 1;
+  string sid = 2;
+}
+
+message XmppJingleMessageRingingResponse {
+}
+
+message XmppJingleMujiRequest {
+  string room = 1;
+  string media = 2;
+}
+
+message XmppJingleMujiResponse {
+}
+
+message XmppJingleRTPSessionRequest {
+  string to = 1;
+  string sid = 2;
+  string media = 3;
+  bytes payload_types = 4;
+}
+
+message XmppJingleRTPSessionResponse {
+}
+
+message XmppJingleRawUDPRequest {
+  string to = 1;
+  string sid = 2;
+  string candidate_ip = 3;
+  int64 candidate_port = 4;
+}
+
+message XmppJingleRawUDPResponse {
+}
+
+message XmppJingleSourceSSRCRequest {
+  string to = 1;
+  string sid = 2;
+  uint32 ssrc = 3;
+  map<string, string> params = 4;
+}
+
+message XmppJingleSourceSSRCResponse {
+}
+
+message XmppJingleTransportAcceptRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string content_name = 3;
+  string transport_x_m_l = 4;
+}
+
+message XmppJingleTransportAcceptResponse {
+}
+
+message XmppJingleTransportRejectRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+}
+
+message XmppJingleTransportRejectResponse {
+}
+
+message XmppJingleTransportReplaceRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string content_name = 3;
+  string transport_x_m_l = 4;
+}
+
+message XmppJingleTransportReplaceResponse {
+}
+
+message XmppJingleTrickleICERequest {
+  string to = 1;
+  string sid = 2;
+  map<string, string> candidate = 3;
+}
+
+message XmppJingleTrickleICEResponse {
+}
+
+message XmppJingleZRTPRequest {
+  string to = 1;
+  string sid = 2;
+  string zrtp_hash = 3;
+  string hash_version = 4;
+}
+
+message XmppJingleZRTPResponse {
+}
+
+message XmppJoinGroupCallRequest {
+  string chat_id = 1;
+}
+
+message XmppJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message XmppJoinMIXChannelRequest {
+  string channel_j_id = 1;
+  string nick = 2;
+  repeated string subscriptions = 3;
+}
+
+message XmppJoinMIXChannelResponse {
+}
+
+message XmppJoinMUCRequest {
+  string room_j_id = 1;
+  string nick = 2;
+}
+
+message XmppJoinMUCResponse {
+}
+
+message XmppKickFromMUCRequest {
+  string room_j_id = 1;
+  string nick = 2;
+  string reason = 3;
+}
+
+message XmppKickFromMUCResponse {
+}
+
+message XmppLeaveChatRequest {
+  string chat_id = 1;
+}
+
+message XmppLeaveChatResponse {
+}
+
+message XmppLeaveMIXChannelRequest {
+  string channel_j_id = 1;
+}
+
+message XmppLeaveMIXChannelResponse {
+}
+
+message XmppLeaveMUCRequest {
+  string room_j_id = 1;
+}
+
+message XmppLeaveMUCResponse {
+}
+
+message XmppListClientAccessRequest {
+}
+
+message XmppListClientAccessResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppLogoutRequest {
+}
+
+message XmppLogoutResponse {
+}
+
+message XmppMIXAdminSetConfigRequest {
+  string channel = 1;
+  map<string, string> fields = 2;
+}
+
+message XmppMIXAdminSetConfigResponse {
+}
+
+message XmppMIXMiscSetAvatarRequest {
+  string channel = 1;
+  bytes png_data = 2;
+}
+
+message XmppMIXMiscSetAvatarResponse {
+}
+
+message XmppMIXPAMJoinRequest {
+  string channel = 1;
+}
+
+message XmppMIXPAMJoinResponse {
+}
+
+message XmppMIXPresenceSubscribeRequest {
+  string channel = 1;
+}
+
+message XmppMIXPresenceSubscribeResponse {
+}
+
+message XmppMIXSetAnonymityRequest {
+  string channel = 1;
+  bool anonymous = 2;
+}
+
+message XmppMIXSetAnonymityResponse {
+}
+
+message XmppMUCSelfPingRequest {
+  string room_j_id = 1;
+}
+
+message XmppMUCSelfPingResponse {
+}
+
+message XmppMarkAsReadRequest {
+  string chat_id = 1;
+  string up_to_msg_id = 2;
+}
+
+message XmppMarkAsReadResponse {
+}
+
+message XmppMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message XmppMarkUnreadResponse {
+}
+
+message XmppModerateMessageRequest {
+  string room_j_id = 1;
+  string stanza_id = 2;
+  string reason = 3;
+}
+
+message XmppModerateMessageResponse {
+}
+
+message XmppMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message XmppMuteChatResponse {
+}
+
+message XmppNameRequest {
+}
+
+message XmppNameResponse {
+  string result_1 = 1;
+}
+
+message XmppNegotiateChannelBindingRequest {
+  string binding_type = 1;
+}
+
+message XmppNegotiateChannelBindingResponse {
+  string result_1 = 1;
+}
+
+message XmppNegotiateRTCPFeedbackRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string content_name = 3;
+  repeated string fb_types = 4;
+}
+
+message XmppNegotiateRTCPFeedbackResponse {
+}
+
+message XmppNegotiateRTPHeaderExtensionsRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string content_name = 3;
+  repeated string extensions = 4;
+}
+
+message XmppNegotiateRTPHeaderExtensionsResponse {
+}
+
+message XmppNegotiateSessionRequest {
+  string to = 1;
+  map<string, string> fields = 2;
+}
+
+message XmppNegotiateSessionResponse {
+}
+
+message XmppOAuthClientLoginRequest {
+  string token = 1;
+}
+
+message XmppOAuthClientLoginResponse {
+}
+
+message XmppOMEMOAutoTrustRequest {
+  string to = 1;
+  repeated int64 device_ids = 2;
+}
+
+message XmppOMEMOAutoTrustResponse {
+}
+
+message XmppOMEMOBuildSessionRequest {
+  string jid = 1;
+  int64 device_id = 2;
+}
+
+message XmppOMEMOBuildSessionResponse {
+}
+
+message XmppOMEMODecryptRequest {
+  string encrypted_x_m_l = 1;
+  bytes session_key = 2;
+}
+
+message XmppOMEMODecryptResponse {
+  bytes result_1 = 1;
+}
+
+message XmppOMEMOEncryptRequest {
+  bytes payload = 1;
+  bytes recipient_keys = 2;
+}
+
+message XmppOMEMOEncryptResponse {
+  string result_1 = 1;
+}
+
+message XmppOXDecryptRequest {
+  string signcrypt_x_m_l = 1;
+}
+
+message XmppOXDecryptResponse {
+  string result_1 = 1;
+}
+
+message XmppOXEncryptRequest {
+  string payload = 1;
+}
+
+message XmppOXEncryptResponse {
+  string result_1 = 1;
+}
+
+message XmppOXSignEncryptRequest {
+  string to_j_id = 1;
+  string payload = 2;
+  string openpgp_b64 = 3;
+}
+
+message XmppOXSignEncryptResponse {
+}
+
+message XmppOpenIBBSessionRequest {
+  string to_j_id = 1;
+  string sid = 2;
+  int64 block_size = 3;
+}
+
+message XmppOpenIBBSessionResponse {
+}
+
+message XmppPEPManageNodeRequest {
+  string node = 1;
+  map<string, string> config = 2;
+}
+
+message XmppPEPManageNodeResponse {
+}
+
+message XmppPinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message XmppPinMessageResponse {
+}
+
+message XmppPreAuthenticatedIBRRequest {
+  string token = 1;
+}
+
+message XmppPreAuthenticatedIBRResponse {
+}
+
+message XmppProbePresenceRequest {
+  string jid = 1;
+}
+
+message XmppProbePresenceResponse {
+}
+
+message XmppProceedToJingleRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+}
+
+message XmppProceedToJingleResponse {
+}
+
+message XmppProcessFormResultRequest {
+  string form_x_m_l = 1;
+}
+
+message XmppProcessFormResultResponse {
+  map<string, string> result_1 = 1;
+}
+
+message XmppProposeCallRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+  string descriptions = 3;
+}
+
+message XmppProposeCallResponse {
+}
+
+message XmppPubSubAttachmentRequest {
+  string target_node = 1;
+  string target_item = 2;
+  string attachment_payload = 3;
+}
+
+message XmppPubSubAttachmentResponse {
+}
+
+message XmppPubSubCollectionNodeRequest {
+  string node = 1;
+  string child_node = 2;
+}
+
+message XmppPubSubCollectionNodeResponse {
+}
+
+message XmppPubSubCompareAndPublishRequest {
+  string node = 1;
+  string item_id = 2;
+  string payload = 3;
+  string prev_id = 4;
+}
+
+message XmppPubSubCompareAndPublishResponse {
+}
+
+message XmppPubSubFileShareRequest {
+  string node = 1;
+  string item_id = 2;
+  string name = 3;
+  string url = 4;
+}
+
+message XmppPubSubFileShareResponse {
+}
+
+message XmppPubSubPersistPrivateRequest {
+  string node = 1;
+  string item_id = 2;
+  string payload = 3;
+}
+
+message XmppPubSubPersistPrivateResponse {
+}
+
+message XmppPubSubPersistPublicRequest {
+  string node = 1;
+  string item_id = 2;
+  string payload = 3;
+}
+
+message XmppPubSubPersistPublicResponse {
+}
+
+message XmppPublishJingleSessionRequest {
+  string sid = 1;
+  string description = 2;
+}
+
+message XmppPublishJingleSessionResponse {
+}
+
+message XmppPublishMicroblogRequest {
+  string content = 1;
+  string author = 2;
+}
+
+message XmppPublishMicroblogResponse {
+}
+
+message XmppPublishOMEMOBundleRequest {
+  int64 device_id = 1;
+  string bundle_x_m_l = 2;
+}
+
+message XmppPublishOMEMOBundleResponse {
+}
+
+message XmppPublishOMEMODeviceListRequest {
+  repeated int64 device_ids = 1;
+}
+
+message XmppPublishOMEMODeviceListResponse {
+}
+
+message XmppPublishOXPublicKeyRequest {
+  string fingerprint = 1;
+  string pub_key_b64 = 2;
+}
+
+message XmppPublishOXPublicKeyResponse {
+}
+
+message XmppPublishPubSubItemRequest {
+  string service = 1;
+  string node = 2;
+  string item_id = 3;
+  string payload = 4;
+}
+
+message XmppPublishPubSubItemResponse {
+}
+
+message XmppPublishSocialFeedRequest {
+  string content = 1;
+  string content_type = 2;
+}
+
+message XmppPublishSocialFeedResponse {
+}
+
+message XmppPurgeNodeRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppPurgeNodeResponse {
+}
+
+message XmppQueryFeaturesRequest {
+  string target = 1;
+}
+
+message XmppQueryFeaturesResponse {
+  repeated string result_1 = 1;
+}
+
+message XmppQueryIdentityRequest {
+  string target = 1;
+}
+
+message XmppQueryIdentityResponse {
+  string category = 1;
+  string typ = 2;
+  string name = 3;
+}
+
+message XmppQueryMAMRequest {
+  string jid = 1;
+  int64 limit = 2;
+  string after = 3;
+}
+
+message XmppQueryMAMResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message XmppQueryMAMByDateRangeRequest {
+  string jid = 1;
+  int64 start = 2;
+  int64 end = 3;
+  int64 limit = 4;
+}
+
+message XmppQueryMAMByDateRangeResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message XmppQueryMAMByJIDRequest {
+  string jid = 1;
+  int64 limit = 2;
+}
+
+message XmppQueryMAMByJIDResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message XmppQueryMAMPageRequest {
+  string jid = 1;
+  int64 limit = 2;
+  string after = 3;
+}
+
+message XmppQueryMAMPageResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message XmppQueryPubSubMAMRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppQueryPubSubMAMResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppQuickstartTLSRequest {
+  string domain = 1;
+}
+
+message XmppQuickstartTLSResponse {
+}
+
+message XmppRSMQueryRequest {
+  string to = 1;
+  string query_n_s = 2;
+  int64 max = 3;
+  string after = 4;
+}
+
+message XmppRSMQueryResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppReactToMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string emoji = 3;
+}
+
+message XmppReactToMessageResponse {
+}
+
+message XmppRegisterAccountRequest {
+  string server = 1;
+  string username = 2;
+  string password = 3;
+}
+
+message XmppRegisterAccountResponse {
+}
+
+message XmppRejectJingleRequest {
+  string to = 1;
+  string sid = 2;
+}
+
+message XmppRejectJingleResponse {
+}
+
+message XmppRejectProposalRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+}
+
+message XmppRejectProposalResponse {
+}
+
+message XmppRemoveBookmarkRequest {
+  string jid = 1;
+}
+
+message XmppRemoveBookmarkResponse {
+}
+
+message XmppRemoveBookmarkPEPRequest {
+  string room_j_id = 1;
+}
+
+message XmppRemoveBookmarkPEPResponse {
+}
+
+message XmppRemoveMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message XmppRemoveMemberResponse {
+}
+
+message XmppRemoveOfflineMessagesRequest {
+  repeated string node_ids = 1;
+}
+
+message XmppRemoveOfflineMessagesResponse {
+}
+
+message XmppRemoveRosterItemRequest {
+  string jid = 1;
+}
+
+message XmppRemoveRosterItemResponse {
+}
+
+message XmppReplyToMessageRequest {
+  string chat_id = 1;
+  string reply_to_msg_id = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message XmppReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppRequestAckRequest {
+}
+
+message XmppRequestAckResponse {
+}
+
+message XmppRequestBurnerJIDRequest {
+  string service = 1;
+}
+
+message XmppRequestBurnerJIDResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppRequestHTTPUploadSlotRequest {
+  string filename = 1;
+  int64 size = 2;
+  string content_type = 3;
+}
+
+message XmppRequestHTTPUploadSlotResponse {
+  string put_url = 1;
+  string get_url = 2;
+}
+
+message XmppRequestMUCHistoryRequest {
+  string room_j_id = 1;
+  int64 max_stanzas = 2;
+}
+
+message XmppRequestMUCHistoryResponse {
+}
+
+message XmppRequestMUCVoiceRequest {
+  string room_j_id = 1;
+}
+
+message XmppRequestMUCVoiceResponse {
+}
+
+message XmppRequestOnlineMeetingRequest {
+  string service = 1;
+  string meeting_type = 2;
+}
+
+message XmppRequestOnlineMeetingResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppRequestReceiptRequest {
+  string to = 1;
+  string msg_id = 2;
+}
+
+message XmppRequestReceiptResponse {
+}
+
+message XmppRequestStanzaIDsRequest {
+}
+
+message XmppRequestStanzaIDsResponse {
+}
+
+message XmppResumeStreamRequest {
+  string prev_id = 1;
+  int64 h = 2;
+}
+
+message XmppResumeStreamResponse {
+}
+
+message XmppRetractMessageRequest {
+  string to = 1;
+  string msg_id = 2;
+}
+
+message XmppRetractMessageResponse {
+}
+
+message XmppRetractProposalRequest {
+  string to_j_id = 1;
+  string session_id = 2;
+}
+
+message XmppRetractProposalResponse {
+}
+
+message XmppRetractPubSubItemRequest {
+  string service = 1;
+  string node = 2;
+  string item_id = 3;
+}
+
+message XmppRetractPubSubItemResponse {
+}
+
+message XmppRetrieveOfflineMessagesRequest {
+  repeated string node_ids = 1;
+}
+
+message XmppRetrieveOfflineMessagesResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppRetrievePrivateXMLRequest {
+  string namespace = 1;
+  string element = 2;
+}
+
+message XmppRetrievePrivateXMLResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppRevokeClientAccessRequest {
+  string client_id = 1;
+}
+
+message XmppRevokeClientAccessResponse {
+}
+
+message XmppRevokeVoiceRequest {
+  string room_j_id = 1;
+  string nick = 2;
+}
+
+message XmppRevokeVoiceResponse {
+}
+
+message XmppSASL2AuthenticateRequest {
+  string mechanism = 1;
+  string initial_response = 2;
+  string inline_features = 3;
+}
+
+message XmppSASL2AuthenticateResponse {
+}
+
+message XmppSearchChannelsRequest {
+  string query = 1;
+}
+
+message XmppSearchChannelsResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message XmppSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message XmppSearchMAMFullTextRequest {
+  string query = 1;
+}
+
+message XmppSearchMAMFullTextResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppSearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message XmppSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message XmppSearchUsersExtendedRequest {
+  string service = 1;
+  map<string, string> fields = 2;
+}
+
+message XmppSearchUsersExtendedResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppSearchUsersXMPPRequest {
+  string service_j_id = 1;
+  string form_x_m_l = 2;
+}
+
+message XmppSearchUsersXMPPResponse {
+  XMPPIQ result_1 = 1;
+}
+
+message XmppSendAckRequest {
+}
+
+message XmppSendAckResponse {
+}
+
+message XmppSendBitsOfBinaryRequest {
+  string to = 1;
+  bytes data = 2;
+  string mime_type = 3;
+  string cid = 4;
+}
+
+message XmppSendBitsOfBinaryResponse {
+}
+
+message XmppSendCallInviteRequest {
+  string to = 1;
+  string sid = 2;
+  bool audio = 3;
+  bool video = 4;
+}
+
+message XmppSendCallInviteResponse {
+}
+
+message XmppSendChatStateActiveRequest {
+  string chat_id = 1;
+}
+
+message XmppSendChatStateActiveResponse {
+}
+
+message XmppSendChatStateComposingRequest {
+  string chat_id = 1;
+}
+
+message XmppSendChatStateComposingResponse {
+}
+
+message XmppSendChatStateGoneRequest {
+  string chat_id = 1;
+}
+
+message XmppSendChatStateGoneResponse {
+}
+
+message XmppSendChatStateInactiveRequest {
+  string chat_id = 1;
+}
+
+message XmppSendChatStateInactiveResponse {
+}
+
+message XmppSendChatStatePausedRequest {
+  string chat_id = 1;
+}
+
+message XmppSendChatStatePausedResponse {
+}
+
+message XmppSendContentTypedMessageRequest {
+  string to = 1;
+  string body = 2;
+  string content_type = 3;
+}
+
+message XmppSendContentTypedMessageResponse {
+}
+
+message XmppSendDirectMUCInvitationRequest {
+  string to = 1;
+  string room = 2;
+  string reason = 3;
+  string password = 4;
+}
+
+message XmppSendDirectMUCInvitationResponse {
+}
+
+message XmppSendDirectedPresenceRequest {
+  string jid = 1;
+  string show = 2;
+  string status = 3;
+}
+
+message XmppSendDirectedPresenceResponse {
+}
+
+message XmppSendDisplayedMarkerRequest {
+  string to = 1;
+  string msg_id = 2;
+}
+
+message XmppSendDisplayedMarkerResponse {
+}
+
+message XmppSendFileURLRequest {
+  string chat_id = 1;
+  string url = 2;
+  string caption = 3;
+}
+
+message XmppSendFileURLResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppSendGroupchatMessageRequest {
+  string to = 1;
+  string body = 2;
+}
+
+message XmppSendGroupchatMessageResponse {
+}
+
+message XmppSendHeadlineMessageRequest {
+  string to = 1;
+  string body = 2;
+  string subject = 3;
+}
+
+message XmppSendHeadlineMessageResponse {
+}
+
+message XmppSendIBBDataRequest {
+  string to_j_id = 1;
+  string sid = 2;
+  int64 seq = 3;
+  bytes data = 4;
+}
+
+message XmppSendIBBDataResponse {
+}
+
+message XmppSendImageBase64Request {
+  string chat_id = 1;
+  string b64 = 2;
+  string caption = 3;
+}
+
+message XmppSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppSendJSONMessageRequest {
+  string to = 1;
+  bytes json_payload = 2;
+}
+
+message XmppSendJSONMessageResponse {
+}
+
+message XmppSendJingleTransportInfoRequest {
+  string to = 1;
+  string sid = 2;
+  string candidate = 3;
+}
+
+message XmppSendJingleTransportInfoResponse {
+}
+
+message XmppSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message XmppSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppSendMUCInvitationRequest {
+  string room_j_id = 1;
+  string user_j_id = 2;
+  string reason = 3;
+}
+
+message XmppSendMUCInvitationResponse {
+}
+
+message XmppSendMUCMediatedInviteRequest {
+  string room_j_id = 1;
+  string user_j_id = 2;
+  string reason = 3;
+}
+
+message XmppSendMUCMediatedInviteResponse {
+}
+
+message XmppSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message XmppSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppSendMessageReferenceRequest {
+  string to_j_id = 1;
+  string text = 2;
+  string ref_type = 3;
+  string ref_uri = 4;
+}
+
+message XmppSendMessageReferenceResponse {
+}
+
+message XmppSendNormalMessageRequest {
+  string to = 1;
+  string body = 2;
+}
+
+message XmppSendNormalMessageResponse {
+}
+
+message XmppSendOOBURLRequest {
+  string chat_id = 1;
+  string url = 2;
+  string desc = 3;
+}
+
+message XmppSendOOBURLResponse {
+}
+
+message XmppSendPingRequest {
+  string to = 1;
+}
+
+message XmppSendPingResponse {
+}
+
+message XmppSendPresenceAvailableRequest {
+  string show = 1;
+  string status = 2;
+}
+
+message XmppSendPresenceAvailableResponse {
+}
+
+message XmppSendPresenceSubscribeRequest {
+  string jid = 1;
+}
+
+message XmppSendPresenceSubscribeResponse {
+}
+
+message XmppSendPresenceSubscribedRequest {
+  string jid = 1;
+}
+
+message XmppSendPresenceSubscribedResponse {
+}
+
+message XmppSendPresenceUnavailableRequest {
+  string status = 1;
+}
+
+message XmppSendPresenceUnavailableResponse {
+}
+
+message XmppSendPresenceUnsubscribeRequest {
+  string jid = 1;
+}
+
+message XmppSendPresenceUnsubscribeResponse {
+}
+
+message XmppSendPresenceUnsubscribedRequest {
+  string jid = 1;
+}
+
+message XmppSendPresenceUnsubscribedResponse {
+}
+
+message XmppSendQuickResponseRequest {
+  string to = 1;
+  string body = 2;
+  repeated string responses = 3;
+}
+
+message XmppSendQuickResponseResponse {
+}
+
+message XmppSendReactionRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  repeated string emojis = 3;
+}
+
+message XmppSendReactionResponse {
+}
+
+message XmppSendRealTimeTextRequest {
+  string to = 1;
+  int64 seq = 2;
+  bytes actions = 3;
+}
+
+message XmppSendRealTimeTextResponse {
+}
+
+message XmppSendReceiptRequest {
+  string to = 1;
+  string msg_id = 2;
+}
+
+message XmppSendReceiptResponse {
+}
+
+message XmppSendReceivedMarkerRequest {
+  string to = 1;
+  string msg_id = 2;
+}
+
+message XmppSendReceivedMarkerResponse {
+}
+
+message XmppSendRichTextMessageRequest {
+  string to_j_id = 1;
+  string plain_text = 2;
+  string xhtml_body = 3;
+}
+
+message XmppSendRichTextMessageResponse {
+}
+
+message XmppSendSIMSRequest {
+  string to = 1;
+  string url = 2;
+  string mime_type = 3;
+  int64 size = 4;
+  string desc = 5;
+}
+
+message XmppSendSIMSResponse {
+}
+
+message XmppSendSpoilerMessageRequest {
+  string to = 1;
+  string body = 2;
+  string hint = 3;
+}
+
+message XmppSendSpoilerMessageResponse {
+}
+
+message XmppSendStickerRequest {
+  string chat_id = 1;
+  string sticker_id = 2;
+}
+
+message XmppSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message XmppSendStickerXEPRequest {
+  string to_j_id = 1;
+  string sticker_pack_node = 2;
+  string sticker_hash = 3;
+  string fallback_body = 4;
+}
+
+message XmppSendStickerXEPResponse {
+}
+
+message XmppSendTrustMessageRequest {
+  string to_j_id = 1;
+  string encryption_n_s = 2;
+  repeated string trusted_keys = 3;
+  repeated string distrusted_keys = 4;
+}
+
+message XmppSendTrustMessageResponse {
+}
+
+message XmppSendTypingRequest {
+  string chat_id = 1;
+}
+
+message XmppSendTypingResponse {
+}
+
+message XmppSendWebXDCRequest {
+  string to = 1;
+  string name = 2;
+  bytes data = 3;
+}
+
+message XmppSendWebXDCResponse {
+}
+
+message XmppSetAMPRulesRequest {
+  bytes rules = 1;
+}
+
+message XmppSetAMPRulesResponse {
+  string result_1 = 1;
+}
+
+message XmppSetActiveListRequest {
+  string name = 1;
+}
+
+message XmppSetActiveListResponse {
+}
+
+message XmppSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message XmppSetAdminResponse {
+}
+
+message XmppSetAvatarPEPRequest {
+  bytes image_data = 1;
+  string mime_type = 2;
+}
+
+message XmppSetAvatarPEPResponse {
+}
+
+message XmppSetAvatarVCardRequest {
+  bytes image_data = 1;
+  string mime_type = 2;
+}
+
+message XmppSetAvatarVCardResponse {
+}
+
+message XmppSetBookmarkRequest {
+  string jid = 1;
+  string name = 2;
+  string nick = 3;
+  bool auto_join = 4;
+}
+
+message XmppSetBookmarkResponse {
+}
+
+message XmppSetBookmarkAutoJoinRequest {
+  string jid = 1;
+  bool auto_join = 2;
+}
+
+message XmppSetBookmarkAutoJoinResponse {
+}
+
+message XmppSetBookmarkPEPRequest {
+  string room_j_id = 1;
+  string name = 2;
+  string nick = 3;
+  bool auto_join = 4;
+}
+
+message XmppSetBookmarkPEPResponse {
+}
+
+message XmppSetCallMutedRequest {
+  string call_id = 1;
+  bool muted = 2;
+}
+
+message XmppSetCallMutedResponse {
+}
+
+message XmppSetChatNotificationSettingsRequest {
+  string jid = 1;
+  string level = 2;
+}
+
+message XmppSetChatNotificationSettingsResponse {
+}
+
+message XmppSetClientStateActiveRequest {
+}
+
+message XmppSetClientStateActiveResponse {
+}
+
+message XmppSetClientStateInactiveRequest {
+}
+
+message XmppSetClientStateInactiveResponse {
+}
+
+message XmppSetDefaultListRequest {
+  string name = 1;
+}
+
+message XmppSetDefaultListResponse {
+}
+
+message XmppSetEncryptionHintRequest {
+  string namespace = 1;
+  string name = 2;
+}
+
+message XmppSetEncryptionHintResponse {
+  string result_1 = 1;
+}
+
+message XmppSetFallbackIndicationRequest {
+  string for_n_s = 1;
+}
+
+message XmppSetFallbackIndicationResponse {
+  string result_1 = 1;
+}
+
+message XmppSetMAMPreferencesRequest {
+  string default_policy = 1;
+  repeated string always_j_ids = 2;
+  repeated string never_j_ids = 3;
+}
+
+message XmppSetMAMPreferencesResponse {
+}
+
+message XmppSetMIXNickRequest {
+  string channel_j_id = 1;
+  string nick = 2;
+}
+
+message XmppSetMIXNickResponse {
+}
+
+message XmppSetMUCAffiliationRequest {
+  string room_j_id = 1;
+  string user_j_id = 2;
+  string affiliation = 3;
+}
+
+message XmppSetMUCAffiliationResponse {
+}
+
+message XmppSetMUCAvatarRequest {
+  string room = 1;
+  bytes png_data = 2;
+}
+
+message XmppSetMUCAvatarResponse {
+}
+
+message XmppSetMUCHatRequest {
+  string room = 1;
+  string nick = 2;
+  string hat_uri = 3;
+  string hat_title = 4;
+}
+
+message XmppSetMUCHatResponse {
+}
+
+message XmppSetMUCNickRequest {
+  string room_j_id = 1;
+  string nick = 2;
+}
+
+message XmppSetMUCNickResponse {
+}
+
+message XmppSetMUCRoleRequest {
+  string room_j_id = 1;
+  string nick = 2;
+  string role = 3;
+}
+
+message XmppSetMUCRoleResponse {
+}
+
+message XmppSetMUCSlowModeRequest {
+  string room = 1;
+  int64 interval_seconds = 2;
+}
+
+message XmppSetMUCSlowModeResponse {
+}
+
+message XmppSetMUCSubjectRequest {
+  string room_j_id = 1;
+  string subject = 2;
+}
+
+message XmppSetMUCSubjectResponse {
+}
+
+message XmppSetMessageHintRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string hint = 3;
+}
+
+message XmppSetMessageHintResponse {
+}
+
+message XmppSetNodeAffiliationRequest {
+  string service = 1;
+  string node = 2;
+  string jid = 3;
+  string affiliation = 4;
+}
+
+message XmppSetNodeAffiliationResponse {
+}
+
+message XmppSetPresencePriorityRequest {
+  int64 priority = 1;
+}
+
+message XmppSetPresencePriorityResponse {
+}
+
+message XmppSetPubSubCachingHintsRequest {
+  string node = 1;
+  int64 max_age = 2;
+}
+
+message XmppSetPubSubCachingHintsResponse {
+}
+
+message XmppSetPubSubPublicSubscriptionsRequest {
+  string node = 1;
+  bool public = 2;
+}
+
+message XmppSetPubSubPublicSubscriptionsResponse {
+}
+
+message XmppSetPubSubRelationshipRequest {
+  string node = 1;
+  string parent_node = 2;
+}
+
+message XmppSetPubSubRelationshipResponse {
+}
+
+message XmppSetReachabilityRequest {
+  bytes addresses = 1;
+}
+
+message XmppSetReachabilityResponse {
+}
+
+message XmppSetReminderRequest {
+  string to = 1;
+  string text = 2;
+  int64 when = 3;
+}
+
+message XmppSetReminderResponse {
+}
+
+message XmppSetRosterItemGroupsRequest {
+  string jid = 1;
+  repeated string groups = 2;
+}
+
+message XmppSetRosterItemGroupsResponse {
+}
+
+message XmppSetRosterItemNameRequest {
+  string jid = 1;
+  string name = 2;
+}
+
+message XmppSetRosterItemNameResponse {
+}
+
+message XmppSetServerNotificationFilterRequest {
+  map<string, bool> rules = 1;
+}
+
+message XmppSetServerNotificationFilterResponse {
+}
+
+message XmppSetUserActivityRequest {
+  string activity = 1;
+  string specific = 2;
+  string text = 3;
+}
+
+message XmppSetUserActivityResponse {
+}
+
+message XmppSetUserLocationRequest {
+  double lat = 1;
+  double lon = 2;
+  string description = 3;
+}
+
+message XmppSetUserLocationResponse {
+}
+
+message XmppSetUserMoodRequest {
+  string mood = 1;
+  string text = 2;
+}
+
+message XmppSetUserMoodResponse {
+}
+
+message XmppSetUserNicknameRequest {
+  string nick = 1;
+}
+
+message XmppSetUserNicknameResponse {
+}
+
+message XmppSetUserTuneRequest {
+  string artist = 1;
+  string title = 2;
+  string source = 3;
+  int64 length = 4;
+}
+
+message XmppSetUserTuneResponse {
+}
+
+message XmppSetVCardRequest {
+  map<string, string> fields = 1;
+}
+
+message XmppSetVCardResponse {
+}
+
+message XmppSetVCard4Request {
+  string vcard_x_m_l = 1;
+}
+
+message XmppSetVCard4Response {
+}
+
+message XmppSetVCardAvatarRequest {
+  bytes png_data = 1;
+}
+
+message XmppSetVCardAvatarResponse {
+}
+
+message XmppShareEncryptedFileRequest {
+  string to_j_id = 1;
+  string name = 2;
+  string media_type = 3;
+  int64 size = 4;
+  string iv_b64 = 5;
+  string key_b64 = 6;
+  string url = 7;
+}
+
+message XmppShareEncryptedFileResponse {
+}
+
+message XmppShareFileMetadataRequest {
+  string to_j_id = 1;
+  string name = 2;
+  string media_type = 3;
+  int64 size = 4;
+  string hash = 5;
+}
+
+message XmppShareFileMetadataResponse {
+}
+
+message XmppShareFileMetadataElemRequest {
+  string to = 1;
+  string name = 2;
+  string mime_type = 3;
+  int64 size = 4;
+  string hash_algo = 5;
+  string hash_value = 6;
+}
+
+message XmppShareFileMetadataElemResponse {
+}
+
+message XmppShareFileSourcesRequest {
+  string to_j_id = 1;
+  repeated string urls = 2;
+}
+
+message XmppShareFileSourcesResponse {
+}
+
+message XmppStartCallRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message XmppStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message XmppStorePrivateXMLRequest {
+  string inner_x_m_l = 1;
+}
+
+message XmppStorePrivateXMLResponse {
+}
+
+message XmppSubmitFormRequest {
+  string to_j_id = 1;
+  string form_x_m_l = 2;
+}
+
+message XmppSubmitFormResponse {
+}
+
+message XmppSubscribeMUCMentionsRequest {
+  string room = 1;
+}
+
+message XmppSubscribeMUCMentionsResponse {
+}
+
+message XmppSubscribePubSubRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppSubscribePubSubResponse {
+}
+
+message XmppSubscribeRoomActivityRequest {
+  string room = 1;
+}
+
+message XmppSubscribeRoomActivityResponse {
+}
+
+message XmppSyncDisplayedMessagesRequest {
+  string jid = 1;
+  string stanza_id = 2;
+}
+
+message XmppSyncDisplayedMessagesResponse {
+}
+
+message XmppTerminateJingleRequest {
+  string sid = 1;
+  string reason = 2;
+}
+
+message XmppTerminateJingleResponse {
+}
+
+message XmppTerminateSessionRequest {
+  string session_id = 1;
+}
+
+message XmppTerminateSessionResponse {
+}
+
+message XmppUnbanFromMUCRequest {
+  string room_j_id = 1;
+  string user_j_id = 2;
+}
+
+message XmppUnbanFromMUCResponse {
+}
+
+message XmppUnbanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message XmppUnbanMemberResponse {
+}
+
+message XmppUnblockJIDRequest {
+  string jid = 1;
+}
+
+message XmppUnblockJIDResponse {
+}
+
+message XmppUnblockUserRequest {
+  string user_id = 1;
+}
+
+message XmppUnblockUserResponse {
+}
+
+message XmppUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message XmppUnpinAllMessagesResponse {
+}
+
+message XmppUnpinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message XmppUnpinMessageResponse {
+}
+
+message XmppUnregisterAccountRequest {
+}
+
+message XmppUnregisterAccountResponse {
+}
+
+message XmppUnsubscribePubSubRequest {
+  string service = 1;
+  string node = 2;
+}
+
+message XmppUnsubscribePubSubResponse {
+}
+
+message XmppUpdateMIXSubscriptionsRequest {
+  string channel_j_id = 1;
+  repeated string subscribe = 2;
+  repeated string unsubscribe = 3;
+}
+
+message XmppUpdateMIXSubscriptionsResponse {
+}
+
+message XmppVerifyHTTPRequestRequest {
+  string to_j_id = 1;
+  string confirm_id = 2;
+  string method = 3;
+  string url = 4;
+}
+
+message XmppVerifyHTTPRequestResponse {
+}
+
+message XmppVotePollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_index = 3;
+}
+
+message XmppVotePollResponse {
+}
+

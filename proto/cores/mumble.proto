@@ -1,0 +1,1800 @@
+syntax = "proto3";
+
+package uniclient.mumble;
+
+option go_package = "uniclient/proto/cores";
+
+import "proto/models.proto";
+
+// ═══════════════════════════════════════════════════════════════════
+// Core-specific types
+// ═══════════════════════════════════════════════════════════════════
+
+message MumbleACLEntry {
+  bool apply_here = 1;
+  bool apply_subs = 2;
+  bool inherited = 3;
+  uint32 user_id = 4;
+  string group = 5;
+  uint32 grant = 6;
+  uint32 deny = 7;
+  bool has_user_id = 8;
+}
+
+message MumbleACLGroup {
+  string name = 1;
+  bool inherited = 2;
+  bool inherit = 3;
+  bool inheritable = 4;
+  repeated uint32 add = 5;
+  repeated uint32 remove = 6;
+  repeated uint32 inherited_members = 7;
+}
+
+message MumbleACLMsg {
+  uint32 channel_id = 1;
+  bool inherit_a_c_ls = 2;
+  repeated MumbleACLGroup groups = 3;
+  repeated MumbleACLEntry a_c_ls = 4;
+  bool query = 5;
+}
+
+message MumbleAuthenticator {
+  bytes authenticate = 1;
+  bytes get_info = 2;
+  bytes name_to_id = 3;
+  bytes id_to_name = 4;
+  bytes id_to_texture = 5;
+  bytes register_user = 6;
+  bytes unregister_user = 7;
+  bytes set_info = 8;
+  bytes set_texture = 9;
+}
+
+message MumbleBanEntry {
+  bytes address = 1;
+  uint32 mask = 2;
+  string name = 3;
+  string hash = 4;
+  string reason = 5;
+  string start = 6;
+  uint32 duration = 7;
+}
+
+message MumbleCodecVersionEvent {
+  int32 alpha = 1;
+  int32 beta = 2;
+  bool prefer_alpha = 3;
+  bool opus = 4;
+}
+
+message MumbleContextActionEvent {
+  string action = 1;
+  string text = 2;
+  uint32 context = 3;
+  uint32 operation = 4;
+}
+
+message MumblePermissionDeniedEvent {
+  uint32 permission = 1;
+  uint32 channel_id = 2;
+  uint32 session = 3;
+  string reason = 4;
+  uint32 type = 5;
+  string name = 6;
+}
+
+message MumblePublicServer {
+  string name = 1;
+  string ip = 2;
+  int64 port = 3;
+  string country = 4;
+  string country_code = 5;
+  string continent_code = 6;
+  string region = 7;
+  string url = 8;
+  int64 c_a = 9;
+}
+
+message MumbleRejectEvent {
+  uint32 type = 1;
+  string reason = 2;
+}
+
+message MumbleServerConfig {
+  uint32 max_bandwidth = 1;
+  string welcome_text = 2;
+  bool allow_h_t_m_l = 3;
+  uint32 message_length = 4;
+  uint32 image_message_length = 5;
+  uint32 max_users = 6;
+  bool recording_allowed = 7;
+}
+
+message MumbleSuggestConfigEvent {
+  uint32 version_v1 = 1;
+  uint64 version_v2 = 2;
+  bool positional = 3;
+  bool push_to_talk = 4;
+}
+
+message MumbleVoicePacket {
+  uint32 sender_session = 1;
+  int64 codec = 2;
+  bytes audio_data = 3;
+  int64 sequence_num = 4;
+  int64 target = 5;
+  bool is_terminator = 6;
+  float position_x = 7;
+  float position_y = 8;
+  float position_z = 9;
+}
+
+message MumbleVoiceTargetEntry {
+  repeated uint32 sessions = 1;
+  uint32 channel_id = 2;
+  string group = 3;
+  bool links = 4;
+  bool children = 5;
+  bool has_channel = 6;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// RPC request/response messages
+// ═══════════════════════════════════════════════════════════════════
+
+message MumbleAcceptCallRequest {
+  string call_id = 1;
+}
+
+message MumbleAcceptCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message MumbleAddBanRequest {
+  bytes address = 1;
+  uint32 mask = 2;
+  string name = 3;
+  string hash = 4;
+  string reason = 5;
+  uint32 duration = 6;
+}
+
+message MumbleAddBanResponse {
+}
+
+message MumbleAddChannelListenerRequest {
+  repeated uint32 channel_ids = 1;
+}
+
+message MumbleAddChannelListenerResponse {
+}
+
+message MumbleAddContactRequest {
+  string phone = 1;
+  string first_name = 2;
+  string last_name = 3;
+}
+
+message MumbleAddContactResponse {
+}
+
+message MumbleAddContextCallbackRequest {
+  string action = 1;
+  string text = 2;
+  uint32 ctx = 3;
+}
+
+message MumbleAddContextCallbackResponse {
+}
+
+message MumbleAddMembersRequest {
+  string chat_id = 1;
+  repeated string user_ids = 2;
+}
+
+message MumbleAddMembersResponse {
+}
+
+message MumbleArchiveChatRequest {
+  string chat_id = 1;
+  bool archived = 2;
+}
+
+message MumbleArchiveChatResponse {
+}
+
+message MumbleAuthenticateRequest {
+  uniclient.AuthConfig cfg = 1;
+}
+
+message MumbleAuthenticateResponse {
+}
+
+message MumbleAuthenticatorAuthenticateRequest {
+  string name = 1;
+  string pw = 2;
+  string cert_hash = 3;
+  bool cert_strong = 4;
+}
+
+message MumbleAuthenticatorAuthenticateResponse {
+  int64 result_1 = 1;
+  repeated string result_2 = 2;
+}
+
+message MumbleAuthenticatorGetInfoRequest {
+  int64 user_id = 1;
+}
+
+message MumbleAuthenticatorGetInfoResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleAuthenticatorIdToNameRequest {
+  int64 user_id = 1;
+}
+
+message MumbleAuthenticatorIdToNameResponse {
+  string result_1 = 1;
+}
+
+message MumbleAuthenticatorIdToTextureRequest {
+  int64 user_id = 1;
+}
+
+message MumbleAuthenticatorIdToTextureResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleAuthenticatorNameToIdRequest {
+  string name = 1;
+}
+
+message MumbleAuthenticatorNameToIdResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleBanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message MumbleBanMemberResponse {
+}
+
+message MumbleBlockUserRequest {
+  string user_id = 1;
+}
+
+message MumbleBlockUserResponse {
+}
+
+message MumbleCapabilitiesRequest {
+}
+
+message MumbleCapabilitiesResponse {
+  repeated string result_1 = 1;
+}
+
+message MumbleCloseRequest {
+}
+
+message MumbleCloseResponse {
+}
+
+message MumbleConnectAdminRequest {
+  string addr = 1;
+  string secret = 2;
+  int64 server_id = 3;
+}
+
+message MumbleConnectAdminResponse {
+}
+
+message MumbleConnectFromURLRequest {
+  string mumble_url = 1;
+}
+
+message MumbleConnectFromURLResponse {
+}
+
+message MumbleCreateChannelRequest {
+  string name = 1;
+  string description = 2;
+}
+
+message MumbleCreateChannelResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MumbleCreateFolderRequest {
+  string name = 1;
+  repeated string chat_ids = 2;
+}
+
+message MumbleCreateFolderResponse {
+  uniclient.Folder result_1 = 1;
+}
+
+message MumbleCreateGroupRequest {
+  string name = 1;
+  repeated string members = 2;
+}
+
+message MumbleCreateGroupResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MumbleCreatePollRequest {
+  string chat_id = 1;
+  string question = 2;
+  repeated string options = 3;
+}
+
+message MumbleCreatePollResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MumbleCreateTemporaryChannelRequest {
+  string name = 1;
+  uint32 parent = 2;
+}
+
+message MumbleCreateTemporaryChannelResponse {
+}
+
+message MumbleCreateTopicRequest {
+  string chat_id = 1;
+  string name = 2;
+}
+
+message MumbleCreateTopicResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MumbleDebugBuildLegacyVoicePacketRequest {
+  bytes opus_data = 1;
+  int64 target = 2;
+  int64 seq = 3;
+}
+
+message MumbleDebugBuildLegacyVoicePacketResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleDebugBuildVoicePacketRequest {
+  bytes opus_data = 1;
+  int64 target = 2;
+  int64 seq = 3;
+}
+
+message MumbleDebugBuildVoicePacketResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleDebugCodecVersionRequest {
+}
+
+message MumbleDebugCodecVersionResponse {
+  int32 alpha = 1;
+  int32 beta = 2;
+  bool prefer_alpha = 3;
+  bool opus = 4;
+}
+
+message MumbleDebugMySessionRequest {
+}
+
+message MumbleDebugMySessionResponse {
+  uint32 result_1 = 1;
+}
+
+message MumbleDebugServerVersionRequest {
+}
+
+message MumbleDebugServerVersionResponse {
+  uint32 v1 = 1;
+  uint64 v2 = 2;
+  string release = 3;
+  bool protobuf = 4;
+}
+
+message MumbleDebugStateRequest {
+}
+
+message MumbleDebugStateResponse {
+  bool crypt_ready = 1;
+  bool udp_ready = 2;
+  uint32 udp_sent = 3;
+  uint32 udp_recv = 4;
+  uint32 tcp_sent = 5;
+  uint32 tcp_recv = 6;
+}
+
+message MumbleDebugUserFlagsRequest {
+  uint32 session = 1;
+}
+
+message MumbleDebugUserFlagsResponse {
+  string result_1 = 1;
+}
+
+message MumbleDebugVoiceTunnelCountRequest {
+}
+
+message MumbleDebugVoiceTunnelCountResponse {
+  uint32 result_1 = 1;
+}
+
+message MumbleDeclineCallRequest {
+  string call_id = 1;
+}
+
+message MumbleDeclineCallResponse {
+}
+
+message MumbleDeleteChannelRequest {
+  uint32 channel_id = 1;
+}
+
+message MumbleDeleteChannelResponse {
+}
+
+message MumbleDeleteContactRequest {
+  string user_id = 1;
+}
+
+message MumbleDeleteContactResponse {
+}
+
+message MumbleDeleteMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message MumbleDeleteMessageResponse {
+}
+
+message MumbleDisconnectAdminRequest {
+}
+
+message MumbleDisconnectAdminResponse {
+}
+
+message MumbleEditChatDescriptionRequest {
+  string chat_id = 1;
+  string description = 2;
+}
+
+message MumbleEditChatDescriptionResponse {
+}
+
+message MumbleEditChatTitleRequest {
+  string chat_id = 1;
+  string title = 2;
+}
+
+message MumbleEditChatTitleResponse {
+}
+
+message MumbleEditMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string text = 3;
+}
+
+message MumbleEditMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MumbleEndCallRequest {
+  string call_id = 1;
+}
+
+message MumbleEndCallResponse {
+}
+
+message MumbleFlushPermissionsRequest {
+  uint32 channel_id = 1;
+}
+
+message MumbleFlushPermissionsResponse {
+}
+
+message MumbleForwardMessageRequest {
+  string from_chat_id = 1;
+  string msg_id = 2;
+  string to_chat_id = 3;
+}
+
+message MumbleForwardMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MumbleGetACLRequest {
+  uint32 channel_id = 1;
+}
+
+message MumbleGetACLResponse {
+  MumbleACLMsg result_1 = 1;
+}
+
+message MumbleGetAudioStatsRequest {
+}
+
+message MumbleGetAudioStatsResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleGetBanListRequest {
+}
+
+message MumbleGetBanListResponse {
+  repeated MumbleBanEntry result_1 = 1;
+}
+
+message MumbleGetBlockedUsersRequest {
+}
+
+message MumbleGetBlockedUsersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message MumbleGetCachedPermissionsRequest {
+  uint32 channel_id = 1;
+}
+
+message MumbleGetCachedPermissionsResponse {
+  uint32 result_1 = 1;
+}
+
+message MumbleGetCertificateHashRequest {
+}
+
+message MumbleGetCertificateHashResponse {
+  string result_1 = 1;
+}
+
+message MumbleGetChannelDescriptionRequest {
+  uint32 channel_id = 1;
+}
+
+message MumbleGetChannelDescriptionResponse {
+  string result_1 = 1;
+}
+
+message MumbleGetChannelTreeRequest {
+}
+
+message MumbleGetChannelTreeResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleGetChatInfoRequest {
+  string chat_id = 1;
+}
+
+message MumbleGetChatInfoResponse {
+  uniclient.Dialog result_1 = 1;
+}
+
+message MumbleGetContactsRequest {
+}
+
+message MumbleGetContactsResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message MumbleGetDialogsRequest {
+  uniclient.PaginationOpts opts = 1;
+}
+
+message MumbleGetDialogsResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message MumbleGetFoldersRequest {
+}
+
+message MumbleGetFoldersResponse {
+  repeated uniclient.Folder result_1 = 1;
+}
+
+message MumbleGetInviteLinkRequest {
+  string chat_id = 1;
+}
+
+message MumbleGetInviteLinkResponse {
+  string result_1 = 1;
+}
+
+message MumbleGetMembersRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message MumbleGetMembersResponse {
+  repeated uniclient.User result_1 = 1;
+}
+
+message MumbleGetMessagesRequest {
+  string chat_id = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message MumbleGetMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message MumbleGetPermissionsRequest {
+  uint32 channel_id = 1;
+}
+
+message MumbleGetPermissionsResponse {
+  uint32 result_1 = 1;
+}
+
+message MumbleGetProfileRequest {
+  string user_id = 1;
+}
+
+message MumbleGetProfileResponse {
+  uniclient.User result_1 = 1;
+}
+
+message MumbleGetPublicServersRequest {
+}
+
+message MumbleGetPublicServersResponse {
+  repeated MumblePublicServer result_1 = 1;
+}
+
+message MumbleGetReadStateRequest {
+  string chat_id = 1;
+}
+
+message MumbleGetReadStateResponse {
+  uniclient.ReadState result_1 = 1;
+}
+
+message MumbleGetRegisteredUsersRequest {
+}
+
+message MumbleGetRegisteredUsersResponse {
+}
+
+message MumbleGetServerCertificateRequest {
+}
+
+message MumbleGetServerCertificateResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleGetServerConfigRequest {
+}
+
+message MumbleGetServerConfigResponse {
+  MumbleServerConfig result_1 = 1;
+}
+
+message MumbleGetServerLogRequest {
+}
+
+message MumbleGetServerLogResponse {
+  repeated string result_1 = 1;
+}
+
+message MumbleGetServerUptimeRequest {
+}
+
+message MumbleGetServerUptimeResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleGetSessionsRequest {
+}
+
+message MumbleGetSessionsResponse {
+  repeated uniclient.Session result_1 = 1;
+}
+
+message MumbleGetUserCommentRequest {
+  uint32 session = 1;
+}
+
+message MumbleGetUserCommentResponse {
+  string result_1 = 1;
+}
+
+message MumbleGetUserStatsRequest {
+  uint32 session = 1;
+}
+
+message MumbleGetUserStatsResponse {
+}
+
+message MumbleGetUserTextureRequest {
+  uint32 session = 1;
+}
+
+message MumbleGetUserTextureResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceAddChannelRequest {
+  string name = 1;
+  int64 parent = 2;
+}
+
+message MumbleIceAddChannelResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleIceAddUserToGroupRequest {
+  int64 channel_id = 1;
+  int64 session = 2;
+  string group = 3;
+}
+
+message MumbleIceAddUserToGroupResponse {
+}
+
+message MumbleIceEffectivePermissionsRequest {
+  int64 session = 1;
+  int64 channel_id = 2;
+}
+
+message MumbleIceEffectivePermissionsResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleIceGetACLRequest {
+  int64 channel_id = 1;
+}
+
+message MumbleIceGetACLResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceGetAllConfRequest {
+}
+
+message MumbleIceGetAllConfResponse {
+  map<string, string> result_1 = 1;
+}
+
+message MumbleIceGetBansRequest {
+}
+
+message MumbleIceGetBansResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceGetCertificateListRequest {
+  int64 session = 1;
+}
+
+message MumbleIceGetCertificateListResponse {
+  repeated bytes result_1 = 1;
+}
+
+message MumbleIceGetChannelStateRequest {
+  int64 channel_id = 1;
+}
+
+message MumbleIceGetChannelStateResponse {
+  map<string, string> result_1 = 1;
+}
+
+message MumbleIceGetChannelsRequest {
+}
+
+message MumbleIceGetChannelsResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceGetConfRequest {
+  string key = 1;
+}
+
+message MumbleIceGetConfResponse {
+  string result_1 = 1;
+}
+
+message MumbleIceGetListeningChannelsRequest {
+  int64 session = 1;
+}
+
+message MumbleIceGetListeningChannelsResponse {
+  repeated int64 result_1 = 1;
+}
+
+message MumbleIceGetListeningUsersRequest {
+  int64 channel_id = 1;
+}
+
+message MumbleIceGetListeningUsersResponse {
+  repeated int64 result_1 = 1;
+}
+
+message MumbleIceGetLogLenRequest {
+}
+
+message MumbleIceGetLogLenResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleIceGetRegistrationRequest {
+  int64 user_id = 1;
+}
+
+message MumbleIceGetRegistrationResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceGetStateRequest {
+  int64 session = 1;
+}
+
+message MumbleIceGetStateResponse {
+  map<string, string> result_1 = 1;
+}
+
+message MumbleIceGetTextureRequest {
+  int64 user_id = 1;
+}
+
+message MumbleIceGetTextureResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceGetTreeRequest {
+}
+
+message MumbleIceGetTreeResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceGetUserIdsRequest {
+  repeated string names = 1;
+}
+
+message MumbleIceGetUserIdsResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceGetUserNamesRequest {
+  repeated int64 ids = 1;
+}
+
+message MumbleIceGetUserNamesResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceGetUsersRequest {
+}
+
+message MumbleIceGetUsersResponse {
+  bytes result_1 = 1;
+}
+
+message MumbleIceHasPermissionRequest {
+  int64 session = 1;
+  int64 channel_id = 2;
+  int64 perm = 3;
+}
+
+message MumbleIceHasPermissionResponse {
+  bool result_1 = 1;
+}
+
+message MumbleIceIsListeningRequest {
+  int64 session = 1;
+  int64 channel_id = 2;
+}
+
+message MumbleIceIsListeningResponse {
+  bool result_1 = 1;
+}
+
+message MumbleIceKickUserRequest {
+  int64 session = 1;
+  string reason = 2;
+}
+
+message MumbleIceKickUserResponse {
+}
+
+message MumbleIceRegisterUserRequest {
+  bytes info = 1;
+}
+
+message MumbleIceRegisterUserResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleIceRemoveChannelRequest {
+  int64 channel_id = 1;
+}
+
+message MumbleIceRemoveChannelResponse {
+}
+
+message MumbleIceRemoveUserFromGroupRequest {
+  int64 channel_id = 1;
+  int64 session = 2;
+  string group = 3;
+}
+
+message MumbleIceRemoveUserFromGroupResponse {
+}
+
+message MumbleIceSendMessageRequest {
+  int64 session = 1;
+  string text = 2;
+}
+
+message MumbleIceSendMessageResponse {
+}
+
+message MumbleIceSendMessageChannelRequest {
+  int64 channel_id = 1;
+  bool tree = 2;
+  string text = 3;
+}
+
+message MumbleIceSendMessageChannelResponse {
+}
+
+message MumbleIceSendWelcomeMessageRequest {
+  repeated int64 user_ids = 1;
+}
+
+message MumbleIceSendWelcomeMessageResponse {
+}
+
+message MumbleIceServerDeleteRequest {
+}
+
+message MumbleIceServerDeleteResponse {
+}
+
+message MumbleIceServerIDRequest {
+}
+
+message MumbleIceServerIDResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleIceServerIsRunningRequest {
+}
+
+message MumbleIceServerIsRunningResponse {
+  bool result_1 = 1;
+}
+
+message MumbleIceServerStartRequest {
+}
+
+message MumbleIceServerStartResponse {
+}
+
+message MumbleIceServerStopRequest {
+}
+
+message MumbleIceServerStopResponse {
+}
+
+message MumbleIceSetACLRequest {
+  int64 channel_id = 1;
+  bytes acl_data = 2;
+  bool inherit = 3;
+}
+
+message MumbleIceSetACLResponse {
+}
+
+message MumbleIceSetAuthenticatorRequest {
+  MumbleAuthenticator auth = 1;
+}
+
+message MumbleIceSetAuthenticatorResponse {
+}
+
+message MumbleIceSetBansRequest {
+  bytes bans = 1;
+}
+
+message MumbleIceSetBansResponse {
+}
+
+message MumbleIceSetChannelStateRequest {
+  int64 channel_id = 1;
+  map<string, string> fields = 2;
+}
+
+message MumbleIceSetChannelStateResponse {
+}
+
+message MumbleIceSetStateRequest {
+  int64 session = 1;
+  map<string, string> fields = 2;
+}
+
+message MumbleIceSetStateResponse {
+}
+
+message MumbleIceSetSuperuserPasswordRequest {
+  string pw = 1;
+}
+
+message MumbleIceSetSuperuserPasswordResponse {
+}
+
+message MumbleIceSetTextureRequest {
+  int64 user_id = 1;
+  bytes texture = 2;
+}
+
+message MumbleIceSetTextureResponse {
+}
+
+message MumbleIceStartListeningRequest {
+  int64 session = 1;
+  int64 channel_id = 2;
+}
+
+message MumbleIceStartListeningResponse {
+}
+
+message MumbleIceStopListeningRequest {
+  int64 session = 1;
+  int64 channel_id = 2;
+}
+
+message MumbleIceStopListeningResponse {
+}
+
+message MumbleIceUnregisterUserRequest {
+  int64 user_id = 1;
+}
+
+message MumbleIceUnregisterUserResponse {
+}
+
+message MumbleIceUpdateRegistrationRequest {
+  int64 user_id = 1;
+  bytes info = 2;
+}
+
+message MumbleIceUpdateRegistrationResponse {
+}
+
+message MumbleIceVerifyPasswordRequest {
+  string name = 1;
+  string pw = 2;
+}
+
+message MumbleIceVerifyPasswordResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleJoinGroupCallRequest {
+  string chat_id = 1;
+}
+
+message MumbleJoinGroupCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message MumbleLeaveChatRequest {
+  string chat_id = 1;
+}
+
+message MumbleLeaveChatResponse {
+}
+
+message MumbleLinkChannelsRequest {
+  uint32 channel_id = 1;
+  repeated uint32 link_ids = 2;
+}
+
+message MumbleLinkChannelsResponse {
+}
+
+message MumbleLoadCertificateRequest {
+  string cert_file = 1;
+  string key_file = 2;
+}
+
+message MumbleLoadCertificateResponse {
+}
+
+message MumbleLogoutRequest {
+}
+
+message MumbleLogoutResponse {
+}
+
+message MumbleMarkAsReadRequest {
+  string chat_id = 1;
+  string up_to_msg_id = 2;
+}
+
+message MumbleMarkAsReadResponse {
+}
+
+message MumbleMarkUnreadRequest {
+  string chat_id = 1;
+  bool unread = 2;
+}
+
+message MumbleMarkUnreadResponse {
+}
+
+message MumbleMetaGetAllServersRequest {
+}
+
+message MumbleMetaGetAllServersResponse {
+  repeated int64 result_1 = 1;
+}
+
+message MumbleMetaGetBootedServersRequest {
+}
+
+message MumbleMetaGetBootedServersResponse {
+  repeated int64 result_1 = 1;
+}
+
+message MumbleMetaGetDefaultConfRequest {
+}
+
+message MumbleMetaGetDefaultConfResponse {
+  map<string, string> result_1 = 1;
+}
+
+message MumbleMetaGetServerRequest {
+  int64 server_id = 1;
+}
+
+message MumbleMetaGetServerResponse {
+  string result_1 = 1;
+}
+
+message MumbleMetaGetSliceRequest {
+}
+
+message MumbleMetaGetSliceResponse {
+  string result_1 = 1;
+}
+
+message MumbleMetaGetSliceChecksumsRequest {
+}
+
+message MumbleMetaGetSliceChecksumsResponse {
+  map<string, string> result_1 = 1;
+}
+
+message MumbleMetaGetUptimeRequest {
+}
+
+message MumbleMetaGetUptimeResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleMetaGetVersionRequest {
+}
+
+message MumbleMetaGetVersionResponse {
+  string result_1 = 1;
+}
+
+message MumbleMetaNewServerRequest {
+}
+
+message MumbleMetaNewServerResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleMetaRemoveCallbackRequest {
+}
+
+message MumbleMetaRemoveCallbackResponse {
+}
+
+message MumbleMoveChannelRequest {
+  uint32 channel_id = 1;
+  uint32 new_parent = 2;
+}
+
+message MumbleMoveChannelResponse {
+}
+
+message MumbleMoveToChannelRequest {
+  uint32 channel_id = 1;
+}
+
+message MumbleMoveToChannelResponse {
+}
+
+message MumbleMoveUserRequest {
+  uint32 session = 1;
+  uint32 channel_id = 2;
+}
+
+message MumbleMoveUserResponse {
+}
+
+message MumbleMuteChatRequest {
+  string chat_id = 1;
+  bool muted = 2;
+}
+
+message MumbleMuteChatResponse {
+}
+
+message MumbleNameRequest {
+}
+
+message MumbleNameResponse {
+  string result_1 = 1;
+}
+
+message MumblePinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message MumblePinMessageResponse {
+}
+
+message MumbleQueryUsersRequest {
+  repeated uint32 ids = 1;
+  repeated string names = 2;
+}
+
+message MumbleQueryUsersResponse {
+}
+
+message MumbleReactToMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  string emoji = 3;
+}
+
+message MumbleReactToMessageResponse {
+}
+
+message MumbleReconnectRequest {
+}
+
+message MumbleReconnectResponse {
+}
+
+message MumbleRedirectWhisperGroupRequest {
+  string source = 1;
+  string target = 2;
+}
+
+message MumbleRedirectWhisperGroupResponse {
+}
+
+message MumbleRegisterSelfRequest {
+}
+
+message MumbleRegisterSelfResponse {
+}
+
+message MumbleRegisterUserRequest {
+  uint32 session = 1;
+}
+
+message MumbleRegisterUserResponse {
+}
+
+message MumbleRemoveBanRequest {
+  bytes address = 1;
+  uint32 mask = 2;
+}
+
+message MumbleRemoveBanResponse {
+}
+
+message MumbleRemoveChannelListenerRequest {
+  repeated uint32 channel_ids = 1;
+}
+
+message MumbleRemoveChannelListenerResponse {
+}
+
+message MumbleRemoveContextCallbackRequest {
+  string action = 1;
+}
+
+message MumbleRemoveContextCallbackResponse {
+}
+
+message MumbleRemoveMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message MumbleRemoveMemberResponse {
+}
+
+message MumbleRenameChannelRequest {
+  uint32 channel_id = 1;
+  string new_name = 2;
+}
+
+message MumbleRenameChannelResponse {
+}
+
+message MumbleReplyToMessageRequest {
+  string chat_id = 1;
+  string reply_to_msg_id = 2;
+  uniclient.OutgoingMessage msg = 3;
+}
+
+message MumbleReplyToMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MumbleRequestBlobRequest {
+  repeated uint32 textures = 1;
+  repeated uint32 comments = 2;
+  repeated uint32 descriptions = 3;
+}
+
+message MumbleRequestBlobResponse {
+}
+
+message MumbleRequestNonceResyncRequest {
+}
+
+message MumbleRequestNonceResyncResponse {
+}
+
+message MumbleSearchGlobalRequest {
+  string query = 1;
+  uniclient.PaginationOpts opts = 2;
+}
+
+message MumbleSearchGlobalResponse {
+  repeated uniclient.Dialog result_1 = 1;
+}
+
+message MumbleSearchMessagesRequest {
+  string chat_id = 1;
+  string query = 2;
+  uniclient.PaginationOpts opts = 3;
+}
+
+message MumbleSearchMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
+}
+
+message MumbleSelfDeafRequest {
+  bool deafed = 1;
+}
+
+message MumbleSelfDeafResponse {
+}
+
+message MumbleSelfMuteRequest {
+  bool muted = 1;
+}
+
+message MumbleSelfMuteResponse {
+}
+
+message MumbleSendImageBase64Request {
+  string chat_id = 1;
+  string b64 = 2;
+  string caption = 3;
+}
+
+message MumbleSendImageBase64Response {
+  uniclient.Message result_1 = 1;
+}
+
+message MumbleSendLocationRequest {
+  string chat_id = 1;
+  double lat = 2;
+  double lon = 3;
+}
+
+message MumbleSendLocationResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MumbleSendMessageRequest {
+  string chat_id = 1;
+  uniclient.OutgoingMessage msg = 2;
+}
+
+message MumbleSendMessageResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MumbleSendPluginDataRequest {
+  repeated uint32 receivers = 1;
+  string data_id = 2;
+  bytes data = 3;
+}
+
+message MumbleSendPluginDataResponse {
+}
+
+message MumbleSendPositionalAudioRequest {
+  bytes opus_data = 1;
+  int64 target = 2;
+  float x = 3;
+  float y = 4;
+  float z = 5;
+}
+
+message MumbleSendPositionalAudioResponse {
+}
+
+message MumbleSendStickerRequest {
+  string chat_id = 1;
+  string sticker_id = 2;
+}
+
+message MumbleSendStickerResponse {
+  uniclient.Message result_1 = 1;
+}
+
+message MumbleSendTreeMessageRequest {
+  uint32 channel_id = 1;
+  string message = 2;
+}
+
+message MumbleSendTreeMessageResponse {
+}
+
+message MumbleSendTypingRequest {
+  string chat_id = 1;
+}
+
+message MumbleSendTypingResponse {
+}
+
+message MumbleSendVersionRequest {
+}
+
+message MumbleSendVersionResponse {
+}
+
+message MumbleSendVoiceRequest {
+  bytes opus_data = 1;
+  int64 target = 2;
+}
+
+message MumbleSendVoiceResponse {
+}
+
+message MumbleSendVoiceTCPRequest {
+  bytes opus_data = 1;
+  int64 target = 2;
+}
+
+message MumbleSendVoiceTCPResponse {
+}
+
+message MumbleSendVoiceTerminatorRequest {
+}
+
+message MumbleSendVoiceTerminatorResponse {
+}
+
+message MumbleSendWelcomeMessageRequest {
+  string text = 1;
+}
+
+message MumbleSendWelcomeMessageResponse {
+}
+
+message MumbleServerDeafRequest {
+  uint32 session = 1;
+  bool deafed = 2;
+}
+
+message MumbleServerDeafResponse {
+}
+
+message MumbleServerLoopbackRequest {
+  bytes opus_data = 1;
+}
+
+message MumbleServerLoopbackResponse {
+}
+
+message MumbleServerMuteRequest {
+  uint32 session = 1;
+  bool muted = 2;
+}
+
+message MumbleServerMuteResponse {
+}
+
+message MumbleSetACLRequest {
+  uint32 channel_id = 1;
+  repeated MumbleACLGroup groups = 2;
+  repeated MumbleACLEntry acls = 3;
+  bool inherit_a_c_ls = 4;
+}
+
+message MumbleSetACLResponse {
+}
+
+message MumbleSetAccessTokensRequest {
+  repeated string tokens = 1;
+}
+
+message MumbleSetAccessTokensResponse {
+}
+
+message MumbleSetAdminRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  bool admin = 3;
+}
+
+message MumbleSetAdminResponse {
+}
+
+message MumbleSetAudioBitrateRequest {
+  int64 bitrate = 1;
+}
+
+message MumbleSetAudioBitrateResponse {
+}
+
+message MumbleSetAudioFrameSizeRequest {
+  int64 ms = 1;
+}
+
+message MumbleSetAudioFrameSizeResponse {
+}
+
+message MumbleSetAutoReconnectRequest {
+  bool enabled = 1;
+  int64 delay = 2;
+}
+
+message MumbleSetAutoReconnectResponse {
+}
+
+message MumbleSetBanListRequest {
+  repeated MumbleBanEntry bans = 1;
+}
+
+message MumbleSetBanListResponse {
+}
+
+message MumbleSetCallMutedRequest {
+  string call_id = 1;
+  bool muted = 2;
+}
+
+message MumbleSetCallMutedResponse {
+}
+
+message MumbleSetChannelMaxUsersRequest {
+  uint32 channel_id = 1;
+  uint32 max_users = 2;
+}
+
+message MumbleSetChannelMaxUsersResponse {
+}
+
+message MumbleSetChannelPositionRequest {
+  uint32 channel_id = 1;
+  int32 position = 2;
+}
+
+message MumbleSetChannelPositionResponse {
+}
+
+message MumbleSetCommentRequest {
+  string comment = 1;
+}
+
+message MumbleSetCommentResponse {
+}
+
+message MumbleSetListenerVolumeRequest {
+  uint32 channel_id = 1;
+  float volume = 2;
+}
+
+message MumbleSetListenerVolumeResponse {
+}
+
+message MumbleSetPluginContextRequest {
+  bytes ctx = 1;
+}
+
+message MumbleSetPluginContextResponse {
+}
+
+message MumbleSetPluginIdentityRequest {
+  string identity = 1;
+}
+
+message MumbleSetPluginIdentityResponse {
+}
+
+message MumbleSetPreferredCodecRequest {
+  bool opus = 1;
+}
+
+message MumbleSetPreferredCodecResponse {
+}
+
+message MumbleSetPrioritySpeakerRequest {
+  uint32 session = 1;
+  bool enabled = 2;
+}
+
+message MumbleSetPrioritySpeakerResponse {
+}
+
+message MumbleSetRecordingRequest {
+  bool recording = 1;
+}
+
+message MumbleSetRecordingResponse {
+}
+
+message MumbleSetTemporaryAccessTokensRequest {
+  repeated string tokens = 1;
+}
+
+message MumbleSetTemporaryAccessTokensResponse {
+}
+
+message MumbleSetTextureRequest {
+  bytes image_data = 1;
+}
+
+message MumbleSetTextureResponse {
+}
+
+message MumbleSetVoiceTargetRequest {
+  uint32 id = 1;
+  repeated MumbleVoiceTargetEntry targets = 2;
+}
+
+message MumbleSetVoiceTargetResponse {
+}
+
+message MumbleStartCallRequest {
+  string chat_id = 1;
+  bool video = 2;
+}
+
+message MumbleStartCallResponse {
+  uniclient.CallSession result_1 = 1;
+}
+
+message MumbleSuppressRequest {
+  uint32 session = 1;
+  bool suppressed = 2;
+}
+
+message MumbleSuppressResponse {
+}
+
+message MumbleTerminateSessionRequest {
+  string session_id = 1;
+}
+
+message MumbleTerminateSessionResponse {
+}
+
+message MumbleTriggerContextActionRequest {
+  string action = 1;
+  uint32 session = 2;
+  uint32 channel_id = 3;
+}
+
+message MumbleTriggerContextActionResponse {
+}
+
+message MumbleUnbanMemberRequest {
+  string chat_id = 1;
+  string user_id = 2;
+}
+
+message MumbleUnbanMemberResponse {
+}
+
+message MumbleUnblockUserRequest {
+  string user_id = 1;
+}
+
+message MumbleUnblockUserResponse {
+}
+
+message MumbleUnlinkChannelsRequest {
+  uint32 channel_id = 1;
+  repeated uint32 unlink_ids = 2;
+}
+
+message MumbleUnlinkChannelsResponse {
+}
+
+message MumbleUnpinAllMessagesRequest {
+  string chat_id = 1;
+}
+
+message MumbleUnpinAllMessagesResponse {
+}
+
+message MumbleUnpinMessageRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message MumbleUnpinMessageResponse {
+}
+
+message MumbleUnregisterUserRequest {
+  uint32 user_id = 1;
+}
+
+message MumbleUnregisterUserResponse {
+}
+
+message MumbleUpdateCertificateRequest {
+  string cert_p_e_m = 1;
+  string key_p_e_m = 2;
+}
+
+message MumbleUpdateCertificateResponse {
+}
+
+message MumbleUpdatingAuthRegisterUserRequest {
+  bytes info = 1;
+}
+
+message MumbleUpdatingAuthRegisterUserResponse {
+  int64 result_1 = 1;
+}
+
+message MumbleUpdatingAuthSetInfoRequest {
+  int64 user_id = 1;
+  bytes info = 2;
+}
+
+message MumbleUpdatingAuthSetInfoResponse {
+}
+
+message MumbleUpdatingAuthSetTextureRequest {
+  int64 user_id = 1;
+  bytes texture = 2;
+}
+
+message MumbleUpdatingAuthSetTextureResponse {
+}
+
+message MumbleUpdatingAuthUnregisterUserRequest {
+  int64 user_id = 1;
+}
+
+message MumbleUpdatingAuthUnregisterUserResponse {
+}
+
+message MumbleVotePollRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+  int64 option_index = 3;
+}
+
+message MumbleVotePollResponse {
+}
+

@@ -118,6 +118,271 @@ type rubikaSession struct {
 	PrivateKey string `json:"private_key"` // PEM
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Typed response/request structs (Step 13.0 — protobuf-ready)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// RubikaGroupInfo represents group information from getGroupInfo.
+type RubikaGroupInfo struct {
+	GroupGUID        string `json:"group_guid"`
+	GroupTitle       string `json:"group_title"`
+	CountMembers     int    `json:"count_members"`
+	Description      string `json:"description"`
+	SlowMode         int    `json:"slow_mode"`
+	ChatHistoryForNewMembers string `json:"chat_history_for_new_members"`
+	EventMessages    bool   `json:"event_messages"`
+	GroupType        string `json:"group_type"`
+	Username         string `json:"username"`
+	AvatarThumbnail  string `json:"avatar_thumbnail"`
+	GroupVoiceChatID string `json:"group_voice_chat_id"`
+}
+
+// RubikaChannelInfo represents channel information from getChannelInfo.
+type RubikaChannelInfo struct {
+	ChannelGUID        string `json:"channel_guid"`
+	ChannelTitle       string `json:"channel_title"`
+	CountMembers       int    `json:"count_members"`
+	Description        string `json:"description"`
+	Username           string `json:"username"`
+	ChannelType        string `json:"channel_type"`
+	AvatarThumbnail    string `json:"avatar_thumbnail"`
+	IsVerified         bool   `json:"is_verified"`
+	SignMessages       bool   `json:"sign_messages"`
+	ChannelVoiceChatID string `json:"channel_voice_chat_id"`
+}
+
+// RubikaUserInfo represents user information from getUserInfo.
+type RubikaUserInfo struct {
+	UserGUID        string `json:"user_guid"`
+	FirstName       string `json:"first_name"`
+	LastName        string `json:"last_name"`
+	Username        string `json:"username"`
+	Phone           string `json:"phone"`
+	Bio             string `json:"bio"`
+	AvatarThumbnail string `json:"avatar_thumbnail"`
+	IsVerified      bool   `json:"is_verified"`
+	IsDeleted       bool   `json:"is_deleted"`
+	LastOnline      int64  `json:"last_online"`
+	OnlineStatus    string `json:"online_time_status"`
+}
+
+// RubikaMember represents a group/channel member entry.
+type RubikaMember struct {
+	MemberGUID string `json:"member_guid"`
+	FirstName  string `json:"first_name"`
+	LastName   string `json:"last_name"`
+	Username   string `json:"username"`
+}
+
+// RubikaMemberList is a paginated list of members.
+type RubikaMemberList struct {
+	Members     []RubikaMember `json:"in_chat_members"`
+	HasContinue bool           `json:"has_continue"`
+	NextStartID string         `json:"next_start_id"`
+}
+
+// RubikaAccessEntry represents an admin access permission.
+type RubikaAccessEntry struct {
+	Access string `json:"access"`
+}
+
+// RubikaAvatar represents a single avatar entry.
+type RubikaAvatar struct {
+	AvatarID  string `json:"avatar_id"`
+	MainFileID string `json:"main_file_id"`
+	ThumbFileID string `json:"thumb_file_id"`
+}
+
+// RubikaAvatarList is the response for GetAvatars.
+type RubikaAvatarList struct {
+	Avatars []RubikaAvatar `json:"avatars"`
+}
+
+// RubikaStickerSet represents a sticker set.
+type RubikaStickerSet struct {
+	StickerSetID string `json:"sticker_set_id"`
+	Title        string `json:"title"`
+	Count        int    `json:"count"`
+}
+
+// RubikaPollStatus represents poll status info.
+type RubikaPollStatus struct {
+	State          string          `json:"state"`
+	SelectionCount map[string]int  `json:"selection_count"`
+	TotalCount     int             `json:"total_count"`
+}
+
+// RubikaPollVoters represents voters for a poll option.
+type RubikaPollVoters struct {
+	Voters      []RubikaMember `json:"voters"`
+	HasContinue bool           `json:"has_continue"`
+	NextStartID string         `json:"next_start_id"`
+}
+
+// RubikaReactionInfo represents reactions on a message.
+type RubikaReactionInfo struct {
+	Reactions []struct {
+		Emoji string `json:"emoji"`
+		Count int    `json:"count"`
+	} `json:"reactions"`
+}
+
+// RubikaPrivacySettings represents privacy setting values.
+type RubikaPrivacySettings struct {
+	Settings map[string]string `json:"settings"`
+}
+
+// RubikaTwoStepInfo represents 2FA status.
+type RubikaTwoStepInfo struct {
+	HasPassword   bool   `json:"has_password"`
+	PasswordHint  string `json:"password_hint"`
+}
+
+// RubikaFolderInfo represents a folder returned by addFolder.
+type RubikaFolderInfo struct {
+	FolderID          string   `json:"folder_id"`
+	Name              string   `json:"name"`
+	IncludeChatTypes  []string `json:"include_chat_types"`
+	IncludeObjectGUIDs []string `json:"include_object_guids"`
+	ExcludeTypes      []string `json:"exclude_chat_types"`
+}
+
+// RubikaSessionInfo represents a logged-in session.
+type RubikaSessionInfo struct {
+	SessionKey  string `json:"session_key"`
+	DeviceModel string `json:"device_model"`
+	Platform    string `json:"platform"`
+	AppVersion  string `json:"app_version"`
+	IP          string `json:"ip"`
+	Country     string `json:"country"`
+	IsCurrent   bool   `json:"is_current"`
+}
+
+// RubikaVoiceChatInfo represents voice chat response data.
+type RubikaVoiceChatInfo struct {
+	VoiceChatID string `json:"voice_chat_id"`
+	SDPAnswer   string `json:"sdp_answer_data"`
+}
+
+// RubikaUploadInfo represents file upload request response.
+type RubikaUploadInfo struct {
+	ID             string `json:"id"`
+	UploadURL      string `json:"upload_url"`
+	AccessHashSend string `json:"access_hash_send"`
+	DCID           int    `json:"dc_id"`
+}
+
+// RubikaBotInfo represents BotGetMe response.
+type RubikaBotInfo struct {
+	UserGUID  string `json:"user_guid"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Username  string `json:"username"`
+	IsBot     bool   `json:"is_bot"`
+}
+
+// RubikaBotChatInfo represents BotGetChat response.
+type RubikaBotChatInfo struct {
+	ChatGUID    string `json:"chat_guid"`
+	Title       string `json:"title"`
+	ChatType    string `json:"chat_type"`
+	CountMembers int   `json:"count_members"`
+}
+
+// RubikaBotJoinStatus represents BotCheckJoin response.
+type RubikaBotJoinStatus struct {
+	IsMember bool `json:"is_member"`
+}
+
+// RubikaLinkInfo represents a join link response.
+type RubikaLinkInfo struct {
+	JoinLink string `json:"join_link"`
+}
+
+// RubikaGroupEdit represents editable group fields.
+type RubikaGroupEdit struct {
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	SlowMode    *int   `json:"slow_mode,omitempty"`
+	ChatHistory string `json:"chat_history_for_new_members,omitempty"`
+}
+
+// RubikaChannelEdit represents editable channel fields.
+type RubikaChannelEdit struct {
+	Title        string `json:"title,omitempty"`
+	Description  string `json:"description,omitempty"`
+	SignMessages *bool  `json:"sign_messages,omitempty"`
+}
+
+// RubikaKeypadRow represents one row of an inline keypad.
+type RubikaKeypadRow struct {
+	Buttons []RubikaKeypadButton `json:"buttons"`
+}
+
+// RubikaKeypadButton represents a single keypad button.
+type RubikaKeypadButton struct {
+	ID           string `json:"id"`
+	Type         string `json:"type"` // "Simple", "TextInline", "RequestPhone", etc.
+	ButtonText   string `json:"button_text"`
+	ButtonURL    string `json:"button_url,omitempty"`
+	ButtonQuery  string `json:"button_query,omitempty"`
+}
+
+// RubikaBotSendOpts represents optional parameters for bot send methods.
+type RubikaBotSendOpts struct {
+	ReplyToMessageID string            `json:"reply_to_message_id,omitempty"`
+	InlineKeypad     []RubikaKeypadRow `json:"inline_keypad,omitempty"`
+}
+
+// RubikaFileInline represents file metadata for upload/avatar operations.
+type RubikaFileInline struct {
+	FileID        string `json:"file_id"`
+	FileName      string `json:"file_name"`
+	Mime          string `json:"mime"`
+	Size          int64  `json:"size"`
+	DCID          int    `json:"dc_id"`
+	AccessHashRec string `json:"access_hash_rec"`
+	ThumbInline   string `json:"thumb_inline,omitempty"`
+	Width         int    `json:"width,omitempty"`
+	Height        int    `json:"height,omitempty"`
+}
+
+// RubikaMessageShareInfo represents a shared message URL.
+type RubikaMessageShareInfo struct {
+	Link string `json:"link"`
+}
+
+// RubikaContactImportResult represents the result of importing contacts.
+type RubikaContactImportResult struct {
+	Users []RubikaUserInfo `json:"users"`
+}
+
+// rubikaParseData is a helper to extract and parse a JSON sub-object from an API response map.
+func rubikaParseData[T any](data map[string]interface{}, key string) (T, error) {
+	var result T
+	raw, ok := data[key]
+	if !ok {
+		return result, fmt.Errorf("rubika: missing %q in response", key)
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return result, err
+	}
+	err = json.Unmarshal(b, &result)
+	return result, err
+}
+
+// rubikaParseFlat parses the entire response map directly into a struct.
+func rubikaParseFlat[T any](data map[string]interface{}) (T, error) {
+	var result T
+	b, err := json.Marshal(data)
+	if err != nil {
+		return result, err
+	}
+	err = json.Unmarshal(b, &result)
+	return result, err
+}
+
 // NewRubikaCore creates a new Rubika core instance.
 func NewRubikaCore(sessionPath string) *RubikaCore {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -624,46 +889,6 @@ func (r *RubikaCore) doHTTPPost(url string, body []byte) (map[string]interface{}
 	return nil, lastErr
 }
 
-func (r *RubikaCore) doRubinoPost(url string, body []byte) (map[string]interface{}, error) {
-	req, err := http.NewRequestWithContext(r.ctx, "POST", url, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", r.userAgent)
-	req.Header.Set("Origin", "https://rubino.ir")
-	req.Header.Set("Referer", "https://rubino.ir/")
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Connection", "keep-alive")
-
-	var lastErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		resp, err := r.httpClient.Do(req)
-		if err != nil {
-			lastErr = err
-			time.Sleep(time.Duration(1<<attempt) * time.Second)
-			req, _ = http.NewRequestWithContext(r.ctx, "POST", url, bytes.NewReader(body))
-			req.Header.Set("Content-Type", "application/json")
-			req.Header.Set("User-Agent", r.userAgent)
-			req.Header.Set("Origin", "https://rubino.ir")
-			req.Header.Set("Referer", "https://rubino.ir/")
-			req.Header.Set("Accept", "application/json, text/plain, */*")
-			req.Header.Set("Connection", "keep-alive")
-			continue
-		}
-
-		var result map[string]interface{}
-		decErr := json.NewDecoder(resp.Body).Decode(&result)
-		resp.Body.Close()
-		if decErr != nil {
-			lastErr = decErr
-			continue
-		}
-		return result, nil
-	}
-	return nil, lastErr
-}
-
 func (r *RubikaCore) mapError(statusDet string, resp map[string]interface{}) error {
 	switch statusDet {
 	case "InvalidAuth", "NotRegistered":
@@ -727,8 +952,12 @@ func (r *RubikaCore) botAPIRequest(method string, input map[string]interface{}) 
 // --- Bot API methods (official docs: rubika.ir/botapi) ---
 
 // BotGetMe retrieves bot information.
-func (r *RubikaCore) BotGetMe() (map[string]interface{}, error) {
-	return r.botAPIRequest("getMe", nil)
+func (r *RubikaCore) BotGetMe() (RubikaBotInfo, error) {
+	data, err := r.botAPIRequest("getMe", nil)
+	if err != nil {
+		return RubikaBotInfo{}, err
+	}
+	return rubikaParseFlat[RubikaBotInfo](data)
 }
 
 // BotSendMessage sends a text message with optional keypads.
@@ -877,10 +1106,12 @@ func (r *RubikaCore) BotForwardMessage(fromChatID string, msgID string, toChatID
 }
 
 // BotGetChat retrieves chat information.
-func (r *RubikaCore) BotGetChat(chatID string) (map[string]interface{}, error) {
-	return r.botAPIRequest("getChat", map[string]interface{}{
-		"chat_id": chatID,
-	})
+func (r *RubikaCore) BotGetChat(chatID string) (RubikaBotChatInfo, error) {
+	data, err := r.botAPIRequest("getChat", map[string]interface{}{"chat_id": chatID})
+	if err != nil {
+		return RubikaBotChatInfo{}, err
+	}
+	return rubikaParseFlat[RubikaBotChatInfo](data)
 }
 
 // BotGetUpdates polls for new updates.
@@ -1655,17 +1886,11 @@ func (r *RubikaCore) GetFolders() ([]Folder, error) {
 }
 
 func (r *RubikaCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
-	raw, err := r.AddFolder(name, chatIDs)
+	info, err := r.AddFolder(name, chatIDs)
 	if err != nil {
 		return nil, err
 	}
-	f := &Folder{Name: name}
-	if folder, ok := raw["folder"].(map[string]interface{}); ok {
-		if id, ok := folder["folder_id"].(string); ok {
-			f.ID = id
-		}
-	}
-	return f, nil
+	return &Folder{ID: info.FolderID, Name: name}, nil
 }
 
 // --- Messages ---
@@ -2294,26 +2519,12 @@ func (r *RubikaCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	if strings.HasPrefix(chatID, "g0") {
 		info, err := r.GetGroupInfo(chatID)
 		if err == nil {
-			if chat, ok := info["chat"].(map[string]interface{}); ok {
-				vcID, _ = chat["group_voice_chat_id"].(string)
-			}
-			if vcID == "" {
-				if group, ok := info["group"].(map[string]interface{}); ok {
-					vcID, _ = group["group_voice_chat_id"].(string)
-				}
-			}
+			vcID = info.GroupVoiceChatID
 		}
 	} else if strings.HasPrefix(chatID, "c0") {
 		info, err := r.GetChannelInfo(chatID)
 		if err == nil {
-			if chat, ok := info["chat"].(map[string]interface{}); ok {
-				vcID, _ = chat["channel_voice_chat_id"].(string)
-			}
-			if vcID == "" {
-				if ch, ok := info["channel"].(map[string]interface{}); ok {
-					vcID, _ = ch["channel_voice_chat_id"].(string)
-				}
-			}
+			vcID = info.ChannelVoiceChatID
 		}
 	}
 
@@ -2710,65 +2921,36 @@ func (r *RubikaCore) GetProfile(userID string) (*User, error) {
 	}
 
 	if r.isBot {
-		// Bots can use getChat to get basic user/chat info
-		data, err := r.BotGetChat(userID)
+		info, err := r.BotGetChat(userID)
 		if err != nil {
 			return nil, err
 		}
-		chat, _ := data["chat"].(map[string]interface{})
-		if chat == nil {
-			chat = data
-		}
-		firstName, _ := mapGetString(chat, "first_name")
-		lastName, _ := mapGetString(chat, "last_name")
-		username, _ := mapGetString(chat, "username")
-		title, _ := mapGetString(chat, "title")
-		displayName := firstName
-		if lastName != "" {
-			displayName += " " + lastName
-		}
-		if displayName == "" {
-			displayName = title
-		}
 		return &User{
-			ID:          userID,
-			Username:    username,
-			DisplayName: displayName,
+			ID:          info.ChatGUID,
+			DisplayName: info.Title,
 			Platform:    rubikaPlatform,
 		}, nil
 	}
 
-	input := map[string]interface{}{}
-	if userID != "" && userID != "me" {
-		input["user_guid"] = userID
+	guid := userID
+	if guid == "" || guid == "me" {
+		guid = ""
 	}
-
-	data, err := r.api("getUserInfo", input)
+	info, err := r.GetUserInfo(guid)
 	if err != nil {
 		return nil, err
 	}
 
-	userInfo, _ := data["user"].(map[string]interface{})
-	if userInfo == nil {
-		userInfo = data
-	}
-
-	guid, _ := mapGetString(userInfo, "user_guid")
-	firstName, _ := mapGetString(userInfo, "first_name")
-	lastName, _ := mapGetString(userInfo, "last_name")
-	username, _ := mapGetString(userInfo, "username")
-	phone, _ := mapGetString(userInfo, "phone")
-
-	displayName := firstName
-	if lastName != "" {
-		displayName += " " + lastName
+	displayName := info.FirstName
+	if info.LastName != "" {
+		displayName += " " + info.LastName
 	}
 
 	return &User{
-		ID:          guid,
-		Username:    username,
+		ID:          info.UserGUID,
+		Username:    info.Username,
 		DisplayName: displayName,
-		Phone:       phone,
+		Phone:       info.Phone,
 		Platform:    rubikaPlatform,
 	}, nil
 }
@@ -3251,17 +3433,21 @@ func (r *RubikaCore) mapBotResponseToMessage(data map[string]interface{}, chatID
 // --- Rubika-specific methods (beyond Core interface) ---
 
 // GetGroupInfo retrieves information about a group.
-func (r *RubikaCore) GetGroupInfo(groupGUID string) (map[string]interface{}, error) {
-	return r.api("getGroupInfo", map[string]interface{}{
-		"group_guid": groupGUID,
-	})
+func (r *RubikaCore) GetGroupInfo(groupGUID string) (RubikaGroupInfo, error) {
+	data, err := r.api("getGroupInfo", map[string]interface{}{"group_guid": groupGUID})
+	if err != nil {
+		return RubikaGroupInfo{}, err
+	}
+	return rubikaParseData[RubikaGroupInfo](data, "group")
 }
 
 // GetChannelInfo retrieves information about a channel.
-func (r *RubikaCore) GetChannelInfo(channelGUID string) (map[string]interface{}, error) {
-	return r.api("getChannelInfo", map[string]interface{}{
-		"channel_guid": channelGUID,
-	})
+func (r *RubikaCore) GetChannelInfo(channelGUID string) (RubikaChannelInfo, error) {
+	data, err := r.api("getChannelInfo", map[string]interface{}{"channel_guid": channelGUID})
+	if err != nil {
+		return RubikaChannelInfo{}, err
+	}
+	return rubikaParseData[RubikaChannelInfo](data, "channel")
 }
 
 // GetObjectByUsername resolves a username to its object info.
@@ -3336,19 +3522,21 @@ func (r *RubikaCore) votePollRaw(pollID string, optionIndex int) (map[string]int
 }
 
 // GetGroupAllMembers retrieves all members of a group.
-func (r *RubikaCore) GetGroupAllMembers(groupGUID string) (map[string]interface{}, error) {
-	return r.api("getGroupAllMembers", map[string]interface{}{
-		"group_guid": groupGUID,
-		"start_id":   nil,
-	})
+func (r *RubikaCore) GetGroupAllMembers(groupGUID string) (RubikaMemberList, error) {
+	data, err := r.api("getGroupAllMembers", map[string]interface{}{"group_guid": groupGUID, "start_id": nil})
+	if err != nil {
+		return RubikaMemberList{}, err
+	}
+	return rubikaParseFlat[RubikaMemberList](data)
 }
 
 // GetChannelAllMembers retrieves all members of a channel.
-func (r *RubikaCore) GetChannelAllMembers(channelGUID string) (map[string]interface{}, error) {
-	return r.api("getChannelAllMembers", map[string]interface{}{
-		"channel_guid": channelGUID,
-		"start_id":     nil,
-	})
+func (r *RubikaCore) GetChannelAllMembers(channelGUID string) (RubikaMemberList, error) {
+	data, err := r.api("getChannelAllMembers", map[string]interface{}{"channel_guid": channelGUID, "start_id": nil})
+	if err != nil {
+		return RubikaMemberList{}, err
+	}
+	return rubikaParseFlat[RubikaMemberList](data)
 }
 
 // SetGroupAdmin sets or removes admin for a group member.
@@ -3402,10 +3590,12 @@ func (r *RubikaCore) JoinChannelAction(channelGUID string, action string) error 
 }
 
 // GetAvatars retrieves avatars for an object.
-func (r *RubikaCore) GetAvatars(objectGUID string) (map[string]interface{}, error) {
-	return r.api("getAvatars", map[string]interface{}{
-		"object_guid": objectGUID,
-	})
+func (r *RubikaCore) GetAvatars(objectGUID string) (RubikaAvatarList, error) {
+	data, err := r.api("getAvatars", map[string]interface{}{"object_guid": objectGUID})
+	if err != nil {
+		return RubikaAvatarList{}, err
+	}
+	return rubikaParseFlat[RubikaAvatarList](data)
 }
 
 // DeleteAvatar deletes an avatar.
@@ -3586,50 +3776,86 @@ func (r *RubikaCore) EditGroupInfo(groupGUID string, updates map[string]interfac
 }
 
 // GetGroupLink retrieves a group's invite link.
-func (r *RubikaCore) GetGroupLink(groupGUID string) (map[string]interface{}, error) {
-	return r.api("getGroupLink", map[string]interface{}{
-		"group_guid": groupGUID,
-	})
+func (r *RubikaCore) GetGroupLink(groupGUID string) (RubikaLinkInfo, error) {
+	data, err := r.api("getGroupLink", map[string]interface{}{"group_guid": groupGUID})
+	if err != nil {
+		return RubikaLinkInfo{}, err
+	}
+	return rubikaParseFlat[RubikaLinkInfo](data)
 }
 
 // SetGroupLink resets a group's invite link.
-func (r *RubikaCore) SetGroupLink(groupGUID string) (map[string]interface{}, error) {
-	return r.api("setGroupLink", map[string]interface{}{
-		"group_guid": groupGUID,
-	})
+func (r *RubikaCore) SetGroupLink(groupGUID string) (RubikaLinkInfo, error) {
+	data, err := r.api("setGroupLink", map[string]interface{}{"group_guid": groupGUID})
+	if err != nil {
+		return RubikaLinkInfo{}, err
+	}
+	return rubikaParseFlat[RubikaLinkInfo](data)
 }
 
 // GetGroupAdminMembers retrieves group admin members.
-func (r *RubikaCore) GetGroupAdminMembers(groupGUID string, startID string) (map[string]interface{}, error) {
+func (r *RubikaCore) GetGroupAdminMembers(groupGUID string, startID string) (RubikaMemberList, error) {
 	input := map[string]interface{}{"group_guid": groupGUID}
 	if startID != "" {
 		input["start_id"] = startID
 	}
-	return r.api("getGroupAdminMembers", input)
+	data, err := r.api("getGroupAdminMembers", input)
+	if err != nil {
+		return RubikaMemberList{}, err
+	}
+	return rubikaParseFlat[RubikaMemberList](data)
 }
 
 // GetGroupAdminAccessList retrieves admin access list for a member.
-func (r *RubikaCore) GetGroupAdminAccessList(groupGUID string, memberGUID string) (map[string]interface{}, error) {
-	return r.api("getGroupAdminAccessList", map[string]interface{}{
+func (r *RubikaCore) GetGroupAdminAccessList(groupGUID string, memberGUID string) ([]string, error) {
+	data, err := r.api("getGroupAdminAccessList", map[string]interface{}{
 		"group_guid":  groupGUID,
 		"member_guid": memberGUID,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if list, ok := data["access_list"].([]interface{}); ok {
+		result := make([]string, 0, len(list))
+		for _, v := range list {
+			if s, ok := v.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result, nil
+	}
+	return []string{}, nil
 }
 
 // GetBannedGroupMembers retrieves banned group members.
-func (r *RubikaCore) GetBannedGroupMembers(groupGUID string, startID string) (map[string]interface{}, error) {
+func (r *RubikaCore) GetBannedGroupMembers(groupGUID string, startID string) (RubikaMemberList, error) {
 	input := map[string]interface{}{"group_guid": groupGUID}
 	if startID != "" {
 		input["start_id"] = startID
 	}
-	return r.api("getBannedGroupMembers", input)
+	data, err := r.api("getBannedGroupMembers", input)
+	if err != nil {
+		return RubikaMemberList{}, err
+	}
+	return rubikaParseFlat[RubikaMemberList](data)
 }
 
 // GetGroupDefaultAccess retrieves default member permissions.
-func (r *RubikaCore) GetGroupDefaultAccess(groupGUID string) (map[string]interface{}, error) {
-	return r.api("getGroupDefaultAccess", map[string]interface{}{
-		"group_guid": groupGUID,
-	})
+func (r *RubikaCore) GetGroupDefaultAccess(groupGUID string) ([]string, error) {
+	data, err := r.api("getGroupDefaultAccess", map[string]interface{}{"group_guid": groupGUID})
+	if err != nil {
+		return nil, err
+	}
+	if list, ok := data["access_list"].([]interface{}); ok {
+		result := make([]string, 0, len(list))
+		for _, v := range list {
+			if s, ok := v.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result, nil
+	}
+	return []string{}, nil
 }
 
 // SetGroupDefaultAccess sets default member permissions.
@@ -3651,10 +3877,15 @@ func (r *RubikaCore) GetGroupMentionList(groupGUID string, searchText string) (m
 }
 
 // GetGroupOnlineCount retrieves online member count.
-func (r *RubikaCore) GetGroupOnlineCount(groupGUID string) (map[string]interface{}, error) {
-	return r.api("getGroupOnlineCount", map[string]interface{}{
-		"group_guid": groupGUID,
-	})
+func (r *RubikaCore) GetGroupOnlineCount(groupGUID string) (int, error) {
+	data, err := r.api("getGroupOnlineCount", map[string]interface{}{"group_guid": groupGUID})
+	if err != nil {
+		return 0, err
+	}
+	if count, ok := data["online_count"].(float64); ok {
+		return int(count), nil
+	}
+	return 0, nil
 }
 
 // RemoveGroup removes/deletes a group.
@@ -3721,33 +3952,54 @@ func (r *RubikaCore) EditChannelInfo(channelGUID string, updates map[string]inte
 }
 
 // GetChannelLink retrieves a channel's invite link.
-func (r *RubikaCore) GetChannelLink(channelGUID string) (map[string]interface{}, error) {
-	return r.api("getChannelLink", map[string]interface{}{
-		"channel_guid": channelGUID,
-	})
+func (r *RubikaCore) GetChannelLink(channelGUID string) (RubikaLinkInfo, error) {
+	data, err := r.api("getChannelLink", map[string]interface{}{"channel_guid": channelGUID})
+	if err != nil {
+		return RubikaLinkInfo{}, err
+	}
+	return rubikaParseFlat[RubikaLinkInfo](data)
 }
 
 // SetChannelLink resets a channel's invite link.
-func (r *RubikaCore) SetChannelLink(channelGUID string) (map[string]interface{}, error) {
-	return r.api("setChannelLink", map[string]interface{}{
-		"channel_guid": channelGUID,
-	})
+func (r *RubikaCore) SetChannelLink(channelGUID string) (RubikaLinkInfo, error) {
+	data, err := r.api("setChannelLink", map[string]interface{}{"channel_guid": channelGUID})
+	if err != nil {
+		return RubikaLinkInfo{}, err
+	}
+	return rubikaParseFlat[RubikaLinkInfo](data)
 }
 
 // GetChannelAdminMembers retrieves channel admin members.
-func (r *RubikaCore) GetChannelAdminMembers(channelGUID string, startID string) (map[string]interface{}, error) {
-	return r.api("getChannelAdminMembers", map[string]interface{}{
+func (r *RubikaCore) GetChannelAdminMembers(channelGUID string, startID string) (RubikaMemberList, error) {
+	data, err := r.api("getChannelAdminMembers", map[string]interface{}{
 		"channel_guid": channelGUID,
 		"start_id":     startID,
 	})
+	if err != nil {
+		return RubikaMemberList{}, err
+	}
+	return rubikaParseFlat[RubikaMemberList](data)
 }
 
 // GetChannelAdminAccessList retrieves admin access list for a channel member.
-func (r *RubikaCore) GetChannelAdminAccessList(channelGUID string, memberGUID string) (map[string]interface{}, error) {
-	return r.api("getChannelAdminAccessList", map[string]interface{}{
+func (r *RubikaCore) GetChannelAdminAccessList(channelGUID string, memberGUID string) ([]string, error) {
+	data, err := r.api("getChannelAdminAccessList", map[string]interface{}{
 		"channel_guid": channelGUID,
 		"member_guid":  memberGUID,
 	})
+	if err != nil {
+		return nil, err
+	}
+	if list, ok := data["access_list"].([]interface{}); ok {
+		result := make([]string, 0, len(list))
+		for _, v := range list {
+			if s, ok := v.(string); ok {
+				result = append(result, s)
+			}
+		}
+		return result, nil
+	}
+	return []string{}, nil
 }
 
 // RemoveChannel removes/deletes a channel.
@@ -3884,13 +4136,21 @@ func (r *RubikaCore) ResetContacts() error {
 // --- Settings ---
 
 // GetPrivacySetting retrieves privacy settings.
-func (r *RubikaCore) GetPrivacySetting() (map[string]interface{}, error) {
-	return r.api("getPrivacySetting", map[string]interface{}{})
+func (r *RubikaCore) GetPrivacySetting() (RubikaPrivacySettings, error) {
+	data, err := r.api("getPrivacySetting", map[string]interface{}{})
+	if err != nil {
+		return RubikaPrivacySettings{}, err
+	}
+	return rubikaParseFlat[RubikaPrivacySettings](data)
 }
 
 // GetTwoPasscodeStatus retrieves 2FA status.
-func (r *RubikaCore) GetTwoPasscodeStatus() (map[string]interface{}, error) {
-	return r.api("getTwoPasscodeStatus", map[string]interface{}{})
+func (r *RubikaCore) GetTwoPasscodeStatus() (RubikaTwoStepInfo, error) {
+	data, err := r.api("getTwoPasscodeStatus", map[string]interface{}{})
+	if err != nil {
+		return RubikaTwoStepInfo{}, err
+	}
+	return rubikaParseFlat[RubikaTwoStepInfo](data)
 }
 
 // GetSuggestedFolders retrieves suggested folders.
@@ -4383,12 +4643,16 @@ func (r *RubikaCore) SetGroupReactions(groupGUID string, reactionType string, se
 // --- Channel Management (extended) ---
 
 // GetBannedChannelMembers retrieves banned channel members.
-func (r *RubikaCore) GetBannedChannelMembers(channelGUID string, startID string) (map[string]interface{}, error) {
+func (r *RubikaCore) GetBannedChannelMembers(channelGUID string, startID string) (RubikaMemberList, error) {
 	input := map[string]interface{}{"channel_guid": channelGUID}
 	if startID != "" {
 		input["start_id"] = startID
 	}
-	return r.api("getBannedChannelMembers", input)
+	data, err := r.api("getBannedChannelMembers", input)
+	if err != nil {
+		return RubikaMemberList{}, err
+	}
+	return rubikaParseFlat[RubikaMemberList](data)
 }
 
 // --- Ownership Transfer ---
@@ -4420,14 +4684,16 @@ func (r *RubikaCore) RejectRequestObjectOwning(objectGUID string) error {
 // --- Folder Management (extended) ---
 
 // AddFolder creates a new folder with the given name and included chat GUIDs.
-func (r *RubikaCore) AddFolder(name string, includeObjectGUIDs []string) (map[string]interface{}, error) {
-	input := map[string]interface{}{
-		"name": name,
-	}
+func (r *RubikaCore) AddFolder(name string, includeObjectGUIDs []string) (RubikaFolderInfo, error) {
+	input := map[string]interface{}{"name": name}
 	if len(includeObjectGUIDs) > 0 {
 		input["include_object_guids"] = includeObjectGUIDs
 	}
-	return r.api("addFolder", input)
+	data, err := r.api("addFolder", input)
+	if err != nil {
+		return RubikaFolderInfo{}, err
+	}
+	return rubikaParseFlat[RubikaFolderInfo](data)
 }
 
 // --- Messaging (extended) ---
@@ -4485,341 +4751,6 @@ func (r *RubikaCore) SeenChats(seenList map[string]string) error {
 	return err
 }
 
-// --- Rubino Social Media API ---
-
-// rubinoAPI sends a request to the Rubino social media API.
-// Rubino uses plaintext JSON (no encryption), raw auth token, and api_version "0".
-func (r *RubikaCore) rubinoAPI(method string, input map[string]interface{}) (map[string]interface{}, error) {
-	if r.auth == "" {
-		return nil, ErrAuth
-	}
-
-	// Rubino client config (no lang_code)
-	client := map[string]interface{}{
-		"app_name":    r.platform.AppName,
-		"app_version": r.platform.AppVersion,
-		"platform":    r.platform.Platform,
-		"package":     r.platform.Package,
-	}
-
-	reqBody := map[string]interface{}{
-		"api_version": "0",
-		"auth":        r.auth, // raw auth, NOT decode_auth
-		"client":      client,
-		"method":      method,
-		"data":        input, // plaintext, NOT encrypted
-	}
-
-	bodyBytes, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, err
-	}
-
-	// Try multiple Rubino DCs with failover
-	rubinoURLs := []string{
-		"https://rubino1.iranlms.ir/",
-		"https://rubino2.iranlms.ir/",
-		"https://rubino5.iranlms.ir/",
-		"https://rubino8.iranlms.ir/",
-		"https://rubino9.iranlms.ir/",
-		"https://rubino10.iranlms.ir/",
-	}
-	var result map[string]interface{}
-	var lastErr error
-	for _, rubinoURL := range rubinoURLs {
-		result, lastErr = r.doRubinoPost(rubinoURL, bodyBytes)
-		if lastErr == nil {
-			break
-		}
-	}
-	if lastErr != nil {
-		return nil, fmt.Errorf("rubino API: %w", lastErr)
-	}
-
-	// Rubino responses are plaintext JSON (not encrypted)
-	if status, _ := result["status"].(string); status != "OK" {
-		det, _ := result["status_det"].(string)
-		return nil, fmt.Errorf("rubino %s: %s (%s)", method, status, det)
-	}
-
-	if data, ok := result["data"].(map[string]interface{}); ok {
-		return data, nil
-	}
-	return result, nil
-}
-
-// RubinoGetMyProfileInfo retrieves the current user's Rubino profile.
-func (r *RubikaCore) RubinoGetMyProfileInfo() (map[string]interface{}, error) {
-	return r.rubinoAPI("getMyProfileInfo", map[string]interface{}{})
-}
-
-// RubinoGetProfileList retrieves a list of Rubino profiles.
-func (r *RubikaCore) RubinoGetProfileList(limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getProfileList", map[string]interface{}{
-		"limit": limit,
-		"sort":  "FromMax",
-		"equal": false,
-	})
-}
-
-// RubinoGetProfileInfo retrieves another user's Rubino profile.
-// profileID is your own profile; targetProfileID is the profile to query.
-func (r *RubikaCore) RubinoGetProfileInfo(profileID string, targetProfileID string) (map[string]interface{}, error) {
-	return r.rubinoAPI("getProfileInfo", map[string]interface{}{
-		"profile_id":        profileID,
-		"target_profile_id": targetProfileID,
-	})
-}
-
-// RubinoCreatePage creates a new Rubino page/profile.
-func (r *RubikaCore) RubinoCreatePage(name string, bio string, username string) (map[string]interface{}, error) {
-	input := map[string]interface{}{}
-	if name != "" {
-		input["name"] = name
-	}
-	if bio != "" {
-		input["bio"] = bio
-	}
-	if username != "" {
-		input["username"] = username
-	}
-	return r.rubinoAPI("createPage", input)
-}
-
-// RubinoUpdateProfile updates a Rubino profile.
-func (r *RubikaCore) RubinoUpdateProfile(profileID string, updates map[string]interface{}) error {
-	input := map[string]interface{}{
-		"profile_id": profileID,
-	}
-	var updatedParams []string
-	for k, v := range updates {
-		input[k] = v
-		updatedParams = append(updatedParams, k)
-	}
-	input["updated_parameters"] = updatedParams
-	_, err := r.rubinoAPI("updateProfile", input)
-	return err
-}
-
-// RubinoIsExistUsername checks if a Rubino username is available.
-func (r *RubikaCore) RubinoIsExistUsername(username string) (map[string]interface{}, error) {
-	return r.rubinoAPI("isExistUsername", map[string]interface{}{
-		"username": username,
-	})
-}
-
-// RubinoGetPostByShareLink fetches a Rubino post by its share link.
-func (r *RubikaCore) RubinoGetPostByShareLink(shareLink string, profileID string) (map[string]interface{}, error) {
-	return r.rubinoAPI("getPostByShareLink", map[string]interface{}{
-		"share_link": shareLink,
-		"profile_id": profileID,
-	})
-}
-
-// RubinoAddComment adds a comment to a Rubino post.
-func (r *RubikaCore) RubinoAddComment(postID string, text string, postProfileID string) (map[string]interface{}, error) {
-	return r.rubinoAPI("addComment", map[string]interface{}{
-		"post_id":         postID,
-		"content":         text,
-		"post_profile_id": postProfileID,
-	})
-}
-
-// RubinoLikePostAction likes or unlikes a Rubino post.
-func (r *RubikaCore) RubinoLikePostAction(postID string, postProfileID string, like bool) error {
-	action := "Like"
-	if !like {
-		action = "Unlike"
-	}
-	_, err := r.rubinoAPI("likePostAction", map[string]interface{}{
-		"post_id":         postID,
-		"post_profile_id": postProfileID,
-		"action_type":     action,
-	})
-	return err
-}
-
-// RubinoAddPostViewCount increments the view count of a Rubino post.
-func (r *RubikaCore) RubinoAddPostViewCount(postID string, postProfileID string) error {
-	_, err := r.rubinoAPI("addPostViewCount", map[string]interface{}{
-		"post_id":         postID,
-		"post_profile_id": postProfileID,
-	})
-	return err
-}
-
-// RubinoGetComments retrieves comments on a Rubino post.
-func (r *RubikaCore) RubinoGetComments(postID string, postProfileID string, profileID string, limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getComments", map[string]interface{}{
-		"post_id":         postID,
-		"post_profile_id": postProfileID,
-		"profile_id":      profileID,
-		"limit":           limit,
-		"sort":            "FromMax",
-		"equal":           false,
-	})
-}
-
-// RubinoGetRecentFollowingPosts retrieves the timeline of followed profiles' posts.
-func (r *RubikaCore) RubinoGetRecentFollowingPosts(profileID string, limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getRecentFollowingPosts", map[string]interface{}{
-		"profile_id": profileID,
-		"limit":      limit,
-		"sort":       "FromMax",
-		"equal":      false,
-	})
-}
-
-// RubinoGetProfilesStories retrieves stories from Rubino profiles.
-func (r *RubikaCore) RubinoGetProfilesStories(profileIDs []string) (map[string]interface{}, error) {
-	return r.rubinoAPI("getProfilesStories", map[string]interface{}{
-		"profile_ids": profileIDs,
-	})
-}
-
-// RubinoRequestUploadFile requests a file upload URL for Rubino content.
-func (r *RubikaCore) RubinoRequestUploadFile(fileName string, fileSize int64, fileType string) (map[string]interface{}, error) {
-	return r.rubinoAPI("requestUploadFile", map[string]interface{}{
-		"file_name": fileName,
-		"size":      fileSize,
-		"type":      fileType,
-	})
-}
-
-// RubinoGetProfileHighlights retrieves story highlights for a profile.
-// profileID is your own; targetProfileID is the profile to query.
-func (r *RubikaCore) RubinoGetProfileHighlights(profileID string, targetProfileID string, limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getProfileHighlights", map[string]interface{}{
-		"profile_id":        profileID,
-		"target_profile_id": targetProfileID,
-		"limit":             limit,
-		"sort":              "FromMax",
-		"equal":             false,
-	})
-}
-
-// RubinoGetBookmarkedPosts retrieves bookmarked posts.
-func (r *RubikaCore) RubinoGetBookmarkedPosts(profileID string, limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getBookmarkedPosts", map[string]interface{}{
-		"profile_id": profileID,
-		"limit":      limit,
-		"sort":       "FromMax",
-		"equal":      false,
-	})
-}
-
-// RubinoGetExplorePosts retrieves the explore/discover feed.
-func (r *RubikaCore) RubinoGetExplorePosts(profileID string, limit int, maxID string) (map[string]interface{}, error) {
-	input := map[string]interface{}{
-		"profile_id": profileID,
-		"limit":      limit,
-		"sort":       "FromMax",
-		"equal":      false,
-		"max_id":     nil,
-	}
-	if maxID != "" {
-		input["max_id"] = maxID
-	}
-	return r.rubinoAPI("getExplorePosts", input)
-}
-
-// RubinoGetBlockedProfiles retrieves blocked Rubino profiles.
-func (r *RubikaCore) RubinoGetBlockedProfiles(profileID string, limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getBlockedProfiles", map[string]interface{}{
-		"profile_id": profileID,
-		"limit":      limit,
-		"sort":       "FromMax",
-		"equal":      false,
-	})
-}
-
-// RubinoGetProfileFollowers retrieves followers of a Rubino profile.
-// profileID is your own; targetProfileID is the profile to query.
-func (r *RubikaCore) RubinoGetProfileFollowers(profileID string, targetProfileID string, limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getProfileFollowers", map[string]interface{}{
-		"profile_id":        profileID,
-		"target_profile_id": targetProfileID,
-		"f_type":            "Follower",
-		"limit":             limit,
-		"sort":              "FromMax",
-		"equal":             false,
-	})
-}
-
-// RubinoGetProfileFollowings retrieves profiles followed by a Rubino profile.
-// profileID is your own; targetProfileID is the profile to query.
-func (r *RubikaCore) RubinoGetProfileFollowings(profileID string, targetProfileID string, limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getProfileFollowers", map[string]interface{}{
-		"profile_id":        profileID,
-		"target_profile_id": targetProfileID,
-		"f_type":            "Following",
-		"limit":             limit,
-		"sort":              "FromMax",
-		"equal":             false,
-	})
-}
-
-// RubinoSetBlockProfile blocks or unblocks a Rubino profile.
-func (r *RubikaCore) RubinoSetBlockProfile(profileID string, block bool) error {
-	action := "Block"
-	if !block {
-		action = "Unblock"
-	}
-	_, err := r.rubinoAPI("setBlockProfile", map[string]interface{}{
-		"profile_id": profileID,
-		"action":     action,
-	})
-	return err
-}
-
-// RubinoGetMyArchiveStories retrieves own archived stories.
-func (r *RubikaCore) RubinoGetMyArchiveStories(profileID string, limit int) (map[string]interface{}, error) {
-	return r.rubinoAPI("getMyArchiveStories", map[string]interface{}{
-		"profile_id": profileID,
-		"limit":      limit,
-		"sort":       "FromMax",
-		"equal":      false,
-	})
-}
-
-// RubinoRemoveRecord deletes a Rubino record/post.
-func (r *RubikaCore) RubinoRemoveRecord(postID string, postProfileID string) error {
-	_, err := r.rubinoAPI("removeRecord", map[string]interface{}{
-		"post_id":         postID,
-		"post_profile_id": postProfileID,
-	})
-	return err
-}
-
-// RubinoAddPost creates a new Rubino post.
-func (r *RubikaCore) RubinoAddPost(profileID string, text string, fileInline map[string]interface{}) (map[string]interface{}, error) {
-	input := map[string]interface{}{
-		"profile_id": profileID,
-		"rnd":        mrand.Intn(1000000) + 1,
-	}
-	if text != "" {
-		input["caption"] = text
-	}
-	if fileInline != nil {
-		input["file_inline"] = fileInline
-	}
-	return r.rubinoAPI("addPost", input)
-}
-
-// RubinoRequestFollow follows or unfollows a Rubino profile.
-func (r *RubikaCore) RubinoRequestFollow(profileID string, followeeProfileID string, follow bool) error {
-	action := "Follow"
-	if !follow {
-		action = "Unfollow"
-	}
-	_, err := r.rubinoAPI("requestFollow", map[string]interface{}{
-		"f_type":             action,
-		"profile_id":         profileID,
-		"followee_profile_id": followeeProfileID,
-	})
-	return err
-}
-
 // --- Helpers ---
 
 func mapGetString(m map[string]interface{}, key string) (string, bool) {
@@ -4841,31 +4772,19 @@ func (r *RubikaCore) GetChatInfo(chatID string) (*Dialog, error) {
 	d := &Dialog{Platform: rubikaPlatform, ID: chatID, Type: ct}
 	switch ct {
 	case ChatTypeGroup:
-		raw, err := r.GetGroupInfo(chatID)
+		info, err := r.GetGroupInfo(chatID)
 		if err != nil {
 			return nil, err
 		}
-		if info, ok := raw["group"].(map[string]interface{}); ok {
-			if t, ok := info["group_title"].(string); ok {
-				d.Title = t
-			}
-			if mc, ok := info["count_members"].(float64); ok {
-				d.MemberCount = int(mc)
-			}
-		}
+		d.Title = info.GroupTitle
+		d.MemberCount = info.CountMembers
 	case ChatTypeChannel:
-		raw, err := r.GetChannelInfo(chatID)
+		info, err := r.GetChannelInfo(chatID)
 		if err != nil {
 			return nil, err
 		}
-		if info, ok := raw["channel"].(map[string]interface{}); ok {
-			if t, ok := info["channel_title"].(string); ok {
-				d.Title = t
-			}
-			if mc, ok := info["count_members"].(float64); ok {
-				d.MemberCount = int(mc)
-			}
-		}
+		d.Title = info.ChannelTitle
+		d.MemberCount = info.CountMembers
 	default:
 		// DM — use GetProfile
 		user, err := r.GetProfile(chatID)
@@ -4914,23 +4833,17 @@ func (r *RubikaCore) GetInviteLink(chatID string) (string, error) {
 	ct := r.guidToChatType(chatID)
 	switch ct {
 	case ChatTypeGroup:
-		raw, err := r.GetGroupLink(chatID)
+		info, err := r.GetGroupLink(chatID)
 		if err != nil {
 			return "", err
 		}
-		if link, ok := raw["join_link"].(string); ok {
-			return link, nil
-		}
-		return "", nil
+		return info.JoinLink, nil
 	case ChatTypeChannel:
-		raw, err := r.GetChannelLink(chatID)
+		info, err := r.GetChannelLink(chatID)
 		if err != nil {
 			return "", err
 		}
-		if link, ok := raw["join_link"].(string); ok {
-			return link, nil
-		}
-		return "", nil
+		return info.JoinLink, nil
 	}
 	return "", fmt.Errorf("%w: rubika does not support invite links for this chat type", ErrNotSupported)
 }
@@ -4974,44 +4887,34 @@ func (r *RubikaCore) UnbanMember(chatID string, userID string) error {
 
 func (r *RubikaCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	ct := r.guidToChatType(chatID)
-	var raw map[string]interface{}
+	var ml RubikaMemberList
 	var err error
 	switch ct {
 	case ChatTypeGroup:
-		raw, err = r.GetGroupAllMembers(chatID)
+		ml, err = r.GetGroupAllMembers(chatID)
 	case ChatTypeChannel:
-		raw, err = r.GetChannelAllMembers(chatID)
+		ml, err = r.GetChannelAllMembers(chatID)
 	default:
 		return nil, fmt.Errorf("%w: rubika does not support member listing for this chat type", ErrNotSupported)
 	}
 	if err != nil {
 		return nil, err
 	}
-	users := []User{}
-	// Response: {"in_chat_members": [{"member_guid": "u0...", "first_name": "...", ...}]}
-	memberKey := "in_chat_members"
-	if members, ok := raw[memberKey].([]interface{}); ok {
-		for _, m := range members {
-			if member, ok := m.(map[string]interface{}); ok {
-				u := User{Platform: rubikaPlatform}
-				if guid, ok := member["member_guid"].(string); ok {
-					u.ID = guid
-				}
-				if fn, ok := member["first_name"].(string); ok {
-					u.DisplayName = fn
-				}
-				if ln, ok := member["last_name"].(string); ok {
-					if u.DisplayName != "" {
-						u.DisplayName += " "
-					}
-					u.DisplayName += ln
-				}
-				if un, ok := member["username"].(string); ok {
-					u.Username = un
-				}
-				users = append(users, u)
+	users := make([]User, 0, len(ml.Members))
+	for _, m := range ml.Members {
+		name := m.FirstName
+		if m.LastName != "" {
+			if name != "" {
+				name += " "
 			}
+			name += m.LastName
 		}
+		users = append(users, User{
+			ID:          m.MemberGUID,
+			DisplayName: name,
+			Username:    m.Username,
+			Platform:    rubikaPlatform,
+		})
 	}
 	return users, nil
 }
@@ -5266,11 +5169,12 @@ func (r *RubikaCore) SearchGlobalMessages(text string, startID string, limit int
 // ══════════════════════════════════════════════════════════════════════════════
 
 // SetPrivacySetting sets an individual privacy setting with granular control.
-func (r *RubikaCore) SetPrivacySetting(settingType string, value string) (map[string]interface{}, error) {
-	return r.api("setPrivacySetting", map[string]interface{}{
+func (r *RubikaCore) SetPrivacySetting(settingType string, value string) error {
+	_, err := r.api("setPrivacySetting", map[string]interface{}{
 		"setting_type":  settingType,
 		"setting_value": value,
 	})
+	return err
 }
 
 // GetChatInfoByUsername resolves a chat by username and returns full info.
@@ -5307,10 +5211,12 @@ func (r *RubikaCore) EditFolder(folderID string, name string, includedChatGUIDs 
 // ══════════════════════════════════════════════════════════════════════════════
 
 // GetUserInfo gets detailed user info by user GUID.
-func (r *RubikaCore) GetUserInfo(userGUID string) (map[string]interface{}, error) {
-	return r.api("getUserInfo", map[string]interface{}{
-		"user_guid": userGUID,
-	})
+func (r *RubikaCore) GetUserInfo(userGUID string) (RubikaUserInfo, error) {
+	data, err := r.api("getUserInfo", map[string]interface{}{"user_guid": userGUID})
+	if err != nil {
+		return RubikaUserInfo{}, err
+	}
+	return rubikaParseData[RubikaUserInfo](data, "user")
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5318,44 +5224,39 @@ func (r *RubikaCore) GetUserInfo(userGUID string) (map[string]interface{}, error
 // ══════════════════════════════════════════════════════════════════════════════
 
 // RemoveGroupAdmin explicitly removes admin status from a user.
-func (r *RubikaCore) RemoveGroupAdmin(groupGUID string, memberGUID string) (map[string]interface{}, error) {
-	return r.api("removeGroupAdmin", map[string]interface{}{
+func (r *RubikaCore) RemoveGroupAdmin(groupGUID string, memberGUID string) error {
+	_, err := r.api("removeGroupAdmin", map[string]interface{}{
 		"group_guid":  groupGUID,
 		"member_guid": memberGUID,
 	})
+	return err
 }
 
 // DeleteGroupAvatar deletes the group avatar.
-func (r *RubikaCore) DeleteGroupAvatar(groupGUID string, avatarID string) (map[string]interface{}, error) {
-	return r.api("deleteGroupAvatar", map[string]interface{}{
+func (r *RubikaCore) DeleteGroupAvatar(groupGUID string, avatarID string) error {
+	_, err := r.api("deleteGroupAvatar", map[string]interface{}{
 		"group_guid": groupGUID,
 		"avatar_id":  avatarID,
 	})
+	return err
 }
 
 // GetNewGroupLink resets and generates a new group invite link.
-func (r *RubikaCore) GetNewGroupLink(groupGUID string) (map[string]interface{}, error) {
-	return r.api("getNewGroupLink", map[string]interface{}{
-		"group_guid": groupGUID,
-	})
+func (r *RubikaCore) GetNewGroupLink(groupGUID string) (RubikaLinkInfo, error) {
+	data, err := r.api("getNewGroupLink", map[string]interface{}{"group_guid": groupGUID})
+	if err != nil {
+		return RubikaLinkInfo{}, err
+	}
+	return rubikaParseFlat[RubikaLinkInfo](data)
 }
 
-// GetGroupMemberCount returns the lightweight member count without fetching all members.
-// Uses getGroupInfo under the hood (getGroupMemberCount doesn't exist in Rubika API).
-func (r *RubikaCore) GetGroupMemberCount(groupGUID string) (map[string]interface{}, error) {
-	data, err := r.api("getGroupInfo", map[string]interface{}{
-		"group_guid": groupGUID,
-	})
+// GetGroupMemberCount returns the member count for a group.
+func (r *RubikaCore) GetGroupMemberCount(groupGUID string) (int, error) {
+	info, err := r.GetGroupInfo(groupGUID)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	// Extract count_members from the group sub-object
-	group, _ := data["group"].(map[string]interface{})
-	if group == nil {
-		return data, nil
-	}
-	count, _ := group["count_members"]
-	return map[string]interface{}{"count_members": count, "group": group}, nil
+	return info.CountMembers, nil
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -5562,154 +5463,6 @@ func (r *RubikaCore) SendVideoMessage(chatID string, data []byte, fileName strin
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Rubino (6 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// RubinoGetProfilePosts gets posts from a specific profile.
-func (r *RubikaCore) RubinoGetProfilePosts(profileID string, targetProfileID string, limit int, maxID string) (map[string]interface{}, error) {
-	input := map[string]interface{}{
-		"profile_id":        profileID,
-		"target_profile_id": targetProfileID,
-		"limit":             limit,
-		"sort":              "FromMax",
-		"equal":             false,
-	}
-	if maxID != "" {
-		input["max_id"] = maxID
-	}
-	return r.rubinoAPI("getProfilePosts", input)
-}
-
-// RubinoRemovePage deletes a Rubino page entirely.
-func (r *RubikaCore) RubinoRemovePage(profileID string) error {
-	_, err := r.rubinoAPI("removePage", map[string]interface{}{
-		"profile_id": profileID,
-	})
-	return err
-}
-
-// RubinoBookmarkPost bookmarks or unbookmarks a post.
-func (r *RubikaCore) RubinoBookmarkPost(postID string, postProfileID string, bookmark bool) error {
-	action := "Bookmark"
-	if !bookmark {
-		action = "UnBookmark"
-	}
-	_, err := r.rubinoAPI("requestBookmark", map[string]interface{}{
-		"post_id":         postID,
-		"post_profile_id": postProfileID,
-		"action_type":     action,
-	})
-	return err
-}
-
-// RubinoUploadFile uploads a file to Rubino with chunking.
-func (r *RubikaCore) RubinoUploadFile(fileName string, fileData []byte) (map[string]interface{}, error) {
-	fileSize := int64(len(fileData))
-	mimeType := "file"
-	lowerName := strings.ToLower(fileName)
-	if strings.HasSuffix(lowerName, ".jpg") || strings.HasSuffix(lowerName, ".jpeg") || strings.HasSuffix(lowerName, ".png") {
-		mimeType = "picture"
-	} else if strings.HasSuffix(lowerName, ".mp4") || strings.HasSuffix(lowerName, ".mov") {
-		mimeType = "video"
-	}
-
-	// Step 1: Request upload
-	uploadInfo, err := r.RubinoRequestUploadFile(fileName, fileSize, mimeType)
-	if err != nil {
-		return nil, err
-	}
-
-	uploadURL, _ := mapGetString(uploadInfo, "upload_url")
-	fileID, _ := mapGetString(uploadInfo, "id")
-	accessHashSend, _ := mapGetString(uploadInfo, "access_hash_send")
-	if uploadURL == "" || fileID == "" {
-		return nil, fmt.Errorf("invalid upload info")
-	}
-
-	// Step 2: Upload chunks
-	chunkSize := 1048576
-	totalParts := (len(fileData) + chunkSize - 1) / chunkSize
-	var accessHashRec string
-
-	for i := 0; i < totalParts; i++ {
-		start := i * chunkSize
-		end := start + chunkSize
-		if end > len(fileData) {
-			end = len(fileData)
-		}
-		chunk := fileData[start:end]
-
-		uploadReq, err := http.NewRequestWithContext(r.ctx, "POST", uploadURL, bytes.NewReader(chunk))
-		if err != nil {
-			return nil, err
-		}
-		uploadReq.Header.Set("auth", r.auth)
-		uploadReq.Header.Set("file-id", fileID)
-		uploadReq.Header.Set("total-part", strconv.Itoa(totalParts))
-		uploadReq.Header.Set("part-number", strconv.Itoa(i+1))
-		uploadReq.Header.Set("chunk-size", strconv.Itoa(len(chunk)))
-		uploadReq.Header.Set("access-hash-send", accessHashSend)
-
-		resp, err := r.httpClient.Do(uploadReq)
-		if err != nil {
-			return nil, fmt.Errorf("upload chunk %d: %w", i+1, err)
-		}
-		var uploadResult map[string]interface{}
-		json.NewDecoder(resp.Body).Decode(&uploadResult)
-		resp.Body.Close()
-
-		if resultData, ok := uploadResult["data"].(map[string]interface{}); ok {
-			if ahr, ok := resultData["access_hash_rec"].(string); ok {
-				accessHashRec = ahr
-			}
-		}
-	}
-
-	return map[string]interface{}{
-		"file_id":         fileID,
-		"access_hash_rec": accessHashRec,
-	}, nil
-}
-
-// RubinoAddPicture is a convenience: upload + addPost with picture type.
-func (r *RubikaCore) RubinoAddPicture(profileID string, caption string, imageData []byte, fileName string) (map[string]interface{}, error) {
-	uploadResult, err := r.RubinoUploadFile(fileName, imageData)
-	if err != nil {
-		return nil, fmt.Errorf("upload: %w", err)
-	}
-	fileID, _ := mapGetString(uploadResult, "file_id")
-	accessHashRec, _ := mapGetString(uploadResult, "access_hash_rec")
-
-	fileInline := map[string]interface{}{
-		"file_id":         fileID,
-		"access_hash_rec": accessHashRec,
-		"type":            "picture",
-		"mime":            "jpg",
-		"file_name":       fileName,
-	}
-	return r.RubinoAddPost(profileID, caption, fileInline)
-}
-
-// RubinoAddVideo is a convenience: upload + addPost with video type.
-func (r *RubikaCore) RubinoAddVideo(profileID string, caption string, videoData []byte, fileName string) (map[string]interface{}, error) {
-	uploadResult, err := r.RubinoUploadFile(fileName, videoData)
-	if err != nil {
-		return nil, fmt.Errorf("upload: %w", err)
-	}
-	fileID, _ := mapGetString(uploadResult, "file_id")
-	accessHashRec, _ := mapGetString(uploadResult, "access_hash_rec")
-
-	fileInline := map[string]interface{}{
-		"file_id":         fileID,
-		"access_hash_rec": accessHashRec,
-		"type":            "video",
-		"mime":            "mp4",
-		"file_name":       fileName,
-	}
-	return r.RubinoAddPost(profileID, caption, fileInline)
-}
-
-// ══════════════════════════════════════════════════════════════════════════════
 // Step 4 — Bot API (10 methods)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -5855,11 +5608,15 @@ func (r *RubikaCore) BotSendMusic(chatID string, fileID string, caption string, 
 }
 
 // BotCheckJoin checks if a user has joined a channel/group (forced-join verification).
-func (r *RubikaCore) BotCheckJoin(chatID string, userID string) (map[string]interface{}, error) {
-	return r.botAPIRequest("checkChatMember", map[string]interface{}{
+func (r *RubikaCore) BotCheckJoin(chatID string, userID string) (RubikaBotJoinStatus, error) {
+	data, err := r.botAPIRequest("checkChatMember", map[string]interface{}{
 		"chat_id": chatID,
 		"user_id": userID,
 	})
+	if err != nil {
+		return RubikaBotJoinStatus{}, err
+	}
+	return rubikaParseFlat[RubikaBotJoinStatus](data)
 }
 
 // BotRemoveKeypad removes the chat keypad from a conversation.

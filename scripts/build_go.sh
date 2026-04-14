@@ -19,19 +19,19 @@ case "$TARGET" in
   linux)
     echo "Building libcores.so for linux/amd64..."
     CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-      go build -tags goolm -buildmode=c-shared -o "$BUILD_DIR/libcores.so" ./bridge/
+      go build -tags goolm -buildmode=c-shared -o "$BUILD_DIR/libcores.so" ./cmd/bridge/
     echo "Output: $BUILD_DIR/libcores.so"
     ;;
   windows)
     echo "Building cores.dll for windows/amd64..."
     CGO_ENABLED=1 GOOS=windows GOARCH=amd64 CC=x86_64-w64-mingw32-gcc \
-      go build -tags goolm -buildmode=c-shared -o "$BUILD_DIR/cores.dll" ./bridge/
+      go build -tags goolm -buildmode=c-shared -o "$BUILD_DIR/cores.dll" ./cmd/bridge/
     echo "Output: $BUILD_DIR/cores.dll"
     ;;
   darwin)
     echo "Building libcores.dylib for darwin/arm64..."
     CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
-      go build -tags goolm -buildmode=c-shared -o "$BUILD_DIR/libcores.dylib" ./bridge/
+      go build -tags goolm -buildmode=c-shared -o "$BUILD_DIR/libcores.dylib" ./cmd/bridge/
     echo "Output: $BUILD_DIR/libcores.dylib"
     ;;
   android)
@@ -48,14 +48,14 @@ case "$TARGET" in
       echo "Building libcores.so for android/$GOARCH ($ABI)..."
       CGO_ENABLED=1 GOOS=android GOARCH=$GOARCH \
         CC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/${CC_PREFIX}-clang" \
-        go build -tags goolm -buildmode=c-shared -o "$OUT_DIR/libcores.so" ./bridge/
+        go build -tags goolm -buildmode=c-shared -o "$OUT_DIR/libcores.so" ./cmd/bridge/
     done
     echo "Output: $BUILD_DIR/android/"
     ;;
   web|wasm)
     echo "Building cores.wasm for js/wasm..."
     GOOS=js GOARCH=wasm \
-      go build -tags goolm -o "$BUILD_DIR/cores.wasm" ./bridge/
+      go build -tags goolm -o "$BUILD_DIR/cores.wasm" ./cmd/bridge/
     cp "$(go env GOROOT)/misc/wasm/wasm_exec.js" "$BUILD_DIR/"
     echo "Output: $BUILD_DIR/cores.wasm + wasm_exec.js"
     ;;

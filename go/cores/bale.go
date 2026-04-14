@@ -140,6 +140,76 @@ type baleSession struct {
 	Phone     string `json:"phone,omitempty"`
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Typed response structs (Step 13.0 — protobuf-ready)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// BaleChatInfo represents chat info from the bot API (getChat).
+type BaleChatInfo struct {
+	ID        int64  `json:"id"`
+	Type      string `json:"type"` // "private", "group", "supergroup", "channel"
+	Title     string `json:"title,omitempty"`
+	Username  string `json:"username,omitempty"`
+	FirstName string `json:"first_name,omitempty"`
+	LastName  string `json:"last_name,omitempty"`
+}
+
+// BaleChatMember represents a chat member from the bot API.
+type BaleChatMember struct {
+	User   BaleUserInfo `json:"user"`
+	Status string       `json:"status"` // "creator", "administrator", "member", "restricted", "left", "kicked"
+}
+
+// BaleUserInfo represents a user in bot API responses.
+type BaleUserInfo struct {
+	ID        int64  `json:"id"`
+	IsBot     bool   `json:"is_bot"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name,omitempty"`
+	Username  string `json:"username,omitempty"`
+}
+
+// BaleFileInfo represents file info from the bot API (getFile).
+type BaleFileInfo struct {
+	FileID   string `json:"file_id"`
+	FileSize int64  `json:"file_size"`
+	FilePath string `json:"file_path"`
+}
+
+// BaleWebhookInfo represents webhook info from the bot API.
+type BaleWebhookInfo struct {
+	URL                  string `json:"url"`
+	HasCustomCertificate bool   `json:"has_custom_certificate"`
+	PendingUpdateCount   int    `json:"pending_update_count"`
+}
+
+// BaleStickerSet represents a sticker set from the bot API.
+type BaleStickerSet struct {
+	Name     string `json:"name"`
+	Title    string `json:"title"`
+	IsAnimated bool `json:"is_animated"`
+}
+
+// BaleUserProfilePhotos represents user profile photos.
+type BaleUserProfilePhotos struct {
+	TotalCount int `json:"total_count"`
+}
+
+// baleParseResult is a helper to extract and parse result from bot API response map.
+func baleParseResult[T any](data map[string]interface{}) (T, error) {
+	var result T
+	raw, ok := data["result"]
+	if !ok {
+		raw = data
+	}
+	b, err := json.Marshal(raw)
+	if err != nil {
+		return result, err
+	}
+	err = json.Unmarshal(b, &result)
+	return result, err
+}
+
 // newBaleHTTPClient creates an http.Client with DNS fallback.
 // The problem: blocked IPs may accept TCP but hang on TLS, so a simple
 // DialContext fallback isn't enough — the Transport does TLS separately.
@@ -1870,31 +1940,26 @@ func (b *BaleCore) Close() error {
 // --- Chat Management (Bale-specific convenience methods) ---
 
 // GetChat retrieves full chat info.
-func (b *BaleCore) GetChat(chatID string) (map[string]interface{}, error) {
-	params := map[string]interface{}{
-		"chat_id": chatID,
-	}
-	resp, err := b.apiRequest("getChat", params)
+func (b *BaleCore) GetChat(chatID string) (BaleChatInfo, error) {
+	resp, err := b.apiRequest("getChat", map[string]interface{}{"chat_id": chatID})
 	if err != nil {
-		return nil, err
+		return BaleChatInfo{}, err
 	}
-	result, _ := resp["result"].(map[string]interface{})
-	return result, nil
+	return baleParseResult[BaleChatInfo](resp)
 }
 
 // GetChatAdministrators returns list of chat admins.
-func (b *BaleCore) GetChatAdministrators(chatID string) ([]map[string]interface{}, error) {
-	params := map[string]interface{}{
-		"chat_id": chatID,
-	}
-	resp, err := b.apiRequest("getChatAdministrators", params)
+func (b *BaleCore) GetChatAdministrators(chatID string) ([]BaleChatMember, error) {
+	resp, err := b.apiRequest("getChatAdministrators", map[string]interface{}{"chat_id": chatID})
 	if err != nil {
 		return nil, err
 	}
 	results, _ := resp["result"].([]interface{})
-	var admins []map[string]interface{}
+	admins := make([]BaleChatMember, 0, len(results))
 	for _, r := range results {
-		if m, ok := r.(map[string]interface{}); ok {
+		b2, _ := json.Marshal(r)
+		var m BaleChatMember
+		if json.Unmarshal(b2, &m) == nil {
 			admins = append(admins, m)
 		}
 	}
@@ -1915,17 +1980,15 @@ func (b *BaleCore) GetChatMembersCount(chatID string) (int, error) {
 }
 
 // GetChatMember returns info about a specific chat member.
-func (b *BaleCore) GetChatMember(chatID string, userID int64) (map[string]interface{}, error) {
-	params := map[string]interface{}{
+func (b *BaleCore) GetChatMember(chatID string, userID int64) (BaleChatMember, error) {
+	resp, err := b.apiRequest("getChatMember", map[string]interface{}{
 		"chat_id": chatID,
 		"user_id": userID,
-	}
-	resp, err := b.apiRequest("getChatMember", params)
+	})
 	if err != nil {
-		return nil, err
+		return BaleChatMember{}, err
 	}
-	result, _ := resp["result"].(map[string]interface{})
-	return result, nil
+	return baleParseResult[BaleChatMember](resp)
 }
 
 // banChatMember bans a user from a group/channel (bot API).
@@ -2178,16 +2241,12 @@ func (b *BaleCore) SendContact(chatID string, phone string, firstName string, la
 // --- Sticker Methods ---
 
 // GetStickerSet gets a sticker set by name.
-func (b *BaleCore) GetStickerSet(name string) (map[string]interface{}, error) {
-	params := map[string]interface{}{
-		"name": name,
-	}
-	resp, err := b.apiRequest("getStickerSet", params)
+func (b *BaleCore) GetStickerSet(name string) (BaleStickerSet, error) {
+	resp, err := b.apiRequest("getStickerSet", map[string]interface{}{"name": name})
 	if err != nil {
-		return nil, err
+		return BaleStickerSet{}, err
 	}
-	result, _ := resp["result"].(map[string]interface{})
-	return result, nil
+	return baleParseResult[BaleStickerSet](resp)
 }
 
 // SendSticker sends a sticker.
@@ -4537,21 +4596,19 @@ func (b *BaleCore) mapHistoryMessage(mc map[string]interface{}) Message {
 
 func (b *BaleCore) GetChatInfo(chatID string) (*Dialog, error) {
 	if b.isBot {
-		raw, err := b.GetChat(chatID)
+		info, err := b.GetChat(chatID)
 		if err != nil {
 			return nil, err
 		}
 		d := &Dialog{Platform: balePlatform, ID: chatID}
-		if t, ok := raw["title"].(string); ok {
-			d.Title = t
-		}
-		if fn, ok := raw["first_name"].(string); ok {
-			d.Title = fn
-			if ln, ok := raw["last_name"].(string); ok {
-				d.Title += " " + ln
+		d.Title = info.Title
+		if d.Title == "" {
+			d.Title = info.FirstName
+			if info.LastName != "" {
+				d.Title += " " + info.LastName
 			}
 		}
-		switch raw["type"].(string) {
+		switch info.Type {
 		case "private":
 			d.Type = ChatTypeDM
 		case "group", "supergroup":
@@ -4669,19 +4726,19 @@ func (b *BaleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error
 		if err != nil {
 			return nil, err
 		}
-		users := []User{}
+		users := make([]User, 0, len(admins))
 		for _, a := range admins {
-			u := User{Platform: balePlatform}
-			if user, ok := a["user"].(map[string]interface{}); ok {
-				u.ID = strconv.FormatInt(jsonInt64(user, "id"), 10)
-				u.DisplayName = jsonString(user, "first_name")
-				if ln := jsonString(user, "last_name"); ln != "" {
-					u.DisplayName += " " + ln
-				}
-				u.Username = jsonString(user, "username")
-				u.IsBot, _ = user["is_bot"].(bool)
+			name := a.User.FirstName
+			if a.User.LastName != "" {
+				name += " " + a.User.LastName
 			}
-			users = append(users, u)
+			users = append(users, User{
+				ID:          strconv.FormatInt(a.User.ID, 10),
+				DisplayName: name,
+				Username:    a.User.Username,
+				IsBot:       a.User.IsBot,
+				Platform:    balePlatform,
+			})
 		}
 		return users, nil
 	}
@@ -4930,13 +4987,12 @@ func (b *BaleCore) DeleteWebhook() error {
 }
 
 // GetWebhookInfo returns current webhook status.
-func (b *BaleCore) GetWebhookInfo() (map[string]interface{}, error) {
+func (b *BaleCore) GetWebhookInfo() (BaleWebhookInfo, error) {
 	resp, err := b.apiRequest("getWebhookInfo", nil)
 	if err != nil {
-		return nil, err
+		return BaleWebhookInfo{}, err
 	}
-	result, _ := resp["result"].(map[string]interface{})
-	return result, nil
+	return baleParseResult[BaleWebhookInfo](resp)
 }
 
 // SendPhoto sends a photo by file_id or URL (bot mode).
@@ -5121,13 +5177,12 @@ func (b *BaleCore) EditMessageReplyMarkup(chatID string, msgID int64, replyMarku
 }
 
 // GetFile gets info about a file by file_id (bot mode).
-func (b *BaleCore) GetFile(fileID string) (map[string]interface{}, error) {
+func (b *BaleCore) GetFile(fileID string) (BaleFileInfo, error) {
 	resp, err := b.apiRequest("getFile", map[string]interface{}{"file_id": fileID})
 	if err != nil {
-		return nil, err
+		return BaleFileInfo{}, err
 	}
-	result, _ := resp["result"].(map[string]interface{})
-	return result, nil
+	return baleParseResult[BaleFileInfo](resp)
 }
 
 // RestrictChatMember restricts a user in a supergroup (bot mode).
@@ -5187,10 +5242,8 @@ func (b *BaleCore) DeleteStickerFromSet(sticker string) error {
 }
 
 // GetUserProfilePhotos gets a user's profile photos (bot mode).
-func (b *BaleCore) GetUserProfilePhotos(userID int64, offset, limit int) (map[string]interface{}, error) {
-	params := map[string]interface{}{
-		"user_id": userID,
-	}
+func (b *BaleCore) GetUserProfilePhotos(userID int64, offset, limit int) (BaleUserProfilePhotos, error) {
+	params := map[string]interface{}{"user_id": userID}
 	if offset > 0 {
 		params["offset"] = offset
 	}
@@ -5199,10 +5252,9 @@ func (b *BaleCore) GetUserProfilePhotos(userID int64, offset, limit int) (map[st
 	}
 	resp, err := b.apiRequest("getUserProfilePhotos", params)
 	if err != nil {
-		return nil, err
+		return BaleUserProfilePhotos{}, err
 	}
-	result, _ := resp["result"].(map[string]interface{})
-	return result, nil
+	return baleParseResult[BaleUserProfilePhotos](resp)
 }
 
 // AnswerInlineQuery answers an inline query with results (bot mode).
