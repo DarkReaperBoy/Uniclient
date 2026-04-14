@@ -2140,6 +2140,11 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 		}
 	}
 
+	// Populate self UID from identity
+	if tc.identity != nil {
+		t.myUID = tc.identity.tsUID()
+	}
+
 	// Drain remaining setup commands (channellist, etc.) for a short period
 	drainTimer := time.After(2 * time.Second)
 drainLoop:
@@ -5003,7 +5008,12 @@ func (t *TeamSpeakCore) WhoAmI() (map[string]string, error) {
 	if len(rows) == 0 {
 		return nil, ErrNotFound
 	}
-	return rows[0], nil
+	info := rows[0]
+	// Supplement with locally-known identity data if server omitted it
+	if info["client_unique_identifier"] == "" && t.myUID != "" {
+		info["client_unique_identifier"] = t.myUID
+	}
+	return info, nil
 }
 
 func (t *TeamSpeakCore) GetConnectionInfo(clid int) (map[string]string, error) {
