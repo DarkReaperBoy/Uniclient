@@ -6022,6 +6022,13 @@ message GithubSetAdminEnforcementResponse {
   bytes result_1 = 1;
 }
 
+message GithubSetActiveChatRequest {
+  string chat_id = 1;
+}
+
+message GithubSetActiveChatResponse {
+}
+
 message GithubSetCallMutedRequest {
   string param_1 = 1;
   bool param_2 = 2;
