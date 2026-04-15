@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -33,6 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<String> _authPromptedIds = {};
   bool _notifWired = false;
 
+  // Member list state for right panel.
+  List<MemberInfo>? _members;
+  bool _membersLoading = false;
+  String? _membersChatKey; // "accountId:chatId" to detect chat changes
+
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
@@ -66,6 +73,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _narrowShowChat = true;
       }
       _lastActiveChatId = currentChatId;
+      // Invalidate cached member list when chat changes.
+      _members = null;
+      _membersChatKey = null;
+      _membersLoading = false;
     }
 
     // Show loading while engine initializes.
@@ -430,6 +441,31 @@ class _HomeScreenState extends State<HomeScreen> {
   // Right panel (wide layout)
   // ══════════════════════════════════════════════════════════════════════════
 
+  void _loadMembers(String accountId, String chatId) {
+    final key = '$accountId:$chatId';
+    if (_membersChatKey == key && _members != null) return; // already loaded for this chat
+    _membersChatKey = key;
+    _members = null;
+    _membersLoading = true;
+
+    final engine = context.read<EngineService>();
+    engine.getChatMembers(accountId, chatId).then((members) {
+      if (mounted && _membersChatKey == key) {
+        setState(() {
+          _members = members;
+          _membersLoading = false;
+        });
+      }
+    }).catchError((e) {
+      if (mounted && _membersChatKey == key) {
+        setState(() {
+          _members = [];
+          _membersLoading = false;
+        });
+      }
+    });
+  }
+
   Widget _buildRightPanel(BuildContext context, ChatState chatState, ChatInfo chat, bool isDark) {
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
     final mutedColor = isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
@@ -583,15 +619,29 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      chat.type == ChatType.group
-                          ? 'Member list coming soon'
-                          : 'Subscriber list coming soon',
-                      style: TextStyle(fontSize: 13, color: dimColor),
-                    ),
-                  ),
+                  // Trigger member loading when panel opens for this chat.
+                  Builder(builder: (_) {
+                    _loadMembers(chat.accountId, chat.chatId);
+                    if (_membersLoading) {
+                      return const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                      );
+                    }
+                    final members = _members ?? [];
+                    if (members.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Text(
+                          chat.type == ChatType.channel ? 'No subscribers loaded' : 'No members loaded',
+                          style: TextStyle(fontSize: 13, color: dimColor),
+                        ),
+                      );
+                    }
+                    return Column(
+                      children: members.map((m) => _buildMemberTile(m, isDark)).toList(),
+                    );
+                  }),
                   const SizedBox(height: 8),
                   Divider(height: 1, color: dividerColor),
                 ],
@@ -609,25 +659,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
 
                 // Shared Media section
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                  child: Text(
-                    'Shared Media',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: mutedColor,
-                    ),
-                  ),
+                _SharedMediaGallery(
+                  accountId: chat.accountId,
+                  chatId: chat.chatId,
+                  isDark: isDark,
                 ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'Media gallery coming soon',
-                    style: TextStyle(fontSize: 13, color: dimColor),
-                  ),
-                ),
-                const SizedBox(height: 8),
                 Divider(height: 1, color: dividerColor),
 
                 // Actions section
@@ -748,6 +784,103 @@ class _HomeScreenState extends State<HomeScreen> {
   // ══════════════════════════════════════════════════════════════════════════
   // Helpers
   // ══════════════════════════════════════════════════════════════════════════
+
+  Widget _buildMemberTile(MemberInfo member, bool isDark) {
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+    final mutedColor = isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
+    final name = member.label;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Row(
+        children: [
+          // Avatar with online indicator
+          SizedBox(
+            width: 32,
+            height: 32,
+            child: Stack(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _avatarColor(name),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    _avatarInitial(name),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+                  ),
+                ),
+                if (member.isOnline)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF3BA55C),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          // Name + role badge
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: textColor),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (member.username.isNotEmpty)
+                  Text(
+                    '@${member.username}',
+                    style: TextStyle(fontSize: 11, color: mutedColor),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+              ],
+            ),
+          ),
+          // Role badge
+          if (member.role == 'owner' || member.role == 'admin')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: (member.role == 'owner' ? const Color(0xFFFAA61A) : AppColors.accent).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                member.role == 'owner' ? 'Owner' : 'Admin',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: member.role == 'owner' ? const Color(0xFFFAA61A) : AppColors.accent,
+                ),
+              ),
+            ),
+          if (member.isBot)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Icon(Icons.smart_toy_rounded, size: 14, color: mutedColor),
+            ),
+        ],
+      ),
+    );
+  }
 
   Color _avatarColor(String title) {
     if (title.isEmpty) return AppColors.accent;
@@ -1042,5 +1175,413 @@ class _NarrowSearchScreenState extends State<_NarrowSearchScreen> {
   String _avatarInitial(String title) {
     if (title.isEmpty) return '?';
     return title[0].toUpperCase();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Shared Media Gallery (right panel)
+// ══════════════════════════════════════════════════════════════════════════
+
+class _SharedMediaGallery extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final bool isDark;
+
+  const _SharedMediaGallery({
+    required this.accountId,
+    required this.chatId,
+    required this.isDark,
+  });
+
+  @override
+  State<_SharedMediaGallery> createState() => _SharedMediaGalleryState();
+}
+
+class _SharedMediaGalleryState extends State<_SharedMediaGallery> {
+  static const _pageSize = 30;
+  static const _tabs = ['All', 'Photos', 'Videos', 'Files'];
+  static const _tabFilters = ['', 'image', 'video', 'file'];
+
+  int _activeTab = 0;
+  List<SharedMediaItem> _items = [];
+  bool _loading = false;
+  bool _hasMore = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMedia();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SharedMediaGallery old) {
+    super.didUpdateWidget(old);
+    if (old.accountId != widget.accountId || old.chatId != widget.chatId) {
+      _activeTab = 0;
+      _items = [];
+      _hasMore = true;
+      _loadMedia();
+    }
+  }
+
+  void _loadMedia({bool append = false}) {
+    if (_loading) return;
+    setState(() => _loading = true);
+
+    try {
+      final engine = context.read<EngineService>();
+      final offset = append ? _items.length : 0;
+      final newItems = engine.getSharedMedia(
+        widget.accountId,
+        widget.chatId,
+        mediaType: _tabFilters[_activeTab],
+        limit: _pageSize,
+        offset: offset,
+      );
+
+      setState(() {
+        if (append) {
+          _items.addAll(newItems);
+        } else {
+          _items = newItems;
+        }
+        _hasMore = newItems.length >= _pageSize;
+        _loading = false;
+      });
+    } catch (_) {
+      setState(() => _loading = false);
+    }
+  }
+
+  void _switchTab(int index) {
+    if (index == _activeTab) return;
+    setState(() {
+      _activeTab = index;
+      _items = [];
+      _hasMore = true;
+    });
+    _loadMedia();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mutedColor = widget.isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
+    final dimColor = widget.isDark ? AppColors.darkTextDim : AppColors.lightTextDim;
+    final surfaceColor = widget.isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Section title
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Text(
+            'Shared Media',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: mutedColor,
+            ),
+          ),
+        ),
+
+        // Filter tabs
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: List.generate(_tabs.length, (i) {
+              final isActive = _activeTab == i;
+              return Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: GestureDetector(
+                  onTap: () => _switchTab(i),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? AppColors.accent.withValues(alpha: 0.15)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _tabs[i],
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                        color: isActive ? AppColors.accent : mutedColor,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Content
+        if (_loading && _items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: mutedColor),
+              ),
+            ),
+          )
+        else if (_items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: Text(
+                'No media found',
+                style: TextStyle(fontSize: 13, color: dimColor),
+              ),
+            ),
+          )
+        else
+          _buildMediaContent(surfaceColor, mutedColor, dimColor),
+
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildMediaContent(Color surfaceColor, Color mutedColor, Color dimColor) {
+    // Use grid for images/videos, list for files
+    final isGridMode = _activeTab != 3; // Not "Files" tab
+
+    if (isGridMode) {
+      return _buildGrid(surfaceColor, mutedColor, dimColor);
+    } else {
+      return _buildFileList(mutedColor, dimColor);
+    }
+  }
+
+  Widget _buildGrid(Color surfaceColor, Color mutedColor, Color dimColor) {
+    // Filter: in grid mode show only visual media (images, videos, gifs, stickers)
+    final visualItems = _activeTab == 0
+        ? _items // All tab: show everything in grid
+        : _items;
+
+    final itemCount = visualItems.length + (_hasMore ? 1 : 0);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 3,
+              mainAxisSpacing: 3,
+            ),
+            itemCount: itemCount,
+            itemBuilder: (context, index) {
+              if (index >= visualItems.length) {
+                // Load more trigger
+                if (_hasMore && !_loading) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _loadMedia(append: true);
+                  });
+                }
+                return Center(
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: mutedColor),
+                  ),
+                );
+              }
+              return _buildGridItem(visualItems[index], surfaceColor, dimColor);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridItem(SharedMediaItem item, Color surfaceColor, Color dimColor) {
+    Widget content;
+
+    if (item.thumbB64.isNotEmpty) {
+      // Has thumbnail -- decode base64 and show image
+      try {
+        final bytes = base64Decode(item.thumbB64);
+        content = Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (_, __, ___) => _mediaPlaceholder(item, dimColor),
+        );
+      } catch (_) {
+        content = _mediaPlaceholder(item, dimColor);
+      }
+    } else {
+      content = _mediaPlaceholder(item, dimColor);
+    }
+
+    // Video overlay with duration
+    if (item.isVideo && item.duration > 0) {
+      content = Stack(
+        fit: StackFit.expand,
+        children: [
+          content,
+          Positioned(
+            bottom: 4,
+            right: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _formatDuration(item.duration),
+                style: const TextStyle(color: Colors.white, fontSize: 10),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        color: surfaceColor,
+        child: content,
+      ),
+    );
+  }
+
+  Widget _mediaPlaceholder(SharedMediaItem item, Color dimColor) {
+    IconData icon;
+    if (item.isImage) {
+      icon = Icons.image_outlined;
+    } else if (item.isVideo) {
+      icon = Icons.videocam_outlined;
+    } else if (item.isAudio) {
+      icon = Icons.audiotrack_outlined;
+    } else {
+      icon = Icons.insert_drive_file_outlined;
+    }
+
+    return Center(
+      child: Icon(icon, size: 28, color: dimColor),
+    );
+  }
+
+  Widget _buildFileList(Color mutedColor, Color dimColor) {
+    final fileItems = _items.where((item) => item.isFile || item.isAudio).toList();
+    if (fileItems.isEmpty && _items.isNotEmpty) {
+      // Show all items if no pure files
+      return _buildFileListInner(_items, mutedColor, dimColor);
+    }
+    return _buildFileListInner(fileItems.isEmpty ? _items : fileItems, mutedColor, dimColor);
+  }
+
+  Widget _buildFileListInner(List<SharedMediaItem> items, Color mutedColor, Color dimColor) {
+    final textColor = widget.isDark ? AppColors.darkText : AppColors.lightText;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ...items.map((item) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  _fileIcon(item.mimeType),
+                  size: 18,
+                  color: AppColors.accent,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.fileName.isNotEmpty ? item.fileName : 'File',
+                      style: TextStyle(fontSize: 13, color: textColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Row(
+                      children: [
+                        if (item.fileSizeLabel.isNotEmpty)
+                          Text(
+                            item.fileSizeLabel,
+                            style: TextStyle(fontSize: 11, color: dimColor),
+                          ),
+                        if (item.fileSizeLabel.isNotEmpty && item.timestamp > 0)
+                          Text(' \u00b7 ', style: TextStyle(fontSize: 11, color: dimColor)),
+                        if (item.timestamp > 0)
+                          Text(
+                            _formatDate(item.dateTime),
+                            style: TextStyle(fontSize: 11, color: dimColor),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        )),
+        if (_hasMore)
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: GestureDetector(
+              onTap: () => _loadMedia(append: true),
+              child: const Text(
+                'Load more...',
+                style: TextStyle(fontSize: 12, color: AppColors.accent),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  IconData _fileIcon(String mimeType) {
+    if (mimeType.startsWith('audio/')) return Icons.audiotrack_outlined;
+    if (mimeType.startsWith('video/')) return Icons.videocam_outlined;
+    if (mimeType.startsWith('image/')) return Icons.image_outlined;
+    if (mimeType.contains('pdf')) return Icons.picture_as_pdf_outlined;
+    if (mimeType.contains('zip') || mimeType.contains('rar') || mimeType.contains('tar')) {
+      return Icons.folder_zip_outlined;
+    }
+    return Icons.insert_drive_file_outlined;
+  }
+
+  String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    if (dt.year == now.year && dt.month == now.month && dt.day == now.day) {
+      return '${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 }

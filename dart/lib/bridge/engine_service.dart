@@ -231,6 +231,31 @@ class EngineService {
     _callRaw('__engine', 'MarkChatRead', req.writeToBuffer());
   }
 
+  /// Fetch forum topics for a chat. Returns empty list if the platform
+  /// doesn't support forum topics. Topics are cached in the engine DB.
+  Future<List<ChatInfo>> getForumTopics(String accountId, String chatId) async {
+    final req = epb.EngineGetForumTopicsRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    final respBytes = await _callAsync('__engine', 'GetForumTopics', req.writeToBuffer());
+    if (respBytes.isEmpty) return [];
+    final resp = epb.EngineGetForumTopicsResponse.fromBuffer(respBytes);
+    return resp.chats.map(_chatInfoFromProto).toList();
+  }
+
+  // ── Members ──
+
+  Future<List<MemberInfo>> getChatMembers(String accountId, String chatId, {int limit = 50, int offset = 0}) async {
+    final req = epb.EngineGetChatMembersRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..limit = limit
+      ..offset = offset;
+    final respBytes = await _callAsync('__engine', 'GetChatMembers', req.writeToBuffer());
+    final resp = epb.EngineGetChatMembersResponse.fromBuffer(respBytes);
+    return resp.members.map(_memberInfoFromProto).toList();
+  }
+
   // ── Messages ──
 
   List<CachedMessage> getMessages(String accountId, String chatId, {int beforeMs = 0, int limit = 50}) {
@@ -392,6 +417,20 @@ class EngineService {
   void clearCache({String accountId = ''}) {
     final req = epb.EngineClearCacheRequest()..accountId = accountId;
     _callRaw('__engine', 'ClearCache', req.writeToBuffer());
+  }
+
+  /// Get shared media items for a chat, optionally filtered by type.
+  /// [mediaType]: "image", "video", "audio", "file", or "" for all.
+  List<SharedMediaItem> getSharedMedia(String accountId, String chatId, {String mediaType = '', int limit = 50, int offset = 0}) {
+    final req = epb.EngineGetSharedMediaRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..mediaType = mediaType
+      ..limit = limit
+      ..offset = offset;
+    final respBytes = _callRaw('__engine', 'GetSharedMedia', req.writeToBuffer());
+    final resp = epb.EngineGetSharedMediaResponse.fromBuffer(respBytes);
+    return resp.items.map(_sharedMediaItemFromProto).toList();
   }
 
   // ── Config ──
@@ -738,6 +777,16 @@ class EngineService {
     mediaDownloadState: p.mediaDownloadState,
   );
 
+  static MemberInfo _memberInfoFromProto(epb.EngineMemberInfo p) => MemberInfo(
+    userId: p.userId,
+    username: _safeStr(p.username),
+    displayName: _safeStr(p.displayName),
+    avatarB64: p.avatarB64,
+    isBot: p.isBot,
+    isOnline: p.isOnline,
+    role: p.role.isNotEmpty ? p.role : 'member',
+  );
+
   static SearchResult _searchResultFromProto(epb.EngineSearchResult p) => SearchResult(
     accountId: p.accountId,
     chatId: p.chatId,
@@ -746,6 +795,20 @@ class EngineService {
     text: p.text,
     timestamp: p.timestamp.toInt(),
     chatTitle: p.chatTitle,
+  );
+
+  static SharedMediaItem _sharedMediaItemFromProto(epb.EngineSharedMediaItem p) => SharedMediaItem(
+    msgId: p.msgId,
+    timestamp: p.timestamp.toInt(),
+    mediaType: p.mediaType,
+    fileName: _safeStr(p.fileName),
+    mimeType: p.mimeType,
+    fileSize: p.fileSize.toInt(),
+    thumbB64: p.thumbB64,
+    localPath: p.localPath,
+    width: p.width,
+    height: p.height,
+    duration: p.duration,
   );
 }
 

@@ -82,6 +82,21 @@ class ChatState extends ChangeNotifier {
 
   // ── Actions ──
 
+  /// Merge a chat into the in-memory list (upsert). Used when forum topics
+  /// are fetched on demand and need to appear in the chat list.
+  void mergeChat(ChatInfo chat) {
+    final idx = _chats.indexWhere((c) => c.accountId == chat.accountId && c.chatId == chat.chatId);
+    if (idx >= 0) {
+      _chats[idx] = chat;
+    } else {
+      _chats.add(chat);
+    }
+    // Don't notify per-item — caller should call notifyListeners() after batch.
+  }
+
+  /// Notify listeners after batch mergeChat calls.
+  void notifyMerged() => notifyListeners();
+
   /// Load the chat list from engine.
   void loadChats({String accountId = '', bool archived = false}) {
     _chats = _engine.getChatList(accountId: accountId, archived: archived);

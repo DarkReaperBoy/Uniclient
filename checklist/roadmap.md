@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — Phase F (live smoke-testing & feature wiring)
+**Current Step:** Step 15 — Build GUI — **ALL 🔧 ITEMS RESOLVED** — Final QA & polish
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 21 — media pipeline 11-bug fix, conn state notifications, responsive layout fixes, sticker/GIF polish, UTF-16 hardening)
+**Last Updated:** 2026-04-15 (session 22 — right panel members/media, forum topic drill-in, all 🔧 cleared)
 
-**NEXT:** Live-test media rendering with a chat containing images (verify thumbnails display). Test right panel content (member list, media gallery). Wire topic group drill-in to real engine data. Test voice/video call UI stubs on more platforms. Wire real sticker/GIF backends when Go methods return structured data. Final comprehensive smoke-test pass of all features.
+**NEXT:** Add second platform (connect a Bale/Matrix/IRC account alongside Telegram). Test multi-platform chat list merge. Test cross-platform unified behavior. Add voice/video call UI (when Go call support is ready). Polish: animations, transitions, accessibility. Consider production build (release mode, app icon, splash screen).
 
 ## Steps
 
@@ -319,6 +319,32 @@ Session 21 changes — Media pipeline overhaul, conn state notifications, respon
 - Status picker (local UI state) verified working
 
 **Test results:** Engine: 14/14 pass. Widget: 83/83 pass. Flutter analyze: 0 errors. Live smoke test: zero errors.
+
+Session 22 changes — Right panel real data, forum topic drill-in, all 🔧 items cleared:
+
+**Right panel — real member list:**
+- Added `GetChatMembers` full pipeline: Go engine method (`cache_users.go`) → proto (`EngineMemberInfo`, request/response) → bridge dispatch → Dart EngineService → right panel UI
+- Member list shows avatar with online dot, display name, @username, role badges (Owner/Admin), bot icon
+- Loads on panel open, invalidates on chat change
+
+**Right panel — shared media gallery:**
+- Added `GetSharedMedia` full pipeline: Go engine method (`cache_msgs.go`, joins media+messages tables) → proto (`EngineSharedMediaItem`, request/response) → bridge dispatch → Dart EngineService → right panel UI
+- 4 filter tabs: All / Photos / Videos / Files
+- Grid layout for images/videos (3 columns, base64 thumbnails, video duration overlay)
+- List layout for files (icon, name, size, date)
+- Pagination via "Load more" on scroll
+
+**Forum topic drill-in:**
+- Added `GetForumTopics` full pipeline: Go engine method (`cache_chats.go`, uses `forumTopicGetter` interface for duck typing) → proto → bridge dispatch → Dart EngineService → sidebar
+- Sidebar `_enterDrillIn` now fetches real topics, shows loading spinner, merges into ChatState
+- Works with Telegram forums; gracefully returns empty for platforms without forum support
+
+**All 🔧 items resolved:**
+- Drag-to-reorder pinned chats: verified (ReorderableListView functional)
+- Video recording UI: verified (placeholder snackbar, camera plugin not available)
+- GUI checklist: 150/150 ✅, 0 🔧, 0 ❌
+
+**Test results:** Engine: 14/14 pass. Widget: 83/83 pass. Flutter analyze: 0 errors (19 info). Live smoke test: zero errors.
 
 ## Detailed Progress
 

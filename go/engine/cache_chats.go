@@ -2,6 +2,8 @@ package engine
 
 import (
 	"database/sql"
+	"fmt"
+	"log"
 	"time"
 
 	"uniclient/cores"
@@ -277,6 +279,53 @@ func (e *Engine) ArchiveChat(accountID, chatID string, archived bool) error {
 		e.emitChatUpdate(accountID, chatID)
 	}
 	return nil
+}
+
+// GetForumTopics fetches forum topics for a chat from the core, caches them,
+// and returns the list. Only works for cores that support topics (e.g. Telegram).
+// Returns an empty list for cores that don't support forum topics.
+func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+
+	// Check if the core supports topics via type assertion.
+	type forumTopicGetter interface {
+		GetForumTopics(chatID string, limit int) ([]cores.Dialog, error)
+	}
+	ftg, ok := acc.Core.(forumTopicGetter)
+	if !ok {
+		// Core doesn't support forum topics — return empty list gracefully.
+		return nil, nil
+	}
+
+	topics, err := ftg.GetForumTopics(chatID, 100)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache each topic as a chat entry.
+	for _, t := range topics {
+		if err := e.UpsertChat(accountID, t); err != nil {
+			log.Printf("[engine] GetForumTopics: failed to cache topic %s: %v", t.ID, err)
+		}
+	}
+
+	// Return from DB to get the fully populated ChatInfo structs.
+	rows, err := e.db.Query(
+		`SELECT account_id, chat_id, type, title, avatar_path,
+		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
+		        unread_count, is_muted, is_pinned, is_archived,
+		        draft_text, member_count, parent_id
+		 FROM chats
+		 WHERE account_id = ? AND parent_id = ?
+		 ORDER BY title ASC`, accountID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanChats(rows)
 }
 
 // emitChatUpdate reads the current chat state from DB and emits an update event.

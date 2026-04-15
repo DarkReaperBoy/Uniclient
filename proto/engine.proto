@@ -204,6 +204,17 @@ message EngineMarkChatReadRequest {
   string up_to_msg_id = 3;
 }
 
+// --- GetForumTopics ---
+
+message EngineGetForumTopicsRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineGetForumTopicsResponse {
+  repeated EngineChatInfo chats = 1;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Messages
 // ═══════════════════════════════════════════════════════════════════════
@@ -322,6 +333,31 @@ message EngineGetMessageRawResponse {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Members
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineMemberInfo {
+  string user_id      = 1;
+  string username     = 2;
+  string display_name = 3;
+  string avatar_b64   = 4;
+  bool   is_bot       = 5;
+  bool   is_online    = 6;
+  string role         = 7; // "owner", "admin", "member", "restricted", "banned"
+}
+
+message EngineGetChatMembersRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  int32  limit      = 3;
+  int32  offset     = 4;
+}
+
+message EngineGetChatMembersResponse {
+  repeated EngineMemberInfo members = 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // Active chat (notification suppression)
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -388,6 +424,34 @@ message EngineGetCacheSizeResponse {
 
 message EngineClearCacheRequest {
   string account_id = 1; // empty = all
+}
+
+// --- GetSharedMedia ---
+
+message EngineGetSharedMediaRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string media_type = 3; // "image", "video", "audio", "file", "" for all
+  int32  limit      = 4;
+  int32  offset     = 5;
+}
+
+message EngineSharedMediaItem {
+  string msg_id     = 1;
+  int64  timestamp  = 2;
+  int32  media_type = 3; // 1=image, 2=video, 3=audio, 4=voice, 5=videonote, 6=sticker, 7=gif, 8=file
+  string file_name  = 4;
+  string mime_type  = 5;
+  int64  file_size  = 6;
+  string thumb_b64  = 7;
+  string local_path = 8;
+  int32  width      = 9;
+  int32  height     = 10;
+  int32  duration   = 11; // seconds
+}
+
+message EngineGetSharedMediaResponse {
+  repeated EngineSharedMediaItem items = 1;
 }
 
 // ═══════════════════════════════════════════════════════════════════════

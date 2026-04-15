@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../models/engine_models.dart';
@@ -28,6 +29,8 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
 
   // Drill-in state: when non-null, we show the sub-chat list for this parent.
   ChatInfo? _drillInChat;
+  List<ChatInfo>? _drillInTopics; // fetched forum topics for the drill-in parent
+  bool _drillInLoading = false;
 
   // Slide animation for drill-in
   late final AnimationController _slideController;
@@ -65,9 +68,38 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   void _enterDrillIn(ChatInfo parent) {
     setState(() {
       _drillInChat = parent;
+      _drillInTopics = null;
+      _drillInLoading = true;
       _showDrillIn = true;
     });
     _slideController.forward(from: 0);
+    _fetchForumTopics(parent);
+  }
+
+  Future<void> _fetchForumTopics(ChatInfo parent) async {
+    final engine = context.read<EngineService>();
+    final chatState = context.read<ChatState>();
+    try {
+      final topics = await engine.getForumTopics(parent.accountId, parent.chatId);
+      if (!mounted || _drillInChat?.chatId != parent.chatId) return;
+      // Also merge into chat state so they appear in the main chat list.
+      if (topics.isNotEmpty) {
+        for (final t in topics) {
+          chatState.mergeChat(t);
+        }
+        chatState.notifyMerged();
+      }
+      setState(() {
+        _drillInTopics = topics;
+        _drillInLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _drillInTopics = [];
+        _drillInLoading = false;
+      });
+    }
   }
 
   void _exitDrillIn() {
@@ -76,6 +108,8 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
         setState(() {
           _showDrillIn = false;
           _drillInChat = null;
+          _drillInTopics = null;
+          _drillInLoading = false;
         });
       }
     });
@@ -346,10 +380,8 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     final parent = _drillInChat;
     if (parent == null) return const SizedBox.shrink();
 
-    // Find sub-chats whose parentId matches this group
-    final subChats = allChats
-        .where((c) => c.parentId == parent.chatId)
-        .toList()
+    // Use fetched topics if available, otherwise fall back to cached sub-chats.
+    final subChats = (_drillInTopics ?? allChats.where((c) => c.parentId == parent.chatId).toList())
       ..sort((a, b) => a.title.compareTo(b.title));
 
     // Separate text and voice channels
@@ -443,7 +475,16 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                   for (final ch in voiceChannels)
                     _ChannelItem(chat: ch, isVoice: true),
                 ],
-                if (subChats.isEmpty)
+                if (_drillInLoading)
+                  const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )),
+                  )
+                else if (subChats.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(

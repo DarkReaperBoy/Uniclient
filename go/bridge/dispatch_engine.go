@@ -214,6 +214,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.MarkChatRead(req.AccountId, req.ChatId, req.UpToMsgId)
 
+	case "GetForumTopics":
+		var req pb.EngineGetForumTopicsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		topics, err := e.GetForumTopics(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetForumTopicsResponse{}
+		for _, c := range topics {
+			resp.Chats = append(resp.Chats, chatInfoToProto(&c))
+		}
+		return proto.Marshal(resp)
+
 	// ── Messages ──
 
 	case "GetMessages":
@@ -321,6 +336,31 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(&pb.EngineGetMessageRawResponse{ContentRaw: raw})
 
+	// ── Members ──
+
+	case "GetChatMembers":
+		var req pb.EngineGetChatMembersRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		members, err := e.GetChatMembers(req.AccountId, req.ChatId, int(req.Limit), int(req.Offset))
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetChatMembersResponse{}
+		for _, m := range members {
+			resp.Members = append(resp.Members, &pb.EngineMemberInfo{
+				UserId:      m.UserID,
+				Username:    sanitizeUTF8(m.Username),
+				DisplayName: sanitizeUTF8(m.DisplayName),
+				AvatarB64:   m.AvatarB64,
+				IsBot:       m.IsBot,
+				IsOnline:    m.IsOnline,
+				Role:        m.Role,
+			})
+		}
+		return proto.Marshal(resp)
+
 	// ── Active chat ──
 
 	case "SetActiveChat":
@@ -391,6 +431,33 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		e.CancelDownload(req.AccountId, req.ChatId, req.MsgId, int(req.Seq))
 		return nil, nil
+
+	case "GetSharedMedia":
+		var req pb.EngineGetSharedMediaRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		items, err := e.GetSharedMedia(req.AccountId, req.ChatId, req.MediaType, int(req.Limit), int(req.Offset))
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetSharedMediaResponse{}
+		for _, item := range items {
+			resp.Items = append(resp.Items, &pb.EngineSharedMediaItem{
+				MsgId:     item.MsgID,
+				Timestamp: item.Timestamp,
+				MediaType: int32(item.MediaType),
+				FileName:  sanitizeUTF8(item.FileName),
+				MimeType:  item.MimeType,
+				FileSize:  item.FileSize,
+				ThumbB64:  item.ThumbB64,
+				LocalPath: item.LocalPath,
+				Width:     int32(item.Width),
+				Height:    int32(item.Height),
+				Duration:  int32(item.Duration),
+			})
+		}
+		return proto.Marshal(resp)
 
 	case "GetCacheSize":
 		size, err := e.GetCacheSize()

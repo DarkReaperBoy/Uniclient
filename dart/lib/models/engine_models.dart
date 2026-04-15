@@ -428,6 +428,48 @@ class MessageReaction {
   };
 }
 
+// ── Shared media item ──
+class SharedMediaItem {
+  final String msgId;
+  final int timestamp;
+  final int mediaType; // 1=image, 2=video, 3=audio, 4=voice, 5=videonote, 6=sticker, 7=gif, 8=file
+  final String fileName;
+  final String mimeType;
+  final int fileSize;
+  final String thumbB64;
+  final String localPath;
+  final int width;
+  final int height;
+  final int duration; // seconds
+
+  const SharedMediaItem({
+    required this.msgId,
+    this.timestamp = 0,
+    this.mediaType = 0,
+    this.fileName = '',
+    this.mimeType = '',
+    this.fileSize = 0,
+    this.thumbB64 = '',
+    this.localPath = '',
+    this.width = 0,
+    this.height = 0,
+    this.duration = 0,
+  });
+
+  DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
+  bool get isImage => mediaType == 1 || mediaType == 6 || mediaType == 7; // image, sticker, gif
+  bool get isVideo => mediaType == 2 || mediaType == 5; // video, videonote
+  bool get isAudio => mediaType == 3 || mediaType == 4; // audio, voice
+  bool get isFile => mediaType == 8;
+
+  String get fileSizeLabel {
+    if (fileSize <= 0) return '';
+    if (fileSize < 1024) return '$fileSize B';
+    if (fileSize < 1024 * 1024) return '${(fileSize / 1024).toStringAsFixed(1)} KB';
+    return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
 // ── Search result ──
 class SearchResult {
   final String accountId;
@@ -457,6 +499,34 @@ class SearchResult {
     timestamp: j['timestamp'] as int? ?? 0,
     chatTitle: j['chat_title'] as String? ?? '',
   );
+}
+
+// ── Member info ──
+class MemberInfo {
+  final String userId;
+  final String username;
+  final String displayName;
+  final String avatarB64;
+  final bool isBot;
+  final bool isOnline;
+  final String role; // "owner", "admin", "member", "restricted", "banned"
+
+  const MemberInfo({
+    required this.userId,
+    this.username = '',
+    this.displayName = '',
+    this.avatarB64 = '',
+    this.isBot = false,
+    this.isOnline = false,
+    this.role = 'member',
+  });
+
+  /// Display label: displayName if available, else username, else userId.
+  String get label => displayName.isNotEmpty
+      ? displayName
+      : username.isNotEmpty
+          ? username
+          : userId;
 }
 
 // ── App config ──

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"uniclient/cores"
@@ -91,6 +92,56 @@ func (e *Engine) GetOrFetchUser(accountID, userID string) (*CachedUser, error) {
 
 	e.UpsertUser(accountID, *profile)
 	return e.GetUser(accountID, userID)
+}
+
+// MemberInfo is the member data returned to the UI for a chat member list.
+type MemberInfo struct {
+	UserID      string `json:"user_id"`
+	Username    string `json:"username,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	AvatarB64   string `json:"avatar_b64,omitempty"`
+	IsBot       bool   `json:"is_bot"`
+	IsOnline    bool   `json:"is_online"`
+	Role        string `json:"role"` // "owner", "admin", "member", "restricted", "banned"
+}
+
+// GetChatMembers fetches members for a chat from the connected core.
+func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]MemberInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+
+	if limit <= 0 {
+		limit = 50
+	}
+
+	users, err := acc.Core.GetMembers(chatID, cores.PaginationOpts{
+		Limit:  limit,
+		Offset: fmt.Sprintf("%d", offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache users and convert to MemberInfo.
+	members := make([]MemberInfo, 0, len(users))
+	for _, u := range users {
+		e.UpsertUser(accountID, u)
+		members = append(members, MemberInfo{
+			UserID:      u.ID,
+			Username:    u.Username,
+			DisplayName: u.DisplayName,
+			AvatarB64:   u.AvatarB64,
+			IsBot:       u.IsBot,
+			IsOnline:    u.IsOnline,
+			Role:        "member", // default; cores can set this via Platform field
+		})
+	}
+	return members, nil
 }
 
 // BulkUpsertUsers inserts/updates multiple user profiles in a single transaction.
