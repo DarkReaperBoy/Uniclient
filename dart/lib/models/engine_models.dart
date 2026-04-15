@@ -255,7 +255,7 @@ class CachedMessage {
   final int mediaWidth;
   final int mediaHeight;
   final int mediaDuration; // seconds
-  final int mediaDownloadState; // 0=none, 1=in_progress, 2=complete, 3=failed
+  final int mediaDownloadState; // 0=none, 1=in_progress, 2=complete, 3=failed (matches Go engine/db.go)
   final List<MessageReaction> reactions;
 
   const CachedMessage({

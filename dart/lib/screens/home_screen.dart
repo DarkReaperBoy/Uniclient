@@ -38,12 +38,16 @@ class _HomeScreenState extends State<HomeScreen> {
     final appState = context.watch<AppState>();
     final chatState = context.watch<ChatState>();
 
-    // Wire notification callback once.
+    // Wire notification callbacks once.
     if (!_notifWired) {
       _notifWired = true;
       chatState.onNotification = (sender, text, chatTitle) {
         final mgr = NotificationManager.maybeOf(context);
         mgr?.showMessageNotification(sender, text, chatTitle: chatTitle);
+      };
+      appState.onConnStateNotification = (text, icon, color) {
+        final mgr = NotificationManager.maybeOf(context);
+        mgr?.showStatusNotification(text, icon: icon, color: color);
       };
     }
 
@@ -312,29 +316,19 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     final textColor = isDark ? AppColors.darkText : AppColors.lightText;
 
-    // Show ChatView (which has its own header) with a back button overlaid on top-left.
-    return Stack(
-      children: [
-        const ChatView(),
-        // Back button overlay on the header area
-        Positioned(
-          top: 4,
-          left: 4,
-          child: Material(
-            color: Colors.transparent,
-            child: IconButton(
-              icon: Icon(Icons.arrow_back_rounded, color: textColor, size: 22),
-              onPressed: () => _closeActiveChat(chatState),
-              tooltip: 'Back',
-            ),
-          ),
-        ),
-      ],
+    return ChatView(
+      headerLeading: IconButton(
+        icon: Icon(Icons.arrow_back_rounded, color: textColor, size: 22),
+        onPressed: () => _closeActiveChat(chatState),
+        tooltip: 'Back',
+        visualDensity: VisualDensity.compact,
+      ),
     );
   }
 
   void _closeActiveChat(ChatState chatState) {
     setState(() => _narrowShowChat = false);
+    chatState.closeChat();
   }
 
   Widget _buildNarrowSettings(BuildContext context, AppState appState, bool isDark) {

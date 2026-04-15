@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 
 import '../theme/theme.dart';
@@ -11,7 +9,8 @@ enum _PanelTab { emoji, stickers, gifs }
 ///
 /// Displays a searchable grid of emojis organized by category,
 /// with a recently-used section at the top (session-only, not persisted).
-/// Also includes placeholder Stickers and GIFs tabs.
+/// Stickers tab shows categorized emoji sticker packs with search.
+/// GIFs tab shows trending categories with keyword-based filtering.
 class EmojiPanel extends StatefulWidget {
   /// Called when the user taps an emoji, sticker, or GIF.
   final void Function(String emoji) onEmojiSelected;
@@ -66,6 +65,7 @@ class _EmojiPanelState extends State<EmojiPanel> {
     _searchController.dispose();
     _scrollController.dispose();
     _gifSearchController.dispose();
+    _stickerSearchController.dispose();
     super.dispose();
   }
 
@@ -311,135 +311,210 @@ class _EmojiPanelState extends State<EmojiPanel> {
 
   // ── Stickers tab content ──
 
-  /// Mock sticker pack definitions: (label, icon, item count, thumbnail emoji,
-  /// list of (emoji, bg color) for each sticker slot).
-  static final _stickerPacks = [
+  String _stickerSearchQuery = '';
+  final _stickerSearchController = TextEditingController();
+
+  /// Sticker packs modeled after popular Telegram sticker themes.
+  /// Each pack has a tab emoji, label, and grid of sticker emojis.
+  static const _stickerPacks = <({String tab, String label, List<String> stickers})>[
     (
-      label: 'Favorites',
-      icon: Icons.star_rounded,
-      thumbnail: '⭐',
+      tab: '\u{2B50}',
+      label: 'Recent',
       stickers: [
-        ('⭐', const Color(0xFFFFF9C4)),
-        ('💖', const Color(0xFFFFCDD2)),
-        ('✨', const Color(0xFFFFF3E0)),
-        ('🌟', const Color(0xFFFFF9C4)),
-        ('💫', const Color(0xFFE3F2FD)),
-        ('🎉', const Color(0xFFF3E5F5)),
-        ('🏆', const Color(0xFFFFF9C4)),
-        ('🎁', const Color(0xFFE8F5E9)),
+        '\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F60D}', '\u{1F525}',
+        '\u{1F389}', '\u{1F49C}', '\u{1F44F}', '\u{1F62D}', '\u{1F97A}',
+        '\u{1F914}', '\u{1F92F}',
       ],
     ),
     (
-      label: 'Animals',
-      icon: Icons.pets_rounded,
-      thumbnail: '🐾',
+      tab: '\u{1F431}',
+      label: 'Cute Cats',
       stickers: [
-        ('🐶', const Color(0xFFFFECB3)),
-        ('🐱', const Color(0xFFF8BBD0)),
-        ('🐼', const Color(0xFFEEEEEE)),
-        ('🦊', const Color(0xFFFFCCBC)),
-        ('🐸', const Color(0xFFC8E6C9)),
-        ('🐧', const Color(0xFFB3E5FC)),
-        ('🦁', const Color(0xFFFFE0B2)),
-        ('🐻', const Color(0xFFD7CCC8)),
-        ('🦋', const Color(0xFFE1BEE7)),
-        ('🐙', const Color(0xFFFFCDD2)),
-        ('🦄', Color(0xFFE040FB).withValues(alpha: 0.2)),
-        ('🐬', const Color(0xFFB3E5FC)),
+        '\u{1F63A}', '\u{1F638}', '\u{1F639}', '\u{1F63B}', '\u{1F63C}',
+        '\u{1F63D}', '\u{1F640}', '\u{1F63F}', '\u{1F63E}', '\u{1F431}',
+        '\u{1F408}', '\u{1F408}\u{200D}\u{2B1B}', '\u{1F43E}', '\u{1F9F6}',
+        '\u{1F3F7}\u{FE0F}', '\u{2764}\u{FE0F}',
       ],
     ),
     (
-      label: 'Expressions',
-      icon: Icons.sentiment_very_satisfied_rounded,
-      thumbnail: '😄',
+      tab: '\u{1F436}',
+      label: 'Good Boys',
       stickers: [
-        ('😄', const Color(0xFFFFF9C4)),
-        ('😂', const Color(0xFFFFF9C4)),
-        ('🥹', const Color(0xFFE3F2FD)),
-        ('😍', const Color(0xFFFFCDD2)),
-        ('🤩', const Color(0xFFFFF9C4)),
-        ('😎', const Color(0xFFE3F2FD)),
-        ('🥳', const Color(0xFFF3E5F5)),
-        ('😤', const Color(0xFFFFCCBC)),
-        ('😭', const Color(0xFFE3F2FD)),
-        ('🤔', const Color(0xFFFFF9C4)),
+        '\u{1F436}', '\u{1F415}', '\u{1F9AE}', '\u{1F415}\u{200D}\u{1F9BA}',
+        '\u{1F43E}', '\u{1F9B4}', '\u{1F3BE}', '\u{1F43B}', '\u{1F97A}',
+        '\u{1F60D}', '\u{1F917}', '\u{1F4A4}', '\u{1F3C3}', '\u{1F4A8}',
+        '\u{2764}\u{FE0F}\u{200D}\u{1F525}', '\u{1F393}',
       ],
     ),
     (
-      label: 'Memes',
-      icon: Icons.local_fire_department_rounded,
-      thumbnail: '🔥',
+      tab: '\u{1F60E}',
+      label: 'Mood',
       stickers: [
-        ('🔥', const Color(0xFFFFCCBC)),
-        ('💀', const Color(0xFFEEEEEE)),
-        ('🗿', const Color(0xFFD7CCC8)),
-        ('👀', const Color(0xFFE3F2FD)),
-        ('🫡', const Color(0xFFE8F5E9)),
-        ('😳', const Color(0xFFFFCDD2)),
-        ('🤡', const Color(0xFFF3E5F5)),
-        ('🦆', const Color(0xFFFFF9C4)),
+        '\u{1F60E}', '\u{1F929}', '\u{1F973}', '\u{1F92A}', '\u{1F971}',
+        '\u{1F624}', '\u{1F621}', '\u{1F92C}', '\u{1F975}', '\u{1F976}',
+        '\u{1F974}', '\u{1F635}', '\u{1F92F}', '\u{1F920}', '\u{1F978}',
+        '\u{1F913}', '\u{1F9D0}', '\u{1FAE0}', '\u{1F636}\u{200D}\u{1F32B}\u{FE0F}',
+        '\u{1F4A5}',
+      ],
+    ),
+    (
+      tab: '\u{2764}\u{FE0F}',
+      label: 'Love',
+      stickers: [
+        '\u{2764}\u{FE0F}', '\u{1F9E1}', '\u{1F49B}', '\u{1F49A}', '\u{1F499}',
+        '\u{1F49C}', '\u{1F5A4}', '\u{1FA76}', '\u{1F90D}', '\u{1F90E}',
+        '\u{1F498}', '\u{1F49D}', '\u{1F496}', '\u{1F497}', '\u{1F493}',
+        '\u{1F49E}', '\u{1F495}', '\u{1F48C}', '\u{1F48B}', '\u{1F970}',
+      ],
+    ),
+    (
+      tab: '\u{1F525}',
+      label: 'Reactions',
+      stickers: [
+        '\u{1F525}', '\u{1F4AF}', '\u{1F4A5}', '\u{2728}', '\u{1F31F}',
+        '\u{1F4AB}', '\u{1F44D}', '\u{1F44E}', '\u{1F44F}', '\u{1F64F}',
+        '\u{1F64C}', '\u{1F91D}', '\u{270C}\u{FE0F}', '\u{1F918}', '\u{1FAF6}',
+        '\u{1F4AA}', '\u{1F440}', '\u{1F4A9}', '\u{1F921}', '\u{1F480}',
+      ],
+    ),
+    (
+      tab: '\u{1F382}',
+      label: 'Celebration',
+      stickers: [
+        '\u{1F389}', '\u{1F38A}', '\u{1F382}', '\u{1F381}', '\u{1F386}',
+        '\u{1F387}', '\u{2728}', '\u{1F3C6}', '\u{1F396}\u{FE0F}', '\u{1F3C5}',
+        '\u{1F947}', '\u{1F948}', '\u{1F949}', '\u{1F38E}', '\u{1F380}',
+        '\u{1F388}',
+      ],
+    ),
+    (
+      tab: '\u{1F30D}',
+      label: 'Nature',
+      stickers: [
+        '\u{1F33B}', '\u{1F337}', '\u{1F339}', '\u{1F33A}', '\u{1F338}',
+        '\u{1F940}', '\u{1F33C}', '\u{1F332}', '\u{1F333}', '\u{1F334}',
+        '\u{1F335}', '\u{1FAB4}', '\u{1F341}', '\u{1F342}', '\u{1F343}',
+        '\u{1F340}', '\u{1F308}', '\u{1F324}\u{FE0F}', '\u{26C8}\u{FE0F}',
+        '\u{2744}\u{FE0F}',
+      ],
+    ),
+    (
+      tab: '\u{1F355}',
+      label: 'Food',
+      stickers: [
+        '\u{1F355}', '\u{1F354}', '\u{1F35F}', '\u{1F32E}', '\u{1F32F}',
+        '\u{1F363}', '\u{1F35C}', '\u{1F370}', '\u{1F369}', '\u{1F366}',
+        '\u{1F36B}', '\u{1F36D}', '\u{2615}', '\u{1F37A}', '\u{1F377}',
+        '\u{1F379}', '\u{1F9CB}', '\u{1F964}', '\u{1FAD6}', '\u{1F95E}',
       ],
     ),
   ];
 
+  List<String> _filteredStickers() {
+    final pack = _stickerPacks[_selectedStickerPack];
+    if (_stickerSearchQuery.isEmpty) return pack.stickers;
+    // Search across all packs when there's a query.
+    final results = <String>[];
+    for (final p in _stickerPacks) {
+      for (final s in p.stickers) {
+        final keyword = _emojiKeywords[s];
+        if (keyword != null && keyword.contains(_stickerSearchQuery)) {
+          if (!results.contains(s)) results.add(s);
+        }
+      }
+    }
+    return results;
+  }
+
   Widget _buildStickersContent(bool isDark) {
     final pack = _stickerPacks[_selectedStickerPack];
-    final stickers = pack.stickers;
+    final stickers = _filteredStickers();
 
     final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final activeBg = AppColors.accent.withValues(alpha: 0.15);
     const activeIndicator = AppColors.accent;
     final tabBg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final mutedColor = isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
 
     return Column(
       children: [
+        // ── Search bar ──
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: SizedBox(
+            height: 36,
+            child: TextField(
+              controller: _stickerSearchController,
+              onChanged: (q) => setState(() => _stickerSearchQuery = q.toLowerCase()),
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Search stickers...',
+                prefixIcon: Icon(Icons.search, size: 18,
+                  color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
+                contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                filled: true,
+                fillColor: isDark ? AppColors.darkBase : AppColors.lightBase,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+                ),
+              ),
+            ),
+          ),
+        ),
+
         // ── Pack tabs row ──
         Container(
-          height: 52,
+          height: 44,
           decoration: BoxDecoration(
             color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt,
-            border: Border(
-              bottom: BorderSide(color: borderColor),
-            ),
+            border: Border(bottom: BorderSide(color: borderColor)),
           ),
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             itemCount: _stickerPacks.length,
             itemBuilder: (context, packIndex) {
               final p = _stickerPacks[packIndex];
-              final isActive = packIndex == _selectedStickerPack;
+              final isActive = packIndex == _selectedStickerPack && _stickerSearchQuery.isEmpty;
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: GestureDetector(
-                  onTap: () => setState(() => _selectedStickerPack = packIndex),
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: isActive ? activeBg : tabBg,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border(
-                        bottom: BorderSide(
-                          color: isActive ? activeIndicator : Colors.transparent,
-                          width: 2.5,
+                  onTap: () => setState(() {
+                    _selectedStickerPack = packIndex;
+                    _stickerSearchQuery = '';
+                    _stickerSearchController.clear();
+                  }),
+                  child: Tooltip(
+                    message: p.label,
+                    preferBelow: true,
+                    waitDuration: const Duration(milliseconds: 400),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: isActive ? activeBg : tabBg,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border(
+                          bottom: BorderSide(
+                            color: isActive ? activeIndicator : Colors.transparent,
+                            width: 2.5,
+                          ),
                         ),
                       ),
-                    ),
-                    child: Tooltip(
-                      message: p.label,
-                      preferBelow: true,
-                      waitDuration: const Duration(milliseconds: 400),
                       child: Center(
-                        child: Icon(
-                          p.icon,
-                          size: 20,
-                          color: isActive
-                              ? activeIndicator
-                              : (isDark
-                                  ? AppColors.darkTextDim
-                                  : AppColors.lightTextDim),
-                        ),
+                        child: Text(p.tab, style: const TextStyle(fontSize: 18)),
                       ),
                     ),
                   ),
@@ -451,29 +526,26 @@ class _EmojiPanelState extends State<EmojiPanel> {
 
         // ── Pack label ──
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
           child: Row(
             children: [
-              Icon(pack.icon, size: 14, color: AppColors.accent),
+              Text(pack.tab, style: const TextStyle(fontSize: 14)),
               const SizedBox(width: 6),
               Text(
-                pack.label,
+                _stickerSearchQuery.isNotEmpty
+                    ? 'Search results'
+                    : pack.label,
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                   color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
-                  letterSpacing: 0.4,
+                  letterSpacing: 0.3,
                 ),
               ),
               const SizedBox(width: 6),
               Text(
                 '${stickers.length}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isDark
-                      ? AppColors.darkTextMuted
-                      : AppColors.lightTextMuted,
-                ),
+                style: TextStyle(fontSize: 11, color: mutedColor),
               ),
             ],
           ),
@@ -481,40 +553,45 @@ class _EmojiPanelState extends State<EmojiPanel> {
 
         // ── Sticker grid ──
         Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              mainAxisSpacing: 6,
-              crossAxisSpacing: 6,
-              childAspectRatio: 1,
-            ),
-            itemCount: stickers.length,
-            itemBuilder: (context, index) {
-              final (emoji, bgColor) = stickers[index];
-              return Tooltip(
-                message: '${pack.label} sticker ${index + 1}',
-                preferBelow: false,
-                waitDuration: const Duration(milliseconds: 300),
-                child: GestureDetector(
-                  onTap: () => widget.onEmojiSelected(emoji),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: bgColor,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Center(
-                      child: Text(
-                        emoji,
-                        style: const TextStyle(fontSize: 28),
-                      ),
-                    ),
+          child: stickers.isEmpty
+              ? Center(
+                  child: Text(
+                    'No stickers found',
+                    style: TextStyle(fontSize: 13, color: mutedColor),
                   ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 4,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 1,
+                  ),
+                  itemCount: stickers.length,
+                  itemBuilder: (context, index) {
+                    final emoji = stickers[index];
+                    return Tooltip(
+                      message: _emojiKeywords[emoji] ?? 'sticker',
+                      preferBelow: false,
+                      waitDuration: const Duration(milliseconds: 300),
+                      child: GestureDetector(
+                        onTap: () => widget.onEmojiSelected(emoji),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: (isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt)
+                                .withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+                          ),
+                          child: Center(
+                            child: Text(emoji, style: const TextStyle(fontSize: 30)),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
@@ -522,19 +599,97 @@ class _EmojiPanelState extends State<EmojiPanel> {
 
   // ── GIFs tab content ──
 
-  Widget _buildGifsContent(bool isDark) {
-    // Deterministic pseudo-random heights for masonry-like effect.
-    final rng = Random(42);
-    final heights = List.generate(8, (_) => 80.0 + rng.nextInt(60));
+  String _selectedGifCategory = '';
 
-    final placeholderColors = [
-      AppColors.accent.withValues(alpha: 0.25),
-      AppColors.online.withValues(alpha: 0.25),
-      AppColors.warning.withValues(alpha: 0.25),
-      AppColors.danger.withValues(alpha: 0.25),
-      AppColors.accentLight.withValues(alpha: 0.25),
-      AppColors.accentDark.withValues(alpha: 0.25),
-    ];
+  /// GIF trending categories with representative emoji and sample keywords.
+  static const _gifCategories = <({String emoji, String label, List<String> keywords})>[
+    (emoji: '\u{1F525}', label: 'Trending', keywords: ['wow', 'omg', 'epic', 'viral']),
+    (emoji: '\u{1F602}', label: 'Laugh', keywords: ['lol', 'haha', 'rofl', 'funny']),
+    (emoji: '\u{1F44D}', label: 'Agree', keywords: ['yes', 'ok', 'sure', 'nod']),
+    (emoji: '\u{1F44F}', label: 'Applause', keywords: ['clap', 'bravo', 'congrats']),
+    (emoji: '\u{1F622}', label: 'Sad', keywords: ['cry', 'tears', 'sob']),
+    (emoji: '\u{1F621}', label: 'Angry', keywords: ['mad', 'rage', 'fury']),
+    (emoji: '\u{1F60D}', label: 'Love', keywords: ['heart', 'kiss', 'crush']),
+    (emoji: '\u{1F389}', label: 'Party', keywords: ['celebrate', 'dance', 'yay']),
+    (emoji: '\u{1F44B}', label: 'Hello', keywords: ['hi', 'wave', 'hey']),
+    (emoji: '\u{1F634}', label: 'Bored', keywords: ['sleep', 'yawn', 'tired']),
+    (emoji: '\u{1F914}', label: 'Thinking', keywords: ['hmm', 'confused', 'wonder']),
+    (emoji: '\u{1F60E}', label: 'Cool', keywords: ['swag', 'chill', 'deal with it']),
+  ];
+
+  /// Per-category sample "GIF" emoji grids that simulate visual thumbnails.
+  static const _gifSamples = <String, List<String>>{
+    '': [  // trending
+      '\u{1F525}', '\u{1F4A5}', '\u{1F31F}', '\u{2728}', '\u{1F680}', '\u{1F3C6}',
+      '\u{1F4AF}', '\u{1F389}', '\u{1F92F}', '\u{1F60E}', '\u{1F929}', '\u{1F973}',
+    ],
+    'Laugh': [
+      '\u{1F602}', '\u{1F923}', '\u{1F606}', '\u{1F605}', '\u{1F604}', '\u{1F603}',
+      '\u{1F61C}', '\u{1F92A}', '\u{1F643}', '\u{1F60F}', '\u{1F92D}', '\u{1F9D0}',
+    ],
+    'Agree': [
+      '\u{1F44D}', '\u{1F64F}', '\u{270C}\u{FE0F}', '\u{1F91D}', '\u{1F44C}', '\u{1FAF6}',
+      '\u{2705}', '\u{1F44D}', '\u{1F60C}', '\u{1F60A}', '\u{1F642}', '\u{1F917}',
+    ],
+    'Applause': [
+      '\u{1F44F}', '\u{1F64C}', '\u{1F3C6}', '\u{1F3C5}', '\u{1F947}', '\u{1F396}\u{FE0F}',
+      '\u{1F4AA}', '\u{2728}', '\u{1F31F}', '\u{1F451}', '\u{1F48E}', '\u{1F389}',
+    ],
+    'Sad': [
+      '\u{1F622}', '\u{1F62D}', '\u{1F625}', '\u{1F97A}', '\u{1F614}', '\u{1F61E}',
+      '\u{1F629}', '\u{1F62B}', '\u{1F63F}', '\u{1F494}', '\u{1F327}\u{FE0F}', '\u{1F4A7}',
+    ],
+    'Angry': [
+      '\u{1F621}', '\u{1F620}', '\u{1F92C}', '\u{1F624}', '\u{1F4A2}', '\u{1F4A5}',
+      '\u{1F525}', '\u{1F63E}', '\u{1F47F}', '\u{1F608}', '\u{26A1}', '\u{2757}',
+    ],
+    'Love': [
+      '\u{1F60D}', '\u{1F970}', '\u{1F618}', '\u{1F48B}', '\u{2764}\u{FE0F}', '\u{1F496}',
+      '\u{1F49C}', '\u{1F493}', '\u{1F495}', '\u{1F48C}', '\u{1F339}', '\u{1F49D}',
+    ],
+    'Party': [
+      '\u{1F389}', '\u{1F38A}', '\u{1F973}', '\u{1F483}', '\u{1F57A}', '\u{1F386}',
+      '\u{1F387}', '\u{1F388}', '\u{1F381}', '\u{1F382}', '\u{2728}', '\u{1F31F}',
+    ],
+    'Hello': [
+      '\u{1F44B}', '\u{1F91A}', '\u{270B}', '\u{1F919}', '\u{1F590}\u{FE0F}', '\u{1F642}',
+      '\u{1F60A}', '\u{1F607}', '\u{1F31E}', '\u{1F31D}', '\u{1F44B}', '\u{2764}\u{FE0F}',
+    ],
+    'Bored': [
+      '\u{1F634}', '\u{1F62A}', '\u{1F971}', '\u{1F611}', '\u{1F636}', '\u{1F644}',
+      '\u{1F4A4}', '\u{1F6CF}\u{FE0F}', '\u{1F31B}', '\u{1F319}', '\u{2615}', '\u{1F9CA}',
+    ],
+    'Thinking': [
+      '\u{1F914}', '\u{1F9D0}', '\u{1F615}', '\u{1F610}', '\u{1FAE4}', '\u{1F4AD}',
+      '\u{1F4A1}', '\u{2753}', '\u{2754}', '\u{1F50D}', '\u{1F4DA}', '\u{1F9E0}',
+    ],
+    'Cool': [
+      '\u{1F60E}', '\u{1F929}', '\u{1F978}', '\u{1F920}', '\u{1F913}', '\u{1F576}\u{FE0F}',
+      '\u{2744}\u{FE0F}', '\u{1F9CA}', '\u{1F48E}', '\u{1F451}', '\u{1F680}', '\u{26A1}',
+    ],
+  };
+
+  Widget _buildGifsContent(bool isDark) {
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final mutedColor = isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
+    final gifQuery = _gifSearchController.text.trim().toLowerCase();
+    final samples = _gifSamples[_selectedGifCategory] ?? _gifSamples['']!;
+
+    // Filter samples by search query against keywords.
+    List<String> displaySamples;
+    if (gifQuery.isNotEmpty) {
+      // Show category samples whose keywords match, or fallback to all.
+      final matching = <String>[];
+      for (final cat in _gifCategories) {
+        if (cat.keywords.any((k) => k.contains(gifQuery)) ||
+            cat.label.toLowerCase().contains(gifQuery)) {
+          matching.addAll(_gifSamples[cat.label] ?? []);
+        }
+      }
+      displaySamples = matching.isNotEmpty ? matching : samples;
+    } else {
+      displaySamples = samples;
+    }
 
     return Column(
       children: [
@@ -545,31 +700,25 @@ class _EmojiPanelState extends State<EmojiPanel> {
             height: 36,
             child: TextField(
               controller: _gifSearchController,
+              onChanged: (_) => setState(() {}),
               style: TextStyle(
                 fontSize: 13,
                 color: isDark ? AppColors.darkText : AppColors.lightText,
               ),
               decoration: InputDecoration(
                 hintText: 'Search GIFs...',
-                prefixIcon: Icon(
-                  Icons.search,
-                  size: 18,
-                  color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
-                ),
+                prefixIcon: Icon(Icons.search, size: 18,
+                  color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
                 contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
                 filled: true,
                 fillColor: isDark ? AppColors.darkBase : AppColors.lightBase,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  ),
+                  borderSide: BorderSide(color: borderColor),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide(
-                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                  ),
+                  borderSide: BorderSide(color: borderColor),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -580,123 +729,108 @@ class _EmojiPanelState extends State<EmojiPanel> {
           ),
         ),
 
-        // GIF grid.
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            children: [
-              // 2-column layout with varying heights.
-              for (int i = 0; i < heights.length; i += 2)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Tooltip(
-                          message: 'GIF ${i + 1}',
-                          preferBelow: false,
-                          waitDuration: const Duration(milliseconds: 300),
-                          child: GestureDetector(
-                            onTap: () => widget.onEmojiSelected('[gif]'),
-                            child: Container(
-                              height: heights[i],
-                              decoration: BoxDecoration(
-                                color: placeholderColors[i % placeholderColors.length],
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                                ),
-                              ),
-                              child: Center(
-                                child: Text(
-                                  'GIF',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: isDark
-                                        ? AppColors.darkTextMuted
-                                        : AppColors.lightTextMuted,
-                                  ),
-                                ),
-                              ),
-                            ),
+        // ── Category chips ──
+        SizedBox(
+          height: 38,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            itemCount: _gifCategories.length,
+            itemBuilder: (context, index) {
+              final cat = _gifCategories[index];
+              final isActive = _selectedGifCategory == cat.label ||
+                  (index == 0 && _selectedGifCategory.isEmpty);
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3),
+                child: GestureDetector(
+                  onTap: () => setState(() {
+                    _selectedGifCategory = index == 0 ? '' : cat.label;
+                    _gifSearchController.clear();
+                  }),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? AppColors.accent.withValues(alpha: 0.15)
+                          : (isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isActive ? AppColors.accent.withValues(alpha: 0.5) : borderColor,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(cat.emoji, style: const TextStyle(fontSize: 14)),
+                        const SizedBox(width: 4),
+                        Text(
+                          cat.label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                            color: isActive
+                                ? AppColors.accent
+                                : (isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (i + 1 < heights.length)
-                        Expanded(
-                          child: Tooltip(
-                            message: 'GIF ${i + 2}',
-                            preferBelow: false,
-                            waitDuration: const Duration(milliseconds: 300),
-                            child: GestureDetector(
-                              onTap: () => widget.onEmojiSelected('[gif]'),
-                              child: Container(
-                                height: heights[i + 1],
-                                decoration: BoxDecoration(
-                                  color: placeholderColors[(i + 1) % placeholderColors.length],
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-                                  ),
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    'GIF',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                      color: isDark
-                                          ? AppColors.darkTextMuted
-                                          : AppColors.lightTextMuted,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        )
-                      else
-                        const Expanded(child: SizedBox()),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
+              );
+            },
+          ),
+        ),
 
-              const SizedBox(height: 12),
+        const SizedBox(height: 6),
 
-              // Coming soon notice.
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkSurfaceAlt
-                      : AppColors.lightSurfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline,
-                      size: 16,
-                      color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'GIF search coming soon',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+        // ── GIF grid ──
+        Expanded(
+          child: displaySamples.isEmpty
+              ? Center(
+                  child: Text('No GIFs found', style: TextStyle(fontSize: 13, color: mutedColor)),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 3,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 1.0,
+                  ),
+                  itemCount: displaySamples.length,
+                  itemBuilder: (context, index) {
+                    final emoji = displaySamples[index];
+                    // Alternate subtle background tints.
+                    final bgIndex = index % 6;
+                    const tintColors = [
+                      Color(0x1A4F6EF7), // accent
+                      Color(0x1A43B581), // green
+                      Color(0x1AFAA61A), // amber
+                      Color(0x1AEF4444), // red
+                      Color(0x1A9B59B6), // purple
+                      Color(0x1A3498DB), // blue
+                    ];
+                    return Tooltip(
+                      message: 'GIF ${index + 1}',
+                      preferBelow: false,
+                      waitDuration: const Duration(milliseconds: 300),
+                      child: GestureDetector(
+                        onTap: () => widget.onEmojiSelected(emoji),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: tintColors[bgIndex],
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: borderColor.withValues(alpha: 0.4)),
+                          ),
+                          child: Center(
+                            child: Text(emoji, style: const TextStyle(fontSize: 32)),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-              ),
-            ],
-          ),
         ),
       ],
     );

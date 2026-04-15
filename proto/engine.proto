@@ -237,7 +237,7 @@ message EngineCachedMessage {
   int32  media_width     = 24;
   int32  media_height    = 25;
   int32  media_duration  = 26; // seconds (audio/video)
-  int32  media_download_state = 27; // 0=none, 1=queued, 2=downloading, 3=done, 4=failed
+  int32  media_download_state = 27; // 0=none, 1=in_progress, 2=complete, 3=failed
 }
 
 message EngineGetMessagesRequest {

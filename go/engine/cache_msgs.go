@@ -143,13 +143,16 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 		}
 		var mediaType int
 		var fileName, mimeType, thumbB64, localPath sql.NullString
-		var fileSize sql.NullInt64
+		var fileSize, durationMs sql.NullInt64
+		var width, height sql.NullInt64
 		var downloadState int
 		err := e.db.QueryRow(
-			`SELECT media_type, file_name, mime_type, file_size, thumb_b64, local_path, download_state
+			`SELECT media_type, file_name, mime_type, file_size, thumb_b64, local_path,
+			        width, height, duration_ms, download_state
 			 FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
 			msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID,
-		).Scan(&mediaType, &fileName, &mimeType, &fileSize, &thumbB64, &localPath, &downloadState)
+		).Scan(&mediaType, &fileName, &mimeType, &fileSize, &thumbB64, &localPath,
+			&width, &height, &durationMs, &downloadState)
 		if err != nil {
 			continue
 		}
@@ -161,6 +164,15 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 		}
 		msgs[i].MediaThumbB64 = thumbB64.String
 		msgs[i].MediaLocalPath = localPath.String
+		if width.Valid {
+			msgs[i].MediaWidth = int(width.Int64)
+		}
+		if height.Valid {
+			msgs[i].MediaHeight = int(height.Int64)
+		}
+		if durationMs.Valid {
+			msgs[i].MediaDuration = int(durationMs.Int64 / 1000) // DB stores ms, struct uses seconds
+		}
 		msgs[i].MediaDownloadState = downloadState
 	}
 }
@@ -202,7 +214,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		e.cacheMediaRef(accountID, chatID, msg.ID, i, att)
 	}
 
-	return CachedMessage{
+	cached := CachedMessage{
 		AccountID:    accountID,
 		ChatID:       chatID,
 		MsgID:        msg.ID,
@@ -219,6 +231,16 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		IsPinned:     msg.IsPinned,
 		HasMedia:     hasMedia,
 	}
+
+	// Populate media metadata from what we just cached so the returned
+	// struct has all media fields filled (not just HasMedia=true).
+	if hasMedia {
+		single := []CachedMessage{cached}
+		e.populateMediaMetadata(single)
+		cached = single[0]
+	}
+
+	return cached
 }
 
 // InsertPendingMessage inserts a locally-created message (before server confirms).
@@ -290,13 +312,27 @@ func (e *Engine) GetMessageRaw(accountID, chatID, msgID string) ([]byte, error) 
 func (e *Engine) cacheMediaRef(accountID, chatID, msgID string, seq int, att cores.FileRef) {
 	mediaType := guessMediaType(att.MimeType, att.Name)
 
+	var durationMs sql.NullInt64
+	if att.Duration > 0 {
+		durationMs = sql.NullInt64{Int64: int64(att.Duration) * 1000, Valid: true}
+	}
+	var width, height sql.NullInt64
+	if att.Width > 0 {
+		width = sql.NullInt64{Int64: int64(att.Width), Valid: true}
+	}
+	if att.Height > 0 {
+		height = sql.NullInt64{Int64: int64(att.Height), Valid: true}
+	}
+
 	e.db.Exec(
 		`INSERT OR REPLACE INTO media
 		 (account_id, chat_id, msg_id, seq, media_type, remote_ref, thumb_b64,
-		  file_name, mime_type, file_size, download_state, last_accessed)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  file_name, mime_type, file_size, width, height, duration_ms,
+		  download_state, last_accessed)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, msgID, seq, mediaType, att.ID, att.ThumbB64,
-		att.Name, att.MimeType, att.Size, DownloadNone, time.Now().UnixMilli())
+		att.Name, att.MimeType, att.Size, width, height, durationMs,
+		DownloadNone, time.Now().UnixMilli())
 }
 
 // PruneOldMessages removes messages older than the hot tier limit.
@@ -383,6 +419,7 @@ func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]Cache
 
 	result := make([]CachedMessage, len(msgs))
 	for i, m := range msgs {
+		hasMedia := len(m.Attachments) > 0
 		result[i] = CachedMessage{
 			AccountID:   accountID,
 			ChatID:      chatID,
@@ -391,6 +428,19 @@ func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]Cache
 			SenderName:  m.SenderName,
 			ContentText: m.Text,
 			Timestamp:   m.Timestamp.UnixMilli(),
+			HasMedia:    hasMedia,
+		}
+		// Populate media metadata from first attachment.
+		if hasMedia {
+			att := m.Attachments[0]
+			result[i].MediaType = guessMediaType(att.MimeType, att.Name)
+			result[i].MediaFileName = att.Name
+			result[i].MediaMimeType = att.MimeType
+			result[i].MediaFileSize = att.Size
+			result[i].MediaThumbB64 = att.ThumbB64
+			result[i].MediaWidth = att.Width
+			result[i].MediaHeight = att.Height
+			result[i].MediaDuration = att.Duration
 		}
 	}
 	return result, nil

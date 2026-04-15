@@ -2445,6 +2445,8 @@ func (b *BaleCore) extractAttachments(m map[string]interface{}) []FileRef {
 			Name:     "photo.jpg",
 			MimeType: "image/jpeg",
 			Size:     jsonInt64(largest, "file_size"),
+			Width:    int(jsonInt64(largest, "width")),
+			Height:   int(jsonInt64(largest, "height")),
 		})
 	}
 
@@ -2472,6 +2474,7 @@ func (b *BaleCore) extractAttachments(m map[string]interface{}) []FileRef {
 			Name:     name,
 			MimeType: jsonString(audio, "mime_type"),
 			Size:     jsonInt64(audio, "file_size"),
+			Duration: int(jsonInt64(audio, "duration")),
 		})
 	}
 
@@ -2486,6 +2489,9 @@ func (b *BaleCore) extractAttachments(m map[string]interface{}) []FileRef {
 			Name:     name,
 			MimeType: jsonString(video, "mime_type"),
 			Size:     jsonInt64(video, "file_size"),
+			Width:    int(jsonInt64(video, "width")),
+			Height:   int(jsonInt64(video, "height")),
+			Duration: int(jsonInt64(video, "duration")),
 		})
 	}
 
@@ -2496,6 +2502,7 @@ func (b *BaleCore) extractAttachments(m map[string]interface{}) []FileRef {
 			Name:     "voice.ogg",
 			MimeType: "audio/ogg",
 			Size:     jsonInt64(voice, "file_size"),
+			Duration: int(jsonInt64(voice, "duration")),
 		})
 	}
 
@@ -2510,6 +2517,9 @@ func (b *BaleCore) extractAttachments(m map[string]interface{}) []FileRef {
 			Name:     name,
 			MimeType: jsonString(anim, "mime_type"),
 			Size:     jsonInt64(anim, "file_size"),
+			Width:    int(jsonInt64(anim, "width")),
+			Height:   int(jsonInt64(anim, "height")),
+			Duration: int(jsonInt64(anim, "duration")),
 		})
 	}
 
@@ -2520,6 +2530,8 @@ func (b *BaleCore) extractAttachments(m map[string]interface{}) []FileRef {
 			Name:     "sticker.webp",
 			MimeType: "image/webp",
 			Size:     jsonInt64(sticker, "file_size"),
+			Width:    int(jsonInt64(sticker, "width")),
+			Height:   int(jsonInt64(sticker, "height")),
 		})
 	}
 

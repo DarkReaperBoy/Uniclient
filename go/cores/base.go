@@ -200,6 +200,9 @@ type FileRef struct {
 	URL      string `json:"url,omitempty"`       // download URL if available
 	ThumbB64 string `json:"thumb_b64,omitempty"` // base64 thumbnail
 	Extra    string `json:"extra,omitempty"`     // platform-specific metadata (e.g. Matrix encrypted file info JSON)
+	Width    int    `json:"width,omitempty"`     // media width in pixels (images/videos)
+	Height   int    `json:"height,omitempty"`    // media height in pixels (images/videos)
+	Duration int    `json:"duration,omitempty"`  // duration in seconds (audio/video)
 }
 
 // FileUpload holds file metadata and a data stream for uploading.

@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — Phase F (live smoke-testing & feature wiring)
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 20 — session persistence fix, single-instance lock, WASM build-tag split, notification wiring, header button wiring)
+**Last Updated:** 2026-04-15 (session 21 — media pipeline 11-bug fix, conn state notifications, responsive layout fixes, sticker/GIF polish, UTF-16 hardening)
 
-**NEXT:** Test media inline rendering with real messages (open a chat containing images). Test responsive layout at different window sizes. Wire remaining stubs: drag & drop file upload (needs desktop_drop plugin), video recording UI (needs camera plugin). Test sticker/GIF panel display with real data. Run live smoke test of search dialog, more menu, camera button. Connect status notifications (conn state changes) to notification overlay.
+**NEXT:** Live-test media rendering with a chat containing images (verify thumbnails display). Test right panel content (member list, media gallery). Wire topic group drill-in to real engine data. Test voice/video call UI stubs on more platforms. Wire real sticker/GIF backends when Go methods return structured data. Final comprehensive smoke-test pass of all features.
 
 ## Steps
 
@@ -275,6 +275,50 @@ Session 20 changes — Session persistence, single-instance lock, WASM split, no
 - `CoreFactory func(platform string)` → `CoreFactory func(platform, accountID string)` — allows deterministic session paths per account.
 
 **Test results:** Engine: 12/12 pass. Widget: 83/83 pass. All platforms build (Linux/macOS/Windows/Android). WASM engine builds.
+
+Session 21 changes — Media pipeline overhaul, conn state notifications, responsive layout fixes, sticker/GIF polish:
+
+**Media pipeline — 11 bugs fixed:**
+- `populateMediaMetadata()` missing width/height/duration columns from SQL SELECT and Scan
+- `cacheMediaRef()` not storing width/height/duration_ms in INSERT
+- `FileRef` struct missing Width/Height/Duration fields — cores had no way to pass dimensions
+- Telegram core not extracting DocumentAttributeVideo/Audio/ImageSize dimensions
+- Bale core not extracting photo/video/audio dimensions from Bot API JSON
+- Matrix core ignoring info.Width/Height/Duration from mautrix FileInfo
+- `cacheMessage()` returning HasMedia=true but empty media fields (didn't read back after insert)
+- `FetchLiveMessages()` ignoring msg.Attachments entirely
+- Download state mismatch: Dart UI used wrong constants (proto comment had wrong values)
+- Proto comment had wrong download state values (0-4 scheme vs actual 0-3)
+- MediaViewer never imported or wired to tap-to-open in chat_view.dart
+
+**Connection state notifications:**
+- Added `onConnStateNotification` callback to AppState (same pattern as ChatState.onNotification)
+- Wired in HomeScreen: connected (green), disconnected (amber), authRequired (orange), unstable (amber) toasts
+- Transient `connecting` state skipped to avoid noise
+
+**Responsive layout — 2 critical bugs fixed:**
+- Back button in narrow mode was completely broken: only set `_narrowShowChat = false` but didn't clear active chat from ChatState, so it immediately re-set to true on next build
+- Back button overlapped chat header text: added `headerLeading` parameter to ChatView for inline rendering
+
+**UTF-16 hardening:**
+- Added `_safeStr()` to `replyPreview`, `forwardFrom`, `contentRaw`, `contentRich`, `mediaFileName` — fixed remaining `string is not well-formed UTF-16` crash
+
+**Sticker/GIF panel polish:**
+- Stickers: 9 rich packs (Cute Cats, Good Boys, Mood, etc.) with 12-20 stickers each, pack search
+- GIFs: 12 trending categories as scrollable chips, category-based browsing with search
+- Code blocks + inline code rendering verified working
+- Markdown formatting toolbar verified working
+
+**Clipboard paste:**
+- Added Ctrl+V image paste using `xclip` (replaces drag & drop overlay — no desktop_drop plugin needed)
+
+**Feature verification:**
+- Unread separator logic verified correct
+- Folder tabs (All/DMs/Groups/Channels) filtering verified correct
+- Account switcher (platform filter) verified working
+- Status picker (local UI state) verified working
+
+**Test results:** Engine: 14/14 pass. Widget: 83/83 pass. Flutter analyze: 0 errors. Live smoke test: zero errors.
 
 ## Detailed Progress
 

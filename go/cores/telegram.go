@@ -9265,9 +9265,18 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					MimeType: d.MimeType,
 				}
 				for _, attr := range d.Attributes {
-					if fn, ok := attr.(*tg.DocumentAttributeFilename); ok {
-						ref.Name = fn.FileName
-						break
+					switch a := attr.(type) {
+					case *tg.DocumentAttributeFilename:
+						ref.Name = a.FileName
+					case *tg.DocumentAttributeVideo:
+						ref.Width = a.W
+						ref.Height = a.H
+						ref.Duration = int(a.Duration)
+					case *tg.DocumentAttributeAudio:
+						ref.Duration = int(a.Duration)
+					case *tg.DocumentAttributeImageSize:
+						ref.Width = a.W
+						ref.Height = a.H
 					}
 				}
 				m.Attachments = []FileRef{ref}
@@ -9283,6 +9292,8 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				for _, size := range p.Sizes {
 					if s, ok := size.(*tg.PhotoSize); ok {
 						ref.Size = int64(s.Size)
+						ref.Width = s.W
+						ref.Height = s.H
 					}
 				}
 				m.Attachments = []FileRef{ref}

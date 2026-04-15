@@ -19,6 +19,10 @@ class AppState extends ChangeNotifier {
 
   final List<StreamSubscription<dynamic>> _subs = [];
 
+  /// Callback for showing connection-state notifications (set by UI layer).
+  /// Parameters: (text, icon, color).
+  void Function(String text, IconData icon, Color color)? onConnStateNotification;
+
   AppState(this._engine);
 
   // ── Getters ──
@@ -75,8 +79,44 @@ class AppState extends ChangeNotifier {
         notifyListeners();
       }));
       _subs.add(_engine.onConnState.listen((event) {
-        _connStates[event.accountId] = ConnState.fromString(event.state);
+        final newState = ConnState.fromString(event.state);
+        final oldState = _connStates[event.accountId];
+        _connStates[event.accountId] = newState;
         notifyListeners();
+
+        // Fire notification callback when state actually changes.
+        if (newState != oldState && onConnStateNotification != null) {
+          final account = _accounts.where((a) => a.id == event.accountId).firstOrNull;
+          final label = _platformLabel(account?.platform ?? 'Account');
+          switch (newState) {
+            case ConnState.connected:
+              onConnStateNotification!(
+                '$label connected',
+                Icons.cloud_done_outlined,
+                const Color(0xFF3BA55C),
+              );
+            case ConnState.disconnected:
+              onConnStateNotification!(
+                '$label disconnected',
+                Icons.cloud_off_outlined,
+                const Color(0xFFFAA61A),
+              );
+            case ConnState.authRequired:
+              onConnStateNotification!(
+                '$label needs re-authentication',
+                Icons.lock_outline,
+                const Color(0xFFE67E22),
+              );
+            case ConnState.unstable:
+              onConnStateNotification!(
+                '$label connection unstable',
+                Icons.cloud_outlined,
+                const Color(0xFFFAA61A),
+              );
+            case ConnState.connecting:
+              break; // No toast for transient connecting state.
+          }
+        }
       }));
 
       // Load initial state.
@@ -136,6 +176,20 @@ class AppState extends ChangeNotifier {
     _config = _engine.getConfig();
     notifyListeners();
   }
+
+  static String _platformLabel(String platform) => switch (platform.toLowerCase()) {
+    'telegram' => 'Telegram',
+    'matrix' => 'Matrix',
+    'xmpp' => 'XMPP',
+    'irc' => 'IRC',
+    'bale' => 'Bale',
+    'rubika' => 'Rubika',
+    'delta' || 'deltachat' => 'Delta Chat',
+    'mumble' => 'Mumble',
+    'teamspeak' || 'ts3' => 'TeamSpeak',
+    'discord' => 'Discord',
+    _ => platform,
+  };
 
   @override
   void dispose() {

@@ -3523,6 +3523,9 @@ func (m *MatrixCore) eventToMessage(evt *event.Event) *Message {
 			Name:     mc.Body,
 			MimeType: info.MimeType,
 			Size:     int64(info.Size),
+			Width:    info.Width,
+			Height:   info.Height,
+			Duration: info.Duration,
 		}
 		if efJSON, err := json.Marshal(mc.File); err == nil {
 			att.Extra = string(efJSON)
@@ -3535,6 +3538,9 @@ func (m *MatrixCore) eventToMessage(evt *event.Event) *Message {
 			Name:     mc.Body,
 			MimeType: info.MimeType,
 			Size:     int64(info.Size),
+			Width:    info.Width,
+			Height:   info.Height,
+			Duration: info.Duration,
 		}}
 	}
 

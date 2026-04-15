@@ -14,10 +14,14 @@ import '../models/engine_models.dart';
 import '../theme/theme.dart';
 import 'emoji_panel.dart';
 import 'forward_dialog.dart';
+import 'media_viewer.dart';
 
 /// Main chat area — header + messages + input.
 class ChatView extends StatelessWidget {
-  const ChatView({super.key});
+  /// Optional leading widget shown before the header content (e.g. back button in narrow mode).
+  final Widget? headerLeading;
+
+  const ChatView({super.key, this.headerLeading});
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +35,7 @@ class ChatView extends StatelessWidget {
       color: isDark ? AppColors.darkBase : AppColors.lightBase,
       child: Column(
         children: [
-          _ChatHeader(chat: chat),
+          _ChatHeader(chat: chat, leading: headerLeading),
           Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
           if (chat.type == ChatType.topic) _TopicChannelTabBar(chat: chat),
           Expanded(
@@ -134,7 +138,8 @@ class _ChatViewBodyState extends State<_ChatViewBody> {
 /// Chat header with avatar, name, status, and action buttons.
 class _ChatHeader extends StatelessWidget {
   final ChatInfo chat;
-  const _ChatHeader({required this.chat});
+  final Widget? leading;
+  const _ChatHeader({required this.chat, this.leading});
 
   @override
   Widget build(BuildContext context) {
@@ -143,9 +148,15 @@ class _ChatHeader extends StatelessWidget {
     final typing = chatState.typingUserFor(chat.chatId);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: EdgeInsets.only(
+        left: leading != null ? 4 : 16,
+        right: 16,
+        top: 10,
+        bottom: 10,
+      ),
       child: Row(
         children: [
+          if (leading != null) leading!,
           // Chat info (tappable — opens info dialog)
           Expanded(
             child: InkWell(
@@ -950,7 +961,7 @@ class _MessageListWithFABState extends State<_MessageListWithFAB> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: const Text(
-                            'Drop files to upload',
+                            'Paste files with Ctrl+V',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,
@@ -1485,20 +1496,18 @@ String _formatDuration(int seconds) {
 /// Download button / state indicator for media.
 Widget _buildDownloadIndicator(BuildContext context, CachedMessage msg, bool isDark) {
   final state = msg.mediaDownloadState;
-  if (state == 3) return const SizedBox.shrink(); // done
+  // Download states from Go: 0=none, 1=in_progress, 2=complete, 3=failed
+  if (state == 2) return const SizedBox.shrink(); // complete
 
   IconData icon;
   bool spinning = false;
   switch (state) {
-    case 1: // queued
-      icon = Icons.hourglass_top;
-      spinning = true;
-    case 2: // downloading
+    case 1: // in_progress (downloading)
       icon = Icons.downloading;
       spinning = true;
-    case 4: // failed
+    case 3: // failed
       icon = Icons.refresh;
-    default: // none
+    default: // 0 = none (not downloaded yet)
       icon = Icons.download;
   }
 
@@ -1538,17 +1547,25 @@ Widget _buildDownloadIndicator(BuildContext context, CachedMessage msg, bool isD
 
 /// Build the media widget for a message (shown above the text).
 Widget _buildMediaContent(BuildContext context, CachedMessage msg, bool isDark) {
+  Widget content;
   if (msg.isImage || msg.isGif || msg.isSticker) {
-    return _buildImageMedia(context, msg, isDark);
+    content = _buildImageMedia(context, msg, isDark);
   } else if (msg.isVideo) {
-    return _buildVideoMedia(context, msg, isDark);
+    content = _buildVideoMedia(context, msg, isDark);
   } else if (msg.isAudio || msg.isVoice) {
-    return _buildAudioMedia(context, msg, isDark);
+    content = _buildAudioMedia(context, msg, isDark);
   } else if (msg.isFile) {
-    return _buildFileMedia(context, msg, isDark);
+    content = _buildFileMedia(context, msg, isDark);
+  } else {
+    // Generic fallback for unknown media types.
+    content = _buildFileMedia(context, msg, isDark);
   }
-  // Generic fallback for unknown media types.
-  return _buildFileMedia(context, msg, isDark);
+
+  // Tap to open full-screen media viewer (only for downloaded or thumbnail-available media).
+  return GestureDetector(
+    onTap: () => MediaViewer.show(context, msg),
+    child: content,
+  );
 }
 
 Widget _buildImageMedia(BuildContext context, CachedMessage msg, bool isDark) {
@@ -2869,7 +2886,58 @@ class _MessageInputState extends State<_MessageInput> {
     _focusNode.requestFocus();
   }
 
-  /// Handle Enter to send, Shift+Enter for newline.
+  /// Try to paste an image from the clipboard via xclip, save to temp file,
+  /// and upload to the current chat.
+  Future<void> _pasteImageFromClipboard() async {
+    try {
+      // Check if clipboard has an image target (PNG preferred).
+      final targets = await Process.run('xclip', ['-selection', 'clipboard', '-t', 'TARGETS', '-o']);
+      final targetList = (targets.stdout as String).trim();
+      if (!targetList.contains('image/png') && !targetList.contains('image/jpeg')) {
+        return; // No image in clipboard — let the normal text paste happen.
+      }
+
+      // Determine MIME type and extension.
+      final mime = targetList.contains('image/png') ? 'image/png' : 'image/jpeg';
+      final ext = mime == 'image/png' ? 'png' : 'jpg';
+
+      // Read the image bytes from clipboard and write to a temp file.
+      final tmpDir = Directory.systemTemp;
+      final tmpFile = File('${tmpDir.path}/uniclient_paste_${DateTime.now().millisecondsSinceEpoch}.$ext');
+      final result = await Process.run(
+        'xclip',
+        ['-selection', 'clipboard', '-t', mime, '-o'],
+        stdoutEncoding: null, // raw bytes
+      );
+      if (result.exitCode != 0) return;
+      final bytes = result.stdout as List<int>;
+      if (bytes.isEmpty) return;
+      await tmpFile.writeAsBytes(bytes);
+
+      if (!mounted) return;
+
+      final engine = context.read<EngineService>();
+      final chat = widget.chat;
+      await engine.uploadFile(chat.accountId, chat.chatId, tmpFile.path);
+
+      // Clean up temp file after upload.
+      try { await tmpFile.delete(); } catch (_) {}
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Image pasted and uploaded'), duration: Duration(seconds: 2)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Paste upload failed: $e')),
+        );
+      }
+    }
+  }
+
+  /// Handle Enter to send, Shift+Enter for newline, Ctrl+V to paste images.
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.enter) {
       final isShift = HardwareKeyboard.instance.isShiftPressed;
@@ -2882,6 +2950,15 @@ class _MessageInputState extends State<_MessageInput> {
         _send();
         return KeyEventResult.handled;
       }
+    }
+    // Ctrl+V: check for clipboard image and upload if present.
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.keyV &&
+        HardwareKeyboard.instance.isControlPressed) {
+      _pasteImageFromClipboard();
+      // Don't consume the event — let the default text paste also happen.
+      // If an image was found, it uploads; if not, the text paste proceeds normally.
+      return KeyEventResult.ignored;
     }
     // Escape to cancel mention popup, then reply/edit mode.
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.escape) {
