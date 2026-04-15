@@ -26,6 +26,7 @@ class ChatState extends ChangeNotifier {
 
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _pollTimer;
+  bool _disposed = false;
 
   ChatState(this._engine) {
     // Snapshot events are per-account; reload the unified list from SQLite
@@ -384,8 +385,9 @@ class ChatState extends ChangeNotifier {
     _typingUsers[event.chatId] = event.userName.isNotEmpty ? event.userName : event.userId;
     notifyListeners();
 
-    // Clear typing after 6s.
+    // Clear typing after 6s (guard against notifyListeners after dispose).
     Future.delayed(const Duration(seconds: 6), () {
+      if (_disposed) return;
       if (_typingUsers[event.chatId] == (event.userName.isNotEmpty ? event.userName : event.userId)) {
         _typingUsers.remove(event.chatId);
         notifyListeners();
@@ -406,6 +408,7 @@ class ChatState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _stopPolling();
     for (final sub in _subs) {
       sub.cancel();

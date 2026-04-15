@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -143,7 +144,7 @@ func (pm *ProxyManager) dialWithProxy(ctx context.Context, network, addr string,
 			conn.Close()
 			return nil, fmt.Errorf("http proxy write: %w", err)
 		}
-		// Read response (simplified — look for 200)
+		// Read response — look for "200" status code in first line.
 		buf := make([]byte, 1024)
 		n, err := conn.Read(buf)
 		if err != nil {
@@ -151,9 +152,10 @@ func (pm *ProxyManager) dialWithProxy(ctx context.Context, network, addr string,
 			return nil, fmt.Errorf("http proxy read: %w", err)
 		}
 		response := string(buf[:n])
-		if len(response) < 12 || response[9:12] != "200" {
+		// Parse status code from "HTTP/X.Y NNN" response line.
+		if !strings.Contains(response, " 200 ") {
 			conn.Close()
-			return nil, fmt.Errorf("http proxy rejected: %s", response)
+			return nil, fmt.Errorf("http proxy rejected: %s", strings.SplitN(response, "\r\n", 2)[0])
 		}
 		return conn, nil
 

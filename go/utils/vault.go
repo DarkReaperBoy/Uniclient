@@ -180,13 +180,6 @@ func (v *Vault) Save() error {
 		return nil
 	}
 
-	salt := make([]byte, vaultSaltSize)
-	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
-		return err
-	}
-	// Re-derive with new salt for forward secrecy on each save
-	// Actually, we need the password to re-derive. Keep existing masterKey.
-	// The salt was only used at creation. For simplicity, read the existing salt.
 	return v.flushWithExistingKey()
 }
 
@@ -196,13 +189,17 @@ func (v *Vault) flushWithExistingKey() error {
 	if err != nil {
 		// New file — generate salt
 		salt := make([]byte, vaultSaltSize)
-		io.ReadFull(rand.Reader, salt)
+		if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+			return fmt.Errorf("generate salt: %w", err)
+		}
 		return v.flush(salt)
 	}
 	var vf vaultFile
 	if err := json.Unmarshal(raw, &vf); err != nil {
 		salt := make([]byte, vaultSaltSize)
-		io.ReadFull(rand.Reader, salt)
+		if _, err := io.ReadFull(rand.Reader, salt); err != nil {
+			return fmt.Errorf("generate salt: %w", err)
+		}
 		return v.flush(salt)
 	}
 	return v.flush(vf.Salt)

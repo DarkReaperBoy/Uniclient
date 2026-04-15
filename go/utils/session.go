@@ -18,7 +18,11 @@ func SaveSession(path string, data interface{}) error {
 			return err
 		}
 	}
-	return os.WriteFile(path, buf, 0600)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, buf, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // LoadSession reads a JSON session file into dest.

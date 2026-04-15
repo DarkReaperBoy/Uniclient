@@ -1218,7 +1218,9 @@ func (m *MatrixCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	}()
 
 	// Start invite timeout
+	m.wg.Add(1)
 	go func() {
+		defer m.wg.Done()
 		select {
 		case <-time.After(60 * time.Second):
 			m.callsMu.RLock()

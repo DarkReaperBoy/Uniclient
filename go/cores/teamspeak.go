@@ -2121,14 +2121,19 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 		case cmd := <-tc.cmdCh:
 			if cmd.name == "initserver" {
 				if cidStr := cmd.params["aclid"]; cidStr != "" {
-					cid, _ := strconv.Atoi(cidStr)
-					tc.clientID = uint16(cid)
-					t.myClientID = cid
+					cid, err := strconv.Atoi(cidStr)
+					if err == nil {
+						tc.clientID = uint16(cid)
+						t.myClientID = cid
+					}
 				}
 				t.myName = nickname
 				gotInitServer = true
 			} else if cmd.name == "error" {
-				errID, _ := strconv.Atoi(cmd.params["id"])
+				errID, err := strconv.Atoi(cmd.params["id"])
+				if err != nil {
+					return fmt.Errorf("%w: invalid error id %q", ErrNetwork, cmd.params["id"])
+				}
 				if errID != 0 {
 					return fmt.Errorf("%w: server error: %s (id=%d)", ErrAuth, cmd.params["msg"], errID)
 				}
@@ -2195,7 +2200,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		entries := tsParseKVList(rawData)
 		t.channelsMu.Lock()
 		for _, e := range entries {
-			cid, _ := strconv.Atoi(e["cid"])
+			cid, err := strconv.Atoi(e["cid"])
+			if err != nil {
+				continue
+			}
 			pid, _ := strconv.Atoi(e["pid"])
 			tc, _ := strconv.Atoi(e["total_clients"])
 			order, _ := strconv.Atoi(e["channel_order"])
@@ -2213,7 +2221,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "channellistfinished":
 		// Done receiving channel list
 	case "notifychannelcreated":
-		cid, _ := strconv.Atoi(cmd.params["cid"])
+		cid, err := strconv.Atoi(cmd.params["cid"])
+		if err != nil {
+			return
+		}
 		pid, _ := strconv.Atoi(cmd.params["cpid"])
 		order, _ := strconv.Atoi(cmd.params["channel_order"])
 		t.channelsMu.Lock()
@@ -2230,7 +2241,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifychanneldeleted":
-		cid, _ := strconv.Atoi(cmd.params["cid"])
+		cid, err := strconv.Atoi(cmd.params["cid"])
+		if err != nil {
+			return
+		}
 		t.channelsMu.Lock()
 		delete(t.channels, cid)
 		t.channelsMu.Unlock()
@@ -2239,7 +2253,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifychanneledited", "notifychannelmoved":
-		cid, _ := strconv.Atoi(cmd.params["cid"])
+		cid, err := strconv.Atoi(cmd.params["cid"])
+		if err != nil {
+			return
+		}
 		t.channelsMu.Lock()
 		if ch, ok := t.channels[cid]; ok {
 			if v := cmd.params["channel_name"]; v != "" {
@@ -2262,7 +2279,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifyclientupdated":
-		clid, _ := strconv.Atoi(cmd.params["clid"])
+		clid, err := strconv.Atoi(cmd.params["clid"])
+		if err != nil {
+			return
+		}
 		t.clientInfoMu.Lock()
 		if info, ok := t.clientInfo[clid]; ok {
 			if v := cmd.params["client_nickname"]; v != "" {
@@ -2272,7 +2292,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		}
 		t.clientInfoMu.Unlock()
 	case "notifyclientpoke":
-		invokerID, _ := strconv.Atoi(cmd.params["invokerid"])
+		invokerID, err := strconv.Atoi(cmd.params["invokerid"])
+		if err != nil {
+			return
+		}
 		msg := Message{
 			ID:         t.tsNextMsgID(),
 			ChatID:     fmt.Sprintf("dm:%d", invokerID),
@@ -2303,7 +2326,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		// Channel password changed
 	case "notifychannelsubscribed":
 		// We subscribed to a channel — receive events from it now
-		cid, _ := strconv.Atoi(cmd.params["cid"])
+		cid, err := strconv.Atoi(cmd.params["cid"])
+		if err != nil {
+			return
+		}
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			ChatID:   fmt.Sprintf("ch:%d", cid),
@@ -2311,7 +2337,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		})
 	case "notifychannelunsubscribed":
 		// We unsubscribed from a channel
-		cid, _ := strconv.Atoi(cmd.params["cid"])
+		cid, err := strconv.Atoi(cmd.params["cid"])
+		if err != nil {
+			return
+		}
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			ChatID:   fmt.Sprintf("ch:%d", cid),
@@ -2337,7 +2366,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "notifyclientneededpermissions":
 		// Server tells us what permissions we need — informational
 	case "notifyclientchatcomposing":
-		clid, _ := strconv.Atoi(cmd.params["clid"])
+		clid, err := strconv.Atoi(cmd.params["clid"])
+		if err != nil {
+			return
+		}
 		t.fireUpdate(Update{
 			Type:     UpdateTyping,
 			ChatID:   fmt.Sprintf("dm:%d", clid),
@@ -2348,7 +2380,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		// The other client closed the chat window — informational
 	case "notifyplugincommand":
 		// Plugin command from another client
-		invokerID, _ := strconv.Atoi(cmd.params["invokerid"])
+		invokerID, err := strconv.Atoi(cmd.params["invokerid"])
+		if err != nil {
+			return
+		}
 		msg := Message{
 			ID:         t.tsNextMsgID(),
 			ChatID:     fmt.Sprintf("dm:%d", invokerID),
@@ -2434,7 +2469,10 @@ func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 		select {
 		case resp := <-tc.execCh:
 			if resp.name == "error" {
-				errID, _ := strconv.Atoi(resp.params["id"])
+				errID, parseErr := strconv.Atoi(resp.params["id"])
+				if parseErr != nil {
+					return nil, fmt.Errorf("invalid error id %q in server response", resp.params["id"])
+				}
 				if errID != 0 {
 					return nil, tsMapError(&tsError{ID: errID, Msg: resp.params["msg"]})
 				}
@@ -2518,8 +2556,14 @@ func tsMapError(e *tsError) error {
 // ──────────────────────────── Notification Handlers ────────────────────────────
 
 func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
-	targetMode, _ := strconv.Atoi(kv["targetmode"])
-	invokerID, _ := strconv.Atoi(kv["invokerid"])
+	targetMode, err := strconv.Atoi(kv["targetmode"])
+	if err != nil {
+		return
+	}
+	invokerID, err := strconv.Atoi(kv["invokerid"])
+	if err != nil {
+		return
+	}
 
 	var chatID string
 	switch targetMode {
@@ -2554,8 +2598,11 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 }
 
 func (t *TeamSpeakCore) tsHandleClientEnter(kv map[string]string) {
+	clid, err := strconv.Atoi(kv["clid"])
+	if err != nil {
+		return
+	}
 	cid, _ := strconv.Atoi(kv["ctid"])
-	clid, _ := strconv.Atoi(kv["clid"])
 	dbid, _ := strconv.Atoi(kv["client_database_id"])
 
 	info := tsClientInfo{
@@ -2580,8 +2627,11 @@ func (t *TeamSpeakCore) tsHandleClientEnter(kv map[string]string) {
 }
 
 func (t *TeamSpeakCore) tsHandleClientLeave(kv map[string]string) {
+	clid, err := strconv.Atoi(kv["clid"])
+	if err != nil {
+		return
+	}
 	cid, _ := strconv.Atoi(kv["cfid"])
-	clid, _ := strconv.Atoi(kv["clid"])
 
 	t.clientInfoMu.Lock()
 	delete(t.clientInfo, clid)
@@ -2595,8 +2645,11 @@ func (t *TeamSpeakCore) tsHandleClientLeave(kv map[string]string) {
 }
 
 func (t *TeamSpeakCore) tsHandleClientMoved(kv map[string]string) {
+	clid, err := strconv.Atoi(kv["clid"])
+	if err != nil {
+		return
+	}
 	cid, _ := strconv.Atoi(kv["ctid"])
-	clid, _ := strconv.Atoi(kv["clid"])
 
 	if clid == t.myClientID {
 		t.myChannelID = cid
@@ -2797,7 +2850,10 @@ func (t *TeamSpeakCore) tsResolveClientID(dbid int) (int, error) {
 
 	t.clientInfoMu.Lock()
 	for _, row := range rows {
-		clid, _ := strconv.Atoi(row["clid"])
+		clid, err := strconv.Atoi(row["clid"])
+		if err != nil {
+			continue
+		}
 		db, _ := strconv.Atoi(row["client_database_id"])
 		cid, _ := strconv.Atoi(row["cid"])
 		t.clientInfo[clid] = tsClientInfo{
@@ -3546,7 +3602,7 @@ func (t *TeamSpeakCore) GetChatInfo(chatID string) (*Dialog, error) {
 		Title:    row["channel_name"],
 		Platform: ts3Platform,
 	}
-	if pid > 0 {
+	if pid > 0 { // pid=0 is valid (root channel), Atoi failure also gives 0
 		d.ParentID = fmt.Sprintf("ch:%d", pid)
 	}
 	return d, nil
@@ -3768,7 +3824,9 @@ func (t *TeamSpeakCore) SetAdmin(chatID string, userID string, admin bool) error
 	for _, row := range rows {
 		name := row["name"]
 		if strings.EqualFold(name, "Server Admin") || strings.EqualFold(name, "Admin") {
-			adminSGID, _ = strconv.Atoi(row["sgid"])
+			if v, err := strconv.Atoi(row["sgid"]); err == nil {
+				adminSGID = v
+			}
 			break
 		}
 	}
@@ -3984,7 +4042,10 @@ func (t *TeamSpeakCore) GetSessions() ([]Session, error) {
 
 	sessions := make([]Session, 0, len(rows))
 	for _, row := range rows {
-		clid, _ := strconv.Atoi(row["clid"])
+		clid, err := strconv.Atoi(row["clid"])
+		if err != nil {
+			continue
+		}
 		clientType, _ := strconv.Atoi(row["client_type"])
 
 		platform := "voice"
@@ -4198,11 +4259,14 @@ func (t *TeamSpeakCore) CreateChannelFull(name string, opts map[string]string) (
 	if err != nil {
 		return 0, err
 	}
-	cid := 0
 	if len(rows) > 0 {
-		cid, _ = strconv.Atoi(rows[0]["cid"])
+		cid, err := strconv.Atoi(rows[0]["cid"])
+		if err != nil {
+			return 0, fmt.Errorf("invalid cid in response: %w", err)
+		}
+		return cid, nil
 	}
-	return cid, nil
+	return 0, nil
 }
 
 // EditChannel modifies properties of an existing channel by channel ID.
@@ -4408,11 +4472,14 @@ func (t *TeamSpeakCore) ServerGroupAdd(name string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	sgid := 0
 	if len(rows) > 0 {
-		sgid, _ = strconv.Atoi(rows[0]["sgid"])
+		sgid, err := strconv.Atoi(rows[0]["sgid"])
+		if err != nil {
+			return 0, fmt.Errorf("invalid sgid in response: %w", err)
+		}
+		return sgid, nil
 	}
-	return sgid, nil
+	return 0, nil
 }
 
 // ServerGroupDel deletes a server group, optionally forcing removal even if members exist.
@@ -4480,11 +4547,14 @@ func (t *TeamSpeakCore) ServerGroupCopy(sourceSGID int, name string, targetType 
 	if err != nil {
 		return 0, err
 	}
-	sgid := 0
 	if len(rows) > 0 {
-		sgid, _ = strconv.Atoi(rows[0]["sgid"])
+		sgid, err := strconv.Atoi(rows[0]["sgid"])
+		if err != nil {
+			return 0, fmt.Errorf("invalid sgid in response: %w", err)
+		}
+		return sgid, nil
 	}
-	return sgid, nil
+	return 0, nil
 }
 
 // ServerGroupRename changes the name of a server group.
@@ -4558,11 +4628,14 @@ func (t *TeamSpeakCore) ChannelGroupAdd(name string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	cgid := 0
 	if len(rows) > 0 {
-		cgid, _ = strconv.Atoi(rows[0]["cgid"])
+		cgid, err := strconv.Atoi(rows[0]["cgid"])
+		if err != nil {
+			return 0, fmt.Errorf("invalid cgid in response: %w", err)
+		}
+		return cgid, nil
 	}
-	return cgid, nil
+	return 0, nil
 }
 
 // ChannelGroupDel deletes a channel group, optionally forcing removal even if members exist.
@@ -4630,11 +4703,14 @@ func (t *TeamSpeakCore) ChannelGroupCopy(sourceCGID int, name string, targetType
 	if err != nil {
 		return 0, err
 	}
-	cgid := 0
 	if len(rows) > 0 {
-		cgid, _ = strconv.Atoi(rows[0]["cgid"])
+		cgid, err := strconv.Atoi(rows[0]["cgid"])
+		if err != nil {
+			return 0, fmt.Errorf("invalid cgid in response: %w", err)
+		}
+		return cgid, nil
 	}
-	return cgid, nil
+	return 0, nil
 }
 
 // ChannelGroupRename changes the name of a channel group.
@@ -4743,7 +4819,10 @@ func (t *TeamSpeakCore) ClientGetDBIDFromUID(cluid string) (int, error) {
 	if len(rows) == 0 {
 		return 0, ErrNotFound
 	}
-	cldbid, _ := strconv.Atoi(rows[0]["cldbid"])
+	cldbid, err := strconv.Atoi(rows[0]["cldbid"])
+	if err != nil {
+		return 0, fmt.Errorf("invalid cldbid in response: %w", err)
+	}
 	return cldbid, nil
 }
 
@@ -4926,11 +5005,14 @@ func (t *TeamSpeakCore) BanAdd(ip, name, uid string, timeSeconds int, reason str
 	if err != nil {
 		return 0, err
 	}
-	banID := 0
 	if len(rows) > 0 {
-		banID, _ = strconv.Atoi(rows[0]["banid"])
+		banID, err := strconv.Atoi(rows[0]["banid"])
+		if err != nil {
+			return 0, fmt.Errorf("invalid banid in response: %w", err)
+		}
+		return banID, nil
 	}
-	return banID, nil
+	return 0, nil
 }
 
 // BanDelAll removes all active bans from the server.
@@ -5254,7 +5336,10 @@ func (t *TeamSpeakCore) PermIDGetByName(permsid string) (int, error) {
 	if len(rows) == 0 {
 		return 0, ErrNotFound
 	}
-	pid, _ := strconv.Atoi(rows[0]["permid"])
+	pid, err := strconv.Atoi(rows[0]["permid"])
+	if err != nil {
+		return 0, fmt.Errorf("invalid permid in response: %w", err)
+	}
 	return pid, nil
 }
 
@@ -5940,11 +6025,14 @@ func (t *TeamSpeakCore) BanClient(clid, timeSeconds int, reason string) (int, er
 	if err != nil {
 		return 0, err
 	}
-	banID := 0
 	if len(rows) > 0 {
-		banID, _ = strconv.Atoi(rows[0]["banid"])
+		banID, err := strconv.Atoi(rows[0]["banid"])
+		if err != nil {
+			return 0, fmt.Errorf("invalid banid in response: %w", err)
+		}
+		return banID, nil
 	}
-	return banID, nil
+	return 0, nil
 }
 
 // BanDel deletes a specific ban rule by ban ID.
@@ -6466,7 +6554,10 @@ func (t *TeamSpeakCore) ServerIdGetByPort(port int) (int, error) {
 	rows, err := t.tsExec(fmt.Sprintf("serveridgetbyport virtualserver_port=%d", port))
 	if err != nil { return 0, err }
 	if len(rows) == 0 { return 0, ErrNotFound }
-	sid, _ := strconv.Atoi(rows[0]["server_id"])
+	sid, err := strconv.Atoi(rows[0]["server_id"])
+	if err != nil {
+		return 0, fmt.Errorf("invalid server_id in response: %w", err)
+	}
 	return sid, nil
 }
 
@@ -6506,7 +6597,8 @@ func (t *TeamSpeakCore) BanClientDBID(cldbid, timeSeconds int, reason string) (i
 	rows, err := t.tsExec(cmd)
 	if err != nil { return 0, err }
 	if len(rows) == 0 { return 0, nil }
-	banID, _ := strconv.Atoi(rows[0]["banid"])
+	banID, err := strconv.Atoi(rows[0]["banid"])
+	if err != nil { return 0, fmt.Errorf("invalid banid in response: %w", err) }
 	return banID, nil
 }
 
@@ -6522,7 +6614,8 @@ func (t *TeamSpeakCore) BanAddMyTSID(mytsid string, timeSeconds int, reason stri
 	rows, err := t.tsExec(cmd)
 	if err != nil { return 0, err }
 	if len(rows) == 0 { return 0, nil }
-	banID, _ := strconv.Atoi(rows[0]["banid"])
+	banID, err := strconv.Atoi(rows[0]["banid"])
+	if err != nil { return 0, fmt.Errorf("invalid banid in response: %w", err) }
 	return banID, nil
 }
 

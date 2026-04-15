@@ -3,7 +3,7 @@
 **Current Step:** Step 15 — Build GUI — **Alpha** — scaffolding + cross-platform done, many placeholders remain
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 24.5 — fixed all 7 critical bugs: notification spam, rail taps, user panel, reply previews, tab layout, unread separator, non-Telegram cores)
+**Last Updated:** 2026-04-15 (session 25 — full codebase debug audit: 15 files, ~40 bugs fixed across Dart + Go, 0 regressions)
 
 **NEXT:** Replace placeholder features with real implementations: native desktop notifications (libnotify/dbus), system tray, real sticker/GIF backends, voice/video calls, voice message recording (actual audio capture), drag & drop file upload, mention autocomplete from real user lists. Fix remaining stub buttons. Accessibility. Then beta testing.
 

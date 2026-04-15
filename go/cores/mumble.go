@@ -2403,7 +2403,7 @@ type MumbleCore struct {
 
 	// text message buffer
 	messages   []mumbleTextEntry
-	msgCounter int64
+	msgCounter atomic.Int64
 
 	// voice
 	voiceHandler  func(MumbleVoicePacket)
@@ -2536,7 +2536,11 @@ func (c *MumbleCore) saveSession(path string) error {
 		return nil
 	}
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: c.tlsCert.Certificate[0]})
-	keyBytes, err := x509.MarshalECPrivateKey(c.tlsCert.PrivateKey.(*ecdsa.PrivateKey))
+	ecKey, ok := c.tlsCert.PrivateKey.(*ecdsa.PrivateKey)
+	if !ok {
+		return fmt.Errorf("unexpected private key type: %T", c.tlsCert.PrivateKey)
+	}
+	keyBytes, err := x509.MarshalECPrivateKey(ecKey)
 	if err != nil {
 		return err
 	}
@@ -3473,9 +3477,9 @@ func (c *MumbleCore) handleTextMessage(msg *mumbleTextMsg) {
 		channelID = msg.TreeID[0]
 	}
 
-	c.msgCounter++
+	id := c.msgCounter.Add(1)
 	entry := mumbleTextEntry{
-		ID:         strconv.FormatInt(c.msgCounter, 10),
+		ID:         strconv.FormatInt(id, 10),
 		Sender:     msg.Actor,
 		SenderName: senderName,
 		ChannelID:  channelID,
@@ -4072,9 +4076,9 @@ func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 	}
 
 	c.mu.Lock()
-	c.msgCounter++
+	id := c.msgCounter.Add(1)
 	entry := mumbleTextEntry{
-		ID:         strconv.FormatInt(c.msgCounter, 10),
+		ID:         strconv.FormatInt(id, 10),
 		Sender:     c.mySession,
 		SenderName: c.getUserNameLocked(c.mySession),
 		ChannelID:  0,

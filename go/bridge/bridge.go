@@ -91,7 +91,10 @@ func Call(reqData []byte) []byte {
 			Ok:      true,
 			Payload: respPayload,
 		}
-		data, _ := proto.Marshal(resp)
+		data, err := proto.Marshal(resp)
+		if err != nil {
+			return marshalError("marshal response: " + err.Error())
+		}
 		return data
 	}
 
@@ -111,7 +114,10 @@ func Call(reqData []byte) []byte {
 		Ok:      true,
 		Payload: respPayload,
 	}
-	data, _ := proto.Marshal(resp)
+	data, err := proto.Marshal(resp)
+	if err != nil {
+		return marshalError("marshal response: " + err.Error())
+	}
 	return data
 }
 
@@ -122,7 +128,9 @@ func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 	// Each account gets its own session file under configDir/sessions/<platform>/<accountID>.json.
 	engine.SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
 		sessionDir := configDir + "/sessions/" + platform
-		os.MkdirAll(sessionDir, 0o755)
+		if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+			return nil, fmt.Errorf("create session dir: %w", err)
+		}
 		switch platform {
 		case "telegram":
 			// Read API credentials from env or use defaults.
@@ -190,7 +198,11 @@ func marshalError(msg string) []byte {
 		Ok:    false,
 		Error: msg,
 	}
-	data, _ := proto.Marshal(resp)
+	data, err := proto.Marshal(resp)
+	if err != nil {
+		// Last resort: return minimal valid protobuf for error
+		return []byte{0x10, 0x00}
+	}
 	return data
 }
 
@@ -201,7 +213,10 @@ func marshalErrorCategorized(err error) []byte {
 		Error:     err.Error(),
 		ErrorCode: categorizeError(err),
 	}
-	data, _ := proto.Marshal(resp)
+	data, merr := proto.Marshal(resp)
+	if merr != nil {
+		return []byte{0x10, 0x00}
+	}
 	return data
 }
 

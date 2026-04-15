@@ -406,6 +406,7 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           else
             ...appState.accounts.map((acc) => Container(
+              key: ValueKey('acc_${acc.id}'),
               margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
               decoration: BoxDecoration(
                 color: surfaceColor,
@@ -441,6 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           ...appState.platforms.map((p) => Container(
+            key: ValueKey('plat_$p'),
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
             decoration: BoxDecoration(
               color: appState.activePlatform == p ? AppColors.accent.withValues(alpha: 0.15) : surfaceColor,
@@ -670,7 +672,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     }
                     return Column(
-                      children: members.map((m) => _buildMemberTile(m, isDark)).toList(),
+                      children: members.map((m) => KeyedSubtree(
+                        key: ValueKey('mem_${m.userId}'),
+                        child: _buildMemberTile(m, isDark),
+                      )).toList(),
                     );
                   }),
                   const SizedBox(height: 8),
@@ -1086,6 +1091,7 @@ class _NarrowSearchScreenState extends State<_NarrowSearchScreen> {
                               ),
                             ),
                             ...chatResults.map((chat) => Container(
+                              key: ValueKey('sr_${chat.accountId}_${chat.chatId}'),
                               margin: const EdgeInsets.symmetric(vertical: 1),
                               decoration: BoxDecoration(
                                 color: surfaceColor,
@@ -1141,6 +1147,7 @@ class _NarrowSearchScreenState extends State<_NarrowSearchScreen> {
                               ),
                             ),
                             ...msgResults.map((result) => Container(
+                              key: ValueKey('mr_${result.accountId}_${result.msgId}'),
                               margin: const EdgeInsets.symmetric(vertical: 1),
                               decoration: BoxDecoration(
                                 color: surfaceColor,
@@ -1416,17 +1423,25 @@ class _SharedMediaGalleryState extends State<_SharedMediaGallery> {
             itemCount: itemCount,
             itemBuilder: (context, index) {
               if (index >= visualItems.length) {
-                // Load more trigger
-                if (_hasMore && !_loading) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    _loadMedia(append: true);
-                  });
+                // Load more trigger — manual tap to avoid infinite auto-load loop
+                // (shrinkWrap grid builds all children at once, so auto-trigger
+                //  via addPostFrameCallback fires repeatedly until all pages load).
+                if (_loading) {
+                  return Center(
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: mutedColor),
+                    ),
+                  );
                 }
-                return Center(
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: mutedColor),
+                return GestureDetector(
+                  onTap: () => _loadMedia(append: true),
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Icon(Icons.expand_more, color: mutedColor, size: 24),
+                    ),
                   ),
                 );
               }

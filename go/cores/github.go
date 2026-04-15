@@ -2986,6 +2986,9 @@ func (g *GitHubCore) commentToMessage(chatID string, raw json.RawMessage) *Messa
 	if user == nil {
 		user, _ = c["author"].(map[string]any)
 	}
+	if user == nil {
+		user = map[string]any{}
+	}
 
 	ts, _ := time.Parse(time.RFC3339, strOf(c["created_at"]))
 	if ts.IsZero() {

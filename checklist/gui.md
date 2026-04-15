@@ -3,7 +3,7 @@
 **STATUS: ALPHA — scaffold exists but many features are placeholders, stubs, or broken.**
 
 ✅ = actually working with live data, 🔲 = placeholder/stub (UI exists, no backend), ❌ = not started, 🐛 = known bug.
-Last updated: 2026-04-15, session 24.
+Last updated: 2026-04-15, session 25.
 
 ## CRITICAL BUGS — Fixed in session 24
 
@@ -14,6 +14,31 @@ Last updated: 2026-04-15, session 24.
 - ✅ **#28 "Channels" folder tab cut off** — Fixed: removed icons from tabs, `Expanded` layout fits all 4 tabs.
 - ✅ **#29 New messages separator broken** — Fixed: `openedUnreadCount` snapshot saved at chat open time.
 - ✅ **#30 Non-Telegram cores show nothing** — Fixed: unified chat list limit raised to 500, drill-in falls back to parentId filter when GetForumTopics returns empty, added JoinChat engine method + UI dialog for IRC.
+
+## BUGS FIXED — Session 25 (full codebase debug audit)
+
+### Dart (4 files)
+- ✅ **#31 notifyListeners after dispose** — `chat_state.dart` typing indicator `Future.delayed` callback called `notifyListeners()` on disposed ChangeNotifier. Added `_disposed` guard.
+- ✅ **#32 Bridge event stream leak** — `engine_service.dart` never cancelled `_bridge.events.listen()` subscription. Stored and cancelled in dispose. Also missing `_userStatusController.close()`.
+- ✅ **#33 Notification toast ignores theme** — `notification_overlay.dart` hardcoded `AppColors.darkSurfaceAlt`/`darkText` etc. Now respects `Theme.of(context).brightness`.
+- ✅ **#34 Missing widget keys** — `home_screen.dart` 5 spread-mapped lists (accounts, platforms, members, chat/msg search results) lacked keys → state corruption on reorder. Added `ValueKey`s.
+- ✅ **#35 Infinite media gallery auto-load** — `home_screen.dart` `_SharedMediaGallery` used `addPostFrameCallback` in a `shrinkWrap` grid, causing unbounded page loading. Replaced with manual tap trigger.
+
+### Go (11 files)
+- ✅ **#36 proto.Marshal nil return** — `bridge.go` discarded marshal errors, returning nil bytes to FFI. Added fallback error bytes.
+- ✅ **#37 Vault zero-salt encryption** — `vault.go` `io.ReadFull(rand.Reader, salt)` errors discarded → all-zero salt. Checked errors. Removed dead salt generation in `Save()`.
+- ✅ **#38 IRC msgCounter data race** — `irc.go` `int64` accessed from multiple goroutines → `atomic.Int64`.
+- ✅ **#39 IRC deadlock** — `irc.go` `handlePart`/`handleKick` acquired `channelsMu→mu` while `handleNickChange` acquired `mu→channelsMu`. Fixed lock ordering.
+- ✅ **#40 Mumble msgCounter data race** — `mumble.go` same as IRC → `atomic.Int64`.
+- ✅ **#41 Mumble type assertion panic** — `mumble.go` bare `*ecdsa.PrivateKey` assertion → safe comma-ok form.
+- ✅ **#42 GitHub nil pointer** — `github.go` `commentToMessage` panics when both user/author absent → fallback empty map.
+- ✅ **#43 Compression race** — `compression.go` shared zstd encoder/decoder across goroutines → added mutexes.
+- ✅ **#44 TeamSpeak silent parse errors** — `teamspeak.go` 30+ `strconv.Atoi` errors ignored → proper error propagation/skip.
+- ✅ **#45 Matrix goroutine leak** — `matrix.go` call timeout goroutine not in WaitGroup → tracked.
+- ✅ **#46 Session file corruption** — `session.go` non-atomic `WriteFile` → write-to-tmp + rename.
+- ✅ **#47 FileSplit OOM** — `filesplit.go` no upper bound on buffer allocation → capped at 100MB.
+- ✅ **#48 Proxy CONNECT parsing** — `proxy.go` fragile byte-offset status check → `strings.Contains(" 200 ")`.
+- ✅ **#49 Bridge MkdirAll unchecked** — `bridge.go` `os.MkdirAll` error ignored → checked.
 
 ## MISSING FEATURES — Not Started
 

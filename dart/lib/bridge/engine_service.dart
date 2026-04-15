@@ -70,6 +70,7 @@ class EngineService {
   final _downloadProgressController = StreamController<DownloadProgressEvent>.broadcast();
   final _downloadCompleteController = StreamController<DownloadCompleteEvent>.broadcast();
   final _userStatusController = StreamController<UserStatusEvent>.broadcast();
+  StreamSubscription<Uint8List>? _bridgeEventSub;
 
   Stream<AuthStateEvent> get onAuthState => _authStateController.stream;
   Stream<ConnStateEvent> get onConnState => _connStateController.stream;
@@ -99,7 +100,7 @@ class EngineService {
     if (_initialized) return;
 
     _bridge.init(libraryPath: libraryPath);
-    _bridge.events.listen(_handleBridgeEvent);
+    _bridgeEventSub = _bridge.events.listen(_handleBridgeEvent);
 
     final req = epb.EngineInitRequest()
       ..configDir = configDir
@@ -511,6 +512,7 @@ class EngineService {
   }
 
   void dispose() {
+    _bridgeEventSub?.cancel();
     _bridge.dispose();
     _authStateController.close();
     _connStateController.close();
@@ -525,6 +527,7 @@ class EngineService {
     _typingController.close();
     _downloadProgressController.close();
     _downloadCompleteController.close();
+    _userStatusController.close();
   }
 
   // ── Internal ──

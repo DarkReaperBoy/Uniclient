@@ -13,6 +13,8 @@ var (
 	decoderOnce sync.Once
 	encoderErr  error
 	decoderErr  error
+	compressMu  sync.Mutex
+	decompressMu sync.Mutex
 )
 
 func getEncoder() (*zstd.Encoder, error) {
@@ -35,7 +37,10 @@ func Compress(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return enc.EncodeAll(data, nil), nil
+	compressMu.Lock()
+	result := enc.EncodeAll(data, nil)
+	compressMu.Unlock()
+	return result, nil
 }
 
 // Decompress decompresses Zstd-compressed data.
@@ -44,5 +49,8 @@ func Decompress(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return dec.DecodeAll(data, nil)
+	decompressMu.Lock()
+	result, err := dec.DecodeAll(data, nil)
+	decompressMu.Unlock()
+	return result, err
 }

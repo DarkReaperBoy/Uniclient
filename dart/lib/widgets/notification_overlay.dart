@@ -217,6 +217,13 @@ class NotificationOverlayState extends State<NotificationOverlay>
   }
 
   Widget _buildMessageToast(_NotifEntry entry) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt;
+    final borderColor = isDark ? AppColors.darkBorder : AppColors.lightBorder;
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+    final dimColor = isDark ? AppColors.darkTextDim : AppColors.lightTextDim;
+    final mutedColor = isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
+
     return GestureDetector(
       onTap: () {
         entry.onTap?.call();
@@ -233,9 +240,9 @@ class NotificationOverlayState extends State<NotificationOverlay>
           color: Colors.transparent,
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.darkSurfaceAlt,
+              color: surfaceColor,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.darkBorder, width: 0.5),
+              border: Border.all(color: borderColor, width: 0.5),
               boxShadow: const [
                 BoxShadow(
                   color: Colors.black38,
@@ -276,8 +283,8 @@ class NotificationOverlayState extends State<NotificationOverlay>
                           Flexible(
                             child: Text(
                               entry.senderName,
-                              style: const TextStyle(
-                                color: AppColors.darkText,
+                              style: TextStyle(
+                                color: textColor,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -285,18 +292,18 @@ class NotificationOverlayState extends State<NotificationOverlay>
                             ),
                           ),
                           if (entry.chatTitle.isNotEmpty) ...[
-                            const Text(
+                            Text(
                               '  in ',
                               style: TextStyle(
-                                color: AppColors.darkTextDim,
+                                color: dimColor,
                                 fontSize: 12,
                               ),
                             ),
                             Flexible(
                               child: Text(
                                 entry.chatTitle,
-                                style: const TextStyle(
-                                  color: AppColors.darkTextMuted,
+                                style: TextStyle(
+                                  color: mutedColor,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -309,8 +316,8 @@ class NotificationOverlayState extends State<NotificationOverlay>
                       const SizedBox(height: 2),
                       Text(
                         entry.text,
-                        style: const TextStyle(
-                          color: AppColors.darkTextMuted,
+                        style: TextStyle(
+                          color: mutedColor,
                           fontSize: 13,
                         ),
                         maxLines: 2,
@@ -328,7 +335,9 @@ class NotificationOverlayState extends State<NotificationOverlay>
   }
 
   Widget _buildStatusToast(_NotifEntry entry) {
-    final color = entry.color ?? AppColors.darkTextMuted;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surfaceColor = isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt;
+    final color = entry.color ?? (isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted);
     return GestureDetector(
       onVerticalDragEnd: (d) {
         if (d.velocity.pixelsPerSecond.dy < -100) {
@@ -342,7 +351,7 @@ class NotificationOverlayState extends State<NotificationOverlay>
             color: Colors.transparent,
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.darkSurfaceAlt,
+                color: surfaceColor,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: color.withValues(alpha: 0.3)),
                 boxShadow: const [

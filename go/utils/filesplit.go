@@ -13,6 +13,11 @@ func SplitFile(r io.Reader, maxBytes int64) ([][]byte, error) {
 	if maxBytes <= 0 {
 		return nil, fmt.Errorf("maxBytes must be positive, got %d", maxBytes)
 	}
+	// Cap at 100MB to prevent accidental memory exhaustion.
+	const maxAlloc int64 = 100 * 1024 * 1024
+	if maxBytes > maxAlloc {
+		maxBytes = maxAlloc
+	}
 
 	var parts [][]byte
 	for {

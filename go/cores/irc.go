@@ -39,6 +39,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -270,7 +271,7 @@ type IRCCore struct {
 	// Message buffer (per chat)
 	messages   map[string][]*Message // chatID → ordered messages
 	messagesMu sync.RWMutex
-	msgCounter int64 // monotonic ID generator
+	msgCounter atomic.Int64 // monotonic ID generator
 
 	// Pinned messages (local only)
 	pinned   map[string]map[string]bool
@@ -1273,14 +1274,16 @@ func (c *IRCCore) handlePart(msg *ircMsg) {
 	nick := msg.Nick()
 	chanLower := strings.ToLower(channel)
 
+	// Read nick before channelsMu to avoid lock ordering deadlock
+	// (handleNickChange acquires mu → channelsMu; we must not do channelsMu → mu).
+	c.mu.RLock()
+	myNick := c.nick
+	c.mu.RUnlock()
+
 	c.channelsMu.Lock()
 	if ch, ok := c.channels[chanLower]; ok {
 		delete(ch.Members, nick)
 	}
-	// If we parted, remove channel
-	c.mu.RLock()
-	myNick := c.nick
-	c.mu.RUnlock()
 	if strings.EqualFold(nick, myNick) {
 		delete(c.channels, chanLower)
 	}
@@ -1302,13 +1305,15 @@ func (c *IRCCore) handleKick(msg *ircMsg) {
 	kicked := msg.Params[1]
 	chanLower := strings.ToLower(channel)
 
+	// Read nick before channelsMu to avoid lock ordering deadlock.
+	c.mu.RLock()
+	myNick := c.nick
+	c.mu.RUnlock()
+
 	c.channelsMu.Lock()
 	if ch, ok := c.channels[chanLower]; ok {
 		delete(ch.Members, kicked)
 	}
-	c.mu.RLock()
-	myNick := c.nick
-	c.mu.RUnlock()
 	if strings.EqualFold(kicked, myNick) {
 		delete(c.channels, chanLower)
 	}
@@ -1654,9 +1659,9 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 	}
 
 	// Create message
-	c.msgCounter++
+	id := c.msgCounter.Add(1)
 	m := &Message{
-		ID:         strconv.FormatInt(c.msgCounter, 10),
+		ID:         strconv.FormatInt(id, 10),
 		ChatID:     chatID,
 		SenderID:   nick,
 		SenderName: nick,
@@ -1701,9 +1706,9 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 	}
 
 	// Buffer as regular message with [NOTICE] prefix
-	c.msgCounter++
+	id := c.msgCounter.Add(1)
 	m := &Message{
-		ID:         strconv.FormatInt(c.msgCounter, 10),
+		ID:         strconv.FormatInt(id, 10),
 		ChatID:     chatID,
 		SenderID:   nick,
 		SenderName: nick,
@@ -1763,9 +1768,9 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 			chatID = nick
 		}
 
-		c.msgCounter++
+		id := c.msgCounter.Add(1)
 		m := &Message{
-			ID:         strconv.FormatInt(c.msgCounter, 10),
+			ID:         strconv.FormatInt(id, 10),
 			ChatID:     chatID,
 			SenderID:   nick,
 			SenderName: nick,
@@ -1821,9 +1826,9 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 
 		// Emit as a message so the UI can handle it
 		dccChatID := nick
-		c.msgCounter++
+		id := c.msgCounter.Add(1)
 		dccMsg := &Message{
-			ID:         strconv.FormatInt(c.msgCounter, 10),
+			ID:         strconv.FormatInt(id, 10),
 			ChatID:     dccChatID,
 			SenderID:   nick,
 			SenderName: nick,
@@ -2072,9 +2077,9 @@ func (c *IRCCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, err
 			myNick := c.nick
 			c.mu.RUnlock()
 
-			c.msgCounter++
+			id := c.msgCounter.Add(1)
 			lastMsg = &Message{
-				ID:         strconv.FormatInt(c.msgCounter, 10),
+				ID:         strconv.FormatInt(id, 10),
 				ChatID:     chatID,
 				SenderID:   myNick,
 				SenderName: myNick,
@@ -3180,9 +3185,9 @@ func (c *IRCCore) handleTagMsg(msg *ircMsg) {
 		}
 
 		replyTo := msg.Tags["+reply"]
-		c.msgCounter++
+		id := c.msgCounter.Add(1)
 		reactMsg := &Message{
-			ID:         strconv.FormatInt(c.msgCounter, 10),
+			ID:         strconv.FormatInt(id, 10),
 			ChatID:     chatID,
 			SenderID:   nick,
 			SenderName: nick,
@@ -3219,9 +3224,9 @@ func (c *IRCCore) handleErrorNumeric(msg *ircMsg) {
 	if text == "" && len(msg.Params) > 1 {
 		text = strings.Join(msg.Params[1:], " ")
 	}
-	c.msgCounter++
+	id := c.msgCounter.Add(1)
 	m := &Message{
-		ID:         strconv.FormatInt(c.msgCounter, 10),
+		ID:         strconv.FormatInt(id, 10),
 		ChatID:     "*server*",
 		SenderID:   msg.Prefix,
 		SenderName: "Server",
@@ -3235,9 +3240,9 @@ func (c *IRCCore) handleErrorNumeric(msg *ircMsg) {
 
 func (c *IRCCore) handleServerError(msg *ircMsg) {
 	text := msg.Trailing()
-	c.msgCounter++
+	id := c.msgCounter.Add(1)
 	m := &Message{
-		ID:         strconv.FormatInt(c.msgCounter, 10),
+		ID:         strconv.FormatInt(id, 10),
 		ChatID:     "*server*",
 		SenderID:   "server",
 		SenderName: "Server",
@@ -3394,9 +3399,9 @@ func (c *IRCCore) SendAction(target, text string) {
 	c.mu.RLock()
 	myNick := c.nick
 	c.mu.RUnlock()
-	c.msgCounter++
+	id := c.msgCounter.Add(1)
 	m := &Message{
-		ID:         strconv.FormatInt(c.msgCounter, 10),
+		ID:         strconv.FormatInt(id, 10),
 		ChatID:     target,
 		SenderID:   myNick,
 		SenderName: myNick,
