@@ -9,6 +9,7 @@ import '../theme/theme.dart';
 import '../widgets/platform_rail.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/chat_view.dart';
+import '../widgets/notification_overlay.dart';
 import 'auth_screen.dart';
 
 /// Main screen — platform rail + sidebar + chat area + optional right panel.
@@ -30,11 +31,21 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Accounts we've already shown the re-auth dialog for (avoid repeated popups).
   final Set<String> _authPromptedIds = {};
+  bool _notifWired = false;
 
   @override
   Widget build(BuildContext context) {
     final appState = context.watch<AppState>();
     final chatState = context.watch<ChatState>();
+
+    // Wire notification callback once.
+    if (!_notifWired) {
+      _notifWired = true;
+      chatState.onNotification = (sender, text, chatTitle) {
+        final mgr = NotificationManager.maybeOf(context);
+        mgr?.showMessageNotification(sender, text, chatTitle: chatTitle);
+      };
+    }
 
     // Auto-prompt re-auth when an account reports auth_required.
     _checkAuthRequired(context, appState);

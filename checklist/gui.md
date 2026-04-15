@@ -70,7 +70,7 @@ Last updated: 2026-04-15, session 19. **ALL FEATURES IMPLEMENTED** (125 done + 2
 
 - ✅ Avatar + name
 - ✅ Member count for groups
-- ✅ Call/search/more button placeholders
+- ✅ Call buttons (snackbar feedback), search (FTS5 dialog), more (mute/pin/info popup)
 - ✅ Breadcrumb for topic channels (parentTitle > channelTitle with chevron)
 - ✅ Typing indicator (animated bouncing dots)
 - ✅ Pinned messages button (badge count + modal bottom sheet with pinned list)
@@ -115,7 +115,7 @@ Last updated: 2026-04-15, session 19. **ALL FEATURES IMPLEMENTED** (125 done + 2
 - ✅ Attach button (+) — zenity file picker → engine UploadFile
 - 🔧 File drag & drop zone (placeholder overlay)
 - 🔧 Markdown formatting toolbar (bold/italic/code/strikethrough)
-- ✅ Mic/Camera button (mic when empty, camera next to attach)
+- ✅ Mic/Camera button (mic when empty, camera opens image-filtered file picker)
 - ✅ Voice message recording UI (pulsing dot, timer, cancel/send — no audio capture yet)
 - 🔧 Video message recording UI (placeholder snackbar, needs camera integration)
 - ✅ Mention autocomplete (@user from message senders, #channel placeholder)
@@ -193,7 +193,7 @@ Last updated: 2026-04-15, session 19. **ALL FEATURES IMPLEMENTED** (125 done + 2
 
 - 🔧 `media_viewer.dart` — full-screen image/video/file viewer with pinch-to-zoom
 - ✅ `forward_dialog.dart` — chat picker dialog for forwarding messages (wired to engine ForwardMessage)
-- 🔧 `notification_overlay.dart` — in-app notification toasts (message + status)
+- ✅ `notification_overlay.dart` — in-app notification toasts (wired to msg_received events for non-active chats)
 
 ## Automated Tests
 

@@ -17,6 +17,9 @@ class ChatState extends ChangeNotifier {
   bool _hasMoreMessages = true;
   final Map<String, String> _typingUsers = {}; // chatId → userName
 
+  /// Callback for showing in-app notifications (set by UI layer).
+  void Function(String senderName, String text, String chatTitle)? onNotification;
+
   /// Active channel/topic ID within a topic-type group.
   /// Null means "show all" (the default channel).
   String? _activeChannelId;
@@ -285,7 +288,9 @@ class ChatState extends ChangeNotifier {
   }
 
   void _handleMsgReceived(MsgReceivedEvent event) {
-    if (_activeChat?.accountId == event.accountId && _activeChat?.chatId == event.chatId) {
+    final isActiveChat = _activeChat?.accountId == event.accountId &&
+        _activeChat?.chatId == event.chatId;
+    if (isActiveChat) {
       // Dedup: don't add if already present (by msgId or localId).
       final exists = _messages.any((m) =>
         m.msgId == event.message.msgId ||
@@ -294,6 +299,15 @@ class ChatState extends ChangeNotifier {
         _messages.insert(0, event.message);
         notifyListeners();
       }
+    } else if (onNotification != null && !event.message.isSent) {
+      // Show in-app notification for messages in non-active chats.
+      final chat = _chats.where((c) =>
+          c.accountId == event.accountId && c.chatId == event.chatId).firstOrNull;
+      onNotification!(
+        event.message.senderName,
+        event.message.contentText,
+        chat?.title ?? '',
+      );
     }
   }
 

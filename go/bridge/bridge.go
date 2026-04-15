@@ -119,9 +119,8 @@ func Call(reqData []byte) []byte {
 // Call this from the FFI Init handler before any other engine operations.
 func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 	// Register core factory so the engine can create platform instances.
-	// Each account gets its own session file under configDir/sessions/<platform>/.
-	tgCounter := 0
-	engine.SetCoreFactory(func(platform string) (cores.Core, error) {
+	// Each account gets its own session file under configDir/sessions/<platform>/<accountID>.json.
+	engine.SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
 		sessionDir := configDir + "/sessions/" + platform
 		os.MkdirAll(sessionDir, 0o755)
 		switch platform {
@@ -137,8 +136,7 @@ func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 			if v := os.Getenv("TG_API_HASH"); v != "" {
 				apiHash = v
 			}
-			tgCounter++
-			sessionPath := sessionDir + "/session_" + strconv.Itoa(tgCounter) + ".json"
+			sessionPath := sessionDir + "/" + accountID + ".json"
 			return cores.NewTelegramCore(cores.TelegramConfig{
 				APIID:          apiID,
 				APIHash:        apiHash,

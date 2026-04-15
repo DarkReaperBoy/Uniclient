@@ -74,7 +74,7 @@ func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 	if factory == nil {
 		return nil, fmt.Errorf("no core factory registered")
 	}
-	core, err := factory(acc.Platform)
+	core, err := factory(acc.Platform, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("create core: %w", err)
 	}

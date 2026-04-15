@@ -54,7 +54,7 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	}
 
 	// Create core.
-	core, err := factory(acc.Platform)
+	core, err := factory(acc.Platform, accountID)
 	if err != nil {
 		return fmt.Errorf("create core %s: %w", acc.Platform, err)
 	}

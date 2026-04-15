@@ -11,6 +11,7 @@ import 'state/auth_state.dart';
 import 'screens/home_screen.dart';
 import 'theme/theme.dart';
 import 'utils/debug.dart';
+import 'widgets/notification_overlay.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -91,7 +92,7 @@ class _UniClientAppState extends State<UniClientApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: appState.themeMode,
-      home: const HomeScreen(),
+      home: const NotificationOverlay(child: HomeScreen()),
     );
   }
 }

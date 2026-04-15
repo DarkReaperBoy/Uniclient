@@ -219,13 +219,21 @@ class _ChatHeader extends StatelessWidget {
           if (chat.type == ChatType.dm || chat.type == ChatType.group) ...[
             IconButton(
               icon: const Icon(Icons.call, size: 20),
-              onPressed: () {},
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Voice calls coming soon'), duration: Duration(seconds: 2)),
+                );
+              },
               tooltip: 'Voice call',
               splashRadius: 18,
             ),
             IconButton(
               icon: const Icon(Icons.videocam, size: 20),
-              onPressed: () {},
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Video calls coming soon'), duration: Duration(seconds: 2)),
+                );
+              },
               tooltip: 'Video call',
               splashRadius: 18,
             ),
@@ -233,13 +241,13 @@ class _ChatHeader extends StatelessWidget {
           _PinnedMessagesButton(messages: chatState.messages, isDark: isDark),
           IconButton(
             icon: const Icon(Icons.search, size: 20),
-            onPressed: () {},
+            onPressed: () => _showSearchDialog(context, chat),
             tooltip: 'Search',
             splashRadius: 18,
           ),
           IconButton(
             icon: const Icon(Icons.more_vert, size: 20),
-            onPressed: () {},
+            onPressed: () => _showMoreMenu(context, chat),
             tooltip: 'More',
             splashRadius: 18,
           ),
@@ -366,6 +374,136 @@ class _ChatHeader extends StatelessWidget {
         );
       },
     );
+  }
+
+  static void _showSearchDialog(BuildContext context, ChatInfo chat) {
+    final engine = context.read<EngineService>();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController();
+        List<SearchResult> results = [];
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            final bgColor = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+            final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+            final mutedColor = isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
+            return Dialog(
+              backgroundColor: bgColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440, maxHeight: 500),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: controller,
+                              autofocus: true,
+                              decoration: InputDecoration(
+                                hintText: 'Search in ${chat.title}...',
+                                prefixIcon: const Icon(Icons.search, size: 20),
+                                isDense: true,
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onSubmitted: (query) {
+                                if (query.trim().isEmpty) return;
+                                final r = engine.searchMessages(query.trim(), accountId: chat.accountId, limit: 30);
+                                setState(() => results = r);
+                              },
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 20),
+                            onPressed: () => Navigator.of(ctx).pop(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (results.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          controller.text.isEmpty ? 'Type to search messages' : 'No results',
+                          style: TextStyle(color: mutedColor),
+                        ),
+                      )
+                    else
+                      Flexible(
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: results.length,
+                          itemBuilder: (_, i) {
+                            final r = results[i];
+                            return ListTile(
+                              dense: true,
+                              leading: r.senderName.isNotEmpty
+                                  ? CircleAvatar(radius: 14, child: Text(r.senderName[0], style: const TextStyle(fontSize: 12)))
+                                  : null,
+                              title: Text(
+                                r.text,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: textColor, fontSize: 13),
+                              ),
+                              subtitle: Text(
+                                r.senderName.isNotEmpty ? r.senderName : r.chatTitle,
+                                style: TextStyle(color: mutedColor, fontSize: 11),
+                              ),
+                              onTap: () => Navigator.of(ctx).pop(),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  static void _showMoreMenu(BuildContext context, ChatInfo chat) {
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final RenderBox button = context.findRenderObject()! as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject()! as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset(button.size.width - 48, button.size.height), ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        PopupMenuItem(value: 'mute', child: Text(chat.isMuted ? 'Unmute' : 'Mute')),
+        PopupMenuItem(value: 'pin', child: Text(chat.isPinned ? 'Unpin' : 'Pin')),
+        const PopupMenuItem(value: 'info', child: Text('Chat info')),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'mute':
+          engine.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
+          chatState.loadChats();
+        case 'pin':
+          engine.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
+          chatState.loadChats();
+        case 'info':
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          _showChatInfoDialog(context, chat, isDark);
+      }
+    });
   }
 }
 
@@ -2424,6 +2562,29 @@ class _MessageInputState extends State<_MessageInput> {
     }
   }
 
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final result = await Process.run('zenity', [
+        '--file-selection',
+        '--file-filter=Images | *.png *.jpg *.jpeg *.gif *.webp *.bmp',
+        '--title=Select an image',
+      ]);
+      if (result.exitCode != 0) return;
+      final filePath = (result.stdout as String).trim();
+      if (filePath.isEmpty) return;
+
+      final engine = context.read<EngineService>();
+      final chat = widget.chat;
+      await engine.uploadFile(chat.accountId, chat.chatId, filePath);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e')),
+        );
+      }
+    }
+  }
+
   /// Insert text (e.g. emoji) at the current cursor position.
   void insertText(String text) {
     final sel = _controller.selection;
@@ -2806,12 +2967,8 @@ class _MessageInputState extends State<_MessageInput> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.camera_alt_outlined, size: 22),
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Video recording coming soon')),
-                          );
-                        },
-                        tooltip: 'Camera',
+                        onPressed: _pickAndUploadImage,
+                        tooltip: 'Send image',
                         splashRadius: 18,
                       ),
                       Expanded(

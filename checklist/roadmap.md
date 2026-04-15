@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — Phase F (live smoke-testing & feature wiring)
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 19 — re-auth working, engine wiring for forward/react/pin/URL, utility extraction, proto has_* field fix)
+**Last Updated:** 2026-04-15 (session 20 — session persistence fix, single-instance lock, WASM build-tag split, notification wiring, header button wiring)
 
-**NEXT:** Continue live smoke-testing features that are now wired (forward, reactions, pin, URL open). Test folder tabs (DMs/Groups/Channels filtering). Test media inline rendering with real messages. Test responsive layout at different window sizes. Wire remaining Category C stubs: attach button (file picker), drag & drop, markdown toolbar, video recording UI. Test sticker/GIF panel display. Run full widget test suite after changes.
+**NEXT:** Test media inline rendering with real messages (open a chat containing images). Test responsive layout at different window sizes. Wire remaining stubs: drag & drop file upload (needs desktop_drop plugin), video recording UI (needs camera plugin). Test sticker/GIF panel display with real data. Run live smoke test of search dialog, more menu, camera button. Connect status notifications (conn state changes) to notification overlay.
 
 ## Steps
 
@@ -251,6 +251,30 @@ Session 19 changes — Engine wiring + utility extraction + smoke test:
 - 4 features wired to engine this session (forward, react, pin, URL)
 - 4 features still stubs (attach/file picker, drag & drop, markdown toolbar, video recording)
 - 5 features need minor cleanup
+
+Session 20 changes — Session persistence, single-instance lock, WASM split, notifications:
+
+**Critical bug fixes:**
+- **Session persistence** — Telegram sessions were lost on every restart. Root cause: core factory used `tgCounter++` (incrementing `session_1.json`, `session_2.json`, ...) instead of account ID. Fixed: session files now use account ID (`tele_4beb99fd.json`). App auto-connects on restart without re-auth.
+- **Single-instance lock** — Added `flock`-based lock (`go/engine/lock_unix.go`) to prevent two instances from corrupting SQLite DB and Telegram session. Cross-platform: `lock_unix.go` (Linux/macOS/Android), `lock_windows.go` (Windows), `lock_js.go` (WASM no-op). Second instance shows clear error: "another instance of uniclient is already running".
+
+**WASM build-tag split:**
+- Moved `import _ "modernc.org/sqlite"` from `db.go` to `db_driver.go` (`//go:build !js`)
+- Created `db_driver_js.go` (`//go:build js`) — null SQL driver implementing `database/sql/driver` interfaces. All engine code compiles unchanged; queries return empty results on WASM.
+- Engine now builds for `GOOS=js GOARCH=wasm` (remaining WASM errors are in livekit/webrtc, a cores-level issue).
+- Architecture: native platforms use real SQLite for caching; web uses null driver (Dart handles caching via IndexedDB).
+
+**UI wiring:**
+- **Search button** → FTS5 search dialog (`_showSearchDialog` in chat_view.dart)
+- **More button** → popup menu with mute/pin/info (`_showMoreMenu`)
+- **Camera button** → zenity image-filtered file picker (`_pickAndUploadImage`)
+- **Call buttons** → "Voice/Video calls coming soon" snackbar (instead of dead empty handler)
+- **Notification overlay** — Wired `NotificationOverlay` into `main.dart`, connected to `ChatState.onNotification` callback. New messages for non-active chats trigger in-app toast notifications.
+
+**CoreFactory signature change:**
+- `CoreFactory func(platform string)` → `CoreFactory func(platform, accountID string)` — allows deterministic session paths per account.
+
+**Test results:** Engine: 12/12 pass. Widget: 83/83 pass. All platforms build (Linux/macOS/Windows/Android). WASM engine builds.
 
 ## Detailed Progress
 

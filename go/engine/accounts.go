@@ -264,7 +264,7 @@ func (e *Engine) isDuplicateAccount(platform, userID string) (string, bool) {
 
 // CoreFactory is a function that creates a new core instance for a platform.
 // The engine needs this to instantiate cores on account connect.
-type CoreFactory func(platform string) (cores.Core, error)
+type CoreFactory func(platform, accountID string) (cores.Core, error)
 
 // coreFactory is set by the bridge/main code so the engine can create cores.
 var (

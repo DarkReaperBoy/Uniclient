@@ -65,6 +65,7 @@ type Engine struct {
 
 	media *MediaManager
 
+	lockFile     *os.File       // single-instance lock file (held open with flock)
 	shuttingDown bool
 	wg           sync.WaitGroup // tracks background goroutines
 }
@@ -90,6 +91,14 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 			return nil, fmt.Errorf("create dir %s: %w", d, err)
 		}
 	}
+
+	// Single-instance lock — prevent two copies from running simultaneously.
+	lockPath := filepath.Join(configDir, "uniclient.lock")
+	lf, err := acquireLock(lockPath)
+	if err != nil {
+		return nil, err
+	}
+	e.lockFile = lf
 
 	// Load config.
 	cfgPath := filepath.Join(configDir, "config.json")
@@ -302,6 +311,12 @@ func (e *Engine) Shutdown() error {
 	// Close DB.
 	if e.db != nil {
 		e.db.Close()
+	}
+
+	// Release single-instance lock.
+	if e.lockFile != nil {
+		releaseLock(e.lockFile)
+		e.lockFile = nil
 	}
 
 	return nil

@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
-	_ "modernc.org/sqlite"
 )
 
 // OpenDB opens (or creates) the SQLite cache database at dir/cache.db.
