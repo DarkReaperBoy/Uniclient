@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/rand/v2"
 	"time"
 
@@ -145,20 +146,26 @@ func (e *Engine) ConnectAllAccounts() {
 func (e *Engine) syncAccount(ctx context.Context, accountID string) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
+		log.Printf("[engine] syncAccount(%s): account not found or no core", accountID)
 		return
 	}
 
 	// Sync chat list.
+	log.Printf("[engine] syncAccount(%s): fetching dialogs...", accountID)
 	dialogs, err := acc.Core.GetDialogs(cores.PaginationOpts{Limit: 200})
 	if err != nil {
+		log.Printf("[engine] syncAccount(%s): GetDialogs failed: %v", accountID, err)
 		return
 	}
+	log.Printf("[engine] syncAccount(%s): got %d dialogs, syncing to cache...", accountID, len(dialogs))
 	e.SyncChats(accountID, dialogs)
+	log.Printf("[engine] syncAccount(%s): sync complete, emitted chat snapshot", accountID)
 
 	// Cache contacts as users.
 	contacts, err := acc.Core.GetContacts()
 	if err == nil && len(contacts) > 0 {
 		e.BulkUpsertUsers(accountID, contacts)
+		log.Printf("[engine] syncAccount(%s): cached %d contacts", accountID, len(contacts))
 	}
 }
 

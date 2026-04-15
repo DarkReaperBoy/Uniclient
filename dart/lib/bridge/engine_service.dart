@@ -10,6 +10,13 @@ import '../proto/models.pb.dart' as pb;
 import '../proto/engine.pb.dart' as epb;
 import '../utils/debug.dart';
 
+/// Sanitize a string for safe display — replace unpaired surrogates.
+String _safeStr(String s) {
+  if (s.isEmpty) return s;
+  // Replace any unpaired surrogates (invalid UTF-16) with the replacement character.
+  return s.replaceAll(RegExp(r'[\uD800-\uDFFF]'), '\uFFFD');
+}
+
 /// High-level wrapper around the FFI bridge for engine operations.
 ///
 /// Serializes requests as protobuf BridgeRequest, deserializes BridgeResponse.
@@ -573,17 +580,17 @@ class EngineService {
     accountId: p.accountId,
     chatId: p.chatId,
     type: ChatType.values[p.type.clamp(0, ChatType.values.length - 1)],
-    title: p.title,
+    title: _safeStr(p.title),
     avatarPath: p.avatarPath,
     lastMsgId: p.lastMsgId,
-    lastMsgText: p.lastMsgText,
+    lastMsgText: _safeStr(p.lastMsgText),
     lastMsgTime: p.lastMsgTime.toInt(),
-    lastMsgSender: p.lastMsgSender,
+    lastMsgSender: _safeStr(p.lastMsgSender),
     unreadCount: p.unreadCount,
     isMuted: p.isMuted,
     isPinned: p.isPinned,
     isArchived: p.isArchived,
-    draftText: p.draftText,
+    draftText: _safeStr(p.draftText),
     memberCount: p.memberCount,
     parentId: p.parentId,
   );
@@ -594,8 +601,8 @@ class EngineService {
     msgId: p.msgId,
     localId: p.localId,
     senderId: p.senderId,
-    senderName: p.senderName,
-    contentText: p.contentText,
+    senderName: _safeStr(p.senderName),
+    contentText: _safeStr(p.contentText),
     timestamp: p.timestamp.toInt(),
     editedAt: p.editedAt.toInt(),
     status: MsgStatus.values[p.status.clamp(0, MsgStatus.values.length - 1)],

@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — Phase D (account flow wiring) — IN PROGRESS
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 14 — interactive Telegram auth, full automated auth test, ConnectAccount fix)
+**Last Updated:** 2026-04-15 (session 15 — chat list + message loading, UTF-8/16 sanitization, automated send test)
 
-**NEXT:** Phase D cont. — Fix chat list display bug (empty sidebar after successful Telegram auth, likely `syncAccount` or chat list query issue), then message view + real-time updates
+**NEXT:** Make the client feature-complete — stop dogfooding, focus on wiring all remaining features properly: message display/send/receive, real-time updates, media, multi-account, settings. See known bugs below.
 
 ## Steps
 
@@ -136,9 +136,24 @@ Session 14 changes:
 - **ConnectAccount fix** — `auth_screen.dart` "Continue" button was calling `connectAccount()` after auth, which created a NEW core and re-authenticated (causing `PHONE_CODE_INVALID`). Removed the call — `finalizeAuth` already attaches the core and sets `ConnConnected`.
 - **Chat list bug (known)** — After successful Telegram auth, the UI shows the account as connected but the chat list sidebar is empty. Likely `syncAccount` or chat list query issue.
 
-**Testing approach:** Claude runs `flutter test` autonomously — no GUI interaction needed. Bridge tests exercise the full FFI → Go → Engine path. Widget tests verify rendering. Telegram auth test exercises full live Telegram auth with OTP read from reader account. All run headlessly.
+Session 15 changes:
+- **Chat list loading fixed** — `ChatState` now auto-loads chats on `connected` and `account_list` events. `platform_rail.dart` calls `loadChats()` after auth dialog closes. Chat list now loads (8274B of data, 100 dialogs).
+- **Message loading fixed** — `GetMessages` now falls back to fetching from core when cache is empty (initial load). Messages load on first open (32605B).
+- **UTF-8 sanitization (Go)** — Added `sanitizeUTF8()` in `dispatch_engine.go` — replaces invalid UTF-8 bytes with U+FFFD before protobuf serialization. Applied to all string fields in `chatInfoToProto`, `cachedMsgToProto`, search results. Fixes `string field contains invalid UTF-8` proto marshal error.
+- **UTF-16 sanitization (Dart)** — Added `_safeStr()` in `engine_service.dart` — strips unpaired surrogates before display. Fixes `string is not well-formed UTF-16` Flutter text renderer crash.
+- **syncAccount logging** — Added log lines showing dialog fetch count, sync progress, contact cache count for debugging.
+- **Automated send test** — `dart/test/telegram_send_test.dart`: full auth + send "Hello from Claude!" to friend (chat 5435067494) + verify in chat history. All automated, passes in ~28s.
 
-**Next:** Continue GUI wiring — chat list display, message view, real-time updates
+**Testing approach:** Claude runs `flutter test` autonomously — no GUI interaction needed. Bridge tests exercise the full FFI → Go → Engine path. Widget tests verify rendering. Telegram auth test exercises full live Telegram auth with OTP read from reader account. Send test verifies auth + message delivery. All run headlessly.
+
+**Known bugs for next session:**
+- Sent messages don't appear in the UI (no refresh after send, msg_status event not wired to re-fetch)
+- Messages from cache may be stale (only fetched from core on first empty load, no live update subscription)
+- Session persistence causes instant auth skip (pre-seeded session from automated tests persists — user doesn't get OTP prompt on re-auth)
+- `SendMessage` may fire unintentionally from UI (user reported phantom send)
+- No real-time incoming message display (events from Go don't reach Dart in CMake-built binary — NativeCallable.listener works in flutter test but unclear in production binary)
+
+**Next:** Make the client feature-complete. Stop dogfooding. Wire all features properly.
 
 ## Detailed Progress
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/app_state.dart';
+import '../state/chat_state.dart';
 import '../models/engine_models.dart';
 import '../screens/auth_screen.dart';
 import '../theme/theme.dart';
@@ -115,6 +116,8 @@ class PlatformRail extends StatelessWidget {
                     Debug.log('UI', 'Auth dialog closed for ${entry.key}');
                     if (context.mounted) {
                       appState.setActivePlatform(entry.key);
+                      // Load chats after auth completes.
+                      context.read<ChatState>().loadChats();
                     }
                   });
                 } catch (e, stack) {

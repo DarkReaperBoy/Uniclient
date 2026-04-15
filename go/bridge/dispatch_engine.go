@@ -2,12 +2,34 @@ package bridge
 
 import (
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	"google.golang.org/protobuf/proto"
 
 	"uniclient/engine"
 	pb "uniclient/proto"
 )
+
+// sanitizeUTF8 replaces invalid UTF-8 bytes with the Unicode replacement character.
+// Protobuf string fields require valid UTF-8.
+func sanitizeUTF8(s string) string {
+	if utf8.ValidString(s) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if r == utf8.RuneError && size == 1 {
+			b.WriteRune('\uFFFD')
+		} else {
+			b.WriteRune(r)
+		}
+		i += size
+	}
+	return b.String()
+}
 
 // engineInstance is the global engine, set during Init.
 var engineInstance *engine.Engine
@@ -298,10 +320,10 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				AccountId:  r.AccountID,
 				ChatId:     r.ChatID,
 				MsgId:      r.MsgID,
-				SenderName: r.SenderName,
-				Text:       r.Text,
+				SenderName: sanitizeUTF8(r.SenderName),
+				Text:       sanitizeUTF8(r.Text),
 				Timestamp:  r.Timestamp,
-				ChatTitle:  r.ChatTitle,
+				ChatTitle:  sanitizeUTF8(r.ChatTitle),
 			})
 		}
 		return proto.Marshal(resp)
@@ -432,17 +454,17 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		AccountId:    c.AccountID,
 		ChatId:       c.ChatID,
 		Type:         int32(c.Type),
-		Title:        c.Title,
+		Title:        sanitizeUTF8(c.Title),
 		AvatarPath:   c.AvatarPath,
 		LastMsgId:    c.LastMsgID,
-		LastMsgText:  c.LastMsgText,
+		LastMsgText:  sanitizeUTF8(c.LastMsgText),
 		LastMsgTime:  c.LastMsgTime,
-		LastMsgSender: c.LastMsgSender,
+		LastMsgSender: sanitizeUTF8(c.LastMsgSender),
 		UnreadCount:  int32(c.UnreadCount),
 		IsMuted:      c.IsMuted,
 		IsPinned:     c.IsPinned,
 		IsArchived:   c.IsArchived,
-		DraftText:    c.DraftText,
+		DraftText:    sanitizeUTF8(c.DraftText),
 		MemberCount:  int32(c.MemberCount),
 		ParentId:     c.ParentID,
 	}
@@ -455,16 +477,16 @@ func cachedMsgToProto(m *engine.CachedMessage) *pb.EngineCachedMessage {
 		MsgId:        m.MsgID,
 		LocalId:      m.LocalID,
 		SenderId:     m.SenderID,
-		SenderName:   m.SenderName,
-		ContentText:  m.ContentText,
+		SenderName:   sanitizeUTF8(m.SenderName),
+		ContentText:  sanitizeUTF8(m.ContentText),
 		ContentRaw:   m.ContentRaw,
 		ContentRich:  m.ContentRich,
 		Timestamp:    m.Timestamp,
 		EditedAt:     m.EditedAt,
 		Status:       int32(m.Status),
 		ReplyToId:    m.ReplyToID,
-		ReplyPreview: m.ReplyPreview,
-		ForwardFrom:  m.ForwardFrom,
+		ReplyPreview: sanitizeUTF8(m.ReplyPreview),
+		ForwardFrom:  sanitizeUTF8(m.ForwardFrom),
 		IsPinned:     m.IsPinned,
 		HasMedia:     m.HasMedia,
 	}

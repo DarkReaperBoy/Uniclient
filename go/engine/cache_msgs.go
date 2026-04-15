@@ -32,6 +32,7 @@ type CachedMessage struct {
 
 // GetMessages returns cached messages for a chat, paginated by timestamp.
 // If beforeMs is 0, returns the most recent messages.
+// Falls back to fetching from the core if cache is empty on initial load.
 func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int) ([]CachedMessage, error) {
 	if limit <= 0 {
 		limit = 50
@@ -62,7 +63,27 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 		return nil, err
 	}
 	defer rows.Close()
-	return scanMessages(rows)
+	msgs, err := scanMessages(rows)
+	if err != nil {
+		return msgs, err
+	}
+
+	// If cache is empty on initial load, fetch from core and cache.
+	if len(msgs) == 0 && beforeMs == 0 {
+		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
+			live, liveErr := acc.Core.GetMessages(chatID, cores.PaginationOpts{Limit: limit})
+			if liveErr == nil && len(live) > 0 {
+				result := make([]CachedMessage, 0, len(live))
+				for _, m := range live {
+					cached := e.cacheMessage(accountID, chatID, &m)
+					result = append(result, cached)
+				}
+				return result, nil
+			}
+		}
+	}
+
+	return msgs, nil
 }
 
 func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
