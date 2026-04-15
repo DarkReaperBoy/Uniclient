@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
-import '../utils/debug.dart';
 
 /// Chat list + active chat + messages state.
 class ChatState extends ChangeNotifier {
@@ -28,9 +27,10 @@ class ChatState extends ChangeNotifier {
   Timer? _pollTimer;
 
   ChatState(this._engine) {
-    _subs.add(_engine.onChatSnapshot.listen((chats) {
-      _chats = chats;
-      notifyListeners();
+    // Snapshot events are per-account; reload the unified list from SQLite
+    // so that one account's sync doesn't erase another's chats.
+    _subs.add(_engine.onChatSnapshot.listen((_) {
+      loadChats();
     }));
     _subs.add(_engine.onChatUpdated.listen(_handleChatUpdated));
     _subs.add(_engine.onChatRemoved.listen(_handleChatRemoved));
@@ -41,9 +41,7 @@ class ChatState extends ChangeNotifier {
     _subs.add(_engine.onTyping.listen(_handleTyping));
     // Reload chats when any account connects (sync may have finished).
     _subs.add(_engine.onConnState.listen((event) {
-      Debug.log('CHAT', 'conn_state: ${event.accountId} → ${event.state}');
       if (event.state == 'connected') {
-        Debug.log('CHAT', 'Loading chats after connect...');
         loadChats();
       }
     }));

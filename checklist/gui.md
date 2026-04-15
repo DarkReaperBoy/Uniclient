@@ -1,7 +1,11 @@
 # GUI Checklist — Flutter Implementation Status
 
 ✅ = working in Flutter, ✅🔧 = built, compiles, untested in live app, ❌ = not started, 🔲 = placeholder/stub only.
-Last updated: 2026-04-15, session 22. **ALL FEATURES DONE** (150 done, 0 untested, 0 not-started).
+Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 untested, 0 not-started).
+
+## Bugs Found & Fixed (session 23)
+- ✅ **Multi-platform chat list wipe** — `onChatSnapshot` replaced entire `_chats` with per-account snapshot. IRC (0 chats) wiped Telegram (50 chats). Fixed: call `loadChats()` for unified SQLite query instead.
+- ✅ **Sidebar Stack layout** — `StackFit.loose` gave Column children `minHeight=0`, breaking Expanded. Fixed with `StackFit.expand`.
 
 ## Layout Structure
 

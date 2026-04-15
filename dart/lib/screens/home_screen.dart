@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import '../models/engine_models.dart';
 import '../theme/theme.dart';
@@ -55,6 +56,16 @@ class _HomeScreenState extends State<HomeScreen> {
       appState.onConnStateNotification = (text, icon, color) {
         final mgr = NotificationManager.maybeOf(context);
         mgr?.showStatusNotification(text, icon: icon, color: color);
+      };
+      appState.onAddAccount = (accountId, platform) {
+        // CLI command added an account — open auth dialog.
+        final authState = context.read<AuthState>();
+        authState.startAuth(accountId);
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (_) => AuthScreen(accountId: accountId, platform: platform),
+        );
       };
     }
 

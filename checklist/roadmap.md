@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — **ALL 🔧 ITEMS RESOLVED** — Final QA & polish
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 22 — right panel members/media, forum topic drill-in, all 🔧 cleared)
+**Last Updated:** 2026-04-15 (session 23 — CLI account automation, multi-platform bug fix, IRC as second platform)
 
-**NEXT:** Add second platform (connect a Bale/Matrix/IRC account alongside Telegram). Test multi-platform chat list merge. Test cross-platform unified behavior. Add voice/video call UI (when Go call support is ready). Polish: animations, transitions, accessibility. Consider production build (release mode, app icon, splash screen).
+**NEXT:** Test cross-platform unified behavior (switch between Telegram & IRC, verify messages in both). Add voice/video call UI (when Go call support is ready). Polish: animations, transitions, accessibility. Consider production build (release mode, app icon, splash screen).
 
 ## Steps
 
@@ -812,3 +812,17 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
 
 ### Step 15 — Build GUI
 - [ ] Flutter GUI (see research/gui-idea.md, checklist/gui.md)
+
+#### Session 23 — CLI automation, multi-platform support, critical bug fix
+
+1. **CLI account automation** — Added file-polling mechanism for adding accounts without GUI interaction:
+   - `AppState._pollCmdFile()` reads `/tmp/uniclient_cmd.json` every second
+   - `onAddAccount` callback triggers auth dialog from CLI
+   - `flutter_auth.sh add <platform>` command writes the trigger file
+   - Successfully added IRC as second platform alongside Telegram
+
+2. **Multi-platform snapshot bug (CRITICAL FIX)** — `onChatSnapshot` listener in `chat_state.dart` was directly replacing `_chats` with per-account snapshot data. When IRC synced 0 dialogs, its empty snapshot overwrote Telegram's 50 chats. Fixed: snapshot listener now calls `loadChats()` which queries the unified SQLite cache (all accounts merged).
+
+3. **Sidebar Stack layout fix** — Added `StackFit.expand` to sidebar's `Stack` widget (was using default `StackFit.loose` which gave `Column` children `minHeight=0`, breaking `Expanded` inside).
+
+4. **Debug logging cleanup** — Removed temporary debug logging from `chat_state.dart` and `sidebar.dart` added during investigation.

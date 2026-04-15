@@ -21,6 +21,7 @@
 set -euo pipefail
 
 CMD_FILE="/tmp/uniclient_auth_cmd.json"
+APP_CMD_FILE="/tmp/uniclient_cmd.json"
 OTP_FILE="${OTP_FILE:-auth/otp_code.txt}"
 LOG_FILE="${UNICLIENT_LOG:-/tmp/uniclient_log.txt}"
 
@@ -54,6 +55,13 @@ wait_for_state() {
 }
 
 case "${1:-help}" in
+  add)
+    platform="${2:?Usage: $0 add <platform>}"
+    printf '{"action":"add","platform":"%s"}\n' "$platform" > "$APP_CMD_FILE"
+    echo "[auth-cli] Sent add-account: platform=$platform (auth dialog will open)"
+    sleep 2
+    ;;
+
   status)
     if [[ -f "$LOG_FILE" ]]; then
       echo "=== Recent auth log entries ==="

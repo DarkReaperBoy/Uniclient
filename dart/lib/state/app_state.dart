@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -20,8 +22,17 @@ class AppState extends ChangeNotifier {
   final List<StreamSubscription<dynamic>> _subs = [];
 
   /// Callback for showing connection-state notifications (set by UI layer).
-  /// Parameters: (text, icon, color).
   void Function(String text, IconData icon, Color color)? onConnStateNotification;
+
+  /// Callback for triggering the auth flow (set by UI layer).
+  /// Called when a CLI command adds an account. Parameters: (accountId, platform).
+  void Function(String accountId, String platform)? onAddAccount;
+
+  Timer? _cmdPollTimer;
+
+  /// File path for CLI automation: add accounts without GUI interaction.
+  ///   {"action": "add", "platform": "irc"}
+  static const cmdFilePath = '/tmp/uniclient_cmd.json';
 
   AppState(this._engine);
 
@@ -130,6 +141,9 @@ class AppState extends ChangeNotifier {
       _engine.connectAllAccounts().catchError((e, stack) {
         Debug.error('APP', 'connectAllAccounts failed', e, stack);
       });
+
+      // Start polling for CLI commands.
+      _cmdPollTimer = Timer.periodic(const Duration(seconds: 1), (_) => _pollCmdFile());
     } catch (e, stack) {
       _initError = e.toString();
       Debug.error('APP', 'Engine init failed', e, stack);
@@ -191,8 +205,30 @@ class AppState extends ChangeNotifier {
     _ => platform,
   };
 
+  void _pollCmdFile() {
+    try {
+      final f = File(cmdFilePath);
+      if (!f.existsSync()) return;
+      final content = f.readAsStringSync().trim();
+      f.deleteSync();
+      if (content.isEmpty) return;
+      final cmd = jsonDecode(content) as Map<String, dynamic>;
+      final action = cmd['action'] as String?;
+      if (action == 'add') {
+        final platform = cmd['platform'] as String? ?? '';
+        if (platform.isEmpty) return;
+        Debug.log('APP', 'CLI command: add $platform');
+        final id = addAccount(platform);
+        onAddAccount?.call(id, platform);
+      }
+    } catch (e) {
+      // Ignore malformed/missing files.
+    }
+  }
+
   @override
   void dispose() {
+    _cmdPollTimer?.cancel();
     for (final sub in _subs) {
       sub.cancel();
     }

@@ -244,6 +244,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
           Expanded(
             child: ClipRect(
               child: Stack(
+                fit: StackFit.expand,
                 children: [
                   // Main chat list (slides left when drilling in)
                   if (!_showDrillIn || _slideController.isAnimating)
