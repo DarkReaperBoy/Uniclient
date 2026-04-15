@@ -5,7 +5,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.0
-// source: proto/engine.proto
+// source: engine.proto
 
 package proto
 
@@ -36,7 +36,7 @@ type EngineEvent struct {
 
 func (x *EngineEvent) Reset() {
 	*x = EngineEvent{}
-	mi := &file_proto_engine_proto_msgTypes[0]
+	mi := &file_engine_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -48,7 +48,7 @@ func (x *EngineEvent) String() string {
 func (*EngineEvent) ProtoMessage() {}
 
 func (x *EngineEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[0]
+	mi := &file_engine_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61,7 +61,7 @@ func (x *EngineEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineEvent.ProtoReflect.Descriptor instead.
 func (*EngineEvent) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{0}
+	return file_engine_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *EngineEvent) GetType() string {
@@ -106,7 +106,7 @@ type AccountInfo struct {
 
 func (x *AccountInfo) Reset() {
 	*x = AccountInfo{}
-	mi := &file_proto_engine_proto_msgTypes[1]
+	mi := &file_engine_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -118,7 +118,7 @@ func (x *AccountInfo) String() string {
 func (*AccountInfo) ProtoMessage() {}
 
 func (x *AccountInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[1]
+	mi := &file_engine_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -131,7 +131,7 @@ func (x *AccountInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountInfo.ProtoReflect.Descriptor instead.
 func (*AccountInfo) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{1}
+	return file_engine_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AccountInfo) GetId() string {
@@ -188,7 +188,7 @@ type EngineInitRequest struct {
 
 func (x *EngineInitRequest) Reset() {
 	*x = EngineInitRequest{}
-	mi := &file_proto_engine_proto_msgTypes[2]
+	mi := &file_engine_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -200,7 +200,7 @@ func (x *EngineInitRequest) String() string {
 func (*EngineInitRequest) ProtoMessage() {}
 
 func (x *EngineInitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[2]
+	mi := &file_engine_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -213,7 +213,7 @@ func (x *EngineInitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineInitRequest.ProtoReflect.Descriptor instead.
 func (*EngineInitRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{2}
+	return file_engine_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *EngineInitRequest) GetConfigDir() string {
@@ -254,7 +254,7 @@ type EngineInitResponse struct {
 
 func (x *EngineInitResponse) Reset() {
 	*x = EngineInitResponse{}
-	mi := &file_proto_engine_proto_msgTypes[3]
+	mi := &file_engine_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -266,7 +266,7 @@ func (x *EngineInitResponse) String() string {
 func (*EngineInitResponse) ProtoMessage() {}
 
 func (x *EngineInitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[3]
+	mi := &file_engine_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -279,7 +279,7 @@ func (x *EngineInitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineInitResponse.ProtoReflect.Descriptor instead.
 func (*EngineInitResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{3}
+	return file_engine_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *EngineInitResponse) GetOk() bool {
@@ -305,7 +305,7 @@ type EngineListAccountsResponse struct {
 
 func (x *EngineListAccountsResponse) Reset() {
 	*x = EngineListAccountsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[4]
+	mi := &file_engine_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -317,7 +317,7 @@ func (x *EngineListAccountsResponse) String() string {
 func (*EngineListAccountsResponse) ProtoMessage() {}
 
 func (x *EngineListAccountsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[4]
+	mi := &file_engine_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -330,7 +330,7 @@ func (x *EngineListAccountsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineListAccountsResponse.ProtoReflect.Descriptor instead.
 func (*EngineListAccountsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{4}
+	return file_engine_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *EngineListAccountsResponse) GetAccounts() []*AccountInfo {
@@ -349,7 +349,7 @@ type EngineAddAccountRequest struct {
 
 func (x *EngineAddAccountRequest) Reset() {
 	*x = EngineAddAccountRequest{}
-	mi := &file_proto_engine_proto_msgTypes[5]
+	mi := &file_engine_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -361,7 +361,7 @@ func (x *EngineAddAccountRequest) String() string {
 func (*EngineAddAccountRequest) ProtoMessage() {}
 
 func (x *EngineAddAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[5]
+	mi := &file_engine_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -374,7 +374,7 @@ func (x *EngineAddAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineAddAccountRequest.ProtoReflect.Descriptor instead.
 func (*EngineAddAccountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{5}
+	return file_engine_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *EngineAddAccountRequest) GetPlatform() string {
@@ -393,7 +393,7 @@ type EngineAddAccountResponse struct {
 
 func (x *EngineAddAccountResponse) Reset() {
 	*x = EngineAddAccountResponse{}
-	mi := &file_proto_engine_proto_msgTypes[6]
+	mi := &file_engine_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -405,7 +405,7 @@ func (x *EngineAddAccountResponse) String() string {
 func (*EngineAddAccountResponse) ProtoMessage() {}
 
 func (x *EngineAddAccountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[6]
+	mi := &file_engine_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -418,7 +418,7 @@ func (x *EngineAddAccountResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineAddAccountResponse.ProtoReflect.Descriptor instead.
 func (*EngineAddAccountResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{6}
+	return file_engine_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *EngineAddAccountResponse) GetAccountId() string {
@@ -437,7 +437,7 @@ type EngineRemoveAccountRequest struct {
 
 func (x *EngineRemoveAccountRequest) Reset() {
 	*x = EngineRemoveAccountRequest{}
-	mi := &file_proto_engine_proto_msgTypes[7]
+	mi := &file_engine_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -449,7 +449,7 @@ func (x *EngineRemoveAccountRequest) String() string {
 func (*EngineRemoveAccountRequest) ProtoMessage() {}
 
 func (x *EngineRemoveAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[7]
+	mi := &file_engine_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -462,7 +462,7 @@ func (x *EngineRemoveAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineRemoveAccountRequest.ProtoReflect.Descriptor instead.
 func (*EngineRemoveAccountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{7}
+	return file_engine_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *EngineRemoveAccountRequest) GetAccountId() string {
@@ -481,7 +481,7 @@ type EngineReorderAccountsRequest struct {
 
 func (x *EngineReorderAccountsRequest) Reset() {
 	*x = EngineReorderAccountsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[8]
+	mi := &file_engine_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -493,7 +493,7 @@ func (x *EngineReorderAccountsRequest) String() string {
 func (*EngineReorderAccountsRequest) ProtoMessage() {}
 
 func (x *EngineReorderAccountsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[8]
+	mi := &file_engine_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -506,7 +506,7 @@ func (x *EngineReorderAccountsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineReorderAccountsRequest.ProtoReflect.Descriptor instead.
 func (*EngineReorderAccountsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{8}
+	return file_engine_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *EngineReorderAccountsRequest) GetAccountIds() []string {
@@ -525,7 +525,7 @@ type EngineConnectAccountRequest struct {
 
 func (x *EngineConnectAccountRequest) Reset() {
 	*x = EngineConnectAccountRequest{}
-	mi := &file_proto_engine_proto_msgTypes[9]
+	mi := &file_engine_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -537,7 +537,7 @@ func (x *EngineConnectAccountRequest) String() string {
 func (*EngineConnectAccountRequest) ProtoMessage() {}
 
 func (x *EngineConnectAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[9]
+	mi := &file_engine_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -550,7 +550,7 @@ func (x *EngineConnectAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineConnectAccountRequest.ProtoReflect.Descriptor instead.
 func (*EngineConnectAccountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{9}
+	return file_engine_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *EngineConnectAccountRequest) GetAccountId() string {
@@ -569,7 +569,7 @@ type EngineDisconnectAccountRequest struct {
 
 func (x *EngineDisconnectAccountRequest) Reset() {
 	*x = EngineDisconnectAccountRequest{}
-	mi := &file_proto_engine_proto_msgTypes[10]
+	mi := &file_engine_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -581,7 +581,7 @@ func (x *EngineDisconnectAccountRequest) String() string {
 func (*EngineDisconnectAccountRequest) ProtoMessage() {}
 
 func (x *EngineDisconnectAccountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[10]
+	mi := &file_engine_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -594,7 +594,7 @@ func (x *EngineDisconnectAccountRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineDisconnectAccountRequest.ProtoReflect.Descriptor instead.
 func (*EngineDisconnectAccountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{10}
+	return file_engine_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *EngineDisconnectAccountRequest) GetAccountId() string {
@@ -614,7 +614,7 @@ type AuthOption struct {
 
 func (x *AuthOption) Reset() {
 	*x = AuthOption{}
-	mi := &file_proto_engine_proto_msgTypes[11]
+	mi := &file_engine_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -626,7 +626,7 @@ func (x *AuthOption) String() string {
 func (*AuthOption) ProtoMessage() {}
 
 func (x *AuthOption) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[11]
+	mi := &file_engine_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -639,7 +639,7 @@ func (x *AuthOption) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AuthOption.ProtoReflect.Descriptor instead.
 func (*AuthOption) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{11}
+	return file_engine_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AuthOption) GetId() string {
@@ -683,7 +683,7 @@ type EngineAuthState struct {
 
 func (x *EngineAuthState) Reset() {
 	*x = EngineAuthState{}
-	mi := &file_proto_engine_proto_msgTypes[12]
+	mi := &file_engine_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -695,7 +695,7 @@ func (x *EngineAuthState) String() string {
 func (*EngineAuthState) ProtoMessage() {}
 
 func (x *EngineAuthState) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[12]
+	mi := &file_engine_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -708,7 +708,7 @@ func (x *EngineAuthState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineAuthState.ProtoReflect.Descriptor instead.
 func (*EngineAuthState) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{12}
+	return file_engine_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *EngineAuthState) GetAccountId() string {
@@ -853,7 +853,7 @@ type EngineStartAuthRequest struct {
 
 func (x *EngineStartAuthRequest) Reset() {
 	*x = EngineStartAuthRequest{}
-	mi := &file_proto_engine_proto_msgTypes[13]
+	mi := &file_engine_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -865,7 +865,7 @@ func (x *EngineStartAuthRequest) String() string {
 func (*EngineStartAuthRequest) ProtoMessage() {}
 
 func (x *EngineStartAuthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[13]
+	mi := &file_engine_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -878,7 +878,7 @@ func (x *EngineStartAuthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineStartAuthRequest.ProtoReflect.Descriptor instead.
 func (*EngineStartAuthRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{13}
+	return file_engine_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *EngineStartAuthRequest) GetAccountId() string {
@@ -897,7 +897,7 @@ type EngineStartAuthResponse struct {
 
 func (x *EngineStartAuthResponse) Reset() {
 	*x = EngineStartAuthResponse{}
-	mi := &file_proto_engine_proto_msgTypes[14]
+	mi := &file_engine_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -909,7 +909,7 @@ func (x *EngineStartAuthResponse) String() string {
 func (*EngineStartAuthResponse) ProtoMessage() {}
 
 func (x *EngineStartAuthResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[14]
+	mi := &file_engine_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -922,7 +922,7 @@ func (x *EngineStartAuthResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineStartAuthResponse.ProtoReflect.Descriptor instead.
 func (*EngineStartAuthResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{14}
+	return file_engine_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *EngineStartAuthResponse) GetState() *EngineAuthState {
@@ -942,7 +942,7 @@ type EngineSubmitAuthInputRequest struct {
 
 func (x *EngineSubmitAuthInputRequest) Reset() {
 	*x = EngineSubmitAuthInputRequest{}
-	mi := &file_proto_engine_proto_msgTypes[15]
+	mi := &file_engine_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -954,7 +954,7 @@ func (x *EngineSubmitAuthInputRequest) String() string {
 func (*EngineSubmitAuthInputRequest) ProtoMessage() {}
 
 func (x *EngineSubmitAuthInputRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[15]
+	mi := &file_engine_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -967,7 +967,7 @@ func (x *EngineSubmitAuthInputRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSubmitAuthInputRequest.ProtoReflect.Descriptor instead.
 func (*EngineSubmitAuthInputRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{15}
+	return file_engine_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *EngineSubmitAuthInputRequest) GetAccountId() string {
@@ -993,7 +993,7 @@ type EngineSubmitAuthInputResponse struct {
 
 func (x *EngineSubmitAuthInputResponse) Reset() {
 	*x = EngineSubmitAuthInputResponse{}
-	mi := &file_proto_engine_proto_msgTypes[16]
+	mi := &file_engine_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1005,7 +1005,7 @@ func (x *EngineSubmitAuthInputResponse) String() string {
 func (*EngineSubmitAuthInputResponse) ProtoMessage() {}
 
 func (x *EngineSubmitAuthInputResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[16]
+	mi := &file_engine_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1018,7 +1018,7 @@ func (x *EngineSubmitAuthInputResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSubmitAuthInputResponse.ProtoReflect.Descriptor instead.
 func (*EngineSubmitAuthInputResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{16}
+	return file_engine_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *EngineSubmitAuthInputResponse) GetState() *EngineAuthState {
@@ -1037,7 +1037,7 @@ type EngineCancelAuthRequest struct {
 
 func (x *EngineCancelAuthRequest) Reset() {
 	*x = EngineCancelAuthRequest{}
-	mi := &file_proto_engine_proto_msgTypes[17]
+	mi := &file_engine_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1049,7 +1049,7 @@ func (x *EngineCancelAuthRequest) String() string {
 func (*EngineCancelAuthRequest) ProtoMessage() {}
 
 func (x *EngineCancelAuthRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[17]
+	mi := &file_engine_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1062,7 +1062,7 @@ func (x *EngineCancelAuthRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCancelAuthRequest.ProtoReflect.Descriptor instead.
 func (*EngineCancelAuthRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{17}
+	return file_engine_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *EngineCancelAuthRequest) GetAccountId() string {
@@ -1096,7 +1096,7 @@ type EngineChatInfo struct {
 
 func (x *EngineChatInfo) Reset() {
 	*x = EngineChatInfo{}
-	mi := &file_proto_engine_proto_msgTypes[18]
+	mi := &file_engine_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1108,7 +1108,7 @@ func (x *EngineChatInfo) String() string {
 func (*EngineChatInfo) ProtoMessage() {}
 
 func (x *EngineChatInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[18]
+	mi := &file_engine_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1121,7 +1121,7 @@ func (x *EngineChatInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineChatInfo.ProtoReflect.Descriptor instead.
 func (*EngineChatInfo) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{18}
+	return file_engine_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *EngineChatInfo) GetAccountId() string {
@@ -1248,7 +1248,7 @@ type EngineGetChatListRequest struct {
 
 func (x *EngineGetChatListRequest) Reset() {
 	*x = EngineGetChatListRequest{}
-	mi := &file_proto_engine_proto_msgTypes[19]
+	mi := &file_engine_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1260,7 +1260,7 @@ func (x *EngineGetChatListRequest) String() string {
 func (*EngineGetChatListRequest) ProtoMessage() {}
 
 func (x *EngineGetChatListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[19]
+	mi := &file_engine_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1273,7 +1273,7 @@ func (x *EngineGetChatListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetChatListRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetChatListRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{19}
+	return file_engine_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *EngineGetChatListRequest) GetAccountId() string {
@@ -1313,7 +1313,7 @@ type EngineGetChatListResponse struct {
 
 func (x *EngineGetChatListResponse) Reset() {
 	*x = EngineGetChatListResponse{}
-	mi := &file_proto_engine_proto_msgTypes[20]
+	mi := &file_engine_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1325,7 +1325,7 @@ func (x *EngineGetChatListResponse) String() string {
 func (*EngineGetChatListResponse) ProtoMessage() {}
 
 func (x *EngineGetChatListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[20]
+	mi := &file_engine_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1338,7 +1338,7 @@ func (x *EngineGetChatListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetChatListResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetChatListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{20}
+	return file_engine_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *EngineGetChatListResponse) GetChats() []*EngineChatInfo {
@@ -1359,7 +1359,7 @@ type EngineSaveDraftRequest struct {
 
 func (x *EngineSaveDraftRequest) Reset() {
 	*x = EngineSaveDraftRequest{}
-	mi := &file_proto_engine_proto_msgTypes[21]
+	mi := &file_engine_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1371,7 +1371,7 @@ func (x *EngineSaveDraftRequest) String() string {
 func (*EngineSaveDraftRequest) ProtoMessage() {}
 
 func (x *EngineSaveDraftRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[21]
+	mi := &file_engine_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1384,7 +1384,7 @@ func (x *EngineSaveDraftRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSaveDraftRequest.ProtoReflect.Descriptor instead.
 func (*EngineSaveDraftRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{21}
+	return file_engine_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *EngineSaveDraftRequest) GetAccountId() string {
@@ -1419,7 +1419,7 @@ type EngineMuteChatRequest struct {
 
 func (x *EngineMuteChatRequest) Reset() {
 	*x = EngineMuteChatRequest{}
-	mi := &file_proto_engine_proto_msgTypes[22]
+	mi := &file_engine_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1431,7 +1431,7 @@ func (x *EngineMuteChatRequest) String() string {
 func (*EngineMuteChatRequest) ProtoMessage() {}
 
 func (x *EngineMuteChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[22]
+	mi := &file_engine_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1444,7 +1444,7 @@ func (x *EngineMuteChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineMuteChatRequest.ProtoReflect.Descriptor instead.
 func (*EngineMuteChatRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{22}
+	return file_engine_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *EngineMuteChatRequest) GetAccountId() string {
@@ -1479,7 +1479,7 @@ type EnginePinChatRequest struct {
 
 func (x *EnginePinChatRequest) Reset() {
 	*x = EnginePinChatRequest{}
-	mi := &file_proto_engine_proto_msgTypes[23]
+	mi := &file_engine_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1491,7 +1491,7 @@ func (x *EnginePinChatRequest) String() string {
 func (*EnginePinChatRequest) ProtoMessage() {}
 
 func (x *EnginePinChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[23]
+	mi := &file_engine_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1504,7 +1504,7 @@ func (x *EnginePinChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EnginePinChatRequest.ProtoReflect.Descriptor instead.
 func (*EnginePinChatRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{23}
+	return file_engine_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *EnginePinChatRequest) GetAccountId() string {
@@ -1539,7 +1539,7 @@ type EngineArchiveChatRequest struct {
 
 func (x *EngineArchiveChatRequest) Reset() {
 	*x = EngineArchiveChatRequest{}
-	mi := &file_proto_engine_proto_msgTypes[24]
+	mi := &file_engine_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1551,7 +1551,7 @@ func (x *EngineArchiveChatRequest) String() string {
 func (*EngineArchiveChatRequest) ProtoMessage() {}
 
 func (x *EngineArchiveChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[24]
+	mi := &file_engine_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1564,7 +1564,7 @@ func (x *EngineArchiveChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineArchiveChatRequest.ProtoReflect.Descriptor instead.
 func (*EngineArchiveChatRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{24}
+	return file_engine_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *EngineArchiveChatRequest) GetAccountId() string {
@@ -1599,7 +1599,7 @@ type EngineMarkChatReadRequest struct {
 
 func (x *EngineMarkChatReadRequest) Reset() {
 	*x = EngineMarkChatReadRequest{}
-	mi := &file_proto_engine_proto_msgTypes[25]
+	mi := &file_engine_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1611,7 +1611,7 @@ func (x *EngineMarkChatReadRequest) String() string {
 func (*EngineMarkChatReadRequest) ProtoMessage() {}
 
 func (x *EngineMarkChatReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[25]
+	mi := &file_engine_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1624,7 +1624,7 @@ func (x *EngineMarkChatReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineMarkChatReadRequest.ProtoReflect.Descriptor instead.
 func (*EngineMarkChatReadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{25}
+	return file_engine_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *EngineMarkChatReadRequest) GetAccountId() string {
@@ -1684,7 +1684,7 @@ type EngineCachedMessage struct {
 
 func (x *EngineCachedMessage) Reset() {
 	*x = EngineCachedMessage{}
-	mi := &file_proto_engine_proto_msgTypes[26]
+	mi := &file_engine_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1696,7 +1696,7 @@ func (x *EngineCachedMessage) String() string {
 func (*EngineCachedMessage) ProtoMessage() {}
 
 func (x *EngineCachedMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[26]
+	mi := &file_engine_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1709,7 +1709,7 @@ func (x *EngineCachedMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCachedMessage.ProtoReflect.Descriptor instead.
 func (*EngineCachedMessage) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{26}
+	return file_engine_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *EngineCachedMessage) GetAccountId() string {
@@ -1913,7 +1913,7 @@ type EngineGetMessagesRequest struct {
 
 func (x *EngineGetMessagesRequest) Reset() {
 	*x = EngineGetMessagesRequest{}
-	mi := &file_proto_engine_proto_msgTypes[27]
+	mi := &file_engine_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1925,7 +1925,7 @@ func (x *EngineGetMessagesRequest) String() string {
 func (*EngineGetMessagesRequest) ProtoMessage() {}
 
 func (x *EngineGetMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[27]
+	mi := &file_engine_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1938,7 +1938,7 @@ func (x *EngineGetMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetMessagesRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{27}
+	return file_engine_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *EngineGetMessagesRequest) GetAccountId() string {
@@ -1978,7 +1978,7 @@ type EngineGetMessagesResponse struct {
 
 func (x *EngineGetMessagesResponse) Reset() {
 	*x = EngineGetMessagesResponse{}
-	mi := &file_proto_engine_proto_msgTypes[28]
+	mi := &file_engine_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1990,7 +1990,7 @@ func (x *EngineGetMessagesResponse) String() string {
 func (*EngineGetMessagesResponse) ProtoMessage() {}
 
 func (x *EngineGetMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[28]
+	mi := &file_engine_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2003,7 +2003,7 @@ func (x *EngineGetMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetMessagesResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{28}
+	return file_engine_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *EngineGetMessagesResponse) GetMessages() []*EngineCachedMessage {
@@ -2025,7 +2025,7 @@ type EngineSendMessageRequest struct {
 
 func (x *EngineSendMessageRequest) Reset() {
 	*x = EngineSendMessageRequest{}
-	mi := &file_proto_engine_proto_msgTypes[29]
+	mi := &file_engine_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2037,7 +2037,7 @@ func (x *EngineSendMessageRequest) String() string {
 func (*EngineSendMessageRequest) ProtoMessage() {}
 
 func (x *EngineSendMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[29]
+	mi := &file_engine_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2050,7 +2050,7 @@ func (x *EngineSendMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSendMessageRequest.ProtoReflect.Descriptor instead.
 func (*EngineSendMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{29}
+	return file_engine_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *EngineSendMessageRequest) GetAccountId() string {
@@ -2090,7 +2090,7 @@ type EngineSendMessageResponse struct {
 
 func (x *EngineSendMessageResponse) Reset() {
 	*x = EngineSendMessageResponse{}
-	mi := &file_proto_engine_proto_msgTypes[30]
+	mi := &file_engine_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2102,7 +2102,7 @@ func (x *EngineSendMessageResponse) String() string {
 func (*EngineSendMessageResponse) ProtoMessage() {}
 
 func (x *EngineSendMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[30]
+	mi := &file_engine_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2115,7 +2115,7 @@ func (x *EngineSendMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSendMessageResponse.ProtoReflect.Descriptor instead.
 func (*EngineSendMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{30}
+	return file_engine_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *EngineSendMessageResponse) GetLocalId() string {
@@ -2137,7 +2137,7 @@ type EngineEditMessageRequest struct {
 
 func (x *EngineEditMessageRequest) Reset() {
 	*x = EngineEditMessageRequest{}
-	mi := &file_proto_engine_proto_msgTypes[31]
+	mi := &file_engine_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2149,7 +2149,7 @@ func (x *EngineEditMessageRequest) String() string {
 func (*EngineEditMessageRequest) ProtoMessage() {}
 
 func (x *EngineEditMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[31]
+	mi := &file_engine_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2162,7 +2162,7 @@ func (x *EngineEditMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineEditMessageRequest.ProtoReflect.Descriptor instead.
 func (*EngineEditMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{31}
+	return file_engine_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *EngineEditMessageRequest) GetAccountId() string {
@@ -2204,7 +2204,7 @@ type EngineDeleteMessageRequest struct {
 
 func (x *EngineDeleteMessageRequest) Reset() {
 	*x = EngineDeleteMessageRequest{}
-	mi := &file_proto_engine_proto_msgTypes[32]
+	mi := &file_engine_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2216,7 +2216,7 @@ func (x *EngineDeleteMessageRequest) String() string {
 func (*EngineDeleteMessageRequest) ProtoMessage() {}
 
 func (x *EngineDeleteMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[32]
+	mi := &file_engine_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2229,7 +2229,7 @@ func (x *EngineDeleteMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineDeleteMessageRequest.ProtoReflect.Descriptor instead.
 func (*EngineDeleteMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{32}
+	return file_engine_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *EngineDeleteMessageRequest) GetAccountId() string {
@@ -2253,6 +2253,322 @@ func (x *EngineDeleteMessageRequest) GetMsgId() string {
 	return ""
 }
 
+type EngineForwardMessageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	ToChatId      string                 `protobuf:"bytes,4,opt,name=to_chat_id,json=toChatId,proto3" json:"to_chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineForwardMessageRequest) Reset() {
+	*x = EngineForwardMessageRequest{}
+	mi := &file_engine_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineForwardMessageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineForwardMessageRequest) ProtoMessage() {}
+
+func (x *EngineForwardMessageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_engine_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineForwardMessageRequest.ProtoReflect.Descriptor instead.
+func (*EngineForwardMessageRequest) Descriptor() ([]byte, []int) {
+	return file_engine_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *EngineForwardMessageRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineForwardMessageRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineForwardMessageRequest) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
+func (x *EngineForwardMessageRequest) GetToChatId() string {
+	if x != nil {
+		return x.ToChatId
+	}
+	return ""
+}
+
+type EngineReactToMessageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	Emoji         string                 `protobuf:"bytes,4,opt,name=emoji,proto3" json:"emoji,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineReactToMessageRequest) Reset() {
+	*x = EngineReactToMessageRequest{}
+	mi := &file_engine_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineReactToMessageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineReactToMessageRequest) ProtoMessage() {}
+
+func (x *EngineReactToMessageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_engine_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineReactToMessageRequest.ProtoReflect.Descriptor instead.
+func (*EngineReactToMessageRequest) Descriptor() ([]byte, []int) {
+	return file_engine_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *EngineReactToMessageRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineReactToMessageRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineReactToMessageRequest) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
+func (x *EngineReactToMessageRequest) GetEmoji() string {
+	if x != nil {
+		return x.Emoji
+	}
+	return ""
+}
+
+type EnginePinMessageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	Pinned        bool                   `protobuf:"varint,4,opt,name=pinned,proto3" json:"pinned,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnginePinMessageRequest) Reset() {
+	*x = EnginePinMessageRequest{}
+	mi := &file_engine_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnginePinMessageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnginePinMessageRequest) ProtoMessage() {}
+
+func (x *EnginePinMessageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_engine_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnginePinMessageRequest.ProtoReflect.Descriptor instead.
+func (*EnginePinMessageRequest) Descriptor() ([]byte, []int) {
+	return file_engine_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *EnginePinMessageRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EnginePinMessageRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EnginePinMessageRequest) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
+func (x *EnginePinMessageRequest) GetPinned() bool {
+	if x != nil {
+		return x.Pinned
+	}
+	return false
+}
+
+type EngineUploadFileRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	FilePath      string                 `protobuf:"bytes,3,opt,name=file_path,json=filePath,proto3" json:"file_path,omitempty"`
+	Caption       string                 `protobuf:"bytes,4,opt,name=caption,proto3" json:"caption,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineUploadFileRequest) Reset() {
+	*x = EngineUploadFileRequest{}
+	mi := &file_engine_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineUploadFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineUploadFileRequest) ProtoMessage() {}
+
+func (x *EngineUploadFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_engine_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineUploadFileRequest.ProtoReflect.Descriptor instead.
+func (*EngineUploadFileRequest) Descriptor() ([]byte, []int) {
+	return file_engine_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *EngineUploadFileRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineUploadFileRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineUploadFileRequest) GetFilePath() string {
+	if x != nil {
+		return x.FilePath
+	}
+	return ""
+}
+
+func (x *EngineUploadFileRequest) GetCaption() string {
+	if x != nil {
+		return x.Caption
+	}
+	return ""
+}
+
+type EngineUploadFileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MsgId         string                 `protobuf:"bytes,1,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineUploadFileResponse) Reset() {
+	*x = EngineUploadFileResponse{}
+	mi := &file_engine_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineUploadFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineUploadFileResponse) ProtoMessage() {}
+
+func (x *EngineUploadFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_engine_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineUploadFileResponse.ProtoReflect.Descriptor instead.
+func (*EngineUploadFileResponse) Descriptor() ([]byte, []int) {
+	return file_engine_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *EngineUploadFileResponse) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
 type EngineRetryPendingRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	LocalId       string                 `protobuf:"bytes,1,opt,name=local_id,json=localId,proto3" json:"local_id,omitempty"`
@@ -2262,7 +2578,7 @@ type EngineRetryPendingRequest struct {
 
 func (x *EngineRetryPendingRequest) Reset() {
 	*x = EngineRetryPendingRequest{}
-	mi := &file_proto_engine_proto_msgTypes[33]
+	mi := &file_engine_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2274,7 +2590,7 @@ func (x *EngineRetryPendingRequest) String() string {
 func (*EngineRetryPendingRequest) ProtoMessage() {}
 
 func (x *EngineRetryPendingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[33]
+	mi := &file_engine_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2287,7 +2603,7 @@ func (x *EngineRetryPendingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineRetryPendingRequest.ProtoReflect.Descriptor instead.
 func (*EngineRetryPendingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{33}
+	return file_engine_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *EngineRetryPendingRequest) GetLocalId() string {
@@ -2308,7 +2624,7 @@ type EngineGetMessageRawRequest struct {
 
 func (x *EngineGetMessageRawRequest) Reset() {
 	*x = EngineGetMessageRawRequest{}
-	mi := &file_proto_engine_proto_msgTypes[34]
+	mi := &file_engine_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2320,7 +2636,7 @@ func (x *EngineGetMessageRawRequest) String() string {
 func (*EngineGetMessageRawRequest) ProtoMessage() {}
 
 func (x *EngineGetMessageRawRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[34]
+	mi := &file_engine_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2333,7 +2649,7 @@ func (x *EngineGetMessageRawRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetMessageRawRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetMessageRawRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{34}
+	return file_engine_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *EngineGetMessageRawRequest) GetAccountId() string {
@@ -2366,7 +2682,7 @@ type EngineGetMessageRawResponse struct {
 
 func (x *EngineGetMessageRawResponse) Reset() {
 	*x = EngineGetMessageRawResponse{}
-	mi := &file_proto_engine_proto_msgTypes[35]
+	mi := &file_engine_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2378,7 +2694,7 @@ func (x *EngineGetMessageRawResponse) String() string {
 func (*EngineGetMessageRawResponse) ProtoMessage() {}
 
 func (x *EngineGetMessageRawResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[35]
+	mi := &file_engine_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2391,7 +2707,7 @@ func (x *EngineGetMessageRawResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetMessageRawResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetMessageRawResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{35}
+	return file_engine_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *EngineGetMessageRawResponse) GetContentRaw() []byte {
@@ -2411,7 +2727,7 @@ type EngineSetActiveChatRequest struct {
 
 func (x *EngineSetActiveChatRequest) Reset() {
 	*x = EngineSetActiveChatRequest{}
-	mi := &file_proto_engine_proto_msgTypes[36]
+	mi := &file_engine_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2423,7 +2739,7 @@ func (x *EngineSetActiveChatRequest) String() string {
 func (*EngineSetActiveChatRequest) ProtoMessage() {}
 
 func (x *EngineSetActiveChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[36]
+	mi := &file_engine_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2436,7 +2752,7 @@ func (x *EngineSetActiveChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSetActiveChatRequest.ProtoReflect.Descriptor instead.
 func (*EngineSetActiveChatRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{36}
+	return file_engine_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *EngineSetActiveChatRequest) GetAccountId() string {
@@ -2468,7 +2784,7 @@ type EngineSearchResult struct {
 
 func (x *EngineSearchResult) Reset() {
 	*x = EngineSearchResult{}
-	mi := &file_proto_engine_proto_msgTypes[37]
+	mi := &file_engine_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2480,7 +2796,7 @@ func (x *EngineSearchResult) String() string {
 func (*EngineSearchResult) ProtoMessage() {}
 
 func (x *EngineSearchResult) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[37]
+	mi := &file_engine_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2493,7 +2809,7 @@ func (x *EngineSearchResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSearchResult.ProtoReflect.Descriptor instead.
 func (*EngineSearchResult) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{37}
+	return file_engine_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *EngineSearchResult) GetAccountId() string {
@@ -2556,7 +2872,7 @@ type EngineSearchMessagesRequest struct {
 
 func (x *EngineSearchMessagesRequest) Reset() {
 	*x = EngineSearchMessagesRequest{}
-	mi := &file_proto_engine_proto_msgTypes[38]
+	mi := &file_engine_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2568,7 +2884,7 @@ func (x *EngineSearchMessagesRequest) String() string {
 func (*EngineSearchMessagesRequest) ProtoMessage() {}
 
 func (x *EngineSearchMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[38]
+	mi := &file_engine_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2581,7 +2897,7 @@ func (x *EngineSearchMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSearchMessagesRequest.ProtoReflect.Descriptor instead.
 func (*EngineSearchMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{38}
+	return file_engine_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *EngineSearchMessagesRequest) GetQuery() string {
@@ -2614,7 +2930,7 @@ type EngineSearchMessagesResponse struct {
 
 func (x *EngineSearchMessagesResponse) Reset() {
 	*x = EngineSearchMessagesResponse{}
-	mi := &file_proto_engine_proto_msgTypes[39]
+	mi := &file_engine_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2626,7 +2942,7 @@ func (x *EngineSearchMessagesResponse) String() string {
 func (*EngineSearchMessagesResponse) ProtoMessage() {}
 
 func (x *EngineSearchMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[39]
+	mi := &file_engine_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2639,7 +2955,7 @@ func (x *EngineSearchMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSearchMessagesResponse.ProtoReflect.Descriptor instead.
 func (*EngineSearchMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{39}
+	return file_engine_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *EngineSearchMessagesResponse) GetResults() []*EngineSearchResult {
@@ -2659,7 +2975,7 @@ type EngineSearchChatsRequest struct {
 
 func (x *EngineSearchChatsRequest) Reset() {
 	*x = EngineSearchChatsRequest{}
-	mi := &file_proto_engine_proto_msgTypes[40]
+	mi := &file_engine_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2671,7 +2987,7 @@ func (x *EngineSearchChatsRequest) String() string {
 func (*EngineSearchChatsRequest) ProtoMessage() {}
 
 func (x *EngineSearchChatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[40]
+	mi := &file_engine_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2684,7 +3000,7 @@ func (x *EngineSearchChatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSearchChatsRequest.ProtoReflect.Descriptor instead.
 func (*EngineSearchChatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{40}
+	return file_engine_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *EngineSearchChatsRequest) GetQuery() string {
@@ -2710,7 +3026,7 @@ type EngineSearchChatsResponse struct {
 
 func (x *EngineSearchChatsResponse) Reset() {
 	*x = EngineSearchChatsResponse{}
-	mi := &file_proto_engine_proto_msgTypes[41]
+	mi := &file_engine_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2722,7 +3038,7 @@ func (x *EngineSearchChatsResponse) String() string {
 func (*EngineSearchChatsResponse) ProtoMessage() {}
 
 func (x *EngineSearchChatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[41]
+	mi := &file_engine_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2735,7 +3051,7 @@ func (x *EngineSearchChatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineSearchChatsResponse.ProtoReflect.Descriptor instead.
 func (*EngineSearchChatsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{41}
+	return file_engine_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *EngineSearchChatsResponse) GetChats() []*EngineChatInfo {
@@ -2758,7 +3074,7 @@ type EngineRequestDownloadRequest struct {
 
 func (x *EngineRequestDownloadRequest) Reset() {
 	*x = EngineRequestDownloadRequest{}
-	mi := &file_proto_engine_proto_msgTypes[42]
+	mi := &file_engine_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2770,7 +3086,7 @@ func (x *EngineRequestDownloadRequest) String() string {
 func (*EngineRequestDownloadRequest) ProtoMessage() {}
 
 func (x *EngineRequestDownloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[42]
+	mi := &file_engine_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2783,7 +3099,7 @@ func (x *EngineRequestDownloadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineRequestDownloadRequest.ProtoReflect.Descriptor instead.
 func (*EngineRequestDownloadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{42}
+	return file_engine_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *EngineRequestDownloadRequest) GetAccountId() string {
@@ -2833,7 +3149,7 @@ type EngineCancelDownloadRequest struct {
 
 func (x *EngineCancelDownloadRequest) Reset() {
 	*x = EngineCancelDownloadRequest{}
-	mi := &file_proto_engine_proto_msgTypes[43]
+	mi := &file_engine_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2845,7 +3161,7 @@ func (x *EngineCancelDownloadRequest) String() string {
 func (*EngineCancelDownloadRequest) ProtoMessage() {}
 
 func (x *EngineCancelDownloadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[43]
+	mi := &file_engine_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2858,7 +3174,7 @@ func (x *EngineCancelDownloadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineCancelDownloadRequest.ProtoReflect.Descriptor instead.
 func (*EngineCancelDownloadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{43}
+	return file_engine_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *EngineCancelDownloadRequest) GetAccountId() string {
@@ -2898,7 +3214,7 @@ type EngineGetCacheSizeResponse struct {
 
 func (x *EngineGetCacheSizeResponse) Reset() {
 	*x = EngineGetCacheSizeResponse{}
-	mi := &file_proto_engine_proto_msgTypes[44]
+	mi := &file_engine_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2910,7 +3226,7 @@ func (x *EngineGetCacheSizeResponse) String() string {
 func (*EngineGetCacheSizeResponse) ProtoMessage() {}
 
 func (x *EngineGetCacheSizeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[44]
+	mi := &file_engine_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2923,7 +3239,7 @@ func (x *EngineGetCacheSizeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetCacheSizeResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetCacheSizeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{44}
+	return file_engine_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *EngineGetCacheSizeResponse) GetSizeBytes() int64 {
@@ -2942,7 +3258,7 @@ type EngineClearCacheRequest struct {
 
 func (x *EngineClearCacheRequest) Reset() {
 	*x = EngineClearCacheRequest{}
-	mi := &file_proto_engine_proto_msgTypes[45]
+	mi := &file_engine_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2954,7 +3270,7 @@ func (x *EngineClearCacheRequest) String() string {
 func (*EngineClearCacheRequest) ProtoMessage() {}
 
 func (x *EngineClearCacheRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[45]
+	mi := &file_engine_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2967,7 +3283,7 @@ func (x *EngineClearCacheRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineClearCacheRequest.ProtoReflect.Descriptor instead.
 func (*EngineClearCacheRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{45}
+	return file_engine_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *EngineClearCacheRequest) GetAccountId() string {
@@ -2996,7 +3312,7 @@ type EngineGetConfigResponse struct {
 
 func (x *EngineGetConfigResponse) Reset() {
 	*x = EngineGetConfigResponse{}
-	mi := &file_proto_engine_proto_msgTypes[46]
+	mi := &file_engine_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3008,7 +3324,7 @@ func (x *EngineGetConfigResponse) String() string {
 func (*EngineGetConfigResponse) ProtoMessage() {}
 
 func (x *EngineGetConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[46]
+	mi := &file_engine_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3021,7 +3337,7 @@ func (x *EngineGetConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetConfigResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{46}
+	return file_engine_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *EngineGetConfigResponse) GetTheme() string {
@@ -3126,7 +3442,7 @@ type EngineUpdateConfigRequest struct {
 
 func (x *EngineUpdateConfigRequest) Reset() {
 	*x = EngineUpdateConfigRequest{}
-	mi := &file_proto_engine_proto_msgTypes[47]
+	mi := &file_engine_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3138,7 +3454,7 @@ func (x *EngineUpdateConfigRequest) String() string {
 func (*EngineUpdateConfigRequest) ProtoMessage() {}
 
 func (x *EngineUpdateConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[47]
+	mi := &file_engine_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3151,7 +3467,7 @@ func (x *EngineUpdateConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineUpdateConfigRequest.ProtoReflect.Descriptor instead.
 func (*EngineUpdateConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{47}
+	return file_engine_proto_rawDescGZIP(), []int{52}
 }
 
 func (x *EngineUpdateConfigRequest) GetTheme() string {
@@ -3259,11 +3575,11 @@ func (x *EngineUpdateConfigRequest) GetHasNotifyMentionsOnly() bool {
 	return false
 }
 
-var File_proto_engine_proto protoreflect.FileDescriptor
+var File_engine_proto protoreflect.FileDescriptor
 
-const file_proto_engine_proto_rawDesc = "" +
+const file_engine_proto_rawDesc = "" +
 	"\n" +
-	"\x12proto/engine.proto\x12\tuniclient\"\x80\x01\n" +
+	"\fengine.proto\x12\tuniclient\"\x80\x01\n" +
 	"\vEngineEvent\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1d\n" +
 	"\n" +
@@ -3467,7 +3783,34 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
-	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\"6\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\"\x8a\x01\n" +
+	"\x1bEngineForwardMessageRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x1c\n" +
+	"\n" +
+	"to_chat_id\x18\x04 \x01(\tR\btoChatId\"\x82\x01\n" +
+	"\x1bEngineReactToMessageRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x14\n" +
+	"\x05emoji\x18\x04 \x01(\tR\x05emoji\"\x80\x01\n" +
+	"\x17EnginePinMessageRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x16\n" +
+	"\x06pinned\x18\x04 \x01(\bR\x06pinned\"\x88\x01\n" +
+	"\x17EngineUploadFileRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x1b\n" +
+	"\tfile_path\x18\x03 \x01(\tR\bfilePath\x12\x18\n" +
+	"\acaption\x18\x04 \x01(\tR\acaption\"1\n" +
+	"\x18EngineUploadFileResponse\x12\x15\n" +
+	"\x06msg_id\x18\x01 \x01(\tR\x05msgId\"6\n" +
 	"\x19EngineRetryPendingRequest\x12\x19\n" +
 	"\blocal_id\x18\x01 \x01(\tR\alocalId\"k\n" +
 	"\x1aEngineGetMessageRawRequest\x12\x1d\n" +
@@ -3562,19 +3905,19 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x18has_notify_mentions_only\x18\x0f \x01(\bR\x15hasNotifyMentionsOnlyB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
-	file_proto_engine_proto_rawDescOnce sync.Once
-	file_proto_engine_proto_rawDescData []byte
+	file_engine_proto_rawDescOnce sync.Once
+	file_engine_proto_rawDescData []byte
 )
 
-func file_proto_engine_proto_rawDescGZIP() []byte {
-	file_proto_engine_proto_rawDescOnce.Do(func() {
-		file_proto_engine_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)))
+func file_engine_proto_rawDescGZIP() []byte {
+	file_engine_proto_rawDescOnce.Do(func() {
+		file_engine_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_engine_proto_rawDesc), len(file_engine_proto_rawDesc)))
 	})
-	return file_proto_engine_proto_rawDescData
+	return file_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 48)
-var file_proto_engine_proto_goTypes = []any{
+var file_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 53)
+var file_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                    // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                    // 1: uniclient.AccountInfo
 	(*EngineInitRequest)(nil),              // 2: uniclient.EngineInitRequest
@@ -3608,30 +3951,35 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineSendMessageResponse)(nil),      // 30: uniclient.EngineSendMessageResponse
 	(*EngineEditMessageRequest)(nil),       // 31: uniclient.EngineEditMessageRequest
 	(*EngineDeleteMessageRequest)(nil),     // 32: uniclient.EngineDeleteMessageRequest
-	(*EngineRetryPendingRequest)(nil),      // 33: uniclient.EngineRetryPendingRequest
-	(*EngineGetMessageRawRequest)(nil),     // 34: uniclient.EngineGetMessageRawRequest
-	(*EngineGetMessageRawResponse)(nil),    // 35: uniclient.EngineGetMessageRawResponse
-	(*EngineSetActiveChatRequest)(nil),     // 36: uniclient.EngineSetActiveChatRequest
-	(*EngineSearchResult)(nil),             // 37: uniclient.EngineSearchResult
-	(*EngineSearchMessagesRequest)(nil),    // 38: uniclient.EngineSearchMessagesRequest
-	(*EngineSearchMessagesResponse)(nil),   // 39: uniclient.EngineSearchMessagesResponse
-	(*EngineSearchChatsRequest)(nil),       // 40: uniclient.EngineSearchChatsRequest
-	(*EngineSearchChatsResponse)(nil),      // 41: uniclient.EngineSearchChatsResponse
-	(*EngineRequestDownloadRequest)(nil),   // 42: uniclient.EngineRequestDownloadRequest
-	(*EngineCancelDownloadRequest)(nil),    // 43: uniclient.EngineCancelDownloadRequest
-	(*EngineGetCacheSizeResponse)(nil),     // 44: uniclient.EngineGetCacheSizeResponse
-	(*EngineClearCacheRequest)(nil),        // 45: uniclient.EngineClearCacheRequest
-	(*EngineGetConfigResponse)(nil),        // 46: uniclient.EngineGetConfigResponse
-	(*EngineUpdateConfigRequest)(nil),      // 47: uniclient.EngineUpdateConfigRequest
+	(*EngineForwardMessageRequest)(nil),    // 33: uniclient.EngineForwardMessageRequest
+	(*EngineReactToMessageRequest)(nil),    // 34: uniclient.EngineReactToMessageRequest
+	(*EnginePinMessageRequest)(nil),        // 35: uniclient.EnginePinMessageRequest
+	(*EngineUploadFileRequest)(nil),        // 36: uniclient.EngineUploadFileRequest
+	(*EngineUploadFileResponse)(nil),       // 37: uniclient.EngineUploadFileResponse
+	(*EngineRetryPendingRequest)(nil),      // 38: uniclient.EngineRetryPendingRequest
+	(*EngineGetMessageRawRequest)(nil),     // 39: uniclient.EngineGetMessageRawRequest
+	(*EngineGetMessageRawResponse)(nil),    // 40: uniclient.EngineGetMessageRawResponse
+	(*EngineSetActiveChatRequest)(nil),     // 41: uniclient.EngineSetActiveChatRequest
+	(*EngineSearchResult)(nil),             // 42: uniclient.EngineSearchResult
+	(*EngineSearchMessagesRequest)(nil),    // 43: uniclient.EngineSearchMessagesRequest
+	(*EngineSearchMessagesResponse)(nil),   // 44: uniclient.EngineSearchMessagesResponse
+	(*EngineSearchChatsRequest)(nil),       // 45: uniclient.EngineSearchChatsRequest
+	(*EngineSearchChatsResponse)(nil),      // 46: uniclient.EngineSearchChatsResponse
+	(*EngineRequestDownloadRequest)(nil),   // 47: uniclient.EngineRequestDownloadRequest
+	(*EngineCancelDownloadRequest)(nil),    // 48: uniclient.EngineCancelDownloadRequest
+	(*EngineGetCacheSizeResponse)(nil),     // 49: uniclient.EngineGetCacheSizeResponse
+	(*EngineClearCacheRequest)(nil),        // 50: uniclient.EngineClearCacheRequest
+	(*EngineGetConfigResponse)(nil),        // 51: uniclient.EngineGetConfigResponse
+	(*EngineUpdateConfigRequest)(nil),      // 52: uniclient.EngineUpdateConfigRequest
 }
-var file_proto_engine_proto_depIdxs = []int32{
+var file_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
 	11, // 1: uniclient.EngineAuthState.options:type_name -> uniclient.AuthOption
 	12, // 2: uniclient.EngineStartAuthResponse.state:type_name -> uniclient.EngineAuthState
 	12, // 3: uniclient.EngineSubmitAuthInputResponse.state:type_name -> uniclient.EngineAuthState
 	18, // 4: uniclient.EngineGetChatListResponse.chats:type_name -> uniclient.EngineChatInfo
 	26, // 5: uniclient.EngineGetMessagesResponse.messages:type_name -> uniclient.EngineCachedMessage
-	37, // 6: uniclient.EngineSearchMessagesResponse.results:type_name -> uniclient.EngineSearchResult
+	42, // 6: uniclient.EngineSearchMessagesResponse.results:type_name -> uniclient.EngineSearchResult
 	18, // 7: uniclient.EngineSearchChatsResponse.chats:type_name -> uniclient.EngineChatInfo
 	8,  // [8:8] is the sub-list for method output_type
 	8,  // [8:8] is the sub-list for method input_type
@@ -3640,26 +3988,26 @@ var file_proto_engine_proto_depIdxs = []int32{
 	0,  // [0:8] is the sub-list for field type_name
 }
 
-func init() { file_proto_engine_proto_init() }
-func file_proto_engine_proto_init() {
-	if File_proto_engine_proto != nil {
+func init() { file_engine_proto_init() }
+func file_engine_proto_init() {
+	if File_engine_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_engine_proto_rawDesc), len(file_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   48,
+			NumMessages:   53,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_proto_engine_proto_goTypes,
-		DependencyIndexes: file_proto_engine_proto_depIdxs,
-		MessageInfos:      file_proto_engine_proto_msgTypes,
+		GoTypes:           file_engine_proto_goTypes,
+		DependencyIndexes: file_engine_proto_depIdxs,
+		MessageInfos:      file_engine_proto_msgTypes,
 	}.Build()
-	File_proto_engine_proto = out.File
-	file_proto_engine_proto_goTypes = nil
-	file_proto_engine_proto_depIdxs = nil
+	File_engine_proto = out.File
+	file_engine_proto_goTypes = nil
+	file_engine_proto_depIdxs = nil
 }

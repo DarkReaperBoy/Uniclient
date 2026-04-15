@@ -23,6 +23,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final _inputController = TextEditingController();
   bool _obscureText = false;
+  bool _autoCloseScheduled = false;
 
   @override
   void initState() {
@@ -297,6 +298,18 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // ── Ready: auth complete ──
   Widget _buildReadyState(BuildContext context, AuthStateData auth) {
+    // Auto-close after 2 seconds so CLI automation doesn't need button clicks.
+    if (!_autoCloseScheduled) {
+      _autoCloseScheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(seconds: 2), () {
+          if (mounted) {
+            context.read<AuthState>().clear();
+            Navigator.pop(context);
+          }
+        });
+      });
+    }
     return Column(
       children: [
         const Icon(Icons.check_circle_outline, size: 64, color: AppColors.online),

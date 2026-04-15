@@ -271,6 +271,38 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.DeleteMessage(req.AccountId, req.ChatId, req.MsgId)
 
+	case "ForwardMessage":
+		var req pb.EngineForwardMessageRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ForwardMessage(req.AccountId, req.ChatId, req.MsgId, req.ToChatId)
+
+	case "ReactToMessage":
+		var req pb.EngineReactToMessageRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ReactToMessage(req.AccountId, req.ChatId, req.MsgId, req.Emoji)
+
+	case "PinMessage":
+		var req pb.EnginePinMessageRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.PinMessage(req.AccountId, req.ChatId, req.MsgId, req.Pinned)
+
+	case "UploadFile":
+		var req pb.EngineUploadFileRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msgID, err := e.UploadFile(req.AccountId, req.ChatId, req.FilePath, req.Caption)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineUploadFileResponse{MsgId: msgID})
+
 	case "RetryPending":
 		var req pb.EngineRetryPendingRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

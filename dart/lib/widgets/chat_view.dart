@@ -871,20 +871,33 @@ class _MessageListWithFABState extends State<_MessageListWithFAB> {
                   TextButton.icon(
                     icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
                     label: const Text('Delete', style: TextStyle(color: AppColors.danger)),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Bulk delete not implemented yet'), duration: Duration(seconds: 2)),
-                      );
+                    onPressed: () async {
+                      final engine = context.read<EngineService>();
+                      final chat = widget.chat;
+                      for (final id in _selectedMsgIds.toList()) {
+                        await engine.deleteMessage(chat.accountId, chat.chatId, id);
+                      }
+                      _cancelSelection();
                     },
                   ),
                   const SizedBox(width: 4),
                   TextButton.icon(
                     icon: const Icon(Icons.forward, size: 18),
                     label: const Text('Forward'),
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Forward not implemented yet'), duration: Duration(seconds: 2)),
+                    onPressed: () async {
+                      final chat = widget.chat;
+                      final result = await ForwardDialog.show(
+                        context,
+                        messageText: '${_selectedMsgIds.length} messages',
+                        fromChatTitle: chat.title,
                       );
+                      if (result != null && mounted) {
+                        final engine = context.read<EngineService>();
+                        for (final id in _selectedMsgIds.toList()) {
+                          await engine.forwardMessage(chat.accountId, chat.chatId, id, result.chatId);
+                        }
+                        _cancelSelection();
+                      }
                     },
                   ),
                   const SizedBox(width: 4),
@@ -1293,7 +1306,7 @@ List<InlineSpan> _buildInlineSpans(List<_Seg> segments, bool isDark) {
             decoration: TextDecoration.underline,
           ),
           recognizer: TapGestureRecognizer()..onTap = () {
-            // URL opening not implemented — styled only.
+            Process.run('xdg-open', [seg.content]);
           },
         ));
       case _SegType.inlineCode:
@@ -1850,7 +1863,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
                       byMe: r.byMe,
                       isDark: isDark,
                       onTap: () {
-                        // Toggle own reaction — not wired to engine yet.
+                        final msg = widget.message;
+                        context.read<EngineService>().reactToMessage(
+                          msg.accountId, msg.chatId, msg.msgId, r.emoji,
+                        );
                       },
                     );
                   }).toList(),
@@ -2111,14 +2127,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
         case 'forward':
           _forwardMessage(context, message);
         case 'pin':
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(message.isPinned ? 'Unpin not implemented yet' : 'Pin not implemented yet'),
-                duration: const Duration(seconds: 2),
-              ),
-            );
-          }
+          context.read<EngineService>().pinMessage(
+            message.accountId, message.chatId, message.msgId, !message.isPinned,
+          );
       }
     });
   }
@@ -2130,14 +2141,19 @@ class _MessageBubbleState extends State<_MessageBubble> {
       context,
       messageText: message.contentText,
       fromChatTitle: activeChat?.title ?? '',
-    ).then((targetChat) {
+    ).then((targetChat) async {
       if (targetChat != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Forwarded to ${targetChat.title}'),
-            duration: const Duration(seconds: 2),
-          ),
+        await context.read<EngineService>().forwardMessage(
+          message.accountId, message.chatId, message.msgId, targetChat.chatId,
         );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Forwarded to ${targetChat.title}'),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
       }
     });
   }
@@ -2387,6 +2403,26 @@ class _MessageInputState extends State<_MessageInput> {
   String? _mentionTrigger;
   // partial query after the trigger char
   String _mentionQuery = '';
+
+  /// Pick a file via native dialog and upload it to the current chat.
+  Future<void> _pickAndUploadFile() async {
+    try {
+      final result = await Process.run('zenity', ['--file-selection']);
+      if (result.exitCode != 0) return; // cancelled
+      final filePath = (result.stdout as String).trim();
+      if (filePath.isEmpty) return;
+
+      final engine = context.read<EngineService>();
+      final chat = widget.chat;
+      await engine.uploadFile(chat.accountId, chat.chatId, filePath);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e')),
+        );
+      }
+    }
+  }
 
   /// Insert text (e.g. emoji) at the current cursor position.
   void insertText(String text) {
@@ -2764,7 +2800,7 @@ class _MessageInputState extends State<_MessageInput> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.add, size: 22),
-                        onPressed: () {},
+                        onPressed: _pickAndUploadFile,
                         tooltip: 'Attach',
                         splashRadius: 18,
                       ),

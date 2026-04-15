@@ -19,6 +19,8 @@ import (
 	"sync"
 	"time"
 
+	"uniclient/utils"
+
 	"github.com/coder/websocket"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"github.com/pion/webrtc/v4"
@@ -130,6 +132,7 @@ type baleActiveCall struct {
 	room     *lksdk.Room
 	audioPub *lksdk.LocalTrackPublication // our published silent/mic audio track
 	muted    bool
+	done     chan struct{} // closed when call ends, signals goroutines to exit
 }
 
 type baleSession struct {
@@ -441,15 +444,8 @@ func (b *BaleCore) loadSession() error {
 	if b.sessionPath == "" {
 		return nil
 	}
-	data, err := os.ReadFile(b.sessionPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
 	var sess baleSession
-	if err := json.Unmarshal(data, &sess); err != nil {
+	if err := utils.LoadSession(b.sessionPath, &sess); err != nil {
 		return err
 	}
 	if sess.BotToken != "" {
@@ -476,11 +472,7 @@ func (b *BaleCore) saveSession() error {
 	if b.botInfo != nil {
 		sess.BotID = b.botInfo.ID
 	}
-	data, err := json.MarshalIndent(sess, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(b.sessionPath, data, 0600)
+	return utils.SaveSession(b.sessionPath, sess)
 }
 
 // Logout disconnects and clears the current session.
@@ -1518,6 +1510,9 @@ func (b *BaleCore) baleConnectLiveKit(session *CallSession) error {
 		return fmt.Errorf("missing LiveKit credentials (url=%q token=%v)", lkURL, lkToken != "")
 	}
 
+	// done is closed when the call ends, signaling all track reader goroutines to exit
+	callDone := make(chan struct{})
+
 	// Create a silent opus audio track — the SFU needs at least one published audio track
 	// to treat the connection as a real call participant (affects bandwidth allocation,
 	// triggers connection_quality_changed events).
@@ -1541,6 +1536,11 @@ func (b *BaleCore) baleConnectLiveKit(session *CallSession) error {
 					go func() {
 						buf := make([]byte, 1500)
 						for {
+							select {
+							case <-callDone:
+								return
+							default:
+							}
 							_, _, err := track.Read(buf)
 							if err != nil {
 								return
@@ -1611,6 +1611,7 @@ func (b *BaleCore) baleConnectLiveKit(session *CallSession) error {
 		session:  session,
 		room:     room,
 		audioPub: audioPub,
+		done:     callDone,
 	}
 	b.activeCallMu.Unlock()
 
@@ -1624,9 +1625,18 @@ func (b *BaleCore) baleDisconnectLiveKit() {
 	b.activeCall = nil
 	b.activeCallMu.Unlock()
 
-	if call != nil && call.room != nil {
-		call.room.Disconnect()
-		fmt.Fprintf(os.Stderr, "bale: LiveKit disconnected\n")
+	if call != nil {
+		if call.done != nil {
+			select {
+			case <-call.done:
+			default:
+				close(call.done)
+			}
+		}
+		if call.room != nil {
+			call.room.Disconnect()
+			fmt.Fprintf(os.Stderr, "bale: LiveKit disconnected\n")
+		}
 	}
 }
 
@@ -3069,23 +3079,13 @@ func (b *BaleCore) wsRecvLoop() {
 			}
 			// Connection lost — exponential backoff reconnect
 			b.fireConnState("disconnected")
-			backoff := 3 * time.Second
-			const maxBackoff = 60 * time.Second
-			const maxRetries = 10
-			for attempt := 0; attempt < maxRetries; attempt++ {
-				if b.ctx.Err() != nil {
-					return // main context cancelled
-				}
+			retryErr := utils.Retry(b.ctx, 10, 3*time.Second, 60*time.Second, nil, func() error {
 				b.fireConnState("reconnecting")
-				time.Sleep(backoff)
-				if err := b.wsConnect(); err == nil {
-					b.fireConnState("connected")
-					return // reconnected, new loop started
-				}
-				backoff *= 2
-				if backoff > maxBackoff {
-					backoff = maxBackoff
-				}
+				return b.wsConnect()
+			})
+			if retryErr == nil {
+				b.fireConnState("connected")
+				return // reconnected, new loop started
 			}
 			// All retries exhausted
 			b.fireConnState("disconnected")
@@ -5052,116 +5052,14 @@ func (b *BaleCore) GetWebhookInfo() (BaleWebhookInfo, error) {
 	return baleParseResult[BaleWebhookInfo](resp)
 }
 
-// SendPhoto sends a photo by file_id or URL (bot mode).
-func (b *BaleCore) SendPhoto(chatID string, photo string, caption string) (*Message, error) {
-	params := map[string]interface{}{
-		"chat_id": chatID,
-		"photo":   photo,
-	}
-	if caption != "" {
-		params["caption"] = caption
-	}
-	resp, err := b.apiRequest("sendPhoto", params)
-	if err != nil {
-		return nil, err
-	}
-	return b.mapBotMessage(resp), nil
-}
-
-// SendAudio sends an audio file by file_id or URL (bot mode).
-func (b *BaleCore) SendAudio(chatID string, audio string, caption string, duration int) (*Message, error) {
-	params := map[string]interface{}{
-		"chat_id": chatID,
-		"audio":   audio,
-	}
-	if caption != "" {
-		params["caption"] = caption
-	}
-	if duration > 0 {
-		params["duration"] = duration
-	}
-	resp, err := b.apiRequest("sendAudio", params)
-	if err != nil {
-		return nil, err
-	}
-	return b.mapBotMessage(resp), nil
-}
-
-// SendDocument sends a document by file_id or URL (bot mode).
-func (b *BaleCore) SendDocument(chatID string, document string, caption string) (*Message, error) {
+// sendBotMedia is the shared implementation for all bot-mode media sends.
+func (b *BaleCore) sendBotMedia(method, chatID, mediaKey, mediaVal, caption string, duration, length int) (*Message, error) {
 	params := map[string]interface{}{
 		"chat_id":  chatID,
-		"document": document,
+		mediaKey:   mediaVal,
 	}
 	if caption != "" {
 		params["caption"] = caption
-	}
-	resp, err := b.apiRequest("sendDocument", params)
-	if err != nil {
-		return nil, err
-	}
-	return b.mapBotMessage(resp), nil
-}
-
-// SendVideo sends a video by file_id or URL (bot mode).
-func (b *BaleCore) SendVideo(chatID string, video string, caption string, duration int) (*Message, error) {
-	params := map[string]interface{}{
-		"chat_id": chatID,
-		"video":   video,
-	}
-	if caption != "" {
-		params["caption"] = caption
-	}
-	if duration > 0 {
-		params["duration"] = duration
-	}
-	resp, err := b.apiRequest("sendVideo", params)
-	if err != nil {
-		return nil, err
-	}
-	return b.mapBotMessage(resp), nil
-}
-
-// SendAnimation sends an animation (GIF) by file_id or URL (bot mode).
-func (b *BaleCore) SendAnimation(chatID string, animation string, caption string) (*Message, error) {
-	params := map[string]interface{}{
-		"chat_id":   chatID,
-		"animation": animation,
-	}
-	if caption != "" {
-		params["caption"] = caption
-	}
-	resp, err := b.apiRequest("sendAnimation", params)
-	if err != nil {
-		return nil, err
-	}
-	return b.mapBotMessage(resp), nil
-}
-
-// SendVoice sends a voice message by file_id or URL (bot mode).
-func (b *BaleCore) SendVoice(chatID string, voice string, caption string, duration int) (*Message, error) {
-	params := map[string]interface{}{
-		"chat_id": chatID,
-		"voice":   voice,
-	}
-	if caption != "" {
-		params["caption"] = caption
-	}
-	if duration > 0 {
-		params["duration"] = duration
-	}
-	resp, err := b.apiRequest("sendVoice", params)
-	if err != nil {
-		return nil, err
-	}
-	return b.mapBotMessage(resp), nil
-}
-
-// SendVideoNote sends a video note (round video) by file_id or URL (bot mode).
-func (b *BaleCore) SendVideoNote(chatID string, videoNote string, duration int, length int) (*Message, error) {
-	params := map[string]interface{}{
-		"chat_id":    chatID,
-		"video_note": videoNote,
 	}
 	if duration > 0 {
 		params["duration"] = duration
@@ -5169,11 +5067,39 @@ func (b *BaleCore) SendVideoNote(chatID string, videoNote string, duration int, 
 	if length > 0 {
 		params["length"] = length
 	}
-	resp, err := b.apiRequest("sendVideoNote", params)
+	resp, err := b.apiRequest(method, params)
 	if err != nil {
 		return nil, err
 	}
 	return b.mapBotMessage(resp), nil
+}
+
+func (b *BaleCore) SendPhoto(chatID, photo, caption string) (*Message, error) {
+	return b.sendBotMedia("sendPhoto", chatID, "photo", photo, caption, 0, 0)
+}
+
+func (b *BaleCore) SendAudio(chatID, audio, caption string, duration int) (*Message, error) {
+	return b.sendBotMedia("sendAudio", chatID, "audio", audio, caption, duration, 0)
+}
+
+func (b *BaleCore) SendDocument(chatID, document, caption string) (*Message, error) {
+	return b.sendBotMedia("sendDocument", chatID, "document", document, caption, 0, 0)
+}
+
+func (b *BaleCore) SendVideo(chatID, video, caption string, duration int) (*Message, error) {
+	return b.sendBotMedia("sendVideo", chatID, "video", video, caption, duration, 0)
+}
+
+func (b *BaleCore) SendAnimation(chatID, animation, caption string) (*Message, error) {
+	return b.sendBotMedia("sendAnimation", chatID, "animation", animation, caption, 0, 0)
+}
+
+func (b *BaleCore) SendVoice(chatID, voice, caption string, duration int) (*Message, error) {
+	return b.sendBotMedia("sendVoice", chatID, "voice", voice, caption, duration, 0)
+}
+
+func (b *BaleCore) SendVideoNote(chatID, videoNote string, duration, length int) (*Message, error) {
+	return b.sendBotMedia("sendVideoNote", chatID, "video_note", videoNote, "", duration, length)
 }
 
 // SendMediaGroup sends a group of photos or videos as an album (bot mode).

@@ -27,6 +27,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"uniclient/utils"
+
 	"github.com/coder/websocket"
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v4"
@@ -94,6 +96,7 @@ type rubikaActiveCall struct {
 	audioTrack *webrtc.TrackLocalStaticRTP
 	muted      bool
 	cancel     context.CancelFunc
+	done       chan struct{} // closed when call ends, signals goroutines to exit
 	rtpRecv    atomic.Int64 // count of received RTP packets (from Janus mix)
 	rtpSent    atomic.Int64 // count of sent RTP packets
 
@@ -1244,15 +1247,8 @@ func (r *RubikaCore) BotUploadFile(fileType string, fileName string, data []byte
 // --- Session management ---
 
 func (r *RubikaCore) loadSession() error {
-	data, err := os.ReadFile(r.sessionPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // no session yet
-		}
-		return err
-	}
 	var sess rubikaSession
-	if err := json.Unmarshal(data, &sess); err != nil {
+	if err := utils.LoadSession(r.sessionPath, &sess); err != nil {
 		return err
 	}
 	if sess.Auth == "" {
@@ -1300,16 +1296,7 @@ func (r *RubikaCore) saveSession(phone string) error {
 		UserAgent:  r.userAgent,
 		PrivateKey: privKeyPEM,
 	}
-	data, err := json.MarshalIndent(sess, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	dir := filepath.Dir(r.sessionPath)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return err
-	}
-	return os.WriteFile(r.sessionPath, data, 0600)
+	return utils.SaveSession(r.sessionPath, sess)
 }
 
 // --- Auth ---
@@ -2582,6 +2569,13 @@ func (r *RubikaCore) EndCall(callID string) error {
 		return fmt.Errorf("%w: no active call", ErrNotFound)
 	}
 	call.cancel()
+	if call.done != nil {
+		select {
+		case <-call.done:
+		default:
+			close(call.done)
+		}
+	}
 	call.pc.Close()
 
 	// Leave, then discard (creator ends the whole chat, participant just leaves)
@@ -2642,6 +2636,9 @@ func (r *RubikaCore) SetCallMuted(callID string, muted bool) error {
 // joinVoiceChatWebRTC creates a WebRTC PeerConnection, joins the voice chat,
 // and starts background heartbeat/updates loops.
 func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSession, error) {
+	// done is closed when the call ends, signaling all goroutines to exit
+	callDone := make(chan struct{})
+
 	// 1. Create PeerConnection with Opus audio
 	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
@@ -2675,6 +2672,11 @@ func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSes
 	go func() {
 		b := make([]byte, 1500)
 		for {
+			select {
+			case <-callDone:
+				return
+			default:
+			}
 			if _, _, e := sender.Read(b); e != nil {
 				return
 			}
@@ -2692,6 +2694,11 @@ func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSes
 	}
 	pc.OnTrack(func(track *webrtc.TrackRemote, recv *webrtc.RTPReceiver) {
 		for {
+			select {
+			case <-callDone:
+				return
+			default:
+			}
 			pkt, _, err := track.ReadRTP()
 			if err != nil {
 				return
@@ -2787,6 +2794,7 @@ func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSes
 		audioTrack: audioTrack,
 		muted:      true, // start muted
 		cancel:     cancel,
+		done:       callDone,
 		audioInCh:  audioInCh,
 		session: &CallSession{
 			ID:      vcID,
@@ -2799,15 +2807,20 @@ func (r *RubikaCore) joinVoiceChatWebRTC(chatGUID string, vcID string) (*CallSes
 	r.wg.Add(1)
 	go func() {
 		defer r.wg.Done()
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
 		for {
-			time.Sleep(500 * time.Millisecond)
+			select {
+			case <-call.done:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
 			call.rtpRecv.Store(rtpRecvCounter.Load())
 			// Sync callback reference
 			if call.onAudioRecv != nil {
 				setAudioRecvCb(call.onAudioRecv)
-			}
-			if ctx.Err() != nil {
-				return
 			}
 		}
 	}()

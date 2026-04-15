@@ -453,6 +453,16 @@ const EngineCachedMessage$json = {
     {'1': 'forward_from', '3': 15, '4': 1, '5': 9, '10': 'forwardFrom'},
     {'1': 'is_pinned', '3': 16, '4': 1, '5': 8, '10': 'isPinned'},
     {'1': 'has_media', '3': 17, '4': 1, '5': 8, '10': 'hasMedia'},
+    {'1': 'media_type', '3': 18, '4': 1, '5': 5, '10': 'mediaType'},
+    {'1': 'media_file_name', '3': 19, '4': 1, '5': 9, '10': 'mediaFileName'},
+    {'1': 'media_mime_type', '3': 20, '4': 1, '5': 9, '10': 'mediaMimeType'},
+    {'1': 'media_file_size', '3': 21, '4': 1, '5': 3, '10': 'mediaFileSize'},
+    {'1': 'media_thumb_b64', '3': 22, '4': 1, '5': 9, '10': 'mediaThumbB64'},
+    {'1': 'media_local_path', '3': 23, '4': 1, '5': 9, '10': 'mediaLocalPath'},
+    {'1': 'media_width', '3': 24, '4': 1, '5': 5, '10': 'mediaWidth'},
+    {'1': 'media_height', '3': 25, '4': 1, '5': 5, '10': 'mediaHeight'},
+    {'1': 'media_duration', '3': 26, '4': 1, '5': 5, '10': 'mediaDuration'},
+    {'1': 'media_download_state', '3': 27, '4': 1, '5': 5, '10': 'mediaDownloadState'},
   ],
 };
 
@@ -467,7 +477,14 @@ final $typed_data.Uint8List engineCachedMessageDescriptor = $convert.base64Decod
     'YXQYCyABKANSCGVkaXRlZEF0EhYKBnN0YXR1cxgMIAEoBVIGc3RhdHVzEh4KC3JlcGx5X3RvX2'
     'lkGA0gASgJUglyZXBseVRvSWQSIwoNcmVwbHlfcHJldmlldxgOIAEoCVIMcmVwbHlQcmV2aWV3'
     'EiEKDGZvcndhcmRfZnJvbRgPIAEoCVILZm9yd2FyZEZyb20SGwoJaXNfcGlubmVkGBAgASgIUg'
-    'hpc1Bpbm5lZBIbCgloYXNfbWVkaWEYESABKAhSCGhhc01lZGlh');
+    'hpc1Bpbm5lZBIbCgloYXNfbWVkaWEYESABKAhSCGhhc01lZGlhEh0KCm1lZGlhX3R5cGUYEiAB'
+    'KAVSCW1lZGlhVHlwZRImCg9tZWRpYV9maWxlX25hbWUYEyABKAlSDW1lZGlhRmlsZU5hbWUSJg'
+    'oPbWVkaWFfbWltZV90eXBlGBQgASgJUg1tZWRpYU1pbWVUeXBlEiYKD21lZGlhX2ZpbGVfc2l6'
+    'ZRgVIAEoA1INbWVkaWFGaWxlU2l6ZRImCg9tZWRpYV90aHVtYl9iNjQYFiABKAlSDW1lZGlhVG'
+    'h1bWJCNjQSKAoQbWVkaWFfbG9jYWxfcGF0aBgXIAEoCVIObWVkaWFMb2NhbFBhdGgSHwoLbWVk'
+    'aWFfd2lkdGgYGCABKAVSCm1lZGlhV2lkdGgSIQoMbWVkaWFfaGVpZ2h0GBkgASgFUgttZWRpYU'
+    'hlaWdodBIlCg5tZWRpYV9kdXJhdGlvbhgaIAEoBVINbWVkaWFEdXJhdGlvbhIwChRtZWRpYV9k'
+    'b3dubG9hZF9zdGF0ZRgbIAEoBVISbWVkaWFEb3dubG9hZFN0YXRl');
 
 @$core.Deprecated('Use engineGetMessagesRequestDescriptor instead')
 const EngineGetMessagesRequest$json = {
@@ -559,6 +576,86 @@ const EngineDeleteMessageRequest$json = {
 final $typed_data.Uint8List engineDeleteMessageRequestDescriptor = $convert.base64Decode(
     'ChpFbmdpbmVEZWxldGVNZXNzYWdlUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
     '50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhUKBm1zZ19pZBgDIAEoCVIFbXNnSWQ=');
+
+@$core.Deprecated('Use engineForwardMessageRequestDescriptor instead')
+const EngineForwardMessageRequest$json = {
+  '1': 'EngineForwardMessageRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'msg_id', '3': 3, '4': 1, '5': 9, '10': 'msgId'},
+    {'1': 'to_chat_id', '3': 4, '4': 1, '5': 9, '10': 'toChatId'},
+  ],
+};
+
+/// Descriptor for `EngineForwardMessageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineForwardMessageRequestDescriptor = $convert.base64Decode(
+    'ChtFbmdpbmVGb3J3YXJkTWVzc2FnZVJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3'
+    'VudElkEhcKB2NoYXRfaWQYAiABKAlSBmNoYXRJZBIVCgZtc2dfaWQYAyABKAlSBW1zZ0lkEhwK'
+    'CnRvX2NoYXRfaWQYBCABKAlSCHRvQ2hhdElk');
+
+@$core.Deprecated('Use engineReactToMessageRequestDescriptor instead')
+const EngineReactToMessageRequest$json = {
+  '1': 'EngineReactToMessageRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'msg_id', '3': 3, '4': 1, '5': 9, '10': 'msgId'},
+    {'1': 'emoji', '3': 4, '4': 1, '5': 9, '10': 'emoji'},
+  ],
+};
+
+/// Descriptor for `EngineReactToMessageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineReactToMessageRequestDescriptor = $convert.base64Decode(
+    'ChtFbmdpbmVSZWFjdFRvTWVzc2FnZVJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3'
+    'VudElkEhcKB2NoYXRfaWQYAiABKAlSBmNoYXRJZBIVCgZtc2dfaWQYAyABKAlSBW1zZ0lkEhQK'
+    'BWVtb2ppGAQgASgJUgVlbW9qaQ==');
+
+@$core.Deprecated('Use enginePinMessageRequestDescriptor instead')
+const EnginePinMessageRequest$json = {
+  '1': 'EnginePinMessageRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'msg_id', '3': 3, '4': 1, '5': 9, '10': 'msgId'},
+    {'1': 'pinned', '3': 4, '4': 1, '5': 8, '10': 'pinned'},
+  ],
+};
+
+/// Descriptor for `EnginePinMessageRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List enginePinMessageRequestDescriptor = $convert.base64Decode(
+    'ChdFbmdpbmVQaW5NZXNzYWdlUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
+    'QSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhUKBm1zZ19pZBgDIAEoCVIFbXNnSWQSFgoGcGlu'
+    'bmVkGAQgASgIUgZwaW5uZWQ=');
+
+@$core.Deprecated('Use engineUploadFileRequestDescriptor instead')
+const EngineUploadFileRequest$json = {
+  '1': 'EngineUploadFileRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'file_path', '3': 3, '4': 1, '5': 9, '10': 'filePath'},
+    {'1': 'caption', '3': 4, '4': 1, '5': 9, '10': 'caption'},
+  ],
+};
+
+/// Descriptor for `EngineUploadFileRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineUploadFileRequestDescriptor = $convert.base64Decode(
+    'ChdFbmdpbmVVcGxvYWRGaWxlUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
+    'QSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhsKCWZpbGVfcGF0aBgDIAEoCVIIZmlsZVBhdGgS'
+    'GAoHY2FwdGlvbhgEIAEoCVIHY2FwdGlvbg==');
+
+@$core.Deprecated('Use engineUploadFileResponseDescriptor instead')
+const EngineUploadFileResponse$json = {
+  '1': 'EngineUploadFileResponse',
+  '2': [
+    {'1': 'msg_id', '3': 1, '4': 1, '5': 9, '10': 'msgId'},
+  ],
+};
+
+/// Descriptor for `EngineUploadFileResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineUploadFileResponseDescriptor = $convert.base64Decode(
+    'ChhFbmdpbmVVcGxvYWRGaWxlUmVzcG9uc2USFQoGbXNnX2lkGAEgASgJUgVtc2dJZA==');
 
 @$core.Deprecated('Use engineRetryPendingRequestDescriptor instead')
 const EngineRetryPendingRequest$json = {
@@ -789,6 +886,16 @@ const EngineUpdateConfigRequest$json = {
     {'1': 'font_scale', '3': 3, '4': 1, '5': 1, '10': 'fontScale'},
     {'1': 'language', '3': 4, '4': 1, '5': 9, '10': 'language'},
     {'1': 'max_cache_size', '3': 5, '4': 1, '5': 3, '10': 'maxCacheSize'},
+    {'1': 'send_read_receipts', '3': 6, '4': 1, '5': 8, '10': 'sendReadReceipts'},
+    {'1': 'has_send_read_receipts', '3': 7, '4': 1, '5': 8, '10': 'hasSendReadReceipts'},
+    {'1': 'send_typing', '3': 8, '4': 1, '5': 8, '10': 'sendTyping'},
+    {'1': 'has_send_typing', '3': 9, '4': 1, '5': 8, '10': 'hasSendTyping'},
+    {'1': 'notify_dms', '3': 10, '4': 1, '5': 8, '10': 'notifyDms'},
+    {'1': 'has_notify_dms', '3': 11, '4': 1, '5': 8, '10': 'hasNotifyDms'},
+    {'1': 'notify_groups', '3': 12, '4': 1, '5': 8, '10': 'notifyGroups'},
+    {'1': 'has_notify_groups', '3': 13, '4': 1, '5': 8, '10': 'hasNotifyGroups'},
+    {'1': 'notify_mentions_only', '3': 14, '4': 1, '5': 8, '10': 'notifyMentionsOnly'},
+    {'1': 'has_notify_mentions_only', '3': 15, '4': 1, '5': 8, '10': 'hasNotifyMentionsOnly'},
   ],
 };
 
@@ -797,5 +904,13 @@ final $typed_data.Uint8List engineUpdateConfigRequestDescriptor = $convert.base6
     'ChlFbmdpbmVVcGRhdGVDb25maWdSZXF1ZXN0EhQKBXRoZW1lGAEgASgJUgV0aGVtZRIhCgxhY2'
     'NlbnRfY29sb3IYAiABKAlSC2FjY2VudENvbG9yEh0KCmZvbnRfc2NhbGUYAyABKAFSCWZvbnRT'
     'Y2FsZRIaCghsYW5ndWFnZRgEIAEoCVIIbGFuZ3VhZ2USJAoObWF4X2NhY2hlX3NpemUYBSABKA'
-    'NSDG1heENhY2hlU2l6ZQ==');
+    'NSDG1heENhY2hlU2l6ZRIsChJzZW5kX3JlYWRfcmVjZWlwdHMYBiABKAhSEHNlbmRSZWFkUmVj'
+    'ZWlwdHMSMwoWaGFzX3NlbmRfcmVhZF9yZWNlaXB0cxgHIAEoCFITaGFzU2VuZFJlYWRSZWNlaX'
+    'B0cxIfCgtzZW5kX3R5cGluZxgIIAEoCFIKc2VuZFR5cGluZxImCg9oYXNfc2VuZF90eXBpbmcY'
+    'CSABKAhSDWhhc1NlbmRUeXBpbmcSHQoKbm90aWZ5X2RtcxgKIAEoCFIJbm90aWZ5RG1zEiQKDm'
+    'hhc19ub3RpZnlfZG1zGAsgASgIUgxoYXNOb3RpZnlEbXMSIwoNbm90aWZ5X2dyb3VwcxgMIAEo'
+    'CFIMbm90aWZ5R3JvdXBzEioKEWhhc19ub3RpZnlfZ3JvdXBzGA0gASgIUg9oYXNOb3RpZnlHcm'
+    '91cHMSMAoUbm90aWZ5X21lbnRpb25zX29ubHkYDiABKAhSEm5vdGlmeU1lbnRpb25zT25seRI3'
+    'ChhoYXNfbm90aWZ5X21lbnRpb25zX29ubHkYDyABKAhSFWhhc05vdGlmeU1lbnRpb25zT25seQ'
+    '==');
 

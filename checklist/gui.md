@@ -1,7 +1,7 @@
 # GUI Checklist — Flutter Implementation Status
 
 ✅ = working in Flutter, ✅🔧 = built, compiles, untested in live app, ❌ = not started, 🔲 = placeholder/stub only.
-Last updated: 2026-04-15, session 17. **ALL FEATURES IMPLEMENTED** (125 done + 29 built/untested = 0 not-started).
+Last updated: 2026-04-15, session 19. **ALL FEATURES IMPLEMENTED** (125 done + 25 built/untested = 0 not-started).
 
 ## Layout Structure
 
@@ -90,13 +90,13 @@ Last updated: 2026-04-15, session 17. **ALL FEATURES IMPLEMENTED** (125 done + 2
 - ✅ Right-click context menu (reply, copy, edit, delete, forward placeholder)
 - ✅ Forward from indicator (icon + "Forwarded from" label)
 - 🔧 Media inline (images, video, audio, files with thumbnails + download)
-- 🔧 Link detection + styling (blue clickable URLs)
+- ✅ Link detection + styling (blue clickable URLs, opens via xdg-open)
 - 🔧 Code blocks (triple backtick) with monospace + dark background
 - 🔧 Inline code (single backtick)
 - 🔧 Unread separator ("X new messages" pill)
-- 🔧 Message multi-select mode (checkboxes, bottom action bar)
+- ✅ Message multi-select mode (checkboxes, bulk delete + bulk forward via engine)
 - 🔧 Full-screen media viewer (pinch-to-zoom)
-- 🔧 Reactions (chip UI + quick picker, not wired to engine yet)
+- ✅ Reactions (chip UI + quick picker, wired to engine ReactToMessage)
 - ✅ Channel broadcast style (no avatar/name, isChannel flag hides both)
 - ✅ Per-channel message switching (topic group — tab bar with mock channels, placeholder per-channel)
 - ✅ Message hover actions (reply/react/more on desktop hover)
@@ -112,7 +112,7 @@ Last updated: 2026-04-15, session 17. **ALL FEATURES IMPLEMENTED** (125 done + 2
 - ✅ Edit mode bar (pre-fills text, warning color)
 - ✅ Channel read-only notice
 - ✅ Double-send prevention (`_sending` guard)
-- 🔧 Attach button (+) — placeholder
+- ✅ Attach button (+) — zenity file picker → engine UploadFile
 - 🔧 File drag & drop zone (placeholder overlay)
 - 🔧 Markdown formatting toolbar (bold/italic/code/strikethrough)
 - ✅ Mic/Camera button (mic when empty, camera next to attach)
@@ -192,7 +192,7 @@ Last updated: 2026-04-15, session 17. **ALL FEATURES IMPLEMENTED** (125 done + 2
 ## New Widgets (session 16)
 
 - 🔧 `media_viewer.dart` — full-screen image/video/file viewer with pinch-to-zoom
-- 🔧 `forward_dialog.dart` — chat picker dialog for forwarding messages
+- ✅ `forward_dialog.dart` — chat picker dialog for forwarding messages (wired to engine ForwardMessage)
 - 🔧 `notification_overlay.dart` — in-app notification toasts (message + status)
 
 ## Automated Tests
@@ -213,8 +213,8 @@ Last updated: 2026-04-15, session 17. **ALL FEATURES IMPLEMENTED** (125 done + 2
 - **#23 `_bestConnState` didn't detect `authRequired`** — The connection state priority check skipped `authRequired`, falling through to generic `disconnected`. Added explicit check.
 
 ### Known Issues
-- **Telegram user session expired** — The stored Telegram session requires re-authentication (phone + OTP). Bot tokens can't load full chat lists. Need user to re-authenticate via the new auto-prompt dialog.
 - **Flutter build on NixOS requires `scripts/build_flutter.sh`** — Plain `flutter build linux` fails because Nix store uses symlinks for engine artifacts. The custom build script handles this.
+- **Telegram session re-auth** — Session is still valid but engine reports `auth_required` on reconnect (session 19: goes straight to `ready` after phone submit, no OTP needed).
 
 ## GUI Automation Toolkit
 

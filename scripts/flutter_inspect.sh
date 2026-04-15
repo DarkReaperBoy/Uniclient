@@ -27,7 +27,7 @@ if [[ -z "$WEBSOCAT" ]] || ! command -v "$WEBSOCAT" &>/dev/null; then
 fi
 
 # Find the VM service URL from app logs
-LOG_FILE="${UNICLIENT_LOG:-/tmp/uniclient_log.txt}"
+LOG_FILE="${UNICLIENT_LOG:-/tmp/uniclient_stdout.log}"
 if [[ ! -f "$LOG_FILE" ]]; then
   echo "ERROR: App log not found at $LOG_FILE. Launch the app first." >&2
   exit 1
@@ -62,7 +62,7 @@ call_ext() {
   local extra_params="${2:-}"
   local params="{\"isolateId\":\"$ISOLATE\",\"objectGroup\":\"inspect\"$extra_params}"
   echo "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"$method\",\"params\":$params}" \
-    | timeout 5 "$WEBSOCAT" -n1 "$VM_WS" 2>/dev/null
+    | timeout 10 "$WEBSOCAT" -n1 -B 10000000 "$VM_WS" 2>/dev/null
 }
 
 case "$ACTION" in

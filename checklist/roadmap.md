@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — Phase F (live smoke-testing & bug fixes)
+**Current Step:** Step 15 — Build GUI — Phase F (live smoke-testing & feature wiring)
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 18 — GUI automation toolkit built, 5 bugs fixed, auth flow automated)
+**Last Updated:** 2026-04-15 (session 19 — re-auth working, engine wiring for forward/react/pin/URL, utility extraction, proto has_* field fix)
 
-**NEXT:** Re-authenticate the Telegram account (session expired → `auth_required`). Use `scripts/flutter_auth.sh` to drive the auth flow — user provides OTP via `auth/otp_code.txt`. Once authenticated, verify chats load, messages display, send works. Fix any remaining bugs found during live testing. Then: wire the 29 "built but untested" features to live engine data, real sticker/GIF backends, reaction engine wiring.
+**NEXT:** Continue live smoke-testing features that are now wired (forward, reactions, pin, URL open). Test folder tabs (DMs/Groups/Channels filtering). Test media inline rendering with real messages. Test responsive layout at different window sizes. Wire remaining Category C stubs: attach button (file picker), drag & drop, markdown toolbar, video recording UI. Test sticker/GIF panel display. Run full widget test suite after changes.
 
 ## Steps
 
@@ -218,6 +218,39 @@ Session 18 changes — GUI automation toolkit + live smoke-test bug fixes:
 - Telegram account `tele_4beb99fd` session expired — needs re-auth (phone + OTP) before chats can load.
 
 **Research documented:** `research/flutter_gui_automation.md` — full VM Service protocol reference.
+
+Session 19 changes — Engine wiring + utility extraction + smoke test:
+
+**Engine wiring (4 features):**
+- **ForwardMessage** — Full pipeline: Engine method → pending queue → bridge dispatch → proto → Dart EngineService → UI. Both single-message forward (context menu) and bulk forward (multi-select) now call the real engine.
+- **ReactToMessage** — Same pipeline. Reaction chip taps now toggle reactions via engine instead of no-op.
+- **PinMessage** — Direct engine call (not queued, synchronous). Pin/unpin from message context menu now works.
+- **URL opening** — Link taps in messages now open URLs via `xdg-open`.
+
+**Proto changes:**
+- Added `EngineForwardMessageRequest`, `EngineReactToMessageRequest`, `EnginePinMessageRequest` to `engine.proto`
+- Regenerated Go + Dart proto code
+- Fixed Dart `has_*` field name suffix mismatch after proto regen (was `_15`, now `_7`/`_9`/`_11`/`_13`/`_15`)
+
+**Utility extraction (uncommitted from session 18):**
+- `go/utils/retry.go` — Generic retry with exponential backoff, context cancellation, shouldRetry predicate
+- `go/utils/session.go` — Atomic JSON session save/load with dir creation
+- `go/utils/retry_test.go`, `go/utils/session_test.go` — Tests for both
+- 6 cores refactored to use shared utils (bale, deltachat, github, mumble, rubika, xmpp)
+
+**Smoke test results:**
+- Telegram re-auth via `flutter_auth.sh` — session still valid, no OTP needed, went straight to `ready`
+- Chat list loads (100 dialogs, 28 contacts, 8KB proto payload)
+- UI renders correctly: pinned chats, unread badges, relative timestamps, Persian RTL text, folder tabs
+- Zero errors in app logs
+- All Go tests pass (engine + bridge + utils)
+- `flutter analyze`: 0 errors, 158 warnings/info
+
+**Feature audit (29 built-but-untested):**
+- 16 features already work with live data (just need QA)
+- 4 features wired to engine this session (forward, react, pin, URL)
+- 4 features still stubs (attach/file picker, drag & drop, markdown toolbar, video recording)
+- 5 features need minor cleanup
 
 ## Detailed Progress
 

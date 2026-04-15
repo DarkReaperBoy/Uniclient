@@ -54,6 +54,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"uniclient/utils"
 )
 
 // ---------------------------------------------------------------------------
@@ -1309,9 +1310,6 @@ func (c *XMPPCore) readLoop() {
 // backoff (5s, 10s, 20s, …, max 60s). Returns true if reconnection succeeded.
 // Called from readLoop when a connection-loss error is detected.
 func (c *XMPPCore) attemptReconnect() bool {
-	const maxRetries = 10
-	const maxDelay = 60 * time.Second
-
 	// Notify GUI of disconnection
 	c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "disconnected"})
 
@@ -1323,43 +1321,27 @@ func (c *XMPPCore) attemptReconnect() bool {
 	c.authed = false
 	c.mu.Unlock()
 
-	delay := xmppReconnectDelay
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		select {
-		case <-c.ctx.Done():
-			// Intentional shutdown (Logout called), don't reconnect
-			return false
-		case <-time.After(delay):
-		}
-
-		// Attempt reconnection
-		err := c.connectAndAuth()
-		if err != nil {
-			// Increase delay with exponential backoff, cap at maxDelay
-			delay *= 2
-			if delay > maxDelay {
-				delay = maxDelay
-			}
-			continue
-		}
-
-		// Reconnected successfully
-		c.mu.Lock()
-		c.authed = true
-		c.mu.Unlock()
-
-		// Re-run post-auth setup (roster, carbons, presence, etc.)
-		c.postAuthSetup()
-
-		// Notify GUI of reconnection
-		c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "connected"})
-
-		return true
+	err := utils.Retry(c.ctx, 10, xmppReconnectDelay, 60*time.Second, nil, func() error {
+		return c.connectAndAuth()
+	})
+	if err != nil {
+		// All retries exhausted
+		c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "disconnected"})
+		return false
 	}
 
-	// All retries exhausted
-	c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "disconnected"})
-	return false
+	// Reconnected successfully
+	c.mu.Lock()
+	c.authed = true
+	c.mu.Unlock()
+
+	// Re-run post-auth setup (roster, carbons, presence, etc.)
+	c.postAuthSetup()
+
+	// Notify GUI of reconnection
+	c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "connected"})
+
+	return true
 }
 
 // ---------------------------------------------------------------------------
@@ -5138,18 +5120,12 @@ func (c *XMPPCore) saveSession() {
 	}
 	c.blockedMu.RUnlock()
 
-	data, _ := json.MarshalIndent(sess, "", "  ")
-	os.WriteFile(c.sessionPath, data, 0600)
+	utils.SaveSession(c.sessionPath, sess)
 }
 
 func (c *XMPPCore) loadSession() {
-	data, err := os.ReadFile(c.sessionPath)
-	if err != nil {
-		return
-	}
-
 	var sess xmppSession
-	if json.Unmarshal(data, &sess) != nil {
+	if utils.LoadSession(c.sessionPath, &sess) != nil {
 		return
 	}
 

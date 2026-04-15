@@ -22,6 +22,8 @@ import (
 	"sync"
 	"time"
 
+	"uniclient/utils"
+
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/ProtonMail/go-crypto/openpgp/armor"
 	"github.com/ProtonMail/go-crypto/openpgp/packet"
@@ -4696,9 +4698,6 @@ func (d *DeltaChatCore) idleLoop(client *imapclient.Client, folder string, label
 // It updates the client pointer in-place and swaps the corresponding struct field.
 // Returns true if reconnected, false if context was cancelled or retries exhausted.
 func (d *DeltaChatCore) reconnectIDLE(clientPtr **imapclient.Client, folder string, label string) bool {
-	const maxRetries = 10
-	backoff := 5 * time.Second
-
 	d.fireUpdate(Update{
 		Type:      UpdateConnectivity,
 		Platform:  dcPlatform,
@@ -4706,75 +4705,58 @@ func (d *DeltaChatCore) reconnectIDLE(clientPtr **imapclient.Client, folder stri
 		ConnState: "disconnected",
 	})
 
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		select {
-		case <-d.ctx.Done():
-			return false
-		default:
-		}
-
-		// Wait with backoff
-		timer := time.NewTimer(backoff)
-		select {
-		case <-d.ctx.Done():
-			timer.Stop()
-			return false
-		case <-timer.C:
-		}
-
-		// Attempt reconnect — connectIMAP reads from struct fields (no lock needed for reads of immutable config)
-		newClient, err := d.connectIMAP()
+	var newClient *imapclient.Client
+	err := utils.Retry(d.ctx, 10, 5*time.Second, 120*time.Second, nil, func() error {
+		c, err := d.connectIMAP()
 		if err != nil {
-			// Double backoff, cap at 120s
-			backoff *= 2
-			if backoff > 120*time.Second {
-				backoff = 120 * time.Second
-			}
-			continue
+			return err
 		}
-
-		// Success — close old client (ignore errors, it's likely dead)
-		if *clientPtr != nil {
-			(*clientPtr).Close()
-		}
-		*clientPtr = newClient
-
-		// Update the struct field so Logout can close the right client
-		d.mu.Lock()
-		switch label {
-		case "inbox-idle":
-			d.idleInbox = newClient
-		case "dc-idle":
-			d.idleDC = newClient
-		}
-		d.mu.Unlock()
-
+		newClient = c
+		return nil
+	})
+	if err != nil {
+		// All retries exhausted — fire permanent disconnect
 		d.fireUpdate(Update{
 			Type:      UpdateConnectivity,
 			Platform:  dcPlatform,
 			ChatID:    label,
-			ConnState: "connected",
+			ConnState: "disconnected",
 		})
-
-		// Sync messages after reconnect
-		d.mu.RLock()
-		authed := d.authed
-		d.mu.RUnlock()
-		if authed {
-			d.syncMessages()
-		}
-
-		return true
+		return false
 	}
 
-	// All retries exhausted — fire permanent disconnect
+	// Success — close old client (ignore errors, it's likely dead)
+	if *clientPtr != nil {
+		(*clientPtr).Close()
+	}
+	*clientPtr = newClient
+
+	// Update the struct field so Logout can close the right client
+	d.mu.Lock()
+	switch label {
+	case "inbox-idle":
+		d.idleInbox = newClient
+	case "dc-idle":
+		d.idleDC = newClient
+	}
+	d.mu.Unlock()
+
 	d.fireUpdate(Update{
 		Type:      UpdateConnectivity,
 		Platform:  dcPlatform,
 		ChatID:    label,
-		ConnState: "disconnected",
+		ConnState: "connected",
 	})
-	return false
+
+	// Sync messages after reconnect
+	d.mu.RLock()
+	authed := d.authed
+	d.mu.RUnlock()
+	if authed {
+		d.syncMessages()
+	}
+
+	return true
 }
 
 // isIMAPConnError returns true if the error indicates a dropped IMAP connection
@@ -4959,13 +4941,7 @@ func (d *DeltaChatCore) saveSession() {
 		PushToken:         d.pushToken,
 	}
 
-	data, err := json.Marshal(sess)
-	if err != nil {
-		return
-	}
-
-	os.MkdirAll(filepath.Dir(d.sessionPath), 0700)
-	os.WriteFile(d.sessionPath, data, 0600)
+	utils.SaveSession(d.sessionPath, sess)
 }
 
 func (d *DeltaChatCore) loadSession() error {
@@ -4973,14 +4949,12 @@ func (d *DeltaChatCore) loadSession() error {
 		return fmt.Errorf("no session path")
 	}
 
-	data, err := os.ReadFile(d.sessionPath)
-	if err != nil {
+	var sess dcSession
+	if err := utils.LoadSession(d.sessionPath, &sess); err != nil {
 		return err
 	}
-
-	var sess dcSession
-	if err := json.Unmarshal(data, &sess); err != nil {
-		return err
+	if sess.Email == "" {
+		return fmt.Errorf("no session file")
 	}
 
 	d.myAddr = sess.Email

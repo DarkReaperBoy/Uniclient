@@ -13,8 +13,38 @@ import '../utils/debug.dart';
 /// Sanitize a string for safe display — replace unpaired surrogates.
 String _safeStr(String s) {
   if (s.isEmpty) return s;
-  // Replace any unpaired surrogates (invalid UTF-16) with the replacement character.
-  return s.replaceAll(RegExp(r'[\uD800-\uDFFF]'), '\uFFFD');
+  // Fast path: no surrogates at all (the 99% case).
+  bool hasSurrogate = false;
+  for (var i = 0; i < s.length; i++) {
+    final code = s.codeUnitAt(i);
+    if (code >= 0xD800 && code <= 0xDFFF) {
+      hasSurrogate = true;
+      break;
+    }
+  }
+  if (!hasSurrogate) return s;
+  // Slow path: rebuild string, preserving valid pairs.
+  final buf = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    final code = s.codeUnitAt(i);
+    if (code >= 0xD800 && code <= 0xDBFF) {
+      if (i + 1 < s.length) {
+        final next = s.codeUnitAt(i + 1);
+        if (next >= 0xDC00 && next <= 0xDFFF) {
+          buf.writeCharCode(code);
+          buf.writeCharCode(next);
+          i++;
+          continue;
+        }
+      }
+      buf.write('\uFFFD');
+    } else if (code >= 0xDC00 && code <= 0xDFFF) {
+      buf.write('\uFFFD');
+    } else {
+      buf.writeCharCode(code);
+    }
+  }
+  return buf.toString();
 }
 
 /// High-level wrapper around the FFI bridge for engine operations.
@@ -254,6 +284,45 @@ class EngineService {
     await _callAsync('__engine', 'DeleteMessage', req.writeToBuffer());
   }
 
+  Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId) async {
+    final req = epb.EngineForwardMessageRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..toChatId = toChatId;
+    await _callAsync('__engine', 'ForwardMessage', req.writeToBuffer());
+  }
+
+  Future<void> reactToMessage(String accountId, String chatId, String msgId, String emoji) async {
+    final req = epb.EngineReactToMessageRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..emoji = emoji;
+    await _callAsync('__engine', 'ReactToMessage', req.writeToBuffer());
+  }
+
+  Future<void> pinMessage(String accountId, String chatId, String msgId, bool pinned) async {
+    final req = epb.EnginePinMessageRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..pinned = pinned;
+    await _callAsync('__engine', 'PinMessage', req.writeToBuffer());
+  }
+
+  Future<String> uploadFile(String accountId, String chatId, String filePath, {String caption = ''}) async {
+    final req = epb.EngineUploadFileRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..filePath = filePath
+      ..caption = caption;
+    final resp = epb.EngineUploadFileResponse.fromBuffer(
+      await _callAsync('__engine', 'UploadFile', req.writeToBuffer()),
+    );
+    return resp.msgId;
+  }
+
   Future<void> retryPending(String localId) async {
     final req = epb.EngineRetryPendingRequest()..localId = localId;
     await _callAsync('__engine', 'RetryPending', req.writeToBuffer());
@@ -367,19 +436,19 @@ class EngineService {
     if (maxCacheSize != null) req.maxCacheSize = Int64(maxCacheSize);
     if (sendReadReceipts != null) {
       req.sendReadReceipts = sendReadReceipts;
-      req.hasSendReadReceipts_15 = true;
+      req.hasSendReadReceipts_7 = true;
     }
     if (sendTyping != null) {
       req.sendTyping = sendTyping;
-      req.hasSendTyping_15 = true;
+      req.hasSendTyping_9 = true;
     }
     if (notifyDms != null) {
       req.notifyDms = notifyDms;
-      req.hasNotifyDms_15 = true;
+      req.hasNotifyDms_11 = true;
     }
     if (notifyGroups != null) {
       req.notifyGroups = notifyGroups;
-      req.hasNotifyGroups_15 = true;
+      req.hasNotifyGroups_13 = true;
     }
     if (notifyMentionsOnly != null) {
       req.notifyMentionsOnly = notifyMentionsOnly;

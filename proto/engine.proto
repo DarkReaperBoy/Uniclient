@@ -275,6 +275,38 @@ message EngineDeleteMessageRequest {
   string msg_id     = 3;
 }
 
+message EngineForwardMessageRequest {
+  string account_id  = 1;
+  string chat_id     = 2;
+  string msg_id      = 3;
+  string to_chat_id  = 4;
+}
+
+message EngineReactToMessageRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string msg_id     = 3;
+  string emoji      = 4;
+}
+
+message EnginePinMessageRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string msg_id     = 3;
+  bool   pinned     = 4;
+}
+
+message EngineUploadFileRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string file_path  = 3;
+  string caption    = 4;
+}
+
+message EngineUploadFileResponse {
+  string msg_id = 1;
+}
+
 message EngineRetryPendingRequest {
   string local_id = 1;
 }

@@ -15,7 +15,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/binary"
 	"encoding/hex"
-	"encoding/json"
 	"encoding/pem"
 	"encoding/xml"
 	"errors"
@@ -25,13 +24,14 @@ import (
 	"math/big"
 	"net"
 	"net/http"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"uniclient/utils"
 )
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2515,13 +2515,12 @@ func mumbleCertHash(cert tls.Certificate) string {
 }
 
 func (c *MumbleCore) loadSession(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
+	var sess mumbleSessionData
+	if err := utils.LoadSession(path, &sess); err != nil {
 		return err
 	}
-	var sess mumbleSessionData
-	if err := json.Unmarshal(data, &sess); err != nil {
-		return err
+	if sess.CertPEM == "" || sess.KeyPEM == "" {
+		return fmt.Errorf("no session file")
 	}
 	cert, err := tls.X509KeyPair([]byte(sess.CertPEM), []byte(sess.KeyPEM))
 	if err != nil {
@@ -2546,8 +2545,7 @@ func (c *MumbleCore) saveSession(path string) error {
 		CertPEM: string(certPEM),
 		KeyPEM:  string(keyPEM),
 	}
-	data, _ := json.MarshalIndent(sess, "", "  ")
-	return os.WriteFile(path, data, 0600)
+	return utils.SaveSession(path, sess)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -3060,32 +3058,24 @@ func (c *MumbleCore) tcpRecvLoop() {
 // Reconnect -> Close -> wg.Wait would deadlock otherwise.
 func (c *MumbleCore) attemptAutoReconnect() {
 	const maxRetries = 10
-	const maxDelay = 60 * time.Second
-	baseDelay := 3 * time.Second
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		delay := baseDelay * time.Duration(1<<uint(attempt))
-		if delay > maxDelay {
-			delay = maxDelay
-		}
-
+	attempt := 0
+	err := utils.Retry(c.ctx, maxRetries, 3*time.Second, 60*time.Second, nil, func() error {
+		attempt++
 		c.fireUpdate(Update{
 			Type:     UpdateCallState,
 			Platform: mumblePlatform,
-			ChatID:   fmt.Sprintf("reconnecting:%d/%d", attempt+1, maxRetries),
+			ChatID:   fmt.Sprintf("reconnecting:%d/%d", attempt, maxRetries),
 		})
+		return c.Reconnect()
+	})
 
-		time.Sleep(delay)
-
-		err := c.Reconnect()
-		if err == nil {
-			c.fireUpdate(Update{
-				Type:     UpdateCallState,
-				Platform: mumblePlatform,
-				ChatID:   "reconnected",
-			})
-			return
-		}
+	if err == nil {
+		c.fireUpdate(Update{
+			Type:     UpdateCallState,
+			Platform: mumblePlatform,
+			ChatID:   "reconnected",
+		})
+		return
 	}
 
 	// All retries exhausted

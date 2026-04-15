@@ -11,13 +11,14 @@ import (
 	"net/http"
 	neturl "net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"uniclient/utils"
 )
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -2078,15 +2079,40 @@ func (g *GitHubCore) budgetAdjustedInterval(base time.Duration) time.Duration {
 // These are chats that had activity in the last ghRecentWindow (5 min) but are NOT
 // the actively viewed chat (that one has its own faster goroutine).
 func (g *GitHubCore) pollRecentChats() {
-	g.activeThreadsMu.RLock()
 	now := time.Now()
 	var toCheck []string
+	var stale []string
+
+	g.activeThreadsMu.RLock()
 	for chatID, lastActive := range g.activeThreads {
 		if now.Sub(lastActive) < ghRecentWindow {
 			toCheck = append(toCheck, chatID)
+		} else {
+			stale = append(stale, chatID)
 		}
 	}
 	g.activeThreadsMu.RUnlock()
+
+	// Evict stale entries and their associated ETags/Last-Modified timestamps
+	if len(stale) > 0 {
+		g.activeThreadsMu.Lock()
+		for _, id := range stale {
+			delete(g.activeThreads, id)
+		}
+		g.activeThreadsMu.Unlock()
+
+		g.threadETagsMu.Lock()
+		for _, id := range stale {
+			delete(g.threadETags, id)
+		}
+		g.threadETagsMu.Unlock()
+
+		g.threadLastModMu.Lock()
+		for _, id := range stale {
+			delete(g.threadLastMod, id)
+		}
+		g.threadLastModMu.Unlock()
+	}
 
 	// Don't poll the active chat here — it has its own fast goroutine
 	g.activeChatMu.Lock()
@@ -2835,13 +2861,12 @@ func ghParseRetryAfter(h http.Header) time.Duration {
 // ════════════════════════════════════════════════════════════════════════════════
 
 func (g *GitHubCore) loadSession() error {
-	data, err := os.ReadFile(g.sessionPath)
-	if err != nil {
+	var sess ghSession
+	if err := utils.LoadSession(g.sessionPath, &sess); err != nil {
 		return err
 	}
-	var sess ghSession
-	if err := json.Unmarshal(data, &sess); err != nil {
-		return err
+	if sess.Token == "" {
+		return fmt.Errorf("no session file")
 	}
 	g.token = sess.Token
 	g.username = sess.Username
@@ -2932,9 +2957,7 @@ func (g *GitHubCore) saveSession() {
 	}
 	g.threadETagsMu.RUnlock()
 
-	data, _ := json.MarshalIndent(sess, "", "  ")
-	os.MkdirAll(filepath.Dir(g.sessionPath), 0o755)
-	os.WriteFile(g.sessionPath, data, 0o600)
+	utils.SaveSession(g.sessionPath, sess)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -145,6 +148,85 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string) (string,
 	return localID, nil
 }
 
+// UploadFile sends a file from the local filesystem to a chat.
+func (e *Engine) UploadFile(accountID, chatID, filePath, caption string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account %q not found", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account %q not connected", accountID)
+	}
+
+	f, err := os.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("open file: %w", err)
+	}
+	defer f.Close()
+
+	info, err := f.Stat()
+	if err != nil {
+		return "", fmt.Errorf("stat file: %w", err)
+	}
+
+	upload := cores.FileUpload{
+		Name:     info.Name(),
+		Size:     info.Size(),
+		MimeType: detectMimeType(filePath),
+		Reader:   f,
+	}
+
+	msg, err := acc.Core.UploadFile(chatID, upload, nil)
+	if err != nil {
+		return "", err
+	}
+
+	// Cache the sent message.
+	if msg != nil {
+		cached := e.cacheMessage(accountID, chatID, msg)
+		e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
+			AccountID: accountID,
+			ChatID:    chatID,
+			Message:   cached,
+		})
+		return msg.ID, nil
+	}
+	return "", nil
+}
+
+// detectMimeType guesses MIME type from file extension.
+func detectMimeType(path string) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".gif":
+		return "image/gif"
+	case ".webp":
+		return "image/webp"
+	case ".mp4":
+		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".ogg":
+		return "audio/ogg"
+	case ".opus":
+		return "audio/opus"
+	case ".pdf":
+		return "application/pdf"
+	case ".zip":
+		return "application/zip"
+	case ".txt":
+		return "text/plain"
+	default:
+		return "application/octet-stream"
+	}
+}
+
 // EditMessage queues a message edit.
 func (e *Engine) EditMessage(accountID, chatID, msgID, newText string) error {
 	localID := generateLocalID()
@@ -189,6 +271,64 @@ func (e *Engine) DeleteMessage(accountID, chatID, msgID string) error {
 		e.processPendingItem(accountID, chatID, localID, ActionDelete, payload)
 	}()
 	return nil
+}
+
+// ForwardMessage queues a message forward to another chat.
+func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string) error {
+	localID := generateLocalID()
+	now := time.Now().UnixMilli()
+
+	payload, _ := json.Marshal(forwardPayload{MsgID: msgID, ToChatID: toChatID})
+
+	_, err := e.db.Exec(
+		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		accountID, chatID, localID, ActionForward, payload, PendingQueued, now)
+	if err != nil {
+		return err
+	}
+
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		e.processPendingItem(accountID, chatID, localID, ActionForward, payload)
+	}()
+	return nil
+}
+
+// ReactToMessage queues a reaction toggle on a message.
+func (e *Engine) ReactToMessage(accountID, chatID, msgID, emoji string) error {
+	localID := generateLocalID()
+	now := time.Now().UnixMilli()
+
+	payload, _ := json.Marshal(reactPayload{MsgID: msgID, Emoji: emoji})
+
+	_, err := e.db.Exec(
+		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		accountID, chatID, localID, ActionReact, payload, PendingQueued, now)
+	if err != nil {
+		return err
+	}
+
+	e.wg.Add(1)
+	go func() {
+		defer e.wg.Done()
+		e.processPendingItem(accountID, chatID, localID, ActionReact, payload)
+	}()
+	return nil
+}
+
+// PinMessage pins or unpins a message in a chat.
+func (e *Engine) PinMessage(accountID, chatID, msgID string, pinned bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %s not found", accountID)
+	}
+	if pinned {
+		return acc.Core.PinMessage(chatID, msgID)
+	}
+	return acc.Core.UnpinMessage(chatID, msgID)
 }
 
 // processPendingItem executes a pending operation with retry logic.
