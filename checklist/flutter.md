@@ -1,6 +1,6 @@
 # Flutter UI — Implementation Checklist
 
-Status: **FEATURE COMPLETE** (125 done + 29 built/untested = 0 not-started). Last updated: 2026-04-15, session 17.
+Status: **ALPHA** — scaffold exists, Telegram basic flow works, many features are placeholders/stubs/broken. See [gui.md](gui.md) for full bug list. Last updated: 2026-04-15, session 24.
 
 For detailed per-component status with checkmarks, see [gui.md](gui.md).
 

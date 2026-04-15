@@ -193,29 +193,24 @@ Pure Go XMPP client (RFC 6120/6121 + 30+ XEPs). 242 methods, ~4,911 lines. No ex
 - Registration (XEP-0077): register, change password, unregister
 - **32/32 tests pass** against yax.im (Prosody) — all 242 methods tested with 2 accounts
 
-### Flutter GUI — Feature Complete
+### Flutter GUI — Alpha
 
-Cross-platform Flutter UI connected to Go via protobuf FFI bridge. Provider state management (AppState, ChatState, AuthState). 125/155 features done, 29 built/untested, 0 not started. 85 automated widget tests passing.
+Cross-platform Flutter UI connected to Go via protobuf FFI bridge. Provider state management (AppState, ChatState, AuthState). 85 automated widget tests passing. **Many features are placeholders, stubs, or broken.** See `checklist/gui.md` for the full bug list.
 
-**Working:**
-- 3-panel layout: platform rail (68px, drag reorder, hover squircle, context menu) + sidebar (272px) + chat area (flex)
-- All 10 platform icons with brand colors, connection status dots, unread badges, dividers
-- Full auth flow (7-state FSM: choose → input → OTP → 2FA → QR → ready → error)
-- Chat list with search, pinned/regular sections, context menus, typing indicators, type icons, draft preview, custom user folders
-- Message bubbles (sent/received), reply preview, edit indicator, status icons, date separators, hover actions, reactions UI, forward from indicator
-- Emoji panel (1500+ emoji, 9 categories, search, recently used, skin tone picker, sticker pack browser)
-- Settings screen (theme, accent color picker, per-platform themes, font scale, cache, download dir, privacy, notifications, account removal)
-- Dark/light/system theme with Inter font, 12 accent color presets
-- Chat header: animated typing dots, pinned messages sheet, breadcrumb for topics, info overlay
-- Input: mic/camera buttons, markdown toolbar, mention autocomplete, voice recording UI
-- Topic groups: channel tab bar, per-channel message switching
+**Working (with Telegram):**
+- 3-panel layout: platform rail + sidebar (272px) + chat area (flex)
+- Auth flow (7-state FSM), chat list with search/pinned sections, message bubbles, emoji panel (1500+ real emoji)
+- Settings screen, dark/light/system theme, media viewer, forward dialog
+- Release build (AOT) + debug build both work on Linux
 
-**Built, untested in live app:**
-- Media inline rendering (images, video, audio, files with thumbnails)
-- Rich text (clickable URLs, code blocks, inline code)
-- Responsive layout (3 breakpoints: <600, 600-900, >900)
-- Topic group drill-in, sticker/GIF tabs, message multi-select
-- Forward dialog, media viewer, notification overlay
+**Known bugs:**
+- Platform rail tap broken (can't switch platforms), notification spam (every message), reply preview never shows, "Channels" tab cut off, user panel shows "User" not real name, new message separator broken, non-Telegram cores show 0 chats
+
+**Missing entirely:**
+- System tray, native OS notifications, chat type icons (DM/group/channel/bot), Telegram folders, real sticker/GIF backends, voice/video calls, voice recording, IRC channel join UI, multi-account UX, keyboard shortcuts, accessibility, distribution packaging
+
+**Placeholders (UI exists, backend missing):**
+- Sticker/GIF tabs (mock data), voice/video recording, drag & drop, mention autocomplete, online presence dots, custom folders (lost on restart), status picker (local only), QR auth
 
 ### Calling Status
 
@@ -267,7 +262,7 @@ See [CHECKLIST.md](CHECKLIST.md) for detailed progress tracking.
 | Phase 5 — Delta Chat | Done (bot + user, 119 methods, ~4,859 lines, 132 tests, 8 chatmail instances, call signaling + audio verified) |
 | Phase 6 — TeamSpeak 3 | Done (192 methods, ~5,369 lines, full command set, 25 notification handlers, voice transport, Opus codec, VAD, bandwidth stats) |
 | Phase 7 — Matrix | Done (user + bot, 144 methods, ~4,397 lines, 42 tests, full E2EE + calls) |
-| Phase 8 — Flutter UI | **Feature complete** (125 done + 29 built/untested, 85 widget tests passing) |
+| Phase 8 — Flutter UI | **Alpha** — scaffold works, many bugs + placeholders + missing features (see checklist/gui.md) |
 | Phase 9 — Mumble | Done (228 methods, ~4,911 lines, full voice, public server list, version auto-detect) |
 | Phase 10 — GitHub | Done (99 methods, ~2,847 lines, 9/9 tests, DMs + groups via issues, 5-layer rate limit) |
 | Phase 11 — IRC | Done (302 methods, ~4,473 lines, RFC 1459/2812 + IRCv3 + services, 6/6 networks) |

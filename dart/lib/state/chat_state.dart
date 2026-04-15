@@ -11,6 +11,7 @@ class ChatState extends ChangeNotifier {
 
   List<ChatInfo> _chats = [];
   ChatInfo? _activeChat;
+  int _openedUnreadCount = 0; // unread count at time chat was opened
   List<CachedMessage> _messages = [];
   bool _loadingMessages = false;
   bool _hasMoreMessages = true;
@@ -57,6 +58,7 @@ class ChatState extends ChangeNotifier {
 
   List<ChatInfo> get chats => _chats;
   ChatInfo? get activeChat => _activeChat;
+  int get openedUnreadCount => _openedUnreadCount;
   List<CachedMessage> get messages => _messages;
   bool get loadingMessages => _loadingMessages;
   bool get hasMoreMessages => _hasMoreMessages;
@@ -97,13 +99,15 @@ class ChatState extends ChangeNotifier {
 
   /// Load the chat list from engine.
   void loadChats({String accountId = '', bool archived = false}) {
-    _chats = _engine.getChatList(accountId: accountId, archived: archived);
+    // Use a large limit for unified list so all accounts' chats are included.
+    _chats = _engine.getChatList(accountId: accountId, archived: archived, limit: 500);
     notifyListeners();
   }
 
   /// Open a chat — loads messages and sets as active.
   void openChat(ChatInfo chat) {
     _activeChat = chat;
+    _openedUnreadCount = chat.unreadCount;
     _messages = [];
     _hasMoreMessages = true;
     _activeChannelId = null; // reset channel selection on chat change
@@ -124,6 +128,7 @@ class ChatState extends ChangeNotifier {
   void closeChat() {
     _stopPolling();
     _activeChat = null;
+    _openedUnreadCount = 0;
     _messages = [];
     _engine.clearActiveChat();
     notifyListeners();
@@ -300,6 +305,10 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Rate-limit notifications: max 1 per chat per 5 seconds, max 3 total per 5 seconds.
+  final Map<String, DateTime> _lastNotifPerChat = {};
+  final List<DateTime> _recentNotifs = [];
+
   void _handleMsgReceived(MsgReceivedEvent event) {
     final isActiveChat = _activeChat?.accountId == event.accountId &&
         _activeChat?.chatId == event.chatId;
@@ -313,9 +322,25 @@ class ChatState extends ChangeNotifier {
         notifyListeners();
       }
     } else if (onNotification != null && !event.message.isSent) {
-      // Show in-app notification for messages in non-active chats.
+      final chatKey = '${event.accountId}:${event.chatId}';
       final chat = _chats.where((c) =>
           c.accountId == event.accountId && c.chatId == event.chatId).firstOrNull;
+
+      // Skip muted chats.
+      if (chat != null && chat.isMuted) return;
+
+      // Rate limit: max 1 notification per chat per 5 seconds.
+      final now = DateTime.now();
+      final lastForChat = _lastNotifPerChat[chatKey];
+      if (lastForChat != null && now.difference(lastForChat).inSeconds < 5) return;
+
+      // Global rate limit: max 3 notifications per 5 seconds.
+      _recentNotifs.removeWhere((t) => now.difference(t).inSeconds > 5);
+      if (_recentNotifs.length >= 3) return;
+
+      _lastNotifPerChat[chatKey] = now;
+      _recentNotifs.add(now);
+
       onNotification!(
         event.message.senderName,
         event.message.contentText,

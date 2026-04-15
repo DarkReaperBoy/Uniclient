@@ -1,11 +1,59 @@
 # GUI Checklist — Flutter Implementation Status
 
-✅ = working in Flutter, ✅🔧 = built, compiles, untested in live app, ❌ = not started, 🔲 = placeholder/stub only.
-Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 untested, 0 not-started).
+**STATUS: ALPHA — scaffold exists but many features are placeholders, stubs, or broken.**
 
-## Bugs Found & Fixed (session 23)
-- ✅ **Multi-platform chat list wipe** — `onChatSnapshot` replaced entire `_chats` with per-account snapshot. IRC (0 chats) wiped Telegram (50 chats). Fixed: call `loadChats()` for unified SQLite query instead.
-- ✅ **Sidebar Stack layout** — `StackFit.loose` gave Column children `minHeight=0`, breaking Expanded. Fixed with `StackFit.expand`.
+✅ = actually working with live data, 🔲 = placeholder/stub (UI exists, no backend), ❌ = not started, 🐛 = known bug.
+Last updated: 2026-04-15, session 24.
+
+## CRITICAL BUGS — Fixed in session 24
+
+- ✅ **#24 Notification spam** — Fixed: suppressed notifications for active chat, added 500ms gap.
+- ✅ **#25 Platform rail tap broken** — Fixed: `ReorderableDelayedDragStartListener` replaces `DragStartListener` so taps pass through.
+- ✅ **#26 User panel shows "User"** — Fixed: `emitAccountList()` after `UpdateAccountDisplay` so Dart gets display name.
+- ✅ **#27 Reply preview never shows** — Fixed: engine auto-populates `reply_preview` from cache in `cache_msgs.go`.
+- ✅ **#28 "Channels" folder tab cut off** — Fixed: removed icons from tabs, `Expanded` layout fits all 4 tabs.
+- ✅ **#29 New messages separator broken** — Fixed: `openedUnreadCount` snapshot saved at chat open time.
+- ✅ **#30 Non-Telegram cores show nothing** — Fixed: unified chat list limit raised to 500, drill-in falls back to parentId filter when GetForumTopics returns empty, added JoinChat engine method + UI dialog for IRC.
+
+## MISSING FEATURES — Not Started
+
+- ❌ **System tray** — No tray icon, no minimize-to-tray, no background running. App closes when window closes.
+- ❌ **Native notifications** — No OS-level desktop notifications (libnotify/dbus). Only broken in-app toasts exist.
+- ❌ **Chat type icons** — No DM/group/channel/bot icons in chat list items. All chats look the same visually.
+- ❌ **Telegram folders** — No sync of Telegram's folder structure (Unread, Personal, Groups, etc.). Only local All/DMs/Groups/Channels tabs.
+- ❌ **Platform-specific notification sounds** — No distinct sound/vibration per platform.
+- ❌ **IRC channel join UI** — No way to browse/join IRC channels from the GUI. Must use CLI.
+- ❌ **Multi-account UX** — Platform rail doesn't scale for multiple accounts per platform. No account switcher per-platform, no visual distinction.
+- ❌ **Voice/video calls** — Call buttons show "coming soon" snackbar. No actual call UI.
+- ❌ **Voice message recording** — Mic button shows pulsing UI but no actual audio capture.
+- ❌ **Real sticker packs** — Sticker tab has 9 hardcoded mock packs. No Telegram/platform sticker sync.
+- ❌ **Real GIF search** — GIF tab has 12 hardcoded categories. No Giphy/Tenor/platform GIF API.
+- ❌ **Drag & drop file upload** — Placeholder only, no actual implementation.
+- ❌ **Video message recording** — Camera button shows snackbar placeholder.
+- ❌ **Mention autocomplete from real data** — @mention popup uses message sender names, not real member list.
+- ❌ **Message search in chat** — Search button opens dialog but FTS5 search may not return results for all platforms.
+- ❌ **Keyboard shortcuts** — No Ctrl+K search, no Escape to deselect, no keyboard navigation.
+- ❌ **Accessibility** — No semantic labels, no screen reader support, no focus management.
+- ❌ **Distribution packaging** — No Flatpak, AppImage, AUR, .deb, or .rpm packages.
+
+## PLACEHOLDERS — UI Exists, Backend Missing
+
+- 🔲 Sticker tab (mock packs, no real sticker data)
+- 🔲 GIF tab (mock categories, no real GIF API)
+- 🔲 Voice recording UI (pulsing dot + timer, no audio capture)
+- 🔲 Video recording UI (snackbar only)
+- 🔲 Drag & drop file overlay (visual only)
+- 🔲 Markdown formatting toolbar (wraps text with markers but no rich text rendering in sent messages)
+- 🔲 Emoji skin tone picker (works locally but skin tone preference not persisted)
+- 🔲 Per-platform theme override (UI exists, not persisted to engine)
+- 🔲 Custom user-created folders (local state only, lost on restart)
+- 🔲 Online dot on DM avatars (shows for all users, not real presence data)
+- 🔲 Draft text in preview (local state only, lost on restart)
+- 🔲 QR code auth (placeholder image, no real QR generation)
+
+## Bugs Found & Fixed (previous sessions)
+- ✅ **Multi-platform chat list wipe** (session 23) — `onChatSnapshot` replaced entire `_chats` with per-account snapshot. Fixed: unified SQLite query.
+- ✅ **Sidebar Stack layout** (session 23) — `StackFit.loose` gave Column children `minHeight=0`. Fixed with `StackFit.expand`.
 
 ## Layout Structure
 
@@ -32,7 +80,7 @@ Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 unteste
 - ✅ Unread count badge (computed from ChatState)
 - ✅ Platform connection status dots (green/yellow/red)
 - ✅ Hover squircle morph animation (AnimatedContainer circle→squircle 200ms easeInOut)
-- ✅ Reorder platforms (drag & drop via ReorderableListView)
+- 🐛 Reorder platforms (drag & drop via ReorderableListView) — **swallows tap events, breaks platform switching (#25)**
 - ✅ Context menu (reconnect, disconnect, settings)
 - ✅ Divider between platform groups (after All, before +)
 
@@ -44,31 +92,31 @@ Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 unteste
 - ✅ Chat items — colored avatar, name, preview, time, unread badge
 - ✅ Active chat highlight
 - ✅ Right-click context menu — pin, mute, mark read, archive, delete (with confirmation)
-- ✅ Platform filtering (via rail selection)
+- 🐛 Platform filtering (via rail selection) — **broken, tap doesn't reach handler (#25)**
 - ✅ Sorting (pinned first, then by lastMsgTime)
 - ✅ Typing indicator in preview
 - ✅ Muted chat styling
 - ✅ Pinned chat indicator
 - ✅ Settings button → settings screen
-- ✅ Folder tabs (All / DMs / Groups / Channels) — filtering logic verified session 21
+- 🐛 Folder tabs (All / DMs / Groups / Channels) — **"Channels" tab cut off at sidebar edge (#28)**
 - ✅ Topic/channel drill-in (page 2 with slide animation, wired to engine)
-- ✅ Status picker (online/away/DND/invisible) — local UI state, working as designed
-- ✅ Account switcher in user panel — platform filter, working as designed
-- ✅ Drag-to-reorder pinned chats (ReorderableListView, local state)
-- ✅ Custom user-created folders (create + add chats via context menu)
-- ✅ Online dot on DM avatars (green dot with border on _ChatAvatar)
-- ✅ Type icon prefix (group/channel/topic icons before title)
-- ✅ Draft text shown in preview (red "Draft:" prefix)
+- 🔲 Status picker (online/away/DND/invisible) — local UI state only, not synced to any platform
+- 🔲 Account switcher in user panel — platform filter, local state only
+- 🔲 Drag-to-reorder pinned chats (ReorderableListView, local state, not persisted)
+- 🔲 Custom user-created folders (create + add chats via context menu) — local state, lost on restart
+- 🔲 Online dot on DM avatars — shows hardcoded, not real presence data
+- ❌ Type icon prefix (DM/group/channel/bot icons) — **missing, all chats look the same (#30 missing)**
+- 🔲 Draft text shown in preview — local state, lost on restart
 
 ## User Panel (Bottom of Sidebar)
 
 - ✅ Avatar with initial
-- ✅ Username (from first connected account)
+- 🐛 Username — **shows "User" instead of account name (#26)**
 - ✅ Connection status text (Online/Connecting/Offline)
 - ✅ Settings gear button
-- ✅ Status picker popup — local UI state, verified session 21
-- ✅ Account switcher dropdown — platform filter, verified session 21
-- ✅ Custom status text (tap to edit, 50 char max, italic display)
+- 🔲 Status picker popup — local UI state only, not synced
+- 🔲 Account switcher dropdown — local state only
+- 🔲 Custom status text — local state, lost on restart
 
 ## Chat Header
 
@@ -86,23 +134,23 @@ Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 unteste
 - ✅ Sent vs received bubble styling (right-aligned sent, left-aligned received)
 - ✅ Sender avatar + name on received messages
 - ✅ Bubble timestamps
-- ✅ Reply preview in bubbles
+- 🐛 Reply preview in bubbles — **never shows, engine doesn't populate reply_preview field (#27)**
 - ✅ Edit indicator ("edited" label)
 - ✅ Message status indicators (sending/sent/delivered/read/failed)
 - ✅ Failed message "tap to retry"
 - ✅ Scroll-to-bottom FAB
-- ✅ Right-click context menu (reply, copy, edit, delete, forward placeholder)
+- ✅ Right-click context menu (reply, copy, edit, delete, forward)
 - ✅ Forward from indicator (icon + "Forwarded from" label)
-- ✅ Media inline (images, video, audio, files with thumbnails + download) — 11 pipeline bugs fixed session 21
+- ✅ Media inline (images, video, audio, files with thumbnails + download)
 - ✅ Link detection + styling (blue clickable URLs, opens via xdg-open)
-- ✅ Code blocks (triple backtick) with monospace + dark background (verified parsing + rendering)
-- ✅ Inline code (single backtick) (verified parsing + rendering)
-- ✅ Unread separator ("X new messages" pill) — logic verified session 21
+- ✅ Code blocks (triple backtick) with monospace + dark background
+- ✅ Inline code (single backtick)
+- 🐛 Unread separator ("X new messages" pill) — **never appears in practice (#29)**
 - ✅ Message multi-select mode (checkboxes, bulk delete + bulk forward via engine)
-- ✅ Full-screen media viewer (pinch-to-zoom) — wired to tap-to-open in session 21
+- ✅ Full-screen media viewer (pinch-to-zoom)
 - ✅ Reactions (chip UI + quick picker, wired to engine ReactToMessage)
 - ✅ Channel broadcast style (no avatar/name, isChannel flag hides both)
-- ✅ Per-channel message switching (topic group — tab bar with mock channels, placeholder per-channel)
+- 🔲 Per-channel message switching (topic group — tab bar with mock channels, placeholder per-channel)
 - ✅ Message hover actions (reply/react/more on desktop hover)
 
 ## Input Area
@@ -118,11 +166,11 @@ Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 unteste
 - ✅ Double-send prevention (`_sending` guard)
 - ✅ Attach button (+) — zenity file picker → engine UploadFile
 - ✅ Clipboard image paste (Ctrl+V detects image via xclip, uploads via engine)
-- ✅ Markdown formatting toolbar (bold/italic/code/strikethrough — verified wrapping logic)
-- ✅ Mic/Camera button (mic when empty, camera opens image-filtered file picker)
-- ✅ Voice message recording UI (pulsing dot, timer, cancel/send — no audio capture yet)
-- ✅ Video message recording UI (placeholder snackbar — camera plugin not available without native rebuild)
-- ✅ Mention autocomplete (@user from message senders, #channel placeholder)
+- 🔲 Markdown formatting toolbar (wraps text with markers, but sent messages aren't rendered as rich text)
+- 🔲 Mic/Camera button (mic shows recording UI but **no actual audio capture**)
+- 🔲 Voice message recording UI (pulsing dot + timer, **no audio capture — stub only**)
+- 🔲 Video message recording UI (placeholder snackbar only)
+- 🔲 Mention autocomplete (@user from message senders, not from real member list)
 
 ## Emoji/Sticker/GIF Panel
 
@@ -133,11 +181,11 @@ Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 unteste
 - ✅ Panel toggles open/closed via emoji button
 - ✅ Inserts emoji at cursor position in input
 - ✅ Close button
-- ✅ Stickers tab (9 packs with search, polished placeholders)
-- ✅ GIF tab (12 categories with search, polished placeholders)
+- 🔲 Stickers tab (9 **hardcoded mock** packs, no real sticker data from any platform)
+- 🔲 GIF tab (12 **hardcoded mock** categories, no real GIF API)
 - ✅ Emoji skin tone picker (6 Fitzpatrick tones, 35 eligible emoji)
-- ✅ Sticker pack browser (4 mock packs, tab selection, 4-column grid)
-- ✅ Sticker/GIF preview on hover (Tooltip with 300ms delay)
+- 🔲 Sticker pack browser (4 **mock** packs, no real data)
+- 🔲 Sticker/GIF preview on hover (works but shows mock data)
 
 ## Context Menus
 
@@ -155,7 +203,7 @@ Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 unteste
 - ✅ Inter font family
 - ✅ Theme picker in settings (dark/light/system)
 - ✅ Custom accent color picker (12 preset colors with checkmark selection)
-- ✅ Per-platform theme override (12 accent colors per platform, local state)
+- 🔲 Per-platform theme override (12 accent colors per platform, **local state only, lost on restart**)
 - ✅ System theme auto-detect (ThemeMode.system → Flutter handles platform brightness)
 
 ## Settings Screen
@@ -178,7 +226,7 @@ Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 unteste
 - ✅ Code entry with auto-sizing
 - ✅ 2FA recovery option
 - ✅ Error display with retry
-- ✅ QR code placeholder
+- 🔲 QR code placeholder (**no real QR generation**)
 - ✅ Auto-connect on auth success
 
 ## Data Pipeline
@@ -197,7 +245,7 @@ Last updated: 2026-04-15, session 23. **ALL FEATURES DONE** (150 done, 0 unteste
 
 - ✅ `media_viewer.dart` — full-screen image/video/file viewer with pinch-to-zoom, wired to tap-to-open
 - ✅ `forward_dialog.dart` — chat picker dialog for forwarding messages (wired to engine ForwardMessage)
-- ✅ `notification_overlay.dart` — in-app notification toasts (wired to msg_received events for non-active chats)
+- 🐛 `notification_overlay.dart` — in-app notification toasts (**spams every message, no rate limit, #24**)
 
 ## Automated Tests
 

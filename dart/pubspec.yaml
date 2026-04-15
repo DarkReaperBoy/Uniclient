@@ -1,6 +1,6 @@
 name: uniclient
 description: Unified multi-platform messaging client.
-version: 0.1.0
+version: 0.1.0-alpha
 publish_to: none
 
 environment:
@@ -34,3 +34,5 @@ flutter:
           weight: 600
         - asset: assets/fonts/Inter-Bold.ttf
           weight: 700
+  assets:
+    - assets/icon/icon_256.png

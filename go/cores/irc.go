@@ -2301,6 +2301,11 @@ func (c *IRCCore) GetProfile(userID string) (*User, error) {
 		return nil, ErrAuth
 	}
 
+	// Empty string = self.
+	if userID == "" {
+		userID = c.nick
+	}
+
 	nickLower := strings.ToLower(userID)
 
 	// Check cache first

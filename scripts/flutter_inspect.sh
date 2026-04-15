@@ -33,7 +33,7 @@ if [[ ! -f "$LOG_FILE" ]]; then
   exit 1
 fi
 
-VM_HTTP=$(grep "Dart VM service is listening on" "$LOG_FILE" | tail -1 | grep -oP 'http://[^ /]+/[^ /]+/')
+VM_HTTP=$(grep -a "Dart VM service is listening on" "$LOG_FILE" | tail -1 | grep -oP 'http://[^ /]+/[^ /]+/')
 if [[ -z "$VM_HTTP" ]]; then
   echo "ERROR: Could not find VM service URL in $LOG_FILE" >&2
   exit 1

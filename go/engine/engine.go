@@ -321,3 +321,40 @@ func (e *Engine) Shutdown() error {
 
 	return nil
 }
+
+// JoinChat joins a channel/room/group by name. For IRC this is a channel name
+// like "#freenode", for Mumble it's a channel ID, etc. After joining, triggers
+// a sync so the chat appears in the list.
+func (e *Engine) JoinChat(accountID, channelName string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	// Platform-specific join. Use the core's exported methods directly.
+	type joiner interface {
+		JoinKey(channel, key string)
+	}
+	type roomJoiner interface {
+		JoinRoom(roomID string) error
+	}
+
+	switch j := acc.Core.(type) {
+	case joiner:
+		j.JoinKey(channelName, "")
+	case roomJoiner:
+		if err := j.JoinRoom(channelName); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("platform %q does not support joining channels", acc.Platform)
+	}
+
+	// Re-sync chats so the new channel appears.
+	go func() {
+		ctx := context.Background()
+		e.syncAccount(ctx, accountID)
+	}()
+
+	return nil
+}

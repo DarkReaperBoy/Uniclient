@@ -1,4 +1,4 @@
-import 'dart:io' show Directory, Platform;
+import 'dart:io' show Directory, Platform, Process, exit;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -80,6 +80,13 @@ class _UniClientAppState extends State<UniClientApp> {
       cacheDir: cacheDir,
       downloadDir: downloadDir,
     );
+
+    // If another instance is already running, raise its window and exit.
+    if (appState.initError != null &&
+        appState.initError!.contains('already running')) {
+      _raiseExistingWindow();
+      exit(0);
+    }
   }
 
   @override
@@ -94,5 +101,29 @@ class _UniClientAppState extends State<UniClientApp> {
       themeMode: appState.themeMode,
       home: const NotificationOverlay(child: HomeScreen()),
     );
+  }
+}
+
+/// Try to raise the existing uniclient window using platform tools.
+void _raiseExistingWindow() {
+  try {
+    Process.runSync('bash', ['-c', '''
+      # Try kdotool (KDE Wayland)
+      if command -v kdotool >/dev/null 2>&1; then
+        for uuid in \$(kdotool search --name 'uniclient' 2>/dev/null); do
+          kdotool windowactivate "\$uuid" 2>/dev/null && exit 0
+        done
+      fi
+      # Try wmctrl (X11)
+      if command -v wmctrl >/dev/null 2>&1; then
+        wmctrl -a 'uniclient' 2>/dev/null && exit 0
+      fi
+      # Try xdotool (X11)
+      if command -v xdotool >/dev/null 2>&1; then
+        xdotool search --name 'uniclient' windowactivate 2>/dev/null && exit 0
+      fi
+    ''']);
+  } catch (_) {
+    // Best-effort — if window activation fails, we still exit.
   }
 }

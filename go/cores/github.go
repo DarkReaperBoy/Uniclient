@@ -960,6 +960,10 @@ func (g *GitHubCore) GetProfile(userID string) (*User, error) {
 	if !g.authed {
 		return nil, ErrAuth
 	}
+	// Empty string = self.
+	if userID == "" {
+		userID = g.username
+	}
 	return g.apiGetUser(userID)
 }
 

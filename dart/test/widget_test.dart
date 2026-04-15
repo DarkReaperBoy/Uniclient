@@ -39,9 +39,10 @@ void main() {
       await tester.pumpWidget(_testApp(const HomeScreen()));
       await tester.pump();
 
-      // Should show loading spinner.
+      // Should show loading spinner with branding.
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('Starting engine...'), findsOneWidget);
+      expect(find.text('UniClient'), findsOneWidget);
+      expect(find.text('Unified messaging'), findsOneWidget);
     });
 
     testWidgets('renders without overflow at various sizes', (tester) async {

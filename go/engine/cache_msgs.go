@@ -80,6 +80,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 		return msgs, err
 	}
 	e.populateMediaMetadata(msgs)
+	e.populateReplyPreviews(msgs)
 
 	// If cache is empty on initial load, fetch from core and cache.
 	if len(msgs) == 0 && beforeMs == 0 {
@@ -197,6 +198,22 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 
 	// Store raw as JSON for round-trip editing.
 	rawBytes, _ := json.Marshal(msg)
+
+	// Auto-populate reply preview from cache if the core didn't provide one.
+	if msg.ReplyToID != "" && msg.ReplyPreview == "" {
+		var replyText sql.NullString
+		e.db.QueryRow(
+			`SELECT content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+			accountID, chatID, msg.ReplyToID,
+		).Scan(&replyText)
+		if replyText.Valid && replyText.String != "" {
+			preview := replyText.String
+			if len(preview) > 100 {
+				preview = preview[:100]
+			}
+			msg.ReplyPreview = preview
+		}
+	}
 
 	e.db.Exec(
 		`INSERT OR REPLACE INTO messages
@@ -545,4 +562,52 @@ func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]Cache
 		}
 	}
 	return result, nil
+}
+
+// populateReplyPreviews fills in empty ReplyPreview fields by looking up
+// replied-to messages — first in the same batch, then in the DB cache.
+func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
+	// Index messages in this batch by (chat_id, msg_id) for fast lookup.
+	batchIndex := make(map[string]string, len(msgs))
+	for i := range msgs {
+		batchIndex[msgs[i].ChatID+"\x00"+msgs[i].MsgID] = msgs[i].ContentText
+	}
+
+	for i := range msgs {
+		if msgs[i].ReplyToID == "" || msgs[i].ReplyPreview != "" {
+			continue
+		}
+
+		// Try in-batch lookup first (replies often point to nearby messages).
+		key := msgs[i].ChatID + "\x00" + msgs[i].ReplyToID
+		if text, ok := batchIndex[key]; ok && text != "" {
+			preview := text
+			if len(preview) > 100 {
+				preview = preview[:100]
+			}
+			msgs[i].ReplyPreview = preview
+		} else {
+			// Fall back to DB lookup.
+			var replyText sql.NullString
+			e.db.QueryRow(
+				`SELECT content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1`,
+				msgs[i].AccountID, msgs[i].ChatID, msgs[i].ReplyToID,
+			).Scan(&replyText)
+			if replyText.Valid && replyText.String != "" {
+				preview := replyText.String
+				if len(preview) > 100 {
+					preview = preview[:100]
+				}
+				msgs[i].ReplyPreview = preview
+			}
+		}
+
+		// Persist back to DB so future queries don't need the lookup.
+		if msgs[i].ReplyPreview != "" {
+			e.db.Exec(
+				`UPDATE messages SET reply_preview = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+				msgs[i].ReplyPreview, msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID,
+			)
+		}
+	}
 }

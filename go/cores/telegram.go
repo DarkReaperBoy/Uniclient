@@ -8724,7 +8724,7 @@ func (t *TelegramCore) GetProfile(userID string) (*User, error) {
 	}
 
 	var inputUser tg.InputUserClass
-	if userID == "me" || userID == "self" {
+	if userID == "" || userID == "me" || userID == "self" {
 		inputUser = &tg.InputUserSelf{}
 	} else {
 		id, err := tgUserID(userID)

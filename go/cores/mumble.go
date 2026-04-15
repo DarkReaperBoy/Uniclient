@@ -4298,16 +4298,25 @@ func (c *MumbleCore) SetCallMuted(callID string, muted bool) error {
 
 // GetProfile returns user information for the given session ID.
 func (c *MumbleCore) GetProfile(userID string) (*User, error) {
-	session, err := strconv.ParseUint(userID, 10, 32)
-	if err != nil {
-		return nil, ErrInvalidInput
-	}
-
 	c.mu.RLock()
 	if !c.authed {
 		c.mu.RUnlock()
 		return nil, ErrAuth
 	}
+
+	// Empty string = self.
+	var session uint64
+	if userID == "" {
+		session = uint64(c.mySession)
+	} else {
+		var err error
+		session, err = strconv.ParseUint(userID, 10, 32)
+		if err != nil {
+			c.mu.RUnlock()
+			return nil, ErrInvalidInput
+		}
+	}
+
 	u, ok := c.users[uint32(session)]
 	if !ok {
 		c.mu.RUnlock()

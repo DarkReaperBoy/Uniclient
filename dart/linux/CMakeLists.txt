@@ -79,6 +79,10 @@ install(DIRECTORY "${NATIVE_ASSETS_DIR}"
   DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
+# Install the app icon.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/uniclient.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
+
 # Fully re-copy the assets directory on each build to avoid stale data.
 install(CODE "
   file(REMOVE_RECURSE \"${INSTALL_BUNDLE_DATA_DIR}/flutter_assets\")

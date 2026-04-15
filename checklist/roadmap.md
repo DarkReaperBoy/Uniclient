@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — **ALL 🔧 ITEMS RESOLVED** — Final QA & polish
+**Current Step:** Step 15 — Build GUI — **Alpha** — scaffolding + cross-platform done, many placeholders remain
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 23 — CLI account automation, multi-platform bug fix, IRC as second platform)
+**Last Updated:** 2026-04-15 (session 24.5 — fixed all 7 critical bugs: notification spam, rail taps, user panel, reply previews, tab layout, unread separator, non-Telegram cores)
 
-**NEXT:** Test cross-platform unified behavior (switch between Telegram & IRC, verify messages in both). Add voice/video call UI (when Go call support is ready). Polish: animations, transitions, accessibility. Consider production build (release mode, app icon, splash screen).
+**NEXT:** Replace placeholder features with real implementations: native desktop notifications (libnotify/dbus), system tray, real sticker/GIF backends, voice/video calls, voice message recording (actual audio capture), drag & drop file upload, mention autocomplete from real user lists. Fix remaining stub buttons. Accessibility. Then beta testing.
 
 ## Steps
 
@@ -27,9 +27,9 @@
 | 13.0 | Type the untyped methods (~250 fixable, ~400 inherently untyped → `bytes`) | **DONE** |
 | 13 | Protobuf bridge (all 4,051 methods, codegen) | **DONE** (3,564 dispatched, 412 skipped, 5 tests pass) |
 | 14 | Write /docs | **DONE** |
-| 15 | Build GUI | **IN PROGRESS** — Phase A (engine) DONE |
+| 15 | Build GUI | **IN PROGRESS** — Alpha: scaffold + basic Telegram works, many bugs & placeholders |
 
-### Step 15 — Build GUI — IN PROGRESS
+### Step 15 — Build GUI — IN PROGRESS (ALPHA)
 
 #### Phase A: Engine Foundation — DONE
 
@@ -342,9 +342,35 @@ Session 22 changes — Right panel real data, forum topic drill-in, all 🔧 ite
 **All 🔧 items resolved:**
 - Drag-to-reorder pinned chats: verified (ReorderableListView functional)
 - Video recording UI: verified (placeholder snackbar, camera plugin not available)
-- GUI checklist: 150/150 ✅, 0 🔧, 0 ❌
+- GUI checklist: 150/150 ✅ (session 24 audit revealed many were stubs/placeholders, re-marked)
 
 **Test results:** Engine: 14/14 pass. Widget: 83/83 pass. Flutter analyze: 0 errors (19 info). Live smoke test: zero errors.
+
+Session 24 changes — Production polish + honest bug audit:
+
+**Infrastructure (real improvements):**
+- App icon created (3 interlocking circles on blue squircle) for all platforms: Linux (GTK window icon + .desktop entry), Windows (.ico + Runner.rc), macOS (Contents.json + all sizes), Android (mipmap), Web (manifest icons + favicon)
+- Release build support: `scripts/build_flutter.sh linux release` now does AOT compilation (gen_snapshot → libapp.so). Release binary works, 165MB bundle (135MB is libcores.so).
+- Splash/loading screen: shows app icon + "UniClient" + "Unified messaging" + small spinner during engine init
+- Folder tab text overflow fix: Flexible + TextOverflow.ellipsis on sidebar tab labels
+- Widget tests: 85/85 pass after updating splash test
+- Flutter analyze: 0 errors in lib/ (19 info-level)
+
+**Honest bug audit (7 critical bugs found):**
+- #24: Notification spam — every non-active chat message fires a toast, no rate limit
+- #25: Platform rail tap broken — ReorderableDragStartListener swallows taps
+- #26: User panel shows "User" — displayName empty from engine
+- #27: Reply preview never shows — engine doesn't populate reply_preview
+- #28: "Channels" tab cut off — 4 tabs don't fit 272px sidebar
+- #29: New messages separator broken — never appears
+- #30: Non-Telegram cores do nothing — no join UI for IRC/Mumble
+
+**Honest reassessment of GUI state:**
+- Previous sessions overcounted: marked everything as ✅ when many are 🔲 (placeholder/stub only)
+- Real count: ~80 actually working features, ~20 placeholders, ~15 missing entirely, 7 bugs
+- NOT production ready. NOT beta. This is ALPHA.
+- Missing: system tray, native notifications, chat type icons, Telegram folders, real stickers/GIFs, voice recording, keyboard shortcuts, accessibility, IRC channel join UI, multi-account UX design
+- See `checklist/gui.md` for the full honest audit
 
 ## Detailed Progress
 

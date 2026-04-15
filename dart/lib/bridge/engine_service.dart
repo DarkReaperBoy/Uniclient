@@ -309,6 +309,13 @@ class EngineService {
     await _callAsync('__engine', 'DeleteMessage', req.writeToBuffer());
   }
 
+  Future<void> joinChat(String accountId, String channelName) async {
+    final req = epb.EngineJoinChatRequest()
+      ..accountId = accountId
+      ..channelName = channelName;
+    await _callAsync('__engine', 'JoinChat', req.writeToBuffer());
+  }
+
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId) async {
     final req = epb.EngineForwardMessageRequest()
       ..accountId = accountId

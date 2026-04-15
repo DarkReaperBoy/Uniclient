@@ -1142,9 +1142,11 @@ class _MessageList extends StatelessWidget {
     }
 
     // Determine unread separator position.
-    // In a reversed list, index 0 = newest. The unread boundary is at index == unreadCount.
-    final unreadIndex = chat.unreadCount > 0 && chat.unreadCount < messages.length
-        ? chat.unreadCount
+    // Use the count from when the chat was opened (not the live count, which
+    // gets zeroed by read-receipt events before messages finish loading).
+    final unreadCount = chatState.openedUnreadCount;
+    final unreadIndex = unreadCount > 0 && unreadCount < messages.length
+        ? unreadCount
         : -1;
 
     // Extra items: loading spinner + possible unread separator.
@@ -1177,7 +1179,7 @@ class _MessageList extends StatelessWidget {
         }
 
         if (showUnreadSep) {
-          return _UnreadSeparator(count: chat.unreadCount);
+          return _UnreadSeparator(count: unreadCount);
         }
 
         final msg = messages[msgIndex];

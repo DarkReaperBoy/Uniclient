@@ -93,15 +93,35 @@ class _HomeScreenState extends State<HomeScreen> {
     // Show loading while engine initializes.
     if (!appState.initialized && appState.initError == null) {
       return Scaffold(
+        backgroundColor: isDark ? AppColors.darkBase : AppColors.lightBase,
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const CircularProgressIndicator(color: AppColors.accent),
-              const SizedBox(height: 16),
-              Text('Starting engine...', style: TextStyle(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset('assets/icon/icon_256.png', width: 96, height: 96),
+              ),
+              const SizedBox(height: 20),
+              Text('UniClient', style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+                letterSpacing: -0.5,
+              )),
+              const SizedBox(height: 8),
+              Text('Unified messaging', style: TextStyle(
+                fontSize: 13,
                 color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
               )),
+              const SizedBox(height: 32),
+              const SizedBox(
+                width: 24, height: 24,
+                child: CircularProgressIndicator(
+                  color: AppColors.accent,
+                  strokeWidth: 2.5,
+                ),
+              ),
             ],
           ),
         ),

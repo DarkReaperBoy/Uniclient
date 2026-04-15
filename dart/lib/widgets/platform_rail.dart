@@ -99,7 +99,6 @@ class _PlatformRailState extends State<PlatformRail> {
             child: ReorderableListView.builder(
               itemCount: _orderedPlatforms.length,
               onReorder: _onReorder,
-              // Remove the default drag handle; long-press anywhere on the item triggers drag.
               buildDefaultDragHandles: false,
               proxyDecorator: (child, index, animation) {
                 return AnimatedBuilder(
@@ -118,7 +117,7 @@ class _PlatformRailState extends State<PlatformRail> {
               },
               itemBuilder: (context, index) {
                 final platform = _orderedPlatforms[index];
-                return ReorderableDragStartListener(
+                return ReorderableDelayedDragStartListener(
                   key: ValueKey(platform),
                   index: index,
                   child: _RailIcon(
@@ -363,6 +362,7 @@ class _RailIcon extends StatefulWidget {
   final void Function(TapUpDetails)? onSecondaryTapUp;
 
   const _RailIcon({
+    super.key,
     required this.icon,
     required this.color,
     required this.label,

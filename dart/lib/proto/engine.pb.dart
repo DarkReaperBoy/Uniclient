@@ -3105,6 +3105,47 @@ class EngineDeleteMessageRequest extends $pb.GeneratedMessage {
   void clearMsgId() => clearField(3);
 }
 
+class EngineJoinChatRequest extends $pb.GeneratedMessage {
+  factory EngineJoinChatRequest({
+    $core.String? accountId,
+    $core.String? channelName,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (channelName != null) $result.channelName = channelName;
+    return $result;
+  }
+  EngineJoinChatRequest._() : super();
+  factory EngineJoinChatRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineJoinChatRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'channelName')
+    ..hasRequiredFields = false
+  ;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineJoinChatRequest create() => EngineJoinChatRequest._();
+  EngineJoinChatRequest createEmptyInstance() => create();
+  EngineJoinChatRequest clone() => EngineJoinChatRequest()..mergeFromMessage(this);
+  static $pb.PbList<EngineJoinChatRequest> createRepeated() => $pb.PbList<EngineJoinChatRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineJoinChatRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineJoinChatRequest>(create);
+  static EngineJoinChatRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get channelName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set channelName($core.String v) { $_setString(1, v); }
+}
+
 class EngineForwardMessageRequest extends $pb.GeneratedMessage {
   factory EngineForwardMessageRequest({
     $core.String? accountId,

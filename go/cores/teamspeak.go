@@ -3423,6 +3423,20 @@ func (t *TeamSpeakCore) GetProfile(userID string) (*User, error) {
 		return nil, ErrAuth
 	}
 
+	// Empty string = self: use whoami to get our own client info.
+	if userID == "" {
+		rows, whoErr := t.tsExec("whoami")
+		if whoErr == nil && len(rows) > 0 {
+			nick := rows[0]["client_nickname"]
+			return &User{
+				ID:          rows[0]["client_id"],
+				Username:    nick,
+				DisplayName: nick,
+			}, nil
+		}
+		return nil, fmt.Errorf("whoami failed: %w", whoErr)
+	}
+
 	clid, err := strconv.Atoi(userID)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid user ID", ErrInvalidInput)

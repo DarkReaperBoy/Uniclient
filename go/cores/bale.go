@@ -1905,7 +1905,16 @@ func (b *BaleCore) GetProfile(userID string) (*User, error) {
 		return nil, ErrAuth
 	}
 	isBot := b.isBot
+	myUserID := b.userID
 	b.mu.RUnlock()
+
+	// Empty string = self.
+	if userID == "" {
+		if isBot && b.botInfo != nil {
+			return b.botInfo, nil
+		}
+		userID = fmt.Sprintf("%d", myUserID)
+	}
 
 	if !isBot {
 		// User mode: use LoadFullUsers

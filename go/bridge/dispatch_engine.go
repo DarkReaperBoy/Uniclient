@@ -286,6 +286,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.DeleteMessage(req.AccountId, req.ChatId, req.MsgId)
 
+	case "JoinChat":
+		var req pb.EngineJoinChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.JoinChat(req.AccountId, req.ChannelName)
+
 	case "ForwardMessage":
 		var req pb.EngineForwardMessageRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

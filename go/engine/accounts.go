@@ -227,6 +227,9 @@ func (e *Engine) UpdateAccountDisplay(accountID, displayName, avatarPath string)
 		acc.DisplayName = displayName
 	}
 	e.accountsMu.Unlock()
+
+	// Notify Dart so the sidebar user panel updates.
+	e.emitAccountList()
 	return nil
 }
 

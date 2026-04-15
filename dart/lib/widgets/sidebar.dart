@@ -90,13 +90,15 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
         chatState.notifyMerged();
       }
       setState(() {
-        _drillInTopics = topics;
+        // Only use fetched topics if non-empty; otherwise fall back to
+        // parentId-based sub-chat filtering in the build method.
+        _drillInTopics = topics.isNotEmpty ? topics : null;
         _drillInLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _drillInTopics = [];
+        _drillInTopics = null; // fall back to parentId filter
         _drillInLoading = false;
       });
     }
@@ -296,12 +298,30 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            _searching ? 'No results' : 'No chats yet',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _searching ? 'No results' : 'No chats yet',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
+                ),
+              ),
+              if (!_searching) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () => _showJoinChannelDialog(context),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Join Channel'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent,
+                    foregroundColor: Colors.white,
+                    textStyle: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       );
@@ -563,6 +583,58 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     });
   }
 
+  void _showJoinChannelDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController();
+    final appState = context.read<AppState>();
+
+    // Find accounts for the active platform that support joining.
+    final platform = appState.activePlatform;
+    final accounts = appState.accountsForPlatform(platform);
+    if (accounts.isEmpty) return;
+    final accountId = accounts.first.id;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+        title: Text('Join Channel',
+          style: TextStyle(color: isDark ? AppColors.darkText : AppColors.lightText)),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: InputDecoration(
+            hintText: platform == 'irc' ? '#channel' : 'Channel name',
+            hintStyle: TextStyle(color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
+          ),
+          style: TextStyle(color: isDark ? AppColors.darkText : AppColors.lightText),
+          onSubmitted: (value) {
+            if (value.trim().isNotEmpty) Navigator.of(ctx).pop(value.trim());
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (controller.text.trim().isNotEmpty) {
+                Navigator.of(ctx).pop(controller.text.trim());
+              }
+            },
+            child: const Text('Join'),
+          ),
+        ],
+      ),
+    ).then((channelName) {
+      if (channelName != null && channelName.isNotEmpty) {
+        final engine = context.read<EngineService>();
+        engine.joinChat(accountId, channelName);
+      }
+    });
+  }
+
   Future<void> _showCreateFolderDialog() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final nameController = TextEditingController();
@@ -648,27 +720,29 @@ class _FolderTabs extends StatelessWidget {
     required this.onAddFolder,
   });
 
-  static const _builtinFolders = [
-    ('all', 'All', Icons.chat_bubble_outline),
-    ('dms', 'DMs', Icons.person_outline),
-    ('groups', 'Groups', Icons.group_outlined),
-    ('channels', 'Channels', Icons.campaign_outlined),
+  static const _builtinFolders = <(String, String, IconData?)>[
+    ('all', 'All', null),
+    ('dms', 'DMs', null),
+    ('groups', 'Groups', null),
+    ('channels', 'Channels', null),
   ];
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final allTabs = <(String id, String label, IconData? icon)>[
+      ..._builtinFolders,
+      for (var i = 0; i < customFolders.length; i++)
+        ('custom_$i', customFolders[i].name, Icons.folder_outlined),
+    ];
     return SizedBox(
       height: 36,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Row(
           children: [
-            // Built-in folder tabs
-            for (final (id, label, icon) in _builtinFolders)
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
+            for (final (id, label, icon) in allTabs)
+              Expanded(
                 child: _FolderTab(
                   label: label,
                   icon: icon,
@@ -677,38 +751,6 @@ class _FolderTabs extends StatelessWidget {
                   onTap: () => onFolderChanged(id),
                 ),
               ),
-            // Custom folder tabs
-            for (var i = 0; i < customFolders.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(right: 4),
-                child: _FolderTab(
-                  label: customFolders[i].name,
-                  icon: Icons.folder_outlined,
-                  isActive: activeFolder == 'custom_$i',
-                  isDark: isDark,
-                  onTap: () => onFolderChanged('custom_$i'),
-                ),
-              ),
-            // "+" button to create a new folder
-            Padding(
-              padding: const EdgeInsets.only(left: 2),
-              child: SizedBox(
-                width: 28,
-                height: 28,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onAddFolder,
-                    borderRadius: BorderRadius.circular(6),
-                    child: Icon(
-                      Icons.add,
-                      size: 16,
-                      color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),
@@ -718,14 +760,14 @@ class _FolderTabs extends StatelessWidget {
 
 class _FolderTab extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final IconData? icon;
   final bool isActive;
   final bool isDark;
   final VoidCallback onTap;
 
   const _FolderTab({
     required this.label,
-    required this.icon,
+    this.icon,
     required this.isActive,
     required this.isDark,
     required this.onTap,
@@ -739,7 +781,7 @@ class _FolderTab extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(6),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
@@ -750,23 +792,30 @@ class _FolderTab extends StatelessWidget {
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                icon,
-                size: 14,
-                color: isActive
-                    ? AppColors.accent
-                    : (isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+              if (icon != null) ...[
+                Icon(
+                  icon,
+                  size: 13,
                   color: isActive
                       ? AppColors.accent
-                      : (isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
+                      : (isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
+                ),
+                const SizedBox(width: 3),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                    color: isActive
+                        ? AppColors.accent
+                        : (isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
+                  ),
                 ),
               ),
             ],

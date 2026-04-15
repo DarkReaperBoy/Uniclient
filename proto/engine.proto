@@ -286,6 +286,11 @@ message EngineDeleteMessageRequest {
   string msg_id     = 3;
 }
 
+message EngineJoinChatRequest {
+  string account_id   = 1;
+  string channel_name  = 2;
+}
+
 message EngineForwardMessageRequest {
   string account_id  = 1;
   string chat_id     = 2;

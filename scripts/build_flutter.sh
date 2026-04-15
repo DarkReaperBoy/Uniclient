@@ -39,54 +39,90 @@ echo "Mode:        $BUILD_MODE"
 
 case "$PLATFORM" in
   linux)
-    ENGINE_VARIANT="linux-x64"
     EPHEMERAL="$DART_DIR/linux/flutter/ephemeral"
     BUILD_DIR="$DART_DIR/build/linux/x64/$BUILD_MODE"
+
+    # Select engine variant based on build mode
+    case "$BUILD_MODE" in
+      release) ENGINE_VARIANT="linux-x64-release" ;;
+      profile) ENGINE_VARIANT="linux-x64-profile" ;;
+      *)       ENGINE_VARIANT="linux-x64" ;;
+    esac
+
+    PATCHED_SDK="$ENGINE_DIR/common/flutter_patched_sdk/"
+    if [[ "$BUILD_MODE" == "release" || "$BUILD_MODE" == "profile" ]]; then
+      PATCHED_SDK="$ENGINE_DIR/common/flutter_patched_sdk_product/"
+    fi
+
+    CMAKE_BUILD_TYPE="Debug"
+    if [[ "$BUILD_MODE" == "release" ]]; then CMAKE_BUILD_TYPE="Release"; fi
+    if [[ "$BUILD_MODE" == "profile" ]]; then CMAKE_BUILD_TYPE="Profile"; fi
 
     echo ""
     echo "=== Step 1: Compile Dart code ==="
     mkdir -p "$BUILD_DIR/flutter_assets"
 
-    PATCHED_SDK="$ENGINE_DIR/common/flutter_patched_sdk/"
-    if [[ "$BUILD_MODE" == "release" ]]; then
-      PATCHED_SDK="$ENGINE_DIR/common/flutter_patched_sdk_product/"
-    fi
-
     # Use Flutter's asset bundler for proper font/asset manifests
     cd "$DART_DIR"
     CI=true FLUTTER_SUPPRESS_ANALYTICS=true "$FLUTTER_SDK/bin/flutter" build bundle \
-      --debug --target lib/main.dart \
+      --"$BUILD_MODE" --target lib/main.dart \
       --asset-dir "$BUILD_DIR/flutter_assets" 2>&1 | tail -3
     cd - >/dev/null
 
-    # Compile Dart with Flutter's frontend_server (overwrite the kernel_blob from bundle)
-    "$DARTAOT" "$ENGINE_DIR/$ENGINE_VARIANT/frontend_server_aot.dart.snapshot" \
-      --sdk-root "$PATCHED_SDK" \
-      --target=flutter \
-      --packages="$DART_DIR/.dart_tool/package_config.json" \
-      --output-dill "$BUILD_DIR/flutter_assets/kernel_blob.bin" \
-      --track-widget-creation \
-      "$DART_DIR/lib/main.dart" 2>&1 | tail -1
+    if [[ "$BUILD_MODE" == "release" || "$BUILD_MODE" == "profile" ]]; then
+      # AOT compilation: frontend_server → kernel → gen_snapshot → libapp.so
+      # Always use debug variant's frontend_server (same tool, only gen_snapshot differs)
+      "$DARTAOT" "$ENGINE_DIR/linux-x64/frontend_server_aot.dart.snapshot" \
+        --sdk-root "$PATCHED_SDK" \
+        --target=flutter \
+        --aot --tfa \
+        --packages="$DART_DIR/.dart_tool/package_config.json" \
+        --output-dill "$BUILD_DIR/app.dill" \
+        "$DART_DIR/lib/main.dart" 2>&1 | tail -1
 
-    # Copy VM snapshots (chmod in case previous copies from nix store are read-only)
-    chmod u+w "$BUILD_DIR/flutter_assets/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/isolate_snapshot.bin" 2>/dev/null || true
-    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
-    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
-    echo "  Dart compilation done."
+      # Generate AOT snapshot (ELF shared library)
+      "$ENGINE_DIR/$ENGINE_VARIANT/gen_snapshot" \
+        --deterministic \
+        --snapshot_kind=app-aot-elf \
+        --elf="$BUILD_DIR/lib/libapp.so" \
+        --strip \
+        "$BUILD_DIR/app.dill" 2>&1
+
+      # Remove JIT artifacts not needed for release
+      rm -f "$BUILD_DIR/flutter_assets/kernel_blob.bin"
+      rm -f "$BUILD_DIR/flutter_assets/vm_isolate_snapshot.bin"
+      rm -f "$BUILD_DIR/flutter_assets/isolate_snapshot.bin"
+      echo "  AOT compilation done."
+    else
+      # JIT (debug) mode: compile Dart to kernel_blob.bin
+      "$DARTAOT" "$ENGINE_DIR/$ENGINE_VARIANT/frontend_server_aot.dart.snapshot" \
+        --sdk-root "$PATCHED_SDK" \
+        --target=flutter \
+        --packages="$DART_DIR/.dart_tool/package_config.json" \
+        --output-dill "$BUILD_DIR/flutter_assets/kernel_blob.bin" \
+        --track-widget-creation \
+        "$DART_DIR/lib/main.dart" 2>&1 | tail -1
+
+      # Copy VM snapshots (chmod in case previous copies from nix store are read-only)
+      chmod u+w "$BUILD_DIR/flutter_assets/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/isolate_snapshot.bin" 2>/dev/null || true
+      cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/vm_isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
+      cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/isolate_snapshot.bin" "$BUILD_DIR/flutter_assets/"
+      echo "  JIT compilation done."
+    fi
 
     echo ""
     echo "=== Step 2: Populate ephemeral directory ==="
     mkdir -p "$EPHEMERAL/cpp_client_wrapper/include/flutter"
     mkdir -p "$EPHEMERAL/flutter_linux"
 
-    # Engine library + ICU data (dereference symlinks, force overwrite read-only from nix store)
+    # Engine library (from target variant) + ICU data (from debug — same for all variants)
     chmod u+w "$EPHEMERAL/libflutter_linux_gtk.so" "$EPHEMERAL/icudtl.dat" 2>/dev/null || true
     cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/libflutter_linux_gtk.so" "$EPHEMERAL/"
-    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/icudtl.dat" "$EPHEMERAL/"
+    cp -Lf "$ENGINE_DIR/linux-x64/icudtl.dat" "$EPHEMERAL/"
 
-    # GTK headers
+    # GTK headers (always from debug variant — headers are the same)
     chmod u+w "$EPHEMERAL/flutter_linux/"*.h 2>/dev/null || true
-    cp -Lf "$ENGINE_DIR/$ENGINE_VARIANT/flutter_linux/"*.h "$EPHEMERAL/flutter_linux/" 2>/dev/null || true
+    cp -Lf "$ENGINE_DIR/linux-x64/flutter_linux/"*.h "$EPHEMERAL/flutter_linux/" 2>/dev/null || true
 
     # C API headers
     PUBLIC_HEADERS="$FLUTTER_SDK/engine/src/flutter/shell/platform/common/public"
@@ -99,15 +135,12 @@ case "$PLATFORM" in
     COMMON_WRAPPER="$FLUTTER_SDK/engine/src/flutter/shell/platform/common/client_wrapper"
     if [[ -d "$COMMON_WRAPPER" ]]; then
       chmod -R u+w "$EPHEMERAL/cpp_client_wrapper/" 2>/dev/null || true
-      # Source files
       for f in core_implementations.cc standard_codec.cc plugin_registrar.cc engine_method_result.cc; do
         cp -f "$COMMON_WRAPPER/$f" "$EPHEMERAL/cpp_client_wrapper/" 2>/dev/null || true
       done
-      # Private headers
       for f in binary_messenger_impl.h byte_buffer_streams.h texture_registrar_impl.h; do
         cp -f "$COMMON_WRAPPER/$f" "$EPHEMERAL/cpp_client_wrapper/" 2>/dev/null || true
       done
-      # Public headers
       cp -f "$COMMON_WRAPPER/include/flutter/"*.h "$EPHEMERAL/cpp_client_wrapper/include/flutter/" 2>/dev/null || true
     fi
     echo "  Ephemeral populated."
@@ -121,9 +154,16 @@ case "$PLATFORM" in
       cd '$BUILD_DIR' &&
       rm -f CMakeCache.txt &&
       export FLUTTER_SKIP_ASSEMBLE=1 &&
-      cmake '$DART_DIR/linux' -DCMAKE_BUILD_TYPE=Debug -G Ninja 2>&1 | tail -3 &&
+      cmake '$DART_DIR/linux' -DCMAKE_BUILD_TYPE=$CMAKE_BUILD_TYPE -G Ninja 2>&1 | tail -3 &&
       ninja install 2>&1
     " 2>/dev/null
+
+    # For release: copy AOT library into bundle
+    if [[ "$BUILD_MODE" == "release" || "$BUILD_MODE" == "profile" ]]; then
+      mkdir -p "$BUILD_DIR/bundle/lib"
+      cp -f "$BUILD_DIR/lib/libapp.so" "$BUILD_DIR/bundle/lib/libapp.so"
+      echo "  Copied libapp.so into bundle."
+    fi
 
     # Copy Go shared library into bundle
     GO_LIB="$(cd "$(dirname "$0")/../go/build" && pwd)/libcores.so"
@@ -135,7 +175,7 @@ case "$PLATFORM" in
     fi
 
     echo ""
-    echo "=== Build complete ==="
+    echo "=== Build complete ($BUILD_MODE) ==="
     echo "Bundle: $BUILD_DIR/bundle/"
     echo "Binary: $BUILD_DIR/bundle/uniclient"
     echo "Run:    $BUILD_DIR/bundle/uniclient"
