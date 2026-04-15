@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../bridge/engine_service.dart';
 import '../state/auth_state.dart';
 import '../models/engine_models.dart';
 import '../theme/theme.dart';
@@ -346,7 +345,7 @@ class _AuthScreenState extends State<AuthScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          auth.error.isNotEmpty ? auth.error : 'Unknown error',
+          auth.message.isNotEmpty ? auth.message : (auth.error.isNotEmpty ? auth.error : 'Unknown error'),
           textAlign: TextAlign.center,
           style: const TextStyle(color: AppColors.danger),
         ),

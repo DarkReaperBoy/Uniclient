@@ -31,7 +31,7 @@ class EngineService {
   final _accountListController = StreamController<List<AccountInfo>>.broadcast();
   final _chatUpdatedController = StreamController<ChatInfo>.broadcast();
   final _chatSnapshotController = StreamController<List<ChatInfo>>.broadcast();
-  final _chatRemovedController = StreamController<String>.broadcast();
+  final _chatRemovedController = StreamController<ChatRemovedEvent>.broadcast();
   final _msgReceivedController = StreamController<MsgReceivedEvent>.broadcast();
   final _msgEditedController = StreamController<MsgEditedEvent>.broadcast();
   final _msgDeletedController = StreamController<MsgDeletedEvent>.broadcast();
@@ -39,13 +39,14 @@ class EngineService {
   final _typingController = StreamController<TypingEvent>.broadcast();
   final _downloadProgressController = StreamController<DownloadProgressEvent>.broadcast();
   final _downloadCompleteController = StreamController<DownloadCompleteEvent>.broadcast();
+  final _userStatusController = StreamController<UserStatusEvent>.broadcast();
 
   Stream<AuthStateEvent> get onAuthState => _authStateController.stream;
   Stream<ConnStateEvent> get onConnState => _connStateController.stream;
   Stream<List<AccountInfo>> get onAccountList => _accountListController.stream;
   Stream<ChatInfo> get onChatUpdated => _chatUpdatedController.stream;
   Stream<List<ChatInfo>> get onChatSnapshot => _chatSnapshotController.stream;
-  Stream<String> get onChatRemoved => _chatRemovedController.stream;
+  Stream<ChatRemovedEvent> get onChatRemoved => _chatRemovedController.stream;
   Stream<MsgReceivedEvent> get onMsgReceived => _msgReceivedController.stream;
   Stream<MsgEditedEvent> get onMsgEdited => _msgEditedController.stream;
   Stream<MsgDeletedEvent> get onMsgDeleted => _msgDeletedController.stream;
@@ -53,6 +54,7 @@ class EngineService {
   Stream<TypingEvent> get onTyping => _typingController.stream;
   Stream<DownloadProgressEvent> get onDownloadProgress => _downloadProgressController.stream;
   Stream<DownloadCompleteEvent> get onDownloadComplete => _downloadCompleteController.stream;
+  Stream<UserStatusEvent> get onUserStatus => _userStatusController.stream;
 
   bool get isInitialized => _initialized;
 
@@ -252,9 +254,9 @@ class EngineService {
     await _callAsync('__engine', 'DeleteMessage', req.writeToBuffer());
   }
 
-  void retryPending(String localId) {
+  Future<void> retryPending(String localId) async {
     final req = epb.EngineRetryPendingRequest()..localId = localId;
-    _callRaw('__engine', 'RetryPending', req.writeToBuffer());
+    await _callAsync('__engine', 'RetryPending', req.writeToBuffer());
   }
 
   // ── Active chat ──
@@ -343,13 +345,46 @@ class EngineService {
     );
   }
 
-  void updateConfig({String? theme, String? accentColor, double? fontScale, String? language, int? maxCacheSize}) {
+  void updateConfig({
+    String? theme,
+    String? accentColor,
+    double? fontScale,
+    String? language,
+    String? downloadDir,
+    int? maxCacheSize,
+    bool? sendReadReceipts,
+    bool? sendTyping,
+    bool? notifyDms,
+    bool? notifyGroups,
+    bool? notifyMentionsOnly,
+  }) {
     final req = epb.EngineUpdateConfigRequest();
     if (theme != null) req.theme = theme;
     if (accentColor != null) req.accentColor = accentColor;
     if (fontScale != null) req.fontScale = fontScale;
     if (language != null) req.language = language;
+    // downloadDir not yet in EngineUpdateConfigRequest proto — stored locally only.
     if (maxCacheSize != null) req.maxCacheSize = Int64(maxCacheSize);
+    if (sendReadReceipts != null) {
+      req.sendReadReceipts = sendReadReceipts;
+      req.hasSendReadReceipts_15 = true;
+    }
+    if (sendTyping != null) {
+      req.sendTyping = sendTyping;
+      req.hasSendTyping_15 = true;
+    }
+    if (notifyDms != null) {
+      req.notifyDms = notifyDms;
+      req.hasNotifyDms_15 = true;
+    }
+    if (notifyGroups != null) {
+      req.notifyGroups = notifyGroups;
+      req.hasNotifyGroups_15 = true;
+    }
+    if (notifyMentionsOnly != null) {
+      req.notifyMentionsOnly = notifyMentionsOnly;
+      req.hasNotifyMentionsOnly_15 = true;
+    }
     _callRaw('__engine', 'UpdateConfig', req.writeToBuffer());
   }
 
@@ -450,8 +485,8 @@ class EngineService {
         _dispatchEngineEvent(engineEvent);
       }
       // Non-engine core events will be handled when per-core UI is built.
-    } catch (_) {
-      // Ignore unparseable events during development.
+    } catch (e, stack) {
+      Debug.error('EVENT', 'Failed to parse bridge event', e, stack);
     }
   }
 
@@ -504,7 +539,10 @@ class EngineService {
 
       case 'chat_removed':
         if (data is Map<String, dynamic>) {
-          _chatRemovedController.add(data['chat_id'] as String? ?? '');
+          _chatRemovedController.add(ChatRemovedEvent(
+            accountId: event['account_id'] as String? ?? '',
+            chatId: data['chat_id'] as String? ?? '',
+          ));
         }
 
       case 'msg_received':
@@ -541,6 +579,11 @@ class EngineService {
         if (data is Map<String, dynamic>) {
           _downloadCompleteController.add(DownloadCompleteEvent.fromJson(data));
         }
+
+      case 'user_status':
+        if (data is Map<String, dynamic>) {
+          _userStatusController.add(UserStatusEvent.fromJson(data));
+        }
     }
   }
 
@@ -570,6 +613,7 @@ class EngineService {
     canResend: p.canResend,
     hasRecovery: p.hasRecovery,
     qrData: p.qrData,
+    qrExpiresIn: p.qrExpiresIn,
     displayName: p.displayName,
     avatarB64: p.avatarB64,
     message: p.message,
@@ -603,6 +647,8 @@ class EngineService {
     senderId: p.senderId,
     senderName: _safeStr(p.senderName),
     contentText: _safeStr(p.contentText),
+    contentRaw: p.contentRaw.isEmpty ? '' : utf8.decode(p.contentRaw, allowMalformed: true),
+    contentRich: p.contentRich.isEmpty ? '' : utf8.decode(p.contentRich, allowMalformed: true),
     timestamp: p.timestamp.toInt(),
     editedAt: p.editedAt.toInt(),
     status: MsgStatus.values[p.status.clamp(0, MsgStatus.values.length - 1)],
@@ -611,6 +657,16 @@ class EngineService {
     forwardFrom: p.forwardFrom,
     isPinned: p.isPinned,
     hasMedia: p.hasMedia,
+    mediaType: p.mediaType,
+    mediaFileName: p.mediaFileName,
+    mediaMimeType: p.mediaMimeType,
+    mediaFileSize: p.mediaFileSize.toInt(),
+    mediaThumbB64: p.mediaThumbB64,
+    mediaLocalPath: p.mediaLocalPath,
+    mediaWidth: p.mediaWidth,
+    mediaHeight: p.mediaHeight,
+    mediaDuration: p.mediaDuration,
+    mediaDownloadState: p.mediaDownloadState,
   );
 
   static SearchResult _searchResultFromProto(epb.EngineSearchResult p) => SearchResult(

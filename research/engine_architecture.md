@@ -804,6 +804,28 @@ Eviction runs:
 - After every completed download
 - When `ClearCache()` is called
 
+### Media Metadata in Messages (added session 16)
+
+When `GetMessages` returns cached messages, `populateMediaMetadata()` joins the `media` table to attach media info for messages with `has_media=true`. This avoids a separate API call for every message with media.
+
+Proto fields added to `EngineCachedMessage` (tags 18-27):
+- `media_type` (int32): 0=none, 1=image, 2=video, 3=audio, 4=voice, 5=videonote, 6=sticker, 7=gif, 8=file
+- `media_file_name`, `media_mime_type` (string)
+- `media_file_size` (int64, bytes)
+- `media_thumb_b64` (string, base64-encoded thumbnail for instant display)
+- `media_local_path` (string, local file path if download_state==done)
+- `media_width`, `media_height` (int32, for images/video)
+- `media_duration` (int32, seconds for audio/video)
+- `media_download_state` (int32): 0=none, 1=queued, 2=downloading, 3=done, 4=failed
+
+Dart-side `CachedMessage` model exposes convenience getters: `isImage`, `isVideo`, `isAudio`, `isVoice`, `isSticker`, `isGif`, `isFile`, `isMediaDownloaded`, `mediaSizeLabel`.
+
+The UI renders:
+- Images/GIFs/stickers: inline with `Image.file` (downloaded) or base64 thumbnail (not yet downloaded) + download button
+- Video: thumbnail + play icon + duration
+- Audio/voice: play icon + duration + waveform placeholder
+- Files: file icon + name + size + download button
+
 ### Thumbnail Generation
 
 If the platform provides a thumbnail (Telegram's `photoStripped`, Matrix's `info.thumbnail_url`), use it.

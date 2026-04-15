@@ -641,7 +641,7 @@ func buildAuthConfig(platform string, collected map[string]string) cores.AuthCon
 	case "irc":
 		cfg.Mode = cores.AuthModeUser
 		cfg.Extra["server"] = collected["server"]
-		cfg.Extra["nickname"] = collected["nickname"]
+		cfg.Extra["nick"] = collected["nickname"]
 		cfg.Extra["password"] = collected["password"]
 	case "xmpp":
 		cfg.Mode = cores.AuthModeUser
@@ -660,7 +660,7 @@ func buildAuthConfig(platform string, collected map[string]string) cores.AuthCon
 		cfg.Extra["password"] = collected["password"]
 	case "teamspeak":
 		cfg.Mode = cores.AuthModeUser
-		cfg.Extra["server"] = collected["server"]
+		cfg.Extra["server_address"] = collected["server"]
 		cfg.Extra["nickname"] = collected["nickname"]
 		cfg.Extra["password"] = collected["password"]
 	case "mumble":

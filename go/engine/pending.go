@@ -272,8 +272,9 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		}
 		if result != nil {
 			e.ConfirmMessage(acc.ID, chatID, localID, result.ID)
-			// Cache the full server message.
-			e.cacheMessage(acc.ID, chatID, result)
+			// Don't call cacheMessage here — ConfirmMessage already updated
+			// the pending row (msg_id, status). Calling cacheMessage would
+			// overwrite our empty senderID that Dart uses to identify sent msgs.
 		}
 		return nil
 

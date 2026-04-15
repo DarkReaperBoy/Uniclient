@@ -1,6 +1,6 @@
 # GUI Ideas & Design Exploration
 
-Living document for UI/UX ideas explored via `demo_ui.html`. We iterate on the demo HTML to figure out what the real Flutter app will look like.
+Living document for UI/UX design decisions. Originally prototyped in `demo_ui.html` (deleted — superseded by the real Flutter implementation in `dart/`). These design decisions now drive the actual Flutter widgets.
 
 ## Design Philosophy
 
@@ -87,7 +87,7 @@ Platform Rail → Chat List (with folders) → [if DM/ordinary group] Messages d
 
 ## POC Feature Summary
 
-Everything below was prototyped and validated in `demo_ui.html`. This is the full feature set the Flutter app should implement.
+Everything below was prototyped and validated in the HTML demo (now deleted). Most of these are implemented in Flutter — see `checklist/gui.md` for current status.
 
 ### Platform Rail
 - SVG logos for major platforms, text fallback for others
@@ -163,9 +163,9 @@ Everything below was prototyped and validated in `demo_ui.html`. This is the ful
 - Threads tab: placeholder
 
 ### Theming
-- Dark theme (charcoal `#101318`) and light theme via CSS custom properties
+- Dark theme (charcoal `#101318`) and light theme (Flutter ThemeData)
 - Custom accent color picker (12 preset colors)
-- System theme auto-detect (`prefers-color-scheme` media query)
+- System theme auto-detect (MediaQuery.platformBrightness)
 - **All theming belongs in a Settings panel** — not floating UI widgets
 
 ### Info Overlay
@@ -198,18 +198,16 @@ Before starting Flutter implementation, replace the JSON-based FFI bridge with *
 
 This is the single most impactful thing to do before writing Flutter code. Without it, every backend change means hunting through the UI for broken JSON parsing. With it, `protoc` + the Dart compiler tell you exactly what to fix.
 
-## What's Left for Flutter Implementation
+## Flutter Implementation Status
 
-The POC validated the layout, interaction patterns, and visual design. The Flutter app needs:
+The HTML POC validated the design. The Flutter app now implements most of it. See `checklist/gui.md` for detailed component status. Key remaining work:
 
-- Real data binding (Go FFI bridge provides chat/message data)
-- Smooth animations (Flutter's animation framework >> CSS transitions)
-- Platform-specific rendering (native scrolling, keyboard handling)
-- Real media rendering (images, video players, audio waveforms)
-- Actual file upload/download
-- Real emoji rendering with platform emoji fonts
-- Sticker/GIF API integration (per-platform)
-- Push notifications
-- Persistent theme/accent preferences (shared_preferences)
-- Real account management (per-platform auth)
+- Reactions UI
+- Channel broadcast style (no avatar/name)
+- Voice/video recording UI
+- Mention autocomplete (@user, #channel)
+- Custom accent color picker
+- Right panel real content (members, search, threads)
+- Call screen UI
+- System tray + desktop notifications
 - Accessibility (screen readers, keyboard navigation)

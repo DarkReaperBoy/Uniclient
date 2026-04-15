@@ -9,18 +9,24 @@ Instead of juggling ten separate apps, Uniclient gives you a single client with 
 ## Architecture
 
 ```
-Go (backend)                          Dart (frontend)
-┌─────────────────────┐              ┌──────────────────┐
-│  cores/telegram.go  │              │  Flutter UI      │
-│  cores/bale.go      │──── FFI ─────│  Material 3      │
-│  cores/rubika.go    │    bridge    │  Dark-first      │
-│  cores/deltachat.go │              │  Multi-platform  │
-│  cores/teamspeak.go │              │                  │
-│  cores/matrix.go    │              └──────────────────┘
-│  cores/mumble.go    │
-│  cores/github.go    │
-│  cores/irc.go       │
+Go (backend)                              Dart (frontend)
+┌─────────────────────┐                  ┌──────────────────────┐
+│  cores/telegram.go  │                  │  Flutter UI          │
+│  cores/bale.go      │                  │  ├─ PlatformRail     │
+│  cores/rubika.go    │                  │  ├─ Sidebar          │
+│  cores/deltachat.go │                  │  ├─ ChatView         │
+│  cores/teamspeak.go │   Protobuf FFI   │  ├─ EmojiPanel       │
+│  cores/matrix.go    │◄──────────────►  │  ├─ MediaViewer      │
+│  cores/mumble.go    │                  │  ├─ Settings/Auth    │
+│  cores/github.go    │                  │  └─ Provider state   │
+│  cores/irc.go       │                  └──────────────────────┘
 │  cores/xmpp.go      │
+├─────────────────────┤
+│  engine/            │  ← orchestration layer (SQLite cache,
+│  auth FSM, events,  │    pending queue, media pipeline)
+│  reconnect, media   │
+├─────────────────────┤
+│  bridge/            │  ← protobuf dispatch (3,564 methods)
 ├─────────────────────┤
 │  utils/             │
 │  encryption, vault, │
@@ -30,7 +36,9 @@ Go (backend)                          Dart (frontend)
 ```
 
 - **Go** owns everything that touches the network, filesystem, crypto, or heavy computation. Compiles to a C shared library (native) or WASM (web).
-- **Dart** owns pixels, animations, and widget state. Calls Go through FFI (`dart:ffi`) on native platforms, JS interop on web.
+- **Engine layer** (`go/engine/`) orchestrates cores: SQLite cache, auth FSM (7 states for all 10 platforms), offline-first pending queue, media download/eviction pipeline, reconnect with exponential backoff.
+- **Protobuf bridge** (`go/bridge/`) dispatches 3,564 methods via single FFI entry point. Events pushed asynchronously via `NativeCallable.listener`.
+- **Dart** owns pixels, animations, and widget state. Calls Go through FFI (`dart:ffi`) on native platforms, JS interop on web. Provider state management (AppState, ChatState, AuthState).
 - **No core imports from another core.** Delete `telegram.go` and the rest still work. Delete all cores and the app says "No platforms available."
 
 ## Features
@@ -185,6 +193,30 @@ Pure Go XMPP client (RFC 6120/6121 + 30+ XEPs). 242 methods, ~4,911 lines. No ex
 - Registration (XEP-0077): register, change password, unregister
 - **32/32 tests pass** against yax.im (Prosody) — all 242 methods tested with 2 accounts
 
+### Flutter GUI — Feature Complete
+
+Cross-platform Flutter UI connected to Go via protobuf FFI bridge. Provider state management (AppState, ChatState, AuthState). 125/155 features done, 29 built/untested, 0 not started. 85 automated widget tests passing.
+
+**Working:**
+- 3-panel layout: platform rail (68px, drag reorder, hover squircle, context menu) + sidebar (272px) + chat area (flex)
+- All 10 platform icons with brand colors, connection status dots, unread badges, dividers
+- Full auth flow (7-state FSM: choose → input → OTP → 2FA → QR → ready → error)
+- Chat list with search, pinned/regular sections, context menus, typing indicators, type icons, draft preview, custom user folders
+- Message bubbles (sent/received), reply preview, edit indicator, status icons, date separators, hover actions, reactions UI, forward from indicator
+- Emoji panel (1500+ emoji, 9 categories, search, recently used, skin tone picker, sticker pack browser)
+- Settings screen (theme, accent color picker, per-platform themes, font scale, cache, download dir, privacy, notifications, account removal)
+- Dark/light/system theme with Inter font, 12 accent color presets
+- Chat header: animated typing dots, pinned messages sheet, breadcrumb for topics, info overlay
+- Input: mic/camera buttons, markdown toolbar, mention autocomplete, voice recording UI
+- Topic groups: channel tab bar, per-channel message switching
+
+**Built, untested in live app:**
+- Media inline rendering (images, video, audio, files with thumbnails)
+- Rich text (clickable URLs, code blocks, inline code)
+- Responsive layout (3 breakpoints: <600, 600-900, >900)
+- Topic group drill-in, sticker/GIF tabs, message multi-select
+- Forward dialog, media viewer, notification overlay
+
 ### Calling Status
 
 > **Telegram Desktop**: 9/9 protocol versions, bidirectional audio verified against real tgcalls C++ harness. **Delta Chat**: call signaling verified against official deltachat-rpc-server, audio verified lossless (100/100 packets byte-identical). **TeamSpeak 3**: Opus voice verified (50/50 packets, 0% loss, stereo, VAD, bandwidth stats) on live server with 2 clients. **Matrix**: full 1:1 VoIP, bidirectional audio verified 100% byte-perfect (pion WebRTC, ICE trickle, TURN). **Mumble**: bidirectional voice 100% byte-perfect, version auto-detect (protobuf 1.5+ and legacy), TCP tunnel fallback, tested on public servers across 2 protocol versions. **Bale**: LiveKit calling implemented but untested (geo-restricted to Iran). **Rubika**: not implemented. **GitHub**: N/A (no real-time API). **IRC**: N/A (no real-time audio/video protocol). **XMPP**: Jingle (XEP-0166) session signaling implemented, TURN credential discovery; no media transport yet. Telegram group calls (SFU-based), video, and screenshare are not implemented on any platform.
@@ -235,7 +267,7 @@ See [CHECKLIST.md](CHECKLIST.md) for detailed progress tracking.
 | Phase 5 — Delta Chat | Done (bot + user, 119 methods, ~4,859 lines, 132 tests, 8 chatmail instances, call signaling + audio verified) |
 | Phase 6 — TeamSpeak 3 | Done (192 methods, ~5,369 lines, full command set, 25 notification handlers, voice transport, Opus codec, VAD, bandwidth stats) |
 | Phase 7 — Matrix | Done (user + bot, 144 methods, ~4,397 lines, 42 tests, full E2EE + calls) |
-| Phase 8 — Flutter UI | Not started |
+| Phase 8 — Flutter UI | **Feature complete** (125 done + 29 built/untested, 85 widget tests passing) |
 | Phase 9 — Mumble | Done (228 methods, ~4,911 lines, full voice, public server list, version auto-detect) |
 | Phase 10 — GitHub | Done (99 methods, ~2,847 lines, 9/9 tests, DMs + groups via issues, 5-layer rate limit) |
 | Phase 11 — IRC | Done (302 methods, ~4,473 lines, RFC 1459/2812 + IRCv3 + services, 6/6 networks) |

@@ -28,6 +28,18 @@ type CachedMessage struct {
 	ForwardFrom  string `json:"forward_from,omitempty"`
 	IsPinned     bool   `json:"is_pinned"`
 	HasMedia     bool   `json:"has_media"`
+
+	// Media metadata (populated from media table join).
+	MediaType          int    `json:"media_type,omitempty"`
+	MediaFileName      string `json:"media_file_name,omitempty"`
+	MediaMimeType      string `json:"media_mime_type,omitempty"`
+	MediaFileSize      int64  `json:"media_file_size,omitempty"`
+	MediaThumbB64      string `json:"media_thumb_b64,omitempty"`
+	MediaLocalPath     string `json:"media_local_path,omitempty"`
+	MediaWidth         int    `json:"media_width,omitempty"`
+	MediaHeight        int    `json:"media_height,omitempty"`
+	MediaDuration      int    `json:"media_duration,omitempty"`
+	MediaDownloadState int    `json:"media_download_state,omitempty"`
 }
 
 // GetMessages returns cached messages for a chat, paginated by timestamp.
@@ -67,6 +79,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	if err != nil {
 		return msgs, err
 	}
+	e.populateMediaMetadata(msgs)
 
 	// If cache is empty on initial load, fetch from core and cache.
 	if len(msgs) == 0 && beforeMs == 0 {
@@ -122,12 +135,44 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 	return msgs, rows.Err()
 }
 
+// populateMediaMetadata fetches media info from the media table for messages that have media.
+func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
+	for i := range msgs {
+		if !msgs[i].HasMedia {
+			continue
+		}
+		var mediaType int
+		var fileName, mimeType, thumbB64, localPath sql.NullString
+		var fileSize sql.NullInt64
+		var downloadState int
+		err := e.db.QueryRow(
+			`SELECT media_type, file_name, mime_type, file_size, thumb_b64, local_path, download_state
+			 FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
+			msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID,
+		).Scan(&mediaType, &fileName, &mimeType, &fileSize, &thumbB64, &localPath, &downloadState)
+		if err != nil {
+			continue
+		}
+		msgs[i].MediaType = mediaType
+		msgs[i].MediaFileName = fileName.String
+		msgs[i].MediaMimeType = mimeType.String
+		if fileSize.Valid {
+			msgs[i].MediaFileSize = fileSize.Int64
+		}
+		msgs[i].MediaThumbB64 = thumbB64.String
+		msgs[i].MediaLocalPath = localPath.String
+		msgs[i].MediaDownloadState = downloadState
+	}
+}
+
 // cacheMessage inserts a cores.Message into the cache and returns the cached form.
 func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) CachedMessage {
 	now := time.Now().UnixMilli()
-	ts := msg.Timestamp.UnixMilli()
-	if ts == 0 {
+	var ts int64
+	if msg.Timestamp.IsZero() {
 		ts = now
+	} else {
+		ts = msg.Timestamp.UnixMilli()
 	}
 
 	var editedAt sql.NullInt64
@@ -288,7 +333,7 @@ func msgStatusFromCore(s cores.MessageStatus) int {
 	case cores.MessageStatusFailed:
 		return MsgStatusFailed
 	default:
-		return MsgStatusSent
+		return 0 // unknown/received — only outgoing messages have explicit status
 	}
 }
 

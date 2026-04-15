@@ -17,8 +17,8 @@ All 10 platform cores implemented with 3,526 exported methods (pruned from 4,079
 | [rubika.md](rubika.md) | 329 | 5,698 | **DONE** — encrypted WebSocket + WebRTC voice |
 | [matrix.md](matrix.md) | 293 | 6,409 | **DONE** — CS API + E2EE (OMEMO/Megolm) + VoIP |
 | [deltachat.md](deltachat.md) | 283 | 7,469 | **DONE** — IMAP/SMTP + Autocrypt + config + multi-account |
-| [flutter.md](flutter.md) | — | — | **NOT STARTED** — UI framework |
-| [gui.md](gui.md) | — | — | **NOT STARTED** — UI design spec (demo_ui.html ready) |
+| [flutter.md](flutter.md) | — | — | **FEATURE COMPLETE** — Flutter UI (125 done + 29 built/untested) |
+| [gui.md](gui.md) | — | — | **FEATURE COMPLETE** — UI component status tracker |
 
 **Totals:** 3,526 exported methods, 55-method Core interface, 24 capability constants.
 
@@ -44,7 +44,7 @@ All 10 platform cores implemented with 3,526 exported methods (pruned from 4,079
 | 13.0 | Type the untyped methods | **DONE** |
 | 13 | Protobuf bridge | **DONE** |
 | 14 | Write /docs | **DONE** |
-| 15 | Build GUI | NOT STARTED |
+| 15 | Build GUI | **FEATURE COMPLETE** (125/155 done, 29 built, 0 not started) |
 
 See [roadmap.md](roadmap.md) for detailed progress on each step.
 

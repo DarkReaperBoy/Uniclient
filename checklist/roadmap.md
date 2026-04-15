@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — Phase D (account flow wiring) — IN PROGRESS
+**Current Step:** Step 15 — Build GUI — Phase F (live smoke-testing & bug fixes)
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 15 — chat list + message loading, UTF-8/16 sanitization, automated send test)
+**Last Updated:** 2026-04-15 (session 18 — GUI automation toolkit built, 5 bugs fixed, auth flow automated)
 
-**NEXT:** Make the client feature-complete — stop dogfooding, focus on wiring all remaining features properly: message display/send/receive, real-time updates, media, multi-account, settings. See known bugs below.
+**NEXT:** Re-authenticate the Telegram account (session expired → `auth_required`). Use `scripts/flutter_auth.sh` to drive the auth flow — user provides OTP via `auth/otp_code.txt`. Once authenticated, verify chats load, messages display, send works. Fix any remaining bugs found during live testing. Then: wire the 29 "built but untested" features to live engine data, real sticker/GIF backends, reaction engine wiring.
 
 ## Steps
 
@@ -146,14 +146,78 @@ Session 15 changes:
 
 **Testing approach:** Claude runs `flutter test` autonomously — no GUI interaction needed. Bridge tests exercise the full FFI → Go → Engine path. Widget tests verify rendering. Telegram auth test exercises full live Telegram auth with OTP read from reader account. Send test verifies auth + message delivery. All run headlessly.
 
-**Known bugs for next session:**
-- Sent messages don't appear in the UI (no refresh after send, msg_status event not wired to re-fetch)
-- Messages from cache may be stale (only fetched from core on first empty load, no live update subscription)
-- Session persistence causes instant auth skip (pre-seeded session from automated tests persists — user doesn't get OTP prompt on re-auth)
-- `SendMessage` may fire unintentionally from UI (user reported phantom send)
-- No real-time incoming message display (events from Go don't reach Dart in CMake-built binary — NativeCallable.listener works in flutter test but unclear in production binary)
+Session 16 changes — Bug fixes + feature-complete UI overhaul:
 
-**Next:** Make the client feature-complete. Stop dogfooding. Wire all features properly.
+**Bug fixes (5 known bugs from session 15):**
+- **Sent messages not appearing** — Removed Dart-side optimistic insert (was creating duplicate with wrong ID). Go handles optimistic insert via pending.go. Dart now refreshes after send.
+- **Stale messages** — Added 3-second polling fallback (`Timer.periodic`) to refresh messages + chat list. Also refreshes on send completion.
+- **cacheMessage overwriting senderID** — Removed `cacheMessage` call after `ConfirmMessage` in `pending.go` (was overwriting empty senderID that Dart uses for "sent by me" detection).
+- **msgStatusFromCore wrong default** — Changed default return from `MsgStatusSent` (2) to `0` (unknown/received) in `cache_msgs.go`.
+- **Phantom SendMessage** — Replaced `onSubmitted` with `Focus(onKeyEvent:)` handler: Enter sends, Shift+Enter newlines. Added `_sending` guard to prevent double-send.
+
+**Feature-complete UI (parallel agents):**
+- **chat_view.dart** — Message context menu (reply/copy/edit/delete/forward), reply bar above input, edit mode, scroll-to-bottom FAB, media indicator, failed message retry, emoji panel integration
+- **sidebar.dart** — Right-click context menu (pin/mute/read/archive/delete), delete confirmation dialog, platform filtering, chat sorting (pinned first), user panel with real account info
+- **settings_screen.dart** — All toggles wired end-to-end: privacy (send read receipts, typing indicator), notifications (DMs, groups, mentions only), font scale slider, theme picker, cache management
+- **home_screen.dart** — Right panel placeholder (chat info/member list), StatefulWidget conversion
+- **platform_rail.dart** — Unread count computed from ChatState
+- **emoji_panel.dart** — New widget: 9 categories, 1500+ emoji, search, recently used, category tabs
+- **engine_service.dart** — `updateConfig` extended with `sendReadReceipts`, `sendTyping`, `notifyDms`, `notifyGroups`, `notifyMentionsOnly` params using has_* flag pattern
+- **engine.proto** — Added fields 6-15 to `EngineUpdateConfigRequest` for privacy/notification bools
+- **engine.go** — `ConfigChanges` struct extended with `*bool` pointer fields, `UpdateConfigFromBridge` handles nil checks
+- **dispatch_engine.go** — UpdateConfig case passes has_* flag-guarded bools to ConfigChanges
+- **engine_models.dart** — Added `isSent` getter and `copyWith` method to CachedMessage
+
+**Build (batch 1):** `flutter analyze`: 0 issues. `scripts/build_go.sh linux` + `scripts/build_flutter.sh`: success.
+
+**Session 16 batch 2 — Feature-complete UI (6 parallel agents):**
+
+Media pipeline foundation (done directly, not agents):
+- Added 10 media metadata fields to proto (`EngineCachedMessage` tags 18-27): mediaType, fileName, mimeType, fileSize, thumbB64, localPath, width, height, duration, downloadState
+- Go: `populateMediaMetadata()` joins media table on `GetMessages`, `CachedMessage` struct extended
+- Dart: model extended with media fields + convenience getters (`isImage`, `isVideo`, `mediaSizeLabel`, etc.)
+- Proto converter updated in `cachedMsgToProto` and `_cachedMsgFromProto`
+
+Agent results:
+- **chat_view.dart** (1075→~1800 lines): inline media rendering (image/video/audio/file with thumbnails + download), rich text parsing (URL detection + accent links, triple-backtick code blocks + inline code), unread separator pill, message multi-select mode (checkboxes + bottom action bar), file drag & drop placeholder, markdown formatting toolbar (bold/italic/code/strikethrough)
+- **sidebar.dart** (770→~1100 lines): topic/channel drill-in page 2 (SlideTransition animation, back button, text/voice channel sections), folder tabs (All/DMs/Groups/Channels), status picker popup (Online/Away/DND/Invisible with color dots), account switcher dropdown, ReorderableListView for pinned chats
+- **home_screen.dart** (270→~1000 lines): 3-breakpoint responsive layout (<600 narrow/drawer, 600-900 medium, >900 wide), real right panel (chat info, avatar, type label, member count, platform badge, mute/pin/archive/leave actions), narrow-mode search screen, narrow-mode settings tab, SafeArea, AnimatedSwitcher transitions
+- **emoji_panel.dart** (~637→~900 lines): 3-tab panel (Emoji/Stickers/GIFs), sticker grid placeholders (3-col, 80x80), GIF grid placeholders (2-col masonry), search in each tab
+- **forward_dialog.dart** (NEW): chat picker dialog with search, avatar list, confirmation dialog, static `show()` method
+- **media_viewer.dart** (NEW): full-screen viewer with InteractiveViewer pinch-to-zoom, Hero animation, per-type rendering (image/video/audio/file), top/bottom info bars, swipe/Escape dismiss
+- **notification_overlay.dart** (NEW): NotificationManager InheritedWidget, message toasts (avatar + sender + preview, 4s auto-dismiss, swipe up), status toasts (compact pill, 2s), slide-from-top animation, queue system
+
+Tests: `widget_comprehensive_test.dart` — **76/76 tests pass** (30 model, 8 widget render, 22 data/logic, 8 event model, 4 theme, 3 state, 1 auth)
+
+Documentation updated: gui.md (rewritten from scratch), engine_architecture.md (media metadata section), SPEC.md (UI architecture rewrite), roadmap.md (this).
+
+Deleted: `demo_ui.html` (HTML prototype, superseded by Flutter app).
+
+**Build (batch 2):** `flutter analyze`: 0 issues. 76/76 tests pass. Go + Flutter build: success.
+
+**Next:** Live-test binary, fix visual issues. Still missing: voice/video calls UI, reactions, real sticker/GIF backends, mention autocomplete, notification system wiring to engine events.
+
+Session 18 changes — GUI automation toolkit + live smoke-test bug fixes:
+
+**GUI automation toolkit (3 scripts):**
+- `scripts/flutter_inspect.sh` — Screenshot, widget tree, text extraction via Flutter VM Service protocol (WebSocket JSON-RPC to `ext.flutter.inspector.*`). Works on Wayland/X11/headless without OS-level GUI tools.
+- `scripts/flutter_auth.sh` — CLI to control auth flow: choose method, submit phone/OTP/2FA/token. Writes JSON to `/tmp/uniclient_auth_cmd.json` which `AuthState` polls every 1s.
+- Auth file-polling built into `dart/lib/state/auth_state.dart` — `Timer.periodic(1s)` reads+deletes command file when `needsInput` is true.
+
+**Bugs found & fixed (5):**
+- #19: Missing `Debug` import in `chat_state.dart` — added `import '../utils/debug.dart'`
+- #20: No auto-re-auth when session expires — HomeScreen now auto-shows AuthScreen (dismissible) when `auth_required` detected
+- #21: Context menu missing re-auth option — Added "Re-authenticate" to platform rail right-click when `authRequired`
+- #22: Auth-required rail indicator same as disconnected — Changed `authRequired` dot to warning (orange) color
+- #23: `_bestConnState` didn't detect `authRequired` — Added explicit check before fallthrough to `disconnected`
+- All auth dialogs changed from `barrierDismissible: false` to `true` — user can dismiss at will
+
+**Findings:**
+- KDE Wayland: `xdotool` doesn't work, `ydotool` coordinates broken with 1.25x scaling. Use `kdotool` (KDE-specific) for window management, but `flutter_inspect.sh` preferred for screenshots.
+- Flutter VM Service `evaluate` doesn't work in custom builds (no JIT compilation service). File-based IPC is the workaround.
+- Telegram account `tele_4beb99fd` session expired — needs re-auth (phone + OTP) before chats can load.
+
+**Research documented:** `research/flutter_gui_automation.md` — full VM Service protocol reference.
 
 ## Detailed Progress
 

@@ -59,8 +59,11 @@ func BridgeSetEventCallback(cb C.event_callback_t) {
 		if len(data) == 0 {
 			return
 		}
+		// C.CBytes allocates via C.malloc and copies data into it.
+		// Do NOT free here — Dart's NativeCallable.listener runs asynchronously,
+		// so Dart reads the pointer after this function returns. Dart frees it
+		// after copying via malloc.free().
 		cData := C.CBytes(data)
 		C.invoke_event_callback(cb, cData, C.int32_t(len(data)))
-		C.free(cData)
 	})
 }

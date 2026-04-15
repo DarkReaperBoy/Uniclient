@@ -91,7 +91,8 @@ endif()
 if(DEFINED ENV{FLUTTER_SKIP_ASSEMBLE})
   add_custom_command(
     OUTPUT flutter_assemble_phony_
-    COMMAND ${CMAKE_COMMAND} -E echo "Skipping flutter_assemble (NixOS manual build)"
+    COMMAND ${CMAKE_COMMAND} -E echo "Skipping flutter_assemble (NixOS manual build
+  VERBATIM)"
     VERBATIM
   )
 else()

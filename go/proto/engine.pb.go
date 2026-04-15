@@ -1649,26 +1649,37 @@ func (x *EngineMarkChatReadRequest) GetUpToMsgId() string {
 }
 
 type EngineCachedMessage struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
-	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
-	LocalId       string                 `protobuf:"bytes,4,opt,name=local_id,json=localId,proto3" json:"local_id,omitempty"`
-	SenderId      string                 `protobuf:"bytes,5,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
-	SenderName    string                 `protobuf:"bytes,6,opt,name=sender_name,json=senderName,proto3" json:"sender_name,omitempty"`
-	ContentText   string                 `protobuf:"bytes,7,opt,name=content_text,json=contentText,proto3" json:"content_text,omitempty"`
-	ContentRaw    []byte                 `protobuf:"bytes,8,opt,name=content_raw,json=contentRaw,proto3" json:"content_raw,omitempty"`
-	ContentRich   []byte                 `protobuf:"bytes,9,opt,name=content_rich,json=contentRich,proto3" json:"content_rich,omitempty"`
-	Timestamp     int64                  `protobuf:"varint,10,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
-	EditedAt      int64                  `protobuf:"varint,11,opt,name=edited_at,json=editedAt,proto3" json:"edited_at,omitempty"`
-	Status        int32                  `protobuf:"varint,12,opt,name=status,proto3" json:"status,omitempty"`
-	ReplyToId     string                 `protobuf:"bytes,13,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
-	ReplyPreview  string                 `protobuf:"bytes,14,opt,name=reply_preview,json=replyPreview,proto3" json:"reply_preview,omitempty"`
-	ForwardFrom   string                 `protobuf:"bytes,15,opt,name=forward_from,json=forwardFrom,proto3" json:"forward_from,omitempty"`
-	IsPinned      bool                   `protobuf:"varint,16,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
-	HasMedia      bool                   `protobuf:"varint,17,opt,name=has_media,json=hasMedia,proto3" json:"has_media,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	AccountId    string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId       string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId        string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	LocalId      string                 `protobuf:"bytes,4,opt,name=local_id,json=localId,proto3" json:"local_id,omitempty"`
+	SenderId     string                 `protobuf:"bytes,5,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`
+	SenderName   string                 `protobuf:"bytes,6,opt,name=sender_name,json=senderName,proto3" json:"sender_name,omitempty"`
+	ContentText  string                 `protobuf:"bytes,7,opt,name=content_text,json=contentText,proto3" json:"content_text,omitempty"`
+	ContentRaw   []byte                 `protobuf:"bytes,8,opt,name=content_raw,json=contentRaw,proto3" json:"content_raw,omitempty"`
+	ContentRich  []byte                 `protobuf:"bytes,9,opt,name=content_rich,json=contentRich,proto3" json:"content_rich,omitempty"`
+	Timestamp    int64                  `protobuf:"varint,10,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
+	EditedAt     int64                  `protobuf:"varint,11,opt,name=edited_at,json=editedAt,proto3" json:"edited_at,omitempty"`
+	Status       int32                  `protobuf:"varint,12,opt,name=status,proto3" json:"status,omitempty"`
+	ReplyToId    string                 `protobuf:"bytes,13,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
+	ReplyPreview string                 `protobuf:"bytes,14,opt,name=reply_preview,json=replyPreview,proto3" json:"reply_preview,omitempty"`
+	ForwardFrom  string                 `protobuf:"bytes,15,opt,name=forward_from,json=forwardFrom,proto3" json:"forward_from,omitempty"`
+	IsPinned     bool                   `protobuf:"varint,16,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
+	HasMedia     bool                   `protobuf:"varint,17,opt,name=has_media,json=hasMedia,proto3" json:"has_media,omitempty"`
+	// Media metadata (populated from media table join).
+	MediaType          int32  `protobuf:"varint,18,opt,name=media_type,json=mediaType,proto3" json:"media_type,omitempty"` // 0=none, 1=image, 2=video, 3=audio, 4=voice, 5=videonote, 6=sticker, 7=gif, 8=file
+	MediaFileName      string `protobuf:"bytes,19,opt,name=media_file_name,json=mediaFileName,proto3" json:"media_file_name,omitempty"`
+	MediaMimeType      string `protobuf:"bytes,20,opt,name=media_mime_type,json=mediaMimeType,proto3" json:"media_mime_type,omitempty"`
+	MediaFileSize      int64  `protobuf:"varint,21,opt,name=media_file_size,json=mediaFileSize,proto3" json:"media_file_size,omitempty"`
+	MediaThumbB64      string `protobuf:"bytes,22,opt,name=media_thumb_b64,json=mediaThumbB64,proto3" json:"media_thumb_b64,omitempty"`    // base64-encoded thumbnail (small preview)
+	MediaLocalPath     string `protobuf:"bytes,23,opt,name=media_local_path,json=mediaLocalPath,proto3" json:"media_local_path,omitempty"` // local file path if downloaded
+	MediaWidth         int32  `protobuf:"varint,24,opt,name=media_width,json=mediaWidth,proto3" json:"media_width,omitempty"`
+	MediaHeight        int32  `protobuf:"varint,25,opt,name=media_height,json=mediaHeight,proto3" json:"media_height,omitempty"`
+	MediaDuration      int32  `protobuf:"varint,26,opt,name=media_duration,json=mediaDuration,proto3" json:"media_duration,omitempty"`                  // seconds (audio/video)
+	MediaDownloadState int32  `protobuf:"varint,27,opt,name=media_download_state,json=mediaDownloadState,proto3" json:"media_download_state,omitempty"` // 0=none, 1=queued, 2=downloading, 3=done, 4=failed
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *EngineCachedMessage) Reset() {
@@ -1818,6 +1829,76 @@ func (x *EngineCachedMessage) GetHasMedia() bool {
 		return x.HasMedia
 	}
 	return false
+}
+
+func (x *EngineCachedMessage) GetMediaType() int32 {
+	if x != nil {
+		return x.MediaType
+	}
+	return 0
+}
+
+func (x *EngineCachedMessage) GetMediaFileName() string {
+	if x != nil {
+		return x.MediaFileName
+	}
+	return ""
+}
+
+func (x *EngineCachedMessage) GetMediaMimeType() string {
+	if x != nil {
+		return x.MediaMimeType
+	}
+	return ""
+}
+
+func (x *EngineCachedMessage) GetMediaFileSize() int64 {
+	if x != nil {
+		return x.MediaFileSize
+	}
+	return 0
+}
+
+func (x *EngineCachedMessage) GetMediaThumbB64() string {
+	if x != nil {
+		return x.MediaThumbB64
+	}
+	return ""
+}
+
+func (x *EngineCachedMessage) GetMediaLocalPath() string {
+	if x != nil {
+		return x.MediaLocalPath
+	}
+	return ""
+}
+
+func (x *EngineCachedMessage) GetMediaWidth() int32 {
+	if x != nil {
+		return x.MediaWidth
+	}
+	return 0
+}
+
+func (x *EngineCachedMessage) GetMediaHeight() int32 {
+	if x != nil {
+		return x.MediaHeight
+	}
+	return 0
+}
+
+func (x *EngineCachedMessage) GetMediaDuration() int32 {
+	if x != nil {
+		return x.MediaDuration
+	}
+	return 0
+}
+
+func (x *EngineCachedMessage) GetMediaDownloadState() int32 {
+	if x != nil {
+		return x.MediaDownloadState
+	}
+	return 0
 }
 
 type EngineGetMessagesRequest struct {
@@ -3021,14 +3102,26 @@ func (x *EngineGetConfigResponse) GetNotifyMentionsOnly() bool {
 }
 
 type EngineUpdateConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Theme         string                 `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"`
-	AccentColor   string                 `protobuf:"bytes,2,opt,name=accent_color,json=accentColor,proto3" json:"accent_color,omitempty"`
-	FontScale     float64                `protobuf:"fixed64,3,opt,name=font_scale,json=fontScale,proto3" json:"font_scale,omitempty"`
-	Language      string                 `protobuf:"bytes,4,opt,name=language,proto3" json:"language,omitempty"`
-	MaxCacheSize  int64                  `protobuf:"varint,5,opt,name=max_cache_size,json=maxCacheSize,proto3" json:"max_cache_size,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Theme        string                 `protobuf:"bytes,1,opt,name=theme,proto3" json:"theme,omitempty"`
+	AccentColor  string                 `protobuf:"bytes,2,opt,name=accent_color,json=accentColor,proto3" json:"accent_color,omitempty"`
+	FontScale    float64                `protobuf:"fixed64,3,opt,name=font_scale,json=fontScale,proto3" json:"font_scale,omitempty"`
+	Language     string                 `protobuf:"bytes,4,opt,name=language,proto3" json:"language,omitempty"`
+	MaxCacheSize int64                  `protobuf:"varint,5,opt,name=max_cache_size,json=maxCacheSize,proto3" json:"max_cache_size,omitempty"`
+	// Privacy — use has_* flags since false is a valid value (not "unset").
+	SendReadReceipts    bool `protobuf:"varint,6,opt,name=send_read_receipts,json=sendReadReceipts,proto3" json:"send_read_receipts,omitempty"`
+	HasSendReadReceipts bool `protobuf:"varint,7,opt,name=has_send_read_receipts,json=hasSendReadReceipts,proto3" json:"has_send_read_receipts,omitempty"`
+	SendTyping          bool `protobuf:"varint,8,opt,name=send_typing,json=sendTyping,proto3" json:"send_typing,omitempty"`
+	HasSendTyping       bool `protobuf:"varint,9,opt,name=has_send_typing,json=hasSendTyping,proto3" json:"has_send_typing,omitempty"`
+	// Notifications
+	NotifyDms             bool `protobuf:"varint,10,opt,name=notify_dms,json=notifyDms,proto3" json:"notify_dms,omitempty"`
+	HasNotifyDms          bool `protobuf:"varint,11,opt,name=has_notify_dms,json=hasNotifyDms,proto3" json:"has_notify_dms,omitempty"`
+	NotifyGroups          bool `protobuf:"varint,12,opt,name=notify_groups,json=notifyGroups,proto3" json:"notify_groups,omitempty"`
+	HasNotifyGroups       bool `protobuf:"varint,13,opt,name=has_notify_groups,json=hasNotifyGroups,proto3" json:"has_notify_groups,omitempty"`
+	NotifyMentionsOnly    bool `protobuf:"varint,14,opt,name=notify_mentions_only,json=notifyMentionsOnly,proto3" json:"notify_mentions_only,omitempty"`
+	HasNotifyMentionsOnly bool `protobuf:"varint,15,opt,name=has_notify_mentions_only,json=hasNotifyMentionsOnly,proto3" json:"has_notify_mentions_only,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *EngineUpdateConfigRequest) Reset() {
@@ -3094,6 +3187,76 @@ func (x *EngineUpdateConfigRequest) GetMaxCacheSize() int64 {
 		return x.MaxCacheSize
 	}
 	return 0
+}
+
+func (x *EngineUpdateConfigRequest) GetSendReadReceipts() bool {
+	if x != nil {
+		return x.SendReadReceipts
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasSendReadReceipts() bool {
+	if x != nil {
+		return x.HasSendReadReceipts
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetSendTyping() bool {
+	if x != nil {
+		return x.SendTyping
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasSendTyping() bool {
+	if x != nil {
+		return x.HasSendTyping
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetNotifyDms() bool {
+	if x != nil {
+		return x.NotifyDms
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasNotifyDms() bool {
+	if x != nil {
+		return x.HasNotifyDms
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetNotifyGroups() bool {
+	if x != nil {
+		return x.NotifyGroups
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasNotifyGroups() bool {
+	if x != nil {
+		return x.HasNotifyGroups
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetNotifyMentionsOnly() bool {
+	if x != nil {
+		return x.NotifyMentionsOnly
+	}
+	return false
+}
+
+func (x *EngineUpdateConfigRequest) GetHasNotifyMentionsOnly() bool {
+	if x != nil {
+		return x.HasNotifyMentionsOnly
+	}
+	return false
 }
 
 var File_proto_engine_proto protoreflect.FileDescriptor
@@ -3243,7 +3406,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x1f\n" +
-	"\fup_to_msg_id\x18\x03 \x01(\tR\tupToMsgId\"\x99\x04\n" +
+	"\fup_to_msg_id\x18\x03 \x01(\tR\tupToMsgId\"\x9f\a\n" +
 	"\x13EngineCachedMessage\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -3265,7 +3428,19 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\rreply_preview\x18\x0e \x01(\tR\freplyPreview\x12!\n" +
 	"\fforward_from\x18\x0f \x01(\tR\vforwardFrom\x12\x1b\n" +
 	"\tis_pinned\x18\x10 \x01(\bR\bisPinned\x12\x1b\n" +
-	"\thas_media\x18\x11 \x01(\bR\bhasMedia\"\x85\x01\n" +
+	"\thas_media\x18\x11 \x01(\bR\bhasMedia\x12\x1d\n" +
+	"\n" +
+	"media_type\x18\x12 \x01(\x05R\tmediaType\x12&\n" +
+	"\x0fmedia_file_name\x18\x13 \x01(\tR\rmediaFileName\x12&\n" +
+	"\x0fmedia_mime_type\x18\x14 \x01(\tR\rmediaMimeType\x12&\n" +
+	"\x0fmedia_file_size\x18\x15 \x01(\x03R\rmediaFileSize\x12&\n" +
+	"\x0fmedia_thumb_b64\x18\x16 \x01(\tR\rmediaThumbB64\x12(\n" +
+	"\x10media_local_path\x18\x17 \x01(\tR\x0emediaLocalPath\x12\x1f\n" +
+	"\vmedia_width\x18\x18 \x01(\x05R\n" +
+	"mediaWidth\x12!\n" +
+	"\fmedia_height\x18\x19 \x01(\x05R\vmediaHeight\x12%\n" +
+	"\x0emedia_duration\x18\x1a \x01(\x05R\rmediaDuration\x120\n" +
+	"\x14media_download_state\x18\x1b \x01(\x05R\x12mediaDownloadState\"\x85\x01\n" +
 	"\x18EngineGetMessagesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -3364,14 +3539,27 @@ const file_proto_engine_proto_rawDesc = "" +
 	"notify_dms\x18\t \x01(\bR\tnotifyDms\x12#\n" +
 	"\rnotify_groups\x18\n" +
 	" \x01(\bR\fnotifyGroups\x120\n" +
-	"\x14notify_mentions_only\x18\v \x01(\bR\x12notifyMentionsOnly\"\xb5\x01\n" +
+	"\x14notify_mentions_only\x18\v \x01(\bR\x12notifyMentionsOnly\"\xe2\x04\n" +
 	"\x19EngineUpdateConfigRequest\x12\x14\n" +
 	"\x05theme\x18\x01 \x01(\tR\x05theme\x12!\n" +
 	"\faccent_color\x18\x02 \x01(\tR\vaccentColor\x12\x1d\n" +
 	"\n" +
 	"font_scale\x18\x03 \x01(\x01R\tfontScale\x12\x1a\n" +
 	"\blanguage\x18\x04 \x01(\tR\blanguage\x12$\n" +
-	"\x0emax_cache_size\x18\x05 \x01(\x03R\fmaxCacheSizeB\x11Z\x0funiclient/protob\x06proto3"
+	"\x0emax_cache_size\x18\x05 \x01(\x03R\fmaxCacheSize\x12,\n" +
+	"\x12send_read_receipts\x18\x06 \x01(\bR\x10sendReadReceipts\x123\n" +
+	"\x16has_send_read_receipts\x18\a \x01(\bR\x13hasSendReadReceipts\x12\x1f\n" +
+	"\vsend_typing\x18\b \x01(\bR\n" +
+	"sendTyping\x12&\n" +
+	"\x0fhas_send_typing\x18\t \x01(\bR\rhasSendTyping\x12\x1d\n" +
+	"\n" +
+	"notify_dms\x18\n" +
+	" \x01(\bR\tnotifyDms\x12$\n" +
+	"\x0ehas_notify_dms\x18\v \x01(\bR\fhasNotifyDms\x12#\n" +
+	"\rnotify_groups\x18\f \x01(\bR\fnotifyGroups\x12*\n" +
+	"\x11has_notify_groups\x18\r \x01(\bR\x0fhasNotifyGroups\x120\n" +
+	"\x14notify_mentions_only\x18\x0e \x01(\bR\x12notifyMentionsOnly\x127\n" +
+	"\x18has_notify_mentions_only\x18\x0f \x01(\bR\x15hasNotifyMentionsOnlyB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once

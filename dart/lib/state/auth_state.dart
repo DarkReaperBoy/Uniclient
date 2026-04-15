@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
@@ -16,6 +18,14 @@ class AuthState extends ChangeNotifier {
   String? _error;
 
   StreamSubscription<AuthStateEvent>? _sub;
+  Timer? _autoPollTimer;
+
+  /// File path for CLI automation input.
+  /// Write JSON to this file to control auth flow:
+  ///   {"action": "choose", "value": "phone"}   — pick auth method
+  ///   {"action": "submit", "value": "12345"}    — enter text input/OTP/2FA
+  ///   {"action": "cancel"}                      — cancel auth
+  static const autoInputPath = '/tmp/uniclient_auth_cmd.json';
 
   AuthState(this._engine) {
     _sub = _engine.onAuthState.listen(_handleAuthEvent);
@@ -54,6 +64,7 @@ class AuthState extends ChangeNotifier {
     try {
       _currentAuth = await _engine.startAuth(accountId);
       Debug.log('AUTH', 'startAuth → state=${_currentAuth?.state} label=${_currentAuth?.label}');
+      _updateAutoPoll();
     } catch (e, stack) {
       _error = e.toString();
       _currentAuth = AuthStateData(
@@ -99,6 +110,7 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
+    _stopAutoPoll();
     notifyListeners();
   }
 
@@ -107,6 +119,7 @@ class AuthState extends ChangeNotifier {
     _currentAuth = null;
     _submitting = false;
     _error = null;
+    _stopAutoPoll();
     notifyListeners();
   }
 
@@ -123,11 +136,64 @@ class AuthState extends ChangeNotifier {
       error: event.error,
     );
     _submitting = false;
+    _updateAutoPoll();
     notifyListeners();
+  }
+
+  // ── CLI automation polling ──
+
+  void _updateAutoPoll() {
+    if (needsInput && _autoPollTimer == null) {
+      _startAutoPoll();
+    } else if (!needsInput && _autoPollTimer != null) {
+      _stopAutoPoll();
+    }
+  }
+
+  void _startAutoPoll() {
+    _autoPollTimer?.cancel();
+    Debug.log('AUTH', 'Auto-input polling started (${autoInputPath})');
+    _autoPollTimer = Timer.periodic(const Duration(seconds: 1), (_) => _checkAutoInput());
+  }
+
+  void _stopAutoPoll() {
+    _autoPollTimer?.cancel();
+    _autoPollTimer = null;
+  }
+
+  void _checkAutoInput() {
+    try {
+      final file = File(autoInputPath);
+      if (!file.existsSync()) return;
+
+      final content = file.readAsStringSync().trim();
+      if (content.isEmpty) return;
+
+      // Delete file immediately to prevent re-reading.
+      file.deleteSync();
+
+      final cmd = jsonDecode(content) as Map<String, dynamic>;
+      final action = cmd['action'] as String? ?? '';
+      final value = cmd['value'] as String? ?? '';
+
+      Debug.log('AUTH', 'Auto-input: action=$action value=${value.length > 20 ? '${value.substring(0, 20)}...' : value}');
+
+      switch (action) {
+        case 'choose' || 'submit':
+          if (value.isNotEmpty) submitInput(value);
+        case 'cancel':
+          cancelAuth();
+        default:
+          Debug.log('AUTH', 'Unknown auto-input action: $action');
+      }
+    } catch (e) {
+      // Silently ignore — file might not exist or be in transit.
+    }
   }
 
   @override
   void dispose() {
+    _stopAutoPoll();
     _sub?.cancel();
     super.dispose();
   }

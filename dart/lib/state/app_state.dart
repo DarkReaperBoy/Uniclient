@@ -53,9 +53,6 @@ class AppState extends ChangeNotifier {
   ConnState connStateFor(String accountId) =>
       _connStates[accountId] ?? ConnState.disconnected;
 
-  /// Total unread across all accounts (placeholder — chat state tracks this).
-  int unreadForPlatform(String platform) => 0;
-
   // ── Actions ──
 
   Future<void> initialize({
@@ -90,12 +87,22 @@ class AppState extends ChangeNotifier {
       notifyListeners();
 
       // Connect all accounts (async — don't block init).
-      _engine.connectAllAccounts();
+      _engine.connectAllAccounts().catchError((e, stack) {
+        Debug.error('APP', 'connectAllAccounts failed', e, stack);
+      });
     } catch (e, stack) {
       _initError = e.toString();
       Debug.error('APP', 'Engine init failed', e, stack);
       notifyListeners();
     }
+  }
+
+  /// Test-only: mark as initialized with given accounts without calling engine.init()
+  /// or connectAllAccounts(). Used when engine is already running.
+  void initForTest(List<AccountInfo> accounts) {
+    _accounts = accounts;
+    _initialized = true;
+    notifyListeners();
   }
 
   void setActivePlatform(String platform) {

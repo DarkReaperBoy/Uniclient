@@ -7,7 +7,7 @@ import '../models/engine_models.dart';
 import '../screens/settings_screen.dart';
 import '../theme/theme.dart';
 
-/// Sidebar — chat list with search, folders, and chat items.
+/// Sidebar — chat list with search, folders, drill-in, and chat items.
 class Sidebar extends StatefulWidget {
   const Sidebar({super.key});
 
@@ -15,15 +15,70 @@ class Sidebar extends StatefulWidget {
   State<Sidebar> createState() => _SidebarState();
 }
 
-class _SidebarState extends State<Sidebar> {
+class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
   bool _searching = false;
   List<ChatInfo>? _searchResults;
 
+  // Folder filter state
+  String _activeFolder = 'all';
+
+  // Custom user-created folders: name + set of chatIds
+  final List<({String name, Set<String> chatIds})> _customFolders = [];
+
+  // Drill-in state: when non-null, we show the sub-chat list for this parent.
+  ChatInfo? _drillInChat;
+
+  // Slide animation for drill-in
+  late final AnimationController _slideController;
+  late final Animation<Offset> _slideInOffset;
+  late final Animation<Offset> _slideOutOffset;
+  bool _showDrillIn = false;
+
+  // Reorder state for pinned chats
+  List<ChatInfo>? _pinnedOrder;
+
+  @override
+  void initState() {
+    super.initState();
+    _slideController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    _slideInOffset = Tween<Offset>(
+      begin: const Offset(1, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
+    _slideOutOffset = Tween<Offset>(
+      begin: Offset.zero,
+      end: const Offset(-0.3, 0),
+    ).animate(CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic));
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
+    _slideController.dispose();
     super.dispose();
+  }
+
+  void _enterDrillIn(ChatInfo parent) {
+    setState(() {
+      _drillInChat = parent;
+      _showDrillIn = true;
+    });
+    _slideController.forward(from: 0);
+  }
+
+  void _exitDrillIn() {
+    _slideController.reverse().then((_) {
+      if (mounted) {
+        setState(() {
+          _showDrillIn = false;
+          _drillInChat = null;
+        });
+      }
+    });
   }
 
   @override
@@ -32,9 +87,33 @@ class _SidebarState extends State<Sidebar> {
     final chatState = context.watch<ChatState>();
     final appState = context.watch<AppState>();
 
-    final chats = _searchResults ?? chatState.chats;
-    final pinned = chats.where((c) => c.isPinned && !c.isArchived).toList();
-    final regular = chats.where((c) => !c.isPinned && !c.isArchived).toList();
+    // Feature 1: Platform filtering
+    final platformFilter = appState.activePlatform;
+    final allChats = platformFilter.isNotEmpty
+        ? chatState.chatsForPlatform(platformFilter)
+        : chatState.chats;
+
+    // Folder filtering
+    final folderFiltered = _applyFolderFilter(allChats);
+
+    final chats = _searchResults ?? folderFiltered;
+
+    // Exclude sub-chats from top level (chats with a parentId belong inside their parent)
+    final topLevelChats = chats.where((c) => c.parentId.isEmpty).toList();
+
+    // Sort: pinned first, then by lastMsgTime descending
+    final pinned = topLevelChats.where((c) => c.isPinned && !c.isArchived).toList()
+      ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+    final regular = topLevelChats.where((c) => !c.isPinned && !c.isArchived).toList()
+      ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+
+    // Apply custom pinned order if user reordered
+    final displayPinned = _applyPinnedOrder(pinned);
+
+    // Total unread count for the header badge
+    final totalUnread = allChats
+        .where((c) => !c.isArchived)
+        .fold<int>(0, (sum, c) => sum + c.unreadCount);
 
     return Container(
       color: isDark ? AppColors.darkSidebar : AppColors.lightSidebar,
@@ -46,11 +125,36 @@ class _SidebarState extends State<Sidebar> {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    appState.activePlatform.isEmpty
-                        ? 'All Chats'
-                        : _platformLabel(appState.activePlatform),
-                    style: Theme.of(context).textTheme.headlineMedium,
+                  child: Row(
+                    children: [
+                      Text(
+                        platformFilter.isEmpty
+                            ? 'All Chats'
+                            : _platformLabel(platformFilter),
+                        style: Theme.of(context).textTheme.headlineMedium,
+                      ),
+                      // Unread count badge in header
+                      if (totalUnread > 0)
+                        Container(
+                          margin: const EdgeInsets.only(left: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          constraints: const BoxConstraints(minWidth: 20),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            totalUnread > 99 ? '99+' : '$totalUnread',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -88,27 +192,262 @@ class _SidebarState extends State<Sidebar> {
 
           const SizedBox(height: 4),
 
-          // Chat list
+          // Folder tabs
+          _FolderTabs(
+            activeFolder: _activeFolder,
+            customFolders: _customFolders,
+            onFolderChanged: (folder) {
+              setState(() {
+                _activeFolder = folder;
+                // Reset drill-in when changing folder
+                if (_showDrillIn) _exitDrillIn();
+              });
+            },
+            onAddFolder: _showCreateFolderDialog,
+          ),
+
+          // Chat list area with drill-in animation
+          Expanded(
+            child: ClipRect(
+              child: Stack(
+                children: [
+                  // Main chat list (slides left when drilling in)
+                  if (!_showDrillIn || _slideController.isAnimating)
+                    SlideTransition(
+                      position: _slideOutOffset,
+                      child: _buildMainChatList(
+                        isDark: isDark,
+                        pinned: displayPinned,
+                        regular: regular,
+                        chats: topLevelChats,
+                        allChats: allChats,
+                      ),
+                    ),
+                  // Drill-in page (slides in from right)
+                  if (_showDrillIn)
+                    SlideTransition(
+                      position: _slideInOffset,
+                      child: _buildDrillInPage(
+                        isDark: isDark,
+                        allChats: allChats,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          // User panel (bottom)
+          const _UserPanel(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMainChatList({
+    required bool isDark,
+    required List<ChatInfo> pinned,
+    required List<ChatInfo> regular,
+    required List<ChatInfo> chats,
+    required List<ChatInfo> allChats,
+  }) {
+    final customFolders = _customFolders;
+    // Check if there are sub-chats for any group (to show drill-in arrow)
+    bool hasSubChats(ChatInfo chat) {
+      return allChats.any((c) => c.parentId == chat.chatId);
+    }
+
+    if (pinned.isEmpty && regular.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _searching ? 'No results' : 'No chats yet',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        // Pinned section with reorderable list
+        if (pinned.isNotEmpty) ...[
+          _SectionHeader(title: 'Pinned', count: pinned.length),
+          ReorderableListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            itemCount: pinned.length,
+            onReorder: (oldIndex, newIndex) {
+              setState(() {
+                if (newIndex > oldIndex) newIndex--;
+                final reordered = List<ChatInfo>.from(pinned);
+                final item = reordered.removeAt(oldIndex);
+                reordered.insert(newIndex, item);
+                _pinnedOrder = reordered;
+              });
+            },
+            proxyDecorator: (child, index, animation) {
+              return Material(
+                elevation: 4,
+                color: Colors.transparent,
+                shadowColor: Colors.black45,
+                child: child,
+              );
+            },
+            itemBuilder: (context, index) {
+              final chat = pinned[index];
+              return _ReorderableChatItem(
+                key: ValueKey('${chat.accountId}_${chat.chatId}'),
+                chat: chat,
+                index: index,
+                showDrillArrow: hasSubChats(chat),
+                onDrillIn: () => _enterDrillIn(chat),
+                customFolders: customFolders,
+                onAddToFolder: _addChatToFolder,
+              );
+            },
+          ),
+        ],
+        // Regular section
+        if (regular.isNotEmpty) ...[
+          if (pinned.isNotEmpty)
+            _SectionHeader(title: 'Messages', count: regular.length),
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.zero,
+              itemCount: regular.length,
+              itemBuilder: (context, index) {
+                final chat = regular[index];
+                return _ChatItem(
+                  chat: chat,
+                  showDrillArrow: hasSubChats(chat),
+                  onDrillIn: () => _enterDrillIn(chat),
+                  customFolders: customFolders,
+                  onAddToFolder: _addChatToFolder,
+                );
+              },
+            ),
+          ),
+        ] else
+          const Spacer(),
+      ],
+    );
+  }
+
+  Widget _buildDrillInPage({
+    required bool isDark,
+    required List<ChatInfo> allChats,
+  }) {
+    final parent = _drillInChat;
+    if (parent == null) return const SizedBox.shrink();
+
+    // Find sub-chats whose parentId matches this group
+    final subChats = allChats
+        .where((c) => c.parentId == parent.chatId)
+        .toList()
+      ..sort((a, b) => a.title.compareTo(b.title));
+
+    // Separate text and voice channels
+    final textChannels = subChats.where((c) => c.type != ChatType.topic || !_looksLikeVoice(c)).toList();
+    final voiceChannels = subChats.where((c) => _looksLikeVoice(c)).toList();
+
+    final hue = (parent.chatId.hashCode % 360).abs().toDouble();
+    final bgColor = HSLColor.fromAHSL(1, hue, 0.5, isDark ? 0.3 : 0.75).toColor();
+
+    return Container(
+      color: isDark ? AppColors.darkSidebar : AppColors.lightSidebar,
+      child: Column(
+        children: [
+          // Back button + group header
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _exitDrillIn,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.arrow_back, size: 20),
+                    const SizedBox(width: 8),
+                    // Group avatar
+                    Container(
+                      width: AppSizes.avatarSizeSmall,
+                      height: AppSizes.avatarSizeSmall,
+                      decoration: BoxDecoration(
+                        color: bgColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          parent.title.isNotEmpty ? parent.title[0].toUpperCase() : '?',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            parent.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? AppColors.darkText : AppColors.lightText,
+                            ),
+                          ),
+                          if (parent.memberCount > 0)
+                            Text(
+                              '${parent.memberCount} members',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Divider(
+            height: 1,
+            color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+          ),
+          // Sub-chats list
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                if (pinned.isNotEmpty) ...[
-                  _SectionHeader(title: 'Pinned', count: pinned.length),
-                  for (final chat in pinned)
-                    _ChatItem(chat: chat),
+                if (textChannels.isNotEmpty) ...[
+                  _SectionHeader(title: 'Text Channels', count: textChannels.length),
+                  for (final ch in textChannels)
+                    _ChannelItem(chat: ch, isVoice: false),
                 ],
-                if (regular.isNotEmpty) ...[
-                  if (pinned.isNotEmpty)
-                    _SectionHeader(title: 'Messages', count: regular.length),
-                  for (final chat in regular)
-                    _ChatItem(chat: chat),
+                if (voiceChannels.isNotEmpty) ...[
+                  _SectionHeader(title: 'Voice Channels', count: voiceChannels.length),
+                  for (final ch in voiceChannels)
+                    _ChannelItem(chat: ch, isVoice: true),
                 ],
-                if (chats.isEmpty)
+                if (subChats.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(
-                      _searching ? 'No results' : 'No chats yet',
+                      'No channels yet',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
@@ -118,12 +457,49 @@ class _SidebarState extends State<Sidebar> {
               ],
             ),
           ),
-
-          // User panel (bottom)
-          const _UserPanel(),
         ],
       ),
     );
+  }
+
+  /// Heuristic: channel title containing "voice" or "vc" is treated as voice.
+  bool _looksLikeVoice(ChatInfo c) {
+    final t = c.title.toLowerCase();
+    return t.contains('voice') || t.contains(' vc') || t.startsWith('vc');
+  }
+
+  List<ChatInfo> _applyFolderFilter(List<ChatInfo> chats) {
+    if (_activeFolder.startsWith('custom_')) {
+      final idx = int.tryParse(_activeFolder.substring(7));
+      if (idx != null && idx < _customFolders.length) {
+        final ids = _customFolders[idx].chatIds;
+        return chats.where((c) => ids.contains(c.chatId)).toList();
+      }
+      return chats;
+    }
+    return switch (_activeFolder) {
+      'dms' => chats.where((c) => c.type == ChatType.dm).toList(),
+      'groups' => chats.where((c) => c.type == ChatType.group || c.type == ChatType.topic).toList(),
+      'channels' => chats.where((c) => c.type == ChatType.channel).toList(),
+      _ => chats,
+    };
+  }
+
+  List<ChatInfo> _applyPinnedOrder(List<ChatInfo> pinned) {
+    if (_pinnedOrder == null) return pinned;
+    // Rebuild order based on saved order, adding any new pinned chats at the end
+    final ordered = <ChatInfo>[];
+    final remaining = List<ChatInfo>.from(pinned);
+    for (final saved in _pinnedOrder!) {
+      final match = remaining.indexWhere(
+        (c) => c.accountId == saved.accountId && c.chatId == saved.chatId,
+      );
+      if (match != -1) {
+        ordered.add(remaining.removeAt(match));
+      }
+    }
+    ordered.addAll(remaining);
+    return ordered;
   }
 
   void _onSearch(String query) {
@@ -145,6 +521,61 @@ class _SidebarState extends State<Sidebar> {
     });
   }
 
+  Future<void> _showCreateFolderDialog() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final nameController = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('New Folder'),
+        content: TextField(
+          controller: nameController,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Folder name',
+            isDense: true,
+          ),
+          textCapitalization: TextCapitalization.words,
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, nameController.text.trim()),
+            child: const Text('Create', style: TextStyle(color: AppColors.accent)),
+          ),
+        ],
+      ),
+    );
+    nameController.dispose();
+    if (name == null || name.isEmpty) return;
+    setState(() {
+      _customFolders.add((name: name, chatIds: {}));
+      // Auto-select the new folder
+      _activeFolder = 'custom_${_customFolders.length - 1}';
+    });
+  }
+
+  void _addChatToFolder(int folderIndex, String chatId) {
+    setState(() {
+      final folder = _customFolders[folderIndex];
+      _customFolders[folderIndex] = (
+        name: folder.name,
+        chatIds: {...folder.chatIds, chatId},
+      );
+    });
+  }
+
   String _platformLabel(String platform) => switch (platform) {
     'telegram' => 'Telegram',
     'bale' => 'Bale',
@@ -160,7 +591,152 @@ class _SidebarState extends State<Sidebar> {
   };
 }
 
-/// Collapsible section header.
+// ── Folder Tabs ──
+
+class _FolderTabs extends StatelessWidget {
+  final String activeFolder;
+  final List<({String name, Set<String> chatIds})> customFolders;
+  final ValueChanged<String> onFolderChanged;
+  final VoidCallback onAddFolder;
+
+  const _FolderTabs({
+    required this.activeFolder,
+    required this.customFolders,
+    required this.onFolderChanged,
+    required this.onAddFolder,
+  });
+
+  static const _builtinFolders = [
+    ('all', 'All', Icons.chat_bubble_outline),
+    ('dms', 'DMs', Icons.person_outline),
+    ('groups', 'Groups', Icons.group_outlined),
+    ('channels', 'Channels', Icons.campaign_outlined),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return SizedBox(
+      height: 36,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            // Built-in folder tabs
+            for (final (id, label, icon) in _builtinFolders)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: _FolderTab(
+                  label: label,
+                  icon: icon,
+                  isActive: activeFolder == id,
+                  isDark: isDark,
+                  onTap: () => onFolderChanged(id),
+                ),
+              ),
+            // Custom folder tabs
+            for (var i = 0; i < customFolders.length; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: _FolderTab(
+                  label: customFolders[i].name,
+                  icon: Icons.folder_outlined,
+                  isActive: activeFolder == 'custom_$i',
+                  isDark: isDark,
+                  onTap: () => onFolderChanged('custom_$i'),
+                ),
+              ),
+            // "+" button to create a new folder
+            Padding(
+              padding: const EdgeInsets.only(left: 2),
+              child: SizedBox(
+                width: 28,
+                height: 28,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onAddFolder,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Icon(
+                      Icons.add,
+                      size: 16,
+                      color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FolderTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool isActive;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _FolderTab({
+    required this.label,
+    required this.icon,
+    required this.isActive,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isActive ? AppColors.accent : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isActive
+                    ? AppColors.accent
+                    : (isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive
+                      ? AppColors.accent
+                      : (isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Section Header ──
+
 class _SectionHeader extends StatelessWidget {
   final String title;
   final int count;
@@ -196,10 +772,277 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// Single chat item in the sidebar.
+// ── Channel Item (inside drill-in page) ──
+
+class _ChannelItem extends StatelessWidget {
+  final ChatInfo chat;
+  final bool isVoice;
+  const _ChannelItem({required this.chat, required this.isVoice});
+
+  @override
+  Widget build(BuildContext context) {
+    final chatState = context.watch<ChatState>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isActive = chatState.activeChat?.chatId == chat.chatId &&
+        chatState.activeChat?.accountId == chat.accountId;
+
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      onLongPressStart: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      child: Material(
+        color: isActive
+            ? (isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt)
+            : Colors.transparent,
+        child: InkWell(
+          onTap: () => chatState.openChat(chat),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: Row(
+              children: [
+                Icon(
+                  isVoice ? Icons.volume_up : Icons.tag,
+                  size: 18,
+                  color: isActive
+                      ? AppColors.accent
+                      : (isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    chat.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: chat.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
+                      color: isDark ? AppColors.darkText : AppColors.lightText,
+                    ),
+                  ),
+                ),
+                if (chat.unreadCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    constraints: const BoxConstraints(minWidth: 20),
+                    decoration: BoxDecoration(
+                      color: chat.isMuted ? AppColors.darkTextDim : AppColors.accent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      chat.unreadCount > 99 ? '99+' : '${chat.unreadCount}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Show right-click context menu at the given global position.
+  void _showContextMenu(BuildContext context, Offset position) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final menuPosition = RelativeRect.fromLTRB(
+      position.dx,
+      position.dy,
+      overlay.size.width - position.dx,
+      overlay.size.height - position.dy,
+    );
+
+    showMenu<String>(
+      context: context,
+      position: menuPosition,
+      color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        PopupMenuItem(
+          value: 'mute',
+          child: Row(
+            children: [
+              Icon(
+                Icons.notifications_off_outlined,
+                size: 16,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Mute',
+                style: TextStyle(
+                    color: isDark ? AppColors.darkText : AppColors.lightText),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'read',
+          child: Row(
+            children: [
+              Icon(
+                Icons.done_all,
+                size: 16,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Mark as Read',
+                style: TextStyle(
+                    color: isDark ? AppColors.darkText : AppColors.lightText),
+              ),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'edit',
+          child: Row(
+            children: [
+              Icon(
+                Icons.edit,
+                size: 16,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Edit Channel',
+                style: TextStyle(
+                    color: isDark ? AppColors.darkText : AppColors.lightText),
+              ),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
+              SizedBox(width: 8),
+              Text('Delete Channel',
+                  style: TextStyle(color: AppColors.danger)),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == null || !context.mounted) return;
+      switch (value) {
+        case 'mute':
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Muted')),
+          );
+        case 'read':
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Marked as read')),
+          );
+        case 'edit':
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Edit channel coming soon')),
+          );
+        case 'delete':
+          _showDeleteConfirmation(context);
+      }
+    });
+  }
+
+  /// Show a confirmation dialog before deleting the channel.
+  void _showDeleteConfirmation(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor:
+            isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Delete channel'),
+        content: Text('Delete "#${chat.title}"? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                  color: isDark
+                      ? AppColors.darkTextMuted
+                      : AppColors.lightTextMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete',
+                style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${chat.title}" deleted')),
+        );
+      }
+    });
+  }
+}
+
+// ── Reorderable Chat Item (for pinned section) ──
+
+class _ReorderableChatItem extends StatelessWidget {
+  final ChatInfo chat;
+  final int index;
+  final bool showDrillArrow;
+  final VoidCallback onDrillIn;
+  final List<({String name, Set<String> chatIds})> customFolders;
+  final void Function(int folderIndex, String chatId) onAddToFolder;
+
+  const _ReorderableChatItem({
+    super.key,
+    required this.chat,
+    required this.index,
+    required this.showDrillArrow,
+    required this.onDrillIn,
+    required this.customFolders,
+    required this.onAddToFolder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ReorderableDragStartListener(
+      index: index,
+      child: _ChatItem(
+        chat: chat,
+        showDrillArrow: showDrillArrow,
+        onDrillIn: onDrillIn,
+        customFolders: customFolders,
+        onAddToFolder: onAddToFolder,
+      ),
+    );
+  }
+}
+
+// ── Chat Item ──
+
 class _ChatItem extends StatelessWidget {
   final ChatInfo chat;
-  const _ChatItem({required this.chat});
+  final bool showDrillArrow;
+  final VoidCallback? onDrillIn;
+  final List<({String name, Set<String> chatIds})> customFolders;
+  final void Function(int folderIndex, String chatId)? onAddToFolder;
+
+  const _ChatItem({
+    required this.chat,
+    this.showDrillArrow = false,
+    this.onDrillIn,
+    this.customFolders = const [],
+    this.onAddToFolder,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -209,140 +1052,376 @@ class _ChatItem extends StatelessWidget {
         chatState.activeChat?.accountId == chat.accountId;
     final typing = chatState.typingUserFor(chat.chatId);
 
-    return Material(
-      color: isActive
-          ? (isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt)
-          : Colors.transparent,
-      child: InkWell(
-        onTap: () => chatState.openChat(chat),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              // Avatar
-              _ChatAvatar(chat: chat),
-              const SizedBox(width: 12),
+    // Determine if this chat can be drilled into
+    final canDrillIn = showDrillArrow &&
+        (chat.type == ChatType.group || chat.type == ChatType.topic);
 
-              // Name + preview
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        // Type icon
-                        if (chat.type == ChatType.group || chat.type == ChatType.topic)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Icon(Icons.group, size: 14,
-                              color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
-                          ),
-                        if (chat.type == ChatType.channel)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Icon(Icons.campaign, size: 14,
-                              color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
-                          ),
-                        // Title
-                        Expanded(
-                          child: Text(
-                            chat.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: chat.unreadCount > 0 ? FontWeight.w600 : FontWeight.w400,
-                              color: isDark ? AppColors.darkText : AppColors.lightText,
+    // Right-click context menu via GestureDetector
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      onLongPressStart: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      child: Material(
+        color: isActive
+            ? (isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt)
+            : Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            if (canDrillIn) {
+              onDrillIn?.call();
+            } else {
+              chatState.openChat(chat);
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                // Avatar
+                _ChatAvatar(chat: chat),
+                const SizedBox(width: 12),
+
+                // Name + preview
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          // Type icon
+                          if (chat.type == ChatType.group)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(Icons.group,
+                                  size: 14,
+                                  color: isDark
+                                      ? AppColors.darkTextDim
+                                      : AppColors.lightTextDim),
                             ),
-                          ),
-                        ),
-                        // Time
-                        if (chat.lastMsgTime > 0)
-                          Text(
-                            _formatTime(chat.lastMsgDateTime),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: chat.unreadCount > 0
-                                  ? AppColors.accent
-                                  : (isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
+                          if (chat.type == ChatType.channel)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(Icons.campaign,
+                                  size: 14,
+                                  color: isDark
+                                      ? AppColors.darkTextDim
+                                      : AppColors.lightTextDim),
                             ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        // Preview text or typing indicator
-                        Expanded(
-                          child: typing != null
-                              ? Text(
-                                  '$typing is typing...',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: AppColors.accent,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                )
-                              : Text(
-                                  chat.draftText.isNotEmpty
-                                      ? 'Draft: ${chat.draftText}'
-                                      : _previewText(chat),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: chat.draftText.isNotEmpty
-                                        ? AppColors.danger
-                                        : (isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
-                                  ),
-                                ),
-                        ),
-                        // Unread badge
-                        if (chat.unreadCount > 0)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            constraints: const BoxConstraints(minWidth: 20),
-                            decoration: BoxDecoration(
-                              color: chat.isMuted ? AppColors.darkTextDim : AppColors.accent,
-                              borderRadius: BorderRadius.circular(10),
+                          if (chat.type == ChatType.topic)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Icon(Icons.forum,
+                                  size: 14,
+                                  color: isDark
+                                      ? AppColors.darkTextDim
+                                      : AppColors.lightTextDim),
                             ),
+                          // Title
+                          Expanded(
                             child: Text(
-                              chat.unreadCount > 99 ? '99+' : '${chat.unreadCount}',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                              chat.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: chat.unreadCount > 0
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: isDark
+                                    ? AppColors.darkText
+                                    : AppColors.lightText,
                               ),
                             ),
                           ),
-                        // Pin indicator
-                        if (chat.isPinned)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: Icon(Icons.push_pin, size: 12,
-                              color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
+                          // Time
+                          if (chat.lastMsgTime > 0)
+                            Text(
+                              _formatTime(chat.lastMsgDateTime),
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: chat.unreadCount > 0
+                                    ? AppColors.accent
+                                    : (isDark
+                                        ? AppColors.darkTextDim
+                                        : AppColors.lightTextDim),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          // Preview text or typing indicator
+                          Expanded(
+                            child: typing != null
+                                ? Text(
+                                    '$typing is typing...',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: AppColors.accent,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  )
+                                : Text(
+                                    chat.draftText.isNotEmpty
+                                        ? 'Draft: ${chat.draftText}'
+                                        : _previewText(chat),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: chat.draftText.isNotEmpty
+                                          ? AppColors.danger
+                                          : (isDark
+                                              ? AppColors.darkTextMuted
+                                              : AppColors.lightTextMuted),
+                                    ),
+                                  ),
                           ),
-                        // Muted indicator
-                        if (chat.isMuted)
-                          Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: Icon(Icons.notifications_off, size: 12,
-                              color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
-                          ),
-                      ],
-                    ),
-                  ],
+                          // Drill-in arrow
+                          if (canDrillIn)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Icon(
+                                Icons.chevron_right,
+                                size: 16,
+                                color: isDark
+                                    ? AppColors.darkTextDim
+                                    : AppColors.lightTextDim,
+                              ),
+                            ),
+                          // Unread badge
+                          if (chat.unreadCount > 0)
+                            Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              constraints: const BoxConstraints(minWidth: 20),
+                              decoration: BoxDecoration(
+                                color: chat.isMuted
+                                    ? AppColors.darkTextDim
+                                    : AppColors.accent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                chat.unreadCount > 99
+                                    ? '99+'
+                                    : '${chat.unreadCount}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          // Pin indicator
+                          if (chat.isPinned)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Icon(Icons.push_pin,
+                                  size: 12,
+                                  color: isDark
+                                      ? AppColors.darkTextDim
+                                      : AppColors.lightTextDim),
+                            ),
+                          // Muted indicator
+                          if (chat.isMuted)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: Icon(Icons.notifications_off,
+                                  size: 12,
+                                  color: isDark
+                                      ? AppColors.darkTextDim
+                                      : AppColors.lightTextDim),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  /// Show context menu at the given global position.
+  void _showContextMenu(BuildContext context, Offset position) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final chatState = context.read<ChatState>();
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final menuPosition = RelativeRect.fromLTRB(
+      position.dx,
+      position.dy,
+      overlay.size.width - position.dx,
+      overlay.size.height - position.dy,
+    );
+
+    showMenu<String>(
+      context: context,
+      position: menuPosition,
+      color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        PopupMenuItem(
+          value: 'pin',
+          child: Row(
+            children: [
+              Icon(
+                chat.isPinned ? Icons.push_pin_outlined : Icons.push_pin,
+                size: 16,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+              const SizedBox(width: 8),
+              Text(chat.isPinned ? 'Unpin' : 'Pin'),
+            ],
+          ),
+        ),
+        PopupMenuItem(
+          value: 'mute',
+          child: Row(
+            children: [
+              Icon(
+                chat.isMuted ? Icons.notifications : Icons.notifications_off,
+                size: 16,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+              const SizedBox(width: 8),
+              Text(chat.isMuted ? 'Unmute' : 'Mute'),
+            ],
+          ),
+        ),
+        if (chat.unreadCount > 0)
+          PopupMenuItem(
+            value: 'read',
+            child: Row(
+              children: [
+                Icon(
+                  Icons.done_all,
+                  size: 16,
+                  color: isDark ? AppColors.darkText : AppColors.lightText,
+                ),
+                const SizedBox(width: 8),
+                const Text('Mark as read'),
+              ],
+            ),
+          ),
+        PopupMenuItem(
+          value: 'archive',
+          child: Row(
+            children: [
+              Icon(
+                Icons.archive_outlined,
+                size: 16,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+              const SizedBox(width: 8),
+              const Text('Archive'),
+            ],
+          ),
+        ),
+        // "Move to folder" entries (only shown when custom folders exist)
+        if (customFolders.isNotEmpty) ...[
+          const PopupMenuDivider(),
+          for (var i = 0; i < customFolders.length; i++)
+            PopupMenuItem(
+              value: 'folder_$i',
+              child: Row(
+                children: [
+                  Icon(
+                    customFolders[i].chatIds.contains(chat.chatId)
+                        ? Icons.folder
+                        : Icons.folder_outlined,
+                    size: 16,
+                    color: isDark ? AppColors.darkText : AppColors.lightText,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    customFolders[i].chatIds.contains(chat.chatId)
+                        ? 'In "${customFolders[i].name}"'
+                        : 'Add to "${customFolders[i].name}"',
+                    style: TextStyle(
+                      color: isDark ? AppColors.darkText : AppColors.lightText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
+              SizedBox(width: 8),
+              Text('Delete', style: TextStyle(color: AppColors.danger)),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      if (value.startsWith('folder_')) {
+        final idx = int.tryParse(value.substring(7));
+        if (idx != null) onAddToFolder?.call(idx, chat.chatId);
+        return;
+      }
+      switch (value) {
+        case 'pin':
+          chatState.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
+        case 'mute':
+          chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
+        case 'read':
+          chatState.openChat(chat);
+          chatState.markRead();
+        case 'archive':
+          chatState.archiveChat(chat.accountId, chat.chatId, true);
+        case 'delete':
+          if (context.mounted) _showDeleteConfirmation(context, chatState);
+      }
+    });
+  }
+
+  /// Show a confirmation dialog before deleting.
+  void _showDeleteConfirmation(BuildContext context, ChatState chatState) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor:
+            isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: const Text('Delete chat'),
+        content: Text('Delete "${chat.title}"? This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                  color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete',
+                style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true) {
+        chatState.archiveChat(chat.accountId, chat.chatId, true);
+      }
+    });
   }
 
   String _previewText(ChatInfo chat) {
@@ -369,7 +1448,8 @@ class _ChatItem extends StatelessWidget {
   }
 }
 
-/// Chat avatar with type-appropriate styling.
+// ── Chat Avatar ──
+
 class _ChatAvatar extends StatelessWidget {
   final ChatInfo chat;
   const _ChatAvatar({required this.chat});
@@ -433,13 +1513,55 @@ class _ChatAvatar extends StatelessWidget {
   }
 }
 
-/// User panel at the bottom of the sidebar.
-class _UserPanel extends StatelessWidget {
+// ── User Status Enum ──
+
+enum _UserStatus {
+  online('Online', AppColors.online),
+  away('Away', AppColors.warning),
+  dnd('Do Not Disturb', AppColors.danger),
+  invisible('Invisible', Color(0xFF5c6573));
+
+  final String label;
+  final Color color;
+  const _UserStatus(this.label, this.color);
+}
+
+// ── User Panel ──
+
+class _UserPanel extends StatefulWidget {
   const _UserPanel();
+
+  @override
+  State<_UserPanel> createState() => _UserPanelState();
+}
+
+class _UserPanelState extends State<_UserPanel> {
+  _UserStatus _status = _UserStatus.online;
+  String _customStatus = '';
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appState = context.watch<AppState>();
+    final accounts = appState.accounts;
+
+    // Find the first connected account for display name.
+    String displayName = 'User';
+
+    if (accounts.isNotEmpty) {
+      AccountInfo? connectedAccount;
+      for (final account in accounts) {
+        final state = appState.connStateFor(account.id);
+        if (state == ConnState.connected) {
+          connectedAccount ??= account;
+        }
+      }
+      if (connectedAccount != null && connectedAccount.displayName.isNotEmpty) {
+        displayName = connectedAccount.displayName;
+      } else if (accounts.first.displayName.isNotEmpty) {
+        displayName = accounts.first.displayName;
+      }
+    }
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -452,43 +1574,91 @@ class _UserPanel extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Avatar
-          Container(
-            width: AppSizes.avatarSizeSmall,
-            height: AppSizes.avatarSizeSmall,
-            decoration: const BoxDecoration(
-              color: AppColors.accent,
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Icon(Icons.person, color: Colors.white, size: 18),
+          // Avatar with status dot — tapping opens status picker
+          GestureDetector(
+            onTap: () => _showStatusPicker(context),
+            child: SizedBox(
+              width: AppSizes.avatarSizeSmall,
+              height: AppSizes.avatarSizeSmall,
+              child: Stack(
+                children: [
+                  Container(
+                    width: AppSizes.avatarSizeSmall,
+                    height: AppSizes.avatarSizeSmall,
+                    decoration: const BoxDecoration(
+                      color: AppColors.accent,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.person, color: Colors.white, size: 18),
+                    ),
+                  ),
+                  // Status dot
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: _status.color,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDark ? AppColors.darkSidebar : AppColors.lightSidebar,
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 10),
-          // Name + status
+          // Name + status text
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'User',
+                  displayName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: isDark ? AppColors.darkText : AppColors.lightText,
                   ),
                 ),
-                const Text(
-                  'Online',
+                Text(
+                  _status.label,
                   style: TextStyle(
                     fontSize: 11,
-                    color: AppColors.online,
+                    color: _status.color,
                   ),
                 ),
+                if (_customStatus.isNotEmpty)
+                  GestureDetector(
+                    onTap: () => _showCustomStatusDialog(context),
+                    child: Text(
+                      _customStatus,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                        color: (isDark ? AppColors.darkText : AppColors.lightText)
+                            .withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
+          // Account switcher
+          if (accounts.length > 1)
+            _AccountSwitcherButton(accounts: accounts),
           // Settings
           IconButton(
             icon: const Icon(Icons.settings, size: 18),
@@ -505,4 +1675,265 @@ class _UserPanel extends StatelessWidget {
       ),
     );
   }
+
+  void _showCustomStatusDialog(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final controller = TextEditingController(text: _customStatus);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          title: Text(
+            'Custom Status',
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: isDark ? AppColors.darkText : AppColors.lightText,
+            ),
+          ),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            maxLength: 50,
+            style: TextStyle(
+              fontSize: 13,
+              color: isDark ? AppColors.darkText : AppColors.lightText,
+            ),
+            decoration: InputDecoration(
+              hintText: 'What\'s on your mind?',
+              hintStyle: TextStyle(
+                fontSize: 13,
+                color: (isDark ? AppColors.darkText : AppColors.lightText).withValues(alpha: 0.4),
+              ),
+              counterStyle: TextStyle(
+                fontSize: 11,
+                color: (isDark ? AppColors.darkText : AppColors.lightText).withValues(alpha: 0.4),
+              ),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                'Cancel',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: (isDark ? AppColors.darkText : AppColors.lightText).withValues(alpha: 0.6),
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() => _customStatus = controller.text.trim());
+                Navigator.pop(ctx);
+              },
+              child: const Text(
+                'Save',
+                style: TextStyle(fontSize: 13, color: AppColors.accent),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showStatusPicker(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    showMenu<_UserStatus>(
+      context: context,
+      position: position,
+      color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        for (final status in _UserStatus.values)
+          PopupMenuItem(
+            value: status,
+            child: Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: status.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  status.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: _status == status ? FontWeight.w600 : FontWeight.w400,
+                    color: isDark ? AppColors.darkText : AppColors.lightText,
+                  ),
+                ),
+                if (_status == status) ...[
+                  const Spacer(),
+                  const Icon(Icons.check, size: 16, color: AppColors.accent),
+                ],
+              ],
+            ),
+          ),
+      ],
+    ).then((value) {
+      if (value != null) {
+        setState(() => _status = value);
+      }
+    });
+  }
 }
+
+// ── Account Switcher Button ──
+
+class _AccountSwitcherButton extends StatelessWidget {
+  final List<AccountInfo> accounts;
+  const _AccountSwitcherButton({required this.accounts});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.unfold_more, size: 18),
+      onPressed: () => _showAccountSwitcher(context),
+      splashRadius: 16,
+      tooltip: 'Switch account',
+    );
+  }
+
+  void _showAccountSwitcher(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appState = context.read<AppState>();
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    showMenu<String>(
+      context: context,
+      position: position,
+      color: isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        // "All" option to clear platform filter
+        PopupMenuItem(
+          value: '',
+          child: Row(
+            children: [
+              const Icon(Icons.apps, size: 16),
+              const SizedBox(width: 8),
+              Text(
+                'All Platforms',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: appState.activePlatform.isEmpty
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                  color: isDark ? AppColors.darkText : AppColors.lightText,
+                ),
+              ),
+              if (appState.activePlatform.isEmpty) ...[
+                const Spacer(),
+                const Icon(Icons.check, size: 16, color: AppColors.accent),
+              ],
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        for (final account in accounts)
+          PopupMenuItem(
+            value: account.platform,
+            child: Row(
+              children: [
+                Icon(
+                  _platformIcon(account.platform),
+                  size: 16,
+                  color: isDark ? AppColors.darkText : AppColors.lightText,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        account.displayName.isNotEmpty
+                            ? account.displayName
+                            : account.platform,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? AppColors.darkText : AppColors.lightText,
+                        ),
+                      ),
+                      Text(
+                        _platformName(account.platform),
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (appState.activePlatform == account.platform)
+                  const Icon(Icons.check, size: 16, color: AppColors.accent),
+              ],
+            ),
+          ),
+      ],
+    ).then((value) {
+      if (value != null) {
+        appState.setActivePlatform(value);
+      }
+    });
+  }
+
+  IconData _platformIcon(String platform) => switch (platform) {
+    'telegram' => Icons.send,
+    'bale' => Icons.message,
+    'matrix' => Icons.grid_view,
+    'irc' => Icons.terminal,
+    'xmpp' => Icons.chat,
+    'github' => Icons.code,
+    'rubika' => Icons.phone_android,
+    'deltachat' => Icons.mail,
+    'teamspeak' => Icons.headset_mic,
+    'mumble' => Icons.mic,
+    _ => Icons.chat_bubble,
+  };
+
+  String _platformName(String platform) => switch (platform) {
+    'telegram' => 'Telegram',
+    'bale' => 'Bale',
+    'matrix' => 'Matrix',
+    'irc' => 'IRC',
+    'xmpp' => 'XMPP',
+    'github' => 'GitHub',
+    'rubika' => 'Rubika',
+    'deltachat' => 'Delta Chat',
+    'teamspeak' => 'TeamSpeak',
+    'mumble' => 'Mumble',
+    _ => platform,
+  };
+}
+

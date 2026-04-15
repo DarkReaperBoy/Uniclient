@@ -226,6 +226,18 @@ message EngineCachedMessage {
   string forward_from  = 15;
   bool   is_pinned     = 16;
   bool   has_media     = 17;
+
+  // Media metadata (populated from media table join).
+  int32  media_type      = 18; // 0=none, 1=image, 2=video, 3=audio, 4=voice, 5=videonote, 6=sticker, 7=gif, 8=file
+  string media_file_name = 19;
+  string media_mime_type = 20;
+  int64  media_file_size = 21;
+  string media_thumb_b64 = 22; // base64-encoded thumbnail (small preview)
+  string media_local_path = 23; // local file path if downloaded
+  int32  media_width     = 24;
+  int32  media_height    = 25;
+  int32  media_duration  = 26; // seconds (audio/video)
+  int32  media_download_state = 27; // 0=none, 1=queued, 2=downloading, 3=done, 4=failed
 }
 
 message EngineGetMessagesRequest {
@@ -370,4 +382,16 @@ message EngineUpdateConfigRequest {
   double font_scale    = 3;
   string language      = 4;
   int64  max_cache_size = 5;
+  // Privacy — use has_* flags since false is a valid value (not "unset").
+  bool send_read_receipts     = 6;
+  bool has_send_read_receipts = 7;
+  bool send_typing            = 8;
+  bool has_send_typing        = 9;
+  // Notifications
+  bool notify_dms              = 10;
+  bool has_notify_dms          = 11;
+  bool notify_groups           = 12;
+  bool has_notify_groups       = 13;
+  bool notify_mentions_only    = 14;
+  bool has_notify_mentions_only = 15;
 }

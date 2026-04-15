@@ -405,6 +405,26 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			Language:     req.Language,
 			MaxCacheSize: req.MaxCacheSize,
 		}
+		if req.HasSendReadReceipts {
+			v := req.SendReadReceipts
+			changes.SendReadReceipts = &v
+		}
+		if req.HasSendTyping {
+			v := req.SendTyping
+			changes.SendTyping = &v
+		}
+		if req.HasNotifyDms {
+			v := req.NotifyDms
+			changes.NotifyDMs = &v
+		}
+		if req.HasNotifyGroups {
+			v := req.NotifyGroups
+			changes.NotifyGroups = &v
+		}
+		if req.HasNotifyMentionsOnly {
+			v := req.NotifyMentionsOnly
+			changes.NotifyMentionsOnly = &v
+		}
 		return nil, e.UpdateConfigFromBridge(changes)
 
 	// ── Shutdown ──
@@ -472,22 +492,32 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 
 func cachedMsgToProto(m *engine.CachedMessage) *pb.EngineCachedMessage {
 	return &pb.EngineCachedMessage{
-		AccountId:    m.AccountID,
-		ChatId:       m.ChatID,
-		MsgId:        m.MsgID,
-		LocalId:      m.LocalID,
-		SenderId:     m.SenderID,
-		SenderName:   sanitizeUTF8(m.SenderName),
-		ContentText:  sanitizeUTF8(m.ContentText),
-		ContentRaw:   m.ContentRaw,
-		ContentRich:  m.ContentRich,
-		Timestamp:    m.Timestamp,
-		EditedAt:     m.EditedAt,
-		Status:       int32(m.Status),
-		ReplyToId:    m.ReplyToID,
-		ReplyPreview: sanitizeUTF8(m.ReplyPreview),
-		ForwardFrom:  sanitizeUTF8(m.ForwardFrom),
-		IsPinned:     m.IsPinned,
-		HasMedia:     m.HasMedia,
+		AccountId:          m.AccountID,
+		ChatId:             m.ChatID,
+		MsgId:              m.MsgID,
+		LocalId:            m.LocalID,
+		SenderId:           m.SenderID,
+		SenderName:         sanitizeUTF8(m.SenderName),
+		ContentText:        sanitizeUTF8(m.ContentText),
+		ContentRaw:         m.ContentRaw,
+		ContentRich:        m.ContentRich,
+		Timestamp:          m.Timestamp,
+		EditedAt:           m.EditedAt,
+		Status:             int32(m.Status),
+		ReplyToId:          m.ReplyToID,
+		ReplyPreview:       sanitizeUTF8(m.ReplyPreview),
+		ForwardFrom:        sanitizeUTF8(m.ForwardFrom),
+		IsPinned:           m.IsPinned,
+		HasMedia:           m.HasMedia,
+		MediaType:          int32(m.MediaType),
+		MediaFileName:      sanitizeUTF8(m.MediaFileName),
+		MediaMimeType:      m.MediaMimeType,
+		MediaFileSize:      m.MediaFileSize,
+		MediaThumbB64:      m.MediaThumbB64,
+		MediaLocalPath:     m.MediaLocalPath,
+		MediaWidth:         int32(m.MediaWidth),
+		MediaHeight:        int32(m.MediaHeight),
+		MediaDuration:      int32(m.MediaDuration),
+		MediaDownloadState: int32(m.MediaDownloadState),
 	}
 }

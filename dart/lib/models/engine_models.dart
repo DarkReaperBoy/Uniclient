@@ -99,6 +99,7 @@ class AuthStateData {
   final bool canResend;
   final bool hasRecovery;
   final List<int> qrData;
+  final int qrExpiresIn;
   final String displayName;
   final String avatarB64;
   final String message;
@@ -119,6 +120,7 @@ class AuthStateData {
     this.canResend = false,
     this.hasRecovery = false,
     this.qrData = const [],
+    this.qrExpiresIn = 0,
     this.displayName = '',
     this.avatarB64 = '',
     this.message = '',
@@ -177,6 +179,7 @@ class ChatInfo {
   final String draftText;
   final int memberCount;
   final String parentId;
+  final String parentTitle;
 
   const ChatInfo({
     required this.accountId,
@@ -195,6 +198,7 @@ class ChatInfo {
     this.draftText = '',
     this.memberCount = 0,
     this.parentId = '',
+    this.parentTitle = '',
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -214,6 +218,7 @@ class ChatInfo {
     draftText: j['draft_text'] as String? ?? '',
     memberCount: j['member_count'] as int? ?? 0,
     parentId: j['parent_id'] as String? ?? '',
+    parentTitle: j['parent_title'] as String? ?? '',
   );
 
   /// Time as DateTime for display.
@@ -229,6 +234,8 @@ class CachedMessage {
   final String senderId;
   final String senderName;
   final String contentText;
+  final String contentRaw;
+  final String contentRich;
   final int timestamp;
   final int editedAt;
   final MsgStatus status;
@@ -238,6 +245,19 @@ class CachedMessage {
   final bool isPinned;
   final bool hasMedia;
 
+  // Media metadata.
+  final int mediaType; // 0=none, 1=image, 2=video, 3=audio, 4=voice, 5=videonote, 6=sticker, 7=gif, 8=file
+  final String mediaFileName;
+  final String mediaMimeType;
+  final int mediaFileSize;
+  final String mediaThumbB64; // base64 thumbnail
+  final String mediaLocalPath; // local file path if downloaded
+  final int mediaWidth;
+  final int mediaHeight;
+  final int mediaDuration; // seconds
+  final int mediaDownloadState; // 0=none, 1=in_progress, 2=complete, 3=failed
+  final List<MessageReaction> reactions;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -246,6 +266,8 @@ class CachedMessage {
     this.senderId = '',
     this.senderName = '',
     this.contentText = '',
+    this.contentRaw = '',
+    this.contentRich = '',
     this.timestamp = 0,
     this.editedAt = 0,
     this.status = MsgStatus.unknown,
@@ -254,6 +276,17 @@ class CachedMessage {
     this.forwardFrom = '',
     this.isPinned = false,
     this.hasMedia = false,
+    this.mediaType = 0,
+    this.mediaFileName = '',
+    this.mediaMimeType = '',
+    this.mediaFileSize = 0,
+    this.mediaThumbB64 = '',
+    this.mediaLocalPath = '',
+    this.mediaWidth = 0,
+    this.mediaHeight = 0,
+    this.mediaDuration = 0,
+    this.mediaDownloadState = 0,
+    this.reactions = const [],
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -264,6 +297,8 @@ class CachedMessage {
     senderId: j['sender_id'] as String? ?? '',
     senderName: j['sender_name'] as String? ?? '',
     contentText: j['content_text'] as String? ?? '',
+    contentRaw: j['content_raw'] as String? ?? '',
+    contentRich: j['content_rich'] as String? ?? '',
     timestamp: j['timestamp'] as int? ?? 0,
     editedAt: j['edited_at'] as int? ?? 0,
     status: MsgStatus.fromInt(j['status'] as int? ?? 0),
@@ -272,12 +307,125 @@ class CachedMessage {
     forwardFrom: j['forward_from'] as String? ?? '',
     isPinned: j['is_pinned'] as bool? ?? false,
     hasMedia: j['has_media'] as bool? ?? false,
+    mediaType: j['media_type'] as int? ?? 0,
+    mediaFileName: j['media_file_name'] as String? ?? '',
+    mediaMimeType: j['media_mime_type'] as String? ?? '',
+    mediaFileSize: j['media_file_size'] as int? ?? 0,
+    mediaThumbB64: j['media_thumb_b64'] as String? ?? '',
+    mediaLocalPath: j['media_local_path'] as String? ?? '',
+    mediaWidth: j['media_width'] as int? ?? 0,
+    mediaHeight: j['media_height'] as int? ?? 0,
+    mediaDuration: j['media_duration'] as int? ?? 0,
+    mediaDownloadState: j['media_download_state'] as int? ?? 0,
+    reactions: (j['reactions'] as List<dynamic>?)
+        ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
+        .toList() ?? const [],
   );
 
   DateTime get dateTime => DateTime.fromMillisecondsSinceEpoch(timestamp);
   bool get isEdited => editedAt > 0;
   bool get isSending => status == MsgStatus.sending;
   bool get isFailed => status == MsgStatus.failed;
+  bool get isSent => senderId.isEmpty; // Go leaves senderId empty for our messages
+  bool get isImage => mediaType == 1;
+  bool get isVideo => mediaType == 2;
+  bool get isAudio => mediaType == 3;
+  bool get isVoice => mediaType == 4;
+  bool get isSticker => mediaType == 6;
+  bool get isGif => mediaType == 7;
+  bool get isFile => mediaType == 8;
+  bool get isMediaDownloaded => mediaDownloadState == 2;
+  String get mediaSizeLabel {
+    if (mediaFileSize <= 0) return '';
+    if (mediaFileSize < 1024) return '$mediaFileSize B';
+    if (mediaFileSize < 1024 * 1024) return '${(mediaFileSize / 1024).toStringAsFixed(1)} KB';
+    return '${(mediaFileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  CachedMessage copyWith({
+    String? accountId,
+    String? chatId,
+    String? msgId,
+    String? localId,
+    String? senderId,
+    String? senderName,
+    String? contentText,
+    String? contentRaw,
+    String? contentRich,
+    int? timestamp,
+    int? editedAt,
+    MsgStatus? status,
+    String? replyToId,
+    String? replyPreview,
+    String? forwardFrom,
+    bool? isPinned,
+    bool? hasMedia,
+    int? mediaType,
+    String? mediaFileName,
+    String? mediaMimeType,
+    int? mediaFileSize,
+    String? mediaThumbB64,
+    String? mediaLocalPath,
+    int? mediaWidth,
+    int? mediaHeight,
+    int? mediaDuration,
+    int? mediaDownloadState,
+    List<MessageReaction>? reactions,
+  }) => CachedMessage(
+    accountId: accountId ?? this.accountId,
+    chatId: chatId ?? this.chatId,
+    msgId: msgId ?? this.msgId,
+    localId: localId ?? this.localId,
+    senderId: senderId ?? this.senderId,
+    senderName: senderName ?? this.senderName,
+    contentText: contentText ?? this.contentText,
+    contentRaw: contentRaw ?? this.contentRaw,
+    contentRich: contentRich ?? this.contentRich,
+    timestamp: timestamp ?? this.timestamp,
+    editedAt: editedAt ?? this.editedAt,
+    status: status ?? this.status,
+    replyToId: replyToId ?? this.replyToId,
+    replyPreview: replyPreview ?? this.replyPreview,
+    forwardFrom: forwardFrom ?? this.forwardFrom,
+    isPinned: isPinned ?? this.isPinned,
+    hasMedia: hasMedia ?? this.hasMedia,
+    mediaType: mediaType ?? this.mediaType,
+    mediaFileName: mediaFileName ?? this.mediaFileName,
+    mediaMimeType: mediaMimeType ?? this.mediaMimeType,
+    mediaFileSize: mediaFileSize ?? this.mediaFileSize,
+    mediaThumbB64: mediaThumbB64 ?? this.mediaThumbB64,
+    mediaLocalPath: mediaLocalPath ?? this.mediaLocalPath,
+    mediaWidth: mediaWidth ?? this.mediaWidth,
+    mediaHeight: mediaHeight ?? this.mediaHeight,
+    mediaDuration: mediaDuration ?? this.mediaDuration,
+    mediaDownloadState: mediaDownloadState ?? this.mediaDownloadState,
+    reactions: reactions ?? this.reactions,
+  );
+}
+
+// ── Message reaction ──
+class MessageReaction {
+  final String emoji;
+  final int count;
+  final bool byMe;
+
+  const MessageReaction({
+    required this.emoji,
+    this.count = 1,
+    this.byMe = false,
+  });
+
+  factory MessageReaction.fromJson(Map<String, dynamic> j) => MessageReaction(
+    emoji: j['emoji'] as String? ?? '',
+    count: j['count'] as int? ?? 1,
+    byMe: j['by_me'] as bool? ?? false,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'emoji': emoji,
+    'count': count,
+    'by_me': byMe,
+  };
 }
 
 // ── Search result ──
@@ -371,6 +519,12 @@ class ConnStateEvent {
   final String state;
   final String error;
   const ConnStateEvent({this.accountId = '', this.state = '', this.error = ''});
+}
+
+class ChatRemovedEvent {
+  final String accountId;
+  final String chatId;
+  const ChatRemovedEvent({this.accountId = '', this.chatId = ''});
 }
 
 class MsgReceivedEvent {
@@ -487,5 +641,16 @@ class DownloadCompleteEvent {
     msgId: j['msg_id'] as String? ?? '',
     seq: j['seq'] as int? ?? 0,
     localPath: j['local_path'] as String? ?? '',
+  );
+}
+
+class UserStatusEvent {
+  final String userId;
+  final bool isOnline;
+  const UserStatusEvent({this.userId = '', this.isOnline = false});
+
+  factory UserStatusEvent.fromJson(Map<String, dynamic> j) => UserStatusEvent(
+    userId: j['user_id'] as String? ?? '',
+    isOnline: j['is_online'] as bool? ?? false,
   );
 }

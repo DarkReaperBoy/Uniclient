@@ -2153,6 +2153,16 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     $core.String? forwardFrom,
     $core.bool? isPinned,
     $core.bool? hasMedia,
+    $core.int? mediaType,
+    $core.String? mediaFileName,
+    $core.String? mediaMimeType,
+    $fixnum.Int64? mediaFileSize,
+    $core.String? mediaThumbB64,
+    $core.String? mediaLocalPath,
+    $core.int? mediaWidth,
+    $core.int? mediaHeight,
+    $core.int? mediaDuration,
+    $core.int? mediaDownloadState,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2206,6 +2216,36 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     if (hasMedia != null) {
       $result.hasMedia = hasMedia;
     }
+    if (mediaType != null) {
+      $result.mediaType = mediaType;
+    }
+    if (mediaFileName != null) {
+      $result.mediaFileName = mediaFileName;
+    }
+    if (mediaMimeType != null) {
+      $result.mediaMimeType = mediaMimeType;
+    }
+    if (mediaFileSize != null) {
+      $result.mediaFileSize = mediaFileSize;
+    }
+    if (mediaThumbB64 != null) {
+      $result.mediaThumbB64 = mediaThumbB64;
+    }
+    if (mediaLocalPath != null) {
+      $result.mediaLocalPath = mediaLocalPath;
+    }
+    if (mediaWidth != null) {
+      $result.mediaWidth = mediaWidth;
+    }
+    if (mediaHeight != null) {
+      $result.mediaHeight = mediaHeight;
+    }
+    if (mediaDuration != null) {
+      $result.mediaDuration = mediaDuration;
+    }
+    if (mediaDownloadState != null) {
+      $result.mediaDownloadState = mediaDownloadState;
+    }
     return $result;
   }
   EngineCachedMessage._() : super();
@@ -2230,6 +2270,16 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     ..aOS(15, _omitFieldNames ? '' : 'forwardFrom')
     ..aOB(16, _omitFieldNames ? '' : 'isPinned')
     ..aOB(17, _omitFieldNames ? '' : 'hasMedia')
+    ..a<$core.int>(18, _omitFieldNames ? '' : 'mediaType', $pb.PbFieldType.O3)
+    ..aOS(19, _omitFieldNames ? '' : 'mediaFileName')
+    ..aOS(20, _omitFieldNames ? '' : 'mediaMimeType')
+    ..aInt64(21, _omitFieldNames ? '' : 'mediaFileSize')
+    ..aOS(22, _omitFieldNames ? '' : 'mediaThumbB64')
+    ..aOS(23, _omitFieldNames ? '' : 'mediaLocalPath')
+    ..a<$core.int>(24, _omitFieldNames ? '' : 'mediaWidth', $pb.PbFieldType.O3)
+    ..a<$core.int>(25, _omitFieldNames ? '' : 'mediaHeight', $pb.PbFieldType.O3)
+    ..a<$core.int>(26, _omitFieldNames ? '' : 'mediaDuration', $pb.PbFieldType.O3)
+    ..a<$core.int>(27, _omitFieldNames ? '' : 'mediaDownloadState', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -2406,6 +2456,56 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
   $core.bool hasHasMedia() => $_has(16);
   @$pb.TagNumber(17)
   void clearHasMedia() => clearField(17);
+
+  @$pb.TagNumber(18)
+  $core.int get mediaType => $_getIZ(17);
+  @$pb.TagNumber(18)
+  set mediaType($core.int v) { $_setSignedInt32(17, v); }
+
+  @$pb.TagNumber(19)
+  $core.String get mediaFileName => $_getSZ(18);
+  @$pb.TagNumber(19)
+  set mediaFileName($core.String v) { $_setString(18, v); }
+
+  @$pb.TagNumber(20)
+  $core.String get mediaMimeType => $_getSZ(19);
+  @$pb.TagNumber(20)
+  set mediaMimeType($core.String v) { $_setString(19, v); }
+
+  @$pb.TagNumber(21)
+  $fixnum.Int64 get mediaFileSize => $_getI64(20);
+  @$pb.TagNumber(21)
+  set mediaFileSize($fixnum.Int64 v) { $_setInt64(20, v); }
+
+  @$pb.TagNumber(22)
+  $core.String get mediaThumbB64 => $_getSZ(21);
+  @$pb.TagNumber(22)
+  set mediaThumbB64($core.String v) { $_setString(21, v); }
+
+  @$pb.TagNumber(23)
+  $core.String get mediaLocalPath => $_getSZ(22);
+  @$pb.TagNumber(23)
+  set mediaLocalPath($core.String v) { $_setString(22, v); }
+
+  @$pb.TagNumber(24)
+  $core.int get mediaWidth => $_getIZ(23);
+  @$pb.TagNumber(24)
+  set mediaWidth($core.int v) { $_setSignedInt32(23, v); }
+
+  @$pb.TagNumber(25)
+  $core.int get mediaHeight => $_getIZ(24);
+  @$pb.TagNumber(25)
+  set mediaHeight($core.int v) { $_setSignedInt32(24, v); }
+
+  @$pb.TagNumber(26)
+  $core.int get mediaDuration => $_getIZ(25);
+  @$pb.TagNumber(26)
+  set mediaDuration($core.int v) { $_setSignedInt32(25, v); }
+
+  @$pb.TagNumber(27)
+  $core.int get mediaDownloadState => $_getIZ(26);
+  @$pb.TagNumber(27)
+  set mediaDownloadState($core.int v) { $_setSignedInt32(26, v); }
 }
 
 class EngineGetMessagesRequest extends $pb.GeneratedMessage {
@@ -3957,23 +4057,33 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     $core.double? fontScale,
     $core.String? language,
     $fixnum.Int64? maxCacheSize,
+    $core.bool? sendReadReceipts,
+    $core.bool? hasSendReadReceipts,
+    $core.bool? sendTyping,
+    $core.bool? hasSendTyping,
+    $core.bool? notifyDms,
+    $core.bool? hasNotifyDms,
+    $core.bool? notifyGroups,
+    $core.bool? hasNotifyGroups,
+    $core.bool? notifyMentionsOnly,
+    $core.bool? hasNotifyMentionsOnly,
   }) {
     final $result = create();
-    if (theme != null) {
-      $result.theme = theme;
-    }
-    if (accentColor != null) {
-      $result.accentColor = accentColor;
-    }
-    if (fontScale != null) {
-      $result.fontScale = fontScale;
-    }
-    if (language != null) {
-      $result.language = language;
-    }
-    if (maxCacheSize != null) {
-      $result.maxCacheSize = maxCacheSize;
-    }
+    if (theme != null) $result.theme = theme;
+    if (accentColor != null) $result.accentColor = accentColor;
+    if (fontScale != null) $result.fontScale = fontScale;
+    if (language != null) $result.language = language;
+    if (maxCacheSize != null) $result.maxCacheSize = maxCacheSize;
+    if (sendReadReceipts != null) $result.sendReadReceipts = sendReadReceipts;
+    if (hasSendReadReceipts != null) $result.hasSendReadReceipts_15 = hasSendReadReceipts;
+    if (sendTyping != null) $result.sendTyping = sendTyping;
+    if (hasSendTyping != null) $result.hasSendTyping_15 = hasSendTyping;
+    if (notifyDms != null) $result.notifyDms = notifyDms;
+    if (hasNotifyDms != null) $result.hasNotifyDms_15 = hasNotifyDms;
+    if (notifyGroups != null) $result.notifyGroups = notifyGroups;
+    if (hasNotifyGroups != null) $result.hasNotifyGroups_15 = hasNotifyGroups;
+    if (notifyMentionsOnly != null) $result.notifyMentionsOnly = notifyMentionsOnly;
+    if (hasNotifyMentionsOnly != null) $result.hasNotifyMentionsOnly_15 = hasNotifyMentionsOnly;
     return $result;
   }
   EngineUpdateConfigRequest._() : super();
@@ -3986,18 +4096,22 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
     ..a<$core.double>(3, _omitFieldNames ? '' : 'fontScale', $pb.PbFieldType.OD)
     ..aOS(4, _omitFieldNames ? '' : 'language')
     ..aInt64(5, _omitFieldNames ? '' : 'maxCacheSize')
+    ..aOB(6, _omitFieldNames ? '' : 'sendReadReceipts')
+    ..aOB(7, _omitFieldNames ? '' : 'hasSendReadReceipts')
+    ..aOB(8, _omitFieldNames ? '' : 'sendTyping')
+    ..aOB(9, _omitFieldNames ? '' : 'hasSendTyping')
+    ..aOB(10, _omitFieldNames ? '' : 'notifyDms')
+    ..aOB(11, _omitFieldNames ? '' : 'hasNotifyDms')
+    ..aOB(12, _omitFieldNames ? '' : 'notifyGroups')
+    ..aOB(13, _omitFieldNames ? '' : 'hasNotifyGroups')
+    ..aOB(14, _omitFieldNames ? '' : 'notifyMentionsOnly')
+    ..aOB(15, _omitFieldNames ? '' : 'hasNotifyMentionsOnly')
     ..hasRequiredFields = false
   ;
 
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
-  'Will be removed in next major version')
+  @$core.Deprecated('Use deepCopy instead')
   EngineUpdateConfigRequest clone() => EngineUpdateConfigRequest()..mergeFromMessage(this);
-  @$core.Deprecated(
-  'Using this can add significant overhead to your binary. '
-  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
-  'Will be removed in next major version')
+  @$core.Deprecated('Use rebuild instead')
   EngineUpdateConfigRequest copyWith(void Function(EngineUpdateConfigRequest) updates) => super.copyWith((message) => updates(message as EngineUpdateConfigRequest)) as EngineUpdateConfigRequest;
 
   $pb.BuilderInfo get info_ => _i;
@@ -4054,6 +4168,76 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
   $core.bool hasMaxCacheSize() => $_has(4);
   @$pb.TagNumber(5)
   void clearMaxCacheSize() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get sendReadReceipts => $_getBF(5);
+  @$pb.TagNumber(6)
+  set sendReadReceipts($core.bool v) { $_setBool(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasSendReadReceipts() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearSendReadReceipts() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get hasSendReadReceipts_15 => $_getBF(6);
+  @$pb.TagNumber(7)
+  set hasSendReadReceipts_15($core.bool v) { $_setBool(6, v); }
+
+  @$pb.TagNumber(8)
+  $core.bool get sendTyping => $_getBF(7);
+  @$pb.TagNumber(8)
+  set sendTyping($core.bool v) { $_setBool(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasSendTyping() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearSendTyping() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.bool get hasSendTyping_15 => $_getBF(8);
+  @$pb.TagNumber(9)
+  set hasSendTyping_15($core.bool v) { $_setBool(8, v); }
+
+  @$pb.TagNumber(10)
+  $core.bool get notifyDms => $_getBF(9);
+  @$pb.TagNumber(10)
+  set notifyDms($core.bool v) { $_setBool(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasNotifyDms() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearNotifyDms() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.bool get hasNotifyDms_15 => $_getBF(10);
+  @$pb.TagNumber(11)
+  set hasNotifyDms_15($core.bool v) { $_setBool(10, v); }
+
+  @$pb.TagNumber(12)
+  $core.bool get notifyGroups => $_getBF(11);
+  @$pb.TagNumber(12)
+  set notifyGroups($core.bool v) { $_setBool(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasNotifyGroups() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearNotifyGroups() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.bool get hasNotifyGroups_15 => $_getBF(12);
+  @$pb.TagNumber(13)
+  set hasNotifyGroups_15($core.bool v) { $_setBool(12, v); }
+
+  @$pb.TagNumber(14)
+  $core.bool get notifyMentionsOnly => $_getBF(13);
+  @$pb.TagNumber(14)
+  set notifyMentionsOnly($core.bool v) { $_setBool(13, v); }
+  @$pb.TagNumber(14)
+  $core.bool hasNotifyMentionsOnly() => $_has(13);
+  @$pb.TagNumber(14)
+  void clearNotifyMentionsOnly() => clearField(14);
+
+  @$pb.TagNumber(15)
+  $core.bool get hasNotifyMentionsOnly_15 => $_getBF(14);
+  @$pb.TagNumber(15)
+  set hasNotifyMentionsOnly_15($core.bool v) { $_setBool(14, v); }
 }
 
 

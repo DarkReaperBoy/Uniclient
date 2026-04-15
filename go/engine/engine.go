@@ -218,6 +218,12 @@ type ConfigChanges struct {
 	FontScale    float64
 	Language     string
 	MaxCacheSize int64
+	// Use pointers for booleans so zero-value (false) is distinguishable from "not set".
+	SendReadReceipts   *bool
+	SendTyping         *bool
+	NotifyDMs          *bool
+	NotifyGroups       *bool
+	NotifyMentionsOnly *bool
 }
 
 // UpdateConfigFromBridge applies partial config changes from the bridge layer.
@@ -240,6 +246,21 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	if changes.MaxCacheSize > 0 {
 		e.config.MaxCacheSize = changes.MaxCacheSize
 		e.maxCache = changes.MaxCacheSize
+	}
+	if changes.SendReadReceipts != nil {
+		e.config.SendReadReceipts = *changes.SendReadReceipts
+	}
+	if changes.SendTyping != nil {
+		e.config.SendTyping = *changes.SendTyping
+	}
+	if changes.NotifyDMs != nil {
+		e.config.NotifyDMs = *changes.NotifyDMs
+	}
+	if changes.NotifyGroups != nil {
+		e.config.NotifyGroups = *changes.NotifyGroups
+	}
+	if changes.NotifyMentionsOnly != nil {
+		e.config.NotifyMentionsOnly = *changes.NotifyMentionsOnly
 	}
 
 	cfgPath := filepath.Join(e.configDir, "config.json")

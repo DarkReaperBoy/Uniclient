@@ -147,7 +147,12 @@ final _globalEventController = StreamController<Uint8List>.broadcast();
 
 void _onEvent(Pointer<Void> data, int len) {
   if (len <= 0) return;
+  // Copy bytes first, then free the C-allocated memory.
+  // Go's C.CBytes uses C.malloc; we must free here because
+  // NativeCallable.listener runs asynchronously — Go can't free
+  // the pointer before Dart has read it.
   final bytes = Uint8List.fromList(data.cast<Uint8>().asTypedList(len));
+  malloc.free(data);
   _globalEventController.add(bytes);
 }
 

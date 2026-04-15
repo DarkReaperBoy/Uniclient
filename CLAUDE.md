@@ -123,6 +123,74 @@ When the user says "add X", follow these steps in order:
 
 ## Key Rules
 
+- **Smoke-test the GUI before declaring done** — After ANY GUI-related work, you MUST build the app, launch it, and **interact with it like a normal user** to verify changes work. Passing unit tests is not enough — the actual app must work.
+
+  ### GUI Automation Toolkit
+
+  Three tools for controlling the running Flutter app without OS-level mouse/keyboard automation:
+
+  #### 1. `scripts/flutter_inspect.sh` — See & inspect the UI
+  Flutter debug apps expose a VM Service (WebSocket JSON-RPC). This script connects to it.
+  ```bash
+  # Build & launch
+  nix develop --command bash -c "scripts/build_flutter.sh linux debug"
+  cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
+
+  # Screenshot the rendered UI (works on Wayland, X11, headless — no display needed)
+  scripts/flutter_inspect.sh screenshot /tmp/ss.png   # then: Read /tmp/ss.png
+
+  # Inspect widget tree
+  scripts/flutter_inspect.sh tree                      # full widget tree with inspector IDs
+  scripts/flutter_inspect.sh find TextField            # find widgets by name
+  scripts/flutter_inspect.sh text inspector-116        # read text content of a widget
+  scripts/flutter_inspect.sh details inspector-68      # full properties of a widget
+  ```
+  **How it works:** Connects to the Dart VM Service URL (printed in app startup logs), calls `ext.flutter.inspector.*` extension methods over WebSocket. `screenshot` renders the widget tree to PNG server-side — no screen capture needed. Requires `websocat` (auto-fetched via nix).
+
+  #### 2. `scripts/flutter_auth.sh` — Control auth flow
+  Automates authentication by writing commands to `/tmp/uniclient_auth_cmd.json`, which the app's `AuthState` polls every second when auth needs input.
+  ```bash
+  scripts/flutter_auth.sh status                       # show auth state from logs
+  scripts/flutter_auth.sh choose phone                 # pick auth method
+  scripts/flutter_auth.sh submit "+1234567890"         # enter phone number
+  scripts/flutter_auth.sh otp-wait                     # poll auth/otp_code.txt, auto-submit OTP
+  scripts/flutter_auth.sh submit "my2fapassword"       # enter 2FA password
+  scripts/flutter_auth.sh auto phone "+1234567890"     # full auto: choose→phone→OTP wait→2FA wait
+  scripts/flutter_auth.sh cancel                       # cancel auth flow
+  ```
+  **How it works:** `AuthState` in `dart/lib/state/auth_state.dart` has a file-polling timer. When auth needs input (`choose`/`input`/`otp`/`2fa` states), it checks `/tmp/uniclient_auth_cmd.json` every second. File format: `{"action":"submit","value":"12345"}`. File is deleted after reading. Same OTP-file pattern as Go tests (`auth/otp_code.txt`).
+
+  #### 3. App logs — Verify engine calls
+  ```bash
+  cat /tmp/uniclient_log.txt                           # full log
+  grep "ENGINE:" /tmp/uniclient_log.txt                # FFI bridge calls
+  grep "AUTH:" /tmp/uniclient_log.txt                  # auth flow
+  grep "CHAT:" /tmp/uniclient_log.txt                  # chat state changes
+  grep "EVENT:" /tmp/uniclient_log.txt                 # Go→Dart events
+  ```
+
+  #### Bringing the window to front (for OS-level screenshots with `spectacle`)
+  On KDE Wayland, `xdotool` doesn't work. Use `kdotool` (KDE-specific):
+  ```bash
+  # Find window by PID
+  APP_PID=$(pgrep -f "bundle/uniclient" | head -1)
+  nix-shell -p kdotool --run "
+    for uuid in \$(kdotool search --name ''); do
+      pid=\$(kdotool getwindowpid \$uuid 2>/dev/null)
+      [ \"\$pid\" = \"$APP_PID\" ] && kdotool windowactivate \$uuid && break
+    done"
+  spectacle -b -n -f -o /tmp/screenshot.png            # full-screen screenshot
+  ```
+  Note: `flutter_inspect.sh screenshot` is preferred — it captures the Flutter UI directly without needing window focus.
+
+  ### Checklist: what to verify
+  - Does the screen render correctly? (screenshot)
+  - Do chats load after auth? (logs: `GetChatList`)
+  - Do buttons produce expected engine calls? (logs: `ENGINE:`)
+  - Does the auth flow complete? (logs: `AUTH:` → `ready`)
+  - Are events delivered? (logs: `EVENT:`)
+  - If something is broken, fix it before saying you're done.
+- **Log every bug found in checklists** — Any bug or issue discovered during testing, auditing, or smoke-testing MUST be added to the relevant checklist file in `checklist/` immediately. Don't just fix it silently — document it so there's a paper trail. If it's a GUI bug, add it to `checklist/gui.md`. If it's a core/engine bug, add it to the relevant platform checklist.
 - **Keep docs in sync at ALL times — THIS IS NON-NEGOTIABLE** — Every session, before committing code, you MUST update: `checklist/` (status, TODOs, priorities — one file per platform), `SPEC.md` (architecture, specs), and `research/` (findings, quirks, protocol details). If you discovered something weird, it goes in `research/` IMMEDIATELY — not later, not "I'll do it at the end", NOW. If a test passed or failed, `checklist/` gets updated IMMEDIATELY. If architecture changed, `SPEC.md` gets updated IMMEDIATELY. Failing to update docs is equivalent to not doing the work. `CLAUDE.md` is ONLY for operational rules and build commands — no findings, no status details, no TODOs.
 - ALL tests are real (hit live APIs with real credentials from `auth/auth.md`)
 - Delete test files after user confirms they pass — never re-run confirmed tests
@@ -163,6 +231,7 @@ When the user says "add X", follow these steps in order:
 - `research/xmpp_protocol.md` — XMPP (RFC 6120/6121 + 30+ XEPs, Jingle)
 - `research/protobuf_type_audit.md` — Pre-Step 13 audit: which method sigs are proto-compatible, fixable, or inherently untyped
 - `research/engine_architecture.md` — Engine layer spec: SQLite cache, auth FSM, events, pending queue, media pipeline, content normalization
+- `research/flutter_gui_automation.md` — Flutter VM Service protocol for GUI automation (screenshots, widget inspection, auth CLI)
 - `research/gui-idea.md` — UI/UX design exploration, Discord/Telegram hybrid rationale
 - `checklist/roadmap.md` — pre-GUI roadmap progress tracker (current step, core, method)
 - `checklist/gui.md` — GUI component checklist, current state of demo_ui.html

@@ -647,39 +647,57 @@ If >4000 words, split at word boundaries. Each chunk independently compressed, e
 
 ## UI/UX: Flutter (Dart)
 
-Built with **Flutter** + **Material 3**. Platform-adaptive: multi-column on desktop/web, single-column on mobile.
+Built with **Flutter** + **Provider** state management. Multi-column on desktop, responsive on mobile.
 
-### Visual Design: Dark-First
+### Visual Design
 
-Dark mode is default. True black (`#000000`) OLED backgrounds, `#0D0D0D` cards, `#1A1A1A` elevated surfaces. Electric indigo primary, teal secondary, soft amber warnings. Light mode available as toggle.
+- Dark theme default: charcoal base (#101318), light surface (#1A1E26), accent blue-indigo (#4F6EF7)
+- Light theme available, Inter font family
+- Theme/font scale/accent configurable via settings, persisted to engine config
 
-### Screens
+### Architecture — Widget + State Layer
 
-1. **Splash** — vault password prompt, loading indicator
-2. **Login** — platform selector, mode toggle (user/bot), API client dropdown (Telegram), server selector
-3. **Account Switcher** — sidebar (desktop) / drawer (mobile), grouped by platform
-4. **Chat List** — Discord-inspired 3-column (server rail + chat list + chat view) on desktop, single column on mobile. Topic hierarchy for Telegram forum supergroups.
-5. **Chat / Conversation** — message bubbles with markdown rendering, media (download-to-view, play in-app), read receipts (single/double/blue checks), encryption indicators, reply/forward/react, infinite scroll, file upload/download with progress
-6. **File Upload/Download** — encrypted file transfer toggle, platform-specific auto-splitting (Bale 19.5MB, Telegram 2GB user/50MB bot)
-7. **Message Search** — full-text within chat, highlighted excerpts
-8. **Settings** — theme, proxy, encryption, accounts, about
-9. **System Tray & Notifications** — desktop tray, cross-platform notifications
-10. **Call Screen** — 1:1 (fullscreen overlay, mute/speaker/video/end) and group (participant grid, speaking indicator)
-11. **Telegram-Specific** — contacts, saved messages, archived, folders, sessions, group/channel info
+```
+main.dart → MultiProvider (AppState, ChatState, AuthState, EngineService)
+  └─ HomeScreen (LayoutBuilder → responsive breakpoints)
+       ├─ PlatformRail (10 platforms, unread badges, add account)
+       ├─ Sidebar (chat list, search, folders, context menus, user panel)
+       ├─ ChatView (header, messages, input, emoji panel)
+       └─ RightPanel (chat info, member list, actions)
+```
 
-### Media Handling in Chat
+State objects: `AppState` (accounts, connections, platform filter, config), `ChatState` (chats, messages, active chat, polling), `AuthState` (auth FSM tracking). All are `ChangeNotifier`s.
 
-- **Images**: blurred thumbnail → download → inline render → tap for fullscreen `InteractiveViewer` with pinch-to-zoom
-- **Videos**: poster frame → download with progress → inline `media_kit` playback → fullscreen
-- **GIFs**: auto-download, auto-play inline muted and looping
-- **Audio/Music**: download → in-app `media_kit` player with seek bar, metadata, speed toggle
-- **Voice messages**: auto-download, waveform visualization, speed toggle
-- **Round videos**: `ClipOval` frame, inline playback
-- **Stickers**: 200×200 logical pixels, animated via Lottie
-- **Files**: filename + size + download → open with system viewer
-- **Replies**: quoted block with original sender + first line, tap to scroll to original
-- **Reactions**: emoji chips with counts below bubble
-- **Markdown**: bold, italic, strikethrough, inline code, code blocks with syntax highlighting, links, blockquotes, lists, headings
+### Screens & Widgets (see `checklist/gui.md` for full status)
+
+1. **HomeScreen** — 3-column layout with responsive breakpoints (<600, 600-900, >900px)
+2. **PlatformRail** — 10 platform icons with brand colors, unread badges, add account flow
+3. **Sidebar** — Chat list with search, pinned/regular sections, context menus, folder tabs, user panel
+4. **ChatView** — Message list with date separators, message bubbles (sent/received), context menu (reply/copy/edit/delete/forward), reply bar, edit mode, emoji panel, scroll-to-bottom FAB, media rendering
+5. **EmojiPanel** — 1500+ emoji in 9 categories, search, recently used, sticker/GIF tab placeholders
+6. **AuthScreen** — 7-state auth FSM dialog for all 10 platforms
+7. **SettingsScreen** — Theme, font scale, cache, privacy/notification toggles, all persisted
+8. **MediaViewer** — Full-screen media viewer with pinch-to-zoom (new)
+9. **ForwardDialog** — Chat picker for forwarding messages (new)
+10. **NotificationOverlay** — In-app notification toasts (new)
+
+### Data Flow
+
+```
+User action → ChatState/AppState → EngineService → FFI bridge (protobuf) → Go engine → Core → Platform API
+Platform API → Core → Go engine → Event (JSON) → BridgeEvent (proto) → NativeCallable.listener → Dart StreamController → State → UI rebuild
+```
+
+Polling fallback: 3-second Timer.periodic refreshes messages + chat list for event delivery reliability.
+
+### Media Handling (session 16)
+
+Media metadata piped through proto: mediaType, fileName, mimeType, fileSize, thumbB64, localPath, width, height, duration, downloadState.
+
+- **Images/GIFs/stickers**: base64 thumbnail (instant) → download button → `Image.file` inline → tap for fullscreen `InteractiveViewer`
+- **Video**: thumbnail + play icon + duration overlay
+- **Audio/voice**: play icon + duration + waveform placeholder
+- **Files**: file icon + name + size + download button/state indicator
 
 ---
 
