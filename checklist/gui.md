@@ -63,12 +63,18 @@ Last updated: 2026-04-15, session 26.
 - ✅ **LeaveChat** — Added `LeaveChat(accountID, chatID)` to Go engine (`engine.go`), proto (`engine.proto` + regenerated `engine.pb.go` + Dart proto), bridge dispatch (`dispatch_engine.go`), Dart service (`engine_service.dart`), and chat state (`chat_state.dart`). Clears local cache (messages/chats/media) and emits `chat_removed` event.
 
 ### Must Fix — All 8 items wired (see below)
-### Should Fix — 3 items fixed (DM profile, #channel autocomplete, removed stale "new compose" entry)
+### Should Fix — 4 items fixed (DM profile, #channel autocomplete, drag-and-drop cleanup, removed stale "new compose" entry)
 
 ### Sidebar cleanup
 - ✅ **#59 Unused auth_state import** — `sidebar.dart` imported `auth_state.dart` but never used `AuthState`. Removed.
 - ✅ **#60 Sidebar delete calls archiveChat** — `_showDeleteConfirmation` in chat context menu called `archiveChat` instead of real delete. Fixed: now calls `chatState.leaveChat()`.
 - ✅ **#61 Channel context menu stubs** — Channel item context menu mute/mark-read/delete were snackbar-only. Wired to `chatState.muteChat()`, `chatState.markChatRead()`, and `chatState.leaveChat()` respectively.
+
+### New features
+- ✅ **Keyboard shortcuts** — Ctrl+K focuses sidebar search, Escape closes active chat. `CallbackShortcuts` in `home_screen.dart`, search `FocusNode` passed to Sidebar.
+- ✅ **Native desktop notifications** — `notify-send` on Linux fires alongside in-app toast for message notifications. Non-blocking, graceful fallback if not installed.
+- ✅ **Chat type icons** — Group chats now show a small group icon badge on their avatar (bottom-right). Channels already had campaign icon. DMs keep online dot.
+- ✅ **File upload cleanup** — Removed misleading drag-and-drop overlay (Flutter lacks native OS drop support in this version). File upload works via + button (zenity picker) and Ctrl+V paste.
 
 ### Data fix
 - ✅ **#62 Bale session path collision** — `~/.config/uniclient/sessions/bale` was a 2-byte file (`{}`) instead of a directory, blocking core creation. Removed file and created directory.
@@ -91,7 +97,7 @@ Comprehensive audit of all stubs, "coming soon", and empty handlers found in the
 - ✅ **DM user profile panel** — Shows user ID and last active time. (session 27)
 - ❌ **Video playback** — `media_viewer.dart:289` "Video playback coming soon"
 - ❌ **Voice/video calls** — `chat_view.dart:236,246` "coming soon" snackbar
-- ❌ **File drag-and-drop** — `chat_view.dart:935` "coming soon" snackbar
+- ✅ **File drag-and-drop** — Removed misleading overlay. Upload via + button (zenity) and Ctrl+V paste already work. (session 27)
 - ❌ **QR code auth** — `auth_screen.dart:270` static icon, not real QR render
 - ✅ **#channel autocomplete** — Pulls group/channel names from chat list. (session 27)
 
@@ -104,8 +110,8 @@ Comprehensive audit of all stubs, "coming soon", and empty handlers found in the
 ## MISSING FEATURES — Not Started
 
 - ❌ **System tray** — No tray icon, no minimize-to-tray, no background running. App closes when window closes.
-- ❌ **Native notifications** — No OS-level desktop notifications (libnotify/dbus). Only broken in-app toasts exist.
-- ❌ **Chat type icons** — No DM/group/channel/bot icons in chat list items. All chats look the same visually.
+- ✅ **Native notifications** — `notify-send` on Linux for message notifications. (session 27)
+- ✅ **Chat type icons** — Group badge on avatars, channels have campaign icon, DMs have online dot. (session 27)
 - ❌ **Telegram folders** — No sync of Telegram's folder structure (Unread, Personal, Groups, etc.). Only local All/DMs/Groups/Channels tabs.
 - ❌ **Platform-specific notification sounds** — No distinct sound/vibration per platform.
 - ❌ **IRC channel join UI** — No way to browse/join IRC channels from the GUI. Must use CLI.
@@ -114,11 +120,11 @@ Comprehensive audit of all stubs, "coming soon", and empty handlers found in the
 - ❌ **Voice message recording** — Mic button shows pulsing UI but no actual audio capture.
 - ❌ **Real sticker packs** — Sticker tab has 9 hardcoded mock packs. No Telegram/platform sticker sync.
 - ❌ **Real GIF search** — GIF tab has 12 hardcoded categories. No Giphy/Tenor/platform GIF API.
-- ❌ **Drag & drop file upload** — Placeholder only, no actual implementation.
+- ✅ **Drag & drop file upload** — Removed (Flutter lacks native OS drop in this version). Upload via + and Ctrl+V works. (session 27)
 - ❌ **Video message recording** — Camera button shows snackbar placeholder.
 - ❌ **Mention autocomplete from real data** — @mention popup uses message sender names, not real member list.
 - ❌ **Message search in chat** — Search button opens dialog but FTS5 search may not return results for all platforms.
-- ❌ **Keyboard shortcuts** — No Ctrl+K search, no Escape to deselect, no keyboard navigation.
+- ✅ **Keyboard shortcuts** — Ctrl+K focuses search, Escape closes active chat. (session 27)
 - ❌ **Accessibility** — No semantic labels, no screen reader support, no focus management.
 - ❌ **Distribution packaging** — No Flatpak, AppImage, AUR, .deb, or .rpm packages.
 

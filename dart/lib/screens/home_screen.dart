@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -28,6 +29,7 @@ enum _NarrowTab { chats, search, settings }
 class _HomeScreenState extends State<HomeScreen> {
   bool _showRightPanel = false;
   _NarrowTab _narrowTab = _NarrowTab.chats;
+  final _sidebarSearchFocusNode = FocusNode();
   bool _narrowShowChat = false;
   String? _lastActiveChatId;
 
@@ -148,7 +150,20 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return Scaffold(
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): () {
+          _sidebarSearchFocusNode.requestFocus();
+        },
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          if (chatState.activeChat != null) {
+            chatState.closeChat();
+          }
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -178,7 +193,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: (constraints.maxWidth - 2)
                       .clamp(0, AppSizes.sidebarWidth)
                       .toDouble(),
-                  child: const Sidebar(),
+                  child: Sidebar(searchFocusNode: _sidebarSearchFocusNode),
                 ),
 
                 Container(width: 1, color: dividerColor),
@@ -224,6 +239,8 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
+    ),
+      ),
     );
   }
 
@@ -266,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     switch (_narrowTab) {
       case _NarrowTab.chats:
-        return const Sidebar(key: ValueKey('sidebar'));
+        return Sidebar(key: const ValueKey('sidebar'), searchFocusNode: _sidebarSearchFocusNode);
       case _NarrowTab.search:
         return const _NarrowSearchScreen(key: ValueKey('search'));
       case _NarrowTab.settings:

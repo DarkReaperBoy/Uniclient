@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — **Alpha** — all Must Fix placeholders wired, most Should Fix done
+**Current Step:** Step 15 — Build GUI — **Alpha → Beta** — all Must Fix done, keyboard shortcuts + notifications + chat icons added
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 27 — wired all 8 Must Fix placeholders: LeaveChat engine method, media download/open-with, channel mute/read/delete, language picker, cache size tile. Also: DM user profile, #channel autocomplete, sidebar delete fix, unused import cleanup, Bale session path fix)
+**Last Updated:** 2026-04-15 (session 27 — all 8 Must Fix, 4 Should Fix, 4 Missing Features done. New: LeaveChat engine method, media download/open-with, channel mute/read/delete, language picker, cache size tile, DM profile, #channel autocomplete, keyboard shortcuts Ctrl+K/Escape, native notify-send, group chat icon badges, file upload cleanup)
 
-**NEXT:** Continue "Should Fix" items: video playback (needs video_player or media_kit package), voice/video call UI, file drag-and-drop, QR code auth. Then remaining "Missing Features": system tray, native notifications, chat type icons, keyboard shortcuts. Then "Nice to Have": per-topic messages, audio waveform, sender avatars.
+**NEXT:** Remaining "Should Fix": video playback (needs video_player or media_kit — both require native deps, may skip), voice/video call UI (complex), QR code auth (needs qr_flutter package). Remaining "Missing Features": system tray, Telegram folders sync, multi-account UX, voice/video recording, real sticker/GIF data. Then "Nice to Have": per-topic messages, audio waveform, sender avatars.
 
 ## Steps
 

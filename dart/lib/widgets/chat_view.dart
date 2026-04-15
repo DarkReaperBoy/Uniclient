@@ -926,56 +926,16 @@ class _MessageListWithFABState extends State<_MessageListWithFAB> {
 
     return Stack(
       children: [
-        // Drag target wrapping the message list.
-        DragTarget<String>(
-          onWillAcceptWithDetails: (_) => true,
-          onAcceptWithDetails: (_) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('File upload coming soon'), duration: Duration(seconds: 2)),
-              );
-            }
-          },
-          builder: (context, candidateData, rejectedData) {
-            final isDragging = candidateData.isNotEmpty;
-            return Stack(
-              children: [
-                _MessageList(
-                  chat: widget.chat,
-                  scrollController: _scrollController,
-                  onReply: widget.onReply,
-                  onEdit: widget.onEdit,
-                  selectionMode: _selectionMode,
-                  selectedMsgIds: _selectedMsgIds,
-                  onToggleSelection: _toggleSelection,
-                  onEnterSelectionMode: _enterSelectionMode,
-                ),
-                if (isDragging)
-                  Positioned.fill(
-                    child: Container(
-                      color: (isDark ? Colors.white : Colors.black).withAlpha(30),
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent.withAlpha(220),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Text(
-                            'Paste files with Ctrl+V',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            );
-          },
+        // Message list (file attach via + button or Ctrl+V paste).
+        _MessageList(
+          chat: widget.chat,
+          scrollController: _scrollController,
+          onReply: widget.onReply,
+          onEdit: widget.onEdit,
+          selectionMode: _selectionMode,
+          selectedMsgIds: _selectedMsgIds,
+          onToggleSelection: _toggleSelection,
+          onEnterSelectionMode: _enterSelectionMode,
         ),
         if (_showScrollToBottom && !_selectionMode)
           Positioned(

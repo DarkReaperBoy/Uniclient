@@ -27,7 +27,9 @@ const _platformMeta = <String, ({IconData icon, Color color, String label})>{
 
 /// Sidebar — chat list with search, folders, drill-in, and chat items.
 class Sidebar extends StatefulWidget {
-  const Sidebar({super.key});
+  /// Optional focus node for the search field, so the parent can focus it via Ctrl+K.
+  final FocusNode? searchFocusNode;
+  const Sidebar({super.key, this.searchFocusNode});
 
   @override
   State<Sidebar> createState() => _SidebarState();
@@ -35,6 +37,8 @@ class Sidebar extends StatefulWidget {
 
 class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
+  FocusNode? _ownSearchFocusNode;
+  FocusNode get _searchFocusNode => widget.searchFocusNode ?? (_ownSearchFocusNode ??= FocusNode());
   bool _searching = false;
   List<ChatInfo>? _searchResults;
 
@@ -78,6 +82,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _searchController.dispose();
+    _ownSearchFocusNode?.dispose();
     _slideController.dispose();
     super.dispose();
   }
@@ -183,6 +188,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             child: TextField(
               controller: _searchController,
+              focusNode: _searchFocusNode,
               onChanged: _onSearch,
               decoration: InputDecoration(
                 hintText: 'Search',
@@ -1911,6 +1917,25 @@ class _ChatAvatar extends StatelessWidget {
                     color: isDark ? AppColors.darkSidebar : AppColors.lightSidebar,
                     width: 2,
                   ),
+                ),
+              ),
+            ),
+          // Chat type icon badge (groups only — DMs have online dot, channels have campaign icon)
+          if (chat.type == ChatType.group)
+            Positioned(
+              bottom: -1,
+              right: -1,
+              child: Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: isDark ? AppColors.darkSidebar : AppColors.lightSidebar,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.group,
+                  size: 10,
+                  color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
                 ),
               ),
             ),

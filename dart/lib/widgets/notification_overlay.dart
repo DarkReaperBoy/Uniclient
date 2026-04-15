@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../theme/theme.dart';
 
@@ -63,7 +64,7 @@ class NotificationManager extends InheritedWidget {
     return result!;
   }
 
-  /// Show a message notification toast.
+  /// Show a message notification toast + native desktop notification.
   void showMessageNotification(
     String senderName,
     String text, {
@@ -76,6 +77,24 @@ class NotificationManager extends InheritedWidget {
       chatTitle: chatTitle,
       onTap: onTap,
     ));
+    // Fire native desktop notification (non-blocking).
+    _sendDesktopNotification(
+      chatTitle.isNotEmpty ? '$senderName in $chatTitle' : senderName,
+      text,
+    );
+  }
+
+  static void _sendDesktopNotification(String title, String body) {
+    if (Platform.isLinux) {
+      // notify-send is available on most Linux desktops.
+      Process.run('notify-send', [
+        '--app-name=UniClient',
+        '--icon=mail-message-new',
+        '--urgency=normal',
+        title,
+        body,
+      ]).then((_) {}, onError: (_) {}); // ignore if notify-send is not installed
+    }
   }
 
   /// Show a status notification toast (e.g., "Connected", "Disconnected").
