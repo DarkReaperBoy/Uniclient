@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: engine.proto
+//  source: proto/engine.proto
 //
 // @dart = 2.12
 
@@ -3111,12 +3111,17 @@ class EngineJoinChatRequest extends $pb.GeneratedMessage {
     $core.String? channelName,
   }) {
     final $result = create();
-    if (accountId != null) $result.accountId = accountId;
-    if (channelName != null) $result.channelName = channelName;
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (channelName != null) {
+      $result.channelName = channelName;
+    }
     return $result;
   }
   EngineJoinChatRequest._() : super();
   factory EngineJoinChatRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineJoinChatRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineJoinChatRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
     ..aOS(1, _omitFieldNames ? '' : 'accountId')
@@ -3124,12 +3129,22 @@ class EngineJoinChatRequest extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineJoinChatRequest clone() => EngineJoinChatRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineJoinChatRequest copyWith(void Function(EngineJoinChatRequest) updates) => super.copyWith((message) => updates(message as EngineJoinChatRequest)) as EngineJoinChatRequest;
+
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
   static EngineJoinChatRequest create() => EngineJoinChatRequest._();
   EngineJoinChatRequest createEmptyInstance() => create();
-  EngineJoinChatRequest clone() => EngineJoinChatRequest()..mergeFromMessage(this);
   static $pb.PbList<EngineJoinChatRequest> createRepeated() => $pb.PbList<EngineJoinChatRequest>();
   @$core.pragma('dart2js:noInline')
   static EngineJoinChatRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineJoinChatRequest>(create);
@@ -3139,11 +3154,83 @@ class EngineJoinChatRequest extends $pb.GeneratedMessage {
   $core.String get accountId => $_getSZ(0);
   @$pb.TagNumber(1)
   set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
 
   @$pb.TagNumber(2)
   $core.String get channelName => $_getSZ(1);
   @$pb.TagNumber(2)
   set channelName($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChannelName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChannelName() => clearField(2);
+}
+
+class EngineLeaveChatRequest extends $pb.GeneratedMessage {
+  factory EngineLeaveChatRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    return $result;
+  }
+  EngineLeaveChatRequest._() : super();
+  factory EngineLeaveChatRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineLeaveChatRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineLeaveChatRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineLeaveChatRequest clone() => EngineLeaveChatRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineLeaveChatRequest copyWith(void Function(EngineLeaveChatRequest) updates) => super.copyWith((message) => updates(message as EngineLeaveChatRequest)) as EngineLeaveChatRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineLeaveChatRequest create() => EngineLeaveChatRequest._();
+  EngineLeaveChatRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineLeaveChatRequest> createRepeated() => $pb.PbList<EngineLeaveChatRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineLeaveChatRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineLeaveChatRequest>(create);
+  static EngineLeaveChatRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
 }
 
 class EngineForwardMessageRequest extends $pb.GeneratedMessage {

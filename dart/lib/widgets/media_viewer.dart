@@ -64,6 +64,59 @@ class _MediaViewerState extends State<MediaViewer> {
 
   void _close() => Navigator.of(context).pop();
 
+  void _saveToDownloads(BuildContext context) {
+    final path = msg.mediaLocalPath;
+    if (path.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Media not yet downloaded')),
+      );
+      return;
+    }
+    final src = File(path);
+    if (!src.existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cached file not found')),
+      );
+      return;
+    }
+    final downloadsDir = Directory('${Platform.environment['HOME'] ?? '/tmp'}/Downloads');
+    if (!downloadsDir.existsSync()) downloadsDir.createSync(recursive: true);
+    final name = msg.mediaFileName.isNotEmpty ? msg.mediaFileName : src.uri.pathSegments.last;
+    var dest = File('${downloadsDir.path}/$name');
+    // Avoid overwriting: append (1), (2), etc.
+    if (dest.existsSync()) {
+      final ext = name.contains('.') ? '.${name.split('.').last}' : '';
+      final base = ext.isNotEmpty ? name.substring(0, name.length - ext.length) : name;
+      for (var i = 1; ; i++) {
+        dest = File('${downloadsDir.path}/$base ($i)$ext');
+        if (!dest.existsSync()) break;
+      }
+    }
+    src.copySync(dest.path);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saved to ${dest.path}')),
+      );
+    }
+  }
+
+  void _openWithSystem(BuildContext context) {
+    final path = msg.mediaLocalPath;
+    if (path.isEmpty || !File(path).existsSync()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File not available')),
+      );
+      return;
+    }
+    if (Platform.isLinux) {
+      Process.run('xdg-open', [path]);
+    } else if (Platform.isMacOS) {
+      Process.run('open', [path]);
+    } else if (Platform.isWindows) {
+      Process.run('cmd', ['/c', 'start', '', path]);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return KeyboardListener(
@@ -133,10 +186,8 @@ class _MediaViewerState extends State<MediaViewer> {
             const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.download_outlined, color: Colors.white70),
-              onPressed: () {
-                // Download/share placeholder
-              },
-              tooltip: 'Download',
+              onPressed: () => _saveToDownloads(context),
+              tooltip: 'Save to Downloads',
             ),
           ],
         ),
@@ -422,9 +473,7 @@ class _MediaViewerState extends State<MediaViewer> {
               ],
               const SizedBox(height: 20),
               OutlinedButton.icon(
-                onPressed: () {
-                  // Open-with placeholder
-                },
+                onPressed: () => _openWithSystem(context),
                 icon: const Icon(Icons.open_in_new, size: 18),
                 label: const Text('Open with...'),
                 style: OutlinedButton.styleFrom(

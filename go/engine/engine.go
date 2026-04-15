@@ -323,6 +323,33 @@ func (e *Engine) Shutdown() error {
 	return nil
 }
 
+// LeaveChat removes the current user from a chat/channel/room. For DMs this
+// deletes the local chat history. After leaving, triggers a sync so the chat
+// disappears from the list.
+func (e *Engine) LeaveChat(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	if err := acc.Core.LeaveChat(chatID); err != nil {
+		return err
+	}
+
+	// Remove from local cache.
+	e.db.Exec("DELETE FROM messages WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+	e.db.Exec("DELETE FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+
+	// Emit chat_removed event so Dart updates the list.
+	e.emitEvent(EventChatRemoved, accountID, map[string]string{
+		"account_id": accountID,
+		"chat_id":    chatID,
+	})
+
+	return nil
+}
+
 // JoinChat joins a channel/room/group by name. For IRC this is a channel name
 // like "#freenode", for Mumble it's a channel ID, etc. After joining, triggers
 // a sync so the chat appears in the list.

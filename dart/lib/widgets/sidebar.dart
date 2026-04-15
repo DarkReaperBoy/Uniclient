@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
-import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import '../models/engine_models.dart';
 import '../screens/auth_screen.dart';
@@ -1347,15 +1346,12 @@ class _ChannelItem extends StatelessWidget {
       ],
     ).then((value) {
       if (value == null || !context.mounted) return;
+      final chatState = context.read<ChatState>();
       switch (value) {
         case 'mute':
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Muted')),
-          );
+          chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
         case 'read':
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Marked as read')),
-          );
+          chatState.markChatRead(chat.accountId, chat.chatId);
         case 'edit':
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Edit channel coming soon')),
@@ -1397,9 +1393,7 @@ class _ChannelItem extends StatelessWidget {
       ),
     ).then((confirmed) {
       if (confirmed == true && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('"${chat.title}" deleted')),
-        );
+        context.read<ChatState>().leaveChat(chat.accountId, chat.chatId);
       }
     });
   }
@@ -1832,7 +1826,7 @@ class _ChatItem extends StatelessWidget {
       ),
     ).then((confirmed) {
       if (confirmed == true) {
-        chatState.archiveChat(chat.accountId, chat.chatId, true);
+        chatState.leaveChat(chat.accountId, chat.chatId);
       }
     });
   }

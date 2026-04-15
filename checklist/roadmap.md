@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — **Alpha** — scaffolding + cross-platform done, many placeholders remain
+**Current Step:** Step 15 — Build GUI — **Alpha** — all Must Fix placeholders wired, most Should Fix done
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 26 — GUI smoke test: 8 bugs fixed, UTF-16 surrogate crash resolved, platform rail replaced with sidebar dropdown, 20 placeholders audited and added to checklist)
+**Last Updated:** 2026-04-15 (session 27 — wired all 8 Must Fix placeholders: LeaveChat engine method, media download/open-with, channel mute/read/delete, language picker, cache size tile. Also: DM user profile, #channel autocomplete, sidebar delete fix, unused import cleanup, Bale session path fix)
 
-**NEXT:** Work through the placeholder checklist in `checklist/gui.md` under "PLACEHOLDERS — Audit (session 26)". Start with "Must Fix" items (leave/delete chat, media download, channel mute/read/delete, language picker, cache size). Then "Should Fix" (DM profile, video playback, compose, QR auth). Then remaining missing features.
+**NEXT:** Continue "Should Fix" items: video playback (needs video_player or media_kit package), voice/video call UI, file drag-and-drop, QR code auth. Then remaining "Missing Features": system tray, native notifications, chat type icons, keyboard shortcuts. Then "Nice to Have": per-topic messages, audio waveform, sender avatars.
 
 ## Steps
 

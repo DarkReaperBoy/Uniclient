@@ -112,8 +112,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _SettingTile(
             icon: Icons.language,
             title: 'Language',
-            subtitle: _config.language == 'en' ? 'English' : _config.language,
-            onTap: () {},
+            subtitle: _config.language == 'en' ? 'English' : _languageLabel(_config.language),
+            onTap: () => _showLanguagePicker(context),
           ),
 
           const SizedBox(height: 16),
@@ -323,7 +323,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.storage,
             title: 'Cache size',
             subtitle: _formatBytes(context.read<EngineService>().getCacheSize()),
-            onTap: () {},
+            onTap: () => _confirmClearCache(context),
           ),
           _SettingTile(
             icon: Icons.delete_sweep_outlined,
@@ -448,6 +448,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  static const _languages = <String, String>{
+    'en': 'English',
+    'fa': 'فارسی (Persian)',
+    'ar': 'العربية (Arabic)',
+    'ru': 'Русский (Russian)',
+    'tr': 'Türkçe (Turkish)',
+    'de': 'Deutsch (German)',
+    'fr': 'Français (French)',
+    'es': 'Español (Spanish)',
+    'pt': 'Português (Portuguese)',
+    'zh': '中文 (Chinese)',
+    'ja': '日本語 (Japanese)',
+    'ko': '한국어 (Korean)',
+  };
+
+  String _languageLabel(String code) => _languages[code] ?? code;
+
+  void _showLanguagePicker(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Language'),
+        children: [
+          for (final entry in _languages.entries)
+            SimpleDialogOption(
+              onPressed: () {
+                _updateAndRefresh(language: entry.key);
+                Navigator.pop(ctx);
+              },
+              child: Row(
+                children: [
+                  Expanded(child: Text(entry.value)),
+                  if (_config.language == entry.key)
+                    const Icon(Icons.check, size: 18, color: AppColors.accent),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

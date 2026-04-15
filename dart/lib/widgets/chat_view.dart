@@ -2685,8 +2685,19 @@ class _MessageInputState extends State<_MessageInput> {
     return result;
   }
 
-  /// Returns channel suggestions (currently empty — no API wired yet).
-  List<String> _channelSuggestions() => [];
+  /// Returns channel/group names from the chat list for #autocomplete.
+  List<String> _channelSuggestions() {
+    final chatState = context.read<ChatState>();
+    final seen = <String>{};
+    final result = <String>[];
+    for (final chat in chatState.chats) {
+      if (chat.type == ChatType.group || chat.type == ChatType.channel) {
+        final name = chat.title.trim();
+        if (name.isNotEmpty && seen.add(name)) result.add(name);
+      }
+    }
+    return result;
+  }
 
   /// Scans the text left of the cursor for an active mention token.
   /// Returns null if the cursor is not inside a mention, otherwise returns

@@ -223,6 +223,16 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  void leaveChat(String accountId, String chatId) {
+    _engine.leaveChat(accountId, chatId);
+    // If this was the active chat, clear it.
+    if (_activeChat?.accountId == accountId && _activeChat?.chatId == chatId) {
+      _activeChat = null;
+      _messages.clear();
+    }
+    loadChats();
+  }
+
   void markChatRead(String accountId, String chatId) {
     // Try to find latest message ID if available (active chat only).
     final chatMsgs = _messages.where((m) => m.accountId == accountId && m.chatId == chatId);

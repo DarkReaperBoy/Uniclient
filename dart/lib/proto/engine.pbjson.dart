@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: engine.proto
+//  source: proto/engine.proto
 //
 // @dart = 2.12
 
@@ -603,6 +603,34 @@ const EngineDeleteMessageRequest$json = {
 final $typed_data.Uint8List engineDeleteMessageRequestDescriptor = $convert.base64Decode(
     'ChpFbmdpbmVEZWxldGVNZXNzYWdlUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
     '50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhUKBm1zZ19pZBgDIAEoCVIFbXNnSWQ=');
+
+@$core.Deprecated('Use engineJoinChatRequestDescriptor instead')
+const EngineJoinChatRequest$json = {
+  '1': 'EngineJoinChatRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'channel_name', '3': 2, '4': 1, '5': 9, '10': 'channelName'},
+  ],
+};
+
+/// Descriptor for `EngineJoinChatRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineJoinChatRequestDescriptor = $convert.base64Decode(
+    'ChVFbmdpbmVKb2luQ2hhdFJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3VudElkEi'
+    'EKDGNoYW5uZWxfbmFtZRgCIAEoCVILY2hhbm5lbE5hbWU=');
+
+@$core.Deprecated('Use engineLeaveChatRequestDescriptor instead')
+const EngineLeaveChatRequest$json = {
+  '1': 'EngineLeaveChatRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineLeaveChatRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineLeaveChatRequestDescriptor = $convert.base64Decode(
+    'ChZFbmdpbmVMZWF2ZUNoYXRSZXF1ZXN0Eh0KCmFjY291bnRfaWQYASABKAlSCWFjY291bnRJZB'
+    'IXCgdjaGF0X2lkGAIgASgJUgZjaGF0SWQ=');
 
 @$core.Deprecated('Use engineForwardMessageRequestDescriptor instead')
 const EngineForwardMessageRequest$json = {

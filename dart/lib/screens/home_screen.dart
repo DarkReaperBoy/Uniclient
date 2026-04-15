@@ -676,13 +676,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   Divider(height: 1, color: dividerColor),
                 ],
 
-                // DM profile placeholder
+                // DM user profile info
                 if (chat.type == ChatType.dm) ...[
                   Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Text(
-                      'User profile coming soon',
-                      style: TextStyle(fontSize: 13, color: dimColor),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('User Info', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: mutedColor)),
+                        const SizedBox(height: 8),
+                        _infoRow(Icons.badge_outlined, 'ID', chat.chatId, dimColor, textColor),
+                        if (chat.lastMsgTime > 0)
+                          _infoRow(Icons.access_time, 'Last active', _formatTime(chat.lastMsgTime), dimColor, textColor),
+                      ],
                     ),
                   ),
                   Divider(height: 1, color: dividerColor),
@@ -738,9 +744,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: AppColors.danger,
                   textColor: AppColors.danger,
                   onTap: () {
-                    // Confirm before destructive action
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Leave/delete not yet implemented')),
+                    final isDm = chat.type == ChatType.dm;
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: Text(isDm ? 'Delete Chat' : 'Leave Chat'),
+                        content: Text(isDm
+                            ? 'Delete this conversation? Message history will be removed locally.'
+                            : 'Leave "${chat.title}"? You may need an invite to rejoin.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              Navigator.pop(context); // close info panel
+                              final engine = context.read<EngineService>();
+                              engine.leaveChat(chat.accountId, chat.chatId);
+                              chatState.loadChats();
+                            },
+                            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                            child: Text(isDm ? 'Delete' : 'Leave'),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -767,6 +796,34 @@ class _HomeScreenState extends State<HomeScreen> {
       title: Text(label, style: TextStyle(fontSize: 14, color: textColor)),
       onTap: onTap,
     );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value, Color dimColor, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: dimColor),
+          const SizedBox(width: 8),
+          Text('$label: ', style: TextStyle(fontSize: 13, color: dimColor)),
+          Expanded(
+            child: Text(value, style: TextStyle(fontSize: 13, color: textColor),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTime(int epochMs) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(epochMs);
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
 
   // ══════════════════════════════════════════════════════════════════════════

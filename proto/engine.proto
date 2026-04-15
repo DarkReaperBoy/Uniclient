@@ -291,6 +291,11 @@ message EngineJoinChatRequest {
   string channel_name  = 2;
 }
 
+message EngineLeaveChatRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
 message EngineForwardMessageRequest {
   string account_id  = 1;
   string chat_id     = 2;

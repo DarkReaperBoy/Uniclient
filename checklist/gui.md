@@ -57,28 +57,43 @@ Last updated: 2026-04-15, session 26.
 ### Layout (1 file)
 - ✅ **#58 Platform rail removed** — Replaced 68px vertical PlatformRail with inline dropdown in sidebar header. Platform switching, connection status, context menu (reconnect/disconnect), and "add platform" all integrated into the sidebar. Saves horizontal space.
 
-## PLACEHOLDERS — Audit (session 26)
+## SESSION 27 — Must Fix placeholders wired + cleanup
+
+### New engine method
+- ✅ **LeaveChat** — Added `LeaveChat(accountID, chatID)` to Go engine (`engine.go`), proto (`engine.proto` + regenerated `engine.pb.go` + Dart proto), bridge dispatch (`dispatch_engine.go`), Dart service (`engine_service.dart`), and chat state (`chat_state.dart`). Clears local cache (messages/chats/media) and emits `chat_removed` event.
+
+### Must Fix — All 8 items wired (see below)
+### Should Fix — 3 items fixed (DM profile, #channel autocomplete, removed stale "new compose" entry)
+
+### Sidebar cleanup
+- ✅ **#59 Unused auth_state import** — `sidebar.dart` imported `auth_state.dart` but never used `AuthState`. Removed.
+- ✅ **#60 Sidebar delete calls archiveChat** — `_showDeleteConfirmation` in chat context menu called `archiveChat` instead of real delete. Fixed: now calls `chatState.leaveChat()`.
+- ✅ **#61 Channel context menu stubs** — Channel item context menu mute/mark-read/delete were snackbar-only. Wired to `chatState.muteChat()`, `chatState.markChatRead()`, and `chatState.leaveChat()` respectively.
+
+### Data fix
+- ✅ **#62 Bale session path collision** — `~/.config/uniclient/sessions/bale` was a 2-byte file (`{}`) instead of a directory, blocking core creation. Removed file and created directory.
+
+## PLACEHOLDERS — Audit (session 26, updated session 27)
 
 Comprehensive audit of all stubs, "coming soon", and empty handlers found in the Dart codebase:
 
 ### Must Fix (broken UX — user expects these to work)
-- ❌ **Leave/delete chat** — `home_screen.dart:752` shows "not yet implemented" snackbar
-- ❌ **Media download button** — `media_viewer.dart:137` empty onPressed
-- ❌ **"Open with..." button** — `media_viewer.dart:426` empty onPressed
-- ❌ **Channel mute** — `sidebar.dart:1032` snackbar only, no engine call
-- ❌ **Channel mark-read** — `sidebar.dart:1036` snackbar only, no engine call
-- ❌ **Channel delete** — `sidebar.dart:1080` snackbar only, no engine delete call
-- ❌ **Language picker** — `settings_screen.dart:116` empty onTap
-- ❌ **Cache size tile** — `settings_screen.dart:326` empty onTap
+- ✅ **Leave/delete chat** — Added `LeaveChat` to engine + bridge + Dart. Confirmation dialog in info panel (home_screen.dart). (session 27)
+- ✅ **Media download button** — Saves media to ~/Downloads with dedup naming. (session 27)
+- ✅ **"Open with..." button** — Opens with xdg-open/open/cmd per platform. (session 27)
+- ✅ **Channel mute** — Wired to `chatState.muteChat()` in channel context menu. (session 27)
+- ✅ **Channel mark-read** — Wired to `chatState.markChatRead()` in channel context menu. (session 27)
+- ✅ **Channel delete** — Wired to `chatState.leaveChat()` with confirmation dialog. (session 27)
+- ✅ **Language picker** — 12-language selection dialog, saves to config. (session 27)
+- ✅ **Cache size tile** — Tapping shows clear cache confirmation (reuses existing dialog). (session 27)
 
 ### Should Fix (visible stubs users will notice)
-- ❌ **DM user profile panel** — `home_screen.dart:693` "User profile coming soon"
+- ✅ **DM user profile panel** — Shows user ID and last active time. (session 27)
 - ❌ **Video playback** — `media_viewer.dart:289` "Video playback coming soon"
 - ❌ **Voice/video calls** — `chat_view.dart:236,246` "coming soon" snackbar
 - ❌ **File drag-and-drop** — `chat_view.dart:935` "coming soon" snackbar
-- ❌ **New message compose** — `sidebar.dart:199` empty onPressed
 - ❌ **QR code auth** — `auth_screen.dart:270` static icon, not real QR render
-- ❌ **#channel autocomplete** — `chat_view.dart:2689` returns `[]`
+- ✅ **#channel autocomplete** — Pulls group/channel names from chat list. (session 27)
 
 ### Nice to Have (deep features, less visible)
 - ❌ **Per-topic message loading** — `chat_view.dart:1094` uses 4 hardcoded mock channels
