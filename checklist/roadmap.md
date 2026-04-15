@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — Phase D (account flow wiring) — IN PROGRESS
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-14 (session 13 — Phase D: async bridge, automated tests, layout/proto fixes)
+**Last Updated:** 2026-04-15 (session 14 — interactive Telegram auth, full automated auth test, ConnectAccount fix)
 
-**NEXT:** Phase D cont. — Fix remaining auth flow issues (Telegram needs API ID/hash), test all 10 platform auth flows via automated tests
+**NEXT:** Phase D cont. — Fix chat list display bug (empty sidebar after successful Telegram auth, likely `syncAccount` or chat list query issue), then message view + real-time updates
 
 ## Steps
 
@@ -129,9 +129,16 @@ Session 13 changes:
 - **Protobuf fix** — Go `StartAuth` was returning raw `EngineAuthState` instead of `EngineStartAuthResponse` wrapper. Fixed in `dispatch_engine.go`.
 - **Automated tests** — `dart/test/bridge_test.dart` (14 tests): FFI load, engine init, add/remove accounts, multi-platform add, config get/set, cache, search, auth flow multi-step (IRC, Matrix, Telegram). `dart/test/widget_test.dart` (2 tests): loading state, multi-size rendering. All run via `flutter test` (no user interaction needed).
 
-**Testing approach:** Claude runs `flutter test` autonomously — no GUI interaction needed. Bridge tests exercise the full FFI → Go → Engine path. Widget tests verify rendering. Both run headlessly.
+Session 14 changes:
+- **Interactive Telegram auth** — Redesigned `TelegramCore.Authenticate()` for user mode: now returns `otp_required` error immediately when OTP is needed (instead of blocking 5 min). Added `SubmitOTP(code)` and `Submit2FA(password)` methods that push to interactive channels and wait for results.
+- **Engine auth FSM for Telegram** — `advanceTelegram` at OTP/2FA states now uses type assertion to `*cores.TelegramCore` and calls `SubmitOTP`/`Submit2FA` directly. Session-valid accounts skip straight to `ready` state when `Authenticate` returns nil.
+- **Full automated Telegram auth test** — `dart/test/telegram_auth_test.dart`: pre-seeds reader session → auto-auths reader → adds new account → phone auth → reads OTP from user 777000 via `FetchLiveMessages` → submits OTP → handles 2FA → verifies connected. All automated, no user interaction. Completes in ~22 seconds.
+- **ConnectAccount fix** — `auth_screen.dart` "Continue" button was calling `connectAccount()` after auth, which created a NEW core and re-authenticated (causing `PHONE_CODE_INVALID`). Removed the call — `finalizeAuth` already attaches the core and sets `ConnConnected`.
+- **Chat list bug (known)** — After successful Telegram auth, the UI shows the account as connected but the chat list sidebar is empty. Likely `syncAccount` or chat list query issue.
 
-**Next:** Fix remaining auth flow issues, expand automated test coverage
+**Testing approach:** Claude runs `flutter test` autonomously — no GUI interaction needed. Bridge tests exercise the full FFI → Go → Engine path. Widget tests verify rendering. Telegram auth test exercises full live Telegram auth with OTP read from reader account. All run headlessly.
+
+**Next:** Continue GUI wiring — chat list display, message view, real-time updates
 
 ## Detailed Progress
 

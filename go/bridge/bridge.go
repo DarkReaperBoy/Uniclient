@@ -7,8 +7,11 @@ package bridge
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"sync"
 
+	"github.com/gotd/td/session"
 	"google.golang.org/protobuf/proto"
 
 	"uniclient/cores"
@@ -116,11 +119,31 @@ func Call(reqData []byte) []byte {
 // Call this from the FFI Init handler before any other engine operations.
 func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 	// Register core factory so the engine can create platform instances.
+	// Each account gets its own session file under configDir/sessions/<platform>/.
+	tgCounter := 0
 	engine.SetCoreFactory(func(platform string) (cores.Core, error) {
 		sessionDir := configDir + "/sessions/" + platform
+		os.MkdirAll(sessionDir, 0o755)
 		switch platform {
 		case "telegram":
-			return cores.NewTelegramCore(cores.TelegramConfig{}), nil
+			// Read API credentials from env or use defaults.
+			apiID := 2040
+			apiHash := "b18441a1ff607e10a989891a5462e627"
+			if v := os.Getenv("TG_API_ID"); v != "" {
+				if id, err := strconv.Atoi(v); err == nil {
+					apiID = id
+				}
+			}
+			if v := os.Getenv("TG_API_HASH"); v != "" {
+				apiHash = v
+			}
+			tgCounter++
+			sessionPath := sessionDir + "/session_" + strconv.Itoa(tgCounter) + ".json"
+			return cores.NewTelegramCore(cores.TelegramConfig{
+				APIID:          apiID,
+				APIHash:        apiHash,
+				SessionStorage: &session.FileStorage{Path: sessionPath},
+			}), nil
 		case "bale":
 			return cores.NewBaleCore(sessionDir), nil
 		case "matrix":

@@ -205,6 +205,18 @@ class EngineService {
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
+  /// Fetch live messages directly from the core (not cache).
+  /// Used for reading OTP codes from connected accounts.
+  Future<List<CachedMessage>> fetchLiveMessages(String accountId, String chatId, {int limit = 3}) async {
+    final req = epb.EngineGetMessagesRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..limit = limit;
+    final respBytes = await _callAsync('__engine', 'FetchLiveMessages', req.writeToBuffer());
+    final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+    return resp.messages.map(_cachedMsgFromProto).toList();
+  }
+
   Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = ''}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId

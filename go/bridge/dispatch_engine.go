@@ -209,6 +209,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "FetchLiveMessages":
+		var req pb.EngineGetMessagesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msgs, err := e.FetchLiveMessages(req.AccountId, req.ChatId, int(req.Limit))
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetMessagesResponse{}
+		for _, m := range msgs {
+			resp.Messages = append(resp.Messages, cachedMsgToProto(&m))
+		}
+		return proto.Marshal(resp)
+
 	case "SendMessage":
 		var req pb.EngineSendMessageRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

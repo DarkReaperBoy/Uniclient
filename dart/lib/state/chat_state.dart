@@ -30,6 +30,16 @@ class ChatState extends ChangeNotifier {
     _subs.add(_engine.onMsgDeleted.listen(_handleMsgDeleted));
     _subs.add(_engine.onMsgStatus.listen(_handleMsgStatus));
     _subs.add(_engine.onTyping.listen(_handleTyping));
+    // Reload chats when any account connects (sync may have finished).
+    _subs.add(_engine.onConnState.listen((event) {
+      if (event.state == 'connected') {
+        loadChats();
+      }
+    }));
+    // Also reload when auth finishes (finalizeAuth emits account_list).
+    _subs.add(_engine.onAccountList.listen((_) {
+      loadChats();
+    }));
   }
 
   // ── Getters ──

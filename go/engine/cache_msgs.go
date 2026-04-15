@@ -3,6 +3,7 @@ package engine
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"uniclient/cores"
@@ -296,4 +297,35 @@ func guessMediaType(mime, name string) int {
 	default:
 		return MediaFile
 	}
+}
+
+// FetchLiveMessages calls the core's GetMessages directly (not cache).
+// Used for reading OTP codes and other live data from connected accounts.
+func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]CachedMessage, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account %q not found", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account %q not connected", accountID)
+	}
+
+	msgs, err := acc.Core.GetMessages(chatID, cores.PaginationOpts{Limit: limit})
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]CachedMessage, len(msgs))
+	for i, m := range msgs {
+		result[i] = CachedMessage{
+			AccountID:   accountID,
+			ChatID:      chatID,
+			MsgID:       m.ID,
+			SenderID:    m.SenderID,
+			SenderName:  m.SenderName,
+			ContentText: m.Text,
+			Timestamp:   m.Timestamp.UnixMilli(),
+		}
+	}
+	return result, nil
 }

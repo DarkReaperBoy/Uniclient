@@ -316,12 +316,10 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         const SizedBox(height: 20),
         ElevatedButton(
-          onPressed: () async {
-            context.read<EngineService>().connectAccount(widget.accountId);
-            if (context.mounted) {
-              context.read<AuthState>().clear();
-              Navigator.pop(context);
-            }
+          onPressed: () {
+            // Account is already connected by finalizeAuth — just close the dialog.
+            context.read<AuthState>().clear();
+            Navigator.pop(context);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.accent,

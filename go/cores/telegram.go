@@ -107,6 +107,8 @@ type TelegramCore struct {
 	authCodeReady chan struct{} // closed when auth flow needs OTP (signals caller)
 	authPwdReady  chan struct{} // closed when auth flow needs 2FA password
 	authSetupDone chan struct{} // closed after interactive auth channels are initialized
+	authDoneCh    chan struct{} // closed when auth completes (for interactive flow)
+	authErrCh     chan error    // auth error channel (for interactive flow)
 
 	// Call state
 	activeCalls map[int64]*tgCall       // callID → active call
@@ -664,11 +666,42 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 		})
 	}()
 
-	// Wait for auth to complete
-	// User mode with interactive OTP needs a longer timeout (user must read and enter code)
-	timeout := 30 * time.Second
+	// For interactive user mode (no pre-provided OTP), return immediately
+	// when the code is requested. The caller must then use SubmitOTP/Submit2FA.
 	if cfg.Mode == AuthModeUser && cfg.OTP == "" {
-		timeout = 5 * time.Minute
+		t.mu.Lock()
+		t.authDoneCh = authDone
+		t.authErrCh = errCh
+		t.mu.Unlock()
+
+		select {
+		case <-authDone:
+			// Session was already valid — no OTP needed.
+			return nil
+		case <-t.authCodeReady:
+			// OTP code was requested — return sentinel so caller knows to ask user.
+			return fmt.Errorf("otp_required")
+		case err := <-errCh:
+			if err != nil && !isContextErr(err) {
+				return fmt.Errorf("%w: %s", ErrAuth, err)
+			}
+			t.mu.RLock()
+			authed := t.authed
+			t.mu.RUnlock()
+			if authed {
+				return nil
+			}
+			return fmt.Errorf("%w: connection closed before auth completed", ErrAuth)
+		case <-time.After(30 * time.Second):
+			t.cancel()
+			return fmt.Errorf("%w: authentication timed out", ErrAuth)
+		}
+	}
+
+	// Bot mode or user mode with pre-provided OTP — wait for completion.
+	timeout := 30 * time.Second
+	if cfg.Mode == AuthModeUser {
+		timeout = 60 * time.Second
 	}
 
 	select {
@@ -678,7 +711,6 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 		if err != nil && !isContextErr(err) {
 			return fmt.Errorf("%w: %s", ErrAuth, err)
 		}
-		// client.Run swallows context.Canceled — verify auth actually completed
 		t.mu.RLock()
 		authed := t.authed
 		t.mu.RUnlock()
@@ -689,6 +721,73 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 	case <-time.After(timeout):
 		t.cancel()
 		return fmt.Errorf("%w: authentication timed out", ErrAuth)
+	}
+}
+
+// SubmitOTP provides the OTP code to an in-progress interactive auth flow.
+// Must be called after Authenticate returns "otp_required".
+// Returns nil on success, "2fa_required" if 2FA password is needed next.
+func (t *TelegramCore) SubmitOTP(code string) error {
+	if t.authCodeCh == nil {
+		return fmt.Errorf("no auth flow in progress")
+	}
+	t.authCodeCh <- code
+
+	t.mu.RLock()
+	doneCh := t.authDoneCh
+	errCh := t.authErrCh
+	t.mu.RUnlock()
+
+	select {
+	case <-doneCh:
+		return nil
+	case <-t.authPwdReady:
+		return fmt.Errorf("2fa_required")
+	case err := <-errCh:
+		if err != nil && !isContextErr(err) {
+			return fmt.Errorf("%w: %s", ErrAuth, err)
+		}
+		t.mu.RLock()
+		authed := t.authed
+		t.mu.RUnlock()
+		if authed {
+			return nil
+		}
+		return fmt.Errorf("%w: auth failed after OTP", ErrAuth)
+	case <-time.After(30 * time.Second):
+		return fmt.Errorf("%w: OTP verification timed out", ErrAuth)
+	}
+}
+
+// Submit2FA provides the 2FA password to an in-progress interactive auth flow.
+// Must be called after SubmitOTP returns "2fa_required".
+func (t *TelegramCore) Submit2FA(password string) error {
+	if t.authPwdCh == nil {
+		return fmt.Errorf("no 2FA flow in progress")
+	}
+	t.authPwdCh <- password
+
+	t.mu.RLock()
+	doneCh := t.authDoneCh
+	errCh := t.authErrCh
+	t.mu.RUnlock()
+
+	select {
+	case <-doneCh:
+		return nil
+	case err := <-errCh:
+		if err != nil && !isContextErr(err) {
+			return fmt.Errorf("%w: %s", ErrAuth, err)
+		}
+		t.mu.RLock()
+		authed := t.authed
+		t.mu.RUnlock()
+		if authed {
+			return nil
+		}
+		return fmt.Errorf("%w: 2FA failed", ErrAuth)
+	case <-time.After(30 * time.Second):
+		return fmt.Errorf("%w: 2FA verification timed out", ErrAuth)
 	}
 }
 

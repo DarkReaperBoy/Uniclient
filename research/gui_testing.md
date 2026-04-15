@@ -35,10 +35,35 @@ test-dart
 - Widget/UI tests go in `dart/test/widget_test.dart`
 - Integration tests (if needed) go in `dart/integration_test/`
 
+3. **Telegram auth flow** (`dart/test/telegram_auth_test.dart`)
+   - Full automated Telegram phone auth: add account → phone → OTP → 2FA → connected
+   - Uses a pre-seeded session (reader account) to read OTP codes automatically
+   - Reader account auto-auths from `auth/telegram_user_session.json`, reads OTP from user 777000
+   - New account goes through full phone auth, OTP is read from the reader, 2FA password submitted
+   - Verifies account lists, chat search, and connectivity after auth
+   - Requires: `libcores.so`, valid session file at `auth/telegram_user_session.json`
+   - Env vars: `TG_PHONE` (default: +96877354040), `TG_2FA_PASSWORD` (default: nako123)
+   - Run: `cd dart && flutter test test/telegram_auth_test.dart`
+
+### Running All Tests
+
+```bash
+# Inside nix develop:
+cd dart && flutter test
+
+# Or via alias:
+test-dart
+```
+
+### Adding New Tests
+
+- Bridge/engine tests go in `dart/test/bridge_test.dart`
+- Widget/UI tests go in `dart/test/widget_test.dart`
+- Integration tests (if needed) go in `dart/integration_test/`
+
 ## What Can't Be Tested Automatically
 
 - Visual appearance (icons, colors, layout aesthetics)
-- User interaction flows that require real network auth (Telegram OTP, etc.)
 - Platform-specific rendering (GTK/Wayland behavior)
 - Hot reload workflow
 

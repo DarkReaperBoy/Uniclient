@@ -329,7 +329,19 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			Mode:  cores.AuthModeUser,
 			Phone: input,
 		})
-		if err != nil && err.Error() != "otp_required" {
+		if err == nil {
+			// Session was already authenticated — skip OTP.
+			base.State = AuthStateReady
+			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+				base.DisplayName = profile.DisplayName
+				if base.DisplayName == "" {
+					base.DisplayName = profile.Username
+				}
+				base.AvatarB64 = profile.AvatarB64
+			}
+			return base, nil
+		}
+		if err.Error() != "otp_required" {
 			return nil, err
 		}
 		base.State = AuthStateOTP
@@ -339,9 +351,55 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 		return base, nil
 	case AuthStateOTP:
 		flow.collected["otp"] = input
+		// For Telegram user mode, use the interactive SubmitOTP method.
+		if flow.collected["method"] != "bot_token" {
+			tc, ok := flow.core.(*cores.TelegramCore)
+			if !ok {
+				return nil, fmt.Errorf("expected TelegramCore for OTP submit")
+			}
+			err := tc.SubmitOTP(input)
+			if err == nil {
+				base.State = AuthStateReady
+				if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+					base.DisplayName = profile.DisplayName
+					if base.DisplayName == "" {
+						base.DisplayName = profile.Username
+					}
+					base.AvatarB64 = profile.AvatarB64
+				}
+				return base, nil
+			}
+			if err.Error() == "2fa_required" {
+				base.State = AuthState2FA
+				base.Label = "Two-Factor Password"
+				base.HasRecovery = false
+				return base, nil
+			}
+			return nil, err
+		}
 		return tryAuth(flow, base)
 	case AuthState2FA:
 		flow.collected["2fa"] = input
+		// For Telegram user mode, use the interactive Submit2FA method.
+		if flow.collected["method"] != "bot_token" {
+			tc, ok := flow.core.(*cores.TelegramCore)
+			if !ok {
+				return nil, fmt.Errorf("expected TelegramCore for 2FA submit")
+			}
+			err := tc.Submit2FA(input)
+			if err == nil {
+				base.State = AuthStateReady
+				if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+					base.DisplayName = profile.DisplayName
+					if base.DisplayName == "" {
+						base.DisplayName = profile.Username
+					}
+					base.AvatarB64 = profile.AvatarB64
+				}
+				return base, nil
+			}
+			return nil, err
+		}
 		return tryAuth(flow, base)
 	}
 	return nil, fmt.Errorf("unexpected state %s for telegram", flow.state.State)
