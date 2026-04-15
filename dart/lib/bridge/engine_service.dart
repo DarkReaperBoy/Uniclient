@@ -10,42 +10,9 @@ import '../proto/models.pb.dart' as pb;
 import '../proto/engine.pb.dart' as epb;
 import '../utils/debug.dart';
 
-/// Sanitize a string for safe display — replace unpaired surrogates.
-String _safeStr(String s) {
-  if (s.isEmpty) return s;
-  // Fast path: no surrogates at all (the 99% case).
-  bool hasSurrogate = false;
-  for (var i = 0; i < s.length; i++) {
-    final code = s.codeUnitAt(i);
-    if (code >= 0xD800 && code <= 0xDFFF) {
-      hasSurrogate = true;
-      break;
-    }
-  }
-  if (!hasSurrogate) return s;
-  // Slow path: rebuild string, preserving valid pairs.
-  final buf = StringBuffer();
-  for (var i = 0; i < s.length; i++) {
-    final code = s.codeUnitAt(i);
-    if (code >= 0xD800 && code <= 0xDBFF) {
-      if (i + 1 < s.length) {
-        final next = s.codeUnitAt(i + 1);
-        if (next >= 0xDC00 && next <= 0xDFFF) {
-          buf.writeCharCode(code);
-          buf.writeCharCode(next);
-          i++;
-          continue;
-        }
-      }
-      buf.write('\uFFFD');
-    } else if (code >= 0xDC00 && code <= 0xDFFF) {
-      buf.write('\uFFFD');
-    } else {
-      buf.writeCharCode(code);
-    }
-  }
-  return buf.toString();
-}
+// Re-export for local use — actual implementation in utils/safe_string.dart.
+import '../utils/safe_string.dart';
+String _safeStr(String s) => safeStr(s);
 
 /// High-level wrapper around the FFI bridge for engine operations.
 ///
@@ -710,7 +677,7 @@ class EngineService {
   static AccountInfo _accountInfoFromProto(epb.AccountInfo p) => AccountInfo(
     id: p.id,
     platform: p.platform,
-    displayName: p.displayName,
+    displayName: _safeStr(p.displayName),
     avatarPath: p.avatarPath,
     sortOrder: p.sortOrder,
     connState: ConnState.values[p.connState.clamp(0, ConnState.values.length - 1)],
@@ -720,21 +687,21 @@ class EngineService {
     accountId: p.accountId,
     platform: p.platform,
     state: p.state,
-    options: p.options.map((o) => AuthOption(id: o.id, label: o.label)).toList(),
+    options: p.options.map((o) => AuthOption(id: o.id, label: _safeStr(o.label))).toList(),
     fieldType: p.fieldType,
-    label: p.label,
-    hint: p.hint,
-    error: p.error,
+    label: _safeStr(p.label),
+    hint: _safeStr(p.hint),
+    error: _safeStr(p.error),
     codeLength: p.codeLength,
-    sentTo: p.sentTo,
+    sentTo: _safeStr(p.sentTo),
     timeoutSecs: p.timeoutSecs,
     canResend: p.canResend,
     hasRecovery: p.hasRecovery,
     qrData: p.qrData,
     qrExpiresIn: p.qrExpiresIn,
-    displayName: p.displayName,
+    displayName: _safeStr(p.displayName),
     avatarB64: p.avatarB64,
-    message: p.message,
+    message: _safeStr(p.message),
     recoverable: p.recoverable,
   );
 
@@ -801,10 +768,10 @@ class EngineService {
     accountId: p.accountId,
     chatId: p.chatId,
     msgId: p.msgId,
-    senderName: p.senderName,
-    text: p.text,
+    senderName: _safeStr(p.senderName),
+    text: _safeStr(p.text),
     timestamp: p.timestamp.toInt(),
-    chatTitle: p.chatTitle,
+    chatTitle: _safeStr(p.chatTitle),
   );
 
   static SharedMediaItem _sharedMediaItemFromProto(epb.EngineSharedMediaItem p) => SharedMediaItem(

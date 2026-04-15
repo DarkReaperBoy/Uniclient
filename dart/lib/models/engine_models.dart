@@ -3,6 +3,8 @@
 /// These are used by the EngineService for typed event dispatch and API responses.
 library;
 
+import '../utils/safe_string.dart';
+
 // ── Chat types ──
 enum ChatType {
   unspec,
@@ -205,20 +207,20 @@ class ChatInfo {
     accountId: j['account_id'] as String? ?? '',
     chatId: j['chat_id'] as String? ?? '',
     type: ChatType.fromInt(j['type'] as int? ?? 0),
-    title: j['title'] as String? ?? '',
+    title: safeStr(j['title'] as String? ?? ''),
     avatarPath: j['avatar_path'] as String? ?? '',
     lastMsgId: j['last_msg_id'] as String? ?? '',
-    lastMsgText: j['last_msg_text'] as String? ?? '',
+    lastMsgText: safeStr(j['last_msg_text'] as String? ?? ''),
     lastMsgTime: j['last_msg_time'] as int? ?? 0,
-    lastMsgSender: j['last_msg_sender'] as String? ?? '',
+    lastMsgSender: safeStr(j['last_msg_sender'] as String? ?? ''),
     unreadCount: j['unread_count'] as int? ?? 0,
     isMuted: j['is_muted'] as bool? ?? false,
     isPinned: j['is_pinned'] as bool? ?? false,
     isArchived: j['is_archived'] as bool? ?? false,
-    draftText: j['draft_text'] as String? ?? '',
+    draftText: safeStr(j['draft_text'] as String? ?? ''),
     memberCount: j['member_count'] as int? ?? 0,
     parentId: j['parent_id'] as String? ?? '',
-    parentTitle: j['parent_title'] as String? ?? '',
+    parentTitle: safeStr(j['parent_title'] as String? ?? ''),
   );
 
   /// Time as DateTime for display.
@@ -295,16 +297,16 @@ class CachedMessage {
     msgId: j['msg_id'] as String? ?? '',
     localId: j['local_id'] as String? ?? '',
     senderId: j['sender_id'] as String? ?? '',
-    senderName: j['sender_name'] as String? ?? '',
-    contentText: j['content_text'] as String? ?? '',
-    contentRaw: j['content_raw'] as String? ?? '',
-    contentRich: j['content_rich'] as String? ?? '',
+    senderName: safeStr(j['sender_name'] as String? ?? ''),
+    contentText: safeStr(j['content_text'] as String? ?? ''),
+    contentRaw: safeStr(j['content_raw'] as String? ?? ''),
+    contentRich: safeStr(j['content_rich'] as String? ?? ''),
     timestamp: j['timestamp'] as int? ?? 0,
     editedAt: j['edited_at'] as int? ?? 0,
     status: MsgStatus.fromInt(j['status'] as int? ?? 0),
     replyToId: j['reply_to_id'] as String? ?? '',
-    replyPreview: j['reply_preview'] as String? ?? '',
-    forwardFrom: j['forward_from'] as String? ?? '',
+    replyPreview: safeStr(j['reply_preview'] as String? ?? ''),
+    forwardFrom: safeStr(j['forward_from'] as String? ?? ''),
     isPinned: j['is_pinned'] as bool? ?? false,
     hasMedia: j['has_media'] as bool? ?? false,
     mediaType: j['media_type'] as int? ?? 0,
@@ -622,7 +624,7 @@ class MsgEditedEvent {
     accountId: j['account_id'] as String? ?? '',
     chatId: j['chat_id'] as String? ?? '',
     msgId: j['msg_id'] as String? ?? '',
-    newText: j['new_text'] as String? ?? '',
+    newText: safeStr(j['new_text'] as String? ?? ''),
     editedAt: j['edited_at'] as int? ?? 0,
   );
 }

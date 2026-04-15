@@ -26,13 +26,14 @@ class ChatState extends ChangeNotifier {
 
   final List<StreamSubscription<dynamic>> _subs = [];
   Timer? _pollTimer;
+  Timer? _loadChatsDebounce;
   bool _disposed = false;
 
   ChatState(this._engine) {
     // Snapshot events are per-account; reload the unified list from SQLite
     // so that one account's sync doesn't erase another's chats.
     _subs.add(_engine.onChatSnapshot.listen((_) {
-      loadChats();
+      _debouncedLoadChats();
     }));
     _subs.add(_engine.onChatUpdated.listen(_handleChatUpdated));
     _subs.add(_engine.onChatRemoved.listen(_handleChatRemoved));
@@ -44,12 +45,12 @@ class ChatState extends ChangeNotifier {
     // Reload chats when any account connects (sync may have finished).
     _subs.add(_engine.onConnState.listen((event) {
       if (event.state == 'connected') {
-        loadChats();
+        _debouncedLoadChats();
       }
     }));
     // Also reload when auth finishes (finalizeAuth emits account_list).
     _subs.add(_engine.onAccountList.listen((_) {
-      loadChats();
+      _debouncedLoadChats();
     }));
     // Download complete → update message's local path in-memory.
     _subs.add(_engine.onDownloadComplete.listen(_handleDownloadComplete));
@@ -100,9 +101,18 @@ class ChatState extends ChangeNotifier {
 
   /// Load the chat list from engine.
   void loadChats({String accountId = '', bool archived = false}) {
+    if (_disposed) return;
     // Use a large limit for unified list so all accounts' chats are included.
     _chats = _engine.getChatList(accountId: accountId, archived: archived, limit: 500);
     notifyListeners();
+  }
+
+  /// Debounced version of loadChats — coalesces rapid event-driven reloads.
+  void _debouncedLoadChats() {
+    _loadChatsDebounce?.cancel();
+    _loadChatsDebounce = Timer(const Duration(milliseconds: 300), () {
+      loadChats();
+    });
   }
 
   /// Open a chat — loads messages and sets as active.
@@ -214,11 +224,11 @@ class ChatState extends ChangeNotifier {
   }
 
   void markChatRead(String accountId, String chatId) {
-    // Find the latest message for this chat.
+    // Try to find latest message ID if available (active chat only).
     final chatMsgs = _messages.where((m) => m.accountId == accountId && m.chatId == chatId);
-    if (chatMsgs.isNotEmpty) {
-      _engine.markChatRead(accountId, chatId, chatMsgs.first.msgId);
-    }
+    final upToId = chatMsgs.isNotEmpty ? chatMsgs.first.msgId : '';
+    // Engine always resets unread count in DB; only calls core.MarkAsRead if upToId is non-empty.
+    _engine.markChatRead(accountId, chatId, upToId);
     loadChats();
   }
 
@@ -235,6 +245,7 @@ class ChatState extends ChangeNotifier {
   // ── Internal ──
 
   void _loadMessages() {
+    if (_disposed) return;
     final chat = _activeChat;
     if (chat == null) return;
 
@@ -253,6 +264,7 @@ class ChatState extends ChangeNotifier {
   /// Re-fetch the latest messages for the active chat and merge.
   /// Used after send and as a periodic fallback for event delivery issues.
   void _refreshMessages() {
+    if (_disposed) return;
     final chat = _activeChat;
     if (chat == null) return;
 
@@ -273,8 +285,6 @@ class ChatState extends ChangeNotifier {
     _stopPolling();
     _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       _refreshMessages();
-      // Also refresh chat list for unread counts etc.
-      loadChats();
     });
   }
 
@@ -284,6 +294,7 @@ class ChatState extends ChangeNotifier {
   }
 
   void _handleChatUpdated(ChatInfo updated) {
+    if (_disposed) return;
     final idx = _chats.indexWhere((c) => c.accountId == updated.accountId && c.chatId == updated.chatId);
     if (idx >= 0) {
       _chats[idx] = updated;
@@ -298,6 +309,7 @@ class ChatState extends ChangeNotifier {
   }
 
   void _handleChatRemoved(ChatRemovedEvent event) {
+    if (_disposed) return;
     _chats.removeWhere((c) => c.chatId == event.chatId && (event.accountId.isEmpty || c.accountId == event.accountId));
     if (_activeChat?.chatId == event.chatId && (event.accountId.isEmpty || _activeChat?.accountId == event.accountId)) {
       _activeChat = null;
@@ -311,6 +323,7 @@ class ChatState extends ChangeNotifier {
   final List<DateTime> _recentNotifs = [];
 
   void _handleMsgReceived(MsgReceivedEvent event) {
+    if (_disposed) return;
     final isActiveChat = _activeChat?.accountId == event.accountId &&
         _activeChat?.chatId == event.chatId;
     if (isActiveChat) {
@@ -351,6 +364,7 @@ class ChatState extends ChangeNotifier {
   }
 
   void _handleMsgEdited(MsgEditedEvent event) {
+    if (_disposed) return;
     if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
     final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
     if (idx >= 0) {
@@ -363,12 +377,14 @@ class ChatState extends ChangeNotifier {
   }
 
   void _handleMsgDeleted(MsgDeletedEvent event) {
+    if (_disposed) return;
     if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
     _messages.removeWhere((m) => m.msgId == event.msgId);
     notifyListeners();
   }
 
   void _handleMsgStatus(MsgStatusEvent event) {
+    if (_disposed) return;
     if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
     final idx = _messages.indexWhere((m) =>
       m.msgId == event.msgId || (event.localId.isNotEmpty && m.localId == event.localId));
@@ -382,6 +398,7 @@ class ChatState extends ChangeNotifier {
   }
 
   void _handleTyping(TypingEvent event) {
+    if (_disposed) return;
     _typingUsers[event.chatId] = event.userName.isNotEmpty ? event.userName : event.userId;
     notifyListeners();
 
@@ -396,6 +413,7 @@ class ChatState extends ChangeNotifier {
   }
 
   void _handleDownloadComplete(DownloadCompleteEvent event) {
+    if (_disposed) return;
     final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
     if (idx >= 0) {
       _messages[idx] = _messages[idx].copyWith(
@@ -410,6 +428,7 @@ class ChatState extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _stopPolling();
+    _loadChatsDebounce?.cancel();
     for (final sub in _subs) {
       sub.cancel();
     }

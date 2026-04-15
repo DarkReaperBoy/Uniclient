@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/chat_state.dart';
 import '../models/engine_models.dart';
 import '../theme/theme.dart';
+import '../utils/safe_string.dart';
 
 /// Dialog for forwarding a message to another chat.
 ///
@@ -86,9 +87,7 @@ class _ForwardDialogState extends State<ForwardDialog> {
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
-            widget.messageText.length > 120
-                ? '${widget.messageText.substring(0, 120)}...'
-                : widget.messageText,
+            safeTruncate(widget.messageText, 120),
             style: TextStyle(
               fontSize: 13,
               color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
@@ -267,14 +266,10 @@ class _ForwardDialogState extends State<ForwardDialog> {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       itemBuilder: (context, index) {
                         final chat = filtered[index];
-                        final initial = chat.title.isNotEmpty
-                            ? chat.title[0].toUpperCase()
-                            : '?';
+                        final initial = safeInitial(chat.title);
                         final color = _avatarColor(chat.title);
                         final preview = chat.lastMsgText.isNotEmpty
-                            ? (chat.lastMsgText.length > 40
-                                ? '${chat.lastMsgText.substring(0, 40)}...'
-                                : chat.lastMsgText)
+                            ? safeTruncate(chat.lastMsgText, 40)
                             : null;
 
                         return ListTile(

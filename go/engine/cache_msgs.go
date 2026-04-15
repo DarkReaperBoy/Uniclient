@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 
 	"uniclient/cores"
@@ -85,15 +86,23 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	// If cache is empty on initial load, fetch from core and cache.
 	if len(msgs) == 0 && beforeMs == 0 {
 		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
+			log.Printf("[engine] GetMessages(%s, %s): cache empty, fetching live from core...", accountID, chatID)
 			live, liveErr := acc.Core.GetMessages(chatID, cores.PaginationOpts{Limit: limit})
-			if liveErr == nil && len(live) > 0 {
+			if liveErr != nil {
+				log.Printf("[engine] GetMessages(%s, %s): core fetch failed: %v", accountID, chatID, liveErr)
+			} else if len(live) > 0 {
+				log.Printf("[engine] GetMessages(%s, %s): got %d live messages, caching...", accountID, chatID, len(live))
 				result := make([]CachedMessage, 0, len(live))
 				for _, m := range live {
 					cached := e.cacheMessage(accountID, chatID, &m)
 					result = append(result, cached)
 				}
 				return result, nil
+			} else {
+				log.Printf("[engine] GetMessages(%s, %s): core returned 0 messages", accountID, chatID)
 			}
+		} else {
+			log.Printf("[engine] GetMessages(%s, %s): account not found or no core", accountID, chatID)
 		}
 	}
 

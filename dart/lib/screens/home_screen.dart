@@ -9,7 +9,6 @@ import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import '../models/engine_models.dart';
 import '../theme/theme.dart';
-import '../widgets/platform_rail.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/chat_view.dart';
 import '../widgets/notification_overlay.dart';
@@ -50,14 +49,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_notifWired) {
       _notifWired = true;
       chatState.onNotification = (sender, text, chatTitle) {
+        if (!mounted) return;
         final mgr = NotificationManager.maybeOf(context);
         mgr?.showMessageNotification(sender, text, chatTitle: chatTitle);
       };
       appState.onConnStateNotification = (text, icon, color) {
+        if (!mounted) return;
         final mgr = NotificationManager.maybeOf(context);
         mgr?.showStatusNotification(text, icon: icon, color: color);
       };
       appState.onAddAccount = (accountId, platform) {
+        if (!mounted) return;
         // CLI command added an account — open auth dialog.
         final authState = context.read<AuthState>();
         authState.startAuth(accountId);
@@ -171,17 +173,9 @@ class _HomeScreenState extends State<HomeScreen> {
             // ── Medium (600-900) and Wide (>900) layouts ──
             return Row(
               children: [
-                // Platform rail (left edge)
-                const SizedBox(
-                  width: AppSizes.railWidth,
-                  child: PlatformRail(),
-                ),
-
-                Container(width: 1, color: dividerColor),
-
-                // Sidebar (chat list)
+                // Sidebar (chat list with integrated platform switcher)
                 SizedBox(
-                  width: (constraints.maxWidth - AppSizes.railWidth - 3)
+                  width: (constraints.maxWidth - 2)
                       .clamp(0, AppSizes.sidebarWidth)
                       .toDouble(),
                   child: const Sidebar(),

@@ -3,7 +3,7 @@
 **STATUS: ALPHA — scaffold exists but many features are placeholders, stubs, or broken.**
 
 ✅ = actually working with live data, 🔲 = placeholder/stub (UI exists, no backend), ❌ = not started, 🐛 = known bug.
-Last updated: 2026-04-15, session 25.
+Last updated: 2026-04-15, session 26.
 
 ## CRITICAL BUGS — Fixed in session 24
 
@@ -39,6 +39,52 @@ Last updated: 2026-04-15, session 25.
 - ✅ **#47 FileSplit OOM** — `filesplit.go` no upper bound on buffer allocation → capped at 100MB.
 - ✅ **#48 Proxy CONNECT parsing** — `proxy.go` fragile byte-offset status check → `strings.Contains(" 200 ")`.
 - ✅ **#49 Bridge MkdirAll unchecked** — `bridge.go` `os.MkdirAll` error ignored → checked.
+
+## BUGS FIXED — Session 26 (GUI smoke test + automation)
+
+### Dart (6 files)
+- ✅ **#50 UTF-16 crash: lone surrogates from `title[0]`** — sidebar `_ChatAvatar`, chat_view info dialog, and search results extracted first char with `[0]`, splitting emoji surrogate pairs (e.g. 😀 = D83D+DE00). `[0]` yields lone D83D → Skia crash. Fixed: `safeInitial()` in `safe_string.dart` checks for high surrogate and takes both code units.
+- ✅ **#51 UTF-16 crash: `.substring()` splits surrogates** — `forward_dialog.dart` truncated message preview with `.substring(0, 120)` and `.substring(0, 40)`, splitting emoji at the boundary. Fixed: `safeTruncate()` backs up one code unit if it would split a pair.
+- ✅ **#52 UTF-16: unsanitized proto fields** — `AccountInfo.displayName`, `AuthStateData` (label/hint/error/sentTo/displayName/message), and `SearchResult` (senderName/text/chatTitle) from proto converters lacked `_safeStr()` wrapping. Fixed in `engine_service.dart`.
+- ✅ **#53 loadChats() storm on startup** — 18 calls during init because conn_state, account_list, chat_snapshot events all triggered `loadChats()` independently. Fixed: 300ms debounce timer in `chat_state.dart`, reduced to ~3-4 calls.
+- ✅ **#54 markChatRead silent fail** — Context menu "mark read" on non-active chats found no messages (only active chat messages in `_messages`). Fixed: always call engine with empty upToMsgId.
+- ✅ **#55 notifyListeners/setState after dispose** — Multiple event handlers in `chat_state.dart` and `home_screen.dart` callbacks lacked `_disposed`/`mounted` guards. Added guards to all handlers.
+- ✅ **#56 Excessive polling** — 3-second timer called `loadChats()` (full DB roundtrip). Changed to only refresh messages for active chat.
+
+### Go (1 file)
+- ✅ **#57 Mumble channel join fails** — `engine.go` `JoinChat()` only had `joiner` (IRC JoinKey) and `roomJoiner` (Matrix JoinRoom) interfaces. Mumble uses `MoveToChannel(uint32)`. Added `channelMover` interface with numeric channel ID parsing.
+
+### Layout (1 file)
+- ✅ **#58 Platform rail removed** — Replaced 68px vertical PlatformRail with inline dropdown in sidebar header. Platform switching, connection status, context menu (reconnect/disconnect), and "add platform" all integrated into the sidebar. Saves horizontal space.
+
+## PLACEHOLDERS — Audit (session 26)
+
+Comprehensive audit of all stubs, "coming soon", and empty handlers found in the Dart codebase:
+
+### Must Fix (broken UX — user expects these to work)
+- ❌ **Leave/delete chat** — `home_screen.dart:752` shows "not yet implemented" snackbar
+- ❌ **Media download button** — `media_viewer.dart:137` empty onPressed
+- ❌ **"Open with..." button** — `media_viewer.dart:426` empty onPressed
+- ❌ **Channel mute** — `sidebar.dart:1032` snackbar only, no engine call
+- ❌ **Channel mark-read** — `sidebar.dart:1036` snackbar only, no engine call
+- ❌ **Channel delete** — `sidebar.dart:1080` snackbar only, no engine delete call
+- ❌ **Language picker** — `settings_screen.dart:116` empty onTap
+- ❌ **Cache size tile** — `settings_screen.dart:326` empty onTap
+
+### Should Fix (visible stubs users will notice)
+- ❌ **DM user profile panel** — `home_screen.dart:693` "User profile coming soon"
+- ❌ **Video playback** — `media_viewer.dart:289` "Video playback coming soon"
+- ❌ **Voice/video calls** — `chat_view.dart:236,246` "coming soon" snackbar
+- ❌ **File drag-and-drop** — `chat_view.dart:935` "coming soon" snackbar
+- ❌ **New message compose** — `sidebar.dart:199` empty onPressed
+- ❌ **QR code auth** — `auth_screen.dart:270` static icon, not real QR render
+- ❌ **#channel autocomplete** — `chat_view.dart:2689` returns `[]`
+
+### Nice to Have (deep features, less visible)
+- ❌ **Per-topic message loading** — `chat_view.dart:1094` uses 4 hardcoded mock channels
+- ❌ **Audio waveform** — `chat_view.dart:1732`, `media_viewer.dart:330` static bars, not real
+- ❌ **Sender avatars** — `chat_view.dart:691` hash-based initials, no real images
+- ❌ **Channel edit** — `sidebar.dart:1040` "coming soon" snackbar
 
 ## MISSING FEATURES — Not Started
 
@@ -105,7 +151,7 @@ Last updated: 2026-04-15, session 25.
 - ✅ Unread count badge (computed from ChatState)
 - ✅ Platform connection status dots (green/yellow/red)
 - ✅ Hover squircle morph animation (AnimatedContainer circle→squircle 200ms easeInOut)
-- 🐛 Reorder platforms (drag & drop via ReorderableListView) — **swallows tap events, breaks platform switching (#25)**
+- ✅ Reorder platforms (drag & drop via ReorderableListView) — **fixed session 24 (#25)**
 - ✅ Context menu (reconnect, disconnect, settings)
 - ✅ Divider between platform groups (after All, before +)
 
@@ -117,13 +163,13 @@ Last updated: 2026-04-15, session 25.
 - ✅ Chat items — colored avatar, name, preview, time, unread badge
 - ✅ Active chat highlight
 - ✅ Right-click context menu — pin, mute, mark read, archive, delete (with confirmation)
-- 🐛 Platform filtering (via rail selection) — **broken, tap doesn't reach handler (#25)**
+- ✅ Platform filtering (via rail selection) — **fixed session 24 (#25)**
 - ✅ Sorting (pinned first, then by lastMsgTime)
 - ✅ Typing indicator in preview
 - ✅ Muted chat styling
 - ✅ Pinned chat indicator
 - ✅ Settings button → settings screen
-- 🐛 Folder tabs (All / DMs / Groups / Channels) — **"Channels" tab cut off at sidebar edge (#28)**
+- ✅ Folder tabs (All / DMs / Groups / Channels) — **fixed session 24 (#28)**
 - ✅ Topic/channel drill-in (page 2 with slide animation, wired to engine)
 - 🔲 Status picker (online/away/DND/invisible) — local UI state only, not synced to any platform
 - 🔲 Account switcher in user panel — platform filter, local state only
@@ -136,7 +182,7 @@ Last updated: 2026-04-15, session 25.
 ## User Panel (Bottom of Sidebar)
 
 - ✅ Avatar with initial
-- 🐛 Username — **shows "User" instead of account name (#26)**
+- ✅ Username — **fixed session 24 (#26)**
 - ✅ Connection status text (Online/Connecting/Offline)
 - ✅ Settings gear button
 - 🔲 Status picker popup — local UI state only, not synced
@@ -159,7 +205,7 @@ Last updated: 2026-04-15, session 25.
 - ✅ Sent vs received bubble styling (right-aligned sent, left-aligned received)
 - ✅ Sender avatar + name on received messages
 - ✅ Bubble timestamps
-- 🐛 Reply preview in bubbles — **never shows, engine doesn't populate reply_preview field (#27)**
+- ✅ Reply preview in bubbles — **fixed session 24 (#27)**
 - ✅ Edit indicator ("edited" label)
 - ✅ Message status indicators (sending/sent/delivered/read/failed)
 - ✅ Failed message "tap to retry"
@@ -170,7 +216,7 @@ Last updated: 2026-04-15, session 25.
 - ✅ Link detection + styling (blue clickable URLs, opens via xdg-open)
 - ✅ Code blocks (triple backtick) with monospace + dark background
 - ✅ Inline code (single backtick)
-- 🐛 Unread separator ("X new messages" pill) — **never appears in practice (#29)**
+- ✅ Unread separator ("X new messages" pill) — **fixed session 24 (#29)**
 - ✅ Message multi-select mode (checkboxes, bulk delete + bulk forward via engine)
 - ✅ Full-screen media viewer (pinch-to-zoom)
 - ✅ Reactions (chip UI + quick picker, wired to engine ReactToMessage)

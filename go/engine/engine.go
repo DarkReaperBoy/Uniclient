@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -338,12 +339,24 @@ func (e *Engine) JoinChat(accountID, channelName string) error {
 	type roomJoiner interface {
 		JoinRoom(roomID string) error
 	}
+	type channelMover interface {
+		MoveToChannel(channelID uint32) error
+	}
 
 	switch j := acc.Core.(type) {
 	case joiner:
 		j.JoinKey(channelName, "")
 	case roomJoiner:
 		if err := j.JoinRoom(channelName); err != nil {
+			return err
+		}
+	case channelMover:
+		// Mumble — channelName is a numeric channel ID.
+		id, err := strconv.ParseUint(channelName, 10, 32)
+		if err != nil {
+			return fmt.Errorf("invalid channel ID %q: %w", channelName, err)
+		}
+		if err := j.MoveToChannel(uint32(id)); err != nil {
 			return err
 		}
 	default:

@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — **Alpha** — scaffolding + cross-platform done, many placeholders remain
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 25 — full codebase debug audit: 15 files, ~40 bugs fixed across Dart + Go, 0 regressions)
+**Last Updated:** 2026-04-15 (session 26 — GUI smoke test: 8 bugs fixed, UTF-16 surrogate crash resolved, platform rail replaced with sidebar dropdown, 20 placeholders audited and added to checklist)
 
-**NEXT:** Replace placeholder features with real implementations: native desktop notifications (libnotify/dbus), system tray, real sticker/GIF backends, voice/video calls, voice message recording (actual audio capture), drag & drop file upload, mention autocomplete from real user lists. Fix remaining stub buttons. Accessibility. Then beta testing.
+**NEXT:** Work through the placeholder checklist in `checklist/gui.md` under "PLACEHOLDERS — Audit (session 26)". Start with "Must Fix" items (leave/delete chat, media download, channel mute/read/delete, language picker, cache size). Then "Should Fix" (DM profile, video playback, compose, QR auth). Then remaining missing features.
 
 ## Steps
 

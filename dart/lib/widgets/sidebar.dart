@@ -3,10 +3,28 @@ import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
+import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import '../models/engine_models.dart';
+import '../screens/auth_screen.dart';
 import '../screens/settings_screen.dart';
 import '../theme/theme.dart';
+import '../utils/debug.dart';
+import '../utils/safe_string.dart';
+
+/// Platform icons and their brand colors.
+const _platformMeta = <String, ({IconData icon, Color color, String label})>{
+  'telegram':  (icon: Icons.send_rounded,           color: Color(0xFF2AABEE), label: 'Telegram'),
+  'bale':      (icon: Icons.chat_rounded,            color: Color(0xFF00B862), label: 'Bale'),
+  'matrix':    (icon: Icons.grid_view_rounded,       color: Color(0xFF0DBD8B), label: 'Matrix'),
+  'irc':       (icon: Icons.terminal_rounded,        color: Color(0xFF8B5CF6), label: 'IRC'),
+  'xmpp':      (icon: Icons.hub_rounded,             color: Color(0xFFF97316), label: 'XMPP'),
+  'github':    (icon: Icons.code_rounded,            color: Color(0xFFE0E0E0), label: 'GitHub'),
+  'rubika':    (icon: Icons.diamond_rounded,         color: Color(0xFFE91E63), label: 'Rubika'),
+  'deltachat': (icon: Icons.mail_rounded,            color: Color(0xFF338BFF), label: 'Delta Chat'),
+  'teamspeak': (icon: Icons.headset_rounded,         color: Color(0xFF2580C3), label: 'TeamSpeak'),
+  'mumble':    (icon: Icons.mic_rounded,             color: Color(0xFF7C7C7C), label: 'Mumble'),
+};
 
 /// Sidebar — chat list with search, folders, drill-in, and chat items.
 class Sidebar extends StatefulWidget {
@@ -155,52 +173,10 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
       color: isDark ? AppColors.darkSidebar : AppColors.lightSidebar,
       child: Column(
         children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 12, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Text(
-                        platformFilter.isEmpty
-                            ? 'All Chats'
-                            : _platformLabel(platformFilter),
-                        style: Theme.of(context).textTheme.headlineMedium,
-                      ),
-                      // Unread count badge in header
-                      if (totalUnread > 0)
-                        Container(
-                          margin: const EdgeInsets.only(left: 8),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          constraints: const BoxConstraints(minWidth: 20),
-                          decoration: BoxDecoration(
-                            color: AppColors.accent,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            totalUnread > 99 ? '99+' : '$totalUnread',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit_square, size: 20),
-                  onPressed: () {},
-                  tooltip: 'New message',
-                  splashRadius: 18,
-                ),
-              ],
-            ),
+          // Header with platform dropdown
+          _PlatformHeader(
+            platformFilter: platformFilter,
+            totalUnread: totalUnread,
           ),
 
           // Search
@@ -437,7 +413,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                       ),
                       child: Center(
                         child: Text(
-                          parent.title.isNotEmpty ? parent.title[0].toUpperCase() : '?',
+                          safeInitial(parent.title),
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 14,
@@ -604,7 +580,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
           controller: controller,
           autofocus: true,
           decoration: InputDecoration(
-            hintText: platform == 'irc' ? '#channel' : 'Channel name',
+            hintText: platform == 'irc' ? '#channel' : platform == 'mumble' ? 'Channel ID (number)' : 'Channel name',
             hintStyle: TextStyle(color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim),
           ),
           style: TextStyle(color: isDark ? AppColors.darkText : AppColors.lightText),
@@ -690,19 +666,365 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     });
   }
 
-  String _platformLabel(String platform) => switch (platform) {
-    'telegram' => 'Telegram',
-    'bale' => 'Bale',
-    'matrix' => 'Matrix',
-    'irc' => 'IRC',
-    'xmpp' => 'XMPP',
-    'github' => 'GitHub',
-    'rubika' => 'Rubika',
-    'deltachat' => 'Delta Chat',
-    'teamspeak' => 'TeamSpeak',
-    'mumble' => 'Mumble',
-    _ => platform,
-  };
+}
+
+// ── Platform Header (replaces PlatformRail) ──
+
+class _PlatformHeader extends StatelessWidget {
+  final String platformFilter;
+  final int totalUnread;
+
+  const _PlatformHeader({
+    required this.platformFilter,
+    required this.totalUnread,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appState = context.watch<AppState>();
+    final chatState = context.watch<ChatState>();
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+    final mutedColor = isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
+
+    final meta = _platformMeta[platformFilter];
+    final label = meta?.label ?? 'All Chats';
+    final icon = meta?.icon ?? Icons.all_inclusive_rounded;
+    final color = meta?.color ?? AppColors.accent;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 8, 4),
+      child: Row(
+        children: [
+          // Platform dropdown trigger
+          Expanded(
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _showPlatformPicker(context, appState, chatState),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, color: color, size: 20),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: textColor,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (totalUnread > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                        constraints: const BoxConstraints(minWidth: 18),
+                        decoration: BoxDecoration(
+                          color: AppColors.accent,
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Text(
+                          totalUnread > 99 ? '99+' : '$totalUnread',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(width: 4),
+                    Icon(Icons.expand_more_rounded, size: 18, color: mutedColor),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          // Add platform button
+          IconButton(
+            icon: const Icon(Icons.add_rounded, size: 20),
+            onPressed: () => _showAddPlatformDialog(context),
+            tooltip: 'Add platform',
+            splashRadius: 18,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPlatformPicker(BuildContext context, AppState appState, ChatState chatState) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt;
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+    final mutedColor = isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted;
+    final platforms = appState.platforms;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          // "All Chats" option
+          _platformOption(
+            ctx: ctx,
+            context: context,
+            icon: Icons.all_inclusive_rounded,
+            color: AppColors.accent,
+            label: 'All Chats',
+            isActive: platformFilter.isEmpty,
+            unread: chatState.totalUnread,
+            textColor: textColor,
+            mutedColor: mutedColor,
+            onTap: () {
+              Navigator.pop(ctx);
+              appState.setActivePlatform('');
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            child: Divider(height: 1, color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
+          ),
+          // Each connected platform
+          for (final platform in platforms)
+            _platformOption(
+              ctx: ctx,
+              context: context,
+              icon: _platformMeta[platform]?.icon ?? Icons.extension_rounded,
+              color: _platformMeta[platform]?.color ?? AppColors.accent,
+              label: _platformMeta[platform]?.label ?? platform,
+              isActive: platformFilter == platform,
+              unread: chatState.chatsForPlatform(platform).fold(0, (sum, c) => sum + c.unreadCount),
+              connState: _bestConnState(appState, platform),
+              textColor: textColor,
+              mutedColor: mutedColor,
+              onTap: () {
+                Navigator.pop(ctx);
+                appState.setActivePlatform(platform);
+              },
+              onLongPress: () {
+                Navigator.pop(ctx);
+                _showPlatformContextMenu(context, platform);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _platformOption({
+    required BuildContext ctx,
+    required BuildContext context,
+    required IconData icon,
+    required Color color,
+    required String label,
+    required bool isActive,
+    required int unread,
+    ConnState connState = ConnState.connected,
+    required Color textColor,
+    required Color mutedColor,
+    required VoidCallback onTap,
+    VoidCallback? onLongPress,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        color: isActive ? color.withAlpha(20) : null,
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                  color: textColor,
+                ),
+              ),
+            ),
+            // Connection status indicator
+            if (connState != ConnState.connected) ...[
+              Container(
+                width: 8, height: 8,
+                decoration: BoxDecoration(
+                  color: switch (connState) {
+                    ConnState.connecting || ConnState.unstable || ConnState.authRequired => AppColors.warning,
+                    _ => AppColors.danger,
+                  },
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            // Unread badge
+            if (unread > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                constraints: const BoxConstraints(minWidth: 18),
+                decoration: BoxDecoration(
+                  color: AppColors.accent,
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPlatformContextMenu(BuildContext context, String platform) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? AppColors.darkSurfaceAlt : AppColors.lightSurfaceAlt;
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+    final appState = context.read<AppState>();
+    final accounts = appState.accountsForPlatform(platform);
+    final label = _platformMeta[platform]?.label ?? platform;
+    final needsAuth = _bestConnState(appState, platform) == ConnState.authRequired;
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        backgroundColor: bgColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(label, style: TextStyle(color: textColor)),
+        children: [
+          if (needsAuth)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, 'reauth'),
+              child: Row(children: [
+                Icon(Icons.lock_open, color: AppColors.warning, size: 18),
+                const SizedBox(width: 10),
+                Text('Re-authenticate', style: TextStyle(color: AppColors.warning)),
+              ]),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'reconnect'),
+            child: Row(children: [
+              Icon(Icons.refresh, color: textColor, size: 18),
+              const SizedBox(width: 10),
+              Text('Reconnect', style: TextStyle(color: textColor)),
+            ]),
+          ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, 'disconnect'),
+            child: Row(children: [
+              Icon(Icons.power_settings_new, color: AppColors.danger, size: 18),
+              const SizedBox(width: 10),
+              Text('Disconnect', style: TextStyle(color: AppColors.danger)),
+            ]),
+          ),
+        ],
+      ),
+    );
+
+    if (!context.mounted || result == null) return;
+    final engine = context.read<EngineService>();
+
+    switch (result) {
+      case 'reauth':
+        final acc = accounts.firstWhere(
+          (a) => appState.connStateFor(a.id) == ConnState.authRequired,
+          orElse: () => accounts.first,
+        );
+        if (context.mounted) {
+          showDialog<void>(
+            context: context,
+            barrierDismissible: true,
+            builder: (_) => AuthScreen(accountId: acc.id, platform: acc.platform),
+          ).then((_) {
+            if (context.mounted) context.read<ChatState>().loadChats();
+          });
+        }
+      case 'reconnect':
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(SnackBar(content: Text('Reconnecting $label...')));
+        for (final acc in accounts) {
+          engine.connectAccount(acc.id).catchError((_) {});
+        }
+      case 'disconnect':
+        for (final acc in accounts) {
+          engine.disconnectAccount(acc.id).catchError((_) {});
+        }
+        if (context.mounted) {
+          ScaffoldMessenger.of(context)
+            ..clearSnackBars()
+            ..showSnackBar(SnackBar(content: Text('Disconnected $label')));
+        }
+    }
+  }
+
+  static void _showAddPlatformDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Add Platform'),
+        children: [
+          for (final entry in _platformMeta.entries)
+            SimpleDialogOption(
+              onPressed: () {
+                Debug.log('UI', 'Add platform: ${entry.key}');
+                Navigator.pop(ctx);
+                try {
+                  final appState = context.read<AppState>();
+                  final id = appState.addAccount(entry.key);
+                  showDialog<void>(
+                    context: context,
+                    barrierDismissible: true,
+                    builder: (_) => AuthScreen(accountId: id, platform: entry.key),
+                  ).then((_) {
+                    if (context.mounted) {
+                      appState.setActivePlatform(entry.key);
+                      context.read<ChatState>().loadChats();
+                    }
+                  });
+                } catch (e, stack) {
+                  Debug.error('UI', 'Add platform failed', e, stack);
+                }
+              },
+              child: Row(
+                children: [
+                  Icon(entry.value.icon, color: entry.value.color, size: 24),
+                  const SizedBox(width: 12),
+                  Text(entry.value.label),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static ConnState _bestConnState(AppState appState, String platform) {
+    final accounts = appState.accountsForPlatform(platform);
+    if (accounts.isEmpty) return ConnState.disconnected;
+    for (final a in accounts) {
+      if (appState.connStateFor(a.id) == ConnState.connected) return ConnState.connected;
+    }
+    for (final a in accounts) {
+      if (appState.connStateFor(a.id) == ConnState.connecting) return ConnState.connecting;
+    }
+    for (final a in accounts) {
+      if (appState.connStateFor(a.id) == ConnState.authRequired) return ConnState.authRequired;
+    }
+    return ConnState.disconnected;
+  }
 }
 
 // ── Folder Tabs ──
@@ -1548,7 +1870,7 @@ class _ChatAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final initial = chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?';
+    final initial = safeInitial(chat.title);
 
     // Generate a stable color from the chat ID.
     final hue = (chat.chatId.hashCode % 360).abs().toDouble();

@@ -15,6 +15,7 @@ import '../theme/theme.dart';
 import 'emoji_panel.dart';
 import 'forward_dialog.dart';
 import 'media_viewer.dart';
+import '../utils/safe_string.dart';
 
 /// Main chat area — header + messages + input.
 class ChatView extends StatelessWidget {
@@ -275,7 +276,7 @@ class _ChatHeader extends StatelessWidget {
   };
 
   static void _showChatInfoDialog(BuildContext context, ChatInfo chat, bool isDark) {
-    final initial = chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?';
+    final initial = safeInitial(chat.title);
     final hue = (chat.chatId.hashCode % 360).abs().toDouble();
     final avatarColor = HSLColor.fromAHSL(1, hue, 0.5, 0.4).toColor();
 
@@ -454,7 +455,7 @@ class _ChatHeader extends StatelessWidget {
                             return ListTile(
                               dense: true,
                               leading: r.senderName.isNotEmpty
-                                  ? CircleAvatar(radius: 14, child: Text(r.senderName[0], style: const TextStyle(fontSize: 12)))
+                                  ? CircleAvatar(radius: 14, child: Text(safeInitial(r.senderName), style: const TextStyle(fontSize: 12)))
                                   : null,
                               title: Text(
                                 r.text,
@@ -697,7 +698,7 @@ class _PinnedMessageTile extends StatelessWidget {
               isDark ? 0.45 : 0.55,
             ).toColor(),
             child: Text(
-              senderName.isNotEmpty ? senderName[0].toUpperCase() : '?',
+              safeInitial(senderName),
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
