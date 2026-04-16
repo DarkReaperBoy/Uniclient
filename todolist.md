@@ -4,7 +4,7 @@ Top-to-bottom execution order. Remove items when done.
 
 ## 0. Finish Telegram Desktop UI Spec (`research/telegram_desktop_ui.md`)
 
-Sections 1-34 written (8142 lines). The remaining sections need to be researched from scratch by sending agents to study the AyuGram Desktop source code (https://github.com/AyuGram/AyuGramDesktop) and appending results to `research/telegram_desktop_ui.md`. Do 3 agents at a time, wait for results, append, repeat.
+Sections 1-49 written (12,251 lines). The remaining sections need to be researched from scratch by sending agents to study the AyuGram Desktop source code (https://github.com/AyuGram/AyuGramDesktop) and appending results to `research/telegram_desktop_ui.md`. Do 3 agents at a time, wait for results, append, repeat.
 
 **Settings screens — ALL DONE:**
 - ~~General/My Account settings~~ → §14
@@ -34,23 +34,23 @@ Sections 1-34 written (8142 lines). The remaining sections need to be researched
 - ~~Stories UI~~ → §32
 - ~~Contacts screen~~ → §33
 - ~~Calls history screen~~ → §34
-- Empty/error/loading states
-- Common dialog/modal patterns (confirm, alert, input boxes)
-- Desktop notifications (toast/popup appearance)
-- User profile popup (clicking avatar in chat)
-- Photo/avatar cropping dialog
+- ~~Empty/error/loading states~~ → §35
+- ~~Common dialog/modal patterns~~ → §36
+- ~~Desktop notifications~~ → §37
+- ~~User profile popup~~ → §38
+- ~~Photo/avatar cropping dialog~~ → §39
 
-**Interactions & micro-UI (each needs its own agent):**
-- Send files dialog (album preview, compression toggle, spoiler, caption, grouped layout)
-- Message formatting toolbar (popup on text selection: bold, italic, mono, strike, spoiler, link)
-- Reactions detail popup (who reacted with what emoji, expandable list per emoji)
-- Read receipts detail (who read the message in small groups)
-- Spoiler animation (shimmer effect on text and media, reveal on click)
-- Custom emoji rendering (inline in text, size differences, premium-only indicators)
-- Link preview in compose (preview card when pasting URL, large/small media toggle, remove preview)
-- Restricted permissions UI (grayed send button, "you can't send messages" bar, slow mode countdown timer)
-- Drag-and-drop file overlay (drop zone appearance, file vs photo detection)
-- Scroll behaviors (infinite scroll, jump-to-date calendar popup, jump-to-message animation, unread marker scroll)
+**Interactions & micro-UI:**
+- ~~Send files dialog~~ → §40
+- ~~Message formatting toolbar~~ → §41
+- ~~Reactions detail popup~~ → §42
+- ~~Read receipts detail~~ → §43
+- ~~Spoiler animation~~ → §44
+- ~~Custom emoji rendering~~ → §45
+- ~~Link preview in compose~~ → §46
+- ~~Restricted permissions UI~~ → §47
+- ~~Drag-and-drop file overlay~~ → §48
+- ~~Scroll behaviors~~ → §49
 - Instant View (article reader mode, typography, navigation, share button)
 
 **AyuGram-specific features (each needs its own agent):**

@@ -8140,3 +8140,4112 @@ When a call is active, a colored bar appears at the top of the main window (38px
 | Blob level duration | `kBlobLevelDuration` | 250ms |
 | Blob hide duration | `kHideBlobsDuration` | 500ms |
 | Debug info update interval | `kUpdateDebugTimeoutMs` | 500ms |
+
+---
+
+## 35. Empty, Error & Loading States
+
+Every empty, loading, and error state in Telegram Desktop, traced to source files and exact strings.
+
+---
+
+### 35.1 Empty Chat List
+
+**When:** User has no conversations yet (contacts loaded, but no dialogs).
+
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4307-4361
+
+**Visual layout:**
+- Centered vertically in the dialogs column (offset for bottom button)
+- **Lottie animation** `no_chats.tgs` (`Telegram/Resources/animations/no_chats.tgs`) at top, rendered at `normalBoxLottieSize`, plays once on display
+- Skip below animation
+- **Text label:** `"You have no\nconversations yet."` (`lng_no_conversations`) -- styled with `dialogEmptyButtonLabel`
+- **Action button** at bottom of column: `"New Message"` (`lng_no_conversations_button`) -- styled with `dialogEmptyButton`, offset from bottom by `dialogEmptyButtonSkip`
+- Button opens the Contacts box (`PrepareContactsBox`)
+- Below the Lottie animation, a subtitle section shows contacts already on Telegram with label `"Your contacts on Telegram"` (`lng_no_conversations_subtitle`)
+
+**State enum:** `EmptyState::NoContacts` (set when `!_filterId && data->contactsLoaded().current()` and shown list is empty)
+
+---
+
+### 35.2 Empty Folder (Chat Filter)
+
+**When:** A folder/filter is selected but no chats match it.
+
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4268-4305
+
+**Text:** `"No chats currently belong to this folder."` (`lng_no_chats_filter`)
+
+**Action link:** `"Edit"` (`lng_filters_context_edit`) -- inline link in the label, opens the folder editor
+
+**Visual:** Centered `dialogsEmptyLabel` styled FlatLabel, no icon/animation. Appears only in `WidgetState::Default`, hidden during search.
+
+**State enum:** `EmptyState::EmptyFolder` (set when `_filterId > 0 && data->chatsList()->loaded()` and shown list is empty)
+
+---
+
+### 35.3 Empty Forum (No Topics)
+
+**When:** A forum group has no topics created yet.
+
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4268-4305
+
+**Text:** `"No topics currently created in this group."` (`lng_forum_no_topics`)
+
+**Action link:** `"Create topic"` (`lng_forum_create_topic`) -- opens `NewForumTopicBox`
+
+**State enum:** `EmptyState::EmptyForum`
+
+---
+
+### 35.4 Empty Saved Sublists
+
+**When:** Saved Messages is opened but user hasn't saved messages from other chats.
+
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4274-4275
+
+**Text:** `"You can save messages from other chats here."` (`lng_no_saved_sublists`)
+
+**No action link.** No icon. Centered label only.
+
+**State enum:** `EmptyState::EmptySavedSublists`
+
+---
+
+### 35.5 Chat List Loading
+
+**When:** Dialogs are being loaded (initial sync or folder switch).
+
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4215-4225, `Telegram/SourceFiles/ui/effects/loading_element.cpp`
+
+**Text:** `"Loading..."` (`lng_contacts_loading`)
+
+**Visual:** Skeleton loading rows created via `CreateLoadingDialogRowWidget()`:
+- 2 placeholder rows by default
+- Each row is a ghost version of a dialog row: circular avatar placeholder (ellipse at `photoPosition`, `photoSize`), name bar (60px rounded rect at `namePosition`), status bar (100px rounded rect at `statusPosition`)
+- Placeholder shapes use `windowBgOver` color on `dialogsBg` background
+- **Glare animation:** A horizontal gradient shimmer sweeps left-to-right across the skeleton rows, 1000ms slide + 1000ms pause cycle. Gradient goes from base color -> lighter center -> base color. Width equals widget width.
+- Rows are positioned at `searchedOffset()` in the dialogs list
+- Shown when `(_searchLoading || _searchWaiting) && empty`
+
+**State enum:** `EmptyState::Loading`
+
+---
+
+### 35.6 No Chat Selected ("Select a chat to start messaging")
+
+**When:** No chat is open in the center column.
+
+**Source:** `Telegram/SourceFiles/history/history_widget.cpp` lines 10174-10202
+
+**Text:** `"Select a chat to start messaging"` (`lng_willbe_history`)
+
+**Visual:**
+- Service message bubble (rounded rect with semi-transparent background, painted via `ServiceMessagePainter::PaintBubble`)
+- Text in `msgServiceFont`, colored with `msgServiceFg`
+- Horizontally centered in the chat column
+- Vertically centered in the available area (above the compose field area)
+- Bubble width = text width + `msgPadding.left()` + `msgPadding.right()`
+- Bubble height = font height + `msgServicePadding.top()` + `msgServicePadding.bottom()`
+
+---
+
+### 35.7 Empty Search Results
+
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 156-219, `Telegram/SourceFiles/dialogs/ui/chat_search_empty.cpp`
+
+#### 35.7.1 Search Waiting (empty query)
+
+**When:** Search bar is focused but no query entered yet.
+
+**Icon:** Lottie animation `search.tgs` (`Telegram/Resources/animations/search.tgs`), rendered at `recentPeersEmptySize`
+
+**Text:** `"Search for messages"` (`lng_dlg_search_for_messages`)
+
+**Hashtag variant:** If query starts with `#` but rest is empty: `"Enter a hashtag to find messages containing it."` (`lng_search_tab_by_hashtag`)
+
+#### 35.7.2 No Results Found
+
+**When:** Search completed with no matches.
+
+**Icon:** Lottie animation `noresults.tgs` (`Telegram/Resources/animations/noresults.tgs`)
+
+**Text (multi-line):**
+1. **Bold:** `"No Results"` (`lng_search_tab_no_results`)
+2. `"There were no results for \"{query}\"."` (`lng_search_tab_no_results_text`) -- query truncated to `kQueryPreviewLimit` chars with ellipsis
+3. If searching in a specific chat type filter (not "All"): link `"Search in All Messages"` (`lng_search_tab_try_in_all`) -- clicking resets `ChatTypeFilter` to `All`
+4. If hashtag search: `"Try another hashtag."` (`lng_search_tab_no_results_retry`)
+
+**Layout:** Icon at 1/3 height vertically, text below icon with `recentPeersEmptySkip` gap. Label uses `defaultPeerListAbout` style. Margin: `recentPeersEmptyMargin`. Minimum height: `recentPeersEmptyHeightMin`.
+
+---
+
+### 35.8 Empty Recent Search
+
+**When:** Search suggestions panel shown but no recent searches exist.
+
+**Source:** `Telegram/SourceFiles/dialogs/ui/dialogs_suggestions.cpp` line 2443
+
+**Icon:** `search.tgs` Lottie animation (same as search waiting)
+
+**Text:** `"Recent search results\nwill appear here."` (`lng_recent_none`)
+
+---
+
+### 35.9 Empty Channels List (Suggestions)
+
+**When:** "My Channels" tab in suggestions has no channels.
+
+**Source:** `Telegram/SourceFiles/dialogs/ui/dialogs_suggestions.cpp` line 2727
+
+**Icon:** `noresults.tgs` Lottie animation
+
+**Text:** `"You are not currently subscribed to any channels."` (`lng_channels_none_about`)
+
+---
+
+### 35.10 Empty Shared Media Tabs
+
+**Source:** `Telegram/SourceFiles/info/media/info_media_empty_widget.cpp`
+
+**Layout:**
+- Icon centered horizontally, positioned at 1/3 height of available area
+- Text label below icon (`infoEmptyLabel` style, width constrained by `infoEmptyLabelSkip` margins)
+- When loading: no icon, just `"Loading..."` (`lng_contacts_loading`) centered with `normalFont` in `windowSubTextFg`
+
+**Per-type icons and text:**
+
+| Media Type | Icon (PNG) | Empty Text | Search Empty Text |
+|---|---|---|---|
+| Photos | `infoEmptyPhoto` (`info_media_photo_empty.png`) | `"No photos here yet"` | (same) |
+| GIFs | `infoEmptyPhoto` (same as photos) | `"No GIFs here yet"` | (same) |
+| Videos | `infoEmptyVideo` (`info_media_video_empty.png`) | `"No videos here yet"` | (same) |
+| Music | `infoEmptyAudio` (`info_media_audio_empty.png`) | `"No music files here yet"` | `"No music files found"` |
+| Files | `infoEmptyFile` (`info_media_file_empty.png`) | `"No files here yet"` | `"No files found"` |
+| Links | `infoEmptyLink` (`info_media_link_empty.png`) | `"No shared links here yet"` | `"No shared links found"` |
+| Voice/Round | `infoEmptyVoice` (`info_media_voice_empty.png`) | `"No voice messages here yet"` | (same) |
+
+Icon assets at `Telegram/Resources/icons/info/info_media_*_empty.png` (with @2x, @3x variants).
+
+---
+
+### 35.11 Empty Downloads Manager
+
+**Source:** `Telegram/SourceFiles/info/downloads/info_downloads_inner_widget.cpp` lines 56-59
+
+**Icon:** `infoEmptyFile` (same file icon as shared media files tab)
+
+**Text:** `"No files here yet"` (`lng_media_file_empty`) or `"No files found"` (`lng_media_file_empty_search`) when search is active
+
+---
+
+### 35.12 Empty Sticker Panel (Search)
+
+**Source:** `Telegram/SourceFiles/chat_helpers/stickers_list_widget.cpp` lines 1191-1199
+
+**When:** Sticker search returns no results.
+
+**Icon:** `stickersEmpty` icon (`Telegram/Resources/icons/stickers_empty.png`)
+
+**Text (loading):** `"Loading..."` (`lng_contacts_loading`) -- shown while `_searchLoading` or search timer active, icon is skipped
+
+**Text (no results):** `"No stickers found"` (`lng_stickers_nothing_found`)
+
+**Layout:** Uses `paintEmptySearchResults()` from `TabbedSelector::Inner`: icon centered at 1/3 height, text below. Text uses `normalFont`, colored with `tabs.labelFg`.
+
+---
+
+### 35.13 Empty Emoji Panel (Search)
+
+**Source:** `Telegram/SourceFiles/chat_helpers/emoji_list_widget.cpp` lines 3293-3298
+
+**Icon:** `emojiEmpty` icon
+
+**Text:** `"No emoji found"` (`lng_emoji_nothing_found`)
+
+**Layout:** Same `paintEmptySearchResults()` pattern as stickers.
+
+---
+
+### 35.14 Empty GIF Panel
+
+**Source:** `Telegram/SourceFiles/chat_helpers/gifs_list_widget.cpp` lines 348-355
+
+**When:** No saved GIFs (no query) or inline bot returned no results (with query).
+
+**Text (no query):** `"You have no saved GIFs yet."` (`lng_gifs_no_saved`)
+
+**Text (with query):** `"No results."` (`lng_inline_bot_no_results`)
+
+**Layout:** Text drawn with `normalFont` in `noContactsColor`, centered in upper 2/3 of panel (`QRect(0, 0, width, height*2/3 + fontHeight)`, `style::al_center`). No icon.
+
+---
+
+### 35.15 "No Messages Yet" in New Chats (Chat Intro)
+
+**Source:** `Telegram/SourceFiles/history/view/history_view_about_view.cpp` lines 246-305
+
+**When:** A private chat has no messages yet. Business accounts can customize this.
+
+**Default text:**
+- **Title (bold):** `"No messages here yet..."` (`lng_chat_intro_default_title`)
+- **Description:** `"Send a message or click on the greeting below"` (`lng_chat_intro_default_message`)
+
+**Visual:**
+- Service message style bubble (semi-transparent background, same as service messages)
+- Title in bold, with `chatIntroTitleMargin`
+- Description below with `chatIntroMargin`
+- **Sticker:** Random "hello" sticker from the premium hello sticker set, rendered at `chatIntroStickerSize`. Clickable -- sends the sticker as a message.
+- Entire thing is a `MediaGeneric` item in the message list
+
+**Business custom intro:** Title and description can be customized by the account owner, plus a custom sticker choice.
+
+---
+
+### 35.16 New Group Created (Empty Group Chat)
+
+**Source:** `Telegram/SourceFiles/history/view/history_view_service_message.cpp` lines 892-904, 916-1000
+
+**When:** User just created a new group and it has no messages.
+
+**Visual:** Service message bubble, centered vertically:
+- **Header (bold):** `"You created a group"` (`lng_group_about_header`)
+- **Subtext:** `"Groups can have:"` (`lng_group_about_text`)
+- **Bullet list (4 items):**
+  - `"Up to 200,000 members"` (`lng_group_about1`)
+  - `"Persistent chat history"` (`lng_group_about2`)
+  - `"Public links such as t.me/title"` (`lng_group_about3`)
+  - `"Admins with different rights"` (`lng_group_about4`)
+
+**Layout:** Bubble width = max of header/text/bullet widths + padding (`historyGroupAboutPadding`). Bullets indented by `historyGroupAboutBulletSkip`. Spacing: `historyGroupAboutHeaderSkip` after header, `historyGroupAboutTextSkip` after text, `historyGroupAboutSkip` between bullets. Text colored `msgServiceFg`, max 3 lines per item.
+
+---
+
+### 35.17 New Forum Topic Created (Empty Topic)
+
+**Source:** `Telegram/SourceFiles/history/view/history_view_service_message.cpp` lines 907-914
+
+**Own topic:**
+- **Header:** `"Almost done!"` (`lng_forum_topic_created_title_my`)
+- **Body:** `"Send a message to\nstart the topic."` (`lng_forum_topic_created_body_my`)
+
+**Other's topic:**
+- **Header:** `"Topic started!"` (`lng_forum_topic_created_title`)
+- **Body:** `"Send a message\nto start the topic."` (`lng_forum_topic_created_body`)
+
+**Visual:** Same service bubble layout as group about, but with the topic icon rendered above the header at `infoTopicCover.photo.size` height.
+
+---
+
+### 35.18 Empty Contacts Search
+
+**Source:** `Telegram/SourceFiles/boxes/peer_list_controllers.cpp` line 511
+
+**Text:** `"No contacts found"` (`lng_contacts_not_found`)
+
+Used in: contacts box, add members, peer list searches. Set via `setSearchNoResultsText()`.
+
+---
+
+### 35.19 Empty Member Search / Peer List Search
+
+**Source:** `Telegram/SourceFiles/boxes/peers/edit_participants_box.cpp`, `add_participants_box.cpp`, etc.
+
+**Text:** `"No users found."` (`lng_blocked_list_not_found`)
+
+Used as the default `searchNoResultsText` for member lists, ban lists, admin lists, etc.
+
+---
+
+### 35.20 Empty Blocked Users List
+
+**Source:** `Telegram/SourceFiles/settings/settings_privacy_controllers.cpp` lines 350, 363
+
+**Loading state:** `"Loading..."` (`lng_contacts_loading`) as description text
+
+**Empty state title:** `"No blocked users"` (`lng_blocked_list_empty_title`)
+
+**Empty state description:** `"You haven't blocked anyone yet."` (`lng_blocked_list_empty_description`)
+
+**Lottie animation:** `blocked_peers_empty.tgs` (`Telegram/Resources/animations/blocked_peers_empty.tgs`)
+
+---
+
+### 35.21 Admin Log Empty / No Results
+
+**Source:** `Telegram/SourceFiles/history/admin_log/history_admin_log_inner.cpp` lines 608-626
+
+**No events yet (no filter):**
+- **Title (semibold):** `"No actions yet"` (`lng_admin_log_no_events_title`)
+- **Description (group):** `"No notable actions taken by the members and admins of this group in the last 48 hours."` (`lng_admin_log_no_events_text`)
+- **Description (channel):** `"No notable actions taken\nby the admins of this channel\nin the last 48 hours."` (`lng_admin_log_no_events_text_channel`)
+
+**No results (search/filter active):**
+- **Title (semibold):** `"No actions found"` (`lng_admin_log_no_results_title`)
+- **Description (filter only):** `"No recent actions that match your query were found."` (`lng_admin_log_no_results_text`)
+- **Description (search query):** `"No recent actions that contain '{query}' have been found."` (`lng_admin_log_no_results_search_text`)
+
+**Visual:** Multiline `_emptyText` drawn in `defaultTextStyle`, centered in the admin log view area.
+
+---
+
+### 35.22 Connection State Widget ("Connecting...")
+
+**Source:** `Telegram/SourceFiles/window/window_connecting_widget.cpp`, `window_connecting_widget.h`
+
+**States:** `Connected`, `Connecting`, `Waiting`
+
+#### Connecting State
+
+**Trigger:** MTP state is `ConnectingState` or `DisconnectedState`, persists for at least `kConnectingStateDelay` before showing.
+
+**Visual:**
+- Bottom-left pill widget overlaid on the main window, above the bottom skip area
+- Rounded left cap (`connectingLeft` icon), body fill (`connectingBody`), rounded right cap (`connectingRight` icon)
+- Drop shadows: `connectingLeftShadow`, `connectingBodyShadow`, `connectingRightShadow`
+- **Animated progress indicator** (circular spinner child widget `Progress`), always visible when not Connected
+- **Text (on hover):** `"Connecting..."` (`lng_connecting`) -- only shown when cursor is over the widget
+- **Text (no hover):** Empty -- just the spinner and proxy icon
+- **Proxy icon:** Shield icon shown when proxy is enabled, toggles visual state
+- Clicking the widget opens the Proxies settings box
+
+#### Waiting State (Reconnect countdown)
+
+**Trigger:** MTP state negative (seconds until retry), beyond `kMinimalWaitingStateDuration`
+
+**Text:** `"Reconnect in {count} s..."` (`lng_reconnecting`) -- countdown timer
+
+**Retry button:** `"Try now"` (`lng_reconnecting_try_now`) -- styled with `connectingRetryLink`
+
+**Layout:** Text + retry link side by side in the pill, with padding from `connectingTextPadding`
+
+#### Proxy-specific connection states
+
+- **Auto (connecting):** `"Default (connecting...)"` (`lng_connection_auto_connecting`)
+- **Through proxy:** `"Connecting through proxy..."` (`lng_connection_proxy_connecting`)
+- **Proxy status checking:** `"checking..."` (`lng_proxy_checking`)
+- **Proxy connecting:** `"connecting..."` (`lng_proxy_connecting`)
+- **Proxy available:** `"available (ping: {ping} ms)"` (`lng_proxy_available`)
+- **Proxy unavailable:** `"not available"` (`lng_proxy_unavailable`)
+
+#### Visibility rules
+
+- Hidden when `Connected` and no proxy enabled
+- Hidden when `updateReady` is true (update banner takes priority)
+- Hidden when window is not exposed
+- Hidden when `_forceHidden` is set
+- Fade animation on show/hide (`connectingDuration`)
+- Content width animates smoothly on text changes
+
+---
+
+### 35.23 Flood Wait / Rate Limit Errors
+
+**Source:** `Telegram/Resources/langs/lang.strings`
+
+**General flood:** `"Too many tries. Please try again later."` (`lng_flood_error`) -- shown as toast
+
+**Phone flood:** `"Sorry, you have deleted and re-created your account too many times recently. Please wait for a few days before signing up again."` (`lng_error_phone_flood`)
+
+**Presentation:** These are shown as toast notifications or in error boxes, not as persistent UI states.
+
+---
+
+### 35.24 File Download States
+
+**Source:** `Telegram/SourceFiles/history/view/media/history_view_file.cpp` lines 69-86, `history_view_document.cpp` lines 1521-1591
+
+File status sizes are sentinel values defined in `Telegram/SourceFiles/ui/text/format_values.h`:
+- `FileStatusSizeReady` = `0xFFFFFFF0` -- file available for download
+- `FileStatusSizeLoaded` = `0xFFFFFFF1` -- file fully downloaded
+- `FileStatusSizeFailed` = `0xFFFFFFF2` -- download/upload failed
+
+#### Ready (not downloaded)
+
+**Status text:** File size formatted (e.g. `"3.2 MB"`) or duration + size for audio/video (e.g. `"2:34, 3.2 MB"`)
+
+**Visual:** Download arrow icon in circular button. For corner-download style: small circle at top-left of the document bubble with download arrow icon.
+
+#### Downloading/Uploading (in progress)
+
+**Status text:** `"{ready} / {total} {mb}"` (`lng_save_downloaded`) -- e.g. `"1.2 / 3.2 MB"`
+
+**Visual:**
+- **Radial progress indicator** (`InfiniteRadialAnimation`): Circular arc drawn around the action button, showing download percentage. Line width: `msgFileRadialLine` or `historyAudioRadialLine`. Color: `historyFileRadialFg` / `historyFileThumbRadialFg`.
+- Action button icon changes to **cancel** (X) icon during download
+- Progress updates continuously via `radialAnimationCallback()`
+
+#### Loaded (complete)
+
+**Status text:** Duration for audio (e.g. `"2:34"`), `"GIF"` for GIFs, or file size for documents
+
+**Visual:** No radial progress. Action icon becomes play/open.
+
+#### Failed
+
+**Status text:** `"Failed"` (`lng_attach_failed`)
+
+**Visual:** No special icon change. Status text turns to "Failed".
+
+#### Download path errors
+
+- **Start failed:** `"File download could not be started.\n\nThis might be because your selected download location is invalid. Try changing it in Settings > Advanced > Download Path."` (`lng_download_path_failed`) -- shown in info box
+- **Finish failed:** `"File download could not be completed.\n\nWould you like to try again?"` (`lng_download_finish_failed`) -- shown in confirm box with retry option
+
+---
+
+### 35.25 Media Loading in Messages (Photos/Videos/GIFs)
+
+**Source:** `Telegram/SourceFiles/history/view/media/history_view_photo.cpp`, `history_view_gif.cpp`
+
+#### Thumbnail progression
+
+1. **Inline thumbnail** (blurhash/stripped bytes): Tiny thumbnail decoded from `inlineThumbnailBytes`, displayed blurred as immediate placeholder
+2. **Blurred thumbnail**: Low-res thumbnail loaded and displayed with blur filter (`args.blurred()`)
+3. **Full image**: Full resolution loaded, replaces blurred version. Cached with `_imageCacheBlurred` flag tracking state.
+
+#### Loading overlay
+
+**When:** Photo/video is loading and not yet fully available.
+
+**Visual:**
+- Semi-transparent dark overlay on the media
+- **Radial progress arc** in center: circular progress indicator showing download percentage
+- **Icon in center**: Download icon (arrow) while waiting, Cancel icon (X) while loading
+- Icon uses `historyFileThumbDownload` / `historyFileThumbCancel` style
+- Radial progress: `msgFileRadialLine` width, `historyFileThumbRadialFg` color
+
+#### Upload progress
+
+Same radial overlay but for outgoing media being uploaded. `_data->uploading()` triggers the progress display. Radial opacity fades to 0 when upload completes.
+
+---
+
+### 35.26 Media Viewer Loading
+
+**Source:** `Telegram/SourceFiles/media/view/media_view_overlay_widget.cpp` lines 5808-5823, 5850-5852
+
+**When:** Streaming video/photo loading in the full-screen media viewer.
+
+**Visual:**
+- `InfiniteRadialAnimation::Draw()` -- spinning arc indicator
+- Drawn at `radialRect()` (centered in the media area)
+- Uses the streaming instance's `waitingState()` for animation parameters
+- Shown when `_streamed->instance.waitingShown()` is true
+
+#### Streaming errors
+
+**Source:** `media_view_overlay_widget.cpp` lines 4855-4873
+
+- `Error::NotStreamable`: Document marked as not supporting streaming, falls back to download
+- `Error::OpenFailed`: Playback failed, falls back to redisplay/download
+
+No user-visible error text -- the viewer silently falls back to showing the download option or previous content.
+
+---
+
+### 35.27 PiP (Picture-in-Picture) Loading
+
+**Source:** `Telegram/SourceFiles/media/view/media_view_pip.cpp` lines 1443, 1835-1837
+
+**Visual:** Same `InfiniteRadialAnimation::Draw()` spinner as the main media viewer, shown when `_instance->waitingShown()` is true.
+
+---
+
+### 35.28 Sticker Set Not Found
+
+**Text:** `"Sticker set not found."` (`lng_stickers_not_found`) -- shown in sticker set preview box when the set doesn't exist or was deleted.
+
+---
+
+### 35.29 Message Not Found / Empty Message
+
+- **Message not found:** `"Message doesn't exist."` (`lng_message_not_found`) -- shown as toast when navigating to a deleted/inaccessible message
+- **Empty message:** `"Empty Message"` (`lng_message_empty`) -- displayed for `MTPDmessageEmpty` (server returned empty message object); shown as service text in chat
+
+---
+
+### 35.30 Call Status States
+
+**Source:** `Telegram/Resources/langs/lang.strings` lines 5793-5804
+
+| State | Text |
+|---|---|
+| Incoming | `"is calling you..."` |
+| Connecting | `"connecting..."` |
+| Exchanging keys | `"exchanging encryption keys..."` |
+| Waiting | `"waiting..."` |
+| Requesting | `"requesting..."` |
+| Hanging up | `"hanging up..."` |
+| Ended | `"call ended"` |
+| Failed | `"failed to connect"` |
+| Ringing | `"ringing..."` |
+| Busy | `"line busy"` |
+
+**Group call connecting:** `"Connecting..."` (`lng_group_call_connecting`)
+
+**Group call no members:** `"Click to join"` (`lng_group_call_no_members`) -- shown in the group call top bar when no participants
+
+---
+
+### 35.31 Emoji Set / Sticker Pack Download States
+
+**Source:** `Telegram/Resources/langs/lang.strings`
+
+| State | Text |
+|---|---|
+| Ready to download | `"Download {size}"` (`lng_emoji_set_download`) |
+| Downloading | `"{percent}, {progress}"` (`lng_emoji_set_loading`) |
+| Downloaded | `"Downloaded"` (`lng_emoji_set_ready`) |
+| Add pack | `"Add"` (`lng_stickers_featured_add`) |
+| Pack added | `"Added"` (`lng_stickers_featured_installed`) |
+
+---
+
+### 35.32 Update Check States
+
+**Source:** `Telegram/Resources/langs/lang.strings`
+
+| State | Text |
+|---|---|
+| Checking | `"Checking for updates..."` (`lng_settings_update_checking`) |
+| Downloading | `"Downloading update {progress}..."` (`lng_settings_downloading_update`) |
+| Ready | `"New version is ready"` (`lng_settings_update_ready`) |
+| Failed | `"Update check failed :("` (`lng_settings_update_fail`) |
+| Prompt | `"Update Telegram"` (`lng_update_telegram`) |
+
+---
+
+### 35.33 Skeleton Animation (Label Loading)
+
+**Source:** `Telegram/SourceFiles/ui/effects/skeleton_animation.cpp`
+
+**Used for:** FlatLabel loading placeholders (e.g., profile info loading, credits loading)
+
+**Visual:**
+- Rounded rectangles drawn over each text line of the label
+- Rectangle height = font ascent, corner radius = height/2
+- Base color: `windowSubTextFg` at 50% alpha (`kBaseAlpha = 0.5`)
+- **Shimmer gradient:** Horizontal linear gradient sweeps across every 2 seconds (1s slide + 1s pause). Center of gradient uses `windowSubTextFg` at 20% alpha (`kGradientAlpha = 0.2`), creating a "shine" effect.
+- Width per line matches the actual text layout widths from `countLineWidths()`
+
+---
+
+### 35.34 Dialog Row Loading Skeleton
+
+**Source:** `Telegram/SourceFiles/ui/effects/loading_element.cpp`
+
+**Used for:** Chat list loading, peer list loading, search loading
+
+**Visual (per skeleton row):**
+- Circular avatar placeholder: ellipse at `photoPosition`, diameter = `photoSize`, filled with `windowBgOver` (or `button.textBgOver`)
+- Name bar: rounded rect at `namePosition`, width 60px, height = semibold font ascent
+- Status bar: rounded rect at `statusPosition`, width 100px, height = default font ascent
+- Row height matches the real `DialogRow.height`
+- **Glare effect:** Same sweeping shimmer as skeleton animation -- horizontal gradient (width = widget width) slides left to right, 1s timeout + 1s duration cycle. Uses `GlareEffect` with a tiled pixmap.
+- Last line width randomized: `width/4 + random(width/2)`
+- RTL support: entire painting is mirrored when RTL locale active
+
+---
+
+### 35.35 Stories Empty State
+
+**Source:** `Telegram/Resources/langs/lang.strings`
+
+- **Own stories archive:** `"Your stories will be here."` (`lng_stories_empty`)
+- **Channel posts archive:** `"Channel posts will be here."` (`lng_stories_empty_channel`)
+- **No views yet:** `"No views yet"` (`lng_stories_no_views`)
+- **Story album empty title:** `"Organize Your Stories"` (`lng_stories_album_empty_title`)
+- **Story album empty text:** `"Add some of your stories to this album."` (`lng_stories_album_empty_text`)
+
+---
+
+### 35.36 Profile Loading
+
+**Text:** `"Loading..."` (`lng_profile_loading`) -- shown while user/chat info is being fetched in the info panel
+
+**Link preview loading:** `"Getting Link Info..."` (`lng_preview_loading`) -- shown in compose area while link preview is being resolved
+
+---
+
+### 35.37 Forum "No messages" Label
+
+**Source:** `Telegram/Resources/langs/lang.strings` line 7295
+
+**Text:** `"No messages"` (`lng_forum_no_messages`) -- shown in forum topic preview when topic has no messages
+
+---
+
+### 35.38 Polls Search Empty
+
+**Text:** `"No polls found"` (`lng_polls_search_none`)
+
+---
+
+### 35.39 Gifts Empty States
+
+- **My gifts (profile cover):** `"You don't have any gifts you can use as a profile cover."` (`lng_gift_stars_tabs_my_empty`), with link `"Browse gifts available for purchase {emoji}"` (`lng_gift_stars_tabs_my_empty_next`)
+- **Gift collection empty title:** `"Organize Your Gifts"` (`lng_gift_collection_empty_title`)
+- **Gift collection empty text:** `"Add some of your gifts to this collection."` (`lng_gift_collection_empty_text`)
+- **Gift search empty:** `"No matching gifts"` (`lng_peer_gifts_empty_search`)
+- **Gift resale search:** `"No gifts found for your search."` (`lng_gift_resale_search_none`)
+- **My gifts Lottie:** `my_gifts_empty.tgs` (`Telegram/Resources/animations/my_gifts_empty.tgs`)
+
+---
+
+### 35.40 Button Loading Spinners
+
+**Source:** Various settings/box files
+
+**Pattern:** `InfiniteRadialAnimationWidget` created via helper, added as child centered on a `RoundButton`. Shown/hidden via `showOn()` with a boolean `rpl::producer`. Used on:
+- Cloud password confirmation buttons
+- Star purchase buttons
+- Giveaway creation buttons
+- QR code save buttons
+- Credit purchase buttons
+- Proxy check status
+
+**Visual:** Circular spinning arc overlaid on the button center, hides button text while active.
+
+---
+
+### 35.41 Transcription Loading
+
+**Animation:** `transcribe_loading.tgs` (`Telegram/Resources/animations/transcribe_loading.tgs`) -- shown in voice message bubble while audio-to-text transcription is in progress.
+
+---
+
+### 35.42 Summary of Lottie Animations Used in Empty/Loading States
+
+| Animation File | Used For |
+|---|---|
+| `no_chats.tgs` | Empty chat list (no conversations) |
+| `search.tgs` | Search waiting, empty recent searches |
+| `noresults.tgs` | Search no results, empty channels |
+| `blocked_peers_empty.tgs` | Empty blocked users list |
+| `my_gifts_empty.tgs` | Empty gifts list |
+| `transcribe_loading.tgs` | Voice transcription in progress |
+| `craft_progress.tgs` | Gift crafting in progress |
+| `craft_failed.tgs` | Gift crafting failed |
+
+---
+
+### 35.43 Key Style Constants
+
+| Constant | Value / Usage |
+|---|---|
+| `dialogsEmptyLabel` | Style for empty folder/forum text in dialogs |
+| `dialogEmptyButtonLabel` | Style for "You have no conversations" text |
+| `dialogEmptyButton` | Style for "New Message" button |
+| `dialogEmptyButtonSkip` | Bottom padding for the new message button |
+| `recentPeersEmptySize` | Size of Lottie icon in search empty states |
+| `recentPeersEmptyHeightMin` | Minimum height for search empty widget |
+| `recentPeersEmptySkip` | Gap between icon and text in search empty |
+| `recentPeersEmptyMargin` | Outer margin for search empty content |
+| `infoEmptyLabel` | Style for shared media empty text |
+| `infoEmptyIconTop` | Vertical offset for shared media empty icons |
+| `infoEmptyLabelTop` | Vertical offset for shared media empty label |
+| `infoEmptyLabelSkip` | Horizontal margin for shared media empty label |
+| `stickersEmpty` | Icon for empty sticker search |
+| `emojiEmpty` | Icon for empty emoji search |
+| `connectingDuration` | Animation duration for connection state transitions |
+| `connectingTextPadding` | Padding around connection state text |
+| `connectingMargin` | Outer margin of the connection state pill |
+| `normalBoxLottieSize` | Size for Lottie in dialog boxes |
+| `msgServiceFont` | Font for service messages (including "Select a chat") |
+| `msgServiceFg` | Foreground color for service messages |
+| `msgServicePadding` | Padding inside service message bubbles |
+| `noContactsColor` | Text color for "no saved GIFs" etc. |
+| `msgFileRadialLine` | Line width for file download radial progress |
+| `historyAudioRadialLine` | Line width for audio download radial progress |
+| `historyFileRadialFg` | Color of file download progress arc |
+| `historyFileThumbRadialFg` | Color of thumbnail overlay progress arc |
+
+---
+
+## 36. Common Dialog & Modal Patterns
+
+All dialogs in Telegram Desktop inherit from one of two base classes: `BoxContent` (legacy, used by `DeleteMessagesBox`, `ShareBox`, `PasscodeBox`, etc.) or the newer `GenericBox` (function-based, used by `ConfirmBox`, `SingleChoiceBox`, `CalendarBox`, `ChooseDateTimeBox`, etc.). Both render inside `BoxLayerWidget` which handles the outer chrome, title bar, button row, and animations. Source: `Telegram/lib_ui/ui/layers/box_content.h`, `Telegram/lib_ui/ui/layers/generic_box.h`, `Telegram/lib_ui/ui/layers/box_layer_widget.h`.
+
+### 36.1 Box/Dialog Infrastructure
+
+**Visual structure** (top to bottom):
+1. **Title bar** -- optional. Font: `boxTitleFont` (16px semibold). Position: `boxTitlePosition` (24px left, 13px top). Height: `boxTitleHeight` (48px). Optional close X button (`boxTitleClose`, same height as title bar, icon `box_button_close`). Additional title text (right-aligned, `boxTitleAdditionalFont` = normalFont, fg = `boxTitleAdditionalFg`).
+2. **Content area** -- scrollable (`boxScroll` = `defaultSolidScroll`). Padded by `boxRowPadding` (24px left/right). `boxLabel` style: `boxLabelStyle` with 22px line height. `boxPadding` margins around text.
+3. **Button row** -- at bottom. Padding: `st::Box::buttonPadding`. Height: `st::Box::buttonHeight`. Buttons from right to left: primary confirm, then cancel. Left button slot available. `buttonWide` flag stretches buttons to full width. Default button style: `defaultBoxButton` (30px min width, 34px height, 7px textTop, 14px semibold font).
+
+**Box dimensions**: default width = `st::boxWidth` (320px). Wide box = `st::boxWideWidth` (364px). Max height = calculated from content + title + buttons. Corner radius: `boxRadius` (6px). Background: `boxBg` color. Shadow: `boxRoundShadow` (8px radius round shadow).
+
+**Animation**: `boxDuration` = 200ms. Boxes appear with a combined opacity fade + scale from ~97% to 100%. The `LayerStackWidget::BackgroundWidget` dims the background with a semi-transparent overlay that animates in parallel. Closing reverses the animation. Source: `Telegram/lib_ui/ui/layers/layers.style`, `Telegram/lib_ui/ui/layers/layer_widget.cpp`.
+
+**Keyboard handling** (common to all boxes):
+- `Escape` closes the box (unless `_closeByEscape = false`)
+- `Enter`/`Return` triggers the primary (confirm) button in `ConfirmBox` (explicit key event filter, line 81-89 of `confirm_box.cpp`)
+- `Tab` cycles focus between fields
+- For `DeleteMessagesBox`: `Enter`/`Return` triggers delete ONLY for message deletion, NOT for history clearing (safety measure, line 517-525 of `delete_messages_box.cpp`)
+
+Source: `Telegram/lib_ui/ui/layers/layers.style`, `Telegram/SourceFiles/boxes/abstract_box.h`.
+
+### 36.2 Confirmation Dialogs (`ConfirmBox`)
+
+The universal confirmation dialog. Built with `Ui::ConfirmBox()` or `Ui::MakeConfirmBox()`. Source: `Telegram/SourceFiles/ui/boxes/confirm_box.h`, `confirm_box.cpp`.
+
+**`ConfirmBoxArgs` struct**:
+- `text` -- body text (supports rich text / entities)
+- `confirmed` -- callback on confirm (variant: void callback, or callback-with-close-fn)
+- `cancelled` -- callback on cancel
+- `confirmText` -- confirm button label (default: `tr::lng_box_ok` = "OK")
+- `cancelText` -- cancel button label (default: `tr::lng_cancel` = "Cancel")
+- `confirmStyle` -- button style (default: `defaultBoxButton`; destructive actions use `attentionBoxButton` with red text)
+- `title` -- optional title text
+- `inform` -- if true, shows ONLY the confirm button (no cancel), making it an informational alert
+- `strictCancel` -- if true, cancel callback only fires on explicit button press, not on box close
+- `labelStyle` -- custom label style (default: `boxLabel`)
+- `labelFilter` -- click handler filter for links in the text
+- `labelPadding` -- custom padding (default: `boxPadding`; if title present: top padding = 0)
+
+**Layout**: optional title at top, then FlatLabel body text with `boxLabel` style (22px line height), then button row. With title: body padding top = 0. Without title: full `boxPadding`.
+
+**`InformBox`** variant: same as ConfirmBox but `inform = true` -- single "OK" button, no cancel.
+
+**Every confirmation dialog found in the codebase**:
+
+| Dialog | Text key | Confirm button | Style | Source |
+|--------|----------|---------------|-------|--------|
+| Delete message (single) | `lng_selected_delete_sure_this` = "Are you sure you want to delete this message?" | `lng_box_delete` = "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Delete messages (multi) | `lng_selected_delete_sure` = "Do you want to delete {count} messages?" | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Delete + "for everyone" checkbox | `lng_delete_for_other_check` / `lng_delete_for_everyone_check` | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Delete + "remember" checkbox | `lng_remember` = "Remember" (SlideWrap, hidden by default) | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Clear history (user) | `lng_sure_delete_history` = "Are you sure you want to delete all message history with {contact}?..." | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Clear history (group) | `lng_sure_delete_group_history` | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Clear history (channel) | `lng_sure_delete_channel_history` | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Clear saved messages | `lng_sure_delete_saved_messages` | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Delete & leave group | `lng_sure_delete_and_exit` = "Are you sure you want to delete all message history and leave..." | `lng_box_leave` = "Leave" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Leave channel | `lng_sure_leave_channel` = "Are you sure you want to leave this channel?" | "Leave" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Leave group | `lng_sure_leave_group` | "Leave" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Delete channel | `lng_sure_delete_channel` | "Delete" | `attentionBoxButton` | -- |
+| Delete group | `lng_sure_delete_group` | "Delete" | `attentionBoxButton` | -- |
+| Delete by date (single) | `lng_sure_delete_by_date_one` = "...delete all messages for {date}?" | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Delete by date (range) | `lng_sure_delete_by_date_many` | "Delete" | `attentionBoxButton` | `delete_messages_box.cpp` |
+| Delete contact | `lng_sure_delete_contact` = "Are you sure you want to delete {contact} from your contact list?" | "Delete" | `attentionBoxButton` | -- |
+| Block user | `lng_blocked_list_confirm_text` | `lng_blocked_list_confirm_ok` | `attentionBoxButton` | `window_peer_menu.cpp` |
+| Report spam (group) | `lng_report_spam_sure_group` | `lng_report_spam_ok` = "Report" | `attentionBoxButton` | -- |
+| Report spam (channel) | `lng_report_spam_sure_channel` | "Report" | `attentionBoxButton` | -- |
+| Logout | `lng_sure_logout` = "Are you sure you want to log out?" | "Log Out" | `attentionBoxButton` | -- |
+| Clear payment info | `lng_clear_payment_info_sure` | `lng_clear_payment_info_clear` = "Clear" | `attentionBoxButton` | -- |
+| Pin message | `lng_pinned_pin_sure` / `lng_pinned_pin_sure_group` | `lng_pinned_pin` = "Pin" | default | `pin_messages_box.cpp` |
+| Unpin message | `lng_pinned_unpin_sure` | `lng_pinned_unpin` = "Unpin" | default | `pin_messages_box.cpp` |
+| Unpin all | `lng_pinned_unpin_all_sure` | "Unpin" | default | -- |
+| Hide pinned | `lng_pinned_hide_all_sure` | `lng_pinned_hide_all_hide` = "Hide" | default | -- |
+| Enable proxy | `lng_sure_enable_socks` | `lng_sure_enable` = "Enable" | default | -- |
+| Save language | `lng_sure_save_language` | "OK" | default | -- |
+| Cancel edit | `lng_cancel_edit_post_sure` = "Cancel editing?" | `lng_cancel_edit_post_yes` = "Yes" / `lng_cancel_edit_post_no` = "No" | default | -- |
+| Mark all read | `lng_context_mark_read_all_sure` + `lng_context_mark_read_all_sure_2` | "OK" | default | -- |
+| Paid post delete warning | `lng_suggest_warn_text_ton/stars` | `lng_suggest_warn_delete_anyway` | `attentionBoxButton` | `delete_messages_box.cpp:564` |
+| No microphone permission | `lng_no_mic_permission` | `lng_menu_settings` = "Settings" | default | `calls_instance.cpp:985` |
+| Add admin (not member) | `lng_sure_add_admin_invite` | "OK" | default | -- |
+| Ban admin warning | `lng_sure_ban_admin` | "OK" | default | -- |
+
+**Moderate messages variant** (DeleteMessagesBox with `suggestModerateActions`):
+- Additional checkboxes appear: `_banUser` (`lng_ban_user` = "Ban User"), `_reportSpam` (`lng_report_spam` = "Report Spam"), `_deleteAll` (`lng_delete_all_from_user` = "Delete all from {user}")
+- Delete button text dynamically updates to show total count when "Delete all" is checked
+- Layout: text label, then checkboxes stacked vertically with `boxMediumSkip` gap, `boxLittleSkip` between checkboxes
+
+**Auto-delete settings link**: When clearing history for a peer that supports TTL, a `boxLinkButton` appears: `lng_edit_auto_delete_settings` / `lng_enable_auto_delete`.
+
+### 36.3 Alert/Info Dialogs (`InformBox`)
+
+Same structure as ConfirmBox with `inform = true`. Single button ("OK"), no cancel button. Used for informational messages.
+
+Created via `Ui::MakeInformBox(text)` or `Ui::MakeInformBox({.text = ..., .title = ...})`.
+
+Common info dialogs:
+- Copy restriction: `lng_context_noforwards_info_channel/group/bot/his/mine`
+- Bot not supported: `lng_bot_menu_not_supported`
+- Report thanks: `lng_report_thanks` = "Thank you! Your report will be reviewed by our team."
+- Flood wait: `lng_flood_error`
+- Various limit-reached notices
+
+### 36.4 Input Dialogs
+
+Input dialogs use `GenericBox` with `InputField` or `PasswordInput` widgets added via `addRow()`.
+
+**Username box** (`username_box.cpp`):
+- Title: from lang key
+- Custom `UsernameEditor` widget with `UsernameInput` field
+- Live validation with debounced API checks (`_checkTimer`)
+- Status line below field showing check results (good/error text + purchase availability)
+- Buttons: "Save" (primary), "Cancel"
+
+**Add contact box** (`add_contact_box.cpp`):
+- Fields: first name, last name, phone number (`PhoneInput` with country code)
+- Userpic button at top
+- Validates phone format (min 8 digits)
+
+**Passcode box** (`passcode_box.cpp`):
+- Title: `lng_passcode_autolock` / `lng_passcode_enter`
+- Password input fields (old passcode, new passcode, confirm)
+- Width: `st::transferCheckWidth`
+- Error text displayed inline below fields
+
+**Edit invite link** (`ui/boxes/edit_invite_link.h`):
+- Fields: label (custom name), expiry date picker, usage limit (NumberInput), subscription credits
+- Toggle: request approval mode
+- Buttons: "Save" / "Create", "Cancel"
+
+**Factcheck box** (`ui/boxes/edit_factcheck_box.h`):
+- Rich text input field for fact-check content
+- Character limit enforcement
+- Custom field initializer for formatting toolbar
+
+**Create poll** (`boxes/create_poll_box.cpp`):
+- Question field, multiple option fields (dynamically added)
+- Checkboxes for quiz mode, multiple answers, anonymous voting
+- Complex multi-field input dialog
+
+### 36.5 Choice Dialogs (`SingleChoiceBox`)
+
+Radio-button selection dialog. Source: `Telegram/SourceFiles/ui/boxes/single_choice_box.h`, `single_choice_box.cpp`.
+
+**Args**:
+- `title` -- title text producer
+- `options` -- vector of string labels
+- `initialSelection` -- index of pre-selected option (default 0)
+- `callback` -- `Fn<void(int)>` called with selected index
+- `st` / `radioSt` -- optional custom checkbox/radio styles (defaults: `defaultBoxCheckbox`, `defaultRadio`)
+
+**Layout**:
+- Title at top
+- Single "OK" button
+- Padding: `boxOptionListPadding.top()` + `autolockButton.margin.top()` spacer at top
+- Each radio button: left margin = `boxPadding.left()` + `boxOptionListPadding.left()`, right = `boxPadding.right()`, bottom skip = `boxOptionListSkip`
+- Selection auto-closes the box (callback fires on change, then `closeBox()`)
+
+**Auto-lock box** (`auto_lock_box.cpp`) -- radio choice variant:
+- Title: `lng_passcode_autolock`
+- Options: 1 min, 5 min, 1 hour, 5 hours, Custom
+- Custom option shows a `TimeInput` widget inline
+- Single "OK" button
+
+### 36.6 Date/Time Picker
+
+Three distinct picker components:
+
+**CalendarBox** (`ui/boxes/calendar_box.h`):
+- Full calendar month view in a scrollable area
+- Navigation arrows (previous/next month) as `IconButton`s
+- Title showing current month/year
+- Day cells clickable; highlighted date marked
+- `minDate`/`maxDate` constraints
+- Selection mode (range selection via `allowsSelection`)
+- Floating date header on scroll
+- Tooltip on nav buttons for quick jump
+- Jump-after-delay feature on long press of nav buttons
+- Keyboard: arrow keys to navigate, Enter to select
+- Optional per-date dynamic images (profile photos on calendar)
+
+**ChooseDateTimeBox** (`ui/boxes/choose_date_time.h`, `choose_date_time.cpp`):
+- Width: `st::boxWideWidth` (364px)
+- Layout: date field (readonly, opens CalendarBox on focus) + "at" label + time input
+- Date field: `scheduleDateField` style, width `scheduleDateWidth`
+- Time field: `TimeInput` with `scheduleTimeField` style, width `scheduleTimeWidth`
+- "at" label: `scheduleAtLabel` style
+- Content height: `scheduleHeight`
+- Date field supports mouse wheel to increment/decrement days
+- Time input fires `submitRequests` on Enter
+- Buttons: configurable submit text + "Cancel"
+- Optional description text below the picker
+- Repeat period dropdown: Never, Daily, Weekly, Biweekly, Monthly, Every 3/6 months, Yearly (as PopupMenu from a link label)
+
+**Schedule message box** (`history_view_schedule_box.h`):
+- Wraps `ChooseDateTimeBox` with send menu integration
+- "Send when online" option for user chats
+- Minimum schedule: 10 seconds from now
+- Maximum: 1 year from now
+- Top button for additional options (silent send, etc.)
+
+**TimePickerBox** (`ui/boxes/time_picker_box.h`, `time_picker_box.cpp`):
+- Drum/wheel picker (iOS-style) using `VerticalDrumPicker`
+- Content height: `historyMessagesTTLPickerHeight`
+- Item height: `historyMessagesTTLPickerItemHeight`
+- Active area bounded by two horizontal lines (`activeLineFg`)
+- Mouse drag, wheel, and keyboard support (Up/Down arrows)
+- Default time values: 15min, 30min, 1h, 2h, 3h, 4h, 8h, 12h, 1d, 2d, 3d, 1w, 2w, 1mo, 2mo, 3mo
+
+### 36.7 Color Picker (`ColorEditor`)
+
+Full-featured color editor for theming. Source: `Telegram/SourceFiles/ui/widgets/color_editor.h`, `color_editor.cpp`.
+
+**Modes**: `RGBA` and `HSL`.
+
+**Components**:
+- **Picker** -- 2D gradient square. Click/drag to select saturation + brightness/lightness. Custom crosshair cursor (16px diameter circle, white outline + black inner). In RGBA mode: 4-corner gradient. In HSL mode: dedicated palette.
+- **Hue slider** -- vertical bar for hue selection (0-360)
+- **Opacity slider** -- vertical bar for alpha (0-255), shown only in RGBA mode
+- **Lightness slider** -- in HSL mode
+- **HSB fields** -- 3 numeric inputs: Hue (0-360), Saturation (0-100%), Brightness/Lightness (0-100%)
+- **RGB fields** -- 3 numeric inputs: Red, Green, Blue (0-255)
+- **Result field** -- hex color code input (#RRGGBB or #AARRGGBB)
+- **Color swatches** -- current color rect and new color rect side by side
+
+**Features**:
+- Bidirectional sync: changing any control updates all others
+- Lightness limits (`setLightnessLimits`) for constrained editing
+- Submit on Enter key
+- `colorValue()` reactive producer for live preview
+- Palette invalidation on hue changes triggers repaint
+
+### 36.8 File Picker (Native OS Dialogs)
+
+Telegram Desktop uses native OS file dialogs via Qt's `QFileDialog`. Source: `Telegram/SourceFiles/core/file_utilities.h`.
+
+**Four functions**:
+- `FileDialog::GetOpenPath(parent, caption, filter, callback, failed)` -- single file open
+- `FileDialog::GetOpenPaths(parent, caption, filter, callback, failed)` -- multiple files open
+- `FileDialog::GetWritePath(parent, caption, filter, initialPath, callback, failed)` -- save file
+- `FileDialog::GetFolder(parent, caption, initialPath, callback, failed)` -- folder selection
+
+All are **async** -- they take callbacks, not blocking returns. The `OpenResult` struct contains `paths` (QStringList) and optional `remoteContent` (QByteArray).
+
+**Common filter strings** (from `file_utilities.h`):
+- `AllFilesFilter()` -- "All files (*)"
+- `ImagesFilter()` -- image formats
+- `AllOrImagesFilter()` -- "All files" first, then images
+- `PhotoVideoFilesFilter()` -- photos + videos
+
+**Usage contexts**:
+- Save photo: `tr::lng_save_photo` caption, "JPEG Image (*.jpg)" filter
+- Save document: `tr::lng_save_file` caption
+- Download path setting: folder picker
+- Send files: multi-file open with media filters
+- Export data: folder picker for output
+- Theme file: open picker for `.tdesktop-theme` files
+- Background: image picker
+
+### 36.9 Toast / Snackbar Notifications
+
+Brief overlay messages. Source: `Telegram/lib_ui/ui/toast/toast.h`, `toast.cpp`, `toast_widget.h`, `toast_widget.cpp`.
+
+**Config struct**:
+- `title` -- bold title text (optional)
+- `text` -- body text with entities
+- `icon` / `iconLottie` / `iconContent` -- optional icon (static, Lottie animation, or custom widget)
+- `iconAlign` -- left (default), right, top, or bottom
+- `duration` -- display time, default `kDefaultDuration` = 1500ms
+- `infinite` -- ignore duration, stays until manually hidden
+- `dark` -- dark background mode
+- `adaptive` -- auto-size to content width
+- `st` -- style reference (default: `defaultMultilineToast` for multiline, `defaultToast` for single line)
+- `attach` -- edge attachment: None (centered), Left, Top, Right, Bottom
+- `singleline` -- force single line, truncate with ellipsis
+
+**Animation**:
+- **Centered (attach=None)**: Opacity fade in (`durationFadeIn` from style) / fade out (`durationFadeOut`). Painted via proxy image when partially transparent.
+- **Edge-attached**: Slide in/out (`durationSlide` from style) from the attached edge. Position interpolated from off-screen to `margin` offset.
+
+**Visual**: Rounded rectangle background (`toastBg` color), corner radius from `st->radius`. Text in `toastFg`. Content wrapped in `Content` widget with icon + body layout. Icon can be positioned left/right/top/bottom with configurable padding (`defaultToastIconPadding`).
+
+**Positioning**: Centered in parent widget (or offset from attached edge). Respects `margin` from style. `addToAttachSide` producer can dynamically shift the toast.
+
+**Common toast messages** (all showing briefly after an action):
+
+| Toast text key | Message | Context |
+|---------------|---------|---------|
+| `lng_username_copied` | "Link copied to clipboard." | Copy profile link |
+| `lng_text_copied` | "Text copied to clipboard." | Copy message text |
+| `lng_code_copied` | "Code copied to clipboard." | Copy code block |
+| `lng_date_copied` | "Date copied to clipboard." | Copy message date |
+| `lng_channel_public_link_copied` | "Link copied to clipboard." | Copy channel link |
+| `lng_group_invite_copied` | "Invite link copied to clipboard." | Copy invite link |
+| `lng_group_invite_qr_copied` | "QR Code copied to clipboard." | Copy QR code |
+| `lng_create_channel_link_copied` | "Link copied to clipboard." | Channel creation |
+| `lng_chat_link_copied` | "Chat link copied to clipboard." | Copy chat link |
+| `lng_stickers_copied` | "Link copied to clipboard." | Copy sticker set link |
+| `lng_background_link_copied` | "Link copied to clipboard." | Copy wallpaper link |
+| `lng_share_game_link_copied` | "Game link copied to clipboard." | Copy game link |
+| `lng_context_bank_card_copied` | "Card number copied to clipboard." | Copy bank card |
+| `lng_username_text_copied` | "Username copied to clipboard." | Copy username |
+| `lng_report_thanks` | "Thank you! Your report will be reviewed by our team." | After reporting |
+| `lng_report_spam_done` | "Thank you for your report" | After spam report |
+| `lng_gigagroup_done` | Group converted notification | After supergroup conversion |
+| `lng_share_done` | Share completed notification | After sharing |
+| `lng_saved_music_added` | Music saved notification | Save to music profile |
+| `lng_saved_music_removed` | Music removed notification | Remove from saved music |
+| `lng_masks_installed` | Masks installed notification | After installing mask set |
+| `lng_theme_editor_done` | Theme saved notification | After theme export |
+| `lng_quick_dialog_action_toast_pin_success` | "The chat has been pinned." | Pin chat |
+| `lng_quick_dialog_action_toast_unpin_success` | "The chat has been unpinned." | Unpin chat |
+| `lng_new_contact_share_done` | Contact shared notification | After sharing contact |
+| `lng_settings_birthday_saved` | Birthday saved notification | After setting birthday |
+| `lng_flood_error` | Rate limit notification | API flood wait |
+| `lng_translate_undo` | Translation undo notification | Undo translation |
+| `lng_toast_sent_rate_transcription` | "Thank you for your feedback!" | Rate voice transcription |
+| `lng_settings_ttl_after_toast` | Auto-delete settings updated | After changing TTL |
+| `lng_group_call_rtmp_url_copied` | "Server URL copied to clipboard." | Copy RTMP URL |
+| `lng_group_call_rtmp_key_copied` | Stream key copied | Copy RTMP key |
+
+### 36.10 Context Menus (Right-Click / Long-Press)
+
+All context menus use `Ui::PopupMenu`. Source: `Telegram/lib_ui/ui/widgets/popup_menu.h`, `popup_menu.cpp`.
+
+**PopupMenu structure**:
+- Shadow: `BoxShadow` underneath
+- Background: rounded rect (`_roundRect`)
+- Scrollable menu content (`ScrollArea` > `Menu::Menu`)
+- Support for nested submenus (auto-open on hover)
+- Items: text + optional icon + optional icon-on-hover variant
+- Separators: horizontal line via `addSeparator()`
+
+**Animation**: PanelAnimation with origin from one of 4 corners (TopLeft, TopRight, BottomLeft, BottomRight). Shows with opacity + clip-reveal animation. Hides with opacity fade.
+
+**Keyboard**: Arrow keys navigate items, Enter activates, Escape closes. Submenus open on Right arrow, close on Left.
+
+**Positioning**: `popup(QPoint)` places the menu at the given point, constrained to parent screen bounds via `ConstrainToParentScreen`. `setForcedOrigin` / `setForcedVerticalOrigin` override animation direction. `setTopShift` offsets vertically. `setForceWidth` overrides calculated width.
+
+#### 36.10.1 Chat List Context Menu
+
+Source: `Telegram/SourceFiles/window/window_peer_menu.cpp`, `Filler::fillContextMenuActions()`.
+
+Items appear in this order (each conditionally):
+
+1. **Open in new window** -- `lng_context_new_window` = "Open in new window" | icon: `menuIconNewWindow`
+2. (separator)
+3. **Hide promotion** -- for promoted chats | icon: depends
+4. **Archive/Unarchive** -- `lng_archived_add` / `lng_archived_remove` | icon: `menuIconArchive`
+5. **Pin/Unpin** -- `lng_context_pin_to_top` / `lng_context_unpin_from_top` | icon: `menuIconPin`/`menuIconUnpin`
+6. **View profile** (if setting enabled) -- `lng_context_view_profile` / `lng_context_view_group` / `lng_context_view_channel`
+7. **Mute submenu** -- `lng_context_mute` = "Mute notifications" / `lng_context_unmute` = "Unmute" | icon: `menuIconMute`/`menuIconUnmute`
+8. **Mark as read/unread** -- `lng_context_mark_read` / `lng_context_mark_unread` | icon: depends
+9. **Close/reopen topic** (forums)
+10. **Move to folder** -- folder selection submenu
+11. **Block user** (non-contacts) -- icon: `menuIconBlock`
+12. **Clear history** -- icon: `menuIconClear`
+13. **Delete chat** / **Leave group** / **Leave channel** -- icon: `menuIconDelete` / `menuIconLeave`
+14. **Delete topic** (forums)
+
+#### 36.10.2 Message Context Menu
+
+Source: `Telegram/SourceFiles/history/view/history_view_context_menu.cpp`, `FillContextMenu()`.
+
+**Top section** (`AddTopMessageActions`):
+1. **Go to message** -- `lng_context_to_msg` = "Go To Message" | icon: `menuIconShowInChat` (pinned/preview contexts)
+2. **View replies** -- `lng_replies_view` = "{count} Replies" / `lng_replies_view_topic` / `lng_replies_view_thread` | icon: `menuIconViewReplies`
+3. **Edit** -- `lng_context_edit_msg` = "Edit" | icon: `menuIconEdit`
+4. **Add/Edit factcheck** -- `lng_context_add_factcheck` / `lng_context_edit_factcheck` | icon: `menuIconFactcheck`
+5. **Pin/Unpin** -- `lng_context_pin_msg` / `lng_context_unpin_msg` | icon: `menuIconPin`/`menuIconUnpin`
+
+**Middle section** (`AddMessageActions`):
+6. **Copy post/message link** -- `lng_context_copy_post_link` / `lng_context_copy_message_link` | icon: `menuIconLink`
+7. **Forward** -- `lng_context_forward_msg` = "Forward" / `lng_context_forward_selected` | icon: `menuIconForward`
+8. **Send now** (scheduled) -- `lng_context_send_now_msg` / `lng_context_send_now_selected` | icon: `menuIconSend`
+9. **Delete** -- custom `DeleteMessageContextAction` with TTL countdown | icon: `menuIconDelete`
+10. **Download selected** -- (multi-select with media) | icon: depends
+11. **Report** -- `lng_context_report_msg` = "Report" | icon: `menuIconReport`
+12. **Select / Clear selection** -- `lng_context_select_msg` / `lng_context_clear_selection` | icon: `menuIconSelect`
+13. **Reschedule** -- `lng_context_reschedule` / `lng_context_reschedule_selected` | icon: `menuIconReschedule`
+
+**Reply section**:
+14. **Reply** -- `lng_context_reply_msg` = "Reply" / `lng_context_quote_and_reply` = "Quote & Reply" | icon: `menuIconReply`
+15. **Add todo tasks** -- `lng_todo_add_title` | icon: `menuIconAdd`
+
+#### 36.10.3 Photo Context Menu
+
+Items from `AddPhotoActions()`:
+1. **Save As...** -- `lng_context_save_image` | icon: `menuIconSaveImage`
+2. **Copy Image** -- `lng_context_copy_image` | icon: `menuIconCopy`
+3. **Attached Stickers** -- `lng_context_attached_stickers` (if photo has stickers) | icon: `menuIconStickers`
+
+#### 36.10.4 Document/Media Context Menu
+
+Items from `AddDocumentActions()`:
+1. **Cancel Download** -- `lng_context_cancel_download` (if loading) | icon: `menuIconCancel`
+2. **Open GIF** -- `lng_context_open_gif` (non-autoplay GIFs) | icon: `menuIconShowInChat`
+3. **Add to GIFs** -- `lng_context_save_gif` | icon: `menuIconGif`
+4. **View Sticker Set** / **Add Stickers** -- `lng_context_pack_info` / `lng_context_pack_add` | icon: `menuIconStickers`
+5. **Add to Favorites** / **Remove from Favorites** -- `lng_faved_stickers_add` / `lng_faved_stickers_remove` | icon: `menuIconFave`/`menuIconUnfave`
+6. **Show in Folder/Finder** -- `lng_context_show_in_folder` / `lng_context_show_in_finder` | icon: `menuIconShowInFolder`
+7. **Attached Stickers** -- (if document has stickers) | icon: `menuIconStickers`
+8. **Save for Notifications** -- `lng_context_save_custom_sound` | icon: depends
+9. **Rate transcription** -- (voice/video messages with transcription) | custom action widget
+10. **Save As...** / **Save to...** -- `lng_context_save_file` / `lng_context_save_audio` | icon: depends
+11. **Copy Filename** -- `lng_context_copy_filename` | icon: depends
+
+#### 36.10.5 Link Context Menu
+
+From `AddCopyLinkAction()`:
+- **Copy Link** -- `lng_context_copy_link` | icon: `menuIconCopy`
+- **Copy Email Address** -- `lng_context_copy_email`
+- **Copy Hashtag** -- `lng_context_copy_hashtag`
+- **Copy Username** -- `lng_context_copy_mention`
+- **Copy Card Number** -- `lng_context_bank_card_copy`
+
+#### 36.10.6 Chat List Archive Context Menu
+
+- **Expand** -- `lng_context_archive_expand`
+- **Collapse** -- `lng_context_archive_collapse`
+- **Move to main menu** -- `lng_context_archive_to_menu`
+- **Move to chat list** -- `lng_context_archive_to_list`
+- **Archive settings** -- `lng_context_archive_settings`
+- Info toast: `lng_context_archive_to_menu_info` = "Archive moved to the main menu!..."
+
+#### 36.10.7 Forum Context Menu
+
+From `Filler::fillChatsListActions()`:
+1. **Create Topic** -- `lng_forum_create_topic` | icon: `menuIconDiscussion`
+2. (separator)
+3. **View info** -- peer info action
+4. **View as Messages** -- `lng_forum_view_as_messages` | icon: `menuIconAsMessages`
+5. **Search** -- `lng_dlg_filter` | icon: `menuIconSearch` (if > threshold topics)
+6. **Manage** -- admin actions
+7. **Add Members** -- member management
+8. **Boost** -- boost action
+9. **Video Chat** -- call submenu
+10. (separator)
+11. **Report** -- report action
+12. **Leave** / **Join** -- depending on membership
+
+### 36.11 Tooltip Popups
+
+Two tooltip systems. Source: `Telegram/lib_ui/ui/widgets/tooltip.h`, `tooltip.cpp`.
+
+**Standard Tooltip** (`Ui::Tooltip`):
+- Singleton pattern -- `Tooltip::Show(delay, shower)` / `Tooltip::Hide()`
+- Shower interface: `tooltipText()`, `tooltipPos()`, `tooltipWindowActive()`
+- Custom style via `tooltipSt()` override
+- Delay timer before showing (default from style)
+- Hide-by-leave timer for mouse exit
+- Event filter tracks mouse movement to reposition
+- Uses transparency if compositing available
+- Simple text rendering via `Text::String`
+- Installed on any widget via `Ui::InstallTooltip(widget, textFn, st)` helper
+
+**Important Tooltip** (`Ui::ImportantTooltip`):
+- Arrow-pointed tooltip (like speech bubble)
+- Points at a `QRect area` with configurable preferred side (`RectParts`: Top, Bottom, Left, Right)
+- Arrow drawn as a small triangle on the appropriate edge
+- Show/hide animation via `Animations::Simple`
+- `toggleAnimated(bool)` -- animate show/hide
+- `toggleFast(bool)` -- instant show/hide
+- `hideAfter(crl::time)` -- auto-hide timer
+- Content is any `RpWidget` (typically `FlatLabel`)
+- Custom positioning via `countPosition` callback
+
+**Nice Tooltip** helper (`Ui::MakeNiceTooltipLabel`):
+- Creates a `FlatLabel` with automatic width finding (`FindNiceTooltipWidth`) that minimizes wasted space
+- Used for rich-text tooltips
+
+**Tooltip with Close** (`Ui::MakeTooltipWithClose`):
+- Content + close button
+- Custom padding and label style
+
+### 36.12 Permission Request Dialogs
+
+Source: `Telegram/SourceFiles/calls/calls_instance.cpp`.
+
+**Flow** (in `Instance::requestPermissionOrFail`):
+1. Check `Platform::GetPermissionStatus(type)` -- returns `Granted`, `CanRequest`, or `Denied`
+2. If `Granted`: proceed immediately
+3. If `CanRequest`: call `Platform::RequestPermission(type, callback)` -- OS-level permission prompt. On denial: hang up any active call.
+4. If `Denied` (permanently): hang up active calls, then show a `ConfirmBox`:
+   - Text: `lng_no_mic_permission` = "Telegram needs microphone access so that you can make calls and record voice messages."
+   - Confirm button: `lng_menu_settings` = "Settings" (opens system settings for the permission type via `Platform::OpenSystemSettingsForPermission`)
+   - Cancel: dismiss
+
+**Permission types**: `Microphone`, `Camera`. Video calls request both sequentially (microphone first, then camera).
+
+**Screen share**: Uses a custom `ChooseSourceProcess` window (not a box -- a standalone `RpWindow`):
+- Lists available screens and windows as thumbnail sources
+- Each source shows a live preview track
+- Bottom bar: "Start Sharing" button (`desktopCaptureSubmit`), "Stop Sharing" button (`desktopCaptureFinish`), "Share Audio" checkbox (`desktopCaptureWithAudio`)
+- Buttons use `setTextTransform(ToUpper)`
+
+### 36.13 Report Flow
+
+Multi-step report dialog. Source: `Telegram/SourceFiles/boxes/report_messages_box.cpp`, `Telegram/SourceFiles/ui/boxes/report_box_graphics.h`.
+
+**Step 1 -- Choose reason** (`Ui::ReportReasonBox`):
+- Title varies by source: `lng_report_title` (channel), `lng_report_group_title` (group), `lng_report_bot_title` (bot), `lng_report_message_title` (message), `lng_report_story` (story), `lng_report_profile_photo_title`, etc.
+- Options displayed as large clickable buttons (via `AddReportOptionButton`):
+  - Spam (`lng_report_reason_spam`)
+  - Fake Account (`lng_report_reason_fake`)
+  - Violence (`lng_report_reason_violence`)
+  - Child Abuse (`lng_report_reason_child_abuse`)
+  - Pornography (`lng_report_reason_pornography`)
+  - Copyright (`lng_report_reason_copyright`)
+  - Illegal Drugs (`lng_report_reason_illegal_drugs`)
+  - Personal Details (`lng_report_reason_personal_details`)
+  - Other (`lng_report_reason_other`)
+- Selecting a reason advances to step 2
+
+**Step 2 -- Details** (`Ui::ReportDetailsBox`):
+- Text: `lng_report_details_about` = "Please enter any additional details relevant to your report."
+- Input field: `lng_report_details_optional` = "Add Comment (Optional)" / `lng_report_details_non_optional`
+- Submit button: `lng_report_button` = "Report"
+- On submit: fires API report and closes all layers
+
+**Report reaction** variant:
+- Title: `lng_report_reaction_title`
+- Body: `lng_report_reaction_about` = "Are you sure you want to report reactions from this user?"
+- Button: `lng_report_and_ban_button` = "Ban user"
+
+### 36.14 Share Box
+
+Complex multi-purpose sharing dialog. Source: `Telegram/SourceFiles/boxes/share_box.h`.
+
+**Layout**:
+- `MultiSelect` at top (search + selected chat pills)
+- Scrollable peer list grid below
+- Optional comment input field (`SlideWrap<InputField>`)
+- Optional bottom widget (custom content)
+- Optional copy link button
+- Optional forward options (show sender names, show captions)
+
+**Buttons**: "Send" (with send menu for schedule/silent options), "Cancel", optional "Copy Link".
+
+**Features**:
+- Search by chat name or username (with API search fallback)
+- Multi-selection with chips in the search bar
+- Chat filters tabs
+- Forward options for sender attribution
+- Stars count display for paid forwards
+- Dark mode style override available (`DarkShareBoxStyle()`)
+- Keyboard: type to search, Enter to send
+
+### 36.15 Sticker Toast
+
+Source: `Telegram/SourceFiles/history/view/history_view_sticker_toast.cpp`.
+
+Specialized toast for emoji/sticker pack notifications:
+- `lng_context_animated_emoji` = "This message contains emoji from **{name} pack**."
+- `lng_context_animated_reaction` = "This reaction is from the **{name}** pack."
+- `lng_context_animated_emoji_many` = "This message contains emoji from **{count} packs**."
+- Clickable link to open the sticker/emoji set
+
+### 36.16 Summary of Button Labels and Styles
+
+| Action type | Primary button | Style | Cancel button |
+|-------------|---------------|-------|---------------|
+| Destructive (delete, clear, leave, block, ban) | Red text (`attentionBoxButton`) | `attentionButtonFg` / `attentionButtonFgOver` / `attentionButtonBgRipple` | "Cancel" (default) |
+| Neutral confirm | "OK" / "Done" / "Yes" (default style) | `defaultBoxButton` | "Cancel" |
+| Informational | "OK" only | `defaultBoxButton` | (none) |
+| Save/Create | "Save" / "Create" / "Add" | `defaultBoxButton` | "Cancel" |
+| Multi-step | "Next" / "Continue" / "Report" | `defaultBoxButton` | "Cancel" or back |
+| Close-only | "Close" / "Done" | `defaultBoxButton` | (none) |
+
+Button order: **right-aligned**, primary button rightmost, cancel to its left. Left button slot (e.g., "Copy Link" in ShareBox) is left-aligned.
+
+### 36.17 Key Style Constants
+
+| Property | Value | Source |
+|----------|-------|--------|
+| Box animation duration | 200ms | `boxDuration` in `layers.style` |
+| Box corner radius | 6px | `boxRadius` |
+| Box title font | 16px semibold | `boxTitleFont` |
+| Box title height | 48px | `boxTitleHeight` |
+| Box title position | (24px, 13px) | `boxTitlePosition` |
+| Box content padding | 24px left/right | `boxRowPadding` |
+| Box button font | 14px semibold | `defaultBoxButtonTextStyle` |
+| Box button height | 34px | `defaultBoxButton.height` |
+| Box button min-width | 30px (negative = min padding) | `defaultBoxButton.width` |
+| Box width (standard) | 320px | `boxWidth` |
+| Box width (wide) | 364px | `boxWideWidth` |
+| Toast default duration | 1500ms | `kDefaultDuration` |
+| Toast background color | `toastBg` | palette |
+| Toast text color | `toastFg` | palette |
+| PopupMenu animation | PanelAnimation (clip-reveal + opacity) | `popup_menu.cpp` |
+| Tooltip show delay | configurable per style | `style::Tooltip` |
+| Calendar day click | instant selection + close | `calendar_box.cpp` |
+| Delete dialog Enter safety | disabled for history clear | `delete_messages_box.cpp:517` |
+
+---
+
+## &sect;37 &mdash; Desktop Notifications
+
+Complete specification of the Telegram Desktop notification system: native OS integration, custom in-app popups, notification content composition, sounds, grouping, privacy, and badge counters.
+
+**Source files:**
+- `window/notifications_manager.h` / `.cpp` &mdash; Core `System` scheduler + `Manager` base class
+- `window/notifications_manager_default.h` / `.cpp` &mdash; Custom in-app notification widgets
+- `window/notifications_utilities.h` / `.cpp` &mdash; Userpic caching for native notifications
+- `platform/linux/notifications_manager_linux.cpp` &mdash; Linux DBus/GNotification backend
+- `platform/win/notifications_manager_win.cpp` &mdash; Windows WinRT toast backend
+- `platform/mac/notifications_manager_mac.mm` &mdash; macOS NSUserNotification backend
+- `settings/sections/settings_notifications.cpp` &mdash; Notification settings UI
+- `tray.cpp` &mdash; Tray icon badge/counter updates
+- `window/window.style` &mdash; Style constants for notification widgets
+
+### 37.1 Architecture Overview
+
+The notification system uses a three-tier architecture:
+
+1. **`System` (scheduler)** &mdash; Receives incoming message/reaction/poll-vote events, applies skip/mute/delay logic, groups forwarded messages and albums, then dispatches to the active Manager.
+2. **`Manager` (abstract base)** &mdash; Three concrete implementations selected at startup:
+   - `ManagerType::Default` &mdash; Custom in-app popup widgets (cross-platform fallback)
+   - `ManagerType::Native` &mdash; OS-native notifications (platform-specific subclass of `NativeManager`)
+   - `ManagerType::Dummy` &mdash; No-op (used when native is enforced but unavailable)
+3. **Platform backends** &mdash; Each OS has a `Platform::Notifications::Manager` subclass of `NativeManager`.
+
+Manager selection logic (`System::setManager`):
+- If user chose native notifications AND `Platform::Notifications::Supported()` returns true, use native.
+- If native is enforced (by platform) but creation fails, fall back to `DummyManager`.
+- Otherwise, use `Default::Manager` (custom in-app popups).
+- The option `kOptionCustomNotification` ("Force non-native notifications availability") allows users to override platform enforcement and use custom notifications even when native is enforced.
+
+### 37.2 Native OS Notifications
+
+#### 37.2.1 Linux &mdash; DBus / GNotification
+
+Two backends with automatic selection:
+
+**DBus backend** (default, more features):
+- Uses `XdgNotifications::NotificationsProxy` (freedesktop.org notification spec).
+- `call_notify()` sends notifications; `call_close_notification()` dismisses them.
+- `call_get_capabilities()` queries daemon features at startup (inline reply, actions, sound-file, image-data, persistence, etc.).
+- **Actions:** "default" (click to open chat), "mail-mark-read" (mark as read), inline reply (if `signal_notification_replied` capability exists).
+- **Images:** Userpic sent as RGBA8888 raw bytes via DBus hint. Key chosen by daemon spec version: `"image-data"`, `"image_data"`, or `"icon_data"`.
+- **Sound:** If daemon supports `"sound-file"` capability, sound file path sent as hint. Otherwise `"suppress-sound"` hint is set and sound is played through Telegram's own audio system.
+- **DND:** `invokeIfNotInhibited()` wraps sound/flash callbacks to respect the freedesktop Inhibited property.
+- **Urgency:** Category hint `"im.received"` set on all notifications.
+
+**GNotification backend** (GLib-based, fewer features):
+- Used when `Gio::Application::get_default()` is available and `kOptionGNotification` is enabled.
+- `Gio::NotificationPriority::HIGH_` for all notifications.
+- Userpic converted to PNG bytes for `Gio::BytesIcon`.
+- Fewer action capabilities (no inline reply).
+
+**Notification tracking:** `_notifications[ContextId][MsgId] = NotificationData` &mdash; hierarchical map by session/peer/topic/monoforum, then by message ID.
+
+#### 37.2.2 Windows &mdash; WinRT Toast Notifications
+
+- Uses WinRT `ToastNotification` API (Windows 8+, full features on Windows 10+).
+- Toast XML template built dynamically with:
+  - `<image>` element for userpic (circular crop via `hint-crop="circle"`).
+  - Three `<text>` elements: title, subtitle, message body.
+  - `<audio silent="true"/>` &mdash; sound always suppressed in toast XML; Telegram plays its own sound.
+- **Actions (Windows 10+):**
+  - Fast reply: text input field + send button (with `historySendIcon` saved as `fast_reply.png`).
+  - Mark as read: background activation button.
+  - Default click: opens conversation.
+- **Activation parsing:** Launch arguments encode `pid, sessionId, peerId, topicRootId, monoforumPeerId, msgId`.
+- **DND/Focus Assist detection:**
+  - Pre-build-17134: `QueryQuietHoursRegistryEntry()` checks registry.
+  - Modern builds: `QueryFocusAssist()` reads focus assist profile (Alarms Only / Priority / Unrestricted).
+  - `QueryUserNotificationState()` detects fullscreen/presentation mode.
+  - When DND active: toast still sent (OS handles suppression), but sound and flash are skipped.
+- **App User Model ID:** Required for toast notifier registration; validated against shell shortcut.
+
+#### 37.2.3 macOS &mdash; NSUserNotification
+
+- Uses `NSUserNotification` API (deprecated since macOS 10.14, but still functional).
+- `NotificationDelegate` handles user interactions via Objective-C delegate pattern.
+- **Content:** `NSUserNotification` populated with title, subtitle, informativeText, and userInfo dictionary (session/peer/topic/message IDs).
+- **Actions:** "Mark as Read" button (localized text cached with 5-week expiration), reply button via `hasReplyButton`.
+- **Userpic:** Content image set from peer userpic when available.
+- **Sound:** Managed via `Media::Audio::LocalDiskCache _sounds`; sound file path passed to notification.
+- **Clearing:** Dedicated background thread with mutex/condition-variable queue processes removal by item, topic, sublist, history, or session.
+- **Screen lock detection:** `forceHideDetails()` returns `Core::App().screenIsLocked()` &mdash; when the OS screen is locked, notification content is hidden regardless of user settings.
+
+### 37.3 Custom In-App Notification Popups
+
+The `Default::Manager` renders notification popups as frameless top-level Qt widgets. This is the cross-platform fallback and the only option when native notifications are unavailable.
+
+#### 37.3.1 Widget Hierarchy
+
+```
+Window::Notifications::Default::Manager
+  |-- std::vector<Notification>   (active notification widgets)
+  |-- std::unique_ptr<HideAllButton>   (shown when 2+ notifications or queue non-empty)
+  |-- std::deque<QueuedNotification>   (waiting to be shown)
+
+Notification : Widget : Ui::RpWidget
+  |-- Background     (painted below reply area when expanded)
+  |-- IconButton      (_close)
+  |-- RoundButton     (_reply)
+  |-- InputField      (_replyArea, created on demand)
+  |-- IconButton      (_replySend, created on demand)
+
+HideAllButton : Widget : Ui::RpWidget
+```
+
+#### 37.3.2 Window Flags
+
+All notification widgets use these Qt flags:
+```
+Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint |
+Qt::BypassWindowManagerHint | Qt::NoDropShadowWindowHint | Qt::Tool
+```
+Plus `Qt::WA_MacAlwaysShowToolWindow` and `Qt::WA_OpaquePaintEvent`.
+
+#### 37.3.3 Position and Corner Selection
+
+| Setting | Values | Default |
+|---|---|---|
+| Corner | TopLeft, TopRight, BottomLeft, BottomRight, TopCenter | BottomRight |
+| Display | Any connected monitor (selected by checksum) | Primary screen / active window screen |
+
+**Start position calculation** (`notificationStartPosition()`):
+- For left corners: `x = screenRect.x + notifyDeltaX` (6px from left edge).
+- For right corners: `x = screenRect.x + screenRect.width - notifyWidth - notifyDeltaX` (6px from right edge).
+- For top center: `x = screenRect.x + screenRect.width/2 - notifyWidth/2` (centered horizontally).
+- For top corners: `y = screenRect.y` (flush with top of available geometry).
+- For bottom corners: `y = screenRect.y + screenRect.height` (flush with bottom; widgets shift upward).
+- RTL layout swaps left/right.
+
+**Width:**
+- Standard corners: `notifyWidth` = **320px**.
+- Top center: `notifyWidth * 1.5` = **480px**.
+
+#### 37.3.4 Size and Layout
+
+| Element | Position / Size | Style constant |
+|---|---|---|
+| **Notification widget** | 320px wide x 80px min height | `notifyWidth` / `notifyMinHeight` |
+| **Userpic** | 62x62px at (9, 9) | `notifyPhotoSize` / `notifyPhotoPos` |
+| **Close button** | 30x30px, top-right at offset (1, 2) from corner | `notifyClose` / `notifyClosePos` |
+| **Title (name)** | Left of userpic + 12px, top 7px | `notifyTextLeft` / `notifyTextTop` |
+| **Message text** | Below title, top 12px + font height | `notifyItemTop` |
+| **Reply button** | Bottom-right, hidden until hover | padding = minHeight - photoPos.y - photoSize |
+| **Border** | 1px on all edges | `notifyBorderWidth` / `notifyBorder` |
+| **Inter-notification gap** | 7px vertical | `notifyDeltaY` |
+| **Edge margin** | 6px horizontal | `notifyDeltaX` |
+| **"Hide All" button** | Same width, 36px tall, below last notification | `notifyHideAllHeight` |
+
+**Layout within notification:**
+```
++--[border 1px]--------------------------------------+
+|  [Userpic 62x62]  [Title/Name]           [X close] |
+|                    [Message text, 2 lines]          |
+|                                        [Reply btn]  |
++----------------------------------------------------+
+```
+
+Title text: drawn with `st::semiboldFont`, clipped to available width (widget width minus userpic area minus close button area). Single line, elided.
+
+Message text: drawn with `st::dialogsTextFont`, up to 2 lines of height (`2 * dialogsTextFont->height`), elided at that height.
+
+When reply field is shown, the notification expands below `notifyMinHeight` with a `Background` widget and an `InputField` (36-72px height) + send button (36x36px).
+
+#### 37.3.5 Animation and Timing
+
+| Animation | Duration | Easing | Constant |
+|---|---|---|---|
+| **Fade in** (opacity 0 to 1) | 150ms | linear | `notifyFastAnim` |
+| **Slow hide** (auto-dismiss) | 4000ms | easeInCirc | `notifySlowHide` |
+| **Fast hide** (manual dismiss) | 150ms | linear | `notifyFastAnim` |
+| **Shift animation** (reposition) | 150ms | linear | `notifyFastAnim` |
+| **Action buttons fade** | 200ms | linear | `notifyActionsDuration` |
+| **Demo opacity** (settings preview) | 150ms | linear | `notifyFastAnim` |
+
+**Auto-dismiss flow:**
+1. Notification appears, opacity animates 0 &rarr; 1 over 150ms.
+2. If `WaitForInputForCustom()` is true and no user input has occurred since notification appeared, auto-dismiss is deferred. Input is polled every 300ms (`_inputCheckTimer`).
+3. Once user input is detected (or if waiting is not required), a 3000ms timer starts (`notifyWaitLongHide`).
+4. After 3000ms, `startHiding()` triggers slow hide: 4000ms fade-out with easeInCirc easing.
+5. When opacity reaches 0, the widget is removed (`removeWidget`).
+
+**Hover behavior:**
+- `enterEvent`: Stops all hiding timers for all notifications; shows Reply button with 200ms fade-in.
+- `leaveEvent`: Restarts all hiding; hides Reply button with 200ms fade-out.
+- If any notification has an active reply field, no notifications auto-dismiss.
+
+**Stacking/shift:**
+- Notifications stack from the chosen corner outward. Bottom corners: newest at bottom, stack upward. Top corners: newest at top, stack downward.
+- When a notification is added/removed/resized, all others animate their vertical shift over 150ms (linear).
+- The "Hide All" button appears when 2+ notifications are visible or the queue is non-empty; it shifts with the stack.
+
+#### 37.3.6 Click and Dismiss Behavior
+
+| Action | Effect |
+|---|---|
+| **Left-click** on notification body | `notificationActivated()` &mdash; opens the chat/topic/sublist, navigates to the message. Clears notifications for that thread. Supports Ctrl+click to open in a separate window. |
+| **Right-click** on notification body | Dismisses the notification (`unlinkHistoryInManager`). |
+| **Click close (X) button** | Dismisses the notification. Accepts both left and right click (`setAcceptBoth(true)`). |
+| **Click Reply button** | Expands notification with input field. Stops auto-dismiss. |
+| **Submit reply** (Enter or send button) | Sends message via `api().sendMessage()`, then starts hiding all. |
+| **Cancel reply** (Escape) | Dismisses the notification. |
+| **Click "Hide All"** | Calls `manager()->clearAll()` &mdash; removes all notifications and clears queue. |
+
+#### 37.3.7 Maximum Notification Count
+
+Configurable in settings: 1 to `kMaxNotificationsCount` (5). Default: 5. When the visible count exceeds the limit, oldest non-reply notifications are unlinked. New notifications queue in `_queuedNotifications` and show as slots free up.
+
+### 37.4 Notification Content
+
+#### 37.4.1 Title Composition
+
+| Scenario | Title text |
+|---|---|
+| **Privacy: hide name** | App name ("Telegram Desktop" / "AyuGram Desktop") |
+| **Scheduled to self** | `lng_notification_reminder` ("Reminder") |
+| **Forum topic** | `"TopicTitle (ChatName)"` |
+| **Monoforum sublist** | `"SublistPeerShortName (ChatName)"` |
+| **Regular chat** | Peer name |
+| **Scheduled message** | Prepended with calendar emoji ("\xF0\x9F\x93\x85 ") |
+| **Multiple accounts** | Appended with ` &rarr; username` (or display name if no username), separator: ` &#x279C; ` |
+
+#### 37.4.2 Subtitle (Author Line)
+
+| Scenario | Subtitle |
+|---|---|
+| **Privacy: hide name** | Empty |
+| **Reaction from different user** | Reactor's name (unless reaction preview is disabled) |
+| **Group/channel message** | `notificationHeader()` &mdash; sender's name (empty for 1:1 chats, "You" for own scheduled messages) |
+
+#### 37.4.3 Message Text
+
+| Message type | Notification text |
+|---|---|
+| **Text message** | Message text, spoilers replaced with `\u259A` blocks, single line elided |
+| **Photo** | `lng_in_dlg_photo` ("Photo") + optional caption |
+| **Video** | `lng_in_dlg_video` ("Video") + optional caption |
+| **Sticker** | `lng_in_dlg_sticker` ("Sticker") or `lng_in_dlg_sticker_emoji` with emoji alt text |
+| **Voice message** | `lng_in_dlg_voice_message` ("Voice message") |
+| **Video message** | `lng_in_dlg_video_message` ("Video message") |
+| **GIF** | "GIF" (hardcoded) |
+| **Audio file** | `lng_in_dlg_audio_file` ("Audio file") |
+| **Document/file** | `lng_in_dlg_file` ("File") |
+| **Contact** | `lng_in_dlg_contact` ("Contact") |
+| **Location** | Location string (live or static) |
+| **Poll** | Poll emoji + question text |
+| **Game** | Game controller emoji + title |
+| **Invoice** | Title or media type for paid media |
+| **Album** | `lng_in_dlg_album` ("Album") |
+| **Forwarded (2+)** | `lng_forward_messages` ("N forwarded messages") |
+| **Forwarded (1)** | Original text with forward arrow emoji prefix ("\xE2\x9E\xA1\xEF\xB8\x8F") |
+| **Reaction** | Reaction emoji + context (e.g., `"reacted [emoji] to your photo"`) with media-specific phrasing |
+| **Poll vote** | `lng_poll_vote_option` ("voted for: OptionText") or `lng_poll_vote` |
+| **Privacy: hide text** | `lng_notification_preview` ("You have a new message") |
+| **Spoiler login code** | Login code entity replaced with spoiler characters |
+
+#### 37.4.4 Reaction Notification Text
+
+Context-specific phrasing based on media type of the reacted-to message:
+
+| Media type | Translation key | Example pattern |
+|---|---|---|
+| Text/webpage | `lng_reaction_text` | "[emoji] to: message text" |
+| Photo | `lng_reaction_photo` | "[emoji] to your photo" |
+| Voice message | `lng_reaction_voice_message` | "[emoji] to your voice message" |
+| Video message | `lng_reaction_video_message` | "[emoji] to your video message" |
+| GIF | `lng_reaction_gif` | "[emoji] to your GIF" |
+| Video | `lng_reaction_video` | "[emoji] to your video" |
+| Sticker | `lng_reaction_sticker` | "[emoji] to your [alt] sticker" |
+| Document | `lng_reaction_document` | "[emoji] to your file" |
+| Contact | `lng_reaction_contact` | "[emoji] to contact: Name" |
+| Location | `lng_reaction_location` | "[emoji] to your location" |
+| Poll/Quiz | `lng_reaction_poll` / `lng_reaction_quiz` | "[emoji] to poll: Title" |
+| Game | `lng_reaction_game` | "[emoji] to your game" |
+| Invoice | `lng_reaction_invoice` | "[emoji] to your invoice" |
+| Content hidden | `lng_reaction_notext` | "[emoji]" |
+
+### 37.5 Notification Sounds
+
+#### 37.5.1 Default Sound
+
+- Default file: `msg_incoming.mp3` (bundled as Qt resource at `:/sounds/msg_incoming.mp3`).
+- Lookup order: (1) user-configured sound path via `getSoundPath("msg_incoming")`, (2) fallback to embedded resource.
+- Format: MP3. Custom ringtones can be any format supported by the audio system.
+
+#### 37.5.2 Custom Ringtones
+
+- Per-thread sound settings stored in `Data::NotifySettings`.
+- Custom ringtone documents looked up via `notifySettings.lookupRingtone(id)`.
+- Sound data read from `DocumentMedia::bytes()` or from disk via `location().name()`.
+- Custom sound tracks cached in `_customSoundTracks[DocumentId]`.
+- A sound of `none` (the `.none` flag) suppresses sound entirely.
+
+#### 37.5.3 Volume Control
+
+- Per-chat ringtone volume: `session.settings().ringtoneVolume(peerId, topicRootId, monoforumPeerId)`.
+- Per-type default volume: `session.settings().ringtoneVolume(DefaultNotifyType)`.
+- Global notification volume: `Core::App().settings().notificationsVolume()` (0-100 slider in settings).
+- Volume passed as `float64` (0.0-1.0) to `track->playOnce(volume)`.
+- After playing, `mixer()->suppressAll(track->getLengthMs())` mutes other audio for the notification duration.
+
+#### 37.5.4 Sound Playback Conditions
+
+Sound plays only when ALL of:
+- `settings.soundNotify()` is true (global sound toggle).
+- The thread is not muted (or `notifyBy` peer is not muted).
+- The message is not silent (`item->isSilent()` is false).
+- The sound document is not `none`.
+- Volume is supported (`System::volumeSupported()`): true when either (a) desktop notifications are disabled, or (b) manager is not native, or (c) `Platform::Notifications::VolumeSupported()` is true.
+
+For native notifications, sound may be delegated to the OS notification system instead of Telegram's audio system:
+- **Linux DBus:** Sound file path sent as hint if daemon supports `"sound-file"` capability.
+- **Windows:** Toast audio always silent; Telegram plays its own sound.
+- **macOS:** Sound path passed to `NSUserNotification`.
+
+### 37.6 Notification Scheduling and Grouping
+
+#### 37.6.1 Timing and Delays
+
+| Constant | Value | Purpose |
+|---|---|---|
+| `kMinimalDelay` | 100ms | Minimum delay before showing any notification |
+| `kMinimalForwardDelay` | 500ms | Delay for forwarded messages (allows grouping) |
+| `kMinimalAlertDelay` | 500ms | Minimum gap between sound/flash alerts from same thread |
+| `kWaitingForAllGroupedDelay` | 1000ms | Wait time to collect all messages in an album/forward batch |
+| `kReactionNotificationEach` | 3600000ms (1 hour) | Deduplicate reaction notifications per item (one per hour max) |
+| `kSystemAlertDuration` | 1000ms (macOS) / 0ms (other) | `QWindow::alert()` duration |
+
+**Cloud delay logic** (`countTiming`):
+- If user is offline, another device is online, and the other device was more recently active: use `config.notifyCloudDelay` (server-configured, typically longer).
+- If another device is currently online: use `config.notifyDefaultDelay` (server-configured, shorter).
+- Otherwise: use `kMinimalDelay` (100ms).
+- AyuGram override: if `settings.disableNotificationsDelay()` is true, always use `kMinimalDelay`.
+
+#### 37.6.2 Forward/Album Grouping
+
+When multiple forwarded messages or album items arrive close together (within 2 seconds of each other by message date):
+1. First notification is queued with a 1000ms timer (`_waitForAllGroupedTimer`).
+2. Subsequent messages from the same author (forwarded) or same group ID (album) increment the count and reset the timer.
+3. When the timer fires or a non-grouped message arrives, the group is shown as a single notification:
+   - Albums: text is `lng_in_dlg_album` ("Album").
+   - Forwards (2+): text is `lng_forward_messages` ("N forwarded messages").
+
+#### 37.6.3 Notification Deduplication
+
+- Each thread maintains a `_whenMaps[thread][NotificationInHistoryKey]` with timestamps.
+- `NotificationInHistoryKey` combines `messageId` + `ItemNotificationType` (Message/Reaction/PollVote).
+- Reaction notifications for the same item are deduplicated to once per hour (`kReactionNotificationEach`).
+- Poll vote notifications follow the same deduplication rule.
+
+### 37.7 Muted Chat Handling
+
+- `computeSkipState()` checks both thread-level and per-sender mute settings via `Data::NotifySettings`.
+- If a thread is muted AND the sender (`notifyBy`) is muted (or absent): notification is skipped entirely (`SkipState::Skip`).
+- Exception: own scheduled messages that fire are shown even in muted chats, but forced silent (no sound).
+- If the thread is muted but the sender is NOT muted (mention in a muted group): notification shows with sound.
+- `SkipState::silent` flag: set when message is silent (`item->isSilent()`), thread sound is `none`, or notification type is non-message (reaction/poll vote).
+- Setting "Include muted chats in unread count" (`IncludeMuted`) affects badge counters but NOT notification popups.
+
+### 37.8 DND / Focus Mode Integration
+
+**General approach:** Telegram does not implement its own DND mode. It defers to the OS:
+
+| Platform | Detection method | Behavior when DND active |
+|---|---|---|
+| **Linux** | freedesktop Inhibited property via DBus | `invokeIfNotInhibited()` skips sound and flash callbacks |
+| **Windows** | Focus Assist profile query (`QueryFocusAssist`) + `QueryUserNotificationState` for fullscreen/presentation | `SkipToastForCustom()` / `SkipFlashBounceForCustom()` returns true; toast still sent (OS suppresses display) |
+| **macOS** | `kSystemAlertDuration` = 1000ms for `QWindow::alert()` | OS notification center handles DND; `screenIsLocked()` hides content |
+
+**Custom notifications (Default::Manager):**
+- `doSkipToast()` delegates to `Platform::Notifications::SkipToastForCustom()`.
+- `doMaybePlaySound()` delegates to `Platform::Notifications::MaybePlaySoundForCustom()`.
+- `doMaybeFlashBounce()` delegates to `Platform::Notifications::MaybeFlashBounceForCustom()`.
+- These platform functions check the OS DND state before executing.
+
+### 37.9 Notification Actions
+
+#### 37.9.1 Reply from Notification
+
+**Custom (in-app) notifications:**
+- Hover reveals Reply button (200ms fade-in).
+- Click opens inline `InputField` (36-72px height, multi-line).
+- Max length: `MaxMessageSize`. Submit settings: Enter or Ctrl+Enter.
+- Reply is sent via `session.api().sendMessage()` with `replyTo` set to the notification's message ID (in groups/topics).
+- If the message was an unread mention, `api().markContentsRead()` is called.
+- The `kOptionHideReplyButton` toggle can globally hide the reply button.
+
+**Native notifications:**
+- **Linux DBus:** Inline reply via `signal_notification_replied` (if daemon supports it); "mail-mark-read" action for mark-as-read.
+- **Windows:** Fast reply text input in toast XML with send button; mark-as-read as background activation.
+- **macOS:** Reply button via `NSUserNotification.hasReplyButton`; "Mark as Read" action button.
+
+#### 37.9.2 Reply Button Visibility
+
+The Reply button is hidden when ANY of:
+- `hideReplyButton` display option is true (which is true when):
+  - Message text is hidden (privacy setting).
+  - Notification type is non-message (reaction/poll vote).
+  - No message item available.
+  - Message is own scheduled message.
+  - Cannot send texts to the peer or topic.
+  - Peer is a broadcast channel.
+  - Peer has slowmode active (`slowmodeSecondsLeft > 0`).
+  - Peer requires stars per message.
+  - `kOptionHideReplyButton` toggle is enabled.
+- App is passcode-locked.
+- Notification view setting is not `ShowPreview`.
+
+### 37.10 Flash Taskbar / Bounce Dock
+
+- Controlled by `settings.flashBounceNotify()` toggle (default: true).
+- Platform-specific label in settings:
+  - Windows: `lng_settings_alert_windows` ("Flash the taskbar icon")
+  - macOS: `lng_settings_alert_mac` ("Bounce the Dock icon")
+  - Linux: `lng_settings_alert_linux` ("Flash the taskbar icon")
+- Implementation: `QWindow::alert(kSystemAlertDuration)` called on the peer's window handle.
+- Duration: 1000ms on macOS, 0ms on other platforms (0 = system default flash behavior).
+- Skipped when DND is active (per platform detection) or `flashBounceNotify` is off.
+- For custom notifications: delegated to `Platform::Notifications::MaybeFlashBounceForCustom()`.
+
+### 37.11 Badge / Unread Counter
+
+- `Core::App().unreadBadgeChanges()` fires whenever unread counts change.
+- Triggers: `updateTitle()` (window title bar), `unreadCounterChangedHook()` (platform-specific), `tray.updateIconCounters()`.
+- Tray icon updated via `_tray.updateIcon()` which repaints the icon with the current unread count.
+- Badge value: `Core::App().unreadBadge()` &mdash; total unread count across all accounts (respects `includeMutedCounter` and `countUnreadMessages` settings).
+- Settings affecting badge:
+  - `IncludeMuted` &mdash; whether muted chats contribute to the badge count.
+  - `CountMessages` &mdash; whether to count individual messages vs. chats with unread messages.
+- Platform-specific badge rendering is handled by each platform's tray/dock integration.
+
+### 37.12 Privacy in Notifications
+
+Three-level privacy controlled by `NotifyView` setting:
+
+| Level | `NotifyView` value | Name shown | Photo shown | Message text shown |
+|---|---|---|---|---|
+| **Show name and preview** | `ShowPreview` | Yes | Yes | Yes |
+| **Show name only** | `ShowName` | Yes | Yes | No &mdash; shows `lng_notification_preview` ("You have a new message") |
+| **Hide everything** | `HideAll` | No | No (shows app logo) | No |
+
+Additional privacy conditions:
+- **Passcode locked** (`Core::App().passcodeLocked()`): Forces hide-everything mode regardless of setting. Clicking notification shows the app but stays on passcode screen.
+- **Screen locked** (native notifications only, `Core::App().screenIsLocked()`): `NativeManager::forceHideDetails()` returns true, forcing hide-everything mode.
+- **Spoiler login codes** (`spoilerLoginCode` flag): When the sender is the Telegram notification user or verify codes user, login code entities are replaced with spoiler characters to prevent code exposure in notification popups.
+- **Reaction sender privacy:** If `api().reactionsNotifySettings().showPreviewsCurrent()` is false, the reactor's name is hidden even when notifications show names.
+
+**Hidden userpic placeholder:** When name/photo is hidden, a scaled-down app logo is drawn at `notifyPhotoSize` (62x62px) in place of the userpic.
+
+### 37.13 Userpic Caching (Native Notifications)
+
+Native notification backends need userpic images as files on disk:
+
+- `CachedUserpics` class manages temporary PNG files in `tdata/temp/`.
+- Images cached by `InMemoryKey` (peer photo ID).
+- Cached images auto-deleted after `kNotifyDeletePhotoAfterMs` = **60,000ms** (1 minute) of inactivity.
+- Size: `notifyMacPhotoSize` = **64px** (used for all native backends despite the name).
+- Special userpics: Saved Messages and Replies Chat use `Ui::EmptyUserpic::GenerateSavedMessages/GenerateRepliesMessages`.
+- Files saved as PNG format.
+
+### 37.14 Configuration Summary
+
+| Setting | Key / Method | Default | Effect |
+|---|---|---|---|
+| Desktop notifications | `desktopNotify()` | true | Master toggle for all notification popups |
+| Sound | `soundNotify()` | true | Master toggle for notification sounds |
+| Flash/bounce | `flashBounceNotify()` | true | Flash taskbar / bounce dock icon |
+| Notification corner | `notificationsCorner()` | BottomRight | Popup position on screen |
+| Notification count | `notificationsCount()` | 1-5 | Max simultaneous in-app popups |
+| Display monitor | `notificationsDisplayChecksum()` | Primary | Which screen shows notifications |
+| Notification view | `notifyView()` | ShowPreview | Privacy level (ShowPreview/ShowName/HideAll) |
+| Native notifications | `nativeNotifications()` | true | Use OS notification center vs. custom popups |
+| Notify from all accounts | `notifyFromAll()` | true | Show notifications from inactive accounts |
+| Include muted in badge | `includeMutedCounter()` | true | Muted chats count in badge |
+| Count messages | `countUnreadMessages()` | false | Count messages vs. chats in badge |
+| Notifications volume | `notificationsVolume()` | 100 | Global volume (0-100) for notification sounds |
+| Per-chat volume | `ringtoneVolume()` | (unset) | Override volume per peer/topic |
+| Per-chat sound | via NotifySettings | default | Custom ringtone document per thread |
+| Per-chat mute | via NotifySettings | unmuted | Mute duration per thread |
+| Force custom notifications | `kOptionCustomNotification` | false | Allow custom popups even when native is enforced |
+| GNotification | `kOptionGNotification` | false | Force GLib GNotification backend on Linux |
+| Hide reply button | `kOptionHideReplyButton` | false | Globally hide reply in notifications |
+| Disable notification delay | AyuGram: `disableNotificationsDelay()` | false | Skip cloud delay, always use 100ms |
+
+### 37.15 Timing Reference Table
+
+| Timing | Value | Source constant |
+|---|---|---|
+| Fade-in duration | 150ms | `notifyFastAnim` |
+| Fade-out (auto-dismiss) | 4000ms | `notifySlowHide` |
+| Fade-out (manual dismiss) | 150ms | `notifyFastAnim` |
+| Auto-dismiss delay after input | 3000ms | `notifyWaitLongHide` |
+| Input polling interval | 300ms | hardcoded in `checkLastInput` |
+| Shift animation duration | 150ms | `notifyFastAnim` |
+| Action button fade | 200ms | `notifyActionsDuration` |
+| Minimum notification delay | 100ms | `kMinimalDelay` |
+| Forward grouping delay | 500ms | `kMinimalForwardDelay` |
+| Alert dedup interval | 500ms | `kMinimalAlertDelay` |
+| Album/forward group wait | 1000ms | `kWaitingForAllGroupedDelay` |
+| Reaction dedup window | 1 hour | `kReactionNotificationEach` |
+| macOS system alert | 1000ms | `kSystemAlertDuration` |
+| Userpic cache TTL | 60,000ms | `kNotifyDeletePhotoAfterMs` |
+
+---
+
+## §38 -- User Profile Popup (PeerShortInfoBox)
+
+The "short info box" is a modal layer that shows a compact profile card for a user, group, or channel. It is NOT a tooltip or floating popup -- it is a full `BoxContent` layer rendered centered over a dimmed background, identical in mechanics to other Telegram Desktop dialog boxes.
+
+### 1. Triggers
+
+The PeerShortInfoBox is triggered in these specific contexts:
+
+- **Ctrl+Click on "View Profile" in chat context menu** -- Right-clicking a chat in the dialog list shows a context menu with "View Profile" / "View Group" / "View Channel". Normally this opens the full info panel; holding Ctrl while clicking the menu item opens the ShortInfoBox instead. This is the primary trigger (`window_peer_menu.cpp:626`).
+- **Clicking a user row in "Public Groups/Channels" limit box** -- When the "too many public groups" premium limit dialog shows a list of public channels, clicking any row opens the ShortInfoBox for that peer (`premium_limits_box.cpp:345`).
+- **Clicking a user avatar in gift/premium boxes** -- In star gift recipient picker (when picking from birthday contacts list), the "OpenProfile" action opens the ShortInfoBox (`star_gift_box.cpp:2285`). Similarly in gift code boxes, clicking recipient names opens it (`gift_premium_box.cpp:972, 1779`).
+
+**NOT a trigger:** Clicking a user's avatar or name in a chat message opens the full info panel (`window->showPeerInfo(from)`) via `Element::fromLink()`, NOT the ShortInfoBox. The ShortInfoBox is never shown by clicking avatars in message bubbles.
+
+### 2. Layout Structure
+
+The box is 304px wide (`shortInfoWidth`), with content arranged vertically in a scrollable area:
+
+#### Cover Section (Top)
+- **Square userpic area**: 304x304px (`shortInfoCover.size == shortInfoWidth`), fills the full width. Displays the profile photo scaled/cropped to fill the square. If the user has no photo, a solid black square is shown.
+- **Profile photo navigation**: If the user has multiple profile photos, Instagram-style progress bars appear at the top of the cover. Clicking the left third of the cover navigates to the previous photo; clicking the right two-thirds navigates to the next. The cursor changes to pointer when multiple photos exist.
+- **Progress bars**: Thin horizontal bars (2px height, `shortInfoCover.line`) at the top with 8px padding (`linePadding`) and 4px gaps (`lineSkip`). The active bar shows a fill progress; inactive bars are at 50% opacity (`kInactiveBarOpacity = 0.5`). Bars use `groupCallVideoTextFg` color and are painted with rounded caps.
+- **Name label**: Overlaid at the bottom of the cover, positioned at 25px from left edge (`namePosition.x`), 37px from bottom (`namePosition.y`). White text (`groupCallVideoTextFg`) in 15px semibold font. Single line, max 19px height.
+- **Status label**: Below name, positioned at 25px from left, 14px from bottom (`statusPosition.x/y`). Uses `groupCallVideoSubTextFg` (slightly transparent white). Shows online/last seen status for users, or member/subscriber count for groups/channels.
+- **Additional status**: An optional third label below the status, shown for specific cases: "photo set by you" (`lng_profile_photo_by_you`) when viewing a personal photo the user set for you, or "public photo" (`lng_profile_public_photo`) when viewing the user's fallback/public photo.
+- **Shadow gradient**: An 80px (`shadowHeight`) gradient from transparent to semi-opaque black at the bottom of the cover, making the white text readable against any photo.
+- **Top shadow**: A gradient at the top of the cover (same height as the bar area) making the progress bars visible.
+- **Video profile photos**: If the current profile photo has a video version, it auto-plays in a loop within the cover area. A radial loading indicator (2px thick, `radialFg` color) appears centered while loading. The video plays using `Media::Streaming::Instance` with `mode = Video, loop = true`.
+- **Photo loading progress**: While a high-resolution photo is loading, a radial progress indicator shows in the center of the cover. It fades in after `fadeWrapDuration` delay and fades out when loading completes.
+- **Rounded top corners**: The cover has rounded top corners matching `boxRadius` (6px).
+
+#### Info Rows Section (Below Cover)
+Displayed as labeled key-value rows using `Info::Profile::CreateTextWithLabel`, each with 24px horizontal padding and 16px top padding (`shortInfoLabeledPadding`):
+
+1. **Channel** (label: "Channel") -- Only for users with a personal channel. Shows the channel name as a clickable link.
+2. **Link** (label: "Link") -- Only for groups/channels with a public username. Shows the t.me link.
+3. **Phone** (label: "Mobile") -- User's phone number, formatted with `Ui::FormatPhone`. Context menu copy text: "Copy Phone Number".
+4. **Bio/About** (label: "Bio" for non-bot users, "About" for bots/groups/channels) -- Multi-line text with entity support (bold, links, etc.).
+5. **Username** (label: "Username") -- Shown as `@handle`. Context menu copy text: "Copy Mention".
+6. **Birthday** (label: "Birthday" or "Birthday today") -- User's birthday if set, with dynamic label text.
+7. **Notes** (label: "Notes") -- Personal notes about the user (contact notes feature). Multi-line text with entity support.
+
+All single-line fields (`phone`, `username`, `birthday`, `channel`, `link`) use `infoLabeledOneLine` style with `setDoubleClickSelectsParagraph(true)` for easy text selection. Empty fields are hidden via `SlideWrap` (the row wraps in a slide-wrap that collapses when the value is empty).
+
+#### Buttons (Bottom)
+- **Right button**: "Close" -- closes the box.
+- **Left button** (not shown for Self type):
+  - For users: "Send Message" (`lng_profile_send_message`) -- opens the chat history with this user.
+  - For groups: "View Group" (`lng_view_button_group`) -- opens the group chat.
+  - For channels: "View Channel" (`lng_profile_view_channel`) -- opens the channel.
+
+### 3. Animations
+
+- **Appear/disappear**: Standard box layer animation. Background dims with `st::layerBg` opacity, animated over `boxDuration` (200ms) with `easeOutCirc` easing. The box itself fades in/out over the same 200ms duration with linear opacity interpolation.
+- **Photo loading radial**: Fades in after `fadeWrapDuration` delay via `Radial::toggle()`, fades out when photo is fully loaded. Uses `shownAnimation` with `fadeWrapDuration`.
+- **Photo navigation**: No slide/crossfade animation between photos -- the image updates instantly when navigating. The progress bars update immediately.
+- **Scrolling parallax**: When the content is scrolled, the cover image scrolls with a parallax-like effect. The rounded top corners are dynamically repainted as the scroll position changes. The name and status labels fade out (via alpha) proportional to scroll position, becoming invisible when `scrollTop >= (size - shadowHeight)`. The progress bars also fade based on scroll position.
+- **Video playback**: Videos start playing immediately when ready, loop continuously. Video frame position is tracked for the progress bar indicator.
+
+### 4. Positioning
+
+The box is centered both horizontally and vertically in the parent window:
+```
+x = (parentWidth - boxWidth) / 2
+y = (parentHeight - boxHeight) / 2
+```
+If the box would exceed the available height (accounting for bottom margin from `Box.margin`), it is clamped: `top = max(parentHeight - bottomMargin - height, (parentHeight - height) / 2)`.
+
+### 5. Sizing
+
+| Property | Value | Source |
+|---|---|---|
+| Box width | 304px | `shortInfoWidth` |
+| Cover size | 304x304px | `shortInfoCover.size` |
+| Corner radius | 6px | `boxRadius` |
+| Progress bar height | 2px | `shortInfoCover.line` |
+| Progress bar padding | 8px | `shortInfoCover.linePadding` |
+| Progress bar gap | 4px | `shortInfoCover.lineSkip` |
+| Shadow height | 80px | `shortInfoCover.shadowHeight` |
+| Name font | 15px semibold | `shortInfoCover.name` |
+| Name position | 25px from left, 37px from bottom | `namePosition` |
+| Status position | 25px from left, 14px from bottom | `statusPosition` |
+| Info row padding | 24px left/right, 16px top | `shortInfoLabeledPadding` |
+| Scroll bar width | 8px, 3px inset | `shortInfoScroll` |
+| Max content height | Clamped to `parentHeight - margin.top - margin.bottom` | `countRealHeight` |
+| Shadow max alpha | 80/255 (~31%) | `kShadowMaxAlpha` |
+
+### 6. Group-Specific Behavior
+
+Groups and channels use the same PeerShortInfoBox but with these differences:
+
+- **Type**: `PeerShortInfoType::Group` or `PeerShortInfoType::Channel`.
+- **Status**: Shows member count ("X members" / "X subscribers") or "group" / "channel" if count is 0. Updated reactively via `Data::PeerUpdate::Flag::Members`.
+- **Left button**: "View Group" or "View Channel" instead of "Send Message".
+- **Fields**: No phone, no username (username is user-only; groups show a "Link" field instead), no birthday, no notes, no bio label (uses "About" label for the description).
+- **Photo navigation**: Group/channel photos do NOT support the multi-photo slider -- the `UserPhotosReversedViewer` is only created for users. Groups/channels show only their current photo with `rpl::never<UserPhotosSlice>()`.
+- **No admin badge, custom title, or permissions**: The ShortInfoBox does not display any group-specific role information. It is a simple profile card showing only the cover photo and basic info fields.
+
+### 7. Bot Profile
+
+Bot users are displayed identically to regular users with one difference:
+- **About label**: Uses "About" (`lng_info_about_label`) instead of "Bio" (`lng_info_bio_label`). The `isBio` field is set to `false` for bots.
+- No special bot description section, no command list, no inline mode indicator. The ShortInfoBox is a minimal card -- bot-specific features are only in the full info panel.
+
+### 8. Channel/Group Forward Preview
+
+There is no special "channel preview popup" triggered by clicking forwarded-from names. Forwarded-from channel names open the channel via standard link navigation, not the ShortInfoBox. The ShortInfoBox can display channels, but only when explicitly invoked through the triggers listed in section 1.
+
+### 9. Interaction
+
+- **Close by outside click**: Clicking the dimmed background area outside the box closes it. Controlled by `closeByOutsideClick` (default `true`).
+- **Close by Escape**: Pressing Escape closes the box (`keyPressEvent` handles `Qt::Key_Escape`).
+- **Close button**: The "Close" button at the bottom right dismisses the box.
+- **Open action**: The left button ("Send Message" / "View Group" / "View Channel") fires `openRequests` which navigates to the peer's chat history and closes the box.
+- **Right-click context menu**: Right-clicking anywhere on the box triggers a context menu via `contextMenuEvent`. The menu is populated by the `menuFiller` callback. Default menu item: "Open in New Window" (`lng_context_new_window`) -- only shown if the peer is not already open in a separate window. The menu uses `st::popupMenuWithIcons` style.
+- **Photo navigation**: Left-clicking the left third of the cover moves to the previous photo; clicking the right two-thirds moves to the next. Wraps around (modular arithmetic with count).
+- **Text selection**: Single-line info fields support double-click paragraph selection and right-click copy with contextual copy text (e.g., "Copy Phone Number", "Copy Mention").
+- **Scrolling**: The info rows section is scrollable via `ScrollArea` with custom scroll bar (8px wide, 3px inset, 150ms show animation, 1000ms hide delay). The cover stays fixed relative to scroll with parallax behavior.
+
+### 10. Story Ring
+
+The ShortInfoBox does NOT display a story ring around the avatar. There is no story-related code in `peer_short_info_box.cpp` or `prepare_short_info_box.cpp`. Stories are handled by the full profile panel (`info_profile_cover.cpp`) and the dialog list, not this compact popup.
+
+### 11. Premium Effects
+
+The ShortInfoBox does NOT display:
+- Animated/video profile photos as a "premium" feature (it DOES play video profile photos for all users who have them, regardless of premium status).
+- Premium emoji in name or bio (the name is rendered as plain `QString`, not `TextWithEntities`).
+- Verified badge, scam badge, fake badge, or emoji status next to the name.
+- Premium star icon.
+
+The cover name label is a simple `FlatLabel` with a fixed `QString` -- no badge rendering infrastructure. Badges are a feature of the full info panel's `info_profile_cover.cpp` and `info_profile_badge.cpp`, not the ShortInfoBox.
+
+### 12. Keyboard Navigation
+
+- **Escape**: Closes the box.
+- **Tab navigation**: Not explicitly implemented. The box does not set up a tab order between its elements. Focus goes to the box content area; standard Qt tab behavior may move focus between the Close and action buttons, but there is no custom keyboard navigation for info rows.
+- **No keyboard photo navigation**: There are no keyboard shortcuts to navigate between profile photos (only mouse clicks on the cover left/right regions).
+
+### Self-Type Behavior
+
+When the box is shown for the current user (`PeerShortInfoType::Self`):
+- The left action button ("Send Message") is NOT shown -- only the "Close" button appears.
+- All info fields (phone, username, bio, birthday, notes) are displayed normally.
+- The additional status may show "public photo" for the user's fallback photo visible to non-contacts.
+
+### Source Files
+
+| File | Purpose |
+|---|---|
+| `boxes/peers/peer_short_info_box.h` | `PeerShortInfoBox` and `PeerShortInfoCover` class declarations |
+| `boxes/peers/peer_short_info_box.cpp` | Box layout, cover painting, photo bars, scrolling, context menu |
+| `boxes/peers/prepare_short_info_box.h` | `PrepareShortInfoBox()` factory function declarations |
+| `boxes/peers/prepare_short_info_box.cpp` | Field/status/userpic data producers, photo loading, video streaming setup |
+| `info/info.style` | Style constants: `shortInfoWidth`, `shortInfoCover`, `shortInfoScroll`, `shortInfoLabeledPadding` |
+| `boxes/boxes.style` | `ShortInfoBox` type and `shortInfoBox` instance (label styles) |
+| `ui/layers/box_layer_widget.cpp` | Box centering, sizing, button layout |
+| `ui/layers/layer_widget.cpp` | Background dimming, layer animation (200ms fade) |
+
+---
+
+## §39 — Photo & Avatar Cropping Dialog
+
+### 39.1 When It Appears
+
+The photo editor layer appears whenever the user selects an image for use as a profile picture or group/channel avatar. Trigger points:
+
+- **Own profile photo** — Settings > Info section, click the camera upload sub-button on the userpic. Opens a `PopupMenu` with options: "Upload Photo" (`lng_attach_file`), "Camera" (`lng_attach_camera`), "Paste from Clipboard" (`lng_profile_photo_from_clipboard`), and "Create from Emoji/Sticker" (emoji builder action). Selecting a file or pasting an image opens the photo editor.
+- **Set photo for another user** — Contact info page, click the userpic upload button. Menu offers "Set Photo For [User]" (`lng_profile_set_photo_for`), "Suggest Photo" (`lng_profile_suggest_photo`), plus clipboard variants and emoji builder.
+- **Group/channel photo** — Edit Peer Info box (`edit_peer_info_box.cpp`), `UserpicButton` with `Role::ChangePhoto`. Same file-picker flow, opens the photo editor on image selection.
+- **Camera capture** — "Camera" menu option opens a `CameraBox` with live preview; clicking "Continue" (`lng_continue`) passes the captured frame into the same photo editor.
+
+In all cases, the function `PrepareProfilePhoto()` or `PrepareProfilePhotoFromFile()` is called, which constructs a `PhotoEditor` widget inside a `LayerWidget`.
+
+### 39.2 Dialog Layout — Overall Structure
+
+The photo editor is a **full-window layer** (`Editor::LayerWidget` extends `Ui::LayerWidget`). It occupies the entire parent window and cannot be closed by clicking outside (`closeByOutsideClick()` returns `false`).
+
+**Structure (top to bottom):**
+1. **Background** — Blurred, dimmed screenshot of the underlying window. Rendered by capturing the parent widget, scaling down 4x, applying 24px Gaussian blur, scaling back up, then overlaying a semi-transparent color (`QColor(16, 16, 16, 192)` in light mode, `QColor(16, 16, 16, 128)` in dark mode). Background is re-cached on resize with debouncing (200ms fast, 1000ms full timeout), with a 200ms cross-fade between old and new backgrounds.
+2. **About text** (optional) — Shown when setting/suggesting a photo for another user. Displayed as a `FlatLabel` with `mediaviewCaptionFg` color, centered, above the image. For suggestions: "Are you sure you want to suggest this photo for [User]?" (`lng_profile_suggest_sure`). For personal photo set: "Are you sure you want to set this photo for [User]?" (`lng_profile_set_personal_sure`).
+3. **Image + Crop overlay** — The photo with transform controls (center area).
+4. **Control bar** — Button bar at the bottom with tool buttons and Cancel/Done edges.
+
+**Margins:** The content area (`PhotoEditorContent`) has 20px margins on left/right/top, and 146px at bottom (reserved for controls). The controls zone is: `20px bottom skip + 48px button bar + 6px center skip + 48px button bar + 20px bottom skip = 146px`.
+
+### 39.3 Image Display
+
+The selected image is displayed centered in the content area. The image is scaled to fit within the available space (content area minus crop margins) while maintaining aspect ratio. The image is rendered with rotation and flip transforms applied via `QTransform`:
+
+- Translation to center of content area
+- Horizontal flip (scale -1,1) if flipped
+- Rotation by current angle
+- The image `QRect` is centered at origin and mapped through this transform
+
+For profile photos specifically, if the image is smaller than 640x640 (`kProfilePhotoSize`), it is upscaled using `Qt::KeepAspectRatioByExpanding` with `Qt::SmoothTransformation` before entering the editor. Images with extreme aspect ratios (width > 10x height or vice versa) are rejected with an error box ("Bad photo!" `lng_bad_photo`).
+
+### 39.4 Crop Overlay
+
+**Shape:** Determined by `EditorData::CropType`:
+- **`Ellipse`** — Used for standard user avatars (personal profile, contacts, non-forum groups). Renders as `QPainterPath::addEllipse()`.
+- **`RoundedRect`** — Used for forum-type groups (topics enabled) and bots in forum groups. Corner radius = `min(width, height) * ForumUserpicRadiusMultiplier()`.
+- **`Rect`** — Used for general image editing (not profile photos). Simple rectangle.
+
+For profile photos, `keepAspectRatio` is always `true`, which locks the crop to a square (1:1 ratio) and disables the edge-only resize handles (only corner handles available).
+
+**Overlay rendering:**
+- Area outside the crop shape is filled with `st::photoCropFadeBg` (semi-transparent dark overlay). Implementation: a `QPainterPath` that fills the full inner rect, then subtracts the crop shape path (using QPainterPath addition with the winding fill rule).
+- The crop shape border is stroked with `st::photoCropPointFg` at `2 * st::lineWidth` width, with `Qt::MiterJoin` and `Qt::SquareCap`.
+- **Corner indicators** — Bold white corner lines at all four corners. Each corner has two perpendicular lines of length `min(pointSize * 2, min(cropWidth, cropHeight) / 2)`, stroked at `4 * st::lineWidth` with full opacity (alpha 255).
+- **Grid overlay** — A 3x3 rule-of-thirds grid drawn inside the crop shape (clipped to the crop path). Uses `st::photoCropPointFg` at `st::lineWidth`. Grid is only visible during active drag operations, with animated opacity fade (duration: `st::photoEditorBarAnimationDuration` = 200ms).
+
+**Resize handles:** 8 hit-test zones (`_edges` map):
+- **4 corner handles** (TopLeft, TopRight, BottomLeft, BottomRight) — Each is a `10px × 10px` (`st::photoEditorCropPointSize`) square centered on the corner point. Always present.
+- **4 edge handles** (Left, Right, Top, Bottom) — Span the full edge length minus corner zones. Only present when `keepAspectRatio` is `false` (not used for profile photos).
+
+**Minimum crop size:** `20px` (`st::photoEditorCropMinSize`), enforced during both resize and transform operations.
+
+**Initial crop for profile photos:** A centered square with side length equal to `min(imageWidth, imageHeight)`, covering the maximum square area of the image.
+
+### 39.5 Zoom Controls
+
+There are **no explicit zoom controls** (no slider, no scroll wheel zoom, no pinch-to-zoom). The image is displayed at a fixed scale to fit the content area. The crop region is resized to select a portion of the image rather than zooming the image itself.
+
+### 39.6 Pan/Drag
+
+**Moving the crop region:** When the mouse is pressed inside the crop area (but not on any edge/corner handle), the edge state is `kEAll` (all edges) and `performMove()` is called. The entire crop rectangle is translated by the mouse delta, clamped to stay within the `_innerRect` (image bounds).
+
+**Resizing the crop:** When pressing on a corner or edge handle, `performCrop()` is called. The corresponding edges of the crop rectangle are adjusted by the mouse delta. With `keepAspectRatio` enabled (profile photos), dragging any corner constrains the resize to maintain the current width/height ratio. The delta is computed as: `y_delta = (1/cropRatio) * x_delta * diffSign`, ensuring square crops stay square.
+
+**Cursor feedback:**
+- Corner handles: diagonal resize cursors (`sizefdiag` for TL/BR, `sizebdiag` for TR/BL)
+- Edge handles: horizontal (`sizehor` for L/R) or vertical (`sizever` for T/B) resize cursors
+- Inside crop: move cursor (`sizeall`)
+- Outside crop: default cursor
+
+### 39.7 Rotation
+
+**90-degree rotation** via the rotate button (icon: `photo_editor/rotate-flip_horizontal`). Each click adds 90 degrees. The angle wraps at 360 degrees. Rotation is applied via `QTransform::rotate()` in the image matrix. The crop region is automatically re-mapped to the rotated coordinate space via inverse transform.
+
+**Horizontal flip** via the flip button (icon: `photo_editor/flip`). Toggles `modifications.flipped`. Applied via `QTransform::scale(-1, 1)`. The flip button icon changes to an active-colored variant when flipped.
+
+There is **no free-angle rotation** — only 90-degree increments.
+
+### 39.8 Video Avatar
+
+Video avatars are **not handled by this dialog**. The photo editor only operates on static `QImage` data. Video profile photos are a separate server-side feature where the user uploads a video and the server extracts frames. The `UserpicButton` can display animated/video userpics via `Media::Streaming::Instance` for playback, but the cropping editor itself is image-only.
+
+### 39.9 Sticker/Emoji Avatar (Emoji Builder)
+
+An alternative to photo cropping. Instead of selecting a file, users can create an avatar from a sticker/emoji placed on a gradient background. This is a **separate layer** (`UserpicBuilder::ShowLayer`), not the photo editor.
+
+**Access:** The emoji builder is added as a menu item in the userpic change popup menu via `UserpicBuilder::AddEmojiBuilderAction()`. Available when a session controller exists.
+
+**Emoji Builder UI (`info/userpic/info_userpic_emoji_builder_widget.h`):**
+- Full-screen layer with a back button (top-left) and "Save" button (`lng_connection_save`, bottom-right, positioned via `st::userpicBuilderEmojiSavePosiiton`).
+- The `CreateUserpicBuilder()` function creates a `VerticalLayout` with: emoji/sticker selector, gradient color picker, and a live circular (or rounded-rect for forums) preview.
+- The sticker rotates through suggested stickers from a server-provided emoji list (`Api::PeerPhoto::emojiListValue()`) with a 1500ms cycle timer.
+
+**Result:** Returns `UserpicBuilder::Result` containing the rendered `QImage`, the `DocumentId` of the chosen sticker, and the gradient `colors` vector. These are passed back as `ChosenImage.markup` for the API upload.
+
+### 39.10 Preview
+
+The crop shape provides a **real-time WYSIWYG preview** — the visible portion inside the crop ellipse/rounded-rect/rect is exactly what will be saved. The darkened overlay outside the crop shape visually communicates what will be excluded. There is no separate preview thumbnail.
+
+### 39.11 Button Labels
+
+**Transform mode (crop/rotate) — bottom bar:**
+- Left edge: **"Cancel"** (`lng_cancel`) — `mediaviewCaptionFg` text on `shadowFg` background
+- Center buttons (left to right): Flip, Rotate, Paint Mode (brush icon), Aspect Ratio (if `keepAspectRatio` is false; hidden for profile photos)
+- Right edge: **confirm button** — For profile photos: **"Set Photo"** (`lng_profile_set_photo_button`). For suggestions: **"Suggest"** (`lng_profile_suggest_button`). For general editing: **"Done"** (`lng_box_done`). Uses `mediaviewTextLinkFg` (blue/accent) text.
+
+**Paint mode — two bars:**
+- Top bar: Undo, Redo (with inactive styling when unavailable)
+- Bottom bar: Cancel (left), Paint Mode Active icon, Stickers button (if session available), Done (right)
+
+**Camera capture box buttons:**
+- **"Continue"** (`lng_continue`) and **"Cancel"** (`lng_cancel`)
+
+**Aspect Ratio menu options** (when available, not for profile photos):
+- "Original" (`lng_photo_editor_crop_original`) — image's native ratio
+- "Square" (`lng_photo_editor_crop_square`) — 1:1
+- "3:2", "16:9", "9:16" — fixed ratios
+- "Free" (`lng_photo_editor_crop_free`) — unconstrained
+
+### 39.12 Keyboard Shortcuts
+
+- **Enter / Return** — Triggers the Done action (same as clicking the Done button). Only processed when the bar animation is not in progress.
+- **Escape** — Triggers Cancel. In Paint mode, returns to Transform mode (discarding paint). In Transform mode, closes the editor entirely.
+- **Ctrl+Z** (platform Undo shortcut) — Undo last paint action (only in Paint mode, only when undo is available).
+- **Ctrl+Y / Ctrl+Shift+Z** (platform Redo shortcut) — Redo last undone paint action (same conditions).
+
+All key events are forwarded from the `LayerWidget` to the `PhotoEditor` via `QGuiApplication::sendEvent()`, then dispatched: `_content->handleKeyPress(e) || _controls->handleKeyPress(e)`.
+
+### 39.13 Size Constraints
+
+- **Minimum output size:** 640×640 pixels (`kProfilePhotoSize`). If the cropped result is smaller than 640px on either dimension, it is upscaled with `Qt::KeepAspectRatio` and `Qt::SmoothTransformation`.
+- **Minimum input size:** Images smaller than 640px on either side are upscaled to at least 640px using `Qt::KeepAspectRatioByExpanding` before entering the editor.
+- **Maximum aspect ratio:** Images where one dimension exceeds 10x the other are rejected with an error dialog.
+- **Minimum crop area:** 20px in each dimension (`st::photoEditorCropMinSize`) during interactive resizing.
+- **Crop point hit-test size:** 10px square (`st::photoEditorCropPointSize`).
+
+### 39.14 Animation
+
+- **Layer open/close:** Standard `Ui::LayerWidget` slide-up animation.
+- **Background:** Blurred background image cross-fades over 200ms (`kFadeBackgroundDuration`) when recached (e.g., on resize or palette change).
+- **Userpic transition:** When a new userpic is shown on the `UserpicButton`, the old userpic fades to the new one using `Animations::Simple` with duration from `_st.duration`.
+- **Control bar toggle:** When switching between Transform and Paint modes, the current button bar slides down off-screen, then the new bar slides up from off-screen. Duration: 200ms (`st::photoEditorBarAnimationDuration`).
+- **Grid overlay fade:** The 3x3 grid fades in instantly when drag starts (`animated = false`), fades out over 200ms when drag ends (`animated = true`).
+- **Change overlay (OpenPhoto role):** When hovering over the userpic in OpenPhoto mode, a bar slides up from the bottom of the userpic (height: `_st.uploadHeight`) with an upload icon, animated via `Animations::Simple` over `st::slideWrapDuration`.
+- **About text:** The EditorData about label uses `Ui::FadeWrap` and toggles visibility with animation when switching modes.
+
+### 39.15 Source File Locations
+
+All paths relative to `Telegram/SourceFiles/`:
+
+| File | Purpose |
+|------|---------|
+| `editor/photo_editor_layer_widget.h/cpp` | Entry points: `PrepareProfilePhoto()`, `PrepareProfilePhotoFromFile()`. File picker dialog, image validation, creates `PhotoEditor` in `LayerWidget`. |
+| `editor/photo_editor.h/cpp` | Main `PhotoEditor` widget. Orchestrates content + controls, handles mode switching, rotation, flip, brush state serialization. |
+| `editor/photo_editor_content.h/cpp` | `PhotoEditorContent` — hosts `Crop` and `Paint` children, renders the image with transforms, manages coordinate mapping. |
+| `editor/editor_crop.h/cpp` | `Crop` widget — the crop overlay with drag handles, shape rendering (ellipse/rounded-rect/rect), grid, aspect ratio enforcement, coordinate transform math. |
+| `editor/photo_editor_controls.h/cpp` | `PhotoEditorControls` — bottom button bars (Transform and Paint modes), `EdgeButton` and `ButtonBar` classes, aspect ratio popup menu, keyboard handling. |
+| `editor/editor_layer_widget.h/cpp` | `LayerWidget` — full-window layer with blurred background capture and cross-fade. |
+| `editor/photo_editor_common.h/cpp` | `EditorData` (CropType enum, confirm text, about text), `PhotoModifications` struct (angle, flipped, crop rect, paint scene), `ImageModified()` applies all mods to produce final image. |
+| `editor/photo_editor_inner_common.h` | `PhotoEditorMode` (Transform/Paint/Out), `Brush` struct (tool, size ratio, color). |
+| `editor/editor.style` | All style constants: button sizes (48px bar height, 422px bar width), margins (20px), crop point size (10px), min crop (20px), animation duration (200ms), color picker dimensions, brush parameters. |
+| `ui/controls/userpic_button.h/cpp` | `UserpicButton` — the clickable avatar widget. `choosePhotoLocally()` builds the popup menu, dispatches to file picker or emoji builder. Handles upload progress overlay, streaming video userpics. |
+| `info/userpic/info_userpic_emoji_builder.h/cpp` | `ShowLayer()` — opens the emoji avatar builder as a separate full-window layer. |
+| `info/userpic/info_userpic_emoji_builder_widget.h` | `CreateUserpicBuilder()` — builds the emoji/sticker avatar creation UI. |
+| `info/userpic/info_userpic_emoji_builder_menu_item.h/cpp` | `AddEmojiBuilderAction()` — injects the "Create from Emoji" option into the userpic popup menu. |
+| `info/userpic/info_userpic_emoji_builder_common.h` | `UserpicBuilder::Result` struct, `StartData`, gradient generation. |
+| `api/api_peer_photo.h` | `PeerPhoto` API wrapper — `upload()`, `suggest()`, `clearPersonal()`, upload progress/done/failed streams. |
+| `boxes/peers/edit_peer_info_box.cpp` | Group/channel edit page — creates `UserpicButton` with `Role::ChangePhoto` for group avatar. |
+| `settings/sections/settings_information.cpp` | Settings info page — `SetupPhoto()` creates the main profile userpic button and upload sub-button. |
+
+---
+
+## §40 — Send Files Dialog
+
+### 40.1 Trigger
+
+The `SendFilesBox` (a `BoxContent` subclass) opens in these scenarios:
+
+- **Paperclip button** — Clicking the attachment button in the compose area opens a file picker dialog (`FileDialog::GetOpenPaths`). Selected files are passed through `Storage::PrepareMediaList` which reads file metadata, detects types, generates preview thumbnails, then the resulting `PreparedList` is passed to `SendFilesBox`.
+- **Drag-and-drop** — Dragging files over the chat area activates a `DragArea` overlay (see 40.13). Dropping files calls `Storage::PrepareMediaList` on the dropped URLs, then opens `SendFilesBox`.
+- **Paste from clipboard** — Pasting image data from the clipboard calls `Storage::PrepareMediaFromImage` with the clipboard QImage/content, then opens `SendFilesBox`. The caption field also has a `setMimeDataHook` that intercepts paste events containing files/images and adds them to the existing dialog (see 40.14).
+
+Constructor takes: `PreparedList` (files), `TextWithTags` (prefilled caption), `PeerData*` (recipient), `SendType` (normal/scheduled), `SendFilesLimits` (restrictions based on peer permissions and slowmode), and a `SendFilesCheck` callback that validates each file against peer restrictions.
+
+### 40.2 Album Preview
+
+When sending multiple photos/videos, they display in a grouped album layout preview (`AlbumPreview` widget). This uses the same `LayoutMediaGroup` algorithm as message rendering (see 40.8).
+
+The album preview supports:
+- **Drag-to-reorder** — Press and hold a thumbnail to enter drag mode (after `QApplication::startDragTime()` or immediately if pressing a non-button area). Thumbnails animate with a shrink effect (`kShrinkDuration = 150ms`). Dragging to a new position swaps the item, with smooth layout transition animation (`kDragDuration = 200ms`). The closest thumb to the cursor position is calculated by distance.
+- **Delete button** — Each thumbnail in album mode has an overlay delete button (X). Fires `thumbDeleted` signal.
+- **Edit/Replace button** — Each thumbnail has an edit button. Fires `thumbChanged` signal, which opens a context menu with replace/draw/rename/caption/spoiler options.
+- **Modify (double-click area)** — Clicking the photo area of a thumbnail opens the photo editor (`Editor::OpenWithPreparedFile`).
+
+### 40.3 Send As Modes
+
+Two checkboxes control the send mode, stored in `SendFilesWay`:
+
+- **"Group files"** checkbox (`_groupFiles`) — When checked, compatible files are sent as a single grouped message (album). Visible only when `PreparedList::hasGroupOption` returns true (2+ files of compatible types). Hidden in slowmode.
+- **"Send as documents"** checkbox (`_sendImagesAsPhotos` — note: label is inverted) — When checked, images/videos are sent as uncompressed document files instead of photos/videos. Label text changes based on count: `lng_send_as_documents` (plural) vs `lng_send_as_documents_one` (singular). Visible when the list contains Photo or Video type files.
+
+A third checkbox **"Remember"** (`_wayRemember`) appears only when the user has changed either checkbox from its initial value. If checked when sending, the new settings persist to `Core::App().settings().sendFilesWay()`.
+
+Default `SendFilesWay` flags: `GroupFiles | SendImagesAsPhotos | SendLargePhotos`.
+
+If `overrideSendImagesAsPhotos` is set on the `PreparedList` (e.g., when files are dragged as documents), it forces the initial toggle state.
+
+### 40.4 Compression / Quality Toggle
+
+Photo quality is controlled via the top-right hamburger menu (not a visible checkbox):
+
+- **"Send in high quality" / "Send in standard quality"** — Toggleable menu item. Controls `SendFilesWay::sendLargePhotos()`. Only available when `hasSendLargePhotosOption` returns true (at least one file is a photo that supports high quality via `canUseHighQualityPhoto()`).
+- When high quality is enabled, an "HD" badge is painted on the preview corner (`PaintHighQualityBadge`). Badge is a rounded rect with "HD" text in `st::roundedBg`/`st::roundedFg` colors.
+- The quality setting affects `PhotoSideLimit()` — standard quality scales photos to 1280px on the longest side (`kStandardPhotoSideLimit = 1280`), high quality preserves larger dimensions.
+
+Videos do not have a separate compression toggle in this dialog — video compression is determined by whether they are sent as photos/videos (compressed) or as files (original).
+
+### 40.5 Spoiler Toggle
+
+Spoiler (blur) effect on media before sending:
+
+- **Per-file spoiler** — Right-click context menu on any individual photo/video thumb shows "Spoiler effect" as a checked action. Only available when `sendImagesAsPhotos` is true and no paid price is set.
+- **Bulk spoiler** — The top-right menu has "Hide with spoiler" / "Remove spoiler" toggle (`SpoilerState::Enabled` / `SpoilerState::Possible`). Available when `hasSpoilerMenu` returns true (all files are videos, or all files are photos/videos and compress mode is on).
+- Spoiler state is stored per-file in `PreparedFile::spoiler`. `AlbumPreview::toggleSpoilers` and `SingleMediaPreview::setSpoiler` update the visual state.
+- The `SpoilerAnimation` renders the animated blur/sparkle effect on the preview.
+- When a paid price is set (`hasPrice()`), spoilers are force-enabled and the per-file spoiler menu is hidden.
+
+### 40.6 Caption Field
+
+The caption input (`Ui::InputField` in `MultiLine` mode) sits at the bottom of the dialog:
+
+- **Character limit** — `kMaxMessageLength = 4096` characters. A `CharactersLimitLabel` appears near the emoji button when the caption exceeds the current premium limit (`Data::PremiumLimits::captionLengthCurrent()`), showing the overage count. If over limit on send, a `CaptionLimitReachedBox` premium upsell is shown.
+- **Formatting support** — Full rich text via `InitMessageFieldHandlers`: bold, italic, underline, strikethrough, monospace, spoiler, links, custom emoji. The `getTextWithAppliedMarkdown` method converts markdown syntax to formatting tags.
+- **Emoji panel** — An emoji button (`_emojiToggle`) to the right of the caption opens a `TabbedPanel` in `EmojiOnly` mode. Supports custom emoji (premium) and standard emoji. Panel positioned bottom-right relative to the toggle button.
+- **Emoji suggestions** — `Ui::Emoji::SuggestionsController` provides inline emoji autocomplete as the user types.
+- **Mention/hashtag autocomplete** — `ChatHelpers::FieldAutocomplete` provides @mention and #hashtag suggestions (but not bot commands or sticker suggestions — those are disabled via `ComposeFeatures`).
+- **Submit settings** — Respects the global send-submit-way setting (Enter to send, Ctrl+Enter to send, etc.) via `_caption->setSubmitSettings(Core::App().settings().sendSubmitWay())`.
+- **Visibility** — Caption is hidden when `PreparedList::canAddCaption` returns false (e.g., sending only stickers as stickers). The emoji toggle visibility follows the caption.
+- **Caption position** — Menu toggle for "Caption above/below media" (`CaptionState::Above` / `CaptionState::Below`). Stored as `_invertCaption`. Available only when `canMoveCaption` returns true (single album of photos/videos with a non-empty caption).
+- **Per-file captions** — When sending as documents (non-media mode), each file block can have its own caption. Right-click context menu offers "Edit caption" which opens `EditFileCaptionBox`. The last file's caption syncs with the main caption field. Captions are shown as single-line ellipsized text under the file name in the preview.
+- **Paste interception** — The caption field's MIME data hook intercepts pasted images/files and adds them to the file list instead of inserting them as text.
+
+### 40.7 Individual File Cards
+
+When files are sent as documents (not as media), each file renders as a `SingleFilePreview`:
+
+- **Thumbnail** — 48x48px rounded thumbnail for images/videos (`attachPreviewThumbLayout.thumbSize`). For audio files with album art, a circular cover image (`PrepareSongCoverForThumbnail`). For audio without art, a colored circle with a play icon (`iconPlay`). For generic images without thumbs, a colored circle with an image icon (`iconImage`). For other files, a colored circle with a document icon (`iconDocument`).
+- **File name** — Semibold font, truncated to available width. For audio: formatted as "Artist — Title" via `Text::FormatSongName`. Renamable via right-click context menu > "Rename file" which opens `RenameFileBox` (max 64 characters including extension, `kMaxDisplayNameLength = 64`).
+- **File size** — Normal font, status color. Formatted via `FormatSizeText` for files or `FormatImageSizeText` (WxH) for images.
+- **Caption line** — Single-line ellipsized caption text below the thumbnail area, if a per-file caption exists.
+- **Edit button** — Icon button on the right side, opens the context menu (replace, rename, edit caption, etc.).
+- **Delete button** — Icon button (X) on the right side. If it is the only file, closing the delete removes the file and closes the box entirely.
+- **Reorder (AyuGram extension)** — File-type blocks support drag-and-drop reorder. A custom MIME type `application/x-tg-sendfile-index` carries the source index. Drag starts after `QApplication::startDragDistance()` manhattan length. The dragged widget's `grab()` pixmap is used as the drag preview. Drop swaps the two file positions and refreshes the layout.
+
+### 40.8 Grouped/Album Layout Algorithm
+
+The `LayoutMediaGroup` function in `ui/grouped_layout.cpp` computes album geometry. It takes a vector of `QSize` (item dimensions) and produces a `GroupMediaLayout` per item (QRect geometry + RectParts sides for corner rounding).
+
+**Algorithm overview:**
+
+1. **Compute aspect ratios** for each item (`width / height`).
+2. **Classify proportions** — Each ratio mapped to: `'w'` (wide, ratio > 1.2), `'n'` (narrow, ratio < 0.8), `'q'` (square, 0.8-1.2).
+3. **Select layout strategy** based on count:
+   - **1 item** — Full width, height proportional to aspect ratio.
+   - **2 items** — Three sub-strategies:
+     - Top-bottom stack: if both wide, average ratio > 1.4x max, and ratios within 0.2 of each other.
+     - Left-right equal: if both wide or both square.
+     - Left-right proportional: otherwise, width split based on ratio proportion.
+   - **3 items** — Two sub-strategies:
+     - Left + right column: if first item is narrow.
+     - Top + bottom row: otherwise.
+   - **4 items** — Two sub-strategies:
+     - Top + bottom row of 3: if first item is wide.
+     - Left + right column of 3: otherwise.
+   - **5-10 items** (or any item with ratio > 2) — `ComplexLayouter`: divides items into rows, crops ratios toward the average, and optimizes row heights to minimize wasted space. Uses multi-row distribution with spacing.
+
+**Constants:** `maxWidth = st::sendMediaPreviewSize`, `minWidth = st::historyGroupWidthMin / 2`, `spacing = st::historyGroupSkip / 2`. Max height equals max width (square bounding box). Max album size: `kMaxAlbumCount = 10` items.
+
+Corner rounding is determined by `GetCornersFromSides` — only outer corners (where a side touches the album boundary) get rounded.
+
+### 40.9 Add More Files
+
+- **"Add" button** (`_addFile`) — A left-side button (label: `lng_stickers_featured_add`) at the bottom of the dialog. Click opens `FileDialog::GetOpenPaths` with `AllOrImagesFilter()`. Newly selected files are validated against slowmode constraints (`canBeSentInSlowmodeWith`) and peer restrictions, then appended to the list.
+- **Async preparation** — Files beyond `MaxAlbumItems()` (10) are queued in `filesToProcess` and prepared asynchronously one at a time via `crl::async`. Each prepared file triggers `addPreparedAsyncFile` which refreshes the preview. If a send was requested while still preparing, `_whenReadySend` stores the callback and fires when preparation completes.
+- **Keyboard shortcut** — `Ctrl+O` (`QKeySequence::Open`) also triggers the add-file dialog.
+
+### 40.10 Send Button
+
+- **Send button** (`_send`) — Right-side button, label: `lng_send_button` (normal) or `lng_create_group_next` (scheduled). For paid channels (`starsPerMessageChecked() > 0`), label shows star cost.
+- **Send menu** — Right-click or long-press on the send button opens a `PopupMenu` via `SendMenu::SetupMenuAndShortcuts`. Menu items include:
+  - **Send without sound** (silent send)
+  - **Schedule message** — Opens `HistoryView::ScheduleBox`.
+  - **Send when online** (for user chats).
+  - **Spoiler on/off** toggle.
+  - **Caption above/below** toggle.
+  - **Photo quality** standard/high toggle.
+  - **Send as sticker** (AyuGram extension) — Available when exactly one image file. Converts the image to WEBP format and sends as a sticker.
+- **Ctrl+Shift+Enter** — Sends with the `ctrlShiftEnter` flag set (used for "send and open" behavior).
+
+### 40.11 File Type Detection
+
+File type classification happens in `Storage::PrepareDetails`:
+
+- **Photo** — File has valid image data (QImage readable), MIME starts with `image/`, not animated, and passes `ValidateThumbDimensions` (width and height both > 0, neither exceeds 20x the other). GIFs are excluded (animated images get `Type::None`).
+- **Video** — File information contains `PreparedFileInformation::Video` with valid thumbnail dimensions.
+- **Music** — File information contains `PreparedFileInformation::Song` (detected by audio metadata parsing in `FileLoadTask::ReadMediaInformation`).
+- **File** — Default type if none of the above match, or if the file is an animated GIF.
+- **Sticker detection** — `PreparedFile::isSticker()` checks for `.tgs` extension or if MIME is a sticker type (`Core::IsMimeSticker`) when not compressing. Stickers have special handling: when present, `hasCompressedStickers` is set on `SendFilesWay`, affecting grouping behavior.
+
+`MimeDataState` classification for drag data: `PhotoFiles` (all files are small images, under `Images::kReadBytesLimit`, non-GIF, QImageReader-readable), `MediaFiles` (all files are images or videos by `DetectNameType`), `Image` (clipboard has image data), `Files` (mixed).
+
+### 40.12 Size Limits
+
+- **File size** — `kFileSizeLimit` (2 GB for regular users) and `kFileSizePremiumLimit` (4 GB for premium). Files exceeding the applicable limit produce `PreparedList::Error::TooLargeFile`. The error file's size is preserved in the result for display.
+- **Empty files** — Zero-byte files produce `PreparedList::Error::EmptyFile`.
+- **Directories** — Produce `PreparedList::Error::Directory`.
+- **Image dimensions** — `ValidateThumbDimensions`: both width and height must be > 0, and neither can exceed 20x the other (no extremely elongated images in albums).
+- **Photo side limit** — Standard: 1280px (`kStandardPhotoSideLimit`). Large/HD: higher limit from `PhotoSideLimit(true)`. Photos are scaled to fit within this limit.
+- **Album count** — Maximum 10 items per album (`kMaxAlbumCount = 10`). Files beyond 10 are queued in `filesToProcess` for async preparation.
+- **Display name** — Max 64 characters (`kMaxDisplayNameLength`) when renaming files.
+
+### 40.13 Drag-and-Drop Overlay
+
+`DragArea::SetupDragAreaToContainer` creates two overlay zones on the `SendFilesBox`:
+
+- **Photo drop zone** (`areas.photo`) — Shown when dragged data is classified as `PhotoFiles` / `Image` / `MediaFiles` and current mode sends images as photos. Labeled accordingly.
+- **Document drop zone** (`areas.document`) — Shown when dragged data is classified as `Files`. Labeled for document upload.
+- Both zones call `addFiles(data)` on drop, which processes URLs via `Storage::PrepareMediaList` or clipboard images via `Core::ReadMimeImage`. The drop also calls `_show->activate()` to bring the window to front.
+- The overlay has animated opacity transitions (`_a_opacity`, `_a_in`) for show/hide.
+- Caption field's `setAcceptDrops` is toggled off while the drag area is active, to prevent the field from consuming the drop.
+- Only one drag area is visible at a time — `computeState` callback determines which based on the MIME data type and current send mode.
+
+### 40.14 Paste Handling
+
+The caption `InputField` has a MIME data hook:
+
+- **Check phase** (`MimeAction::Check`) — Returns true if data `hasImage()` or has local file URLs (`CanAddUrls`).
+- **Insert phase** (`MimeAction::Insert`) — Calls `addFiles(data)` which:
+  1. Tries `Storage::PrepareMediaList` from URLs.
+  2. Falls back to `Core::ReadMimeImage` for clipboard image data, then `Storage::PrepareMediaFromImage`.
+  3. Appends valid files to the existing list and refreshes the preview.
+
+This means pasting an image into the caption field adds it as an attachment rather than inserting it inline.
+
+### 40.15 GIF Handling
+
+- Animated GIF files are classified as `Type::None` (not Photo) during `PrepareDetails` because `image.animated` is true, causing `ValidPhotoForAlbum` to return false.
+- When sent "as photos/videos", GIF files with valid dimensions get a `SingleMediaPreview` with animated playback (`Media::Clip::Reader`).
+- When sent "as files", they appear as document file cards with a generic file icon.
+- GIFs do not have a separate compression toggle — they are either sent as animated media or as document files depending on the send-as mode.
+- A separate `SendGifWithCaptionBox` exists for sending inline GIFs (from the GIF panel) with a caption, but that is a different flow from file attachment.
+
+### 40.16 Audio File Handling
+
+Audio files (`PreparedFile::Type::Music`) detected by `PreparedFileInformation::Song` metadata:
+
+- **Display** — Rendered as `SingleFilePreview` (document card layout, not album preview).
+- **Title** — Formatted as "Artist — Title" via `Text::FormatSongName(filename, songTitle, songPerformer)`.
+- **Cover art** — If the Song has a non-null `cover` QImage, it is rendered as a circular thumbnail (`PrepareSongCoverForThumbnail` scales and round-clips to `thumbSize`). Without cover art, a colored circle with a play icon is shown.
+- **Size** — Formatted as file size (`FormatSizeText`).
+- **No waveform** — The send-files preview does NOT show audio waveforms. Waveforms are only generated and displayed after the message is sent and the audio is processed server-side.
+- **Grouping** — Music files can be grouped together (`AlbumType::Music`) when "Group files" is checked, but they are always displayed as individual file cards in the preview (never as album thumbnails).
+
+### 40.17 Keyboard Shortcuts
+
+- **Enter / Return** — Sends immediately (respecting the global submit-way setting configured in `_caption->setSubmitSettings`). In the caption field, Enter behavior depends on settings (Enter-to-send or Ctrl+Enter-to-send).
+- **Ctrl+Shift+Enter** — Sends with `ctrlShiftEnter` flag.
+- **Ctrl+O** (`QKeySequence::Open`) — Opens the add-file dialog.
+- **Escape** (`_caption->cancelled()`) — Closes the dialog. If there is unsaved caption text, fires `_cancelled2Callback` to preserve it.
+- **Tab** — Standard Qt tab navigation between the caption field and other focusable widgets. The emoji panel `_emojiToggle` button is focusable.
+- The send button also has `SendMenu::SetupMenuAndShortcuts` which adds platform-specific shortcuts for silent send and schedule from `menu_send.cpp`.
+
+### 40.18 Animation
+
+- **Dialog open/close** — Standard `BoxContent` layer animation (slide up + fade from `Ui::LayerWidget`).
+- **Album reorder** — Drag: shrink animation (`kShrinkDuration = 150ms`), move layout transition (`kDragDuration = 200ms`), finish drag spring-back (`kDragDuration`).
+- **Height transitions** — Album height animates smoothly when items are reordered and the layout height changes (`_thumbsHeightAnimation`).
+- **Emoji panel** — `_emojiPanel->toggleAnimated()` slides the emoji picker up/down.
+- **Drag area** — Opacity fade in/out (`_a_opacity`, `_a_in`) for the drop zone overlay.
+- **Spoiler** — `SpoilerAnimation` provides the animated blur/sparkle effect on spoilered previews.
+- **Content shadow** — `SetupShadowsToScrollContent` adds fade shadows at the top/bottom of the scroll area when content overflows.
+
+### 40.19 Source File Locations
+
+| Component | File |
+|---|---|
+| Main dialog | `Telegram/SourceFiles/boxes/send_files_box.h`, `.cpp` |
+| Album preview widget | `Telegram/SourceFiles/ui/chat/attach/attach_album_preview.h`, `.cpp` |
+| Album thumbnail (per-item) | `Telegram/SourceFiles/ui/chat/attach/attach_album_thumbnail.h`, `.cpp` |
+| Single media preview | `Telegram/SourceFiles/ui/chat/attach/attach_single_media_preview.h`, `.cpp` |
+| Abstract single media base | `Telegram/SourceFiles/ui/chat/attach/attach_abstract_single_media_preview.h`, `.cpp` |
+| Single file preview | `Telegram/SourceFiles/ui/chat/attach/attach_single_file_preview.h`, `.cpp` |
+| Abstract single file base | `Telegram/SourceFiles/ui/chat/attach/attach_abstract_single_file_preview.h`, `.cpp` |
+| PreparedFile / PreparedList | `Telegram/SourceFiles/ui/chat/attach/attach_prepare.h`, `.cpp` |
+| SendFilesWay flags | `Telegram/SourceFiles/ui/chat/attach/attach_send_files_way.h`, `.cpp` |
+| Attach controls (edit/delete buttons) | `Telegram/SourceFiles/ui/chat/attach/attach_controls.h`, `.cpp` |
+| Grouped layout algorithm | `Telegram/SourceFiles/ui/grouped_layout.h`, `.cpp` |
+| Storage media preparation | `Telegram/SourceFiles/storage/storage_media_prepare.h`, `.cpp` |
+| Drag area overlay | `Telegram/SourceFiles/history/history_drag_area.h`, `.cpp` |
+| Send menu (silent/schedule/spoiler) | `Telegram/SourceFiles/menu/menu_send.h`, `.cpp` |
+| GIF caption box | `Telegram/SourceFiles/boxes/send_gif_with_caption_box.h`, `.cpp` |
+| Photo editor integration | `Telegram/SourceFiles/editor/photo_editor_layer_widget.h`, `.cpp` |
+
+---
+
+## §43 — Read Receipts Detail
+
+### 43.1 Trigger
+
+Read receipt detail is accessed through the **right-click context menu** on messages, not by clicking checkmarks directly. When right-clicking a message in an eligible chat, a "Seen by N" / "Listened by N" / "Watched by N" item appears at the bottom of the context menu (after a separator). This item shows up to 3 small userpic thumbnails inline.
+
+For **individual reactions** (not the overall read list), clicking a specific reaction bubble on a message opens a popup menu showing who reacted with that specific emoji. This is handled by `ShowWhoReactedMenu()` in `history_view_context_menu.cpp`.
+
+In **1:1 (private) chats**, the context menu instead shows a `WhenReadContextAction` — a single line displaying the formatted read timestamp (e.g., "Today, 14:32") with a double-check icon. No user list is shown since there is only one reader.
+
+Source: `history_view_context_menu.cpp` lines 1962-2037, `AddWhoReactedAction()`.
+
+### 43.2 Availability
+
+Read receipts (`WhoReadExists()`) are shown only for **outgoing messages** (`item->out()`) that have been read, in these chat types:
+
+- **Private chats (1:1)**: Shows read time via `MTPmessages_GetOutboxReadDate`. Excluded if peer is a bot, service user, self-chat, or has `readDatesPrivate` set. Messages must be younger than `pm_read_date_expire_period` (server config, default 7 days).
+
+- **Small groups (basic groups and supergroups)**: Uses `MTPmessages_GetMessageReadParticipants` to get the list of readers with timestamps. Excluded if: (a) the group is a channel/broadcast, (b) the supergroup has `ParticipantsHidden` flag, (c) it is a monoforum, (d) the message is older than `chat_read_mark_expire_period` (default 7 days), or (e) the member count exceeds `chat_read_mark_size_threshold` (server config, default **50 members**).
+
+- **Not shown in**: Channels/broadcasts, large groups (>50 members), self-chat, bot chats, service user chats.
+
+The "who reacted" list (`WhoReactedExists()`) is additionally shown if `item->canViewReactions()` returns true, even for non-outgoing messages.
+
+Source: `api_who_reacted.cpp` lines 718-783, `WhoReadExists()`.
+
+### 43.3 Layout
+
+Two presentation modes exist:
+
+**A) Context Menu Submenu (primary view):**
+The main context menu shows a single `Action` menu item with:
+- Left: Icon (double-check for "Seen", headphones for "Listened", play for "Watched", heart for reactions-only)
+- Center: Summary text (e.g., "Seen by 5", user name if only 1 reader, or "3/5" reacted/seen format)
+- Right: Up to 3 small circular userpic thumbnails (`kMaxSmallUserpics = 3`)
+
+Hovering this item opens a **submenu** (`whoReadMenu` style) listing all participants individually. The submenu max height is **400px** with scroll padding 6px top, 4px bottom.
+
+**B) Full-Screen Info Panel (expanded view):**
+Clicking "Show All" (when reactions count exceeds visible participants) opens a full `Info::ReactionsList::Widget` panel that replaces the chat column content. This panel has:
+- **Tabs** at the top — one tab per reaction type (emoji tabs) plus optionally a "Read" tab (eye icon with count). Tabs are pill-shaped buttons with rounded corners.
+- **Peer list** below — standard `PeerListContent` with rows for each user, paginated (first page: 20, subsequent: 100).
+
+Title adapts to type: "Seen by N" / "Listened by N" / "Watched by N" / "Reactions".
+
+Source: `who_reacted_context_action.cpp` (Action class), `info_reactions_list_widget.cpp`.
+
+### 43.4 User List Items
+
+Each entry in the submenu (`WhoReactedEntryAction`) contains:
+
+- **Left**: Circular userpic (size: `photoSize` from `defaultWhoRead` style, drawn at `photoLeft` offset). Preloader state shows a semi-transparent circle (`kPreloaderAlpha = 0.2`).
+- **Name**: Peer display name, drawn at `nameLeft` offset. Bold for normal entries, dimmed for preloader skeleton.
+- **Date line** (below name, smaller `whoReadDateStyle` 12px font): Shows when the user read/reacted, prefixed by an icon:
+  - Double-check icon (`whoReadDateChecks`) for "Viewed" type
+  - Heart icon (`whoLikedDateHeart`) for "Reacted" type
+  - Repost icon for "Reposted" type
+  - Forward icon for "Forwarded" type
+- **Right side**: Custom emoji of the reaction (if the user reacted with a specific emoji). Rendered at `Emoji::GetSizeNormal()`.
+
+Row height: `photoSkip * 2 + photoSize` (from `defaultWhoRead` style).
+
+Source: `who_reacted_context_action.cpp` lines 744-945, `WhoReactedEntryAction::paint()`.
+
+### 43.5 Loading State
+
+- The summary `Action` item shows `tr::lng_context_seen_loading` ("Loading...") text while `WhoReadState::Unknown`.
+- Userpic thumbnails do not appear until the `_appeared` flag is set (delayed by the menu's animation duration).
+- In the full panel, the peer list shows `tr::lng_contacts_loading` ("Loading...") as the description text until results arrive, then clears it.
+- Individual list entries can show a "preloader" skeleton state (`WhoReactedType::Preloader`): a semi-transparent circle for the avatar and a rounded rectangle placeholder for the name.
+
+Source: `who_reacted_context_action.cpp` line 443 (Unknown state), line 829 (preloader paint).
+
+### 43.6 Empty State
+
+- If no one has read the message yet (or the list is empty): summary text shows "Nobody has seen yet" / "Nobody listened" / "Nobody watched" / "No reactions yet" (via `tr::lng_context_seen_text_none`, `_listened_none`, `_watched_none`, `_reacted_none`).
+- The menu item is **disabled** (not clickable, no submenu) when `participants` is empty and state is not `MyHidden`.
+- In the full panel, an empty result keeps the "Loading..." description.
+
+Source: `who_reacted_context_action.cpp` lines 434-475, `Action::refreshText()` and `isEnabled()`.
+
+### 43.7 Partial Reads
+
+When some members have read and some have reacted, the system combines both lists:
+
+- `WhoReadOrReactedIds()` merges the reaction list and read list. Users who both read AND reacted get their read timestamp merged into the reaction entry.
+- The summary text shows a combined format: "N reacted / M seen" (e.g., "3/5") when `fullReactionsCount > 0` and `fullReactionsCount <= fullReadCount`.
+- In the submenu, each user is tagged with their type: `WhoReactedType::Viewed` (just read) or `WhoReactedType::Reacted` (reacted with emoji). The date line icon differs accordingly (checkmarks vs. heart).
+- The `read` vector stores who-read-only peers separately, used for the "Read" tab in the full panel.
+
+Source: `api_who_reacted.cpp` lines 395-424, `WhoReadOrReactedIds()`.
+
+### 43.8 Time Info
+
+Yes, **per-user read timestamps** are shown:
+
+- **Private chats**: `GetOutboxReadDate` returns the exact read time for the single peer.
+- **Groups**: `GetMessageReadParticipants` returns a `ReadParticipantDate` vector with `(user_id, date)` pairs.
+- **Reactions**: `GetMessageReactionsList` returns reaction timestamps per peer.
+
+Timestamps are formatted by `FormatReadDate()`:
+- Same day: "Today, HH:mm" (or "HH:mm:ss" if AyuGram's `showMessageSeconds` setting is enabled)
+- Yesterday: "Yesterday, HH:mm"
+- Same year: "Mon DD, HH:mm"
+- Different year: "Mon DD, YYYY, HH:mm"
+
+The `dateReacted` flag distinguishes whether the shown date is the reaction time or the read time, affecting which icon is displayed next to it.
+
+Source: `api_who_reacted.cpp` lines 675-716, `FormatReadDate()`.
+
+### 43.9 Animation
+
+- The context menu itself uses standard `PopupMenu` appear/disappear animation (controlled by `parentMenu->st().duration`).
+- Userpic thumbnails in the summary item are delayed — they only render after the menu animation completes (`_appeared` flag, checked via `crl::now() - now >= delay`). A fallback `call_delayed` ensures they appear even if the timing check is missed.
+- The submenu (user list) slides in from the side as a standard Qt `PopupMenu` submenu.
+- No special custom animations for the read receipts content itself — it uses the standard menu animation system.
+
+Source: `who_reacted_context_action.cpp` lines 221-286, Action constructor.
+
+### 43.10 Sizing
+
+**Context menu summary item:**
+- Height: `itemPadding.top (9px) + font->height + itemPadding.bottom (7px)`
+- Icon position: `(15px, 7px)`
+- Item padding: `margins(44px, 9px, 17px, 7px)`
+- Userpic thumbnails: 22px diameter, 8px shift between overlapping circles
+
+**Submenu (user list):**
+- Menu style: `whoReadMenu` (extends `popupMenuExpandedSeparator`)
+- Max height: **400px** (scrollable beyond this)
+- Scroll padding: `margins(0px, 6px, 0px, 4px)`
+- Each user row: `photoSkip * 2 + photoSize` height
+- Photo left offset: `photoLeft`, photo size: `photoSize`
+- Name left offset: `nameLeft`
+
+**When-read line (private chats):**
+- Padding: `margins(34px, 3px, 17px, 4px)`
+- Icon position: `(8px, 0px)`
+- Font: 12px (`whenReadStyle`)
+- "Show" button padding: `margins(6px, 0px, 6px, 2px)` with pill shape (rounded rect)
+
+Source: `chat_helpers.style` lines 281-294, `chat.style` lines 813-839.
+
+### 43.11 Interaction
+
+- **Single participant**: Clicking the summary item directly opens that user's profile (`ShowWhoReadInfo` -> `Info::Profile::Memento`). If the user reacted, the profile opens with a `GroupReactionOrigin` context.
+- **Multiple participants with reactions**: Clicking the summary item triggers `showAllChosen` which opens the full `Info::ReactionsList` panel.
+- **Submenu user entry**: Clicking any user row calls `participantChosen` callback, which hides the menu and navigates to the user's profile info panel.
+- **"Show All" entry**: When `fullReactionsCount > visible participants`, an additional "Show all" row (`tr::lng_context_seen_reacted_all`) appears that opens the full reactions panel.
+- **Full panel rows**: Clicking a user row in the full `Info::ReactionsList` panel calls `window->showPeerInfo(peer)`.
+
+Source: `who_reacted_context_action.cpp` lines 265-276, `history_view_context_menu.cpp` lines 1990-2010.
+
+### 43.12 Privacy
+
+Multiple privacy states are handled by `WhoReadState`:
+
+- **`MyHidden`**: Your own read-time privacy is enabled (`YOUR_PRIVACY_RESTRICTED` error from API). The when-read line shows "Read time hidden" (`tr::lng_context_read_hidden`) with a clickable "Show" pill button. Clicking "Show" opens a dialog (`ShowOrPremiumBox`) offering to either disable your hide-read-time setting or get Premium.
+- **`HisHidden`**: The other user has hidden their read time (`USER_PRIVACY_RESTRICTED`). The when-read line shows the hidden state text.
+- **`TooOld`**: Message is older than the server-configured expiry period (`MESSAGE_TOO_OLD`). No read time shown.
+- **Premium gate**: Toggling read-time visibility requires Premium. The `showOrPremium` callback either calls `api.globalPrivacy().updateHideReadTime({})` to unhide, or navigates to Premium settings (`Settings::ShowPremium`).
+- **`readDatesPrivate`** flag on users: If set, `WhoReadExists` returns false entirely — no read receipt UI is shown.
+- Becoming Premium clears cached `MyHidden` states, triggering a re-fetch.
+- Disabling `hideReadTime` also clears cached `MyHidden` states.
+
+Source: `api_who_reacted.cpp` lines 197-217, 273-284; `who_reacted_context_action.cpp` lines 527-575, 656-673.
+
+### 43.13 AyuGram-Specific Features
+
+AyuGram adds several modifications to the read receipts system:
+
+**Ghost Mode (per-account):**
+- `sendReadMessages` (default: true) — When disabled, suppresses sending read receipts for messages. Other users won't see your double-check marks. This is a client-side block of the `messages.readHistory` / `messages.readEncryptedHistory` API calls.
+- `sendReadStories` (default: true) — When disabled, suppresses sending story view confirmations.
+- `markReadAfterAction` (default: true) — When enabled, messages are marked as read locally after you perform an action (reply, react) even if `sendReadMessages` is off.
+- `ghostModeActive` — Master toggle that combines all ghost settings. Can be toggled from drawer and system tray.
+- `useGlobalGhostMode` — If true, one ghost config applies to all accounts; if false, per-account ghost settings are used.
+
+**Filters Integration:**
+- The `FiltersController::isBlocked()` check is applied in `UpdateUserpics()` and `WhoReacted()` — blocked users are filtered out of the who-read and who-reacted lists entirely, both in the context menu and the full panel.
+- In the full reactions panel (`ResolveWhoRead()`), blocked peers are also excluded from the "Read" tab.
+- Blocked reaction counts are subtracted from `fullReactionsCount` to keep the displayed count accurate.
+
+**Context Menu Visibility Control:**
+- `showViewsPanelInContextMenu` setting (type `ContextMenuVisibility`: Hidden / Visible / VisibleWithModifier) — Controls whether the "Seen by" / "Listened by" / read receipt item appears in the context menu at all. When set to `VisibleWithModifier`, it only shows when Ctrl/Shift is held during right-click.
+- `showReactionsPanelInContextMenu` — Same control for the reactions submenu.
+
+**Enhanced Timestamps:**
+- `showMessageSeconds` setting — When enabled, read timestamps in `FormatReadDate()` use "HH:mm:ss" format instead of the system locale's short time format, showing seconds precision.
+
+**Drawer Quick Toggles:**
+- `showLReadToggleInDrawer` — Toggle for "Local Read" in the navigation drawer.
+- `showSReadToggleInDrawer` — Toggle for "Send Read" in the navigation drawer.
+- `showGhostToggleInDrawer` / `showGhostToggleInTray` — Quick ghost mode toggle from drawer or system tray.
+
+Source: `ayu/ayu_settings.h` (GhostModeAccountSettings class, AyuSettings class), `api_who_reacted.cpp` lines 34-36 (AyuGram includes), 449-451 (filter check in UpdateUserpics), 613-629 (filter check in WhoReacted producer), `history_view_context_menu.cpp` lines 1967-1969 (visibility gate).
+
+### 43.14 Source File Locations
+
+| File | Purpose |
+|---|---|
+| `Telegram/SourceFiles/api/api_who_reacted.h` | API types: `WhoReadPeer`, `WhoReadList`, producer functions |
+| `Telegram/SourceFiles/api/api_who_reacted.cpp` | Core logic: `WhoReadIds()`, `WhoReactedIds()`, `WhoReadExists()`, `FormatReadDate()`, caching, privacy handling |
+| `Telegram/SourceFiles/ui/controls/who_reacted_context_action.h` | UI types: `WhoReadParticipant`, `WhoReadContent`, `WhoReadType`, `WhoReadState`, `WhoReactedEntryAction`, `WhoReactedListMenu` |
+| `Telegram/SourceFiles/ui/controls/who_reacted_context_action.cpp` | Menu widgets: `Action` (summary), `WhenAction` (private read time), `WhoReactedEntryAction` (user row), `WhoReactedListMenu` (submenu populator) |
+| `Telegram/SourceFiles/history/view/history_view_context_menu.cpp` | Integration: `AddWhoReactedAction()`, `ShowWhoReactedMenu()`, `ShowWhoReadInfo()` |
+| `Telegram/SourceFiles/history/view/history_view_list_widget.cpp` | Click handler dispatching reaction clicks to `ShowWhoReactedMenu()` |
+| `Telegram/SourceFiles/history/view/reactions/history_view_reactions_list.h/.cpp` | Full panel: `Controller` (paginated peer list), `FullListController()`, `CreateReactionsTabs()`, `DefaultSelectedTab()` |
+| `Telegram/SourceFiles/history/view/reactions/history_view_reactions_tabs.h/.cpp` | Tab bar: `CreateTabs()`, pill-shaped reaction filter buttons |
+| `Telegram/SourceFiles/info/reactions_list/info_reactions_list_widget.h/.cpp` | Info panel widget: `InnerWidget`, `Memento`, `Widget` wrapping the reactions list into the info column |
+| `Telegram/SourceFiles/ayu/ayu_settings.h` | AyuGram ghost mode: `GhostModeAccountSettings`, `sendReadMessages`, visibility controls |
+| `Telegram/SourceFiles/ayu/features/filters/filters_controller.h/.cpp` | AyuGram filters: `isBlocked()` used to exclude blocked users from read/reaction lists |
+| `Telegram/SourceFiles/ayu/ui/context_menu/context_menu.h/.cpp` | AyuGram context menu: `needToShowItem()` visibility gate |
+
+---
+
+## §41 — Message Formatting Toolbar
+
+### 41.1 Trigger
+
+There is **no floating toolbar** that auto-appears on text selection in the compose field. Desktop Telegram handles formatting exclusively through two mechanisms:
+
+1. **Right-click context menu** — Right-clicking anywhere in the compose input field (with or without selected text) shows the standard context menu with a "Formatting" submenu appended after the "Delete" action, separated by a divider.
+2. **Keyboard shortcuts** — Direct shortcuts apply formatting to the current selection without any popup.
+
+Source: `lib_ui/ui/widgets/fields/input_field.cpp` (`contextMenuEventInner`, `addMarkdownActions`).
+
+### 41.2 Position
+
+The context menu appears at `e->globalPos()` (the cursor position at the time of right-click). It is a standard `Ui::PopupMenu` (custom Qt popup menu wrapper) positioned at the click point, with automatic screen-edge avoidance. The "Formatting" item is inserted as a separator + action after the standard Qt context menu's "edit-delete" action.
+
+Source: `input_field.cpp:5160-5289` (`contextMenuEventInner`, `addMarkdownMenuAction`).
+
+### 41.3 Layout
+
+The formatting options live inside a **submenu** (not a flat toolbar):
+
+```
+[Standard context menu]
+  Undo                    Ctrl+Z
+  Redo                    Ctrl+Y
+  ─────────────────────────────
+  Cut                     Ctrl+X
+  Copy                    Ctrl+C
+  Paste                   Ctrl+V
+  Delete
+  ─────────────────────────────
+  Formatting              >
+    Bold                  Ctrl+B
+    Italic                Ctrl+I
+    Underline             Ctrl+U
+    Strikethrough         Ctrl+Shift+X
+    Quote                 Ctrl+Shift+.
+    Monospace             Ctrl+Shift+M
+    Spoiler               Ctrl+Shift+P
+    ─────────────────────
+    Create link           Ctrl+K        (or "Edit link" if cursor is on a link)
+    Date                  Ctrl+Shift+D
+    ─────────────────────
+    Clear formatting      Ctrl+Shift+N
+  ─────────────────────────────
+  Select All              Ctrl+A
+```
+
+The submenu is a standard `QMenu` with each action showing `label + "\t" + shortcut` in native text format. The "Formatting" parent action is disabled when there is no text selected AND no `editLinkCallback` is set.
+
+Source: `input_field.cpp:5172-5270` (`addMarkdownActions`).
+
+### 41.4 Formatting Options
+
+Every formatting option, its internal tag, keyboard shortcut, and behavior:
+
+| Option | Tag constant | Shortcut | Behavior |
+|---|---|---|---|
+| **Bold** | `**` (`kTagBold`) | `Ctrl+B` (`QKeySequence::Bold`) | Toggles bold on selection. Font switches to bold weight. |
+| **Italic** | `__` (`kTagItalic`) | `Ctrl+I` (`QKeySequence::Italic`) | Toggles italic on selection. Font switches to italic style. |
+| **Underline** | `^^` (`kTagUnderline`) | `Ctrl+U` (`QKeySequence::Underline`) | Toggles underline on selection. Font gets underline decoration. |
+| **Strikethrough** | `~~` (`kTagStrikeOut`) | `Ctrl+Shift+X` | Toggles strikethrough on selection. Font gets strikeout decoration. |
+| **Quote** | `>` (`kTagBlockquote`) | `Ctrl+Shift+.` | Wraps selection in a blockquote block. Block-level formatting — requires selection to start/end at line boundaries. Rendered with a colored vertical bar and background. |
+| **Monospace** | `` ` `` (`kTagCode`) / ` ``` ` (`kTagPre`) | `Ctrl+Shift+M` | Smart toggle: if selection spans full lines, applies `kTagPre` (code block with background + monospace font). Otherwise applies `kTagCode` (inline code). Text color changes to `monoFg`, font switches to monospace family. |
+| **Spoiler** | `\|\|` (`kTagSpoiler`) | `Ctrl+Shift+P` | Toggles spoiler on selection. Rendered with an animated shimmer/sparkle overlay (`FieldSpoilerOverlay`). |
+| **Create/Edit link** | URL string (validated: must contain `.` or `:`) | `Ctrl+K` | Opens `EditLinkBox` dialog (see below). Label is "Create link" when no existing link, "Edit link" when cursor is on a linked text. Available even without text selection if `editLinkCallback` is set. |
+| **Date** | `custom_date:TIMESTAMP` (`kCustomDateTagStart`) | `Ctrl+Shift+D` | Opens date/time picker. If no existing date, shows `CalendarBox` first, then `ChooseDateTimeBox`. If editing existing date, goes straight to `ChooseDateTimeBox`. Supported range: 1970-01-01 to 2036-12-31. |
+| **Clear formatting** | empty string | `Ctrl+Shift+N` | Removes all formatting tags from selection. Disabled when selection has no tags. Calls `clearSelectionMarkdown()` which delegates to `toggleSelectionMarkdown(QString())`. |
+
+Source: `input_field.h:39-45` (shortcut constants), `input_field.cpp:1675-1688` (`MarkdownActions`), `input_field.cpp:5198-5269`.
+
+### 41.5 Notes Mode (MarkdownSet::Notes)
+
+When the field is configured with `MarkdownSet::Notes` (used in Saved Messages notes), the submenu is reduced:
+
+| Available | Not available |
+|---|---|
+| Bold, Italic, Underline, Strikethrough, Spoiler, Clear formatting | Quote, Monospace, Create/Edit link, Date |
+
+Source: `input_field.cpp:1690-1698` (`MarkdownActionsNotes`), `input_field.cpp:5240-5245`.
+
+### 41.6 Edit Link Dialog (EditLinkBox)
+
+Opened by Ctrl+K or the context menu "Create link" / "Edit link" action. A `GenericBox` dialog with:
+
+1. **Text field** — `InputField` (single-line), placeholder "Text", pre-filled with the selected text. Has emoji suggestions and spellcheck enabled.
+2. **URL field** — `InputField` (single-line), placeholder "URL", pre-filled with:
+   - The existing link URL if editing, OR
+   - The clipboard contents if it starts with a known protocol (`http://`, `https://`, etc.), OR
+   - Empty otherwise.
+3. **Create/Save button** — Validates both fields. URL is validated via `qthelp::validate_url`. If text is empty, shows error on text field. If URL is invalid/empty, shows error on URL field.
+4. **Cancel button** — Closes the dialog.
+
+Submitting either field (Enter key) triggers the create/save action. The link text and URL are committed to the input field via `commitMarkdownLinkEdit`, which inserts the text with the URL stored as a tag property. Links are rendered with `linkFg` color.
+
+Source: `chat_helpers/message_field.cpp:138-230` (`EditLinkBox`), `input_field.cpp:4917-4982` (`commitMarkdownLinkEdit`).
+
+### 41.7 Code Block Language Dialog
+
+When clicking on a code block's language label area (the top of a `kTagPre` block), `editPreLanguage` is called, which opens `EditCodeLanguageBox`:
+
+1. **Title** — "Code Language"
+2. **Description label** — "Language for syntax highlighting."
+3. **Language field** — `InputField` (single-line), placeholder "Auto-Detect", pre-filled with current language. Max length enforced with a length limit label. Only `[a-zA-Z0-9+-]` characters accepted.
+4. **Save/Cancel buttons**.
+
+Source: `chat_helpers/message_field.cpp:284-327`, `input_field.cpp:2524-2541`.
+
+### 41.8 Keyboard Shortcuts — Complete List
+
+| Shortcut | Action | Scope |
+|---|---|---|
+| `Ctrl+B` | Bold | All modes |
+| `Ctrl+I` | Italic | All modes |
+| `Ctrl+U` | Underline | All modes |
+| `Ctrl+Shift+X` | Strikethrough | All modes |
+| `Ctrl+Shift+.` | Quote (blockquote) | Standard mode only |
+| `Ctrl+Shift+M` | Monospace (inline code / code block) | Standard mode only |
+| `Ctrl+Shift+P` | Spoiler | All modes |
+| `Ctrl+K` | Create/Edit link | Standard mode only |
+| `Ctrl+Shift+D` | Date | Standard mode only |
+| `Ctrl+Shift+N` | Clear all formatting | All modes |
+
+Shortcuts are registered as `QShortcut` with `Qt::WidgetShortcut` scope (only active when the input field has focus). Each shortcut calls `executeMarkdownAction` which checks `_markdownEnabledState` before applying.
+
+Source: `input_field.h:39-45`, `input_field.cpp:1675-1714` (`setupMarkdownShortcuts`).
+
+### 41.9 Markdown Syntax Auto-Conversion
+
+**Disabled.** The `processMarkdownReplaces` method is completely commented out. Typing `**bold**`, `__italic__`, `` `code` ``, `~~strikethrough~~`, or `||spoiler||` does NOT auto-convert to formatted text. The code for this feature exists but is explicitly disabled with a comment "Disable markdown instant replacement."
+
+However, markdown syntax IS parsed at **send time** via `getTextWithAppliedMarkdown()`. When a message is sent, the `_lastMarkdownTags` (detected delimiter pairs) are converted into proper formatting tags, and the delimiter characters (`**`, `__`, `` ` ``, etc.) are stripped from the text. This means typing `**hello**` appears as literal asterisks while composing, but sends as **hello** (bold). The parsing respects boundary rules (e.g., `**` must have appropriate characters before/after to be recognized as bold delimiters).
+
+Supported markdown delimiters for send-time parsing (in order):
+- `**text**` — Bold
+- `__text__` — Italic
+- `~~text~~` — Strikethrough
+- `` `text` `` — Inline code (finishes at newline)
+- ` ```text``` ` — Code block (requires newline boundaries)
+- `||text||` — Spoiler
+
+Note: Underline (`^^`) has NO markdown syntax — it can only be applied via shortcut or context menu. Blockquote (`>`) and link also have no markdown delimiters in the compose field.
+
+Source: `input_field.cpp:4366-4403` (`processMarkdownReplaces`), `input_field.cpp:3761-3850` (`getTextWithAppliedMarkdown`), `input_field.cpp:567-633` (`TagStartExpressions`, `TagIndices`).
+
+### 41.10 Nested Formatting
+
+Formats can be combined. Tags are stored as pipe-separated strings (e.g., `**|__` for bold+italic) via `TextUtilities::JoinTag` / `TextUtilities::SplitTags`. When applying a new tag:
+
+- If the entire selection already has the tag (`HasFullTextTag`), the tag is **removed** (toggle off).
+- If the selection partially or fully lacks the tag, it is **added** on top of existing tags.
+- `clearSelectionMarkdown` removes ALL tags from the selection.
+
+Combining rules:
+- Inline formats (bold, italic, underline, strikethrough, spoiler) can be freely combined with each other.
+- Code/monospace (`kTagCode`) and links cannot be combined with most other tags (code replaces font entirely).
+- Block-level tags (blockquote, code block) apply to entire line ranges and interact with inline tags differently — inline tags are nested within block tags.
+- Spoiler can be combined with any inline format.
+- A link tag coexists with formatting tags (a bold link is valid).
+
+Source: `input_field.cpp:4983-5046` (`toggleSelectionMarkdown`), `input_field.cpp:867-927` (format application logic).
+
+### 41.11 Animation
+
+The popup menu uses `PanelAnimation` for show/hide:
+
+- **Show**: `showAnimated(origin)` with origin auto-detected based on screen position (`TopLeft`, `TopRight`, `BottomLeft`, `BottomRight`). The animation expands the menu from the origin corner with a clip-rect + opacity transition.
+- **Hide**: `hideAnimated()` reverses the animation.
+- The submenu (Formatting >) appears via standard Qt submenu hover mechanics — hovering over the "Formatting" item opens the submenu to the right (or left if near screen edge) with the same `PanelAnimation`.
+
+There is no special animation for individual formatting actions — applying bold/italic/etc. changes the text styling instantly in the `QTextEdit`.
+
+### 41.12 Dismiss
+
+The context menu is dismissed by:
+
+1. **Clicking outside** the menu — standard Qt popup behavior.
+2. **Pressing Escape** — standard Qt popup behavior.
+3. **Selecting a menu action** — the menu closes after the action is triggered.
+4. **Window losing focus** — popup menus close when the parent window is deactivated.
+
+### 41.13 Visual Rendering of Formatted Text in Compose Field
+
+Formatted text is rendered live in the compose `QTextEdit` with visual feedback:
+
+| Format | Visual in compose field |
+|---|---|
+| Bold | Bold font weight |
+| Italic | Italic font style |
+| Underline | Underline text decoration |
+| Strikethrough | Strikeout text decoration |
+| Monospace/Code | Monospace font family + `monoFg` text color |
+| Code block | Monospace font + `monoFg` color + block background with colored side bar |
+| Spoiler | Animated sparkle/shimmer overlay (`FieldSpoilerOverlay`) hiding the text |
+| Link | `linkFg` text color (typically blue) |
+| Blockquote | Block background with colored vertical bar on the left, collapsible |
+
+Source: `input_field.cpp:897-914` (format to `QTextCharFormat` mapping).
+
+### 41.14 Source File Locations
+
+| File | Role |
+|---|---|
+| `lib_ui/ui/widgets/fields/input_field.h` | `InputField` class, `MarkdownAction` struct, shortcut constants, tag constants |
+| `lib_ui/ui/widgets/fields/input_field.cpp` | All formatting logic: `toggleSelectionMarkdown`, `clearSelectionMarkdown`, `executeMarkdownAction`, `addMarkdownActions`, `contextMenuEventInner`, `getTextWithAppliedMarkdown`, markdown tag parsing |
+| `lib_ui/ui/widgets/popup_menu.h/.cpp` | `PopupMenu` widget (context menu rendering + animation) |
+| `Telegram/SourceFiles/core/ui_integration.cpp` | `UiIntegration` overrides with `tr::lng_menu_formatting_*` translated strings |
+| `Telegram/SourceFiles/chat_helpers/message_field.cpp` | `EditLinkBox`, `EditCodeLanguageBox`, `DefaultEditLinkCallback`, `InitMessageFieldHandlers` (sets up markdown + link editing) |
+| `Telegram/SourceFiles/history/view/controls/history_view_compose_controls.cpp` | Compose area setup, calls `setEditLinkCallback` with `DefaultEditLinkCallback` |
+| `Telegram/Resources/langs/lang.strings` | English strings for all formatting labels |
+| `lib_ui/ui/widgets/fields/custom_field_object.cpp` | `FieldSpoilerOverlay` for spoiler shimmer rendering |
+
+---
+
+## §42 — Reactions Detail Popup
+
+The reactions detail view shows who reacted with what emoji on a message. It has two presentation modes: (A) an inline context-menu popup with a user submenu, and (B) a full Info Section panel with tabs and a scrollable peer list.
+
+### 42.1 Trigger
+
+There are three ways to open the reactions detail:
+
+**Right-click a reaction button under a message** → `ShowWhoReactedMenu()` in `history/view/history_view_list_widget.cpp:3003-3013`. When the user right-clicks on a specific reaction emoji in the inline reaction bar, and `Api::WhoReactedExists(item, WhoReactedList::One)` is true, a popup menu appears showing who used that specific reaction. This is the primary trigger.
+
+**Context menu "Who Reacted" row** → `AddWhoReactedAction()` in `history/view/history_view_context_menu.cpp:1962-2037`. When right-clicking a message, a separator + "Who Reacted" row is appended at the bottom of the context menu (if `WhoReactedExists(item, WhoReactedList::All)`). This row shows a summary line (e.g. "3 reacted" or a single person's name) with up to 3 small userpic circles on the right. Hovering opens a submenu listing individual reactors.
+
+**"Show all" / click the summary row** → both paths call `controller->showSection(std::make_shared<Info::Memento>(whoReadIds, itemId, selectedTab))`, which opens the full **Info Section panel** (`info/reactions_list/info_reactions_list_widget.cpp`). This is the full-screen reactions list with tabs.
+
+**Tag reactions in Saved Messages** → `ShowTagMenu()` in `history_view_context_menu.cpp:2077-2122`. When `item->reactionsAreTags()` is true (saved messages), the click handler does NOT open a reactions detail view. Instead it opens a tag-specific menu with "Filter by tag", "Edit tag", "Remove tag", and "Tag sticker pack" options. No user list is shown for tags.
+
+### 42.2 Layout — Context Menu Popup (Mode A)
+
+The popup is a `Ui::PopupMenu` styled with `st::whoReadMenu`. Structure:
+
+- **Top section** (optional): If the reaction is an active non-quick emoji, shows "Set as Quick Reaction" action + separator.
+- **User list**: Each reactor shown as a `WhoReactedEntryAction` menu item.
+- **"Show all reactions" row**: Appears at the bottom when `fullReactionsCount > displayed_reactions`. Clicking opens Mode B (full panel). Text: `lng_context_seen_reacted_all`.
+- **Bottom section** (optional): If the reaction is a custom emoji from a sticker set, shows "Emoji Pack" action.
+
+### 42.3 Layout — Full Info Section Panel (Mode B)
+
+Opens as a layer widget (`Info::LayerWidget`) or side panel. Structure from top to bottom:
+
+- **Top bar**: Title dynamically set based on `whoReadIds->type`:
+  - `WhoReadType::Seen` → "Seen by {count}" (`lng_context_seen_text`)
+  - `WhoReadType::Listened` → "Listened by {count}" (`lng_context_seen_listened`)
+  - `WhoReadType::Watched` → "Watched by {count}" (`lng_context_seen_watched`)
+  - Default → "Reactions" (`lng_manage_peer_reactions`)
+
+- **Tab bar** (`HistoryView::Reactions::Tabs`): Horizontal row of rounded pill-shaped buttons, one per reaction + special tabs. Created by `CreateTabs()` in `history_view_reactions_tabs.cpp`.
+
+- **Scrollable peer list** (`PeerListContent`): Standard info-section peer list positioned below tabs with `st::infoCommonGroupsMargin` top/bottom spacing (2px each).
+
+### 42.4 Tab Bar Details
+
+Tabs are created in `CreateTabs()` (`history_view_reactions_tabs.cpp:129-213`):
+
+- **"Read" tab** (optional): Only shown if `whoReadIds` has entries. Uses reaction ID `"read"` internally. Icon: double-check marks (`reactionsTabChecks` / `reactionsTabPlayed` for voice/video). Shows count of who read the message.
+- **"All" tab**: Always present. Empty `ReactionId`. Icon: `reactionsTabAll` (heart+eye icon). Count = sum of all reaction counts.
+- **Per-reaction tabs**: One tab per distinct reaction, sorted by count descending. Each shows the emoji (standard or custom) + count.
+
+Each tab is a rounded pill (`stm->height / 2` corner radius) with:
+- Background: `textActiveBg` (selected) or `textBg` (unselected)
+- Text color: `textActiveFg` (selected) or `textFg` (unselected)
+- Icon on the left (emoji size `Emoji::GetSizeNormal()`), text on the right
+- Font: `st::semiboldFont`
+- Count formatted with `Lang::FormatCountDecimal()`
+- Tab width: `height + padding.left + textWidth + padding.right`
+- Tabs container padding: `margins(12px, 10px, 12px, 10px)` from `st::reactionsTabs`
+- Icon left skip: `reactionsTabIconSkip` = 3px
+
+Custom emoji reactions render using `Ui::Text::CustomEmoji` with `Data::ReactionEntityData()`. Standard emoji tabs use static icons. The "Read" tab uses check marks or play icons depending on message type.
+
+Tab wrapping: tabs flow left-to-right. When a tab would exceed the available width, it wraps to the next line. Line spacing: `tab.height + st::reactionsTabs.itemSkip`.
+
+Switching tabs fires `state->selected.changes()` which triggers `_full.switchTab(reaction)` in the `InnerWidget`, which calls `Controller::showReaction()`.
+
+### 42.5 User List Items
+
+Each user row is a `Row` class (extends `PeerListRow`) in `history_view_reactions_list.cpp:39-64`:
+
+- **Avatar**: Standard peer userpic (30px, from `st::defaultWhoRead.photoSize`), positioned at `photoLeft` = 13px
+- **Name**: Peer display name, left-aligned at `nameLeft` = 57px. Includes premium badges and verified icons (inherited from `PeerListRow`).
+- **Reaction emoji** (right action): For "All" tab, each user's row shows their specific reaction emoji on the right side. For filtered tabs (specific reaction), the emoji is shown too. Custom emoji reactions render animated via `Ui::Text::CustomEmoji`. Standard reactions show as static emoji.
+  - Right action size: `Emoji::GetSizeNormal() / DevicePixelRatio`
+  - Right action margins: `size/2` left, centered vertically, `size*3/2` right
+  - Right action is disabled (non-clickable) — `rightActionDisabled()` returns true
+- **Date line** (in context menu mode only): Below the name, shows read/reaction timestamp with an icon:
+  - Viewed: double-check icon (`whoReadDateChecks`)
+  - Reacted: heart icon (`whoLikedDateHeart`)
+  - Reposted: repost icon (`whoRepostedDateHeart`)
+  - Forwarded: share icon (`whoForwardedDateHeart`)
+  - Date formatted by `FormatReadDate()`: "today HH:mm" / "yesterday HH:mm" / "Mon DD, HH:mm" / "Mon DD YYYY, HH:mm"
+
+Row height: `st::infoMembersList.item.height` (standard peer list item height).
+
+### 42.6 Pagination / Loading
+
+Defined in `history_view_reactions_list.cpp:34-35`:
+
+- **First page**: `kPerPageFirst = 20` items
+- **Subsequent pages**: `kPerPage = 100` items
+- **API call**: `MTPmessages_GetMessageReactionsList` with offset-based pagination
+- **Infinite scroll**: `loadMoreRows()` is called by `PeerListContent` when scrolled near bottom. Loads more if `_loadRequestId == 0` and offset is non-empty.
+- **Offset tracking**: Separate `_allOffset` and `_filteredOffset` strings. Empty offset = no more pages. Server returns `next_offset` in response.
+- **Loading state**: While loading, description text shows `lng_contacts_loading` ("Loading..."). Cleared once first results arrive.
+
+### 42.7 Empty State
+
+When no reactions exist or loading completes with 0 results:
+- Description text shows `lng_contacts_loading` during load
+- After load completes with results, description is cleared to empty string (`setDescriptionText(QString())`)
+- If `!item->canViewReactions()` and `!WhoReadExists(item)`, the "Who Reacted" row doesn't appear at all in the context menu
+
+### 42.8 Anonymous Reactions (Channels)
+
+Channel posts have the `CanViewReactions` flag only when the channel admin has enabled it. The `canViewReactions()` check (`history_item.cpp:3358-3362`) requires:
+- `MessageFlag::CanViewReactions` is set on the message
+- `_reactions` object exists and has a non-empty list
+
+For channels without this flag, reactions are visible (counts shown) but the "who reacted" detail is unavailable — no context menu row, no popup. The API `messages.getMessageReactionsList` returns peer IDs, so if the server provides them, they are shown. Anonymous channel reactions simply have no reactor list exposed.
+
+### 42.9 Custom Emoji Reactions
+
+Premium users can react with custom emoji from sticker packs:
+
+- **In tabs**: Custom emoji rendered via `Data::ReactedMenuFactory(&session)` which creates a `Ui::Text::CustomEmojiFactory`. Animated custom emoji play in tabs with pause control tied to `Window::GifPauseReason::Layer`.
+- **In user rows**: Each `Row` stores a `std::unique_ptr<Ui::Text::CustomEmoji>` for the right-side reaction indicator. Custom emoji data comes from `Data::ReactionEntityData(reaction)`.
+- **In context menu**: Custom emoji renders with `_customSize = Text::AdjustCustomEmojiSize(size)` for proper scaling. Positioned at `width - padding.right - size + skip` on the right edge.
+- **Emoji pack action**: When right-clicking a custom emoji reaction, if it belongs to a sticker set, a "Emoji Pack" menu item is appended at the bottom via `AddEmojiPacksAction()`.
+
+### 42.10 Tag Reactions (Saved Messages)
+
+When `item->reactionsAreTags()` is true (reactions in Saved Messages act as tags):
+- Clicking a tag reaction in the reaction bar triggers `HashtagClickHandler` to filter by tag (if premium) or shows premium upsell (`PremiumFeature::TagsForMessages`)
+- Right-clicking opens `ShowTagMenu()` instead of the reactions detail popup
+- Tag menu actions: "Filter by tag", "Edit tag name", "Remove tag", "Tag sticker pack"
+- **No user list** is shown for tags — tags are personal, not multi-user
+- The `InlineListData::Flag::Tags` flag controls tag-specific rendering (rounded tag shapes vs pill shapes)
+
+### 42.11 Animation
+
+**Context menu popup**: Standard `Ui::PopupMenu` animation with `st::whoReadMenu` duration. Userpic circles in the summary row animate in after the menu's appear delay (`delay = parentMenu->st().duration`). The `_appeared` flag prevents userpic rendering during the slide-in animation to avoid visual glitches.
+
+**Tab switching**: Instant — no transition animation. `Controller::showReaction()` immediately clears the peer list and repopulates from cache or triggers a new API load.
+
+**Info layer panel appear/disappear**: Uses `_heightAnimation` (in `info_layer_widget.cpp:130`) with `st::slideDuration` to animate content height changes. The layer slides down from the top with the standard `Ui::LayerWidget` animation.
+
+**Custom emoji animation**: Custom emoji in tabs and rows can be animated (Lottie-based). Animation pauses are controlled by `Window::GifPauseReason::Layer` — animations pause when the layer is not the topmost focus.
+
+**Ripple effect**: Reaction tabs support ripple animations on press via standard `Ui::RippleAnimation`.
+
+### 42.12 Sizing
+
+**Info layer panel** (`info_layer_widget.cpp`):
+- Desired width: `st::infoDesiredWidth` = 392px
+- Minimum layer margin: `st::infoMinimalLayerMargin` = 48px (so min width = parentWidth - 96px, capped at 392px)
+- Top margin: clamped between `st::infoLayerTopMinimal` (20px) and `st::infoLayerTopMaximal` (40px), calculated as `windowHeight / 24`
+- Max height: `windowHeight - topMargin`, can extend to bottom (`_tillBottom` flag)
+- Content scrolls within the panel; panel height animates to fit content
+- Bottom has `st::boxRadius` corner rounding unless content extends to window bottom
+
+**Context menu** (`st::whoReadMenu`):
+- Standard popup menu sizing from `PopupMenu` with `popupMenuExpandedSeparator` base style
+- Each user entry height: `st::defaultWhoRead.photoSkip * 2 + st::defaultWhoRead.photoSize` = 5 + 30 + 5 = 40px
+- Menu item width: clamped between `st.widthMin` and `st.widthMax`
+- Summary row height: `st::defaultWhoRead.itemPadding.top + font.height + itemPadding.bottom`
+
+**Tabs area**: Auto-sizing height based on number of tab rows. Each tab row height = `stm->height` + `st::reactionsTabs.itemSkip`. Total padded with `margins(12px, 10px, 12px, 10px)`.
+
+**Peer list**: Row height from `st::infoMembersList.item.height`. Total list height: `rowCount * rowHeight`. Margins: `st::infoCommonGroupsMargin` = `margins(0px, 2px, 0px, 2px)`.
+
+### 42.13 Interaction
+
+**Clicking a user in Mode B** (full panel): `Controller::rowClicked()` calls `window->showPeerInfo(peer)` on the main thread via `crl::on_main`. This navigates to that user's profile info section.
+
+**Clicking a user in Mode A** (context menu submenu): Calls `participantChosen()` which triggers `ShowWhoReadInfo()`. This opens the user's profile in the Info section with a `GroupReactionOrigin` if the user reacted (to show reaction context), or a plain profile otherwise.
+
+**Clicking the summary row** (Mode A, single user): If only 1 participant, clicking the main row directly calls `_participantChosen` for that user. If `fullReactionsCount > 0`, calls `_showAllChosen` to open Mode B.
+
+**"Show all reactions" in submenu**: Calls `_showAllChosen` which opens Mode B with `DefaultSelectedTab()` to auto-select the appropriate initial tab.
+
+### 42.14 Context — Groups vs Channels
+
+**Groups (chats and megagroups)**:
+- `WhoReadExists()` checks: message must be outgoing, read, within `chat_read_mark_expire_period` (default 7 days), and group size <= `chat_read_mark_size_threshold` (default 50 members). Megagroups with `ParticipantsHidden` flag or monoforums are excluded.
+- Both "who read" and "who reacted" data may be available. The tabs can show both a "Read" tab and reaction tabs simultaneously.
+- API: `messages.getMessageReadParticipants` for read list + `messages.getMessageReactionsList` for reactions.
+
+**Channels**:
+- `WhoReadExists()` returns false for channels (no read receipts).
+- `canViewReactions()` depends on `CanViewReactions` message flag set by the server.
+- Only reaction tabs are shown (no "Read" tab). Title defaults to "Reactions" (`lng_manage_peer_reactions`).
+
+**DMs (user chats)**:
+- Read date available via `messages.getOutboxReadDate` (single user).
+- Context menu shows `WhenReadContextAction` instead of `WhoReactedContextAction` — displays "Read at HH:mm" with optional "Show" button if privacy-restricted.
+
+### 42.15 Keyboard Navigation
+
+**Context menu (Mode A)**: Standard `PopupMenu` keyboard handling. Enter/Return on the selected summary row triggers the click action (opens Mode B or shows single user profile). Arrow keys navigate menu items. The submenu opens on hover or right-arrow.
+
+**Full panel (Mode B)**: Tabs are `Ui::AbstractButton` widgets — they receive focus via standard Qt tab order. No special keyboard shortcut for tab switching. The peer list supports standard `PeerListContent` keyboard navigation (arrow keys to select rows, Enter to open profile).
+
+### 42.16 AyuGram-Specific Additions
+
+- **Blocked user filtering**: `FiltersController::isBlocked(peer)` is checked in `ResolveWhoRead()` and `UpdateUserpics()`. Blocked peers are silently removed from the reactions list and read list. The blocked reactions count is subtracted from `fullReactionsCount`.
+- **Show views panel setting**: `AyuSettings::showViewsPanelInContextMenu()` gates whether the "Who Reacted" row appears in the context menu at all.
+- **Seconds in timestamps**: `AyuSettings::showMessageSeconds()` controls whether read dates show "HH:mm:ss" instead of the default locale short time format.
+
+### 42.17 Source File Locations
+
+| File | Purpose |
+|------|---------|
+| `Telegram/SourceFiles/info/reactions_list/info_reactions_list_widget.h/.cpp` | Full panel widget + memento |
+| `Telegram/SourceFiles/history/view/reactions/history_view_reactions_list.h/.cpp` | Row class, Controller (pagination, tab switching, API calls) |
+| `Telegram/SourceFiles/history/view/reactions/history_view_reactions_tabs.h/.cpp` | Tab creation, layout, selection, painting |
+| `Telegram/SourceFiles/history/view/reactions/history_view_reactions.h/.cpp` | InlineList (reaction bar under messages), click handlers |
+| `Telegram/SourceFiles/api/api_who_reacted.h/.cpp` | API calls, caching, userpic generation |
+| `Telegram/SourceFiles/ui/controls/who_reacted_context_action.h/.cpp` | Context menu Action, entry painting, submenu population |
+| `Telegram/SourceFiles/history/view/history_view_context_menu.cpp` | ShowWhoReactedMenu, AddWhoReactedAction, ShowTagMenu triggers |
+| `Telegram/SourceFiles/history/view/history_view_list_widget.cpp` | Right-click-on-reaction trigger |
+| `Telegram/SourceFiles/info/info_layer_widget.cpp` | Layer panel sizing, height animation |
+| `Telegram/SourceFiles/ui/chat/chat.style` | Style constants: whoRead*, reactionsTabs* |
+| `Telegram/SourceFiles/chat_helpers/chat_helpers.style` | defaultWhoRead struct (userpic sizes, padding) |
+
+---
+
+## §44 — Spoiler Animation
+
+Spoilers hide text and media behind a shimmering particle overlay until the user clicks to reveal. The system uses **pre-rendered sprite sheets** (not real-time shaders) tiled across the spoiler region.
+
+### 44.1 Text Spoiler Rendering
+
+When text has `EntityType::Spoiler` (flag `TextBlockFlag::Spoiler = 0x100`), the renderer:
+1. Draws the actual text at reduced opacity `(1 - spoilerOpacity)` — fully hidden when `spoilerOpacity == 1.0`.
+2. Collects all spoiler character ranges into `_spoilerRanges` / `_spoilerSelectedRanges`.
+3. Converts ranges to pixel rects (`_spoilerRects` / `_spoilerSelectedRects`, max 512 rects).
+4. Tiles the particle animation frame over each rect using `FillSpoilerRect()`.
+
+Two separate rect lists exist: one for normal state (`spoilerFg` color) and one for selected state (`selectSpoilerFg` color). The particle mask is colorized on demand via `SpoilerMessCache::lookup(QColor)`, which caches up to 24 color variants and resets on palette change.
+
+Text behind the spoiler is **still drawn** but at `opacity = 1 - spoilerOpacity`, so during reveal animation it cross-fades.
+
+**Source:** `lib_ui/ui/text/text_renderer.cpp` (lines 838-1170 for painting, 1283-1375 for rect fill), `lib_ui/ui/text/text_extended_data.h` (`SpoilerData` struct).
+
+### 44.2 Media Spoiler Rendering
+
+Photos and GIFs/videos with `is_spoiler()` flag render as:
+1. **Blurred background:** The smallest available thumbnail (inline/thumbnail/small) is scaled to fill the media rect, then rounded with bubble corners. Stored in `MediaSpoiler::background`.
+2. **Particle overlay on top:** `fillImageSpoiler()` tiles `DefaultImageSpoiler()` frames over the blurred background using `FillSpoilerRect()` with corner masks.
+3. **Darken layer:** Image spoiler particles include a base darkening layer — `kImageSpoilerDarkenAlpha = 32` (RGBA alpha). The entire sprite sheet is composited over a `QColor(0, 0, 0, 32)` fill during `PreloadImageSpoiler()`.
+
+The actual high-res image is drawn underneath at `opacity = revealed`, so during the reveal animation, the real image fades in while the blur+particles fade out.
+
+**Source:** `history/view/media/history_view_photo.cpp` (lines 325-346 for drawing, 520-556 for background prep), `history_view_media.cpp` (lines 339-360 for `fillImageSpoiler`, 507-524 for click handler), `history_view_media_spoiler.h` (struct).
+
+### 44.3 Shimmer Effect Details — Pre-Rendered Particle Sprite Sheet
+
+The "shimmer" is NOT a real-time shader. It is a **pre-computed sprite sheet** of particle animation frames, generated once and cached to disk.
+
+#### Particle System Parameters
+
+| Parameter | Text Spoiler | Image Spoiler |
+|---|---|---|
+| Particle count | **9,000** | **3,000** |
+| Particle size (min) | 1.5 dp | 1.5 dp |
+| Particle size (max) | 2.0 dp | 2.0 dp |
+| Particle speed (min) | 4.0 dp/ms | 10.0 dp/ms |
+| Particle speed (max) | 8.0 dp/ms | 20.0 dp/ms |
+| Fade-in duration | 200 ms | 300 ms |
+| Shown (full opacity) duration | 200 ms | 0 ms |
+| Fade-out duration | 200 ms | 300 ms |
+| Total particle lifetime | 600 ms | 600 ms |
+| Sprite variants | 5 | 5 |
+| Canvas size | 128 dp × devicePixelRatio | 128 dp × devicePixelRatio |
+| Frame count | **60** | **60** |
+| Frame duration | **33 ms** (~30 FPS) | **33 ms** (~30 FPS) |
+| Total loop duration | 1,980 ms (~2 s) | 1,980 ms (~2 s) |
+
+#### Sprite Generation
+
+5 sprite variants are generated as tiny rounded rectangles (white on transparent). They vary in aspect ratio:
+- Sprites below the midpoint index are wider (width > min, height = min).
+- Sprites above the midpoint are taller (width = min, height > min).
+- The midpoint sprite is the minimum size (square-ish).
+- Corner radius = `particleSizeMin / 2`.
+
+Each sprite is rendered into a small image (`2 + ceil(particleSizeMax)` pixels square).
+
+#### Frame Rendering
+
+All 60 frames are rendered into a single sprite sheet image arranged in rows of **10 frames per row** (`kFramesPerRow = 10`), so the sheet is 10x6 tiles. For each frame:
+- Each particle's position is `(startX + dx * elapsed, startY + dy * elapsed)` with wrapping modulo canvas size (seamless tiling).
+- Particle opacity fades in linearly during `particleFadeInDuration`, stays at 1.0 during `particleShownDuration`, fades out linearly during `particleFadeOutDuration`.
+- Particles that would extend past the canvas edge are drawn wrapping to the opposite side (seamless tile in all directions).
+
+#### Caching
+
+Generated sprite sheets are serialized as grayscale PNG (since particles are white, only alpha matters) with an xxHash32 integrity check, stored in `{emojiCacheFolder}/spoiler/text` and `{emojiCacheFolder}/spoiler/image`. Max cache size: 5 MB. On load, the grayscale is expanded back to ARGB32 premultiplied. For text spoilers, the white mask is colorized to the theme's `spoilerFg` color on demand.
+
+### 44.4 Reveal on Click
+
+#### Text Reveal
+- **Click handler:** `SpoilerClickHandler::onClick()` calls `String::setSpoilerRevealed(true, anim::type::normal)`.
+- **Animation:** `Animations::Simple` interpolates from `0.0` to `1.0` over `st::fadeWrapDuration` = **200 ms** (linear easing by default).
+- During animation, text opacity = `revealValue` and particle opacity = `1 - revealValue` — smooth cross-fade.
+- **Reveals all spoilers in the text block at once** (single `SpoilerData` per `String`), not individual spoiler entities.
+- **Re-hiding:** Yes. `hideShownSpoilers()` sets `revealed = false` with `anim::type::instant` (no animation). Triggered when navigating to a different chat or jumping to a message. The `_shownSpoilers` set in `data_session` tracks all currently revealed views.
+
+#### Media Reveal
+- **Click handler:** `LambdaClickHandler` in `Media::createSpoilerLink()` sets `spoiler->revealed = true` and starts `revealAnimation` from `0.0` to `1.0` over `st::fadeWrapDuration` = **200 ms**.
+- During animation: real image drawn at `opacity = revealed`, blur+particles drawn at `opacity = 1 - revealed`.
+- The view is registered in `_shownSpoilers` so it can be re-hidden on navigation.
+- **Re-hiding:** Yes. `Photo::hideSpoilers()` / `Gif::hideSpoilers()` set `revealed = false` instantly (no reverse animation). When the user navigates away and back, spoilers are hidden again.
+
+**Source:** `lib_ui/ui/text/text.cpp` (lines 772-795), `lib_ui/ui/text/text_extended_data.cpp` (lines 29-34), `history_view_media.cpp` (lines 507-524), `data_session.cpp` (lines 2372-2381), `history_view_element.cpp` (lines 1313-1328).
+
+### 44.5 Compose Field Spoiler
+
+In the input field, spoiler-tagged text gets a `FieldSpoilerOverlay` widget layered on top of the `QTextEdit`. This overlay:
+
+1. Is `WA_TransparentForMouseEvents` — clicks pass through to the text editor.
+2. Computes spoiler rects from `_spoilerRangesText` and `_spoilerRangesEmoji` (separate lists for plain text and custom emoji within spoiler ranges).
+3. Tiles the text spoiler particle animation (`DefaultSpoilerCache` with `defaultTextPalette.spoilerFg` color).
+4. **Smart hide on cursor:** When the cursor is inside a spoiler range (touches both left and right boundaries), the overlay for that region fades to `kSpoilerHiddenOpacity = 0.5` with a **200 ms** animation (`fadeWrapDuration`). This lets the author see what they're typing. When the cursor moves away, the overlay fades back to full opacity.
+5. The background is filled with the field's `textBg` color (or `blockquoteBg` if inside a blockquote) before the particle layer, ensuring the underlying text is fully hidden.
+6. Opacity decomposition: `bgOpacity = shown` (0 to 1) controls the solid background fill, `fgOpacity = 1.0 * shown + 0.5 * (1 - shown)` controls the particle layer — so even when "hidden" for editing, particles remain at 50% opacity as a visual hint.
+
+**Source:** `lib_ui/ui/widgets/fields/custom_field_object.cpp` (lines 24-101 for overlay, 209-268 for cursor-based show/hide), `lib_ui/ui/widgets/fields/input_field.h` (lines 579-583).
+
+### 44.6 Spoiler in Notifications
+
+Notification text replaces spoiler-tagged characters with the Unicode character `U+259A` (quadrant upper-left and lower-right, a checkerboard block: `▚`) repeated for the spoiler's length. This is a **permanent, irreversible substitution** in the notification string — there is no way to reveal the spoiler from the notification.
+
+Additionally, login codes from Telegram's notification bot are auto-spoilered: a regex `(?<![\w\-#])(\d[\d\-]{2,6}\d)(?!\w\-)` detects numeric codes in messages from `isNotificationsUser()` or `isVerifyCodes()` peers and wraps them in `EntityType::Spoiler` before display.
+
+**Source:** `window/notifications_manager.cpp` (lines 87-100 for `TextWithPermanentSpoiler`, lines 1099-1102 + 1527-1529 for login code spoilering), `history/history_item.cpp` (lines 104-122 for `SpoilerLoginCode`).
+
+### 44.7 Performance Optimizations
+
+- **Pre-rendered sprite sheet:** The entire 60-frame animation is computed once (off-thread via `crl::async`), not per-frame. Runtime cost is just tiling a cached QImage.
+- **Disk caching:** Sprite sheets persist as compressed grayscale PNG across app restarts, avoiding regeneration.
+- **Color cache:** `SpoilerMessCache` holds up to **24** colorized variants of the text mask, keyed by `QColor`. Resets only on palette change.
+- **Batched tiling:** `FillSpoilerRect()` tiles the current frame across the target rect with optimized full-tile vs. partial-tile paths — full tiles use a single `drawImage(target, source)`, edge tiles clip precisely.
+- **Auto-pause:** `SpoilerAnimation::repaint()` auto-stops after `kAutoPauseTimeout = 1000 ms` if the animation hasn't been queried (widget not visible). The global `SpoilerAnimationManager` self-destructs when no animations are active.
+- **Power saving:** When `PowerSaving::kChatSpoiler` (bit 7) is enabled, the animation is treated as paused — frame index freezes, no repaints scheduled.
+- **Corner masking:** For rounded bubble corners on media spoilers, corner regions are composited separately using `CompositionMode_DestinationIn` with the corner mask, avoiding per-pixel alpha blending on the full rect.
+- **Single manager:** All `SpoilerAnimation` instances share one `SpoilerAnimationManager` with a single `Animations::Basic` timer, avoiding per-instance timer overhead.
+
+### 44.8 Style Constants
+
+| Token | Value | Usage |
+|---|---|---|
+| `fadeWrapDuration` | **200 ms** | Reveal/hide animation duration (both text and media) |
+| `kDefaultFrameDuration` | **33 ms** | Frame interval (~30 FPS) |
+| `kDefaultFramesCount` | **60** | Frames per animation loop |
+| `kFramesPerRow` | **10** | Sprite sheet layout |
+| `kImageSpoilerDarkenAlpha` | **32** | Base darkening for image spoiler overlay (out of 255) |
+| `kAutoPauseTimeout` | **1000 ms** | Auto-stop animation when not visible |
+| `kSpoilerHiddenOpacity` | **0.5** | Particle opacity in compose field when cursor is inside spoiler |
+| `kDefaultSpoilerCacheCapacity` | **24** | Max colorized cache entries |
+| `kMaxCacheSize` | **5 MB** | Max serialized sprite sheet file size |
+| `defaultTextPalette.spoilerFg` | `msgInDateFg` | Particle color for text spoilers |
+| `defaultTextPalette.selectSpoilerFg` | `msgInDateFgSelected` | Particle color when text is selected |
+| `PowerSaving::kChatSpoiler` | bit 7 (`0x80`) | Power saving flag that pauses spoiler animations |
+| `U+259A` | `▚` | Replacement character for spoilers in notifications |
+
+### 44.9 Source File Locations
+
+| File | Role |
+|---|---|
+| `lib_ui/ui/effects/spoiler_mess.h/.cpp` | Particle generation, sprite sheet rendering, disk cache, animation manager |
+| `lib_ui/ui/text/text_renderer.cpp/.h` | Text spoiler rect collection and painting |
+| `lib_ui/ui/text/text_extended_data.h/.cpp` | `SpoilerData` struct, `SpoilerClickHandler::onClick()` |
+| `lib_ui/ui/text/text.cpp/.h` | `setSpoilerRevealed()`, `DefaultSpoilerCache()`, `SpoilerMessCache` |
+| `lib_ui/ui/text/text_entity.h` | `EntityType::Spoiler` enum value |
+| `lib_ui/ui/text/text_block.h` | `TextBlockFlag::Spoiler = 0x100` |
+| `lib_ui/ui/widgets/fields/custom_field_object.cpp` | `FieldSpoilerOverlay` — compose field spoiler overlay |
+| `lib_ui/ui/widgets/fields/input_field.h` | `_spoilerRangesText`, `_spoilerRangesEmoji`, `_spoilerOverlay` |
+| `lib_ui/ui/basic.style` | `fadeWrapDuration: 200`, `defaultTextPalette` spoiler colors |
+| `history/view/media/history_view_media_spoiler.h` | `MediaSpoiler` struct (blur bg + reveal animation) |
+| `history/view/media/history_view_media.cpp` | `fillImageSpoiler()`, `createSpoilerLink()` |
+| `history/view/media/history_view_photo.cpp` | Photo-specific spoiler blur background + draw |
+| `history/view/media/history_view_gif.cpp` | GIF/video-specific spoiler logic |
+| `history/view/history_view_element.cpp` | `hideSpoilers()` / `revealSpoilers()` |
+| `data/data_session.cpp` | `registerShownSpoiler()` / `hideShownSpoilers()` |
+| `window/notifications_manager.cpp` | `TextWithPermanentSpoiler()` — U+259A replacement |
+| `history/history_item.cpp` | `SpoilerLoginCode()` — auto-spoiler login codes |
+| `ui/power_saving.h` | `kChatSpoiler` power saving flag |
+
+---
+
+## §46 — Link Preview in Compose
+
+### 46.1 Detection
+
+URLs are detected by `MessageLinksParser` (`chat_helpers/message_field.cpp`), which installs itself as an event filter on the compose `InputField`. It uses Qt's `qthelp::RegExpDomain()` regex to match domain patterns in the text, then validates protocols (`http://`, `https://`, etc.) and top-level domains.
+
+**Real-time parsing triggers:**
+- On every text change (`_field->changes()`), the parser schedules a parse with a debounced timer.
+- If the text length changed by more than 2 characters (e.g. paste), timeout is **0ms** (immediate).
+- If the text changed by 1-2 characters (normal typing), timeout is **500ms** (`kParseLinksTimeout`).
+- Pressing a whitespace key or dropping content triggers an immediate parse (timeout 0).
+- If the text becomes empty, parsing fires immediately and clears all links.
+
+The parser also handles custom links (markdown link tags with explicit URLs) and skips URLs that are inside formatting tags that cannot intersect with links (code, pre blocks). Bold, italic, underline, strikeout, spoiler, and blockquote tags CAN intersect with link detection.
+
+The output is a `QStringList` of detected URLs and a `std::vector<MessageLinkRange>` with offset/length/custom-url for each link.
+
+### 46.2 Preview Card
+
+The preview appears as the `FieldHeader` widget, positioned directly above the compose field. It is a fixed-height bar of `st::historyReplyHeight` pixels (same height as the reply bar).
+
+**Layout (left to right):**
+1. **Colored vertical bar** — `st::historyLinkIcon` painted at the left edge (a link icon, analogous to the reply icon position).
+2. **Thumbnail** — If the webpage has a photo or document with a thumbnail, it is drawn as a square preview at position `(st::historyReplySkip, centered-vertically)`, size `st::historyReplyPreview × st::historyReplyPreview`. The image is center-cropped to square. If no thumbnail is available, this space is skipped and text starts at `st::historyReplySkip`.
+3. **Title** — Drawn in `st::historyReplyNameFg` color using `st::msgNameStyle`. Shows the site name (preferred), or title, or description, or author, following a priority cascade in `TitleAndDescriptionFromWebPage()`.
+4. **Description** — Drawn below the title in `st::historyComposeAreaFg` using `st::messageTextStyle`. Shows the next-priority field not used by the title.
+5. **Close/dismiss button** (`_cancel`) — An "X" button at the right edge. Both title and description are elided to fit: `width - previewLeft - _cancel->width() - st::msgReplyPadding.right()`.
+
+The entire header is a single-line title + single-line description layout, both text-elided.
+
+### 46.3 Large vs Small Media
+
+Controlled by `WebPageDraft::forceLargeMedia` and `WebPageDraft::forceSmallMedia` flags.
+
+**Default behavior** (`computeDefaultSmallMedia()` in `data_web_page.cpp`):
+- Collage pages: always large (returns false).
+- Pages with no text metadata (no siteName, title, description, author): always large.
+- Profile type: always small (thumbnail on the right as article).
+- Twitter, Facebook, ArticleWithIV: always large.
+- Other pages with photo but no video/document: default small (article layout with thumbnail on the right).
+
+**Toggle in the Draft Options dialog** (`DraftOptionsBox`): Only shown when `WebPageData::hasLargeMedia` is true. The button reads "Enlarge photo/video" or "Shrink photo/video" depending on the current state. Clicking toggles between `forceSmallMedia=true` and `forceLargeMedia=true` and marks the draft as `manual=true`.
+
+**In message rendering** (`history_view_web_page.cpp`):
+- `ForceLargeMedia` flag: `_asArticle = 0` (full-width media below text).
+- `ForceSmallMedia` flag: `_asArticle = 1` (small thumbnail on the right, article layout).
+- Neither flag: uses `computeDefaultSmallMedia()`.
+
+The article layout (`_asArticle=1`) places a small thumbnail on the right side, with title/description flowing to its left. The large layout places media (photo/video/document) as a full-width attachment below the text content.
+
+### 46.4 Preview Above/Below Text
+
+Controlled by `WebPageDraft::invert` flag, which maps to `MessageFlag::InvertMedia` on the sent message.
+
+**In the Draft Options dialog**: A "Move up" / "Move down" button is shown (only when the draft has text). The icon is `&st::menuIconAbove` or `&st::menuIconBelow`. Clicking toggles `state->webpage.invert` and sets `manual=true`.
+
+**Effect**: When `InvertMedia` is set, the web page preview (media block) renders above the message text instead of below it. This is a server-side flag sent with the message (`MTPDmessage::Flag::f_invert_media`).
+
+### 46.5 Multiple URLs
+
+When the compose field contains multiple URLs, the `WebpageProcessor::checkPreview()` method iterates through all parsed links in order. It picks the **first** link that either:
+- Has a cached resolved page (non-null), OR
+- Has not been looked up yet (triggers a new API request).
+
+Links that were previously resolved to null (no preview) are skipped.
+
+**In the Draft Options dialog**: When `args.links.size() > 1`, a divider text is shown: "Tap on a link in the message to choose a preview for it." The `PreviewWrap` renders the full message with all links highlighted, and clicking on a different link in the preview calls `switchTo(link)` to change which URL's preview is shown.
+
+### 46.6 Preview Loading
+
+When a webpage is still pending (server hasn't finished fetching), `WebPageData::pendingTill` is set to a future timestamp.
+
+**Loading state in the compose bar** (`updateFromData()`):
+- Title is set to `tr::lng_preview_loading` ("Loading...").
+- Description is set to the URL itself (`_link`).
+- `drawPreview` returns false (no thumbnail shown).
+- A timer is started for `(pendingTill - now) * 1000` milliseconds, after which `_resolver->request(_link, true)` is called again to re-fetch.
+
+**Loading state in the Draft Options dialog**: When switching to a pending page, a similar retry timer fires. If the page updates (via `webPageUpdates()` stream), the preview switches automatically.
+
+### 46.7 No Preview Available
+
+When the API returns no `messageMediaWebPage` data, or the page has `failed=true`:
+- `WebpageResolver::lookup()` returns `nullptr` for that link.
+- The processor falls through to the next link in `_parsedLinks`.
+- If all links resolve to null, `_data` becomes nullptr, `_draft` is cleared, and `updateFromData()` produces an empty `WebpageParsed` (no preview shown).
+- In the Draft Options dialog, `show->showToast(tr::lng_preview_cant)` is displayed ("Sorry, the preview for this link is not available.").
+
+### 46.8 Remove Preview
+
+**From the compose bar**: Click the cancel (X) button on the `FieldHeader`. This fires `_previewCancelled`, which calls `_preview->apply({ .removed = true })`. The `WebPageDraft::removed` flag is set. The preview disappears immediately. The `removed` flag persists in the draft so the preview stays hidden even if the user continues typing, until the link set changes (all links removed then re-added).
+
+**From the Draft Options dialog**: A red "Remove link preview" button (`tr::lng_link_remove`) calls `finish(resolveReply(), { .removed = true }, options)`.
+
+**Auto-reset**: When `_parsedLinks` becomes empty (user deleted all URLs), `_draft.removed` is automatically reset to false, so pasting a new URL will trigger preview detection again.
+
+### 46.9 Webpage Types
+
+The `WebPageType` enum defines 30+ types, parsed from the server's `type` string in `ParseWebPageType()`:
+
+| Server type string | Enum | Layout behavior |
+|---|---|---|
+| `"video"`, `"gif"`, or has `embedUrl` | `Video` | Full-width video/GIF player attachment |
+| `"photo"` | `Photo` | Full-width photo attachment |
+| `"document"` | `Document` | Document attachment |
+| `"profile"` | `Profile` | Small media (article layout, always) |
+| `"telegram_background"` | `WallPaper` | + "VIEW BACKGROUND" button |
+| `"telegram_theme"` | `Theme` | + "VIEW THEME" button |
+| `"telegram_story"` | `Story` | + "VIEW STORY" button |
+| `"telegram_channel"` | `Channel` | + "VIEW CHANNEL" button |
+| `"telegram_megagroup"` / `"telegram_chat"` | `Group` | + "VIEW GROUP" button |
+| `"telegram_*_request"` | `*WithRequest` | + "REQUEST TO JOIN" button |
+| `"telegram_message"` | `Message` | + "VIEW MESSAGE" button |
+| `"telegram_bot"` | `Bot` | + "VIEW BOT" button |
+| `"telegram_user"` | `User` | + "SEND MESSAGE" button |
+| `"telegram_botapp"` | `BotApp` | + "OPEN APP" button |
+| `"telegram_voicechat"` | `VoiceChat` | + "JOIN VOICE CHAT" button |
+| `"telegram_livestream"` | `Livestream` | + "JOIN LIVESTREAM" button |
+| `"telegram_stickerset"` | `StickerSet` | Sticker grid display |
+| has `cachedPage` (IV) | `ArticleWithIV` | Article + "INSTANT VIEW" button |
+| everything else | `Article` | Standard article layout |
+
+**Layout variants:**
+- **Article (small media)**: Thumbnail on the right, title + description on the left. Used for `_asArticle=1`.
+- **Full-width media**: Photo/video/document spans the full bubble width below text. Used for `_asArticle=0`.
+- **Collage**: Multiple photos/documents in a grid layout (`WebPageCollage`).
+- **Sticker set**: Grid of sticker previews (`WebPageStickerSet`).
+- **Action button**: Many Telegram-specific types add a button bar below the preview with type-specific text.
+
+### 46.10 Instant View
+
+A page has Instant View when `WebPageData::iv` is non-null (populated from `MTPDwebPage::vcached_page()`).
+
+**Indicator**: An "INSTANT VIEW" button (`tr::lng_view_button_iv`) is rendered at the bottom of the preview bubble, inside a colored bar with the `st::historyPageButtonPadding` layout. The button text is uppercased.
+
+**Click handler**: When IV is available, `_openl` is set to `IvClickHandler(_data, original)` instead of a regular URL handler. This opens the built-in Instant View reader.
+
+**Type detection**: If a page has `cachedPage` in the API response but is not one of the specific Telegram types, it is classified as `WebPageType::ArticleWithIV`. The `IgnoreIv()` function returns true for certain types (Message, Group, Channel, etc.) that should not show IV even if `cachedPage` is present.
+
+### 46.11 API Call
+
+**Method**: `MTPmessages_GetWebPagePreview`
+
+The `message` parameter is the URL text. AyuGram-specific: `getBetterLinkPreview(link)` may transform the URL before sending (e.g. `x.com` to `fixupx.com`, TikTok to `tnktok.com`) to get richer previews from third-party embed services.
+
+**Sending with message**: When sending, the preview is attached via `MTPinputMediaWebPage` with flags for `force_large_media`, `force_small_media`, and `optional` (if the preview URL was not modified by `getBetterLinkPreview`).
+
+### 46.12 Debouncing
+
+Two-level debouncing:
+
+**Level 1 — Link parsing** (`MessageLinksParser`):
+- Large text changes (>2 chars difference, e.g. paste): **0ms** (immediate parse).
+- Small text changes (1-2 chars, normal typing): **500ms** (`kParseLinksTimeout`).
+- Whitespace keypress or drop event: **0ms** (immediate parse).
+- Timer is reset if a new change arrives before it fires. Shorter timeouts override longer ones.
+
+**Level 2 — API request** (`WebpageProcessor`):
+- Once a new link is detected (after parsing), if it is not in the cache, `_resolver->request(_link)` is called immediately.
+- The resolver only has one active request at a time (`_requestId`). Calling `request()` with the same link (and `force=false`) is a no-op.
+- Previous requests for different links are cancelled via `_resolver->cancel(was)`.
+
+### 46.13 Cache
+
+**Resolver-level cache**: `WebpageResolver::_cache` is a `base::flat_map<QString, WebPageData*>` mapping URL strings to resolved webpage data (or nullptr for failed lookups). This is an in-memory cache per resolver instance.
+
+**Session-level cache**: `Data::Session` maintains a global map of `WebPageData` objects keyed by `WebPageId`. Once a webpage is processed via `processWebpage()`, it remains in memory for the session. The `webPageUpdates()` stream notifies subscribers when a page's data changes.
+
+**Draft persistence**: The `WebPageDraft` (containing `id`, `url`, `forceLargeMedia`, `forceSmallMedia`, `invert`, `manual`, `removed`) is saved as part of the message draft. When returning to a chat, the draft's webpage ID is used to look up the cached `WebPageData` without re-fetching from the API.
+
+**No disk cache**: Webpage preview data is not persisted to disk separately — it lives in the session's in-memory data store and is re-fetched from the server when needed after app restart.
+
+### 46.14 Source File Locations
+
+| File | Purpose |
+|---|---|
+| `history/view/controls/history_view_webpage_processor.h/.cpp` | `WebpageResolver` (API + cache), `WebpageProcessor` (links-to-preview pipeline) |
+| `history/view/controls/history_view_compose_controls.cpp` | `FieldHeader` class (preview bar UI above compose) |
+| `history/view/controls/history_view_draft_options.h/.cpp` | `DraftOptionsBox` dialog (large/small, above/below, link selector, remove) |
+| `chat_helpers/message_field.h/.cpp` | `MessageLinksParser` (real-time URL detection) |
+| `data/data_web_page.h/.cpp` | `WebPageData`, `WebPageType` enum, `ParseWebPageType()`, `computeDefaultSmallMedia()` |
+| `data/data_drafts.h` | `WebPageDraft` struct |
+| `data/data_session.h/.cpp` | `processWebpage()`, session-level webpage cache |
+| `history/view/media/history_view_web_page.h/.cpp` | `WebPage` media class (renders preview in sent messages) |
+| `history/view/history_view_webpage_preview.h/.cpp` | `TitleAndDescriptionFromWebPage()` helpers |
+| `ayu/utils/telegram_helpers.cpp` | AyuGram `getBetterLinkPreview()` (URL rewriting) |
+
+---
+
+## §45 — Custom Emoji Rendering
+
+Custom emoji are Telegram premium sticker documents (TGS Lottie, WebM video, or WebP static) rendered inline at emoji size within text, names, reactions, and the compose field. They are referenced by `documentId` via `messageEntityCustomEmoji` entities.
+
+### 45.1 Inline Rendering in Text Messages
+
+Custom emoji render at the same size as native emoji within flowing text. The text renderer (`text_renderer.cpp:858-879`) paints them via the `CustomEmoji::paint()` interface:
+
+- **Logical size**: `st::emojiSize` = **18px** (defined in `lib_ui/ui/basic.style:57`)
+- **Adjusted frame size**: `AdjustCustomEmojiSize(18) = round(18 * 1.12) = 20px` (the `1.12` multiplier is in `text_custom_emoji.cpp:44-45`)
+- **Skip/centering**: `(18 - 20) / 2 = -1px` centering offset (`_customEmojiSkip`) ensures the slightly-larger custom emoji is centered on the native emoji baseline
+- **Horizontal padding**: `st::emojiPadding` = **1px** on each side (`basic.style:58`), giving total inline width = `18 + 2*1 = 20px` logical (`Object::width()` at `custom_emoji_instance.cpp:823`)
+- **Vertical alignment**: `QTextCharFormat::AlignTop` with height = `max(fontHeight, emojiSize)`
+- **Text color tinting**: If `document->emojiUsesTextColor()` is true (the `UseTextColor` flag), the emoji frames are colorized to match surrounding text color via `style::colorizeImage()`
+
+### 45.2 Large Emoji (Isolated/Only-Custom-Emoji Messages)
+
+When a message contains **only** custom emoji (no text, no links), it renders as `UnwrappedMedia` with larger sizes. Detection: `_isOnlyCustomEmoji` flag set during block parsing (`text_block_parser.cpp:749`).
+
+**Size tiers** (defined in `history_view_custom_emoji.cpp:39-57`):
+
+| Emoji count | Rendering mode | Size per emoji | Scale factor |
+|---|---|---|---|
+| **1** | Full sticker-like | **112px** (`maxAnimatedEmojiSize`) | 1.0x of `Sticker::EmojiSize()` |
+| **2** | Sticker grid | **~78px** | 0.7x of `Sticker::EmojiSize()` |
+| **3** | Sticker grid | **~58px** | 0.52x of `Sticker::EmojiSize()` |
+| **4-5** | Custom emoji object | **~43px** | `SizeTag::Isolated` = `(36 + 2*1) * 1.12` |
+| **6-7** | Custom emoji object | **~27px** | `SizeTag::Large` = `24 * 1.12` |
+| **8+** | Custom emoji object | **~20px** | `SizeTag::Normal` (same as inline text) |
+
+For dimensions 1-3, each emoji becomes a `Sticker` part (full animation playback, interaction effects). For 4+, they use `CustomEmoji::Object` instances at the appropriate `SizeTag`.
+
+`kIsolatedEmojiLimit = 3` (`text_isolated_emoji.h:14`) — messages with 1-3 **native** emoji (not custom) get separate isolated rendering via `IsolatedEmoji` + `LargeEmoji`.
+
+### 45.3 Animated Custom Emoji (Lottie/TGS)
+
+Three sticker types are supported, each with a dedicated frame generator (`data_custom_emoji.cpp:394-405`):
+
+- **TGS (Lottie)**: `Lottie::FrameGenerator` — JSON-based vector animation
+- **WebM (video sticker)**: `FFmpeg::FrameGenerator` — video decoding
+- **WebP (static)**: `Ui::ImageFrameGenerator` — single frame
+
+Animation playback flow:
+1. **Renderer** (`custom_emoji_instance.cpp:459-594`) decodes frames asynchronously on a worker thread via `crl::async`
+2. Frames are added to a `Cache` one at a time, with preloading of `kPreloadFrames = 3` frames ahead
+3. Maximum **180 frames** per animation (`kMaxFrames`)
+4. Frame timing stored as `uint16` millisecond durations per frame
+5. Once all frames are decoded, `Cache::finish()` packs them into a sprite atlas (16 frames per row, `kPerRow = 16`)
+
+**Pausing**: Animations pause when `context.paused` is true, or when `PowerSaving::kEmojiChat` flag is set (bit 5). Separate power-saving flags exist for: `kEmojiPanel` (bit 3), `kEmojiReactions` (bit 4), `kEmojiChat` (bit 5), `kEmojiStatus` (bit 9).
+
+**LimitedLoopsEmoji** wrapper (`text_custom_emoji.cpp:112-171`) limits animation to N loops, then freezes on first or last frame.
+
+### 45.4 Premium-Only Indicators
+
+**AyuGram modification**: `AllowEmojiWithoutPremium()` always returns `true` — AyuGram bypasses premium restrictions entirely.
+
+In upstream Telegram Desktop:
+- **Self-chat**: Always allowed
+- **Megagroup with custom emoji pack**: Allowed if the emoji belongs to the group's emoji set
+- Otherwise: Premium subscription required
+
+When a non-premium user sends a message with premium custom emoji to a non-permissive context, the emoji renders with its `sticker->alt` text fallback (the Unicode emoji alternative). There is no lock badge overlay on individual inline custom emoji — the restriction is enforced at send time, not display time.
+
+### 45.5 Custom Emoji in Names (Emoji Status)
+
+Peers have an `_emojiStatusId` (`data_peer.h:631`) containing a `DocumentId`. The emoji status renders as a custom emoji next to the peer's name in chat headers, dialogs, and profile.
+
+- **Collectible emoji status**: Special prefix `"collectible:"` + ID. Rendered via `Ui::Premium::MakeCollectibleEmoji()` with custom `centerColor`/`edgeColor`
+- **Standard emoji status**: Rendered at the same `SizeTag` as surrounding context
+- **Userpic emoji**: Prefix `"userpic:"` + peerId, renders a dynamic circular userpic image as an inline emoji replacement
+- Power saving flag `kEmojiStatus` (bit 9) can freeze emoji status animations
+
+### 45.6 Custom Emoji in Reactions
+
+Custom emoji reactions use `ReactedMenuFactory()` (`data_custom_emoji.cpp:1075-1108`):
+
+- **Default reactions** (Unicode-based): Rendered via their `centerIcon` document at `2x emojiSize` or `selectAnimation` at `1x`, wrapped in `FirstFrameEmoji` (static first frame only) + `ShiftedEmoji` (offset to center)
+- **Custom emoji reactions**: Rendered as standard custom emoji at `SizeTag::Normal`
+
+Clicking a custom emoji in a message triggers `ShowReactionPreview()`, which opens an overlay showing the animated sticker full-size with a label showing the sticker pack name and a "View Pack" button.
+
+### 45.7 Loading States
+
+Three-phase loading state machine (`custom_emoji_instance.h:228-258`):
+
+1. **Loading**: Shows a `Preview` placeholder — either:
+   - **SVG path preview**: The document's `inlineThumbnailPath()` scaled — a low-detail vector outline, painted at text color **12.5% opacity** (`alpha / 8`)
+   - **Image preview**: A scaled-down image from another size tier (cross-resolution fallback)
+   - If no preview exists: blank space
+2. **Caching**: `Renderer` is decoding frames. Paints decoded frames as they arrive; falls back to preview if no frame yet
+3. **Cached**: All frames in sprite atlas, painting from cache
+
+### 45.8 Caching
+
+**Two-level cache architecture**:
+
+1. **In-memory instance cache** (`CustomEmojiManager::_instances`): `std::array<unordered_map<DocumentId, unique_ptr<Instance>>, 4>` — one map per `SizeTag` (Normal, Large, Isolated, SetIcon). Instances are shared: multiple `Object` wrappers reference the same `Instance`. Reference-counted via `_usage` set.
+
+2. **Disk sprite atlas cache** (`cacheBigFile`): LZ4-compressed sprite sheet stored in Telegram's persistent cache database. Key derived from `document->bigFileBaseCacheKey()`. The serialized format:
+   - Header: version(1), size, frameCount, compressedLength
+   - LZ4-compressed ARGB32 sprite atlas (16 frames per row)
+   - Frame durations array (uint16 per frame)
+
+3. **Cross-resolution preview**: When an emoji exists in one size tier's cache but not another, the existing cached first frame is scaled to the requested size as a temporary preview.
+
+**Eviction**: In-memory instances auto-unload when no UI references remain. Disk cache managed by the persistent storage layer.
+
+### 45.9 Click Behavior
+
+Custom emoji in text messages are clickable via `CustomEmojiClickHandler`:
+
+- **Callback**: Calls `ShowReactionPreview(controller, itemId, ReactionId{documentId}, emojiPreview=true)`
+- **Result**: Opens an overlay preview showing the custom emoji's full animation, the sticker pack name, and a clickable label to open `StickerSetBox` (emoji pack browser)
+
+For large (1-emoji) isolated custom emoji, an additional `_interactionLink` enables emoji interaction effects (the "tap splash" animation).
+
+### 45.10 Custom Emoji in Input Field
+
+Custom emoji in the compose field use Qt's `QTextObjectInterface` system:
+
+- **Format**: `kCustomEmojiFormat = QTextFormat::UserObject + 2` with properties `kCustomEmojiLink` (unique link string) and `kCustomEmojiId` (document ID as uint64)
+- **Insertion**: `InsertCustomEmoji()` inserts the sticker's `alt` text (Unicode fallback) as visible text with a custom emoji link tag
+- **Intrinsic size**: Width = `st::emojiSize + 2 * st::emojiPadding` = **20px**, Height = `max(fontLineHeight, st::emojiSize)`. Frame rendered at `AdjustCustomEmojiSize(18) = 20px` with centering skip.
+- **Drawing**: `CustomFieldObject::drawObject()` looks up the emoji by document ID in a local `_emoji` map, then calls `CustomEmoji::paint()`
+- **Repaint**: `InputField::customEmojiRepaint()` schedules a single repaint per frame via `_customEmojiRepaintScheduled` flag to coalesce multiple emoji repaint requests.
+
+### 45.11 Performance
+
+- **Shared instances**: All custom emoji of the same `(documentId, sizeTag)` share a single `Instance` object
+- **Batched repaints**: Repaint requests grouped by `(when, duration)` into `RepaintBunch` buckets. Single timer fires and repaints all due instances in one pass
+- **Async rendering**: Frame decoding on worker threads. Only final `QImage` posted to main thread
+- **Preloading**: `kPreloadFrames = 3` — renderer stays 3 frames ahead of playback
+- **Frame limit**: `kMaxFrames = 180` — animations truncated beyond 180 frames
+- **Off-screen pausing**: `Instance::decrementUsage()` transitions to `Loading` state when no `Object` references exist, stopping animation
+- **Power saving**: Separate flags for chat, panel, reactions, and status. When active, all animations freeze to first frame
+- **Batched API resolution**: Unknown document IDs batched up to `kMaxPerRequest = 100` per `messages.getCustomEmojiDocuments` API call
+- **Sprite atlas**: Cached frames packed 16-per-row to minimize texture switches
+- **Colored emoji**: Text-color-tinted emoji use a static `PaintCache` QImage to avoid per-frame allocation
+
+### 45.12 Size Constants Summary
+
+| Constant | Value | File |
+|---|---|---|
+| `st::emojiSize` | 18px | `lib_ui/ui/basic.style:57` |
+| `st::emojiPadding` | 1px | `lib_ui/ui/basic.style:58` |
+| `st::largeEmojiSize` | 36px | `ui/chat/chat.style:757` |
+| `st::maxAnimatedEmojiSize` | 112px | `ui/chat/chat.style:216` |
+| `AdjustCustomEmojiSize(x)` | `round(x * 1.12)` | `text_custom_emoji.cpp:44` |
+| Normal inline frame | 20px | `round(18 * 1.12)` |
+| Large frame | 27px | `round(24 * 1.12)` |
+| Isolated frame | 43px | `round(38 * 1.12)` |
+| 1-emoji isolated | 112px | `1.0 * EmojiSize()` |
+| 2-emoji isolated | ~78px | `0.7 * 112` |
+| 3-emoji isolated | ~58px | `0.52 * 112` |
+| Input field width | 20px | `emojiSize + 2*emojiPadding` |
+| Cache sprite row | 16 frames | `kPerRow` |
+| Max cached frames | 180 | `kMaxFrames` |
+| Preload ahead | 3 frames | `kPreloadFrames` |
+| Batch API limit | 100 IDs | `kMaxPerRequest` |
+
+### 45.13 Source File Locations
+
+| File | Purpose |
+|---|---|
+| `lib_ui/ui/text/text_custom_emoji.h/cpp` | Base `CustomEmoji` interface, `AdjustCustomEmojiSize()`, wrapper classes |
+| `lib_ui/ui/text/custom_emoji_instance.h/cpp` | `Instance`, `Object`, `Cache`, `Renderer` — full lifecycle/state machine |
+| `lib_ui/ui/text/text_lottie_custom_emoji.h/cpp` | `LottieCustomEmoji` — built-in Lottie icon animations |
+| `lib_ui/ui/text/text_renderer.cpp:840-879` | Inline painting during text layout |
+| `lib_ui/ui/text/text_extended_data.h/cpp` | `CustomEmojiClickHandler` |
+| `lib_ui/ui/text/text_isolated_emoji.h` | `IsolatedEmoji`, `OnlyCustomEmoji` structs |
+| `lib_ui/ui/widgets/fields/custom_field_object.cpp` | Renders custom emoji in QTextEdit input fields |
+| `data/stickers/data_custom_emoji.h/cpp` | `CustomEmojiManager` — instance cache, API resolution, repaint batching |
+| `history/view/media/history_view_custom_emoji.h/cpp` | Large isolated emoji in messages (1-7 emoji grid) |
+| `history/view/media/history_view_sticker.cpp` | `Sticker::EmojiSize()`, sticker rendering for 1-3 emoji messages |
+| `history/view/history_view_element.cpp:1663-1690` | Decision logic: text → `OnlyCustomEmoji` / `IsolatedEmoji` media |
+| `history/view/history_view_reaction_preview.cpp` | Reaction/emoji preview overlay |
+| `data/data_document.cpp:745-755` | `emojiUsesTextColor()` text-color tinting flag |
+| `ui/power_saving.h` | Power saving flags for emoji animation contexts |
+
+---
+
+## §47 — Restricted Permissions UI
+
+The compose area at the bottom of a chat view dynamically transforms based on the user's permission state. Five distinct `WriteRestrictionType` values drive the UI: `None` (normal compose), `Rights` (admin-restricted), `PremiumRequired` (non-premium writing to premium-only user), `Frozen` (account frozen by Telegram), and `Hidden` (compose area completely hidden, used for story replies to users who disabled them).
+
+### Write Restriction Bar (Replaces Compose Field)
+
+When a user cannot send any content (all send rights revoked), the entire compose area (text field, attach button, emoji button, send button) is **hidden** and replaced by a full-width `_writeRestricted` widget. This widget occupies the same height as the send button (`_st.send.inner.height`). The background is painted identically to the normal compose area background.
+
+**Restriction type routing** (in `SetupRestrictionView`):
+
+| `WriteRestrictionType` | Widget Created | Behavior |
+|---|---|---|
+| `Rights` | `FlatLabel` with restriction text | Static centered text, no click handler. Styled with `st::restrictionLabel` (compose controls) or `st::historySendPremiumRequired` (history widget). |
+| `PremiumRequired` | `FlatLabel` + `RoundButton` ("Unlock") + lock icon | Label shows "{user} only accepts messages from Premium users". Unlock button next to it. Clicking opens Premium promo toast with "Subscribe to Telegram Premium" CTA. Lock icon from `st::premiumRequired.icon`. |
+| `Frozen` | `FlatButton` with title + subtitle | Title: "Your account is frozen". Subtitle: "Click to view details". Clicking opens freeze info dialog. Title styled `st::frozenRestrictionTitle`, subtitle `st::frozenRestrictionSubtitle`. |
+| `Hidden` | Nothing (both `_wrap` and `_writeRestricted` hidden) | Compose area completely invisible. Used for stories. |
+
+When the restriction has `boostsToLift > 0`, a special `BoostsToLiftWriteRestriction` button is shown instead: a full-width `FlatButton` with text "Boost this group to send messages" (`lng_restricted_boost_group`). Clicking opens the boost state resolution dialog.
+
+### Permission-Specific Restriction Text Strings
+
+Each `ChatRestriction` flag maps to three tiers of error messages based on context:
+
+**Tier 1: Admin restricted you personally (timed)** -- includes expiry date/time:
+
+| Restriction | Lang Key | Text |
+|---|---|---|
+| `SendOther` (text) | `lng_restricted_send_message_until` | "The admins of this group have restricted you from sending messages until {date}, {time}." |
+| `SendPhotos` | `lng_restricted_send_photos_until` | "...restricted you from sending photos here until {date}, {time}." |
+| `SendVideos` | `lng_restricted_send_videos_until` | "...restricted you from sending videos here until {date}, {time}." |
+| `SendMusic` | `lng_restricted_send_music_until` | "...restricted you from sending music here until {date}, {time}." |
+| `SendFiles` | `lng_restricted_send_files_until` | "...restricted you from sending files here until {date}, {time}." |
+| `SendVoiceMessages` | `lng_restricted_send_voice_messages_until` | "...restricted you from sending voice messages here until {date}, {time}." |
+| `SendVideoMessages` | `lng_restricted_send_video_messages_until` | "...restricted you from sending video messages here until {date}, {time}." |
+| `SendStickers` | `lng_restricted_send_stickers_until` | "...restricted your ability to send stickers until {date}, {time}." |
+| `SendGifs` | `lng_restricted_send_gifs_until` | "...restricted your ability to send GIFs until {date}, {time}." |
+| `SendInline` / `SendGames` | `lng_restricted_send_inline_until` | "...restricted your ability to send inline content until {date}, {time}." |
+| `SendPolls` | `lng_restricted_send_polls_until` | "...restricted your ability to send polls until {date}, {time}." |
+
+**Tier 2: Admin restricted you personally (permanent):**
+
+| Restriction | Lang Key | Text |
+|---|---|---|
+| `SendOther` | `lng_restricted_send_message` | "The admins of this group have restricted your ability to send messages." |
+| `SendPhotos` | `lng_restricted_send_photos` | "The admins of this group restricted you from sending photos here." |
+| `SendVideos` | `lng_restricted_send_videos` | "The admins of this group restricted you from sending videos here." |
+| `SendMusic` | `lng_restricted_send_music` | "The admins of this group restricted you from sending music here." |
+| `SendFiles` | `lng_restricted_send_files` | "The admins of this group restricted you from sending files here." |
+| `SendVoiceMessages` | `lng_restricted_send_voice_messages_group` | "The admins of this group restricted you from sending voice messages here." |
+| `SendVideoMessages` | `lng_restricted_send_video_messages_group` | "The admins of this group restricted you from sending video messages here." |
+| `SendStickers` | `lng_restricted_send_stickers` | "The admins of this group have restricted your ability to send stickers." |
+| `SendGifs` | `lng_restricted_send_gifs` | "The admins of this group have restricted your ability to send GIFs." |
+| `SendInline` / `SendGames` | `lng_restricted_send_inline` | "The admins of this group have restricted your ability to send inline content." |
+| `SendPolls` | `lng_restricted_send_polls` | "The admins of this group have restricted your ability to send polls." |
+
+**Tier 3: Default restriction (applies to everyone, set in group permissions):**
+
+| Restriction | Lang Key | Text |
+|---|---|---|
+| `SendOther` | `lng_restricted_send_message_all` | "Sending messages is not allowed in this group." |
+| `SendPhotos` | `lng_restricted_send_photos_all` | "Sending photos isn't allowed in this group." |
+| `SendVideos` | `lng_restricted_send_videos_all` | "Sending videos isn't allowed in this group." |
+| `SendMusic` | `lng_restricted_send_music_all` | "Sending music isn't allowed in this group." |
+| `SendFiles` | `lng_restricted_send_files_all` | "Sending files isn't allowed in this group." |
+| `SendVoiceMessages` | `lng_restricted_send_voice_messages_all` | "Sending voice messages isn't allowed in this group." |
+| `SendVideoMessages` | `lng_restricted_send_video_messages_all` | "Sending video messages isn't allowed in this group." |
+| `SendStickers` | `lng_restricted_send_stickers_all` | "Stickers aren't allowed in this group." |
+| `SendGifs` | `lng_restricted_send_gifs_all` | "Sending GIFs isn't allowed in this group." |
+| `SendInline` / `SendGames` | `lng_restricted_send_inline_all` | "Sending inline content isn't allowed in this group." |
+| `SendPolls` | `lng_restricted_send_polls_all` | "Sorry, sending polls is not allowed in this group." |
+
+**User-level restrictions (DMs):**
+
+| Context | Lang Key | Text |
+|---|---|---|
+| Voice messages blocked by user | `lng_restricted_send_voice_messages` | "{user} doesn't accept voice messages." |
+| Video messages blocked by user | `lng_restricted_send_video_messages` | "{user} doesn't accept video messages." |
+| Premium-only user | `lng_restricted_send_non_premium` | "Only Premium users can message {user}." |
+
+The restriction text selection logic is in `Data::RestrictionError()` (`data_chat_participant_status.cpp`). It checks: (1) frozen account, (2) `peer->amRestricted(restriction)`, (3) whether restriction is "with everyone" (default) or personal, (4) whether personal restriction has an expiry (`restrictedUntil`), (5) whether boosts can lift it.
+
+### Grayed/Forbidden Send Button
+
+When a user can type text but specific media types are restricted (e.g., voice messages forbidden but text allowed), the **send button area changes** rather than the entire compose field:
+
+- The `SendButton::State` struct has a `forbidden` bool field.
+- When `forbidden = true`, the record/round button is painted at **50% opacity** (`kForbiddenOpacity = 0.5`). The ripple effect is suppressed (no press animation). The icon still renders in its normal position but is visually dimmed.
+- The `forbidden` flag is computed per button type: for `Type::Record`, checks `ChatRestriction::SendVoiceMessages`; for `Type::Round`, checks `ChatRestriction::SendVideoMessages`. Computed via `Data::RestrictionError()`.
+- Clicking a forbidden record/round button shows a toast with the relevant restriction error text (e.g., "The admins of this group restricted you from sending voice messages here.").
+- When the `Send` type button is disabled (e.g., during slowmode), `isDisabled()` returns true and the send icon paints in `st::historyRecordVoiceFg` (gray) instead of the normal color.
+
+### Slow Mode
+
+Slow mode restricts how frequently non-admin users can send messages in a group. Admins and creators are exempt (`slowmodeApplied()` returns false for them).
+
+**Slowmode seconds computation** (`PeerData::slowmodeSecondsLeft()`): `max(slowmodeSeconds - (now - slowmodeLastMessage), 0)`. The channel stores `slowmodeSeconds` (the configured delay, e.g. 30s, 60s, 5min) and `slowmodeLastMessage` (timestamp of last sent message).
+
+#### Countdown Timer on Send Button
+
+When `slowmodeSecondsLeft > 0`:
+
+- The send button type changes to `Type::Slowmode`.
+- The button displays a **text countdown** in `MM:SS` format (e.g., "0:27", "4:59"). Format: `minutes:seconds` where seconds are zero-padded to 2 digits. Minutes are not zero-padded.
+- Text rendered in `st::normalFont`, color `st::windowSubTextFg` (gray/subdued), centered in the button rect with `st::historySlowmodeCounterMargins` (0px top, 0px left, 10px right, 0px bottom).
+- The cursor changes to default (non-pointer) when showing slowmode (`setPointerCursor(false)` during state transition).
+- The accessible name reads: "Slow Mode is active. You can send your next message in {duration}" where duration uses human-readable format from `FormatDurationWordsSlowmode()` -- e.g., "2 minutes 30 seconds" for > 59s, "{count} seconds" for <= 59s.
+- The timer refreshes every **200ms** (`kRefreshSlowmodeLabelTimeout`). The `SlowmodeSecondsLeft()` reactive producer polls `peer->slowmodeSecondsLeft()` on each tick, stopping when delay reaches 0.
+- Maximum displayable delay: `kSlowmodeDelayLimit = 100 * 60` (100 minutes = "99:59" max display).
+
+#### Send Disabled by Slowmode
+
+Even when the countdown reaches 0, if a message is still being sent (not yet acknowledged by server), the send button is **disabled** (`setDisabled(true)`). This prevents sending a second message before the first is confirmed.
+
+- `SendDisabledBySlowmode` = `slowmodeApplied && latestSendingMessage() != nullptr`.
+- Affects button types: `Send`, `Record`, `Round` (all disabled when true).
+- Error toast on attempt: "Slow mode is enabled. You can't send more than one message at a time." (`lng_slowmode_no_many`).
+
+#### Slowmode File Restrictions
+
+- Multiple files cannot be sent at once in slowmode: `list.canBeSentInSlowmode()` returns false for multi-file lists. Error: "Slow mode is enabled. You can't send more than one message at a time."
+- Multi-group bundles (multiple albums) are also blocked in slowmode with the same error.
+- Long text that would be split into multiple messages is blocked: "This text is too long to send as one message. Slow mode is active. You can't send more than one message at once." (`lng_slowmode_too_long`).
+
+### Banned/Kicked State
+
+When a user is kicked or banned from a group (`ViewMessages` restriction), the chat becomes inaccessible. The restriction text for this scenario is: "Sorry, this group is not accessible." (`lng_group_not_accessible`). This appears as the write restriction label in the compose area.
+
+For channels with direct messages disabled: "Channel disabled Direct Messages." (`lng_action_direct_messages_disabled`).
+
+The `isBlocked()` state specifically refers to **user-to-user blocking** (not group bans): `_peer->isUser() && _peer->asUser()->isBlocked()`. When blocked:
+- The compose area is hidden.
+- A full-width **"Unblock"** button (`st::historyUnblock`) replaces it with text "UNBLOCK" (`lng_unblock_button`).
+- For blocked bots, the text changes to "RESTART" (`lng_restart_button`).
+- Clicking calls `unblockUser()` which unblocks via API and refreshes the UI.
+
+### Join to Send
+
+When viewing a channel/group the user hasn't joined (`isJoinChannel()`: `channel && !channel->amIn()`):
+
+- The compose area is completely hidden.
+- A full-width `_joinChannel` button (`st::historyComposeButton`) appears.
+- Button text depends on channel type:
+  - Broadcast channel: "JOIN CHANNEL" (`lng_profile_join_channel`)
+  - Group (open): "JOIN GROUP" (`lng_profile_join_group`)
+  - Group (request to join, non-creator): "APPLY TO JOIN GROUP" (`lng_profile_apply_to_join_group`)
+- All text is uppercased (`.toUpper()`).
+- Clicking calls `session().api().joinChannel()`.
+- Exception: channels with `HasLink` flag but without `JoinToWrite` flag allow sending without joining (public group comments). Monoforums also bypass the join requirement.
+
+### Mute/Unmute State
+
+The mute/unmute button appears for channels where the user **cannot post** but is a member. `isMuteUnmute()` returns true when:
+- Broadcast channel where user has no `PostMessages` admin right, OR
+- Gigagroup where user cannot send anything, OR
+- Replies chat or Verify Codes chat.
+
+UI behavior:
+- Full-width button replaces compose area.
+- Text toggles: "MUTE" (`lng_channel_mute`) when currently unmuted, "UNMUTE" (`lng_channel_unmute`) when currently muted. Text uppercased.
+- When shown alongside a **discussion group** (`hasDiscussionGroup()`), a "DISCUSS" button (`_discuss`) appears side-by-side. The mute button and discuss button share the bottom bar width.
+- The mute button controls notification muting, not send permissions.
+
+**Muted indicator in chat list**: Muted chats show a muted badge/icon in the dialog list row. The mute state is tracked by `history->muted()` and notification settings. This is separate from the send restriction system.
+
+### Forum Topic Closed
+
+When a forum topic is closed and the user cannot toggle it open (`!topic->canToggleClosed() && topic->closed()`):
+
+- The write restriction bar appears with text: "This topic is closed." (`lng_forum_topic_closed`).
+- This is a `WriteRestrictionType::Rights` restriction.
+- The restriction is reactive: subscribing to `Data::TopicUpdate::Flag::Closed` events. If an admin reopens the topic, the compose field reappears automatically.
+- If the user **can** toggle the topic closed (they have `ManageTopics` admin right), the compose field remains functional even when the topic is closed -- they can still send messages.
+- The `CanSendAnyOf` check for topics includes: `!topic->closed() || topic->canToggleClosed()`.
+
+### Channel Comments Button
+
+For broadcast channels with linked discussion groups, a **comments toggle button** (`_commentsShown`) appears in the compose controls area (left side of the compose bar):
+
+- Button is an `Ui::IconButton` created via `setCommentsState()`.
+- Three visual states controlled by `ToggleCommentsState`:
+  - `Empty` -- button hidden entirely.
+  - `Shown` -- comments icon shown, uses `_st.commentsShown` icon style.
+  - `Hidden` -- comments collapsed, uses default icon style (different icon).
+  - `WithNew` -- comments icon with a **new-comments dot** indicator. A small colored dot (`st::dialogsBgActive`, 6px radius) is painted at an offset on the button to indicate unread comments.
+- Clicking toggles the comments panel visibility (fires `_commentsShownToggles` event).
+- The button is visible even when write restrictions are active (for `PremiumRequired` or `Rights` types) -- it is only hidden when `WriteRestrictionType::None`.
+- Stars reaction button (`_starsReaction`) follows the same visibility logic.
+- Layout: The comments button sits at the **leftmost** position of the compose bar, before the attach button and send-as selector.
+
+### Send Button States
+
+The `Ui::SendButton` has 8 distinct `Type` values, with additional modifier state:
+
+| Type | Visual | When |
+|---|---|---|
+| `Send` | Arrow icon (or stars count for paid messages) in filled circle (`st::windowBgActive` blue). If `starsToSend > 0`, shows star icon + count in rounded rect. | Text entered in compose field, normal mode. |
+| `Record` | Microphone icon (Lottie animation `voice_to_video.tgs`). Color: `st::historyRecordVoiceFg` (idle) / `st::historyRecordVoiceFgOver` (hover). | Empty compose field, voice recording available. |
+| `Round` | Video camera icon (Lottie animation `video_to_voice.tgs`). Same color scheme as Record. | Empty compose field, video recording mode selected (toggled via tip). |
+| `Cancel` | X icon (`st::historyReplyCancelIcon`). | Inline bot active, click cancels inline mode. |
+| `Save` | Checkmark icon (`st::historyEditSaveIcon`). | Editing an existing message. |
+| `Schedule` | Clock icon (`st::historyScheduleIcon`) in filled circle (`st::historySendIconFg`). | Scheduled messages mode. |
+| `Slowmode` | Text countdown `MM:SS` in `st::normalFont`, color `st::windowSubTextFg`. No icon. | Slowmode countdown active. |
+| `EditPrice` | Zero-width (invisible). | Editing message price for paid content. |
+
+**Transitions between Record and Round**: Animated via Lottie icon playback (`voice_to_video.tgs` / `video_to_voice.tgs`). Other transitions use a crossfade animation: capture current content as pixmap, capture new content, interpolate opacity (old fades out, new fades in) with scale effect over `st::universalDuration`.
+
+**State modifiers:**
+- `forbidden` (bool): Dims record/round icons to 50% opacity, suppresses ripple.
+- `slowmodeDelay` (int): Seconds remaining, formats to `MM:SS` text.
+- `starsToSend` (int): Shows star count on send button for paid messages.
+- `fillBgOverride` (QColor): Custom background color for stars-colored send buttons.
+- Button disabled state (`setDisabled`): Grays out the send icon, painting it with `st::historyRecordVoiceFg` color instead of the normal send icon color.
+
+### Bot Start Button
+
+When opening a chat with a bot for the first time (`isBotStart()`):
+- Conditions: peer is a bot, user can send messages, and either the bot has a `startToken` or the chat history is empty.
+- The compose area is hidden and replaced by a "START" button (`lng_bot_start`).
+- If the bot has a start token, the button text includes it: "START (tokenprefix...)" (first 20 chars).
+- Styled as `st::historyComposeButton`.
+
+### Source File Locations
+
+| File | Role |
+|---|---|
+| `history/view/controls/compose_controls_common.h` | `WriteRestriction` struct, `WriteRestrictionType` enum, `SetHistoryArgs` with slowmode/restriction producers, `ToggleCommentsState` enum |
+| `history/view/controls/history_view_compose_controls.cpp` | `ComposeControls::initWriteRestriction()`, `SetupRestrictionView()`, `updateWrappingVisibility()`, `updateSendButtonType()`, `SlowmodeSecondsLeft()`, `SendDisabledBySlowmode()`, comments button setup |
+| `history/view/controls/history_view_compose_controls.h` | `ComposeControls` class declaration |
+| `history/history_widget.cpp` | `HistoryWidget::updateSendRestriction()`, `computeSendRestriction()`, `showSlowmodeError()`, `isBlocked()`, `isJoinChannel()`, `isMuteUnmute()`, `isBotStart()`, join/mute/unblock button setup |
+| `history/view/history_view_chat_section.cpp` | `ChatWidget::setupComposeControls()` -- topic closed restriction, write restriction reactive pipeline |
+| `data/data_chat_participant_status.cpp` | `RestrictionError()` -- all restriction text string selection logic, `FileRestrictionError()`, `ShowSendErrorToast()`, `CanSendAnyOf()` |
+| `data/data_chat_participant_status.h` | `ChatRestriction` enum (all flags), `ChatAdminRight` enum, `SendError` struct, `AllSendRestrictionsList()` |
+| `data/data_peer_values.cpp` | `CanSendAnyOfValue()` reactive producer, `AmPremiumValue()` |
+| `data/data_peer.cpp` | `PeerData::slowmodeApplied()`, `slowmodeSecondsLeft()`, `slowmodeAppliedValue()` |
+| `ui/controls/send_button.cpp` | `SendButton::setState()`, `paintSlowmode()`, `paintRecord()` (forbidden opacity), all button paint methods |
+| `ui/controls/send_button.h` | `SendButton::Type` enum (8 types), `State` struct (type, forbidden, slowmodeDelay, starsToSend, fillBgOverride) |
+| `ui/text/format_values.cpp` | `FormatDurationWordsSlowmode()` -- human-readable slowmode duration |
+| `chat_helpers/message_field.cpp` | `TextErrorSendRestriction()`, `PremiumRequiredSendRestriction()`, `BoostsToLiftWriteRestriction()`, `FrozenWriteRestriction()` -- widget factories |
+| `Resources/langs/lang.strings` | All `lng_restricted_send_*`, `lng_slowmode_*`, `lng_frozen_restrict_*`, `lng_forum_topic_closed`, `lng_group_not_accessible` string definitions |
+
+---
+
+## §48 — Drag-and-Drop File Overlay
+
+When the user drags files from an external application over the chat window, Telegram Desktop shows a semi-transparent overlay with labeled drop zones. The overlay is managed by `DragArea` widgets created via `DragArea::SetupDragAreaToContainer()`.
+
+### 48.1 Drop Zone Appearance
+
+Each drop zone is a rounded rectangle with:
+- **Background:** `boxBg` (standard box background color)
+- **Shadow:** `boxRoundShadow` — a `Shadow` painted around the inner rectangle using `boxRadius` rounded corners
+- **Margins:** `dragMargin` = `{left: 0, top: 10, right: 0, bottom: 10}px`
+- **Padding:** `dragPadding` = `{left: 20, top: 10, right: 20, bottom: 10}px` defines the active hit-test region
+- **Text color:** Starts as `dragColor` (`windowSubTextFg`, subdued gray), animates to `dragDropColor` (`windowActiveTextFg`, accent color) when hovering
+- **Main text font:** `dragFont` = 27px semibold
+- **Subtext font:** `dragSubfont` = 19px semibold
+- **Text layout:** Main text vertically centered at `(height - dragHeight) / 2` where `dragHeight` = 72px. Subtext sits below at `(height + dragHeight) / 2 - subfontHeight`
+
+### 48.2 Two-Zone Layout — Four Drag States
+
+| State | Zones Visible | Layout | Document Zone Text | Photo Zone Text |
+|-------|--------------|--------|-------------------|-----------------|
+| `Files` | Document only | Full height | "Drop files here" / "to send them as documents" | (hidden) |
+| `PhotoFiles` | Both | Top + bottom half | "Drop images here" / "to send them without compression" | "Drop photos here" / "to send them in a quick way" |
+| `MediaFiles` | Both | Top + bottom half | "Drop files here" / "to send them as documents" | "Drop photos and videos" / "to send them as media files" |
+| `Image` | Photo only | Full height | (hidden) | "Drop images here" / "to send them in a quick way" |
+| `None` | Neither | — | — | — |
+
+In the two-zone split layout, the container is divided equally: document zone top half, photo zone bottom half.
+
+### 48.3 Zone Detection (Cursor Hit-Testing)
+
+When the cursor moves during a drag (`dragMoveEvent`), the zone checks if the cursor position falls within `rect() - dragPadding`. If inside:
+- `_in` set to `true`, triggering highlight animation
+- Drop action set to `Qt::CopyAction`
+
+If outside the padded region:
+- `_in` set to `false`
+- Drop action set to `Qt::IgnoreAction`
+
+The two zones are independent `DragArea` child widgets with separate event filters.
+
+### 48.4 File Type Detection
+
+`Storage::ComputeMimeDataState()` classifies dragged content:
+
+1. Null data or forward data (`application/x-td-forward`) → `None`
+2. Clipboard image (`data->hasImage()`) → `Image`
+3. No local file URLs → `None`
+4. Any non-local URL → `None`
+5. Any directory → `None`
+6. Any file > 4 GB (`kFileSizePremiumLimit`) → `None`
+7. Per-file flags:
+   - `allAreSmallImages`: every file < `Images::kReadBytesLimit`, non-GIF image MIME, QImageReader-readable
+   - `allAreMedia`: every file's `DetectNameType()` returns Image or Video
+8. Result: all small images → `PhotoFiles`; all media → `MediaFiles`; mixed → `Files`
+
+### 48.5 Animation
+
+Two `Ui::Animations::Simple` instances:
+
+- **`_a_opacity`** — fade in/out of entire zone:
+  - `showStart()`: 0→1 over `boxDuration` (200ms), captures pixmap cache first
+  - `hideStart()`: 1→0 over 200ms, widget hidden on completion
+  - `hideFast()`: instant hide (no fade) — used on drop
+
+- **`_a_in`** — highlight color transition on hover:
+  - 0→1 over 200ms
+  - Text pen interpolates from `dragColor` to `dragDropColor`
+
+### 48.6 Text Labels
+
+| Lang Key | English Text |
+|----------|-------------|
+| `lng_drag_images_here` | "Drop images here" |
+| `lng_drag_photos_here` | "Drop photos here" |
+| `lng_drag_files_here` | "Drop files here" |
+| `lng_drag_media_here` | "Drop photos and videos" |
+| `lng_drag_to_send_quick` | "to send them in a quick way" |
+| `lng_drag_to_send_no_compression` | "to send them without compression" |
+| `lng_drag_to_send_files` | "to send them as documents" |
+| `lng_drag_to_send_media` | "to send them as media files" |
+
+### 48.7 Icons
+
+There are **no icons** in the drop zones. The overlay is text-only — large semibold title with smaller semibold subtitle on a rounded-rect card with box shadow.
+
+### 48.8 Edge Cases
+
+- **Dragging text:** No file URLs → `None`, no overlay
+- **Dragging messages:** `application/x-td-forward` MIME → `None`, no file overlay
+- **Non-local URLs:** Remote URLs (http, ftp) rejected → `None`
+- **Directories:** Rejected → `None`
+- **GIF files:** NOT classified as "small images" → `MediaFiles` or `Files`, never `PhotoFiles`
+- **Mixed types:** Photo + PDF together → `Files` (single document zone)
+- **During recording:** Drag enter filter rejects drops while voice recording is active
+
+### 48.9 Disabled State
+
+The drag enter filter checks permissions:
+- `Data::CanSendAnyOf(peer/topic, Data::FilesSendRestrictions())` must be true
+- If user cannot send ANY file type to current peer/topic, no overlay appears
+- `canWriteMessage()` also verified on drop
+
+### 48.10 Multiple Files
+
+The overlay does NOT change visually based on file count. Same layout for single or multiple files. What changes is the classification — a single non-image among all-image files shifts state from `PhotoFiles` to `MediaFiles` or `Files`.
+
+### 48.11 Forwarding via Drag
+
+Messages can be dragged between chats (separate from file overlay):
+
+- **Initiating:** `ListWidget::performDrag()` creates `QMimeData` with `application/x-td-forward` format
+- **Dialog list:** Hovering over a chat for 1 second (`ChoosePeerByDragTimeout = 1000ms`) opens that chat
+- **Dropping:** Extracts forward IDs and creates forward draft
+- **Forum handling:** Drop on forum peer shows topic-chooser via `ShowDropMediaBox()`
+- **Back button:** Hovering a drag over back button for 1 second navigates back to dialog list
+
+### 48.12 Source File Locations
+
+| File | Purpose |
+|------|---------|
+| `history/history_drag_area.h/.cpp` | `DragArea` class, `SetupDragAreaToContainer()`, layout, animation, painting |
+| `storage/storage_media_prepare.h/.cpp` | `MimeDataState` enum, `ComputeMimeDataState()` classification |
+| `history/history_widget.cpp` | Drag area setup, permission filter, `confirmSendingFiles()` drop handler |
+| `history/view/history_view_list_widget.cpp` | `performDrag()` — message forward drag initiation |
+| `dialogs/dialogs_widget.cpp` | Dialog list drag — forward drop onto chats, 1s hover to open |
+| `chat_helpers/chat_helpers.style` | `dragFont`, `dragSubfont`, `dragColor`, `dragDropColor`, `dragMargin`, `dragPadding`, `dragHeight` |
+
+---
+
+## §49 — Scroll Behaviors
+
+### 49.1 Infinite Scroll (Message Preloading)
+
+Messages load dynamically as the user scrolls toward the edges of the loaded content.
+
+**HistoryWidget preloading** (`history_widget.cpp`): Called from `preloadHistoryByScroll()` on every scroll event. Trigger point is **3 viewport heights** from either edge (`kPreloadHeightsCount = 3`). When `scrollTop <= 3 * scrollHeight`, calls `loadMessages()` (older). When `scrollTop + 3 * scrollHeight >= scrollTopMax`, calls `loadMessagesDown()` (newer). Each request fetches **50 messages** (`kMessagesPerPage = 50`), except the first load which fetches **30** (`kMessagesPerPageFirst = 30`). Uses `MTPmessages_GetHistory`.
+
+**ListWidget viewer shifting** (`history_view_list_widget.cpp`): `checkMoveToOtherViewer()` uses `kPreloadedScreensCountFull` (= 4 + 1 + 4 = 9 screens total). Shifts "around position" to current top/bottom item and calls `refreshViewer()` to request a new centered slice. Minimum `_idsLimit` is `kMinimalIdsLimit = 24`.
+
+**Loading indicator**: No explicit spinner. `ContinuousScroll` fires `addContentRequests` when scrolling past edges, caller calls `contentAdded()` to confirm new content.
+
+### 49.2 Jump-to-Date (Calendar Popup)
+
+**Trigger**: Clicking the sticky date header (via `DateClickHandler`). Also available from search bar calendar icon.
+
+**Calendar UI**: Opens `Ui::CalendarBox` with:
+- `month` and `highlighted` set to requested date, current `scrollTopItem`'s date, or today
+- `minDate` capped to Telegram's launch date (August 2013) or first loaded message
+- `maxDate` set to last message date
+- Optional month thumbnail images for media-filtered searches
+- Selection mode for user chats (bulk-delete date ranges)
+
+**Jump action**: On date selection, `session().api().resolveJumpToDate(chat, date, open)` resolves closest message ID via API, then navigates with `showPeerHistory()`.
+
+### 49.3 Jump-to-Message
+
+**Navigation**: `ListWidget::showAtPosition()` navigates to a specific `Data::MessagePosition`. If target is loaded, `showAtPositionNow()` computes scroll target and animates. If not, `showAroundPosition()` sets new `_aroundPosition` and loads the slice.
+
+**Scroll computation** (`computeScrollTo()`):
+- Short scroll (delta <= 1 viewport): `AnimatedScroll::Full` — sine in-out easing
+- Long scroll (delta > 1 viewport): `AnimatedScroll::Part` — jumps instantly to within 1 viewport, then animates remainder with ease-out cubic
+- Zero delta: instant scroll
+
+**Highlight effect** (`ElementHighlighter`):
+1. **Fade in**: 0→1 over `activeFadeInDuration` (400ms)
+2. **Hold + collapse**: If text quote highlighted, holds 400ms then collapses range over 200ms
+3. **Fade out**: 1→0 over `activeFadeOutDuration` (2000ms)
+
+Multiple highlights queued in `_queue` and processed sequentially.
+
+### 49.4 Unread Marker
+
+**The "N unread messages" divider**: Created by `History::addUnreadBar()` on the first unread message.
+
+**When it appears**:
+- On initial chat open at `ShowAtUnreadMsgId` if first unread would be above `scrollTopMax + UnreadBar::height() - marginTop()`
+- When jumping to a message with unread messages below
+- On list refresh when marking messages as read
+
+**Positioning**: Scroll target = `itemTop(bar) + UnreadBar::marginTop()` plus date badge height if attached.
+
+**Destruction**: When user scrolls to bottom, sends outgoing message, bar is above visible area, or chat is switched away.
+
+### 49.5 Scroll-to-Bottom Button
+
+**Widget**: `Ui::JumpDownButton` styled with `st::historyToDown` — circular button with down-arrow, shadow, positioned at 12px right, 10px from bottom.
+
+**When shown**: History not loaded at bottom, reply-return exists, scrolled up > 480px (`historyToDownShownAfter`), or unread messages exist below visible area.
+
+**Unread badge**: `historyToDownBadgeFont` (semibold) in `historyToDownBadgeSize` (22px) circle.
+
+**Click**: If Ctrl held or no reply-return, jumps to `UnreadMessagePosition`. Otherwise jumps to reply-return position.
+
+**Animation**: `historyToDownDuration` = 150ms slide up from below viewport.
+
+### 49.6 New Message Scroll
+
+**`newItemAdded()`**:
+- **Own messages** (`isSending()`): Always scrolls instantly to bottom
+- **Incoming messages**: Only processes if already at bottom (`scrollTop >= scrollTopMax`). If not at bottom, message appears below viewport and unread badge increments
+- **At bottom**: Destroys unread bar, marks as read, triggers effect animations, starts item reveal animation
+
+**`MessageSent` flag**: Forces `synteticScrollToY(scrollTopMax)` regardless of position.
+
+### 49.7 Scroll Position Preservation
+
+**Per-History state**: Each `History` stores `scrollTopItem` (element pointer) and `scrollTopOffset` (pixel offset from element top). Saved via `countScrollState(top)`.
+
+**On chat switch**: Current position saved to History object on leave. On return, `hasSavedScroll()` restores from saved item + offset.
+
+**ListWidget memento**: Stores `_aroundPosition`, `_idsLimit`, and `ScrollTopState`. Used for section navigation.
+
+**Within ListWidget**: `saveScrollState()` / `restoreScrollState()` bracket every `refreshRows()` call.
+
+### 49.8 Smooth Scrolling
+
+**Primary animation** (`animatedScrollToY()`):
+- Duration: `st::slideDuration` = **240ms**
+- Short scroll (≤ 1 viewport): `anim::sineInOut`
+- Long scroll (> 1 viewport): Jump instantly to within 1 viewport, then `anim::easeOutCubic` for remainder
+- Animation anchored to specific `HistoryItem` for stability during content changes
+
+**Syntetic scroll**: `synteticScrollToY()` sets `_synteticScrollEvent = true` so `handleScroll()` doesn't update `_lastUserScrolled`.
+
+### 49.9 Scroll-to-Mention Button
+
+**Widget**: `CornerButton _mentions` with "@" icon (`st::historyUnreadMentions`).
+
+**Visibility**: Shown when `thread->unreadMentions().loadedCount() > 0`.
+
+**Click**: Jumps to `thread->unreadMentions().minLoaded()` — oldest unread mention. If already viewing a voice/video mention, marks media as read.
+
+**Positioning**: Stacked above scroll-to-bottom button with `historyUnreadThingsSkip` (4px) gap.
+
+### 49.10 Scroll-to-Reaction Button
+
+**Widget**: `CornerButton _reactions` with heart icon (`st::historyUnreadReactions`).
+
+**Visibility**: Shown when `thread->unreadReactions().loadedCount() > 0`.
+
+**Click**: Jumps to `thread->unreadReactions().minLoaded()`.
+
+**Positioning**: Stacked above mentions button (above scroll-to-bottom). Additional `_pollVotes` button stacks above reactions.
+
+### 49.11 Keyboard Scrolling
+
+**ListWidget** (`keyPressEvent()`):
+- `Key_Up`, `Key_Down`, `Key_PageUp`, `Key_PageDown` (no modifiers): Fired through `_scrollKeyEvents` stream → forwarded to `_scroll->keyPressEvent(e)`
+- `Key_Escape`: Clears selection or cancels autoscroll
+
+**HistoryWidget** (`keyPressEvent()`):
+- `Key_PageUp`, `Key_PageDown`: Always forwarded to scroll
+- `Key_Down`: Always forwarded to scroll
+- `Key_Up`: If field empty and no edit active → triggers "edit last message". Otherwise forwarded to scroll
+- `Key_Escape`: Closes search, clears selection, etc.
+
+**Middle-click autoscroll**: Activated by middle-click on message list. Shows directional cursor, continuously scrolls via timer based on mouse distance from start point. Stopped by Escape or any mouse button.
+
+### 49.12 Auto-Scroll on Send
+
+**Always.** When `HistoryUpdateFlag::MessageSent` fires, `synteticScrollToY(scrollTopMax)` is called. Also `newItemAdded()` scrolls to bottom for any item with `isSending() == true`. This is syntetic (non-user) scroll, doesn't update `_lastUserScrolled`.
+
+### 49.13 Sticky Date Header
+
+**Rendering** (`paintDates()`): Date header painted as overlay during paint pass. `enumerateDates()` walks items bottom-to-top tracking same-day groups. For each date boundary, computes `dateTop` — either natural position or viewport top (whichever lower), creating the "sticky" effect.
+
+**Show/hide**:
+- Appears on scroll up
+- Fades in/out with `_scrollDateOpacity` over `historyDateFadeDuration` = **200ms**
+- Auto-hides after `historyScrollDateHideTimeout` = **1000ms** of no scrolling
+- Stays visible while pressing the date link
+
+**Click handler**: `DateClickHandler` updated with current top item's date. Click opens calendar popup.
+
+### 49.14 Source File Locations
+
+| Component | File |
+|---|---|
+| Main scroll controller | `history/history_widget.cpp` |
+| Message list widget | `history/view/history_view_list_widget.cpp` |
+| Corner buttons (down/mentions/reactions) | `history/view/history_view_corner_buttons.cpp` |
+| Highlight manager | `history/history_view_highlight_manager.cpp` |
+| ContinuousScroll | `ui/chat/continuous_scroll.cpp` |
+| ScrollArea base | `lib_ui/ui/widgets/scroll_area.cpp` |
+| ElasticScroll | `lib_ui/ui/widgets/elastic_scroll.cpp` |
+| Middle-click autoscroll | `ui/widgets/middle_click_autoscroll.h` |
+| Calendar box | `ui/boxes/calendar_box.cpp` |
+| Style constants | `lib_ui/ui/basic.style` (slideDuration, activeFade*) |
+| Chat style constants | `ui/chat/chat.style` (historyScrollDateHideTimeout, historyDateFadeDuration) |
+| Button style constants | `chat_helpers/chat_helpers.style` (historyToDown*, historyUnread*) |
