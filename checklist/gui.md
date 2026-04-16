@@ -151,8 +151,10 @@ Comprehensive audit of all stubs, "coming soon", and empty handlers found in the
 - ✅ **#65 Bale SubmitOTP race condition** — `select { default: return nil }` in SubmitOTP could return nil before error channel was written. Fixed: blocking `return <-b.authErrCh`.
 
 ### Known Bugs (not yet fixed)
-- 🐛 **#66 Bale chats don't load** — GetDialogs returns 0 results after WebSocket connect. WS handshake added but RPC calls still return empty. Needs WS lifecycle restructuring.
-- 🐛 **#67 Session path conflict** — `sessions/bale` can be file or directory depending on core init order. Causes `SaveSession`/`MkdirAll` failures.
+- ✅ **#66 Bale chats don't load** — GetDialogs returned 0 results because `offset_date=0` meant "from epoch". Fixed: default to `time.Now().UnixMilli()`. Also removed wsReady signal that caused index collision with first RPC call.
+- ✅ **#67 Session path conflict** — All Bale accounts shared one `session.json` file because bridge passed shared directory. Fixed: bridge now passes per-account path (`sessionDir/accountID.json`), `NewBaleCore` accepts a file path not directory.
+- ✅ **#68 Bale chat names missing** — LoadDialogs response stubs only contain ID+access_hash, no names. Fixed: added batch `UserLoadUsers`/`LoadGroups` enrichment calls + `baleExtractName()` helper to unwrap StringValue protobuf wrappers `{1: "name"}`.
+- ✅ **#69 14 phantom Bale accounts** — Auto-poll racing created duplicate accounts. Cleaned up DB, kept one real account. Per-account session paths prevent future sharing.
 
 ## Bugs Found & Fixed (previous sessions)
 - ✅ **Multi-platform chat list wipe** (session 23) — `onChatSnapshot` replaced entire `_chats` with per-account snapshot. Fixed: unified SQLite query.

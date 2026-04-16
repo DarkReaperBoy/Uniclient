@@ -841,6 +841,123 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	if err != nil {
 		return nil, err
 	}
+	// LoadDialogs returns minimal user/group stubs (only ID + access_hash,
+	// no names). Fetch full info via LoadFullUsers / LoadFullGroups.
+	userNames := map[int64]string{}
+	groupNames := map[int64]string{}
+
+	// Collect user IDs from field 4
+	var userIDs []int64
+	for _, item := range pbGetList(resp, "4") {
+		u, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		uid := pbGetInt64(u, "1")
+		if uid != 0 {
+			userIDs = append(userIDs, uid)
+		}
+	}
+	// Collect group IDs and access hashes from field 5
+	var groupIDs []int64
+	groupAccessHash := map[int64]int64{} // group_id -> access_hash
+	for _, item := range pbGetList(resp, "5") {
+		g, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		gid := pbGetInt64(g, "1")
+		if gid != 0 {
+			groupIDs = append(groupIDs, gid)
+			ah := pbGetInt64(g, "2")
+			if ah != 0 {
+				groupAccessHash[gid] = ah
+			}
+		}
+	}
+
+	// Batch-fetch user names via LoadUsers (simpler than LoadFullUsers)
+	if len(userIDs) > 0 {
+		if uresp, uerr := b.UserLoadUsers(userIDs); uerr == nil {
+			for _, fu := range pbGetList(uresp, "1") {
+				fm, ok := fu.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				uid := pbGetInt64(fm, "1")
+				name := baleExtractName(fm)
+				if name != "" {
+					userNames[uid] = name
+				}
+			}
+		}
+		// Fallback: try LoadFullUsers for any missing names
+		if len(userNames) < len(userIDs) {
+			var missing []int64
+			for _, uid := range userIDs {
+				if _, ok := userNames[uid]; !ok {
+					missing = append(missing, uid)
+				}
+			}
+			if len(missing) > 0 {
+				if uresp, uerr := b.UserLoadFullUsers(missing); uerr == nil {
+					for _, fu := range pbGetList(uresp, "1") {
+						fm, ok := fu.(map[string]interface{})
+						if !ok {
+							continue
+						}
+						uid := pbGetInt64(fm, "1")
+						name := baleExtractName(fm)
+						if name != "" {
+							userNames[uid] = name
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Batch-fetch group names via LoadGroups with proper access hashes
+	if len(groupIDs) > 0 {
+		// Build peers with actual access hashes from LoadDialogs
+		groupPeers := make([]map[string]interface{}, 0, len(groupIDs))
+		for _, gid := range groupIDs {
+			ah := groupAccessHash[gid]
+			if ah == 0 {
+				ah = 1 // fallback
+			}
+			groupPeers = append(groupPeers, map[string]interface{}{"1": gid, "2": ah})
+		}
+		if gresp, gerr := b.userSend(baleServiceGroups, "LoadGroups", map[string]interface{}{"1": groupPeers}); gerr == nil {
+			for _, fg := range pbGetList(gresp, "1") {
+				fm, ok := fg.(map[string]interface{})
+				if !ok {
+					continue
+				}
+				gid := pbGetInt64(fm, "1")
+				title := baleExtractName(fm)
+				if title != "" {
+					groupNames[gid] = title
+				}
+			}
+		}
+		// Fallback: try GetFullGroup one-by-one for any missing groups
+		for _, gid := range groupIDs {
+			if _, ok := groupNames[gid]; ok {
+				continue
+			}
+			if gresp, gerr := b.UserGetFullGroup(gid); gerr == nil {
+				gdata := pbGetMsg(gresp, "1")
+				if gdata != nil {
+					title := baleExtractName(gdata)
+					if title != "" {
+						groupNames[gid] = title
+					}
+				}
+			}
+		}
+	}
+
 	// Response field 3 = repeated PeerData (dialogs)
 	dialogs := []Dialog{}
 	for _, item := range pbGetList(resp, "3") {
@@ -850,9 +967,10 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		}
 		d := Dialog{Platform: balePlatform}
 		// Field 1 = Peer{1=type, 2=id}
+		var peerID, peerType int64
 		if peer := pbGetMsg(pd, "1"); peer != nil {
-			peerID := pbGetInt64(peer, "2")
-			peerType := pbGetInt64(peer, "1")
+			peerID = pbGetInt64(peer, "2")
+			peerType = pbGetInt64(peer, "1")
 			d.ID = int64Pair(peerID, peerType, '|')
 			switch peerType {
 			case balePeerPrivate:
@@ -864,6 +982,12 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			default:
 				d.Type = ChatTypeDM
 			}
+		}
+		// Resolve chat name from user/group maps
+		if d.Type == ChatTypeDM {
+			d.Title = userNames[peerID]
+		} else {
+			d.Title = groupNames[peerID]
 		}
 		d.UnreadCount = int(pbGetInt64(pd, "2"))
 		// Field 3 = sortDate, field 6 = last message date
@@ -1995,8 +2119,8 @@ func (b *BaleCore) GetProfile(userID string) (*User, error) {
 		if fu == nil {
 			return nil, fmt.Errorf("%w: user not found", ErrNotFound)
 		}
-		// FullUser: {1: id, 2: access_hash, 3: name, 5: nick_name, 9: about, ...}
-		name := pbGetString(fu, "3")
+		// FullUser: {1: id, 2: access_hash, 3: StringValue{1: name}, 5: nick_name, 9: about, ...}
+		name := baleExtractName(fu)
 		nick := pbGetString(fu, "5")
 		about := pbGetString(fu, "9")
 		_ = about // User struct doesn't have Bio field
@@ -3109,7 +3233,7 @@ func (b *BaleCore) wsConnect() error {
 	b.wsSessionID = strconv.FormatInt(time.Now().UnixMilli(), 10)
 	b.wsMeta = nil
 	b.wsPending = make(map[int64]chan map[string]interface{})
-	b.wsIndex = 1
+	b.wsIndex = 0 // Protocol: request index starts at 0
 	b.wsReady = make(chan struct{})
 
 	headers := http.Header{}
@@ -3146,6 +3270,7 @@ func (b *BaleCore) wsConnect() error {
 	select {
 	case <-b.wsReady:
 	case <-time.After(10 * time.Second):
+		return fmt.Errorf("%w: websocket handshake timeout", ErrNetwork)
 	}
 
 	// Set online
@@ -3350,6 +3475,8 @@ func (b *BaleCore) wsSend(service, method string, payload map[string]interface{}
 		"1": wsReq,
 	})
 
+	if method == "LoadDialogs" {
+	}
 	if err := b.wsConn.Write(b.wsCtx, websocket.MessageBinary, request); err != nil {
 		b.wsPendMu.Lock()
 		delete(b.wsPending, idx)
@@ -3360,9 +3487,17 @@ func (b *BaleCore) wsSend(service, method string, payload map[string]interface{}
 	// Wait for response
 	select {
 	case resp := <-ch:
-		// Check for error (field 1 = error bytes)
-		if errBytes := pbGetString(resp, "1"); errBytes != "" {
-			return nil, fmt.Errorf("bale RPC error: %s", errBytes)
+		// Check for error (field 1 = Error{1:code, 2:message, 3:details})
+		if errMsg := pbGetMsg(resp, "1"); errMsg != nil {
+			code := pbGetInt64(errMsg, "1")
+			msg := pbGetString(errMsg, "2")
+			if msg == "" {
+				msg = fmt.Sprintf("code %d", code)
+			}
+			return nil, fmt.Errorf("bale RPC error: %s (code=%d)", msg, code)
+		}
+		if errStr := pbGetString(resp, "1"); errStr != "" {
+			return nil, fmt.Errorf("bale RPC error: %s", errStr)
 		}
 		// Field 2 = response bytes → decode as protobuf
 		if respData := resp["2"]; respData != nil {
@@ -3673,6 +3808,49 @@ func balePeer(peerType int, peerID int64) map[string]interface{} {
 }
 
 // baleShortPeer builds a ShortPeer: {1: id, 2: access_hash (default 1)}
+// baleExtractName extracts a display name from a user/group protobuf map.
+// Handles three cases:
+//   - field 3 is a plain string (simple case)
+//   - field 3 is a StringValue wrapper {1: name} (Bale wraps names this way)
+//   - field 3 absent: falls back to field 5 (nick_name/short_name), then field 4
+func baleExtractName(m map[string]interface{}) string {
+	// Try field 3 as plain string first (via __raw_ fallback)
+	name := pbGetString(m, "3")
+	if name != "" {
+		// Check if it starts with protobuf framing (0x0a = field 1, LEN)
+		// which means it's a StringValue wrapper, not a plain string
+		if len(name) > 2 && name[0] == '\n' {
+			// It's a StringValue — decode field 3 as nested, extract field 1
+			if nested := pbGetMsg(m, "3"); nested != nil {
+				if inner := pbGetString(nested, "1"); inner != "" {
+					return inner
+				}
+			}
+			// Raw fallback: skip the varint length prefix after 0x0a
+			// 0x0a + varint(len) + actual string
+			raw := []byte(name)
+			pos := 1
+			for pos < len(raw) && raw[pos] >= 0x80 {
+				pos++
+			}
+			pos++ // skip last byte of varint
+			if pos < len(raw) {
+				return string(raw[pos:])
+			}
+		}
+		return name
+	}
+	// Fallback: field 5 (nick_name for users, short_name for groups)
+	if nick := pbGetString(m, "5"); nick != "" {
+		return nick
+	}
+	// Fallback: field 4 (some responses put name here)
+	if f4 := pbGetString(m, "4"); f4 != "" {
+		return f4
+	}
+	return ""
+}
+
 func baleShortPeer(id int64) map[string]interface{} {
 	return map[string]interface{}{"1": id, "2": int64(1)}
 }
@@ -3848,8 +4026,12 @@ func (b *BaleCore) UserLoadHistory(chatID string, date int64, limit int, loadMod
 }
 
 // UserLoadDialogs loads the dialog list.
-// Fields: 1=offset_date (0 for latest), 2=limit, 5=exclude_pinned (NOT 3 or 4!)
+// Fields: 1=offset_date (ms, use current time for latest), 2=limit, 5=exclude_pinned (NOT 3 or 4!)
+// NOTE: offset_date=0 returns from epoch (empty). Use time.Now().UnixMilli() for latest dialogs.
 func (b *BaleCore) UserLoadDialogs(offsetDate int64, limit int) (map[string]interface{}, error) {
+	if offsetDate == 0 {
+		offsetDate = time.Now().UnixMilli()
+	}
 	payload := map[string]interface{}{
 		"1": offsetDate,
 		"2": int64(limit),

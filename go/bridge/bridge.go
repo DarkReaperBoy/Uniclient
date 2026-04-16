@@ -151,7 +151,8 @@ func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 				SessionStorage: &session.FileStorage{Path: sessionPath},
 			}), nil
 		case "bale":
-			return cores.NewBaleCore(sessionDir), nil
+			sessionPath := sessionDir + "/" + accountID + ".json"
+			return cores.NewBaleCore(sessionPath), nil
 		case "matrix":
 			return cores.NewMatrixCore(sessionDir), nil
 		case "irc":

@@ -3,7 +3,7 @@
 **Current Step:** Step 15 — Build GUI — **Alpha → Beta** — QR auth, system tray, folders sync, avatars, multi-account UX
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 28 — QR code auth with real token rendering, system tray with minimize-to-tray, Telegram folders sync, sender avatar display from cached photos, multi-account UX with platform grouping + account picker + icon badges)
+**Last Updated:** 2026-04-16 (session 30 — Bale chat loading fixed: offset_date default, wsReady signal removal, per-account session paths, chat name enrichment via LoadUsers/LoadGroups + StringValue unwrapping, phantom account cleanup)
 
 **NEXT:** Remaining "Should Fix": video playback (needs video_player or media_kit — both require native deps, may skip), voice/video call UI (complex). Remaining "Missing Features": voice/video recording, real sticker/GIF data. Then "Nice to Have": per-topic messages, audio waveform, channel edit. Then polish: accessibility, distribution packaging.
 
