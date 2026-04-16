@@ -68,10 +68,28 @@ class _UniClientAppState extends State<UniClientApp> {
   Future<void> _initEngine() async {
     final appState = context.read<AppState>();
     final chatState = context.read<ChatState>();
-    final home = Platform.environment['HOME'] ?? '/tmp';
-    final configDir = '$home/.config/uniclient';
-    final cacheDir = '$home/.cache/uniclient';
-    final downloadDir = '$home/Downloads/uniclient';
+    // Platform-appropriate directories — uniconfig file lives in configDir.
+    late final String configDir;
+    late final String cacheDir;
+    late final String downloadDir;
+    if (Platform.isMacOS) {
+      final home = Platform.environment['HOME'] ?? '/tmp';
+      configDir = '$home/Library/Application Support/uniclient';
+      cacheDir = '$home/Library/Caches/uniclient';
+      downloadDir = '$home/Downloads/uniclient';
+    } else if (Platform.isWindows) {
+      final appData = Platform.environment['APPDATA'] ?? 'C:\\Users\\Default\\AppData\\Roaming';
+      final localAppData = Platform.environment['LOCALAPPDATA'] ?? 'C:\\Users\\Default\\AppData\\Local';
+      configDir = '$appData\\uniclient';
+      cacheDir = '$localAppData\\uniclient\\cache';
+      downloadDir = '${Platform.environment['USERPROFILE'] ?? 'C:\\Users\\Default'}\\Downloads\\uniclient';
+    } else {
+      // Linux / other Unix
+      final home = Platform.environment['HOME'] ?? '/tmp';
+      configDir = '$home/.config/uniclient';
+      cacheDir = '$home/.cache/uniclient';
+      downloadDir = '$home/Downloads/uniclient';
+    }
 
     // Ensure directories exist.
     for (final dir in [configDir, cacheDir, downloadDir]) {

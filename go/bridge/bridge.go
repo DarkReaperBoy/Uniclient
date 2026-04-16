@@ -6,8 +6,11 @@
 package bridge
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 
@@ -17,6 +20,7 @@ import (
 	"uniclient/cores"
 	"uniclient/engine"
 	pb "uniclient/proto"
+	"uniclient/utils"
 )
 
 // coreRegistry maps core_id → (core instance, core type name).
@@ -121,19 +125,44 @@ func Call(reqData []byte) []byte {
 	return data
 }
 
+// uniConfigSessionStorage adapts utils.SessionStore to gotd's session.Storage
+// interface for Telegram core compatibility.
+type uniConfigSessionStorage struct {
+	store *utils.SessionStore
+}
+
+func (s *uniConfigSessionStorage) LoadSession(_ context.Context) ([]byte, error) {
+	raw := s.store.LoadRaw()
+	if raw == nil {
+		return nil, session.ErrNotFound
+	}
+	return raw, nil
+}
+
+func (s *uniConfigSessionStorage) StoreSession(_ context.Context, data []byte) error {
+	return s.store.SaveRaw(data)
+}
+
 // InitEngine initializes the engine and wires its event callback into the bridge.
 // Call this from the FFI Init handler before any other engine operations.
 func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
-	// Register core factory so the engine can create platform instances.
-	// Each account gets its own session file under configDir/sessions/<platform>/<accountID>.json.
+	// Init engine first (opens uniconfig file).
+	eng, err := engine.Init(configDir, cacheDir, downloadDir, vaultPassword)
+	if err != nil {
+		return err
+	}
+	SetEngine(eng)
+
+	uc := eng.UniConfig()
+
+	// Migrate old per-file sessions into uniconfig.
+	migrateOldSessions(configDir, uc)
+
+	// Register core factory — each core gets a SessionStore backed by uniconfig.
 	engine.SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
-		sessionDir := configDir + "/sessions/" + platform
-		if err := os.MkdirAll(sessionDir, 0o755); err != nil {
-			return nil, fmt.Errorf("create session dir: %w", err)
-		}
+		store := utils.NewSessionStore(uc, accountID)
 		switch platform {
 		case "telegram":
-			// Read API credentials from env or use defaults.
 			apiID := 2040
 			apiHash := "b18441a1ff607e10a989891a5462e627"
 			if v := os.Getenv("TG_API_ID"); v != "" {
@@ -144,41 +173,35 @@ func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 			if v := os.Getenv("TG_API_HASH"); v != "" {
 				apiHash = v
 			}
-			sessionPath := sessionDir + "/" + accountID + ".json"
 			return cores.NewTelegramCore(cores.TelegramConfig{
 				APIID:          apiID,
 				APIHash:        apiHash,
-				SessionStorage: &session.FileStorage{Path: sessionPath},
+				SessionStorage: &uniConfigSessionStorage{store: store},
 			}), nil
 		case "bale":
-			sessionPath := sessionDir + "/" + accountID + ".json"
-			return cores.NewBaleCore(sessionPath), nil
+			return cores.NewBaleCore(store), nil
 		case "matrix":
-			return cores.NewMatrixCore(sessionDir), nil
+			return cores.NewMatrixCore(store), nil
 		case "irc":
-			return cores.NewIRCCore(sessionDir), nil
+			return cores.NewIRCCore(store), nil
 		case "xmpp":
-			return cores.NewXMPPCore(sessionDir), nil
+			return cores.NewXMPPCore(store), nil
 		case "github":
-			return cores.NewGitHubCore(sessionDir), nil
+			return cores.NewGitHubCore(store), nil
 		case "rubika":
-			return cores.NewRubikaCore(sessionDir), nil
+			return cores.NewRubikaCore(store), nil
 		case "deltachat":
-			return cores.NewDeltaChatCore(sessionDir), nil
+			return cores.NewDeltaChatCore(store), nil
 		case "teamspeak":
-			return cores.NewTeamSpeakCore(sessionDir), nil
+			return cores.NewTeamSpeakCore(store), nil
 		case "mumble":
-			return &cores.MumbleCore{}, nil
+			c := &cores.MumbleCore{}
+			c.Session = store
+			return c, nil
 		default:
 			return nil, fmt.Errorf("unknown platform: %s", platform)
 		}
 	})
-
-	eng, err := engine.Init(configDir, cacheDir, downloadDir, vaultPassword)
-	if err != nil {
-		return err
-	}
-	SetEngine(eng)
 
 	// Wire engine events through the bridge event system.
 	// Engine emits JSON-encoded EngineEvent bytes; we wrap them in BridgeEvent.
@@ -191,6 +214,54 @@ func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 	})
 
 	return nil
+}
+
+// migrateOldSessions imports old per-file sessions into the unified config.
+// Scans configDir/sessions/<platform>/<accountID>.json and imports each.
+func migrateOldSessions(configDir string, uc *utils.UniConfig) {
+	sessDir := filepath.Join(configDir, "sessions")
+	platforms, err := os.ReadDir(sessDir)
+	if err != nil {
+		return // no old sessions
+	}
+	migrated := false
+	for _, pdir := range platforms {
+		if !pdir.IsDir() {
+			continue
+		}
+		platDir := filepath.Join(sessDir, pdir.Name())
+		files, err := os.ReadDir(platDir)
+		if err != nil {
+			continue
+		}
+		for _, f := range files {
+			if f.IsDir() || filepath.Ext(f.Name()) != ".json" {
+				continue
+			}
+			accountID := f.Name()[:len(f.Name())-5] // strip .json
+			if uc.HasSession(accountID) {
+				continue // already migrated
+			}
+			fpath := filepath.Join(platDir, f.Name())
+			raw, err := os.ReadFile(fpath)
+			if err != nil {
+				continue
+			}
+			// For Telegram sessions, gotd stores raw bytes (not JSON objects).
+			// Just store as-is.
+			if json.Valid(raw) {
+				_ = uc.MigrateOldSession(accountID, fpath)
+			} else {
+				// Raw bytes — store directly
+				_ = uc.SaveSessionRaw(accountID, raw)
+			}
+			migrated = true
+		}
+	}
+	if migrated {
+		// Remove old sessions directory after successful migration
+		os.RemoveAll(sessDir)
+	}
 }
 
 // marshalError returns a serialized BridgeResponse with the given error message.

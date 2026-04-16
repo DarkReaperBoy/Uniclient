@@ -2377,7 +2377,7 @@ type MumbleCore struct {
 	myChannelID uint32
 	certHash    string
 	tlsCert     tls.Certificate
-	sessionPath string
+	Session *utils.SessionStore
 
 	// server info
 	serverVersion   mumbleVersion
@@ -2514,9 +2514,12 @@ func mumbleCertHash(cert tls.Certificate) string {
 	return hex.EncodeToString(h[:])
 }
 
-func (c *MumbleCore) loadSession(path string) error {
+func (c *MumbleCore) loadSession() error {
+	if c.Session == nil {
+		return fmt.Errorf("no session store")
+	}
 	var sess mumbleSessionData
-	if err := utils.LoadSession(path, &sess); err != nil {
+	if err := c.Session.Load(&sess); err != nil {
 		return err
 	}
 	if sess.CertPEM == "" || sess.KeyPEM == "" {
@@ -2531,7 +2534,7 @@ func (c *MumbleCore) loadSession(path string) error {
 	return nil
 }
 
-func (c *MumbleCore) saveSession(path string) error {
+func (c *MumbleCore) saveSession() error {
 	if len(c.tlsCert.Certificate) == 0 {
 		return nil
 	}
@@ -2549,7 +2552,10 @@ func (c *MumbleCore) saveSession(path string) error {
 		CertPEM: string(certPEM),
 		KeyPEM:  string(keyPEM),
 	}
-	return utils.SaveSession(path, sess)
+	if c.Session == nil {
+		return nil
+	}
+	return c.Session.Save(sess)
 }
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -3758,13 +3764,7 @@ func (c *MumbleCore) Capabilities() []string {
 // Authenticate connects to a Mumble server using the provided configuration.
 func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
 	// Load or generate certificate
-	sessionPath := cfg.Extra["session_path"]
-	if sessionPath == "" {
-		sessionPath = "auth/mumble_session.json"
-	}
-	c.sessionPath = sessionPath
-
-	if err := c.loadSession(sessionPath); err != nil {
+	if err := c.loadSession(); err != nil {
 		// Generate new cert
 		cert, err := mumbleGenerateCert()
 		if err != nil {
@@ -3804,7 +3804,7 @@ func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
 	}
 
 	// Save session
-	c.saveSession(sessionPath)
+	c.saveSession()
 	return nil
 }
 
@@ -3822,8 +3822,8 @@ func (c *MumbleCore) Logout() error {
 // Close shuts down the connection and releases all resources.
 func (c *MumbleCore) Close() error {
 	c.mu.Lock()
-	if c.sessionPath != "" {
-		c.saveSession(c.sessionPath)
+	if c.Session != nil {
+		c.saveSession()
 	}
 	if c.cancel != nil {
 		c.cancel()

@@ -13,7 +13,6 @@ import (
 	"crypto/sha512"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
@@ -26,6 +25,8 @@ import (
 	"time"
 
 	"filippo.io/edwards25519"
+
+	"uniclient/utils"
 )
 
 // ──────────────────────────── constants ────────────────────────────
@@ -1128,7 +1129,7 @@ type TeamSpeakCore struct {
 	// Current channel
 	myChannelID int
 
-	sessionPath string
+	session *utils.SessionStore
 
 	// Update handlers
 	updateHandlers []func(Update)
@@ -1232,10 +1233,10 @@ type tsSession struct {
 	KeyOffset  uint64 `json:"key_offset,omitempty"`
 }
 
-func NewTeamSpeakCore(sessionPath string) *TeamSpeakCore {
+func NewTeamSpeakCore(session *utils.SessionStore) *TeamSpeakCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &TeamSpeakCore{
-		sessionPath:   sessionPath,
+		session:       session,
 		msgBuffer:     make(map[string][]Message),
 		clientInfo:    make(map[int]tsClientInfo),
 		channels:      make(map[int]tsChannelInfo),
@@ -2891,20 +2892,18 @@ func (t *TeamSpeakCore) tsSaveSession() error {
 		sess.IdentityY = base64.StdEncoding.EncodeToString(key.PublicKey.Y.Bytes())
 		sess.KeyOffset = t.tsConn.identity.keyOffset
 	}
-	data, err := json.MarshalIndent(sess, "", "  ")
-	if err != nil {
-		return err
+	if t.session == nil {
+		return nil
 	}
-	return os.WriteFile(t.sessionPath, data, 0600)
+	return t.session.Save(sess)
 }
 
 func (t *TeamSpeakCore) tsLoadSession() (*tsSession, error) {
-	data, err := os.ReadFile(t.sessionPath)
-	if err != nil {
-		return nil, err
+	if t.session == nil {
+		return nil, fmt.Errorf("no session store")
 	}
 	var sess tsSession
-	if err := json.Unmarshal(data, &sess); err != nil {
+	if err := t.session.Load(&sess); err != nil {
 		return nil, err
 	}
 	return &sess, nil
@@ -3026,7 +3025,9 @@ func (t *TeamSpeakCore) Logout() error {
 
 	t.authed = false
 	t.cancel()
-	_ = os.Remove(t.sessionPath)
+	if t.session != nil {
+		_ = t.session.Delete()
+	}
 	return nil
 }
 

@@ -29,6 +29,7 @@ import (
 	"maunium.net/go/mautrix/crypto/verificationhelper"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
+	"uniclient/utils"
 )
 
 const mxPlatform = "matrix"
@@ -74,7 +75,7 @@ type MatrixCore struct {
 	verificationStore  *verificationhelper.InMemoryVerificationStore
 
 	// Session persistence
-	sessionPath string
+	session *utils.SessionStore
 
 	// Update handlers
 	updateHandlers []func(Update)
@@ -227,13 +228,13 @@ func matrixParseJSON[T any](data map[string]interface{}) (T, error) {
 }
 
 // NewMatrixCore creates a new Matrix core instance.
-func NewMatrixCore(sessionPath string) *MatrixCore {
+func NewMatrixCore(session *utils.SessionStore) *MatrixCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &MatrixCore{
 		rooms:       make(map[id.RoomID]*matrixRoomState),
 		directChats: make(map[id.UserID][]id.RoomID),
 		activeCalls: make(map[string]*matrixCall),
-		sessionPath: sessionPath,
+		session:     session,
 		ctx:         ctx,
 		cancel:      cancel,
 	}
@@ -3710,13 +3711,12 @@ func (m *MatrixCore) saveDirectChats() error {
 // --- Session persistence ---
 
 func (m *MatrixCore) loadSession() error {
-	data, err := os.ReadFile(m.sessionPath)
-	if err != nil {
-		return err
+	if m.session == nil {
+		return os.ErrNotExist
 	}
 
 	var sess matrixSession
-	if err := json.Unmarshal(data, &sess); err != nil {
+	if err := m.session.Load(&sess); err != nil {
 		return err
 	}
 
@@ -3735,6 +3735,10 @@ func (m *MatrixCore) loadSession() error {
 }
 
 func (m *MatrixCore) saveSession() {
+	if m.session == nil {
+		return
+	}
+
 	sess := matrixSession{
 		Homeserver:  m.homeserver,
 		UserID:      m.userID.String(),
@@ -3747,13 +3751,7 @@ func (m *MatrixCore) saveSession() {
 		sess.PickleKey = base64.StdEncoding.EncodeToString(m.pickleKey)
 	}
 
-	data, err := json.MarshalIndent(sess, "", "  ")
-	if err != nil {
-		return
-	}
-
-	os.MkdirAll(filepath.Dir(m.sessionPath), 0o755)
-	os.WriteFile(m.sessionPath, data, 0o600)
+	m.session.Save(sess)
 }
 
 // initCrypto sets up Olm/Megolm E2EE — pure Go, no SQL.
@@ -3767,7 +3765,6 @@ func (m *MatrixCore) initCrypto() error {
 		}
 	}
 
-	cryptoPath := m.cryptoStorePath()
 	log := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Str("component", "matrix").Logger()
 	m.client.Log = log
 
@@ -3778,7 +3775,7 @@ func (m *MatrixCore) initCrypto() error {
 	m.stateStore = mautrix.NewMemoryStateStore().(*mautrix.MemoryStateStore)
 
 	// Load persisted crypto state if available
-	m.loadCryptoStore(cryptoPath)
+	m.loadCryptoStore("")
 	m.loadStateStore()
 
 	// Set client state store (needed for auto-encrypt member lookups)
@@ -3932,12 +3929,20 @@ func (m *MatrixCore) closeCrypto() {
 
 // Crypto store persistence — pickle + JSON, no SQL.
 
-func (m *MatrixCore) cryptoStorePath() string {
-	return strings.TrimSuffix(m.sessionPath, filepath.Ext(m.sessionPath)) + "_crypto.json"
+// cryptoSessionKey returns the uniconfig key for crypto store (accountID + "_crypto").
+func (m *MatrixCore) cryptoSessionKey() string {
+	if m.session == nil {
+		return ""
+	}
+	return m.session.AccountID() + "_crypto"
 }
 
-func (m *MatrixCore) stateStorePath() string {
-	return strings.TrimSuffix(m.sessionPath, filepath.Ext(m.sessionPath)) + "_state.json"
+// stateSessionKey returns the uniconfig key for state store (accountID + "_state").
+func (m *MatrixCore) stateSessionKey() string {
+	if m.session == nil {
+		return ""
+	}
+	return m.session.AccountID() + "_state"
 }
 
 // pickledOlmSession is the serializable form of a crypto.OlmSession.
@@ -4077,11 +4082,21 @@ func (m *MatrixCore) saveCryptoStore() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(m.cryptoStorePath(), data, 0o600)
+	key := m.cryptoSessionKey()
+	if key == "" {
+		return nil
+	}
+	return m.session.UC().SaveSession(key, json.RawMessage(data))
 }
 
-func (m *MatrixCore) loadCryptoStore(path string) {
-	data, err := os.ReadFile(path)
+func (m *MatrixCore) loadCryptoStore(_ string) {
+	key := m.cryptoSessionKey()
+	if key == "" {
+		return
+	}
+	var raw json.RawMessage
+	err := m.session.UC().LoadSession(key, &raw)
+	data := []byte(raw)
 	if err != nil {
 		return
 	}
@@ -4199,11 +4214,21 @@ func (m *MatrixCore) saveStateStore() error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(m.stateStorePath(), data, 0o600)
+	key := m.stateSessionKey()
+	if key == "" {
+		return nil
+	}
+	return m.session.UC().SaveSession(key, json.RawMessage(data))
 }
 
 func (m *MatrixCore) loadStateStore() {
-	data, err := os.ReadFile(m.stateStorePath())
+	key := m.stateSessionKey()
+	if key == "" {
+		return
+	}
+	var raw json.RawMessage
+	err := m.session.UC().LoadSession(key, &raw)
+	data := []byte(raw)
 	if err != nil {
 		return
 	}

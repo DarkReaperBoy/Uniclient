@@ -225,7 +225,7 @@ type GitHubCore struct {
 	updateMu       sync.RWMutex
 
 	// Session
-	sessionPath string
+	session *utils.SessionStore
 
 	// Context for goroutines
 	ctx    context.Context
@@ -270,7 +270,7 @@ type ghSession struct {
 // Constructor
 // ════════════════════════════════════════════════════════════════════════════════
 
-func NewGitHubCore(sessionPath string) *GitHubCore {
+func NewGitHubCore(session *utils.SessionStore) *GitHubCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &GitHubCore{
 		rl: &ghRateLimiter{
@@ -291,7 +291,7 @@ func NewGitHubCore(sessionPath string) *GitHubCore {
 		seenCommentIDs: make([]string, ghSeenIDsCapacity),
 		seenCommentSet: make(map[string]bool, ghSeenIDsCapacity),
 		threadLastMod:  make(map[string]string),
-		sessionPath:    sessionPath,
+		session:        session,
 		ctx:            ctx,
 		cancel:         cancel,
 	}
@@ -378,7 +378,9 @@ func (g *GitHubCore) Logout() error {
 	g.authed = false
 	g.token = ""
 	g.cancel()
-	os.Remove(g.sessionPath)
+	if g.session != nil {
+		g.session.Delete()
+	}
 	return nil
 }
 
@@ -2865,8 +2867,11 @@ func ghParseRetryAfter(h http.Header) time.Duration {
 // ════════════════════════════════════════════════════════════════════════════════
 
 func (g *GitHubCore) loadSession() error {
+	if g.session == nil {
+		return os.ErrNotExist
+	}
 	var sess ghSession
-	if err := utils.LoadSession(g.sessionPath, &sess); err != nil {
+	if err := g.session.Load(&sess); err != nil {
 		return err
 	}
 	if sess.Token == "" {
@@ -2961,7 +2966,9 @@ func (g *GitHubCore) saveSession() {
 	}
 	g.threadETagsMu.RUnlock()
 
-	utils.SaveSession(g.sessionPath, sess)
+	if g.session != nil {
+		g.session.Save(sess)
+	}
 }
 
 // ════════════════════════════════════════════════════════════════════════════════

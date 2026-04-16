@@ -119,7 +119,7 @@ type DeltaChatCore struct {
 	pushState string // "NotConfigured", "Heartbeat", "Connected"
 
 	// Session persistence
-	sessionPath string
+	session *utils.SessionStore
 
 	// Update handlers
 	updateHandlers []func(Update)
@@ -299,7 +299,7 @@ type dcSession struct {
 }
 
 // NewDeltaChatCore creates a new Delta Chat core instance.
-func NewDeltaChatCore(sessionPath string) *DeltaChatCore {
+func NewDeltaChatCore(session *utils.SessionStore) *DeltaChatCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &DeltaChatCore{
 		peerStates:        make(map[string]*dcPeerState),
@@ -316,7 +316,7 @@ func NewDeltaChatCore(sessionPath string) *DeltaChatCore {
 		webxdcUpdates:     make(map[string][]DCWebxdcUpdate),
 		deviceMsgLabels:   make(map[string]bool),
 		pushState:         "NotConfigured",
-		sessionPath:       sessionPath,
+		session:           session,
 		ctx:               ctx,
 		cancel:            cancel,
 	}
@@ -490,9 +490,9 @@ func (d *DeltaChatCore) Logout() error {
 
 	d.authed = false
 
-	// Remove session file
-	if d.sessionPath != "" {
-		os.Remove(d.sessionPath)
+	// Remove session
+	if d.session != nil {
+		d.session.Delete()
 	}
 
 	return nil
@@ -3144,14 +3144,19 @@ func (d *DeltaChatCore) ExportBackup(path string) error {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	// Just copy the session file
-	if d.sessionPath == "" {
+	// Export session by saving current state to the given path
+	if d.session == nil {
 		return fmt.Errorf("no session to export")
 	}
 
-	data, err := os.ReadFile(d.sessionPath)
+	var sess dcSession
+	if err := d.session.Load(&sess); err != nil {
+		return fmt.Errorf("load session: %w", err)
+	}
+
+	data, err := json.Marshal(sess)
 	if err != nil {
-		return fmt.Errorf("read session: %w", err)
+		return fmt.Errorf("marshal session: %w", err)
 	}
 
 	return os.WriteFile(path, data, 0600)
@@ -4902,7 +4907,7 @@ func (d *DeltaChatCore) updateAutocryptPeer(email string, name string, autocrypt
 // --- Session persistence ---
 
 func (d *DeltaChatCore) saveSession() {
-	if d.sessionPath == "" {
+	if d.session == nil {
 		return
 	}
 
@@ -4941,16 +4946,16 @@ func (d *DeltaChatCore) saveSession() {
 		PushToken:         d.pushToken,
 	}
 
-	utils.SaveSession(d.sessionPath, sess)
+	d.session.Save(sess)
 }
 
 func (d *DeltaChatCore) loadSession() error {
-	if d.sessionPath == "" {
-		return fmt.Errorf("no session path")
+	if d.session == nil {
+		return fmt.Errorf("no session store")
 	}
 
 	var sess dcSession
-	if err := utils.LoadSession(d.sessionPath, &sess); err != nil {
+	if err := d.session.Load(&sess); err != nil {
 		return err
 	}
 	if sess.Email == "" {
@@ -5578,24 +5583,30 @@ func (d *DeltaChatCore) ChangePassphrase(oldPass, newPass string) error {
 
 // GetAccountFileSize returns the size in bytes of the session file on disk.
 func (d *DeltaChatCore) GetAccountFileSize() (int64, error) {
-	if d.sessionPath == "" {
-		return 0, fmt.Errorf("no session path configured")
+	if d.session == nil {
+		return 0, fmt.Errorf("no session store configured")
 	}
-	fi, err := os.Stat(d.sessionPath)
+	// Estimate size by marshaling current session
+	d.saveSession()
+	var sess dcSession
+	if err := d.session.Load(&sess); err != nil {
+		return 0, err
+	}
+	data, err := json.Marshal(sess)
 	if err != nil {
 		return 0, err
 	}
-	return fi.Size(), nil
+	return int64(len(data)), nil
 }
 
 // GetStorageUsageReport returns a breakdown of local storage usage.
 func (d *DeltaChatCore) GetStorageUsageReport() (*DeltaChatStorageReport, error) {
 	report := &DeltaChatStorageReport{}
 
-	if d.sessionPath != "" {
-		if fi, err := os.Stat(d.sessionPath); err == nil {
-			report.SessionBytes = fi.Size()
-			report.TotalBytes = fi.Size()
+	if d.session != nil {
+		if size, err := d.GetAccountFileSize(); err == nil {
+			report.SessionBytes = size
+			report.TotalBytes = size
 		}
 	}
 
@@ -5966,11 +5977,7 @@ func (d *DeltaChatCore) WasDeviceMsgEverAdded(label string) bool {
 // Creates it if it doesn't exist.
 func (d *DeltaChatCore) GetStickerFolder() (string, error) {
 	if d.stickerDir == "" {
-		if d.sessionPath != "" {
-			d.stickerDir = filepath.Join(filepath.Dir(d.sessionPath), "stickers")
-		} else {
-			d.stickerDir = filepath.Join(os.TempDir(), "dc-stickers")
-		}
+		d.stickerDir = filepath.Join(os.TempDir(), "dc-stickers")
 	}
 	if err := os.MkdirAll(d.stickerDir, 0700); err != nil {
 		return "", fmt.Errorf("create sticker dir: %w", err)
@@ -6732,7 +6739,7 @@ func (d *DeltaChatCore) GetSystemInfo() map[string]string {
 
 // GetBlobDir returns the blob directory path.
 func (d *DeltaChatCore) GetBlobDir() string {
-	return filepath.Join(filepath.Dir(d.sessionPath), "blobs")
+	return filepath.Join(os.TempDir(), "dc-blobs")
 }
 
 // CheckEmailValidity validates an email address format.
@@ -7454,7 +7461,7 @@ func (d *DeltaChatCore) ProvideBackup() (string, error) {
 
 // GetBackupQR returns a QR code string for transferring the account to another device.
 func (d *DeltaChatCore) GetBackupQR() (string, error) {
-	return fmt.Sprintf("DCBACKUP:%s", d.sessionPath), nil
+	return fmt.Sprintf("DCBACKUP:%s", d.myAddr), nil
 }
 
 // GetBackupQRSvg returns a backup transfer QR code as an SVG string.
@@ -7472,7 +7479,23 @@ func (d *DeltaChatCore) ReceiveBackup(qrData string) error {
 
 // GetBackup creates and returns the path to an account backup archive.
 func (d *DeltaChatCore) GetBackup() (string, error) {
-	return d.sessionPath, nil
+	if d.session == nil {
+		return "", fmt.Errorf("no session store configured")
+	}
+	// Export session to a temp file and return its path
+	tmpFile := filepath.Join(os.TempDir(), "dc-backup.json")
+	var sess dcSession
+	if err := d.session.Load(&sess); err != nil {
+		return "", err
+	}
+	data, err := json.Marshal(sess)
+	if err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(tmpFile, data, 0600); err != nil {
+		return "", err
+	}
+	return tmpFile, nil
 }
 
 // ══════════════════════════════════════════════════════════════════════════════

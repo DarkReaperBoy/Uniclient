@@ -20,7 +20,6 @@ import (
 	mrand "math/rand"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -65,8 +64,8 @@ type RubikaCore struct {
 	wsCtx    context.Context
 	wsCancel context.CancelFunc
 
-	// Session file
-	sessionPath string
+	// Session store
+	session *utils.SessionStore
 
 	// Update handlers
 	updateHandlers       []func(Update)
@@ -387,7 +386,7 @@ func rubikaParseFlat[T any](data map[string]interface{}) (T, error) {
 }
 
 // NewRubikaCore creates a new Rubika core instance.
-func NewRubikaCore(sessionPath string) *RubikaCore {
+func NewRubikaCore(session *utils.SessionStore) *RubikaCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &RubikaCore{
 		httpClient: &http.Client{Timeout: 20 * time.Second},
@@ -401,11 +400,11 @@ func NewRubikaCore(sessionPath string) *RubikaCore {
 			Package:    "m.rubika.ir",
 			LangCode:   "fa",
 		},
-		apiMap:      make(map[string]string),
-		storageMap:  make(map[string]string),
-		sessionPath: sessionPath,
-		ctx:         ctx,
-		cancel:      cancel,
+		apiMap:     make(map[string]string),
+		storageMap: make(map[string]string),
+		session:    session,
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 }
 
@@ -1247,8 +1246,11 @@ func (r *RubikaCore) BotUploadFile(fileType string, fileName string, data []byte
 // --- Session management ---
 
 func (r *RubikaCore) loadSession() error {
+	if r.session == nil {
+		return nil
+	}
 	var sess rubikaSession
-	if err := utils.LoadSession(r.sessionPath, &sess); err != nil {
+	if err := r.session.Load(&sess); err != nil {
 		return err
 	}
 	if sess.Auth == "" {
@@ -1296,7 +1298,10 @@ func (r *RubikaCore) saveSession(phone string) error {
 		UserAgent:  r.userAgent,
 		PrivateKey: privKeyPEM,
 	}
-	return utils.SaveSession(r.sessionPath, sess)
+	if r.session == nil {
+		return nil
+	}
+	return r.session.Save(sess)
 }
 
 // --- Auth ---
@@ -1540,7 +1545,7 @@ func (r *RubikaCore) authUser(cfg AuthConfig) error {
 	// Get OTP: use provided value, or poll from file
 	otp := cfg.OTP
 	if otp == "" {
-		otpPath := filepath.Join(filepath.Dir(r.sessionPath), "otp_code.txt")
+		otpPath := "auth/otp_code.txt"
 		os.Remove(otpPath)
 		fmt.Fprintf(os.Stderr, "rubika: OTP sent to %s. Write code to %s\n", phone, otpPath)
 
@@ -1646,8 +1651,8 @@ func (r *RubikaCore) Logout() error {
 	}
 
 	// Remove session file
-	if r.sessionPath != "" {
-		os.Remove(r.sessionPath)
+	if r.session != nil {
+		r.session.Delete()
 	}
 
 	r.authed = false
@@ -3038,7 +3043,7 @@ func (r *RubikaCore) Close() error {
 	}
 	r.wg.Wait()
 	r.mu.Lock()
-	if r.sessionPath != "" {
+	if r.session != nil {
 		r.saveSession(r.phone)
 	}
 	r.authed = false

@@ -45,6 +45,7 @@ type Engine struct {
 	mu       sync.RWMutex
 	db       *sql.DB
 	vault    *utils.Vault
+	uniconfig *utils.UniConfig
 	config   *utils.AppConfig
 
 	accounts   map[string]*Account // accountID → live account
@@ -101,12 +102,21 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 	}
 	e.lockFile = lf
 
-	// Load config.
-	cfgPath := filepath.Join(configDir, "config.json")
-	cfg, err := utils.LoadConfig(cfgPath)
+	// Open unified config file (config + sessions in one file).
+	uc, err := utils.OpenUniConfig(configDir)
 	if err != nil {
-		return nil, fmt.Errorf("load config: %w", err)
+		return nil, fmt.Errorf("open uniconfig: %w", err)
 	}
+	e.uniconfig = uc
+
+	// Migrate old config.json if it exists and uniconfig is fresh.
+	oldCfgPath := filepath.Join(configDir, "config.json")
+	if _, statErr := os.Stat(oldCfgPath); statErr == nil {
+		_ = uc.MigrateOldConfig(oldCfgPath)
+		os.Remove(oldCfgPath)
+	}
+
+	cfg := uc.Config()
 	utils.MergeDefaults(cfg)
 	e.config = cfg
 
@@ -146,6 +156,11 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 	e.resumePending()
 
 	return e, nil
+}
+
+// UniConfig returns the unified config store.
+func (e *Engine) UniConfig() *utils.UniConfig {
+	return e.uniconfig
 }
 
 // SetEventCallback sets the function called when async events are pushed to Dart.
@@ -216,8 +231,7 @@ func (e *Engine) UpdateConfig(changes *utils.AppConfig) error {
 		e.maxCache = changes.MaxCacheSize
 	}
 
-	cfgPath := filepath.Join(e.configDir, "config.json")
-	return utils.SaveConfig(cfgPath, e.config)
+	return e.uniconfig.SetConfig(e.config)
 }
 
 // ConfigChanges holds partial config updates from the bridge layer.
@@ -273,8 +287,7 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 		e.config.NotifyMentionsOnly = *changes.NotifyMentionsOnly
 	}
 
-	cfgPath := filepath.Join(e.configDir, "config.json")
-	return utils.SaveConfig(cfgPath, e.config)
+	return e.uniconfig.SetConfig(e.config)
 }
 
 // Shutdown gracefully shuts down the engine: stops accepting operations,

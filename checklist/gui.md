@@ -155,6 +155,7 @@ Comprehensive audit of all stubs, "coming soon", and empty handlers found in the
 - ✅ **#67 Session path conflict** — All Bale accounts shared one `session.json` file because bridge passed shared directory. Fixed: bridge now passes per-account path (`sessionDir/accountID.json`), `NewBaleCore` accepts a file path not directory.
 - ✅ **#68 Bale chat names missing** — LoadDialogs response stubs only contain ID+access_hash, no names. Fixed: added batch `UserLoadUsers`/`LoadGroups` enrichment calls + `baleExtractName()` helper to unwrap StringValue protobuf wrappers `{1: "name"}`.
 - ✅ **#69 14 phantom Bale accounts** — Auto-poll racing created duplicate accounts. Cleaned up DB, kept one real account. Per-account session paths prevent future sharing.
+- ✅ **#70 Unified config file** — Replaced scattered config.json + per-file sessions with single `uniconfig` file. All 10 cores use `SessionStore` interface backed by unified file. Platform-appropriate paths (Linux/macOS/Windows). Auto-migration from old layout on first run.
 
 ## Bugs Found & Fixed (previous sessions)
 - ✅ **Multi-platform chat list wipe** (session 23) — `onChatSnapshot` replaced entire `_chats` with per-account snapshot. Fixed: unified SQLite query.

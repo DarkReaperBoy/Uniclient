@@ -85,7 +85,7 @@ type BaleCore struct {
 	baseURL    string // https://tapi.bale.ai
 
 	// Session
-	sessionPath string
+	session *utils.SessionStore
 
 	// Update polling (bot mode)
 	updateOffset   int64
@@ -301,12 +301,12 @@ func dialTLS(sniHost string, addr string, timeout time.Duration) (net.Conn, erro
 }
 
 // NewBaleCore creates a new Bale core instance.
-func NewBaleCore(sessionPath string) *BaleCore {
+func NewBaleCore(session *utils.SessionStore) *BaleCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &BaleCore{
 		httpClient:    newBaleHTTPClient(60 * time.Second),
 		baseURL:       "https://tapi.bale.ai",
-		sessionPath:   sessionPath,
+		session:       session,
 		groupIDCache:  make(map[int64]int64),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -501,11 +501,11 @@ func (b *BaleCore) authBot(token string) error {
 }
 
 func (b *BaleCore) loadSession() error {
-	if b.sessionPath == "" {
+	if b.session == nil {
 		return nil
 	}
 	var sess baleSession
-	if err := utils.LoadSession(b.sessionPath, &sess); err != nil {
+	if err := b.session.Load(&sess); err != nil {
 		return err
 	}
 	if sess.BotToken != "" {
@@ -520,7 +520,7 @@ func (b *BaleCore) loadSession() error {
 }
 
 func (b *BaleCore) saveSession() error {
-	if b.sessionPath == "" {
+	if b.session == nil {
 		return nil
 	}
 	sess := baleSession{
@@ -532,7 +532,7 @@ func (b *BaleCore) saveSession() error {
 	if b.botInfo != nil {
 		sess.BotID = b.botInfo.ID
 	}
-	return utils.SaveSession(b.sessionPath, sess)
+	return b.session.Save(sess)
 }
 
 // Logout disconnects and clears the current session.
@@ -557,8 +557,8 @@ func (b *BaleCore) Logout() error {
 	b.authed = false
 
 	// Remove session file
-	if b.sessionPath != "" {
-		os.Remove(b.sessionPath)
+	if b.session != nil {
+		b.session.Delete()
 	}
 
 	return nil

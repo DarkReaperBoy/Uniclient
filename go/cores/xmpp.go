@@ -414,7 +414,7 @@ type XMPPCore struct {
 	streamIdleSeconds int
 
 	// Lifecycle
-	sessionPath string
+	session *utils.SessionStore
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
@@ -423,18 +423,18 @@ type XMPPCore struct {
 var _ Core = (*XMPPCore)(nil)
 
 // NewXMPPCore creates a new XMPP core instance.
-func NewXMPPCore(sessionPath string) *XMPPCore {
+func NewXMPPCore(session *utils.SessionStore) *XMPPCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &XMPPCore{
-		roster:      make(map[string]*xmppRosterItem),
-		rooms:       make(map[string]*xmppRoom),
-		messages:    make(map[string][]*Message),
-		pinned:      make(map[string]map[string]bool),
-		readState:   make(map[string]*ReadState),
-		blocked:     make(map[string]bool),
-		pendingIQ:   make(map[string]*xmppPendingIQ),
-		vcardCache:  make(map[string]map[string]string),
-		sessionPath: sessionPath,
+		roster:     make(map[string]*xmppRosterItem),
+		rooms:      make(map[string]*xmppRoom),
+		messages:   make(map[string][]*Message),
+		pinned:     make(map[string]map[string]bool),
+		readState:  make(map[string]*ReadState),
+		blocked:    make(map[string]bool),
+		pendingIQ:  make(map[string]*xmppPendingIQ),
+		vcardCache: make(map[string]map[string]string),
+		session:    session,
 		ctx:         ctx,
 		cancel:      cancel,
 	}
@@ -5120,12 +5120,17 @@ func (c *XMPPCore) saveSession() {
 	}
 	c.blockedMu.RUnlock()
 
-	utils.SaveSession(c.sessionPath, sess)
+	if c.session != nil {
+		c.session.Save(sess)
+	}
 }
 
 func (c *XMPPCore) loadSession() {
+	if c.session == nil {
+		return
+	}
 	var sess xmppSession
-	if utils.LoadSession(c.sessionPath, &sess) != nil {
+	if c.session.Load(&sess) != nil {
 		return
 	}
 

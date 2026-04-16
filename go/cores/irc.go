@@ -31,16 +31,16 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"uniclient/utils"
 )
 
 // ---------------------------------------------------------------------------
@@ -296,7 +296,7 @@ type IRCCore struct {
 	updateMu       sync.RWMutex
 
 	// Lifecycle
-	sessionPath string
+	session *utils.SessionStore
 	ctx         context.Context
 	cancel      context.CancelFunc
 	wg          sync.WaitGroup
@@ -386,7 +386,7 @@ type IRCCore struct {
 var _ Core = (*IRCCore)(nil)
 
 // NewIRCCore creates a new IRC core instance.
-func NewIRCCore(sessionPath string) *IRCCore {
+func NewIRCCore(session *utils.SessionStore) *IRCCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &IRCCore{
 		channels:    make(map[string]*ircChannel),
@@ -401,7 +401,7 @@ func NewIRCCore(sessionPath string) *IRCCore {
 		monitored:   make(map[string]bool),
 		stsPolicies: make(map[string]int),
 		serverInfo:  IRCServerInfo{Raw: make(map[string]string)},
-		sessionPath: sessionPath,
+		session:     session,
 		ctx:         ctx,
 		cancel:      cancel,
 	}
@@ -4693,12 +4693,11 @@ func (c *IRCCore) WebIRC(password, gateway, hostname, ip string) {
 // ---------------------------------------------------------------------------
 
 func (c *IRCCore) loadSession() error {
-	data, err := os.ReadFile(c.sessionPath)
-	if err != nil {
-		return err
+	if c.session == nil {
+		return fmt.Errorf("no session store configured")
 	}
 	var sess ircSession
-	if err := json.Unmarshal(data, &sess); err != nil {
+	if err := c.session.Load(&sess); err != nil {
 		return err
 	}
 
@@ -4748,11 +4747,10 @@ func (c *IRCCore) saveSession() {
 	}
 	c.blockedMu.RUnlock()
 
-	data, err := json.MarshalIndent(sess, "", "  ")
-	if err != nil {
+	if c.session == nil {
 		return
 	}
-	os.WriteFile(c.sessionPath, data, 0600)
+	c.session.Save(sess)
 }
 
 // ──────────────────────────── RFC Commands (Oper) ────────────────────────────
