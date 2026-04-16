@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -1250,9 +1249,11 @@ class _DateSeparator extends StatelessWidget {
     final now = DateTime.now();
     String text;
 
-    if (date.year == now.year && date.month == now.month && date.day == now.day) {
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDate = DateTime(date.year, date.month, date.day);
+    if (msgDate == today) {
       text = 'TODAY';
-    } else if (date.year == now.year && date.month == now.month && date.day == now.day - 1) {
+    } else if (msgDate == today.subtract(const Duration(days: 1))) {
       text = 'YESTERDAY';
     } else {
       text = '${_months[date.month - 1]} ${date.day}, ${date.year}';
@@ -1424,15 +1425,20 @@ List<InlineSpan> _buildInlineSpans(List<_Seg> segments, bool isDark) {
       case _SegType.text:
         spans.add(TextSpan(text: seg.content));
       case _SegType.link:
-        spans.add(TextSpan(
-          text: seg.content,
-          style: const TextStyle(
-            color: AppColors.accentLight,
-            decoration: TextDecoration.underline,
+        final url = seg.content;
+        spans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.baseline,
+          baseline: TextBaseline.alphabetic,
+          child: GestureDetector(
+            onTap: () => Process.run('xdg-open', [url]),
+            child: Text(
+              url,
+              style: const TextStyle(
+                color: AppColors.accentLight,
+                decoration: TextDecoration.underline,
+              ),
+            ),
           ),
-          recognizer: TapGestureRecognizer()..onTap = () {
-            Process.run('xdg-open', [seg.content]);
-          },
         ));
       case _SegType.inlineCode:
         spans.add(WidgetSpan(

@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../state/app_state.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
-import 'auth_screen.dart';
 import '../theme/theme.dart';
 import '../utils/debug.dart';
 
@@ -343,13 +342,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               subtitle: '${account.platform} — ${_connLabel(appState.connStateFor(account.id))}',
               onTap: () {
                 final connState = appState.connStateFor(account.id);
-                if (connState == ConnState.authRequired || connState == ConnState.disconnected) {
-                  showDialog<void>(
-                    context: context,
-                    barrierDismissible: true,
-                    builder: (_) => AuthScreen(accountId: account.id, platform: account.platform),
-                  );
-                }
+                // No action on tap — accounts connect automatically
               },
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline, color: AppColors.danger, size: 20),
@@ -647,7 +640,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ConnState.connected => 'Connected',
     ConnState.connecting => 'Connecting...',
     ConnState.unstable => 'Unstable',
-    ConnState.authRequired => 'Auth required',
     ConnState.disconnected => 'Disconnected',
   };
 }

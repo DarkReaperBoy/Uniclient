@@ -26,6 +26,7 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final _inputController = TextEditingController();
   bool _obscureText = false;
+  String? _lastFieldType;
   bool _autoCloseScheduled = false;
   Timer? _qrRefreshTimer;
 
@@ -142,7 +143,10 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // ── Input: text field (phone, username, etc.) ──
   Widget _buildInputState(BuildContext context, AuthStateData auth, AuthState authState) {
-    _obscureText = auth.fieldType == 'password';
+    if (auth.fieldType != _lastFieldType) {
+      _lastFieldType = auth.fieldType;
+      _obscureText = auth.fieldType == 'password';
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

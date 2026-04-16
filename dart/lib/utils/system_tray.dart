@@ -1,0 +1,105 @@
+import 'dart:io' show Platform;
+
+import 'package:flutter/services.dart';
+
+import 'debug.dart';
+
+/// Manages the system tray icon via a native MethodChannel.
+///
+/// On Linux the tray is implemented via libayatana-appindicator in the
+/// C++ runner.  On other platforms the channel responds with `isAvailable`
+/// = false and all calls are silently ignored.
+class SystemTray {
+  static const _channel = MethodChannel('com.uniclient.app/tray');
+
+  bool _available = false;
+  int _lastUnread = -1;
+
+  /// Whether the native tray icon is active.
+  bool get isAvailable => _available;
+
+  /// Callback invoked when the user chooses "Quit" from the tray menu.
+  void Function()? onQuit;
+
+  /// Callback invoked when the window is hidden via the close button
+  /// (minimized to tray).
+  void Function()? onWindowHidden;
+
+  /// Initialize the tray.  Call once after the engine is running.
+  Future<void> init() async {
+    if (!Platform.isLinux && !Platform.isWindows && !Platform.isMacOS) return;
+
+    // Listen for native → Dart calls (onQuit, onWindowHidden).
+    _channel.setMethodCallHandler(_handleNativeCall);
+
+    try {
+      final result = await _channel.invokeMethod<bool>('isAvailable');
+      _available = result ?? false;
+      Debug.log('TRAY', 'available=$_available');
+    } catch (e) {
+      Debug.log('TRAY', 'init failed: $e');
+      _available = false;
+    }
+  }
+
+  /// Update the tray tooltip / label with the current unread count.
+  Future<void> updateUnread(int count) async {
+    if (!_available || count == _lastUnread) return;
+    _lastUnread = count;
+    final label = count > 0 ? 'UniClient ($count unread)' : 'UniClient';
+    try {
+      await _channel.invokeMethod<void>('setTooltip', label);
+    } catch (e) {
+      Debug.log('TRAY', 'setTooltip failed: $e');
+    }
+  }
+
+  /// Show the main window.
+  Future<void> showWindow() async {
+    if (!_available) return;
+    try {
+      await _channel.invokeMethod<void>('showWindow');
+    } catch (e) {
+      Debug.log('TRAY', 'showWindow failed: $e');
+    }
+  }
+
+  /// Hide the main window.
+  Future<void> hideWindow() async {
+    if (!_available) return;
+    try {
+      await _channel.invokeMethod<void>('hideWindow');
+    } catch (e) {
+      Debug.log('TRAY', 'hideWindow failed: $e');
+    }
+  }
+
+  /// Toggle window visibility.
+  Future<void> toggleVisibility() async {
+    if (!_available) return;
+    try {
+      await _channel.invokeMethod<void>('toggleVisibility');
+    } catch (e) {
+      Debug.log('TRAY', 'toggleVisibility failed: $e');
+    }
+  }
+
+  /// Handle method calls from native side → Dart.
+  Future<void> _handleNativeCall(MethodCall call) async {
+    switch (call.method) {
+      case 'onQuit':
+        Debug.log('TRAY', 'quit requested from tray menu');
+        onQuit?.call();
+      case 'onWindowHidden':
+        Debug.log('TRAY', 'window hidden (minimized to tray)');
+        onWindowHidden?.call();
+      default:
+        Debug.log('TRAY', 'unknown native call: ${call.method}');
+    }
+  }
+
+  /// Clean up resources.
+  void dispose() {
+    _channel.setMethodCallHandler(null);
+  }
+}

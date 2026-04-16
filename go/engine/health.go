@@ -68,7 +68,7 @@ func (e *Engine) ConnectAccount(accountID string) error {
 		core.Close()
 		return fmt.Errorf("load credentials: %w", err)
 	}
-	log.Printf("[engine] ConnectAccount(%s): credentials loaded, mode=%d", accountID, creds.Mode)
+	log.Printf("[engine] ConnectAccount(%s): credentials loaded, mode=%s", accountID, creds.Mode)
 
 	e.setConnState(accountID, ConnConnecting)
 	e.emitConnState(accountID, ConnConnecting, "")
@@ -91,8 +91,8 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	log.Printf("[engine] ConnectAccount(%s): authenticating...", accountID)
 	if err := core.Authenticate(*creds); err != nil {
 		log.Printf("[engine] ConnectAccount(%s): auth failed: %v", accountID, err)
-		e.setConnState(accountID, ConnAuthRequired)
-		e.emitConnState(accountID, ConnAuthRequired, err.Error())
+		e.setConnState(accountID, ConnDisconnected)
+		e.emitConnState(accountID, ConnDisconnected, err.Error())
 		return err
 	}
 	log.Printf("[engine] ConnectAccount(%s): auth succeeded", accountID)

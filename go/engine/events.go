@@ -145,8 +145,6 @@ func (e *Engine) emitConnState(accountID string, state ConnState, errMsg string)
 		stateStr = "connected"
 	case ConnUnstable:
 		stateStr = "unstable"
-	case ConnAuthRequired:
-		stateStr = "auth_required"
 	}
 	e.emitEvent(EventConnState, accountID, ConnStateEvent{
 		State: stateStr,

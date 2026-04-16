@@ -2306,3 +2306,592 @@ for negotiation.
 
 **Fix**: Removed 300ms accept delay in test files — Go code now accepts immediately,
 consistently beating other clients to the accept.
+
+---
+
+## Appendix A: Web Call Harness
+
+Telegram Web v4.0.0 call protocol harness and implementation notes.
+Source: telegram-tt (web.telegram.org/a), tested 2026-04-10.
+Harness: `go/tests/tt-harness/harness.js` (Node.js, GramJS + werift).
+
+### A.1 Protocol Overview
+
+Telegram Web (telegram-tt, Telegram Web K) uses version `4.0.0` (or `4.0.1`). This is a distinct
+signaling format from the Desktop/mobile `V2Impl` (8.0.0-13.0.0) and `V2Reference` (10.0.0-11.0.0).
+
+Key differences from Desktop (V2Impl/V2Reference):
+- **No NegotiateChannels** — media codecs are inline in `InitialSetup` (audio/video/screencast objects)
+- **No SCTP data channel signaling** — uses standard WebRTC SCTP negotiation
+- **V1 encryption framing** — simple `[4-byte LE seq][JSON]` then AES-256-CTR, not the V2 multi-message format
+- **Always includes video + screencast** — even for audio-only calls, InitialSetup has all 3 media sections
+- **Standard SDP offer/answer** — both sides convert between SDP ↔ InitialSetup JSON
+
+#### Version Negotiation
+
+Web client advertises `libraryVersions: ['4.0.0']` in `PhoneCallProtocol`. When both sides support it,
+the server negotiates `4.0.0`. Our Go client includes `4.0.0` in its version list and detects it via
+`isWebVersion()`.
+
+### A.2 Signaling Format
+
+#### A.2.1 InitialSetup
+
+The core signaling message. Contains ICE credentials, DTLS fingerprint, and full media descriptions:
+
+```json
+{
+  "@type": "InitialSetup",
+  "ufrag": "e975",
+  "pwd": "6f107f6031ab82e89e8e46",
+  "fingerprints": [{"hash": "sha-256", "fingerprint": "B0:3C:...", "setup": "actpass"}],
+  "audio": {
+    "ssrc": "451124411",
+    "ssrcGroups": [],
+    "payloadTypes": [
+      {"id": 96, "name": "OPUS", "clockrate": 48000, "channels": 2},
+      {"id": 0, "name": "PCMU", "clockrate": 8000}
+    ],
+    "rtpExtensions": []
+  },
+  "video": {
+    "ssrc": "3847201545",
+    "ssrcGroups": [{"semantics": "FID", "ssrcs": [3847201545, 250853053]}],
+    "payloadTypes": [{"id": 96, "name": "VP8", "clockrate": 90000, ...}],
+    "rtpExtensions": [...]
+  },
+  "screencast": {
+    "ssrc": "...",
+    "ssrcGroups": [...],
+    "payloadTypes": [...],
+    "rtpExtensions": [...]
+  }
+}
+```
+
+#### A.2.2 Candidates
+
+ICE candidates sent individually as they're gathered:
+
+```json
+{
+  "@type": "Candidates",
+  "candidates": [{"sdpString": "candidate:... typ host generation 0 ufrag e975"}]
+}
+```
+
+#### A.2.3 MediaState
+
+Mute/video status (sent after connection established):
+
+```json
+{
+  "@type": "MediaState",
+  "isMuted": false,
+  "videoState": "inactive",
+  "videoRotation": 0,
+  "screencastState": "inactive",
+  "isBatteryLow": false
+}
+```
+
+Note: incoming MediaState uses `muted` (no `is` prefix), outgoing uses `isMuted`. Both are accepted.
+
+### A.3 Signaling Encryption
+
+Uses AES-256-CTR with MTProto-style key derivation from the DH auth key.
+
+#### A.3.1 Encrypt
+
+1. Prepend 4-byte LE sequence number to JSON payload
+2. Pad to 4-byte boundary with `0x20`
+3. Compute `x = isOutgoing ? 128 : 136`
+4. `msgKey = SHA256(authKey[88+x : 88+x+32] || plaintext)[8:24]`
+5. Derive `key` (32 bytes) and `iv` (16 bytes) from `msgKey` + `authKey[x:]`
+6. AES-256-CTR encrypt plaintext
+7. Output: `msgKey (16 bytes) || ciphertext`
+
+#### A.3.2 Decrypt
+
+Same process with swapped `x` direction:
+- Decrypt: `x = isOutgoing ? 136 : 128` (opposite of encrypt)
+- Verify `msgKey` after decryption
+- Skip 4-byte seq, strip trailing `0x20` padding, parse JSON
+
+This is the **V1 framing** format — one message per packet, simple seq+JSON.
+Desktop V2Impl uses a different framing (multi-message with ACKs embedded).
+
+### A.4 SDP ↔ InitialSetup Conversion
+
+#### A.4.1 SDP → InitialSetup (`extractWebInitialSetupFromSDP`)
+
+Go side: parses pion's SDP offer/answer into the JSON format above.
+- Extracts ICE ufrag/pwd, DTLS fingerprint
+- Parses audio/video m-lines for SSRCs, payload types, RTP extensions
+- Generates dummy video + screencast sections (required by telegram-tt)
+- **Critical**: PayloadTypes and RTPExtensions must be non-nil (empty slice `[]`, not `null`)
+  — Go nil slice serializes to JSON `null`, which crashes telegram-tt's `.map()` calls
+
+#### A.4.2 InitialSetup → SDP (`buildSyntheticSDPFromWebSetup`)
+
+Go side: builds a synthetic SDP from received InitialSetup JSON.
+- Creates audio m-line with all payload types from InitialSetup
+- Creates video + screencast m-lines
+- Adds SCTP data channel m-line (mid=3)
+- Sets `a=setup:active` or `a=setup:passive` based on remote's `setup` field
+- **Critical**: codec names are case-insensitive per RFC 3551 — use `strings.EqualFold` for matching
+
+### A.5 Connection Flow
+
+#### A.5.1 Outgoing Call (Go → Web Harness)
+
+```
+Go (user1)                          Harness (user2)
+  │                                      │
+  ├─ phone.requestCall(gAHash) ────────→ │
+  │                                      ├─ phone.receivedCall (ack)
+  │                                      ├─ phone.acceptCall(gB)
+  │ ←──── PhoneCallAccepted(gB) ────────┤
+  ├─ compute authKey, fingerprint        │
+  ├─ phone.confirmCall(gA, fp) ────────→ │
+  │                                      ├─ verify gA_hash, compute authKey
+  │ ←──── PhoneCall (connections) ───────┤
+  │                                      │
+  │  === WebRTC Setup ===                │
+  ├─ create PC, add audio track          ├─ create PC, add audio track
+  ├─ create offer                        │
+  ├─ InitialSetup(offer) ─────────────→  │
+  ├─ Candidates ───────────────────────→ │
+  │                                      ├─ setRemoteDescription(offer→SDP)
+  │                                      ├─ create answer
+  │  ←───────────────── InitialSetup(answer)
+  │  ←───────────────── Candidates
+  ├─ setRemoteDescription(answer→SDP)    │
+  │                                      │
+  │  === ICE + DTLS ===                  │
+  │ ←────── ICE connected ──────────→    │
+  │ ←────── DTLS handshake ─────────→    │
+  │                                      │
+  │  === Audio ===                       │
+  │ ─── RTP opus silence ───────────→    │
+  │ ←── RTP opus silence ───────────     │
+```
+
+#### A.5.2 Incoming Call (Web Harness → Go)
+
+Same flow but roles reversed: harness sends `requestCall`, Go receives `PhoneCallRequested`
+via `OnUpdate`, calls `AcceptCall`, waits for `PhoneCall` update with connections.
+
+#### A.5.3 DTLS Role
+
+- Caller (`isOutgoing=true`): sends `setup: actpass`, expects `setup: active` from callee
+- Callee (`isOutgoing=false`): receives `setup: actpass`, responds with `setup: active`
+- Go side: pion handles DTLS role automatically from SDP
+
+#### A.5.4 Reoffer (Incoming Only)
+
+When Go is the callee (incoming call), after DTLS completes, it does a reoffer:
+1. Wait for `PeerConnection.connected` state
+2. Create new offer with updated transceiver directions
+3. Set local description, send new InitialSetup
+This ensures the audio sender is properly bound after the incoming track arrives.
+
+### A.6 Harness Architecture
+
+#### A.6.1 Stack
+
+- **GramJS** (`telegram` npm): MTProto client for call setup/teardown signaling
+- **werift** (`werift` npm v0.22.9): pure TypeScript WebRTC for Node.js (no native deps)
+- **crypto** (Node.js built-in): AES-256-CTR encryption, SHA256, DH math
+
+#### A.6.2 Components
+
+- `PhoneCallCrypto` — signaling encryption/decryption (V1 framing)
+- `DHState` — DH key exchange (BigInt math for g^a mod p, fingerprint SHA1)
+- `parseSdpToInitialSetup()` — converts werift's SDP to InitialSetup JSON
+- `buildSdpFromInitialSetup()` — converts received InitialSetup to SDP for werift
+- `CallHarness` — call state machine (DH → WebRTC → audio I/O)
+
+#### A.6.3 Usage
+
+```bash
+cd go/tests/tt-harness
+npm install               # install GramJS + werift
+node harness.js --login   # first-time: interactive login (phone + OTP)
+node harness.js --accept  # wait for incoming call, auto-accept
+node harness.js --call <userId>  # place outgoing call
+```
+
+Session stored at `auth/tt_harness_session.txt` (GramJS StringSession).
+
+#### A.6.4 Audio
+
+- **TX**: 20ms opus silence frames (`0xF8 0xFF 0xFE`), PT=111, 48kHz
+- **RX**: any audio track from remote, counted per-frame
+- Sender triggered on **first RTP frame receipt** (not PC state change — werift
+  `connectionState` is unreliable, stays "connecting" even after DTLS)
+
+### A.7 Bugs Found & Fixed
+
+#### A.7.1 ForceRelayICE causing "no candidate pairs"
+
+Go test had `ForceRelayICE: true` which set ICE transport policy to `relay`.
+Harness only generates `host`/`srflx` candidates (Telegram's TURN servers are geo-restricted).
+No relay candidates → no pairs → no connection.
+**Fix**: removed `ForceRelayICE: true` from test config.
+
+#### A.7.2 werift connectionState stuck at "connecting"
+
+werift's `connectionState` never reaches "connected" even after DTLS completes.
+Silence sender was gated on `state === 'connected'` → never starts → no outgoing audio.
+**Fix**: trigger sender on first received RTP frame instead of PC state.
+
+#### A.7.3 werift RtpPacket constructor crash
+
+`RtpPacket(header, payload)` takes positional args, not `{header, payload}` object.
+Wrong construction → `this.header.timestamp = undefined` → `BigInt(undefined)` crash in uint32Add.
+**Fix**: import `RtpHeader`, construct separately, pass positionally.
+
+#### A.7.4 Wrong payload type (96 vs 111)
+
+Initial harness used PT=96 (VP8). Opus is PT=111 in werift's default codec table.
+**Fix**: changed to `payloadType: 111`.
+
+#### A.7.5 Case-sensitive codec matching
+
+`extractV2ImplFromSDP` checked `name == "opus"` but pion echoes remote codec names
+which could be `OPUS` (uppercase, as sent by telegram-tt). Per RFC 3551, codec names
+are case-insensitive.
+**Fix**: `strings.EqualFold(name, "opus")`.
+
+#### A.7.6 Null PayloadTypes in JSON
+
+Go nil slice → JSON `null` → harness `.map()` crashes on null.
+**Fix**: initialize to empty slice (`[]tgPayloadType{}`) instead of nil.
+
+#### A.7.7 Telegram STUN/TURN timeouts
+
+Telegram's STUN/TURN servers (91.108.x.x:1400) time out for local/LAN tests.
+Not a bug — these are geo-restricted production servers. ICE works via host
+candidates when both peers are on the same machine or LAN.
+
+#### A.7.8 werift ICE port mismatch bug (2026-04-11) — FIXED (2026-04-13)
+
+**Status: FIXED. Automated tt-harness testing now works.**
+
+werift binds all UDP sockets to `0.0.0.0:randomPort` but advertises candidates per-interface
+(192.168.100.199, 172.17.0.1, 172.16.0.2, etc.). When the OS routes a STUN response from
+a Docker bridge socket (bound to `0.0.0.0:50199`, candidate for `172.17.0.1:50199`) to pion,
+the source IP is rewritten to `192.168.100.199:50199` — an address pion doesn't recognize.
+
+```
+ice WARNING: Discard success message from (192.168.100.199:50199), no such remote
+```
+
+**Root cause:** Linux source-address rewriting on `0.0.0.0`-bound sockets with multiple interfaces.
+
+**Fix (session 24):** Added `iceInterfaceAddresses: { udp4: primaryLanIp }` and `iceUseIpv6: false`
+to the harness's PeerConnection config. The primary LAN IP is auto-detected by filtering out
+`docker*`, `br-*`, and `veth*` interfaces. This forces werift to create only one candidate on
+the real LAN interface, avoiding the source-address rewriting.
+
+All 13 web call tests now pass automatically.
+
+### A.8 Test Results (2026-04-10, updated 2026-04-11 session 13)
+
+#### Outgoing (Go → Harness)
+
+```
+TestCallWebOutgoing: PASS
+  tx=750 frames, rx=748 frames
+  ICE: connected in ~200ms (host candidates, same machine)
+  DTLS: completed, PC connected
+  Audio: bidirectional, 15 seconds
+```
+
+#### Incoming (Harness → Go)
+
+```
+TestCallWebIncoming: PASS (32.62s)
+  tx=750 frames, rx=743 frames
+  ICE: connected in ~354ms
+  DTLS: completed, PC connected
+  Audio: bidirectional, 15 seconds
+```
+
+#### Test Commands
+
+```bash
+# Start harness in accept mode (terminal 1):
+cd go/tests/tt-harness && node harness.js --accept
+
+# Run Go outgoing test (terminal 2):
+cd go/tests && source ../../auth/auth.md && go test -v -run TestCallWebOutgoing -timeout 120s
+
+# --- or reverse direction ---
+
+# Run Go incoming test (terminal 1):
+cd go/tests && source ../../auth/auth.md && go test -v -run TestCallWebIncoming -timeout 120s
+
+# Start harness in call mode (terminal 2):
+cd go/tests/tt-harness && node harness.js --call <user1_id>
+```
+
+#### Session 9 Call Method Tests (10/10 PASS)
+
+All call control methods verified against Web harness:
+
+| Test | Result |
+|------|--------|
+| Incoming video from Web | PASS — bidirectional audio + VP8 video |
+| Incoming screenshare from Web | PASS — screencast via SSRC dispatch |
+| Recording outgoing to Web | PASS — 472 opus frames captured |
+| Recording incoming from Web | PASS — 497 opus frames, 2493 bytes |
+| Camera toggle (ON→OFF→ON) | PASS — audio 249/249/249, video 151/151/151 |
+| Mute/unmute | PASS — MediaState isMuted toggles |
+| StopScreenShare | PASS — screencastState active→inactive |
+| Simultaneous video+screen | PASS — 3 tracks (audio=500, video=303, screen=303 TX) |
+| SetAudioFrameDuration | PASS — 20ms→40ms(1920)→20ms(960) |
+| StopCallRecording verify | PASS — frame count returned |
+
+#### Session 24 — Full Automated Re-Verification (2026-04-13)
+
+After fixing the werift ICE port mismatch bug (A.7.8), all 13 web call tests pass automatically:
+
+| Test | Result |
+|------|--------|
+| Outgoing audio | PASS — tx=749, rx=747 |
+| Incoming audio | PASS — tx=750, rx=745 |
+| Incoming video from Web | PASS — audio=745, video=453 bidirectional |
+| Incoming screenshare from Web | PASS — audio=746, video=454 |
+| Recording outgoing to Web | PASS — 497 frames, 2493 bytes |
+| Recording incoming from Web | PASS — 498 frames captured |
+| Camera toggle (ON→OFF→ON) | PASS — audio 249/249/249, video 151/151/151 |
+| Mute/unmute | PASS — audio 258/258/258 across all phases |
+| StopScreenShare | PASS — audio continuous across phases |
+| Simultaneous video+screen | PASS — 3 tracks sent successfully |
+| SetAudioFrameDuration | PASS — 20ms→40ms→20ms, audio 259/259/259 |
+| StopCallRecording verify | PASS — 517 frames, 2593 bytes |
+| End call from callee | PASS — call ended gracefully |
+
+C++ harness smoke test (v10 audio) also verified passing — no regressions.
+
+### A.9 Relationship to Other Protocol Versions
+
+| Version | Format | Encryption | SDP Type | Codec Negotiation |
+|---------|--------|------------|----------|-------------------|
+| 2.7.7, 5.0.0 | InstanceImpl | Binary V1 | N/A (custom) | None (fixed opus) |
+| 7.0.0 | V2Impl | V1 framing | Synthetic | NegotiateChannels |
+| 8.0.0, 9.0.0 | V2Impl | V2 framing | Synthetic | NegotiateChannels |
+| 10.0.0, 11.0.0 | V2Reference | SCTP/V1 | Real SDP | SDP offer/answer |
+| 12.0.0, 13.0.0 | V2Impl | SCTP | Synthetic | NegotiateChannels |
+| **4.0.0, 4.0.1** | **Web** | **V1 framing** | **Synthetic** | **Inline InitialSetup** |
+
+Web (v4.0.0) is closest to V2Impl (v7.0.0) — both use V1 encryption framing and synthetic SDP.
+The difference is codec negotiation: V2Impl uses a separate NegotiateChannels exchange,
+while Web embeds codecs directly in InitialSetup.
+
+### A.10 Go Implementation Details
+
+#### Key functions in `telegram.go`:
+
+- `isWebVersion(v string) bool` — returns true for "4.0.0", "4.0.1"
+- `extractWebInitialSetupFromSDP(sdp, isOutgoing) *tgInitialSetup` — SDP → InitialSetup JSON
+- `buildSyntheticSDPFromWebSetup(setup, sdpType) string` — InitialSetup JSON → SDP
+- Call setup: detected in `startCallWebRTC()` / `handleIncomingCall()` via version check
+- Signaling: same `processV1Signaling()` path as v7.0.0, branched by `call.useWebSignaling`
+
+#### Fields on `tgCall`:
+
+```go
+useWebSignaling bool  // true for v4.0.0/4.0.1
+useV1Framing    bool  // always true when useWebSignaling=true
+```
+
+### A.11 Real Web Client Testing (2026-04-13)
+
+#### Version Trimming
+
+Offered versions reduced from 10 to 3: `13.0.0`, `8.0.0`, `4.0.0`. Configured via `filterVersions()`
+with optional `MinCallVersion`/`MaxCallVersion` in `TelegramConfig`.
+
+#### v4.0.0 vs Real web.telegram.org/a
+
+**Problem:** v4.0.0 worked against the tt-harness (werift) but failed against real Telegram Web.
+ICE reported "Failed to ping without candidate pairs" — zero Candidates messages received from the web.
+
+**Root cause:** Firefox + uBlock Origin blocks WebRTC ICE candidate gathering to prevent IP leaks.
+The browser's `onicecandidate` never fires, so no Candidates are sent via signaling. Confirmed by
+switching to Brave (Chromium-based, no WebRTC blocking) — 249 audio frames, connected in 4.5s.
+
+**Fixes applied (still good improvements):**
+1. **Dangling RTX cleanup**: `extractV2ImplFromSDP` now filters out RTX codecs (e.g. apt=116, apt=45)
+   that reference primary codecs not in our include list (we only include VP8/VP9/H264, not AV1/H265).
+2. **`a=ice-options:trickle`**: Added to `buildSyntheticSDPFromV2Impl` at session level.
+3. **Data channel m-line**: `buildSyntheticSDPFromWebSetup` now appends `m=application` with SCTP
+   to match the offer's BUNDLE group (telegram-tt creates `negotiated: true, id: 0` data channel).
+
+#### Test Results
+
+| Version | Signaling | Peer | Audio Frames | Result |
+|---------|-----------|------|-------------|--------|
+| v13.0.0 | V2Impl+SCTP | Desktop | 249+ | PASS |
+| v8.0.0 | V2Impl | Desktop | 249+ | PASS |
+| v4.0.0 | Web | tt-harness (werift) | 249 | PASS |
+| v4.0.0 | Web | Brave web.telegram.org/a | 249 | PASS |
+| v4.0.0 | Web | Firefox+uBlock web.telegram.org/a | 0 | FAIL (browser blocks ICE) |
+
+---
+
+## Appendix B: ntgcalls Test Findings (Obsolete)
+
+> **OBSOLETE (2026-04-11):** This appendix is preserved for historical reference only. The ntgcalls
+> CGo bridge is no longer used. It was replaced by the external C++ tgcalls harness
+> (`/tmp/tgcalls_build/libtgcalls_native.so`) which supports all 9 protocol versions and is NOT
+> linked into Go (lives outside the repo, called via build-tagged CGo test files only). CGo is
+> banned project-wide per the zero-CGo rule. The debugging methodology and protocol findings
+> documented here are still valuable.
+> See: `checklist/telegram.md` (Sessions 5-14), main spec sections above (especially sections on
+> V2Reference and RTP demux).
+
+Original document date: 2026-04-07.
+
+### B.1 Setup
+
+- User1 (our pion code) calls User2 (real tgcalls via ntgcalls 2.1.0)
+- Both use gotd/td for MTProto signaling
+- ntgcalls linked as prebuilt .so (111MB, includes Google's libwebrtc)
+- Hybrid signaling bridge: pion→ntgcalls via MTProto, ntgcalls→pion direct in-process
+
+### B.2 What Works
+
+1. **ntgcalls loads and initializes** — version 2.1.0, supports protocol versions [8.0.0, 9.0.0]
+2. **DH key exchange** — auth_key passed via `ntg_skip_exchange`, verified fingerprint match
+3. **Signaling encryption/decryption** — bidirectional, V2 format, ntgcalls decrypts our messages correctly
+4. **ICE connection** — host candidates connect in ~800ms-1.8s on same machine
+5. **DTLS handshake completes on ntgcalls side** — "DTLS handshake complete", SRTP activated with AES_CM_128_HMAC_SHA1_80
+6. **NegotiateChannels exchange** — both sides exchange and answer codec offers
+
+### B.3 What Didn't Work
+
+1. **Pion DTLS didn't start** — PeerConnectionState=connected but DTLS transport never starts handshake
+   - No pion DTLS logs even at Info level
+   - `dtls=unknown` in transport stats permanently
+   - `outRTP=0, inRTP=0` — SRTP silently drops all WriteRTP calls
+   - ntgcalls' DTLS completes but pion's doesn't — one-sided handshake?
+
+2. **NegotiateChannels echo causes ntgcalls crash** — FIXED by only echoing opus audio codec instead of full codec list
+
+3. **Signaling bridge latency** — MTProto relay adds 5-10 seconds; solved with direct in-process bridge for ntgcalls→pion direction
+
+### B.4 Key Bugs Found & Fixed
+
+1. `buildRemoteSDP` only had 1 m-line (audio) but offer has 3 → added all 3 m-lines
+2. NegotiateChannels answer echoed full codec list (4KB+) → trimmed to opus-only
+3. DTLS `a=setup` role: confirmed correct after analysis (pion inverts remote role in `role()`)
+4. **Silence sender yield bug (2026-04-07)** — `onAudioFrame` (incoming audio callback) was treated as signal to stop sending silence. When test set `onAudioFrame` to receive audio, silence sender yielded and sent ZERO packets. Fixed: silence sender always runs.
+5. **NegotiateChannels SSRC mismatch (2026-04-07)** — Answer echoed remote SSRC instead of our own. Fixed: uses `call.audioSSRC`.
+6. **`call.audioSSRC` not synced with SDP (2026-04-07)** — Randomly generated `call.audioSSRC` wasn't updated to match pion's actual SDP SSRC. Caused SSRC mismatch between signaling and RTP. Fixed: `call.audioSSRC = sdpSSRC` after offer creation.
+
+### B.5 DTLS Status (Updated 2026-04-07)
+
+DTLS actually works! The "DTLS never starts" diagnosis was wrong — DTLS completes in ~200ms after ICE connects. The `dtls=unknown` in stats was because `TransportStats` isn't populated by pion. Direct `OnStateChange` callback confirms: new→connecting→connected.
+
+### B.6 pion-to-pion Two-User Test: PASS (2026-04-07)
+
+After fixing bugs 4-6: **1027 bidirectional audio frames** confirmed. TestTwoUserCallAudio passes.
+
+### B.7 RTP Demux Issue (affects ntgcalls AND Desktop)
+
+Both ntgcalls and Desktop cannot demux our RTP packets despite SRTP working:
+- ntgcalls: `rtp_transport.cc:230: Failed to demux RTP packet: PT=111 SSRC=X`
+- Desktop: no incoming audio, no OnTrack, despite completed signaling + DTLS
+
+**Root cause: pion-to-tgcalls architectural mismatch.**
+
+tgcalls' libwebrtc uses MID RTP header extension for BUNDLE demux. Pion doesn't negotiate MID
+because our synthetic SDP doesn't include it. Without MID, libwebrtc falls back to SSRC matching
+but doesn't register SSRCs from NegotiateChannels into its demuxer. This is a fundamental issue
+with the synthetic SDP approach — not solvable without reimplementing tgcalls' internal session setup.
+
+**Previous decision was to switch to ntgcalls native.** But V2Reference breakthrough made this unnecessary — pure Go/pion works with version 10.0.0.
+
+### B.8 V2Reference Update (2026-04-07)
+
+**RTP demux issue is SOLVED** by using InstanceV2ReferenceImpl (version 10.0.0) which uses standard WebRTC SDP offer/answer. No synthetic SDP needed. pion-to-pion works perfectly with 200+ bidirectional RTP frames.
+
+**ntgcalls 2.1.0 is incompatible with V2Reference:**
+- ntgcalls only supports versions [8.0.0, 9.0.0] (InstanceV2Impl)
+- Server requires 10.0.0 in version list → always negotiates 10.0.0
+- ntgcalls receives our SDP offer but can't parse it (InstanceV2Impl expects InitialSetup+NegotiateChannels)
+- Dual-mode signaling was attempted (detect negotiated version, branch to V2Impl or V2Reference) but reverted because server won't negotiate 9.0.0 without 10.0.0 in the list
+- `CALL_PROTOCOL_COMPAT_LAYER_INVALID` (error 406) returned when version list doesn't include 10.0.0+
+
+**ntgcalls bridge was tested historically** — CGo bindings loaded ntgcalls 2.1.0, CreateP2P/SkipExchange/ConnectP2P all functioned. Build tag `ntgcalls` isolated the CGo dependency. **NOTE (2026-04-11): CGo is now banned project-wide (CGO_ENABLED=0). The ntgcalls bridge is obsolete — replaced by the external C++ tgcalls harness (built in /tmp/, not part of `go build`).**
+
+### B.9 Real tgcalls Bidirectional Audio — WORKING (2026-04-08)
+
+**Test**: `TestPionVsRealTgcalls` (build tag `real_tgcalls`)
+**Result**: 98 incoming audio frames (440Hz sine from real tgcalls C++ → pion, opus-encoded RTP)
+
+#### Root cause: WebRTC transceiver matching bug
+
+When real tgcalls (callee, `isOutgoing=false`) receives pion's SDP offer via `SetRemoteDescription`:
+1. The PeerConnection creates a NEW `recvonly` transceiver for the offer's audio m-line (mid=0)
+2. The existing `sendrecv` transceiver (added in constructor) remains unmatched (no mid)
+3. The answer gets `a=recvonly` for mid=0 → no `AudioSendStream` → no outgoing audio
+
+The Unified Plan matching algorithm SHOULD reuse the existing transceiver, but doesn't. This appears to be a webrtc bug (or an edge case in how tgcalls creates transceivers before receiving the offer).
+
+#### Fix (in InstanceV2ReferenceImpl.cpp)
+
+After `SetRemoteDescription(offer)` completes, before creating the answer:
+```cpp
+// Find auto-created recvonly transceiver and upgrade to sendrecv
+for (auto& t : transceivers) {
+    if (t->media_type() == AUDIO && t->direction() == kRecvOnly && t->mid()) {
+        if (_outgoingAudioTrack && !_outgoingAudioTransceiver->mid()) {
+            t->sender()->SetTrack(_outgoingAudioTrack.get());
+            t->SetDirectionWithError(kSendRecv);
+            break;
+        }
+    }
+}
+```
+
+#### Other fixes in this session
+
+1. **Signaling buffer race**: Set interceptor BEFORE call accept to buffer SCTP packets. Flush to real tgcalls after creation.
+2. **ADM async creation**: `Meta::Create` returns before `start()` runs (async on media thread). `ForceStartRecording` must retry until ADM is available.
+3. **RecordingIsAvailable**: `AudioDeviceModuleDefault::RecordingIsAvailable` doesn't set the output bool. Fixed in `LoggingADMWrapper`.
+
+### B.10 V2 Signaling ACK Issue
+
+Desktop keeps resending all signaling (InitialSetup, Candidates, NegotiateChannels) because we
+never send ACKs. The V2 ACK format embeds `[counter][0xFF]` entries in outgoing packets.
+Attempted implementation broke V2 framing (byte order wrong). Reverted.
+
+When switching to ntgcalls, this becomes moot — ntgcalls handles V2 signaling internally.
+
+### B.11 Files Created/Modified
+
+- `go/tests/ntgcalls_bridge.go` — CGo bindings for ntgcalls (NtgInstance, PollSignaling, etc.)
+- `go/tests/ntgcalls_harness_test.go` — Test: TestNtgCallsLoad, TestPionVsNtgcalls
+- `go/cores/telegram.go` — Added test helpers:
+  - `TestSetSignalingInInterceptor/OutInterceptor` — intercept raw signaling
+  - `TestSendRawSignaling` — send raw encrypted signaling via MTProto
+  - `TestAcceptCallRaw` — accept call with skipWebRTC (DH only)
+  - `TestGetCallInfo` — get auth key + connections
+  - `TestHandleSignalingData` — inject signaling directly
+  - `tgCall.skipWebRTC/connections/protocol/dhDone` — new fields for test harness
+
+### B.12 How to Run (Historical)
+
+```bash
+cd go/tests
+GCC_LIB="/nix/store/ab3753m6i7isgvzphlar0a8xb84gl96i-gcc-15.2.0-lib/lib"
+LD_LIBRARY_PATH="/tmp/ntgcalls/lib:$GCC_LIB:/nix/store/2kdz3m7ic8w226pcvkz1dlg169v91p6a-zlib-1.3.2/lib" \
+CGO_ENABLED=1 go test -v -run TestPionVsNtgcalls -timeout 90s
+```
+ntgcalls .so is at `/tmp/ntgcalls/lib/libntgcalls.so`, header at `/tmp/ntgcalls/include/ntgcalls.h`.
+Downloaded from: `https://github.com/pytgcalls/ntgcalls/releases/download/v2.1.0/ntgcalls.linux-x86_64-shared_libs.zip`

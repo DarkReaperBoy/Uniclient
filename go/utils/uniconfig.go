@@ -8,8 +8,20 @@ import (
 const (
 	vaultBucketConfig   = "__config"
 	vaultBucketSessions = "__sessions"
+	vaultBucketAccounts = "__accounts"
 	vaultKeyApp         = "app"
 )
+
+// VaultAccountEntry is the account metadata stored in the vault.
+// Credentials are stored as raw JSON to avoid circular import with cores.
+type VaultAccountEntry struct {
+	Platform    string          `json:"platform"`
+	DisplayName string          `json:"display_name,omitempty"`
+	AvatarPath  string          `json:"avatar_path,omitempty"`
+	SortOrder   int             `json:"sort_order"`
+	CreatedAt   int64           `json:"created_at"`
+	Credentials json.RawMessage `json:"credentials,omitempty"`
+}
 
 // --- Vault extension methods for config + sessions ---
 
@@ -125,6 +137,56 @@ func (v *Vault) MigrateUniConfig(uniConfigPath string) error {
 	}
 	os.Remove(uniConfigPath)
 	return nil
+}
+
+// --- Vault extension methods for accounts ---
+
+// PutAccount stores an account entry in the vault and saves to disk.
+func (v *Vault) PutAccount(accountID string, entry VaultAccountEntry) error {
+	if err := v.Put(vaultBucketAccounts, accountID, entry); err != nil {
+		return err
+	}
+	return v.Save()
+}
+
+// GetAccount retrieves an account entry from the vault.
+func (v *Vault) GetAccount(accountID string) (*VaultAccountEntry, error) {
+	var entry VaultAccountEntry
+	if err := v.Get(vaultBucketAccounts, accountID, &entry); err != nil {
+		return nil, err
+	}
+	return &entry, nil
+}
+
+// DeleteAccount removes an account entry from the vault and saves.
+func (v *Vault) DeleteAccount(accountID string) error {
+	_ = v.Delete(vaultBucketAccounts, accountID)
+	return v.Save()
+}
+
+// ListAccountEntries returns all account entries keyed by account ID.
+// Returns an empty map if no accounts exist yet.
+func (v *Vault) ListAccountEntries() map[string]VaultAccountEntry {
+	keys, err := v.ListKeys(vaultBucketAccounts)
+	if err != nil {
+		return make(map[string]VaultAccountEntry)
+	}
+	result := make(map[string]VaultAccountEntry, len(keys))
+	for _, k := range keys {
+		var entry VaultAccountEntry
+		if err := v.Get(vaultBucketAccounts, k, &entry); err == nil {
+			result[k] = entry
+		}
+	}
+	return result
+}
+
+// HasAccountsBucket returns true if the __accounts bucket exists in the vault.
+func (v *Vault) HasAccountsBucket() bool {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	_, ok := v.data[vaultBucketAccounts]
+	return ok
 }
 
 // --- SessionStore: per-account session accessor ---

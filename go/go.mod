@@ -11,19 +11,22 @@ require (
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.24.0
 	github.com/gotd/td v0.143.0
-	github.com/klauspost/compress v1.18.5
 	github.com/livekit/server-sdk-go/v2 v2.16.1
 	github.com/pion/ice/v4 v4.2.2
 	github.com/pion/interceptor v0.1.44
 	github.com/pion/logging v0.2.4
+	github.com/pion/rtcp v1.2.16
 	github.com/pion/rtp v1.10.1
 	github.com/pion/sctp v1.9.4
 	github.com/pion/stun/v3 v3.1.1
 	github.com/pion/webrtc/v4 v4.2.11
 	github.com/rs/zerolog v1.34.0
 	golang.org/x/crypto v0.49.0
+	golang.org/x/image v0.39.0
 	golang.org/x/net v0.52.0
+	google.golang.org/protobuf v1.36.11
 	maunium.net/go/mautrix v0.26.4
+	modernc.org/sqlite v1.48.2
 )
 
 require (
@@ -59,6 +62,7 @@ require (
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/jxskiss/base62 v1.1.0 // indirect
+	github.com/klauspost/compress v1.18.5 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/lithammer/shortuuid/v4 v4.2.0 // indirect
 	github.com/livekit/mageutil v0.0.0-20250511045019-0f1ff63f7731 // indirect
@@ -78,9 +82,7 @@ require (
 	github.com/pion/datachannel v1.6.0 // indirect
 	github.com/pion/dtls/v3 v3.1.2 // indirect
 	github.com/pion/mdns/v2 v2.1.0 // indirect
-	github.com/pion/opus v0.0.0-20260408170506-085f78c96784 // indirect
 	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/rtcp v1.2.16 // indirect
 	github.com/pion/sdp/v3 v3.0.18 // indirect
 	github.com/pion/srtp/v3 v3.0.10 // indirect
 	github.com/pion/transport/v4 v4.0.1 // indirect
@@ -106,7 +108,6 @@ require (
 	go.uber.org/zap v1.27.1 // indirect
 	go.uber.org/zap/exp v0.3.0 // indirect
 	golang.org/x/exp v0.0.0-20260312153236-7ab1446f8b90 // indirect
-	golang.org/x/image v0.39.0 // indirect
 	golang.org/x/mod v0.34.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect
@@ -116,12 +117,10 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
 	google.golang.org/grpc v1.79.1 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	modernc.org/libc v1.70.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.48.2 // indirect
 	rsc.io/qr v0.2.0 // indirect
 )

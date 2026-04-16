@@ -96,7 +96,7 @@ The flake provides **everything** — no Android Studio, no manual SDK installs.
 ### What the flake provides
 
 - **Flutter SDK** (stable channel, pinned version)
-- **Go** (1.22+)
+- **Go** (1.26+)
 - **Android SDK** (command-line tools only — `sdkmanager`, `adb`, platform-tools, build-tools, platform 34, NDK). No Android Studio. The flake sets `ANDROID_HOME`, `ANDROID_SDK_ROOT`, and accepts licenses automatically.
 - **Linux desktop build deps**: `gtk3`, `pkg-config`, `cmake`, `ninja`, `clang`, `libepoxy`, standard Flutter Linux requirements.
 - **Go build**: `go build -buildmode=c-shared` produces the shared lib using Go's own toolchain (no external C compiler needed at runtime).
@@ -169,6 +169,25 @@ Real-time updates (new messages, status changes, typing indicators) flow from Go
 ### Skipped methods (412)
 
 Methods with complex external types in parameters (e.g., `*tg.AccountAcceptAuthorizationRequest`, `map[id.UserID]map[id.DeviceID]*event.Content`) that can't be auto-converted from proto bytes. These are platform-specific pass-throughs that the GUI won't call directly.
+
+---
+
+## Engine Layer (`go/engine/`)
+
+The **engine** sits between the FFI bridge and the cores, orchestrating the full account lifecycle. The bridge never talks to cores directly — all calls route through the engine.
+
+**What the engine manages:**
+- **Account CRUD** — add/remove/list accounts, each bound to a core instance
+- **Auth FSM** — multi-step authentication state machine (idle → choosing method → awaiting input → awaiting OTP → awaiting 2FA → authenticated), driven by file-polled commands for CLI/test automation
+- **Vault** — single AES-256-GCM encrypted file (`uniclient.vault`) is the source of truth for all accounts, credentials, sessions, and config. Argon2id-derived master key. Everything persists here; lose the vault, lose everything
+- **SQLite cache** — rebuildable local cache for chats, messages, media metadata, and users. Can be nuked and rebuilt from the vault + live APIs without data loss
+- **Event normalization** — raw core-specific updates are mapped to a unified `EngineEvent` type before reaching Dart
+- **Reconnect & backoff** — automatic reconnection with exponential backoff per account; connection states: `disconnected`, `connecting`, `connected`, `unstable`
+- **Media pipeline** — download/upload queue with progress tracking, thumbnail generation, and cache management
+- **Pending queue** — messages queued while disconnected, flushed on reconnect
+- **Single-instance enforcement** — `GApplication` D-Bus registration (Linux) + `flock` on the vault file prevents concurrent access
+
+See `research/engine_architecture.md` for the full 1900-line spec.
 
 ---
 

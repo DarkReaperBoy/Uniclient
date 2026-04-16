@@ -33,8 +33,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _narrowShowChat = false;
   String? _lastActiveChatId;
 
-  /// Accounts we've already shown the re-auth dialog for (avoid repeated popups).
-  final Set<String> _authPromptedIds = {};
   bool _notifWired = false;
 
   // Member list state for right panel.
@@ -73,8 +71,6 @@ class _HomeScreenState extends State<HomeScreen> {
       };
     }
 
-    // Auto-prompt re-auth when an account reports auth_required.
-    _checkAuthRequired(context, appState);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Track when a new chat is opened to show it on narrow screens.
@@ -665,7 +661,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   // Trigger member loading when panel opens for this chat.
                   Builder(builder: (_) {
-                    _loadMembers(chat.accountId, chat.chatId);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _loadMembers(chat.accountId, chat.chatId);
+                    });
                     if (_membersLoading) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
@@ -1038,28 +1036,6 @@ class _HomeScreenState extends State<HomeScreen> {
     };
   }
 
-  /// Auto-show auth dialog when an account needs re-authentication.
-  void _checkAuthRequired(BuildContext context, AppState appState) {
-    if (!appState.initialized) return;
-    for (final account in appState.accounts) {
-      final state = appState.connStateFor(account.id);
-      if (state == ConnState.authRequired && !_authPromptedIds.contains(account.id)) {
-        _authPromptedIds.add(account.id);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!context.mounted) return;
-          showDialog<void>(
-            context: context,
-            barrierDismissible: true,
-            builder: (_) => AuthScreen(accountId: account.id, platform: account.platform),
-          ).then((_) {
-            if (context.mounted) {
-              context.read<ChatState>().loadChats();
-            }
-          });
-        });
-      }
-    }
-  }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

@@ -9,17 +9,16 @@ Operational guide for Claude Code. **Rules and build commands only** — no find
 **STOP. Before doing ANYTHING, read these files in order. Do not skip any.**
 
 1. This file (`CLAUDE.md`) — operational rules (YOU ARE HERE — read every rule)
-2. `checklist/roadmap.md` — where you left off (current step, core, method)
+2. `todolist.md` — what to do next, top-to-bottom order
 3. `SPEC.md` — full architecture and feature spec
-4. `checklist/` — per-platform checklists (see `checklist/README.md` for index)
-5. `auth/auth.md` — test credentials (bot token, chat IDs)
-6. `research/` — protocol specs, API quirks, debug findings
+4. `auth/auth.md` — test credentials (bot token, chat IDs)
+5. `research/` — protocol specs, API quirks, debug findings
 
-**Auto-continue rule:** If the user does not give a specific task, read `checklist/roadmap.md` and continue the pre-GUI roadmap from where you left off. No asking, no confirming — just pick up and work.
+**Auto-continue rule:** If the user does not give a specific task, read `todolist.md` and continue from the top uncompleted item. No asking, no confirming — just pick up and work.
 
 ## Architecture
 
-**Go backend + Flutter frontend, connected by FFI.** Each platform is a single Go file (`telegram.go`, `bale.go`, etc.) implementing the `Core` interface from `go/cores/base.go` (55 methods). The FFI bridge (`go/bridge/bridge.go`) exports functions via `//export` with JSON in/out. Shared utils live in `go/utils/`. Dart/Flutter UI (`dart/`) not started yet. See `SPEC.md` for full architecture.
+**Go backend + Flutter frontend, connected by FFI.** Each platform is a single Go file (`telegram.go`, `bale.go`, etc.) implementing the `Core` interface from `go/cores/base.go` (63 methods). The FFI bridge (`go/bridge/bridge.go`) exports functions via `//export` with JSON in/out. Shared utils live in `go/utils/`. Dart/Flutter UI (`dart/`) not started yet. See `SPEC.md` for full architecture.
 
 ## Quick Reference — Build & Test Commands
 
@@ -56,57 +55,11 @@ source auth/auth.md && cd go/tests && go test -v -timeout 300s
 
 **Go version**: 1.26.1 · **CGO_ENABLED=0** everywhere. No CGo. Period.
 
-## Pre-GUI Roadmap — Session-by-Session Steps
+## What To Do
 
-Progress is tracked in `checklist/roadmap.md`. On every context reset, read that file to know exactly where you left off — which step, which core, which method. At the end of every session (and after completing any substep), update `roadmap.md` with current status. NEVER ask the user what to do next — the answer is in `roadmap.md`. Do NOT skip steps. Do NOT start the GUI until ALL steps are complete.
+All work is tracked in `todolist.md` — structured top-to-bottom. On context reset, read it and continue from the top uncompleted item. Remove items from `todolist.md` when done. NEVER ask the user what to do next — the answer is in `todolist.md`.
 
-### Step 1: Complete Existing Checklist Methods
-Implement every method listed in the current `checklist/` files that isn't implemented yet. One core at a time.
-
-### Step 2: Test ALL Existing Methods
-Test every implemented method in every core against official harnesses and live APIs. Verify results using the official harness — never trust only your own test code. Mark results in `checklist/`. Prune passing tests. Fix failures. Do NOT nag the user — figure it out yourself via web search, reading existing libs, or replicating the official harness implementation.
-
-### Step 3: Replace Checklists with Full Protocol Surface
-Delete the old checklists. For every core, research the FULL protocol surface (every command, every API method, every feature — not just Core's 55 methods). Create new comprehensive checklists. Do not duplicate methods already confirmed working.
-
-### Step 4: Implement All New Methods to 100%
-Implement every new method from the updated checklists, one by one. Test each against the official harness and verify using the official harness — not just your own tests. For research: use web search, read existing libs' source, and/or replicate the official harness implementation. Never nag the user. Every core reaches 100% protocol coverage.
-
-### Step 5: Perfect, Optimize, and Decouple Cores
-Make it work → make it right → make it fast. Each core must be fully independent — no cross-core dependencies. Optimize for GUI readiness without building the GUI. Clean interfaces, consistent error handling, unified patterns.
-
-### Step 6: Unify Core APIs
-All cores expose the same unified interface where possible. Pythonic example: `cores.bale.SendMessage()`, `cores.rubika.SendMessage()`, `cores.telegram.SendMessage()` — same signatures, same return types, same behavior for shared operations. Platform-specific methods remain as extras. Speed over elegance, but don't break anything.
-
-### Step 7: Complete Telegram & Matrix Method Coverage
-Find every method from gotd/td (Telegram) and mautrix-go (Matrix) libraries. Add ALL missing methods to checklists, excluding payment/ads/useless methods. These two cores were grandfathered in from early development and may be missing methods that the libs expose.
-
-### Step 8: Fresh Checklists for All Cores
-Remove ALL existing checklists. Create brand-new checklists for every core with every method listed. Each checklist should reflect the actual current state of every exported method in the core file. Then: find every method from every core's upstream lib/protocol that's missing, implement every non-existing method, and verify each one works. Deduplicate only methods that do the exact same thing (true duplicates). Merge methods that are meant to be chained together into single cohesive operations. Optimize methods that aren't optimized. Remove methods that serve no purpose — not even niche. If nobody would ever call it, delete it. Ensure every core handles connection drops gracefully and reconnects without GUI intervention. Add consistent error types across all cores — the GUI needs predictable error categories (auth failed, network down, rate limited, not supported, permission denied), not raw strings. For Rubika: add full backend IP + subdomain fallback list (like the user's existing approach) so it works even when domains are blocked outside Iran. Document any important discoveries (protocol quirks, API gotchas, undocumented behavior) in `research/` as you go. When this step is done, every core has 100% useful coverage with zero dead weight.
-
-### Step 9: Test Every Core
-Test every method in every core against their official harnesses and live APIs — including previously tested ones from earlier steps. Test everything: messaging, media, groups, channels, calls (audio/video where supported), file transfers, admin ops, the lot. Use multiple accounts per platform to verify cross-account behavior (sending between accounts, group operations, permissions). Fix failures. Prune passing tests. Every method must work end-to-end, not just "no error returned." Once a method passes, never re-run it again within this step — test everything once, not twice.
-
-### Step 10: Fresh Checklists + Optimize Every Core + Retest Modified
-Delete all existing per-core checklists. Create fresh checklists reflecting every exported method per core (everything marked done since it's all implemented). Then performance-optimize every core: reduce allocations, optimize hot paths, simplify complex methods, improve concurrency patterns, eliminate unnecessary copies. Track every modified method in the checklist (mark as needs-retest). Test every modified method against live APIs to confirm no regressions. Fix any failures, prune passing tests.
-
-### Step 11: Unify Every Core
-All cores expose the same unified interface where possible — same Go signatures, same return types, same behavior for shared operations. Pythonic logic in Go: `cores.bale.SendMessage()` and `cores.telegram.SendMessage()` behave the same for the ease of the GUI. The GUI should never need to know which core it's talking to for common operations. Platform-specific methods remain as extras but the shared surface must be identical in behavior.
-
-### Step 12: Test Every Unified Method
-Test every method again after unification — full pass, including ones that passed in Step 9. Once a method passes here, don't re-run it.
-
-### Step 13.0: Type the Untyped Methods
-~250 methods return `map[string]interface{}` or unexported structs for known shapes. Define proper Go structs before protobuf codegen. Telegram `tg.*` pass-throughs (~200) get typed via TL schema → proto codegen tool. ~205 truly untyped methods (GitHub `json.RawMessage`, `RawAPI`/`RawExec`) stay as `bytes` in proto. See `research/protobuf_type_audit.md` for full breakdown.
-
-### Step 13: Protobuf Bridge
-Replace JSON bridge with Protocol Buffers for ALL 4,051 exported methods across all 10 cores. Codegen tool parses Go AST → generates per-core `.proto` files, Go dispatch, Dart wrappers. Single FFI entry point. See `checklist/roadmap.md` for substeps.
-
-### Step 14: Write `/docs`
-Create a `/docs` folder documenting how to use each core independently as a standalone Go library. Usage examples, method reference, auth flows — as if someone is importing just one core into their own project.
-
-### Step 15: Build the GUI
-Only now: start Flutter GUI work. See `research/gui-idea.md` and `checklist/gui.md` for design.
+Steps 1–13 (cores, testing, protobuf bridge) are ALL DONE. Current work: Step 15 — Build GUI (delete old UI, rebuild from scratch). Final step after GUI: docstring every core.
 
 **HARD RULE: Pure Go + Flutter ONLY — ZERO CGo, ZERO C/C++ dependencies.** No CGo anywhere — not in cores, not in utils, not in bridge, not in tests, not anywhere. No libvpx, no libolm, no native codecs, no C compilers needed. If it can't be done in pure Go or Flutter, find a different approach or skip it. The FFI bridge uses `dart:ffi` on the Dart side calling into a Go shared lib built with `go build -buildmode=c-shared` — that's Go's own toolchain, NOT CGo linking against external C libs. The tgcalls C++ test harness is a SEPARATE binary outside this repo (built independently in /tmp/), never compiled as part of `go build`. This project compiles with `go build` alone, no C compiler, no pkg-config, no system libraries.
 
@@ -207,6 +160,7 @@ When the user says "add X", follow these steps in order:
 - **OTP handling** — run tests via Bash tool. For OTP: run test in background, ask user for code, write to `auth/otp_code.txt` which the test polls.
 - **Don't invent protocols** — read the official client source and implement 1:1.
 - **No duplicate methods** — Before implementing a method from the checklist, ALWAYS check existing code first. Grep the core file for similar function names and read any matches. A "missing" method may already be implemented under a different name or covered by existing logic. Compare what the checklist says vs what the code already does. Only implement if the functionality genuinely doesn't exist yet. If a checklist item is already covered, remove it from the checklist instead of adding duplicate code.
+- **ZERO placeholders — HARD BAN** — NEVER write placeholder code, stub UI, mock data, "coming soon" snackbars, hardcoded fake content, or any feature that appears to work but doesn't. If a feature isn't implemented, the UI element for it must NOT exist. No fake buttons, no mock sticker packs, no static waveforms, no "TODO" features. Every visible UI element must be fully functional end-to-end. Violating this rule is equivalent to shipping broken code.
 - **No stubs — everything gets tested** — NEVER mark a method as "done" if it just returns an error stub. If a method requires a server, daemon, special privileges, or admin access (e.g. Murmur Ice RPC, TS3 ServerQuery), get the binary via NixOS package or download it, spin it up, and test against it. Every method must be a real implementation that works against a real endpoint.
 - **Replication discipline** — NEVER assume. ALWAYS read the original source or spec. When something doesn't work: (1) the bug is in YOUR code, (2) add surgical logging, (3) don't guess — read the code that produces/consumes the data, (4) make it work first, then right, then fast.
 - **One file per core** — all Telegram code in `telegram.go`, all Rubika in `rubika.go`, etc.
@@ -218,20 +172,15 @@ When the user says "add X", follow these steps in order:
 ## Docs Index
 
 - `research/telegram_notes.md` — gotd/td API patterns, bot limitations, FLOOD_WAIT, tgcalls signaling
-- `research/tgcalls_protocol.md` — reverse-engineered tgcalls spec (§1-12 calls, §13 video, §14 SFU)
+- `research/tgcalls_protocol.md` — reverse-engineered tgcalls spec (§1-12 calls, §13 video, §14 SFU) + web call harness & ntgcalls appendices
 - `research/bale_protocol.md` — Bale bot API, user API, calling protocol
 - `research/rubika_protocol.md` — Rubika protocol spec
 - `research/deltachat_protocol.md` — Delta Chat protocol spec (32 sections)
-- `research/ntgcalls_test_findings.md` — ntgcalls automated test harness findings
-- `research/web_call_harness.md` — Telegram Web v4.0.0 call protocol, tt-harness
 - `research/teamspeak_protocol.md` — TS3 UDP client protocol spec
 - `research/matrix_protocol.md` — Matrix CS API, mautrix-go SDK mapping
 - `research/mumble_protocol.md` — Mumble protocol spec (TCP/UDP, OCB2 crypto)
 - `research/ice_protocol.md` — ZeroC Ice wire protocol for Murmur admin (encap format, identities, tested methods)
 - `research/xmpp_protocol.md` — XMPP (RFC 6120/6121 + 30+ XEPs, Jingle)
-- `research/protobuf_type_audit.md` — Pre-Step 13 audit: which method sigs are proto-compatible, fixable, or inherently untyped
 - `research/engine_architecture.md` — Engine layer spec: SQLite cache, auth FSM, events, pending queue, media pipeline, content normalization
-- `research/flutter_gui_automation.md` — Flutter VM Service protocol for GUI automation (screenshots, widget inspection, auth CLI)
-- `research/gui-idea.md` — UI/UX design exploration, Discord/Telegram hybrid rationale
-- `checklist/roadmap.md` — pre-GUI roadmap progress tracker (current step, core, method)
-- `checklist/gui.md` — GUI component checklist, current state of demo_ui.html
+- `research/gui_notes.md` — UI/UX design exploration + GUI automation toolkit (merged from gui-idea.md + flutter_gui_automation.md)
+- `research/telegram_desktop_ui.md` — Complete Telegram Desktop UI spec (22 sections: §1-13 core UI, §14 general/account settings, §15 notifications, §16 privacy/security, §17 data/storage/advanced, §18 folders, §19 sessions/power/language, §20 media viewer, §21 create group/channel, §22 forum topics)

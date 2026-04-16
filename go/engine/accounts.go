@@ -2,14 +2,16 @@ package engine
 
 import (
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
+	"strings"
 	"sync"
 	"time"
 
 	"uniclient/cores"
+	"uniclient/utils"
 )
 
 // AccountInfo is the data returned to the UI for display.
@@ -33,33 +35,88 @@ func generateAccountID(platform string) string {
 	return prefix + "_" + hex.EncodeToString(b)
 }
 
-// loadAccounts reads accounts from the DB into the in-memory map.
-// Cores are NOT started here — call connectAccount() separately.
+// loadAccounts reads accounts from the vault (source of truth) into the
+// in-memory map, and ensures DB cache rows exist for each.
 func (e *Engine) loadAccounts() error {
+	entries := e.vault.ListAccountEntries()
+
+	for id, entry := range entries {
+		e.accounts[id] = &Account{
+			ID:          id,
+			Platform:    entry.Platform,
+			DisplayName: entry.DisplayName,
+			ConnState:   ConnDisconnected,
+			SortOrder:   entry.SortOrder,
+		}
+
+		// Ensure DB cache row exists.
+		e.db.Exec(
+			`INSERT OR IGNORE INTO accounts (id, platform, display_name, avatar_path, sort_order, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			id, entry.Platform, entry.DisplayName, entry.AvatarPath, entry.SortOrder, entry.CreatedAt)
+	}
+	return nil
+}
+
+// migrateAccountsToVault migrates account data from the old DB+vault format
+// into the unified __accounts vault bucket. Runs once on first startup after upgrade.
+func (e *Engine) migrateAccountsToVault() {
+	if e.vault.HasAccountsBucket() {
+		return // already migrated
+	}
+
 	rows, err := e.db.Query(
-		`SELECT id, platform, display_name, avatar_path, sort_order
+		`SELECT id, platform, display_name, avatar_path, sort_order, created_at
 		 FROM accounts ORDER BY sort_order`)
 	if err != nil {
-		return fmt.Errorf("query accounts: %w", err)
+		return // no DB accounts = fresh install
 	}
 	defer rows.Close()
 
+	migrated := 0
 	for rows.Next() {
 		var id, platform string
-		var displayName, avatarPath sql.NullString
+		var displayName, avatarPath interface{}
 		var sortOrder int
-		if err := rows.Scan(&id, &platform, &displayName, &avatarPath, &sortOrder); err != nil {
-			return fmt.Errorf("scan account: %w", err)
+		var createdAt int64
+		if err := rows.Scan(&id, &platform, &displayName, &avatarPath, &sortOrder, &createdAt); err != nil {
+			continue
 		}
-		e.accounts[id] = &Account{
-			ID:          id,
-			Platform:    platform,
-			DisplayName: displayName.String,
-			ConnState:   ConnDisconnected,
-			SortOrder:   sortOrder,
+
+		entry := utils.VaultAccountEntry{
+			Platform:  platform,
+			SortOrder: sortOrder,
+			CreatedAt: createdAt,
 		}
+		if dn, ok := displayName.(string); ok {
+			entry.DisplayName = dn
+		}
+		if ap, ok := avatarPath.(string); ok {
+			entry.AvatarPath = ap
+		}
+
+		// Pull old credentials from vault "accounts" bucket.
+		var credRaw json.RawMessage
+		if err := e.vault.Get("accounts", "cred_"+id, &credRaw); err == nil {
+			entry.Credentials = credRaw
+		}
+
+		_ = e.vault.PutAccount(id, entry)
+		migrated++
 	}
-	return rows.Err()
+
+	// Clean up old cred_* keys.
+	if migrated > 0 {
+		if keys, err := e.vault.ListKeys("accounts"); err == nil {
+			for _, k := range keys {
+				if strings.HasPrefix(k, "cred_") {
+					_ = e.vault.Delete("accounts", k)
+				}
+			}
+			_ = e.vault.Save()
+		}
+		log.Printf("[engine] migrated %d accounts from DB+vault to unified vault", migrated)
+	}
 }
 
 // ListAccounts returns info about all accounts, sorted by sort_order.
@@ -104,15 +161,21 @@ func (e *Engine) AddAccount(platform string) (string, error) {
 	}
 	e.accountsMu.RUnlock()
 
-	vaultKey := "cred_" + id
-
-	_, err := e.db.Exec(
-		`INSERT INTO accounts (id, platform, vault_key, sort_order, created_at)
-		 VALUES (?, ?, ?, ?, ?)`,
-		id, platform, vaultKey, maxOrder, now)
-	if err != nil {
-		return "", fmt.Errorf("insert account: %w", err)
+	// Write to vault (source of truth).
+	entry := utils.VaultAccountEntry{
+		Platform:  platform,
+		SortOrder: maxOrder,
+		CreatedAt: now,
 	}
+	if err := e.vault.PutAccount(id, entry); err != nil {
+		return "", fmt.Errorf("vault put account: %w", err)
+	}
+
+	// Insert DB cache row.
+	e.db.Exec(
+		`INSERT OR IGNORE INTO accounts (id, platform, sort_order, created_at)
+		 VALUES (?, ?, ?, ?)`,
+		id, platform, maxOrder, now)
 
 	acc := &Account{
 		ID:        id,
@@ -147,17 +210,15 @@ func (e *Engine) RemoveAccount(accountID string) error {
 		acc.Core.Close()
 	}
 
-	// Delete credentials from vault.
-	vaultKey := "cred_" + accountID
-	e.vault.Delete("accounts", vaultKey)
-	e.vault.Save()
+	// Delete from vault: account entry (includes credentials) + session.
+	e.vault.DeleteAccount(accountID)
+	e.vault.DeleteSession(accountID)
 
-	// Delete all cached data (cascades via foreign key for chats).
+	// Delete all cached data from DB.
 	tx, err := e.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin delete tx: %w", err)
 	}
-	// Messages and media don't have FK cascade, delete explicitly.
 	tx.Exec("DELETE FROM messages WHERE account_id = ?", accountID)
 	tx.Exec("DELETE FROM media WHERE account_id = ?", accountID)
 	tx.Exec("DELETE FROM users WHERE account_id = ?", accountID)
@@ -173,6 +234,17 @@ func (e *Engine) RemoveAccount(accountID string) error {
 
 // ReorderAccounts sets the sort order based on the provided list of account IDs.
 func (e *Engine) ReorderAccounts(order []string) error {
+	// Update vault (source of truth).
+	for i, id := range order {
+		entry, err := e.vault.GetAccount(id)
+		if err != nil {
+			continue
+		}
+		entry.SortOrder = i
+		_ = e.vault.PutAccount(id, *entry)
+	}
+
+	// Update DB cache.
 	tx, err := e.db.Begin()
 	if err != nil {
 		return err
@@ -184,6 +256,7 @@ func (e *Engine) ReorderAccounts(order []string) error {
 		return err
 	}
 
+	// Update in-memory.
 	e.accountsMu.Lock()
 	for i, id := range order {
 		if acc, ok := e.accounts[id]; ok {
@@ -194,37 +267,62 @@ func (e *Engine) ReorderAccounts(order []string) error {
 	return nil
 }
 
-// SaveCredentials stores platform auth credentials in the vault.
+// SaveCredentials stores platform auth credentials in the vault account entry.
 func (e *Engine) SaveCredentials(accountID string, creds cores.AuthConfig) error {
-	vaultKey := "cred_" + accountID
-	if err := e.vault.Put("accounts", vaultKey, creds); err != nil {
-		return fmt.Errorf("vault put: %w", err)
+	entry, err := e.vault.GetAccount(accountID)
+	if err != nil {
+		return fmt.Errorf("get account for creds: %w", err)
 	}
-	return e.vault.Save()
+	raw, err := json.Marshal(creds)
+	if err != nil {
+		return fmt.Errorf("marshal credentials: %w", err)
+	}
+	entry.Credentials = raw
+	return e.vault.PutAccount(accountID, *entry)
 }
 
-// LoadCredentials retrieves stored auth credentials from the vault.
+// LoadCredentials retrieves stored auth credentials from the vault account entry.
 func (e *Engine) LoadCredentials(accountID string) (*cores.AuthConfig, error) {
-	vaultKey := "cred_" + accountID
+	entry, err := e.vault.GetAccount(accountID)
+	if err != nil {
+		return nil, fmt.Errorf("get account: %w", err)
+	}
+	if entry.Credentials == nil {
+		return nil, fmt.Errorf("no credentials for %s", accountID)
+	}
 	var creds cores.AuthConfig
-	if err := e.vault.Get("accounts", vaultKey, &creds); err != nil {
-		return nil, err
+	if err := json.Unmarshal(entry.Credentials, &creds); err != nil {
+		return nil, fmt.Errorf("unmarshal credentials: %w", err)
 	}
 	return &creds, nil
 }
 
 // UpdateAccountDisplay updates the display name and avatar for an account.
 func (e *Engine) UpdateAccountDisplay(accountID, displayName, avatarPath string) error {
-	_, err := e.db.Exec(
-		`UPDATE accounts SET display_name = ?, avatar_path = ? WHERE id = ?`,
-		displayName, avatarPath, accountID)
+	// Update vault (source of truth).
+	entry, err := e.vault.GetAccount(accountID)
 	if err != nil {
-		return err
+		return fmt.Errorf("get account: %w", err)
+	}
+	if displayName != "" {
+		entry.DisplayName = displayName
+	}
+	if avatarPath != "" {
+		entry.AvatarPath = avatarPath
+	}
+	if err := e.vault.PutAccount(accountID, *entry); err != nil {
+		return fmt.Errorf("put account: %w", err)
 	}
 
+	// Update DB cache.
+	e.db.Exec(
+		`UPDATE accounts SET display_name = ?, avatar_path = ? WHERE id = ?`,
+		entry.DisplayName, entry.AvatarPath, accountID)
+
+	// Update in-memory.
 	e.accountsMu.Lock()
 	if acc, ok := e.accounts[accountID]; ok {
-		acc.DisplayName = displayName
+		acc.DisplayName = entry.DisplayName
 	}
 	e.accountsMu.Unlock()
 

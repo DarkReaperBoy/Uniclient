@@ -22,7 +22,6 @@ const (
 	ConnConnecting
 	ConnConnected
 	ConnUnstable
-	ConnAuthRequired
 )
 
 // Account holds the live state for a connected platform account.
@@ -145,7 +144,10 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	// Load accounts from DB.
+	// Migrate old DB+vault account data into unified vault entries.
+	e.migrateAccountsToVault()
+
+	// Load accounts from vault (source of truth), sync DB cache.
 	if err := e.loadAccounts(); err != nil {
 		e.db.Close()
 		e.vault.Close()

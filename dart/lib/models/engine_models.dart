@@ -46,14 +46,12 @@ enum ConnState {
   disconnected,
   connecting,
   connected,
-  unstable,
-  authRequired;
+  unstable;
 
   static ConnState fromString(String s) => switch (s) {
     'connecting' => connecting,
     'connected' => connected,
     'unstable' => unstable,
-    'auth_required' => authRequired,
     _ => disconnected,
   };
 }

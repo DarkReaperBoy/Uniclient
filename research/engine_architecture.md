@@ -210,8 +210,11 @@ Account deletion = `DELETE FROM * WHERE account_id = ?` + `VACUUM`. Rare operati
 <app-internal>/                  (Android, path passed from Dart)
 
 Contents:
-    uniclient.vault              # encrypted credentials (Argon2id + AES-256-GCM)
-    config.json                  # app settings (theme, language, proxy)
+    uniclient.vault              # encrypted store (Argon2id + AES-256-GCM)
+                                 #   __accounts: account metadata + credentials
+                                 #   __sessions: per-account session data
+                                 #   __config: app settings (theme, language, etc.)
+    uniclient.lock               # single-instance flock file
     cache.db                     # SQLite database (WAL mode)
     media/
         <account_id>/
@@ -236,8 +239,7 @@ CREATE TABLE accounts (
     platform     TEXT NOT NULL,     -- "telegram", "matrix", etc.
     display_name TEXT,              -- "@nako" or "nako@matrix.org"
     avatar_path  TEXT,              -- local path to cached avatar
-    vault_key    TEXT,              -- key in vault "accounts" bucket for credentials
-    sort_order   INTEGER NOT NULL DEFAULT 0,
+    sort_order   INTEGER NOT NULL DEFAULT 0,  -- DB is cache; vault __accounts is source of truth
     created_at   INTEGER NOT NULL   -- unix ms
 );
 
@@ -603,9 +605,10 @@ The engine:
 ### Credential Persistence
 
 On successful auth:
-1. Engine saves credentials to vault: `vault.Put("accounts", accountID, credentialBlob)`
-2. Engine inserts account into SQLite: `INSERT INTO accounts (...)`
-3. On next app launch, engine reads accounts from SQLite, loads credentials from vault, calls `core.Authenticate()` with saved credentials (session resume, not full re-auth)
+1. Engine saves credentials to vault account entry: `vault.PutAccount(accountID, entry)` — entry includes platform, display_name, sort_order, and credentials as `json.RawMessage`
+2. Engine inserts account into SQLite as cache: `INSERT OR IGNORE INTO accounts (...)`
+3. On next app launch, engine reads accounts from vault (`ListAccountEntries()`), rebuilds DB cache rows, calls `core.Authenticate()` with saved credentials (session resume, not full re-auth)
+4. If auth fails, account stays disconnected — no auto-popup, user can remove dead accounts manually
 
 ---
 
@@ -1555,16 +1558,17 @@ Without encryption: upload raw file (platforms do their own compression).
 States:
     disconnected → connecting → connected → disconnected (cycle)
                                          → unstable → disconnected
-                                         → auth_required (session expired)
 
 Transitions:
     disconnected → connecting:  engine.Init() or manual reconnect
     connecting → connected:     core.Authenticate() succeeds + OnUpdate registered
+    connecting → disconnected:  core.Authenticate() fails (bad creds, expired session)
     connected → disconnected:   network error, server close, core error
     connected → unstable:       3+ reconnects in 60 seconds
-    connected → auth_required:  core returns ErrAuth or ErrSessionExpired
     unstable → connected:       stable for 5 minutes (no disconnects)
-    auth_required → connecting: user re-enters credentials via auth FSM
+
+Note: auth_required state was removed — failed auth just stays disconnected.
+User removes dead accounts manually; auth dialogs only appear for new accounts.
 ```
 
 ### Reconnection Strategy

@@ -114,12 +114,6 @@ class AppState extends ChangeNotifier {
                 Icons.cloud_off_outlined,
                 const Color(0xFFFAA61A),
               );
-            case ConnState.authRequired:
-              onConnStateNotification!(
-                '$label needs re-authentication',
-                Icons.lock_outline,
-                const Color(0xFFE67E22),
-              );
             case ConnState.unstable:
               onConnStateNotification!(
                 '$label connection unstable',

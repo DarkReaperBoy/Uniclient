@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=UniClient
+Comment=Unified multi-platform messaging client
+Exec=uniclient
+Icon=com.uniclient.app
+Terminal=false
+Type=Application
+Categories=Network;InstantMessaging;Chat;
+Keywords=chat;messaging;telegram;irc;matrix;xmpp;
+StartupWMClass=com.uniclient.app

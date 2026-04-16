@@ -1025,7 +1025,7 @@ class _PlatformHeader extends StatelessWidget {
                 width: 8, height: 8,
                 decoration: BoxDecoration(
                   color: switch (connState) {
-                    ConnState.connecting || ConnState.unstable || ConnState.authRequired => AppColors.warning,
+                    ConnState.connecting || ConnState.unstable => AppColors.warning,
                     _ => AppColors.danger,
                   },
                   shape: BoxShape.circle,
@@ -1063,8 +1063,6 @@ class _PlatformHeader extends StatelessWidget {
     final appState = context.read<AppState>();
     final accounts = appState.accountsForPlatform(platform);
     final label = _platformMeta[platform]?.label ?? platform;
-    final needsAuth = _bestConnState(appState, platform) == ConnState.authRequired;
-
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
@@ -1072,15 +1070,6 @@ class _PlatformHeader extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(label, style: TextStyle(color: textColor)),
         children: [
-          if (needsAuth)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, 'reauth'),
-              child: Row(children: [
-                Icon(Icons.lock_open, color: AppColors.warning, size: 18),
-                const SizedBox(width: 10),
-                Text('Re-authenticate', style: TextStyle(color: AppColors.warning)),
-              ]),
-            ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, 'reconnect'),
             child: Row(children: [
@@ -1105,20 +1094,6 @@ class _PlatformHeader extends StatelessWidget {
     final engine = context.read<EngineService>();
 
     switch (result) {
-      case 'reauth':
-        final acc = accounts.firstWhere(
-          (a) => appState.connStateFor(a.id) == ConnState.authRequired,
-          orElse: () => accounts.first,
-        );
-        if (context.mounted) {
-          showDialog<void>(
-            context: context,
-            barrierDismissible: true,
-            builder: (_) => AuthScreen(accountId: acc.id, platform: acc.platform),
-          ).then((_) {
-            if (context.mounted) context.read<ChatState>().loadChats();
-          });
-        }
       case 'reconnect':
         ScaffoldMessenger.of(context)
           ..clearSnackBars()
@@ -1191,9 +1166,6 @@ class _PlatformHeader extends StatelessWidget {
     }
     for (final a in accounts) {
       if (appState.connStateFor(a.id) == ConnState.connecting) return ConnState.connecting;
-    }
-    for (final a in accounts) {
-      if (appState.connStateFor(a.id) == ConnState.authRequired) return ConnState.authRequired;
     }
     return ConnState.disconnected;
   }
@@ -1458,7 +1430,6 @@ class _AccountPicker extends StatelessWidget {
                   color: switch (connState) {
                     ConnState.connected => AppColors.online,
                     ConnState.connecting || ConnState.unstable => AppColors.warning,
-                    ConnState.authRequired => AppColors.warning,
                     _ => AppColors.danger,
                   },
                   shape: BoxShape.circle,

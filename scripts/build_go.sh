@@ -19,7 +19,7 @@ case "$TARGET" in
   linux)
     echo "Building libcores.so for linux/amd64..."
     CGO_ENABLED=1 GOOS=linux GOARCH=amd64 \
-      go build -tags goolm -buildmode=c-shared -o "$BUILD_DIR/libcores.so" ./cmd/bridge/
+      go build -tags goolm -ldflags="-s -w" -buildmode=c-shared -o "$BUILD_DIR/libcores.so" ./cmd/bridge/
     echo "Output: $BUILD_DIR/libcores.so"
     ;;
   windows)

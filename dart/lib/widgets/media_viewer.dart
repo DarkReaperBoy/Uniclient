@@ -79,7 +79,15 @@ class _MediaViewerState extends State<MediaViewer> {
       );
       return;
     }
-    final downloadsDir = Directory('${Platform.environment['HOME'] ?? '/tmp'}/Downloads');
+    final String downloadsBase;
+    if (Platform.isWindows) {
+      downloadsBase = Platform.environment['USERPROFILE'] ?? 'C:\\Users\\Default';
+    } else if (Platform.isMacOS) {
+      downloadsBase = Platform.environment['HOME'] ?? '/tmp';
+    } else {
+      downloadsBase = Platform.environment['HOME'] ?? '/tmp';
+    }
+    final downloadsDir = Directory('$downloadsBase${Platform.pathSeparator}Downloads');
     if (!downloadsDir.existsSync()) downloadsDir.createSync(recursive: true);
     final name = msg.mediaFileName.isNotEmpty ? msg.mediaFileName : src.uri.pathSegments.last;
     var dest = File('${downloadsDir.path}/$name');

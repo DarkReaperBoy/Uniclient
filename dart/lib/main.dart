@@ -1,4 +1,4 @@
-import 'dart:io' show Directory, Platform, Process, exit;
+import 'dart:io' show Directory, Platform, exit;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -55,6 +55,8 @@ class UniClientApp extends StatefulWidget {
 class _UniClientAppState extends State<UniClientApp> {
   bool _initStarted = false;
   final SystemTray _tray = SystemTray();
+  VoidCallback? _unreadListener;
+  ChatState? _chatStateRef;
 
   @override
   void didChangeDependencies() {
@@ -102,22 +104,17 @@ class _UniClientAppState extends State<UniClientApp> {
       downloadDir: downloadDir,
     );
 
-    // If another instance is already running, raise its window and exit.
-    if (appState.initError != null &&
-        appState.initError!.contains('already running')) {
-      _raiseExistingWindow();
-      exit(0);
-    }
-
     // Initialize system tray after engine is ready.
     await _tray.init();
     _tray.onQuit = () => exit(0);
 
     // Track unread count changes and update tray tooltip.
     if (_tray.isAvailable) {
-      chatState.addListener(() {
+      _chatStateRef = chatState;
+      _unreadListener = () {
         _tray.updateUnread(chatState.totalUnread);
-      });
+      };
+      chatState.addListener(_unreadListener!);
       // Set initial tooltip.
       _tray.updateUnread(chatState.totalUnread);
     }
@@ -125,6 +122,9 @@ class _UniClientAppState extends State<UniClientApp> {
 
   @override
   void dispose() {
+    if (_unreadListener != null && _chatStateRef != null) {
+      _chatStateRef!.removeListener(_unreadListener!);
+    }
     _tray.dispose();
     super.dispose();
   }
@@ -144,26 +144,3 @@ class _UniClientAppState extends State<UniClientApp> {
   }
 }
 
-/// Try to raise the existing uniclient window using platform tools.
-void _raiseExistingWindow() {
-  try {
-    Process.runSync('bash', ['-c', '''
-      # Try kdotool (KDE Wayland)
-      if command -v kdotool >/dev/null 2>&1; then
-        for uuid in \$(kdotool search --name 'uniclient' 2>/dev/null); do
-          kdotool windowactivate "\$uuid" 2>/dev/null && exit 0
-        done
-      fi
-      # Try wmctrl (X11)
-      if command -v wmctrl >/dev/null 2>&1; then
-        wmctrl -a 'uniclient' 2>/dev/null && exit 0
-      fi
-      # Try xdotool (X11)
-      if command -v xdotool >/dev/null 2>&1; then
-        xdotool search --name 'uniclient' windowactivate 2>/dev/null && exit 0
-      fi
-    ''']);
-  } catch (_) {
-    // Best-effort — if window activation fails, we still exit.
-  }
-}
