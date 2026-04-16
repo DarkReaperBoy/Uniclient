@@ -3,9 +3,9 @@
 **Current Step:** Step 15 — Build GUI — **Alpha → Beta** — QR auth, system tray, folders sync, avatars, multi-account UX
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-16 (session 30 — Bale fixes + unified config: single `uniconfig` file replaces config.json + per-file sessions, platform-appropriate paths for Linux/macOS/Windows, auto-migration from old layout, SessionStore interface for all 10 cores)
+**Last Updated:** 2026-04-16 (session 30 — Bale fully working, unified storage into encrypted uniclient.vault, platform paths, SessionStore interface for all 10 cores)
 
-**NEXT:** Remaining "Should Fix": video playback (needs video_player or media_kit — both require native deps, may skip), voice/video call UI (complex). Remaining "Missing Features": voice/video recording, real sticker/GIF data. Then "Nice to Have": per-topic messages, audio waveform, channel edit. Then polish: accessibility, distribution packaging.
+**NEXT:** Fix ALL remaining bugs in `checklist/gui.md`. Go through every unfixed item systematically — no new features until bugs are squashed.
 
 ## Steps
 
