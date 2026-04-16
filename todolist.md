@@ -4,7 +4,7 @@ Top-to-bottom execution order. Remove items when done.
 
 ## 0. Finish Telegram Desktop UI Spec (`research/telegram_desktop_ui.md`)
 
-Sections 1-22 written (2411 lines). The remaining sections need to be researched from scratch by sending agents to study the AyuGram Desktop source code (https://github.com/AyuGram/AyuGramDesktop) and appending results to `research/telegram_desktop_ui.md`. Do 3 agents at a time, wait for results, append, repeat.
+Sections 1-34 written (8142 lines). The remaining sections need to be researched from scratch by sending agents to study the AyuGram Desktop source code (https://github.com/AyuGram/AyuGramDesktop) and appending results to `research/telegram_desktop_ui.md`. Do 3 agents at a time, wait for results, append, repeat.
 
 **Settings screens — ALL DONE:**
 - ~~General/My Account settings~~ → §14
@@ -18,25 +18,25 @@ Sections 1-22 written (2411 lines). The remaining sections need to be researched
 - Chat Settings screen (covered in §14.6, but AyuGram-specific settings still needed)
 - AyuGram-specific extra settings
 
-**Feature screens (each needs its own agent):**
+**Feature screens:**
 - ~~Media viewer/lightbox~~ → §20
 - ~~Create group/channel wizard flow~~ → §21
 - ~~Forum Topics UI~~ → §22
-- Scheduled messages UI
-- Keyboard shortcuts (full list)
-- Theming/color system (palette, custom themes, wallpapers)
-- Admin tools (permissions, restrict/ban, admin log, invite links)
-- Desktop notifications (toast/popup appearance)
-- Passcode lock screen
-- 2FA setup wizard
-- Chat export dialog
-- Bot interactions (inline bots, web apps, bot keyboards, payments)
-- Saved messages (sublists, tags)
-- Stories UI (stories bar, viewer, posting)
-- Contacts screen
-- Calls history screen
+- ~~Scheduled messages UI~~ → §23
+- ~~Keyboard shortcuts (full list)~~ → §24
+- ~~Theming/color system~~ → §25
+- ~~Admin tools~~ → §26
+- ~~Passcode lock screen~~ → §27
+- ~~2FA setup wizard~~ → §28
+- ~~Chat export dialog~~ → §29
+- ~~Bot interactions~~ → §30
+- ~~Saved messages (sublists, tags)~~ → §31
+- ~~Stories UI~~ → §32
+- ~~Contacts screen~~ → §33
+- ~~Calls history screen~~ → §34
 - Empty/error/loading states
 - Common dialog/modal patterns (confirm, alert, input boxes)
+- Desktop notifications (toast/popup appearance)
 - User profile popup (clicking avatar in chat)
 - Photo/avatar cropping dialog
 
