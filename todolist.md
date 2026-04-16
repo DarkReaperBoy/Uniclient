@@ -51,11 +51,11 @@ Sections 1-49 written (12,251 lines). The remaining sections need to be research
 - ~~Restricted permissions UI~~ → §47
 - ~~Drag-and-drop file overlay~~ → §48
 - ~~Scroll behaviors~~ → §49
-- Instant View (article reader mode, typography, navigation, share button)
+- ~~Instant View~~ — skipped (just a web page loader, not relevant)
 
 **AyuGram-specific features (each needs its own agent):**
-- Ghost Mode UI (all 9 toggles, per-account locks, tray integration)
-- Anti-Recall / Message History (deleted message display, edit history viewer, translucent styling)
+- ~~Ghost Mode UI (8 toggles, per-account locks, tray integration)~~ → §51
+- ~~Anti-Recall / Message History (deleted message display, edit history viewer, translucent styling)~~ → §52
 - Message Filters (regex engine, per-dialog vs shared, shadow ban list, import/export)
 - Streamer Mode (window hiding, what gets hidden)
 - Message Shot (screenshot capture UI, options: background, date, reactions, spoilers, theme)

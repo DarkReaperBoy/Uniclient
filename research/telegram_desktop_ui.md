@@ -12249,3 +12249,602 @@ Multiple highlights queued in `_queue` and processed sequentially.
 | Style constants | `lib_ui/ui/basic.style` (slideDuration, activeFade*) |
 | Chat style constants | `ui/chat/chat.style` (historyScrollDateHideTimeout, historyDateFadeDuration) |
 | Button style constants | `chat_helpers/chat_helpers.style` (historyToDown*, historyUnread*) |
+
+---
+
+## 51. Ghost Mode (AyuGram)
+
+AyuGram's signature privacy feature. Ghost Mode prevents the client from sending presence signals (read receipts, online status, typing indicators, etc.) to Telegram's servers. It operates at the API call level -- intercepting outgoing requests before they reach the network.
+
+### 51.1 Architecture overview
+
+Ghost Mode settings are stored per-account in a `GhostModeAccountSettings` object, keyed by user ID (uint64). A global mode (key `0`) applies the same settings to all accounts. The setting `useGlobalGhostMode` (default: `true`) controls which mode is active. Settings persist to `tdata/ayu_settings.json` under the `ghostModeSettings` key as a map of stringified user IDs to setting objects.
+
+The `isGhostModeActive` computed property is `true` when ALL five core toggles are in their "ghost" state (either actively set or locked):
+
+```
+ghostModeActive = (readMsgLocked || !sendReadMessages)
+    && (readStoriesLocked || !sendReadStories)
+    && (onlineLocked || !sendOnlinePackets)
+    && (uploadLocked || !sendUploadProgress)
+    && (offlineLocked || sendOfflinePacketAfterOnline)
+```
+
+### 51.2 Ghost Mode toggles (8 total)
+
+#### 51.2.1 Core toggles (5) -- inside collapsible "Ghost Mode" toggle
+
+These five appear as checkboxes inside a collapsible section. Each supports a **lock** mechanism (Shift+click) that prevents the master toggle from changing its value.
+
+| # | Toggle name (UI label) | Setting field | Default | Lock field | What it blocks |
+|---|---|---|---|---|---|
+| 1 | "Don't Read Messages" | `sendReadMessages` (inverted) | `true` (sends) | `sendReadMessagesLocked` | Blocks `messages.readHistory`, `messages.readDiscussion` in `data/data_histories.cpp` and `data/data_replies_list.cpp`. Also gates `messages.getMessagesViews` increment flag in `api/api_views.cpp` |
+| 2 | "Don't Read Stories" | `sendReadStories` (inverted) | `true` (sends) | `sendReadStoriesLocked` | Blocks `stories.readStories`, `stories.incrementStoryViews` in `data/data_stories.cpp` (5 call sites) |
+| 3 | "Don't Send Online" | `sendOnlinePackets` (inverted) | `true` (sends) | `sendOnlinePacketsLocked` | Blocks `account.updateStatus(offline=false)` in `api/api_updates.cpp`. When disabled, the client never reports online status to the server |
+| 4 | "Don't Send Typing" | `sendUploadProgress` (inverted) | `true` (sends) | `sendUploadProgressLocked` | Blocks `messages.setTyping` in `api/api_send_progress.cpp`. Despite the internal name "uploadProgress", this blocks ALL typing/upload progress indicators |
+| 5 | "Go Offline Automatically" | `sendOfflinePacketAfterOnline` | `false` | `sendOfflinePacketAfterOnlineLocked` | `AyuWorker` polls every 3 seconds. When it detects the user appeared online (or was marked via `markAsOnline()`), it immediately sends `account.updateStatus(offline=true)`. This makes the user flash online and go offline instantly |
+
+**Master toggle behavior:** The collapsible parent toggle labeled "Ghost Mode" calls `setGhostModeEnabled(bool)`. When enabled, it sets all five core toggles to their ghost values (read=false, stories=false, online=false, upload=false, offline=true), EXCEPT for any toggle that has its lock set. When Ghost Mode is enabled, it also calls `AyuWorker::markAsOnline()` to trigger an immediate offline status.
+
+**Lock mechanism:** Shift+clicking any checkbox in the collapsible section toggles its lock. Locked checkboxes are rendered at 40% opacity (`QGraphicsOpacityEffect(0.4)`). A locked toggle is immune to the master Ghost Mode on/off switch. You cannot lock ALL toggles (the UI prevents locking the last unlocked one). Lock state is persisted to JSON (`sendReadMessagesLocked`, etc.).
+
+**UI note:** The lang string `ayu_GhostModeOptionLongTapDescription` reads "Long-press any option to prevent it from changing when toggling Ghost Mode." but the desktop implementation uses Shift+click, not long-press (long-press is likely the mobile variant).
+
+#### 51.2.2 Additional toggles (3) -- below the collapsible section
+
+| # | Toggle name (UI label) | Setting field | Default | Description |
+|---|---|---|---|---|
+| 6 | "Read on Interact" | `markReadAfterAction` | `true` | Automatically marks messages as read when the user sends a message, taps a reaction (`data/data_message_reactions.cpp`), or votes in a poll (`api/api_polls.cpp`). Mutually exclusive with toggle #7 -- enabling this disables #7 |
+| 7 | "Schedule Messages" | `useScheduledMessages` | `false` | Automatically schedules outgoing messages ~12 seconds in the future (longer for media based on file size). Uses `applyGhostScheduling()` in `ayu/utils/telegram_helpers.cpp`. Only active when Ghost Mode is also active (`isUseScheduledMessages() = isGhostModeActive() && useScheduledMessages()`). Mutually exclusive with toggle #6 -- enabling this disables #6. Description: "Avoid using on unreliable networks" |
+| 8 | "Send without Sound" | `sendWithoutSound` | `false` | Sends all outgoing messages silently by default. When active, the send menu's "Send without Sound" button label flips to "Send with Sound" (in `menu/menu_send.cpp`) |
+
+### 51.3 Per-account settings & account picker
+
+Ghost Mode settings can be configured **per-account** or **globally** (same for all accounts).
+
+**Account picker UI** (visible only when >1 account is logged in):
+- A `LinkButton` (styled `ghostPickerButton`) appears to the right of the "Ghost essentials" subsection title
+- Next to it: a small down-arrow icon (`ghostPickerArrow`, using `info/edit/expand_arrow_small` icon in `windowActiveTextFg` color)
+- Font: `boxFontSize`, color: `windowActiveTextFg`
+- Clicking opens a `PopupMenu` with:
+  - **"Global Settings"** item (rendered as `GlobalAction` custom menu item with a purple gradient circle avatar labeled "GS")
+  - One **account item** per logged-in account (rendered as `AccountAction` custom menu item with the account's userpic and name)
+- Each account menu item is the same height: `photoSkip * 2 + photoSize` (from `st::defaultWhoRead`)
+- Selecting "Global Settings" sets `useGlobalGhostMode = true`; selecting an account sets it to `false` and uses that account's userId
+- Toast notifications on switch: "Switched to same settings for all accounts." / "Switched to individual settings for each account."
+
+**Single-account fallback:** When only 1 account exists and `useGlobalGhostMode` is false, the code auto-migrates the per-account settings to global (userId=0) and forces `useGlobalGhostMode = true`. The picker is hidden.
+
+### 51.4 Settings screen layout
+
+Ghost Mode settings live at: **Settings > AyuGram Preferences > AyuGram** (first category button).
+
+The `AyuGhost` section (id: `AyuGhost::Id()`, parent: `AyuMain::Id()`) builds this layout:
+
+```
+[Skip]
+--- Ghost essentials ---            [Account picker button] [v arrow]
+[Collapsible: Ghost Mode toggle]
+  [ ] Don't Read Messages
+  [ ] Don't Read Stories
+  [ ] Don't Send Online
+  [ ] Don't Send Typing
+  [ ] Go Offline Automatically
+[Toggle] Read on Interact
+[Skip]
+[Divider text: "Automatically marks a message as read when you send..."]
+[Skip]
+[Toggle] Schedule Messages
+[Skip]
+[Divider text: "Automatically schedules outgoing messages to send after ~12 seconds..."]
+[Skip]
+[Toggle] Send without Sound
+[Skip]
+[Divider text: "Sends outgoing messages without sound by default."]
+
+--- Spy essentials ---
+[Toggle] Save Deleted Messages          (saveDeletedMessages, default: true)
+[Toggle] Save Messages History           (saveMessagesHistory, default: true)
+[Divider]
+[Toggle] Save for Bots                   (saveForBots, default: false)
+
+--- Other ---
+[Toggle] Local Premium                   (localPremium, default: false)
+[Toggle] Disable Ads                     (disableAds, default: true)
+[Skip]
+```
+
+The navigation path from main settings:
+1. Settings (Telegram's main settings)
+2. "AyuGram Preferences" button (icon: `menuIconPremium`)
+3. AyuMain page shows logo + version + category buttons
+4. "AyuGram" button (icon: `menuIconGroupReactions`) -> `AyuGhost` section
+
+### 51.5 Drawer (side menu) integration
+
+The left drawer/hamburger menu can show a **Ghost Mode toggle** (on/off switch). This is controlled by `showGhostToggleInDrawer` (default: `true`).
+
+**Drawer toggle implementation** (in `window/window_main_menu.cpp`):
+- Label: "Ghost Mode" (`tr::ayu_GhostModeToggle`)
+- Icon: `ayuGhostIcon` (ghost icon from `ayu/ghost` SVG asset, colored `menuIconColor`)
+- Toggle switch bound to `ghostModeActiveValue()` (reactive)
+- Toggling calls `ghost.setGhostModeEnabled(!current)`
+- Uses per-session ghost settings: `AyuSettings::ghost(&controller->session())`
+
+The drawer also supports **LRead** and **SRead** toggle buttons (local read / server read markers), which are related but separate features.
+
+**Visibility settings** (configured in Appearance > Drawer Elements):
+- `showGhostToggleInDrawer` (default: true) -- show ghost mode toggle
+- `showLReadToggleInDrawer` (default: false) -- show local read toggle
+- `showSReadToggleInDrawer` (default: true) -- show server read toggle
+- `showStreamerToggleInDrawer` (default: false, Windows/Mac only)
+
+### 51.6 System tray integration
+
+The system tray context menu can include a **Ghost Mode toggle** item. Controlled by `showGhostToggleInTray` (default: `true`).
+
+**Tray menu implementation** (in `tray.cpp`):
+- Dynamic label: "Enable Ghost Mode" / "Disable Ghost Mode" (`tr::ayu_EnableGhostModeTray` / `tr::ayu_DisableGhostModeTray`)
+- Reactive: updates when ghost mode state changes (via `ghostModeActiveValue()` combined with `useGlobalGhostModeValue()`)
+- Clicking toggles `ghost.setGhostModeEnabled(!ghost.isGhostModeActive())`
+- Position in menu: after "Enable/Disable Notifications", before "Quit AyuGram"
+
+**Windows Jump List** (in `platform/win/integration_win.cpp`):
+- "Enter with Ghost" item added to Windows taskbar jump list
+- Label: `tr::ayu_GhostModeShortcut` ("Enter with Ghost")
+- Command-line argument: `-ghost`
+- Icon: `winEnterWithGuestIcon` (from `ayu/ghost_tray` SVG asset), rendered as `.ico` file at `tdata/temp/ghost_{0|1|2}.ico` (3 variants for light/dark/unknown taskbar theme)
+
+**Tray visibility settings** (configured in Appearance > Tray Elements):
+- `showGhostToggleInTray` (default: true)
+- `showStreamerToggleInTray` (default: false, Windows/Mac only)
+
+### 51.7 Command-line `-ghost` flag
+
+Launching the app with `-ghost` enables Ghost Mode at startup. Defined in `core/launcher.cpp`:
+
+```
+{ "-ghost", KeyFormat::NoValues }
+```
+
+When `cGhost()` is true (set from `-ghost` flag), the `AyuSettings::load()` function forces all core ghost settings on:
+- `sendReadMessages = false`
+- `sendReadStories = false`
+- `sendOnlinePackets = false`
+- `sendUploadProgress = false`
+- `sendOfflinePacketAfterOnline = true`
+
+This is a one-shot override applied on load -- it does not persist. The global variable is `gGhost` (declared in `settings.h` / `settings.cpp`).
+
+### 51.8 Visual indicators
+
+**Ghost Mode active state** is indicated through:
+
+1. **Drawer toggle switch** -- the toggle in the side menu reflects active/inactive state in real-time
+2. **Tray menu label** -- dynamically shows "Enable Ghost Mode" or "Disable Ghost Mode"
+3. **Toast notifications** -- when toggling ghost mode from the drawer or settings:
+   - "Ghost Mode turned on" (`ayu_GhostModeEnabled`)
+   - "Ghost Mode turned off" (`ayu_GhostModeDisabled`)
+4. **Collapsible toggle** in settings -- the master toggle reflects whether all sub-toggles are in ghost state
+5. **Locked checkboxes** -- rendered at 40% opacity with `QGraphicsOpacityEffect`
+
+There is no persistent status bar indicator, no app icon change, and no tray icon change based on Ghost Mode state. The ghost icon in the drawer (`ayu/ghost` SVG) is always the same regardless of state -- only the toggle switch changes.
+
+### 51.9 Keyboard shortcuts
+
+There are **no keyboard shortcuts** for toggling Ghost Mode in the desktop version. The only quick-access methods are:
+- Drawer toggle (side menu)
+- Tray menu item
+- Windows jump list ("-ghost" flag, which is a launch argument, not a runtime toggle)
+
+### 51.10 API interception points
+
+Ghost Mode works by intercepting API calls at their call sites:
+
+| Blocked API call | Source file | Ghost setting checked |
+|---|---|---|
+| `messages.readHistory` | `data/data_histories.cpp:684` | `!ghost.sendReadMessages()` |
+| `messages.readDiscussion` | `data/data_replies_list.cpp:1013` | `!ghost.sendReadMessages()` |
+| `messages.getMessagesViews` (increment flag) | `api/api_views.cpp:106` | `ghost.sendReadMessages()` passed as bool |
+| `stories.readStories` | `data/data_stories.cpp` (multiple sites) | `!ghost.sendReadStories()` |
+| `stories.incrementStoryViews` | `data/data_stories.cpp` | `!ghost.sendReadStories()` |
+| `account.updateStatus(online)` | `api/api_updates.cpp:1000` | `ghost.sendOnlinePackets()` gates the online flag |
+| `account.updateStatus(offline)` | `ayu/ayu_worker.cpp:73` | `ghost.sendOfflinePacketAfterOnline()` triggers auto-offline |
+| `messages.setTyping` | `api/api_send_progress.cpp:122` | `!ghost.sendUploadProgress()` |
+| `messages.sendMessage` (scheduled) | `api/api_sending.cpp:167` | `ghost.isUseScheduledMessages()` via `applyGhostScheduling()` |
+| `messages.sendMedia` (scheduled) | `boxes/send_files_box.cpp:2287` | `ghost.isUseScheduledMessages()` via `applyGhostScheduling()` |
+| Poll vote -> auto-read | `api/api_polls.cpp:190` | `!ghost.sendReadMessages() && ghost.markReadAfterAction()` |
+| Reaction -> auto-read | `data/data_message_reactions.cpp:1525` | `!ghost.sendReadMessages() && ghost.markReadAfterAction()` |
+| Send menu silent toggle | `menu/menu_send.cpp:752` | `ghost.sendWithoutSound()` flips the silent/sound label |
+
+### 51.11 Source files reference
+
+| Component | File path |
+|---|---|
+| Ghost settings model + serialization | `ayu/ayu_settings.h`, `ayu/ayu_settings.cpp` |
+| Ghost settings UI (AyuGhost section) | `ayu/ui/settings/settings_ayu.h`, `ayu/ui/settings/settings_ayu.cpp` |
+| Collapsible toggle + lock mechanism | `ayu/ui/settings/settings_ayu_utils.h`, `ayu/ui/settings/settings_ayu_utils.cpp` |
+| AyuSettings main page (navigation) | `ayu/ui/settings/settings_main.h`, `ayu/ui/settings/settings_main.cpp` |
+| Appearance settings (drawer/tray visibility) | `ayu/ui/settings/settings_appearance.cpp` |
+| AyuBuilder (toggle/slider helpers) | `ayu/ui/settings/ayu_builder.h`, `ayu/ui/settings/ayu_builder.cpp` |
+| Drawer ghost toggle | `window/window_main_menu.cpp` (~line 888) |
+| Tray ghost toggle | `tray.cpp` (~line 112) |
+| Windows tray icon + jump list | `platform/win/tray_win.h`, `platform/win/tray_win.cpp`, `platform/win/integration_win.cpp` |
+| AyuWorker (auto-offline timer) | `ayu/ayu_worker.h`, `ayu/ayu_worker.cpp` |
+| Ghost scheduling helper | `ayu/utils/telegram_helpers.cpp` (`applyGhostScheduling()`) |
+| `-ghost` CLI flag | `core/launcher.cpp` (~line 560), `settings.h`, `settings.cpp` |
+| Ghost icon (drawer) | `ayu/ui/ayu_icons.style` (`ayuGhostIcon`: `ayu/ghost` SVG) |
+| Ghost tray icon (Windows) | `ayu/ui/ayu_icons.style` (`winEnterWithGuestIcon`: `ayu/ghost_tray` SVG) |
+| Picker arrow + button styles | `ayu/ui/ayu_styles.style` (`ghostPickerArrow`, `ghostPickerButton`) |
+| Lang strings | `Resources/langs/lang.strings` (lines ~7922-7940, ~8178-8188, ~8230-8231, 8284) |
+
+### 51.12 JSON schema
+
+Ghost mode settings in `tdata/ayu_settings.json`:
+
+```json
+{
+  "useGlobalGhostMode": true,
+  "ghostModeSettings": {
+    "0": {
+      "sendReadMessages": false,
+      "sendReadStories": false,
+      "sendOnlinePackets": false,
+      "sendUploadProgress": false,
+      "sendOfflinePacketAfterOnline": true,
+      "markReadAfterAction": true,
+      "useScheduledMessages": false,
+      "sendWithoutSound": false,
+      "sendReadMessagesLocked": false,
+      "sendReadStoriesLocked": false,
+      "sendOnlinePacketsLocked": false,
+      "sendUploadProgressLocked": false,
+      "sendOfflinePacketAfterOnlineLocked": false
+    },
+    "123456789": {
+      "sendReadMessages": true,
+      "sendReadStories": false,
+      "...": "..."
+    }
+  }
+}
+```
+
+Key "0" is the global profile; other keys are bare user IDs (uint64 as string). Migration from the old flat format (pre-per-account) is handled automatically on load -- old top-level ghost fields are moved into `ghostModeSettings.0`.
+
+---
+
+## 52. Anti-Recall & Message History (AyuGram)
+
+AyuGram intercepts Telegram's `UpdateDeleteMessages` / `UpdateDeleteChannelMessages` so that when someone deletes a message, **the message is preserved locally** instead of being destroyed. A parallel system captures every edit, building a full revision history per message. Both features are global toggles stored in `ayu_settings.json` (serialized via nlohmann/json).
+
+### 52.1 Settings & Toggles
+
+All toggles live in the **AyuGram main settings page** (Settings > AyuGram), under the "Spy Essentials" subsection.
+
+| Setting | Key | Default | Description |
+|---------|-----|---------|-------------|
+| Save deleted messages | `saveDeletedMessages` | `true` | When enabled, intercepts message deletion; instead of `item->destroy()`, calls `item->setDeleted()` + saves to SQLite |
+| Save messages history | `saveMessagesHistory` | `true` | When enabled, captures the pre-edit text of every edited message before the edit is applied |
+| Save for bots | `saveForBots` | `false` | Whether to also save deleted/edited messages from bot conversations |
+| Semi-transparent deleted | `semiTransparentDeletedMessages` | `false` | When enabled, deleted messages visually fade to 70% opacity with an animated transition |
+| Deleted mark | `deletedMark` | `"\U0001f9f9"` (broom emoji) | Emoji/text prepended to the timestamp area of deleted messages (when icon mode is off) |
+| Edited mark | `editedMark` | `""` (empty = Telegram default "edited") | Custom text for the "edited" label in the message timestamp area |
+| Replace marks with icons | `replaceBottomInfoWithIcons` | `true` | When enabled, uses small SVG icons instead of text marks for deleted/edited/burnt status |
+
+The spy toggles are simple on/off switches with no per-chat granularity. They apply globally to all conversations. The `saveForBots` toggle is a sub-toggle that only has effect when the main save toggles are enabled.
+
+Settings UI location: `ayu/ui/settings/settings_ayu.cpp`, function `BuildSpyEssentials()`.
+
+### 52.2 Anti-Recall Behavior
+
+#### Deletion Interception Flow
+
+1. Telegram server sends `UpdateDeleteMessages` or `UpdateDeleteChannelMessages`
+2. `Data::Session::processMessagesDeleted()` / `processNonChannelMessagesDeleted()` in `data/data_session.cpp` iterates message IDs
+3. For each ID, calls `processMessageDelete(item)` (defined in `ayu/utils/telegram_helpers.cpp`)
+4. `processMessageDelete()` checks `isMessageSavable(item)`:
+   - Returns `false` if `saveDeletedMessages` setting is off
+   - Returns `false` if sender is a bot AND `saveForBots` is off
+   - Returns `true` otherwise
+5. If savable: calls `item->setDeleted()` + `AyuMessages::addDeletedMessage(item)` (saves to SQLite)
+6. If NOT savable: calls `item->destroy()` (standard Telegram behavior -- message disappears)
+
+```
+processMessageDelete(item):
+  if !isMessageSavable(item):
+    item->destroy()              // normal Telegram: message gone
+  else:
+    item->setDeleted()           // mark as deleted (kept in view)
+    AyuMessages::addDeletedMessage(item)  // persist to SQLite
+```
+
+#### What `setDeleted()` Does (history/history_item.cpp:3636)
+
+- Sets `_deleted = true` and `_deletedAnimated = true`
+- Cleans up unread mentions and reactions (they break on deleted messages)
+- For **service messages**: appends the `deletedMark` (default broom emoji) to the service text via `setAyuHint()`
+- For **regular messages**: triggers a view refresh and resize request so the message re-renders with the deleted visual treatment
+
+### 52.3 Visual Styling of Deleted Messages
+
+#### Mode 1: Text marks (replaceBottomInfoWithIcons = false)
+
+The `deletedMark` string (default broom emoji) is prepended to the message's bottom-info date text. The rendering happens in `history/view/history_view_bottom_info.cpp` `layoutDateText()`:
+
+```
+[deletedMark] [editedMark] [author], [time]
+```
+
+Example: `broom-emoji edited John, 3:42 PM`
+
+The `deletedMark` is user-customizable via Settings > AyuGram > Chats > Messages > "Deleted mark" button, which opens `EditMarkBox` with a text field and reset-to-default button.
+
+#### Mode 2: Icon marks (replaceBottomInfoWithIcons = true, DEFAULT)
+
+Small inline SVG icons replace the text marks. The icons are rendered as `IconEmoji` widgets embedded in the `TextWithEntities` of the bottom info line:
+
+| Icon | Style definition | SVG asset | Purpose |
+|------|-----------------|-----------|---------|
+| Trash bin | `deletedIcon` | `ayu/trash_bin` | Shown for deleted messages |
+| Pencil | `editedIcon` | `ayu/edited` | Shown for edited messages |
+| Flame | `burntIcon` | `ayu/burnt` | Shown for self-destructing media that has been viewed |
+
+All three icons are defined in `ayu/ui/ayu_icons.style` as `IconEmoji` structs with `useIconColor: false` (they inherit `windowFg` color). They appear **before the timestamp** in the bottom-info bar of the message bubble.
+
+The rendering order in the bottom-info area is: `[burnt-icon] [deleted-icon] [edited-icon] [time]`
+
+The AyuDeleted and AyuBurnt flags are defined in `history/view/history_view_bottom_info.h`:
+```cpp
+enum class Flag : uint16 {
+    ...
+    AyuDeleted  = 0x400,
+    AyuBurnt    = 0x800,
+};
+```
+
+These flags are set in `BottomInfo::fillData()` by checking `item->isDeleted()` and `item->isBurnt()`.
+
+#### Mode 3: Semi-transparent fade (semiTransparentDeletedMessages = true)
+
+When enabled (default: OFF, labeled as beta), deleted messages get an animated opacity reduction:
+
+- **Animation**: `1.0 -> 0.7` opacity over **500ms** with `easeOutCubic` easing
+- **Final steady state**: 70% opacity (0.7)
+- **Grouped messages**: If all items in a media group are deleted, the entire group renders at 0.7 opacity. If only some are deleted, the group stays at 1.0 but individual items within the group handle their own fade
+- **AdminLog context**: Always renders at 1.0 opacity (full) -- the "View Deleted" section shows messages normally
+- The animation is managed by `Element::_deletedOpacityAnimation` (an `Ui::Animations::Simple`)
+- When the Element is replaced (e.g., during view refresh), the animation state is transferred to the new Element via `takeDeletedAnimation()`
+
+The opacity is applied in `history/view/history_view_message.cpp` during paint:
+```cpp
+const auto deletedFade = deletedOpacity();
+const auto savedOpacity = p.opacity();
+if (deletedFade < 1.) {
+    p.setOpacity(savedOpacity * deletedFade);
+}
+// ... paint the entire message bubble ...
+```
+
+This means the **entire message bubble** (text, media, reactions, timestamp -- everything) is rendered at reduced opacity. It does NOT use strikethrough, color change, or overlay icons. It is purely an opacity fade.
+
+#### Service messages (calls, joins, pins, etc.)
+
+For service messages, `setDeleted()` cannot re-render a normal bubble. Instead, it appends the `deletedMark` string in parentheses to the existing service text:
+
+```
+"John pinned a message (broom-emoji)"
+```
+
+This is done via `setAyuHint()` which modifies the `HistoryServiceData` text and rebuilds the `PreparedServiceText`.
+
+### 52.4 Edit History
+
+#### Edit Interception Flow
+
+1. Telegram server sends an `UpdateEditMessage` / `UpdateEditChannelMessage`
+2. `Data::Session::updateExistingMessage()` in `data/data_session.cpp` is called
+3. **Before** applying the edit, AyuGram checks:
+   - `saveMessagesHistory` setting is enabled
+   - Message is not local
+   - Author is not self
+   - The edit is not a "hide edit" (where `isEditHide` is true)
+   - The new text differs from the current text (and current text is not empty)
+4. If all conditions pass: `AyuMessages::addEditedMessage(existing)` saves the **current** (pre-edit) text to SQLite
+5. Then the edit is applied normally via `existing->applyEdition()`
+
+The key interception point in `data/data_session.cpp` (line ~2740):
+```cpp
+if (settings.saveMessagesHistory() && !existing->isLocal()
+    && !existing->author()->isSelf() && !edit.isEditHide) {
+    const auto msg = existing->originalText();
+    if (edit.textWithEntities == msg || msg.empty()) {
+        goto proceed;
+    }
+    AyuMessages::addEditedMessage(existing);
+}
+```
+
+#### Edit History Viewer UI
+
+The edit history is viewed via a dedicated **section panel** (full-width, replaces the chat view) -- NOT a popup or dialog box.
+
+**Entry point**: Right-click a message that has edits -> context menu -> "Edits history" (`ayu_EditsHistoryMenuText`). This menu item only appears if:
+- The message has an `HistoryMessageEdited` component
+- The `hideEditedBadge()` flag is false
+- `AyuMessages::hasRevisions(item)` returns true (at least one revision exists in SQLite)
+
+The menu item uses the `ayuEditsHistoryIcon` (pencil icon, `ayu/edits_history` SVG asset).
+
+**Section widget hierarchy**:
+```
+MessageHistory::Widget (Window::SectionWidget)
+  +-- FixedBar (top bar)
+  |     +-- BackButton (peer name + userpic, clicking goes back)
+  |     +-- SearchButton (disabled for edit history -- search only for deleted messages)
+  |     +-- InputField (search field, hidden for edit history)
+  |     +-- CrossButton (cancel search)
+  +-- ScrollArea
+        +-- InnerWidget (message list)
+              +-- OwnedItem[] (reconstructed HistoryItem + Element views)
+```
+
+The `InnerWidget` constructor receives `HistoryItem *item` (non-null for edit history, null for deleted messages). When `item` is non-null, `preloadMore()` calls `AyuMessages::getEditedMessages()` to load revisions. When `item` is null, it calls `AyuMessages::getDeletedMessages()`.
+
+**Revision display**: Each revision is rendered as a standard message bubble using `MessageHistory::GenerateItems()`. This function:
+1. Looks up the `fromId` as a user, channel, or chat
+2. Creates a temporary `HistoryItem` with `MessageFlag::AdminLogEntry` flag
+3. Deserializes the stored `textEntities` back into proper Telegram entities
+4. Renders it as a normal message (with sender name, date, text formatting)
+
+Revisions are ordered by `fakeId DESC` (newest first, which means the oldest version of the text appears at the bottom when scrolling down).
+
+**Pagination**: First page loads 20 messages (`kMessagesFirstPage`), subsequent pages load 30 (`kMessagesPerPage`). Loading is triggered by scroll position (preload when within `PreloadHeightsCount` screens of the edge).
+
+The loading happens on a background thread (`crl::async`) and results are dispatched back to the main thread (`crl::on_main`).
+
+### 52.5 Deleted Messages Viewer
+
+**Entry point**: Right-click a chat in the chat list -> "View deleted messages" (`ayu_ViewDeletedMenuText`). This opens the same `MessageHistory::Widget` section but with `item = nullptr`.
+
+The deleted messages viewer supports:
+- **Search**: The `FixedBar` shows a search button (only when `item` is null). Clicking it reveals an `InputField`. Search is debounced via `AutoSearchTimeout` timer. The query is passed to `AyuMessages::getDeletedMessages()` which uses SQL `LIKE '%query%'` matching (with proper escaping of `%`, `_`, `\`).
+- **Per-topic filtering**: If the chat is a forum, deleted messages are filtered by `topicId`
+- **Pagination**: Same as edit history (20 first page, 30 per page)
+- **Keyboard shortcut**: Ctrl+F opens search (via `Shortcuts::Command::Search`)
+
+The `FixedBar` displays the peer's name (via `Info::Profile::NameValue`) and userpic in the back button area.
+
+### 52.6 Database Storage
+
+All data is stored in **`./tdata/ayudata.db`** (SQLite, using the `sqlite_orm` header-only library).
+
+#### Tables
+
+| Table | Purpose | Key columns |
+|-------|---------|-------------|
+| `DeletedMessage` | Stores intercepted deleted messages | `fakeId` (auto PK), `userId`, `dialogId`, `topicId`, `messageId`, `fromId`, `text`, `textEntities`, `date`, `editDate`, `entityCreateDate` |
+| `EditedMessage` | Stores pre-edit message snapshots | Same schema as DeletedMessage |
+| `DeletedDialog` | Stores metadata of deleted dialogs | `fakeId` (auto PK), `userId`, `dialogId`, `peerId`, `folderId`, `topMessage` |
+| `SchemaVersion` | Migration tracking | `id`, `version` |
+| `SpyMessageRead` | Read receipt tracking | `fakeId`, `userId`, `dialogId`, `messageId`, `entityCreateDate` |
+| `SpyMessageContentsRead` | Content read tracking (e.g., one-time media) | Same as SpyMessageRead |
+
+#### Indexes
+
+- `idx_deleted_message_userId_dialogId_topicId_messageId` on DeletedMessage (userId, dialogId, topicId, messageId)
+- `idx_edited_message_userId_dialogId_messageId` on EditedMessage (userId, dialogId, messageId)
+
+#### Data Mapping
+
+The `AyuMessages::map()` function converts a `HistoryItem` to an `AyuMessageBase`:
+- `userId`: current user's bare ID (masked with `PeerId::kChatTypeMask`)
+- `dialogId`: computed from peer via `getDialogIdFromPeer()`
+- Text + entities: serialized via `AyuMapper::serializeTextWithEntities()`
+- Forward info, reply info, post author, views: all captured
+- Media: currently stores `mediaPath = "/"` (TODO: media saving not fully implemented)
+- `entityCreateDate`: `base::unixtime::now()` (when the deletion/edit was detected)
+
+Messages with empty text are NOT saved (early return in both `addEditedMessage` and `addDeletedMessage`).
+
+#### Full AyuMessageBase Schema
+
+```cpp
+class AyuMessageBase {
+    ID fakeId;           // auto-increment PK
+    ID userId;           // logged-in user
+    ID dialogId;         // chat/channel/user ID
+    ID groupedId;        // media group ID
+    ID peerId;           // peer ID
+    ID fromId;           // sender ID
+    ID topicId;          // forum topic ID (0 if not forum)
+    int messageId;       // original Telegram message ID
+    int date;            // original message date
+    int flags;           // MTP flags (mapped from MessageFlags)
+    int editDate;        // last edit date
+    int views;           // view count
+    int fwdFlags;        // forward flags
+    ID fwdFromId;        // forward source
+    string fwdName;      // forward author name
+    int fwdDate;         // forward date
+    string fwdPostAuthor;
+    string postAuthor;
+    int replyFlags;
+    int replyMessageId;
+    ID replyPeerId;
+    int replyTopId;
+    bool replyForumTopic;
+    vector<char> replySerialized;
+    vector<char> replyMarkupSerialized;
+    int entityCreateDate;  // when AyuGram saved this
+    string text;           // plain text content
+    vector<char> textEntities;  // serialized MTP entities
+    string mediaPath;      // local media path
+    string hqThumbPath;    // high-quality thumbnail
+    int documentType;      // document type enum
+    vector<char> documentSerialized;
+    vector<char> thumbsSerialized;
+    vector<char> documentAttributesSerialized;
+    string mimeType;
+};
+```
+
+#### Migration System
+
+The database uses a versioned migration system. Current version: 1. Migrations are stored in `AyuMigrations` namespace. On corruption, the database file is renamed with a timestamp suffix and recreated.
+
+### 52.7 Context Menu Integration
+
+AyuGram adds several items to the message right-click context menu. The relevant ones for anti-recall:
+
+| Menu Item | Function | Condition | Icon |
+|-----------|----------|-----------|------|
+| "Edits history" | `AddHistoryAction()` | Message has `HistoryMessageEdited` AND `hasRevisions()` | `ayuEditsHistoryIcon` (pencil) |
+| "Hide message" | `AddHideMessageAction()` | Visibility setting allows it, not in Saved Messages | `menuIconClear` |
+| "Read until here" | `AddReadUntilAction()` | Ghost mode read receipts blocked, msg not outgoing/local/deleted | `menuIconShowInChat` |
+| "Burn media" | `AddBurnAction()` | Message has TTL media not yet read | `menuIconTTLAny` |
+
+The "Edits history" item opens the `MessageHistory::Widget` with the specific item. The "Hide message" item calls `item->destroy()` + `AyuState::hide()` to permanently remove it from the local view (even if it was preserved by anti-recall).
+
+Chat-level context menu items (right-click on chat in list):
+
+| Menu Item | Function | Condition | Icon |
+|-----------|----------|-----------|------|
+| "View deleted messages" | `AddDeletedMessagesActions()` | Always shown for any chat | `menuIconArchive` |
+| "Jump to beginning" | `AddJumpToBeginningAction()` | Chat is user/group/channel/topic | `ayuToBeginningMenuIcon` |
+
+### 52.8 Source File Reference
+
+| Component | File |
+|-----------|------|
+| **Settings** | |
+| AyuSettings class (all toggles) | `ayu/ayu_settings.h`, `ayu/ayu_settings.cpp` |
+| Settings UI (spy toggles) | `ayu/ui/settings/settings_ayu.cpp` |
+| Settings UI (visual toggles: marks, semi-transparent) | `ayu/ui/settings/settings_chats.cpp` |
+| Edit mark dialog | `ayu/ui/boxes/edit_mark_box.h`, `edit_mark_box.cpp` |
+| **Data layer** | |
+| Entity definitions (DeletedMessage, EditedMessage) | `ayu/data/entities.h` |
+| Message storage API | `ayu/data/messages_storage.h`, `messages_storage.cpp` |
+| SQLite database (schema, queries, migrations) | `ayu/data/ayu_database.h`, `ayu_database.cpp` |
+| **Deletion interception** | |
+| processMessageDelete() + isMessageSavable() | `ayu/utils/telegram_helpers.cpp` |
+| HistoryItem::setDeleted() + isDeleted() | `history/history_item.cpp` |
+| Data::Session::processMessagesDeleted() | `data/data_session.cpp` |
+| **Edit interception** | |
+| Edit hook (saveMessagesHistory check) | `data/data_session.cpp` (updateExistingMessage) |
+| **Visual rendering** | |
+| Bottom info (deleted/edited marks + icons) | `history/view/history_view_bottom_info.cpp`, `.h` |
+| Semi-transparent opacity animation | `history/view/history_view_element.cpp` |
+| Message paint (opacity application) | `history/view/history_view_message.cpp` |
+| Grouped media opacity | `history/view/media/history_view_media_grouped.cpp` |
+| Icon definitions (deletedIcon, editedIcon, burntIcon) | `ayu/ui/ayu_icons.style` |
+| **Message history viewer** | |
+| Section widget (main container) | `ayu/ui/message_history/history_section.h`, `.cpp` |
+| Inner widget (message list + scrolling) | `ayu/ui/message_history/history_inner.h`, `.cpp` |
+| Item generation (DB record -> HistoryItem) | `ayu/ui/message_history/history_item.h`, `.cpp` |
+| **Context menu** | |
+| All AyuGram context menu actions | `ayu/ui/context_menu/context_menu.h`, `.cpp` |
+| Menu item with subtext widget | `ayu/ui/context_menu/menu_item_subtext.h`, `.cpp` |
+| **State management** | |
+| Hide message state (in-memory) | `ayu/ayu_state.h`, `ayu_state.cpp` |
+| Data serialization/mapping | `ayu/utils/ayu_mapper.h`, `ayu_mapper.cpp` |
