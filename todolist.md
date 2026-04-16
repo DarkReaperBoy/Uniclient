@@ -15,8 +15,8 @@ Sections 1-49 written (12,251 lines). The remaining sections need to be research
 - ~~Active Sessions / Devices screen~~ → §19
 - ~~Power Saving settings~~ → §19
 - ~~Language settings~~ → §19
-- Chat Settings screen (covered in §14.6, but AyuGram-specific settings still needed)
-- AyuGram-specific extra settings
+- ~~Chat Settings screen~~ → covered in §14.6 + §54.12
+- ~~AyuGram-specific extra settings~~ → §54 (full settings hierarchy)
 
 **Feature screens:**
 - ~~Media viewer/lightbox~~ → §20
@@ -56,18 +56,18 @@ Sections 1-49 written (12,251 lines). The remaining sections need to be research
 **AyuGram-specific features (each needs its own agent):**
 - ~~Ghost Mode UI (8 toggles, per-account locks, tray integration)~~ → §51
 - ~~Anti-Recall / Message History (deleted message display, edit history viewer, translucent styling)~~ → §52
-- Message Filters (regex engine, per-dialog vs shared, shadow ban list, import/export)
-- Streamer Mode (window hiding, what gets hidden)
-- Message Shot (screenshot capture UI, options: background, date, reactions, spoilers, theme)
-- Forward enhancements (intelligent forward, progress tracking, re-send as own)
-- Ad/clutter removal (disable ads, stories, similar channels, premium statuses)
-- AyuGram UI customization (avatar corners, material switches, wide multiplier, bubble radius, tail removal, quote styling, context menu customization, drawer/sidebar customization, message field button toggles)
+- ~~Message Filters~~ — skipped (not relevant)
+- ~~Streamer Mode~~ — skipped (not relevant)
+- ~~Message Shot~~ — skipped (not relevant)
+- ~~Forward enhancements~~ → §53
+- ~~Ad/clutter removal~~ — skipped (UniClient has no ads)
+- ~~AyuGram UI customization~~ → §54
 
-**Analytics (needs agent):**
-- Channel/group statistics (follower growth, views, shares, top hours, language pie chart, interactions graph)
-- Post/message statistics (individual post reach and interactions)
-- Group stats (member count, message count, top posters/admins/inviters)
-- Graph rendering (line charts, bar charts, pie charts, time range selector)
+**~~Analytics~~ → §55:**
+- ~~Channel/group statistics (follower growth, views, shares, top hours, language pie chart, interactions graph)~~
+- ~~Post/message statistics (individual post reach and interactions)~~
+- ~~Group stats (member count, message count, top posters/admins/inviters)~~
+- ~~Graph rendering (line charts, bar charts, pie charts, time range selector)~~
 
 Skip premium/money/payments/stars/boosts/gifts — no monetary features, not relevant to UniClient.
 

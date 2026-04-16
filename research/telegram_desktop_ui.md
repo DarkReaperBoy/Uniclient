@@ -12848,3 +12848,928 @@ Chat-level context menu items (right-click on chat in list):
 | **State management** | |
 | Hide message state (in-memory) | `ayu/ayu_state.h`, `ayu_state.cpp` |
 | Data serialization/mapping | `ayu/utils/ayu_mapper.h`, `ayu_mapper.cpp` |
+
+---
+
+## 53. Forward Enhancements (AyuGram)
+
+AyuGram adds three forward-related features that bypass Telegram's content-protection restrictions: **Intelligent Forward** (automatic hybrid forwarding), **Repeat Message** (re-send as own / forward-in-place), and a **progress tracking bar** for batch operations. These work transparently -- the user initiates a standard forward or uses a context menu action, and AyuGram's engine automatically decides whether to use Telegram's native forward API or to download-and-resend the content.
+
+Source files: `ayu/features/forward/ayu_forward.h`, `ayu_forward.cpp` (forward logic + state machine), `ayu/features/forward/ayu_sync.h`, `ayu_sync.cpp` (synchronous download/upload helpers), `ayu/ui/context_menu/context_menu.cpp` (Repeat Message menu action), `chat_helpers/message_field.cpp` (progress bar widget), `history/view/history_view_context_menu.cpp` (restriction label), `apiwrap.cpp` (forward intercept), `boxes/share_box.cpp` (share dialog intercept).
+
+### 53.1 Intelligent Forward
+
+**What it is:** When the user forwards messages that include a mix of forwardable and restricted items, AyuGram automatically splits the selection into chunks and uses the optimal method for each chunk -- native Telegram forward for unrestricted messages, download-and-resend for restricted ones. The user does not see any special UI or dialog; the system is entirely transparent.
+
+**When it triggers:** The intercept is in `ApiWrap::forwardMessages()` and `ShareBox` submit callback. Before executing a standard forward, AyuGram checks two conditions:
+
+1. **`isFullAyuForwardNeeded(item)`** -- Returns `true` if the message's sender (`item->from()`) or the chat/channel itself (`item->history()->peer`) has the `AyuNoForwards` flag set. This means the entire peer has forwarding restrictions. When true, ALL messages in the batch are download-and-resent (full AyuForward).
+
+2. **`isAyuForwardNeeded(items)`** -- Returns `true` if ANY item in the selection meets one of: (a) the item is deleted (`isDeleted()`), (b) the item has `AyuNoForwards` message flag set, (c) the item has unsupported TTL, or (d) the item's media has a TTL timer (`ttlSeconds()`). When true, the intelligent chunking algorithm activates.
+
+**Chunking algorithm (`intelligentForward()`):**
+
+1. Iterate through the selected messages in order.
+2. Group consecutive messages into "chunks" based on whether each message needs AyuForward or not (`isAyuForwardNeeded()` per-item).
+3. When the need-state flips (e.g., from restricted to unrestricted), start a new chunk.
+4. For each chunk:
+   - If `isAyuForwardNeeded` is `true`: call `forwardMessages()` which downloads media, extracts text, and resends as new messages (see 53.3 below).
+   - If `isAyuForwardNeeded` is `false`: use native `Api::forwardMessages()` (standard Telegram forward, preserves attribution).
+5. Track progress across all chunks via `ForwardState`.
+
+**Example:** User selects messages 1-10 from a channel. Messages 1-3 are normal, message 4 is from a restricted source, messages 5-10 are normal. Three chunks: [1-3] native forward, [4] AyuForward (download-resend), [5-10] native forward. Chunks execute sequentially.
+
+**Forward path decision tree (at `apiwrap.cpp:3487`):**
+
+```
+User initiates forward
+  |
+  +-- isFullAyuForwardNeeded? --> Yes --> AyuForward::forwardMessages() (all items, async)
+  |
+  +-- isAyuForwardNeeded(any)? --> Yes --> AyuForward::intelligentForward() (chunked, async)
+  |
+  +-- Neither --> Standard Telegram forward API
+```
+
+The entire operation runs on `crl::async` (background thread) to avoid blocking the UI.
+
+### 53.2 Forward Progress Tracking
+
+**What it is:** A progress bar that replaces the compose area while AyuForward is active, showing real-time status of the download-and-resend operation.
+
+**State machine (`ForwardState`):**
+
+| State | Status text | Detail text |
+|-------|-------------|-------------|
+| `Preparing` | "Forwarding messages" | "sent {n} of {total}" (messages) + "chunk {n} of {total}" (if >1 chunk) |
+| `Downloading` | "Loading media" | (no detail line) |
+| `Sending` | "Forwarding messages" | "sent {n} of {total}" + chunk counter |
+| `Finished` | "Done" | final counts |
+
+**Progress bar widget (`AyuForwardWriteRestriction` in `message_field.cpp`):**
+
+| Widget | Details |
+|--------|---------|
+| **Container** | `FlatButton` with `historyComposeButton` style. Replaces the normal compose area (message input + buttons). Full width of the chat column. |
+| **Title label** | `FlatLabel` with `frozenRestrictionTitle` style. Displays the state name (e.g., "Forwarding messages", "Loading media", "Done"). Text color overridden to `historyComposeButton.color`. |
+| **Subtitle label** | `FlatLabel` with `frozenRestrictionSubtitle` style. Displays the progress detail (e.g., "sent 3 of 10 . chunk 1 of 3"). Separator between message count and chunk count is " . " (bullet). Hidden when state is `Downloading` (subtitle is empty). |
+| **Layout** | Both labels left-aligned with `defaultDialogRow.padding.left()` skip. Vertically centered in the button: `top = (height - titleHeight - subtitleHeight) / 2`. Title on top, subtitle directly below. |
+| **Responsive collapse** | When width < `2 * defaultDialogRow.photoSize`, both labels are hidden (too narrow to display text). |
+| **Cancel action** | Clicking anywhere on the button calls `AyuForward::cancelForward()`, which sets `stopRequested = true` on the state and updates the bar to `Finished`. |
+| **Live updates** | `ForwardState::updateBottomBar()` triggers a `PeerUpdate::Flag::Rights` change notification on the main thread, which causes `HistoryWidget::updateSendRestriction()` to re-evaluate and recreate the widget with updated text. |
+
+**Integration with compose area (`history_widget.cpp:7357`):** When `AyuForward::isForwarding(peer->id)` returns `true`, the normal send restriction widget is replaced with the AyuForward progress bar. The compose field, attach button, and send button are hidden behind it. When the forward finishes (state becomes `Finished` and `isForwarding()` returns `false`), the normal compose area is restored.
+
+**Per-peer state:** Forward states are stored in a global `std::unordered_map<PeerId, ForwardState>`. Each peer can have at most one active forward operation. Starting a new forward to the same peer replaces the previous state.
+
+### 53.3 Repeat Message (Re-send as Own)
+
+**What it is:** A context menu action that re-sends a message into the same chat, either as a standard forward (with attribution) or as a new message without any forward header ("send as own"). This is the primary mechanism for copying content from restricted chats.
+
+**Menu item:**
+
+| Property | Value |
+|----------|-------|
+| **Label** | "Repeat Message" (`ayu_RepeatMessage` lang key) |
+| **Icon** | `ayuRepeatMenuIcon` -- a repeat/loop icon (`ayu/repeat` icon resource, colored with `menuIconColor`) |
+| **Visibility** | Controlled by `showRepeatMessageInContextMenu` setting. Three-state: `Hidden` (never shown), `Visible` (always shown), `VisibleWithModifier` (shown only when the extended context menu modifier key is held -- typically Ctrl on the keyboard while right-clicking). Default: `Hidden`. |
+| **Conditions** | Item must be: a history entry, not a service message, not local, has `allowsForward()` returning true, has positive message ID. Peer must be: user, basic group, megagroup, or gigagroup (NOT channels/broadcasts). |
+| **Position in menu** | Added after "User Messages" and before "Message Details" in the AyuGram custom context menu section. |
+
+**Settings location:** AyuGram Settings > Chats > Context Menu section. Uses the standard three-option chooser (Hidden / Visible / Visible with modifier).
+
+**Two modes of operation (determined at click time):**
+
+#### Mode 1: No-Quote Mode (Shift held, or in Replies view)
+
+Activated when the user holds **Shift** while clicking "Repeat Message", or when in a replies/thread view (except forums).
+
+Behavior: **Sends the message content as a brand-new message with no forward header.** This is functionally "send as own" -- the recipient sees the message as if the user typed it themselves.
+
+Implementation:
+1. Extract the original text with entities (`item->originalText()`) and convert entities to `TextWithTags`.
+2. If the message has media:
+   - **Photo:** Call `Api::SendExistingPhoto()` with the message text as caption. Reuses the existing photo file reference (no re-download needed).
+   - **Document:** Call `Api::SendExistingDocument()` with the message text as caption. Reuses the existing document file reference.
+3. If text-only: Call `session->api().sendMessage()` with the extracted text.
+4. If the original message had a reply and Shift is held, the reply-to is preserved in the new message.
+
+Result: A new message appears in the chat from the current user, with the same text and media as the original, but **no "Forwarded from" header**.
+
+#### Mode 2: Standard Forward (default, no Shift)
+
+Activated on normal click without Shift.
+
+Behavior: Forwards the message using the standard forward mechanism, but routes through AyuForward if the message is from a restricted source.
+
+Implementation:
+1. Create a `ForwardDraft` with the single message ID, options set to `PreserveInfo` (keep sender name and caption).
+2. Check forward routing:
+   - `isFullAyuForwardNeeded` (peer-level restriction): download and resend via `AyuForward::forwardMessages()`.
+   - `isAyuForwardNeeded` (message-level restriction): route through `AyuForward::intelligentForward()`.
+   - Neither: use standard `session->api().forwardMessages()`.
+3. The operation runs on `crl::async` (background thread) for restricted content.
+
+Result: The message appears as a forwarded message with the original sender's name (unless the message came from a restricted source, in which case AyuForward downloads and resends it, stripping the forward header since it's a fresh upload).
+
+#### Ghost Mode Integration
+
+Both modes call `applyGhostScheduling(session, action.options)` before sending, which (if Ghost Mode is active) schedules the message instead of sending it immediately, preventing typing/online indicators from leaking.
+
+### 53.4 Restriction Override for Standard Forward
+
+AyuGram modifies the standard "Forward" action flow at multiple points to handle restricted content:
+
+**Context menu restriction label (`AddSelectRestrictionAction` in `history_view_context_menu.cpp`):**
+
+When a message is from a restricted peer (`peer->isAyuNoForwards()`) or needs AyuForward (`isAyuForwardNeeded(item)`), a non-interactive label is appended to the context menu:
+
+| Property | Value |
+|----------|-------|
+| **Text** | "Plain forwarding is not allowed." (`ayu_UnforwardableContextMenuText`) |
+| **Widget** | `MultilineAction` with `historyHasCustomEmoji` style. `WA_TransparentForMouseEvents` (cannot be clicked). |
+| **Icon** | Copyright icon (`menuIconCopyright`) for channels/groups; no icon for user chats. |
+| **Separator** | A menu separator is added above the label if other items exist and an icon is shown. |
+
+This label informs the user that native forwarding is blocked, but the "Repeat Message" action (if enabled) still works because it bypasses the restriction.
+
+**Share box intercept (`share_box.cpp:1757`):** When the user picks recipients in the share/forward dialog, AyuGram intercepts the submit callback. If `isFullAyuForwardNeeded` or `isAyuForwardNeeded`, it runs AyuForward for each selected recipient on `crl::async`, then dismisses the dialog.
+
+**`ApiWrap::forwardMessages` intercept (`apiwrap.cpp:3487`):** Before executing the standard MTP forward request, AyuGram checks the same conditions and reroutes to AyuForward if needed.
+
+### 53.5 AyuForward Download-and-Resend Pipeline
+
+When AyuForward determines that a message cannot be forwarded natively, it downloads the content and re-uploads it as a new message. This is the core bypass mechanism.
+
+**Pipeline (`forwardMessages()` in `ayu_forward.cpp`):**
+
+1. **Scan for downloadable media:** Iterate all items; collect those with downloadable media (excludes webpages, polls, games, invoices, locations, wallpapers, giveaways, contacts, and calls -- see `mediaDownloadable()`).
+
+2. **Generate album group IDs:** If any items belong to a media group (`groupId`), generate new random group IDs to preserve album grouping in the resent messages.
+
+3. **Download phase** (`State::Downloading`):
+   - For documents: call `data->save()` to download to the configured download path. Wait synchronously via `TimedCountDownLatch` with 15-minute overall timeout, 5-minute per-check. Monitors `session->downloaderTaskFinished()` stream.
+   - For photos: call `view->wanted(PhotoSize::Large)` then wait for download. Save to disk as `{dc}_{id}.jpg`.
+   - File naming: `{downloadPath}/{filename}` for named documents, `audio_{dc}_{id}.ogg` for voice, `round_{dc}_{id}.mp4` for video messages, `gif_{dc}_{id}.gif` for GIFs, `video_{dc}_{id}.mp4` for videos.
+
+4. **Send phase** (`State::Sending`): For each item:
+   - Check `stopRequested` -- if cancel was clicked, abort and set state to `Finished`.
+   - Extract text via `extractText()` (preserves entities; for polls, creates text representation with ballot emoji + question + answers).
+   - If `ForwardOptions::NoNamesAndCaptions`, text is stripped (empty `textWithTags`).
+   - `invertCaption` option is preserved from the original message.
+   - **Text-only:** `sendMessageSync()` -> `session->api().sendMessage()`.
+   - **Sticker:** `sendStickerSync()` -> `Api::SendExistingDocument()` (reuses file reference, no re-download).
+   - **Voice message:** Read file into `QByteArray`, `sendVoiceSync()` -> `FileLoadTask(VoiceArgs{...})`.
+   - **Video message (round):** Same as voice but with `video = true`.
+   - **Photo / video / GIF / document:** `prepareMedia()` creates a `PreparedList` from the saved file. `DivideByGroups()` handles album splitting. `sendDocumentSync()` uploads via `session->api().sendFiles()`. For albums containing photos, `sendImagesAsPhotos` is set to preserve photo-vs-document distinction.
+   - **Grouped media:** Items sharing the same original `groupId` are batched. `prepareMedia()` advances the loop index `i` to skip subsequent album members. A new random `groupId` is assigned to the outgoing album.
+   - **Incomplete downloads:** Files smaller than expected size (compared to `photo->imageByteSize(Large)` or `document->size`) are silently skipped.
+
+5. **Synchronization:** All send operations use `waitForMsgSync()` which waits for `session->data().itemIdChanged()` to fire for the target peer, confirming the message was accepted by the server. Timeout: 5 minutes per message.
+
+### 53.6 `AyuNoForwards` Flag System
+
+AyuGram introduces a custom message flag (`MessageFlag::AyuNoForwards`, bit 63) and peer flags to track forwarding restrictions:
+
+| Scope | Flag | Source |
+|-------|------|--------|
+| **Message** | `MessageFlag::AyuNoForwards` (bit 63) | Set when message has `noforwards` flag from server |
+| **Channel** | `ChannelData::Flag::AyuNoForwards` | Set when channel has forwarding disabled (`Flag::NoForwards`) |
+| **Chat (group)** | `ChatData::isAyuNoForwards()` | Checks group's no-forwards setting |
+| **User** | `UserData::Flag::NoForwardsMyEnabled`, `Flag::NoForwardsPeerEnabled` | Two-way: "I blocked forwards to this user" and "this user blocked forwards from me". Set via `setNoForwardsFlags()`. Checked via `isAyuNoForwards()` (true if either flag set). |
+| **Peer (polymorphic)** | `PeerData::isAyuNoForwards()` | Dispatches to User/Channel/Chat-specific check |
+
+### 53.7 Source File Index
+
+| Component | Source file(s) |
+|-----------|---------------|
+| **Intelligent forward logic** | `ayu/features/forward/ayu_forward.h`, `ayu_forward.cpp` |
+| **Synchronous download/upload** | `ayu/features/forward/ayu_sync.h`, `ayu_sync.cpp` |
+| **Repeat Message context action** | `ayu/ui/context_menu/context_menu.cpp` (`AddRepeatMessageAction`) |
+| **Progress bar widget** | `chat_helpers/message_field.cpp` (`AyuForwardWriteRestriction`) |
+| **Forward intercept (API)** | `apiwrap.cpp` (`ApiWrap::forwardMessages`) |
+| **Forward intercept (Share)** | `boxes/share_box.cpp` (submit callback) |
+| **Restriction label** | `history/view/history_view_context_menu.cpp` (`AddSelectRestrictionAction`) |
+| **Text extraction** | `ayu/utils/telegram_helpers.cpp` (`extractText`, `mediaDownloadable`) |
+| **Settings (visibility)** | `ayu/ui/settings/settings_chats.cpp`, `ayu/ayu_settings.h` |
+| **Icon** | `ayu/ui/ayu_icons.style` (`ayuRepeatMenuIcon`) |
+| **Lang strings** | `Resources/langs/lang.strings` (`ayu_RepeatMessage`, `ayu_AyuForwardStatus*`, `ayu_UnforwardableContextMenuText`) |
+| **AyuNoForwards flags** | `data/data_peer.cpp`, `data_user.cpp`, `data_channel.cpp`, `data_chat.cpp`, `history/history_item.cpp` |
+
+---
+
+## 54. AyuGram UI Customization
+
+AyuGram adds extensive UI customization via two settings pages: **Appearance** (`settings_appearance.cpp`) and **Chats** (`settings_chats.cpp`). All settings persist to `ayu_settings.json` via nlohmann/json serialization. Many settings take effect immediately via reactive (`rpl::variable`) updates; some require app restart (prompted via `ShowRestartPrompt`). The runtime state is split: high-frequency rendering values (avatar corners, wide multiplier, material switches, mono font) are mirrored into `AyuUiSettings` namespace globals in `lib_ui/` for zero-overhead access from painting code.
+
+Source files: `ayu/ayu_settings.h` (data model, 90+ settings), `lib_ui/ayu/ayu_ui_settings.h` (rendering globals), `ayu/ui/settings/settings_appearance.cpp`, `ayu/ui/settings/settings_chats.cpp`.
+
+### 54.1 Avatar Corners
+
+Controls the corner radius of all avatar/userpic circles throughout the app -- dialog list, chat headers, profile pages, gift panels, media viewer, etc.
+
+**Settings page location:** Appearance > "Avatar Corners" subsection.
+
+| Widget | Details |
+|--------|---------|
+| **Section title** | "Avatar Corners" with a badge showing current value (or "SQUARE"/"CIRCLE" at extremes). Badge uses `windowBgActive` background, rounded rect, positioned inline after the title text. |
+| **Live preview** | `AvatarCornersPreview` widget -- renders a full-width dialog row (same height as `defaultDialogRow.height`) showing the AyuGram Releases channel avatar with the current corner radius applied. Preview uses the actual resolved userpic from Telegram (fetched via `contacts.resolveUsername("AyuGramReleases")`), falling back to `EmptyUserpic` with color computed from channel ID. Clicking the preview opens the AyuGramReleases channel. Includes ripple animation on press. |
+| **Radius slider** | Discrete slider with **24 stops** (0 to 23, i.e. `kMaxAvatarCorners + 1 = 24` steps). Value 0 = fully square (0px radius), value 23 = fully circular (radius = size/2). Intermediate values interpolate linearly: `radius = corners / 23 * size / 2`. Dragging updates the preview live (`onChanged`); releasing triggers a restart prompt (`onFinalChanged`). |
+| **"Single Corner Radius" toggle** | Boolean toggle below the slider. Default: `false`. When enabled, forum/topic avatars (which normally use a distinct square-with-rounded-corners shape) use the same corner radius as regular chat avatars. Description text: "Forums will have the same avatar shape as chats." |
+
+**Setting keys:** `avatarCorners` (int, default 23 = circle), `singleCornerRadius` (bool, default false).
+
+**Rendering implementation** (`ayu/ui/ayu_userpic.cpp`):
+- `ComputeRadius(pixelSize)`: returns `0` for corners=0, `pixelSize/2` for corners>=23, else linear interpolation.
+- `PaintShape()`: calls `drawEllipse` for circle, `drawRect` for square, `drawRoundedRect` for intermediate.
+- `OnlineBadgePosition()`: recalculates the green online dot position based on avatar shape -- moves it toward the corner of a rounded rect instead of always at 45 degrees on a circle.
+- `PackedState()`: encodes the corners value (5 bits) + singleCornerRadius flag (bit 5) into a uint8 for cache invalidation.
+- `ApplyFrameRounding()`: applies the avatar shape to animated userpics (video avatars) using corner masks or ellipse masks.
+- The image preparation layer (`lib_ui/ui/image/image_prepare.cpp`) uses `getAvatarCorners()` to apply the correct mask when preparing userpic images for display.
+
+**Restart required:** Yes (prompted on slider release).
+
+### 54.2 Material Switches (MD3 Toggle Style)
+
+Replaces the default Telegram iOS-style toggle switch with a Material Design 3 style toggle.
+
+**Settings page location:** Appearance > "Appearance" subsection.
+
+| Widget | Details |
+|--------|---------|
+| **Toggle** | "MD3 Switch Style" -- standard boolean toggle. Default: `true` (enabled). |
+
+**Setting key:** `materialSwitches` (bool, default true).
+
+**Rendering implementation** (`lib_ui/ui/widgets/checkbox.cpp`):
+When `isMaterialSwitches()` is true:
+- Uses the style's custom `shift`, `diameter` properties instead of default Telegram values (`defaultToggleShift`, `defaultToggleDiameter`).
+- Animation easing changes from `anim::linear` to `anim::easeOutCubic`.
+- Animation duration uses the style's `_duration` instead of `defaultToggleDuration`.
+- The thumb (circle) animates with a padding change (`animPadding` interpolated to 0 as toggle progresses), creating the MD3 "growing thumb" effect where the thumb is smaller when untoggled and expands to full size when toggled.
+
+**Restart required:** No (immediate via runtime global).
+
+### 54.3 Wide Messages Multiplier
+
+Scales the maximum width of message bubbles for better readability on ultra-wide monitors.
+
+**Settings page location:** Chats > slider between "Message Bubble Radius" and "Context Menu Elements".
+
+| Widget | Details |
+|--------|---------|
+| **Slider** | "Wide Messages Multiplier" -- 61 discrete stops mapping to values 1.00 to 4.00 in 0.05 increments. Label shows the current multiplier as `"X.XX"` format. Default: 1.00 (no scaling). |
+| **Description** | "You can change message width for better display on wide monitors." |
+
+**Setting key:** `wideMultiplier` (double, default 1.0, valid range 0.5--4.0).
+
+**Implementation** (`lib_ui/ayu/ayu_ui_settings.cpp`):
+- `isWideMultiplied()`: returns true when `abs(value - 1.0) > 0.01`.
+- `getWideMultiplied(width, mult)`: returns `max(width, round(width * wideMultiplier * mult))`. The `mult` parameter allows callers to apply a fractional sub-multiplier.
+- The value is set once at startup via `AyuUiSettings::setWideMultiplier()` in `ayu_infra.cpp`.
+
+**Restart required:** Yes (prompted on slider release, value set at startup).
+
+### 54.4 Message Bubble Radius
+
+Controls the corner radius of all message bubbles in chat view.
+
+**Settings page location:** Chats > "Messages" subsection, below the message preview widget.
+
+| Widget | Details |
+|--------|---------|
+| **Live preview** | `MessagePreview` widget -- renders a fake chat view with two messages: a reply quote ("Update wehn?") and a response ("You need to touch some grass.") marked as both edited and deleted. The preview reacts live to changes in bubble radius, tail removal, fast-share visibility, quote styling, deleted message translucency, and mark settings. Uses the current chat theme for painting. |
+| **Slider** | "Message Bubble Radius" -- 17 discrete stops (0 to 16). Value 0 = fully square bubbles, value 16 = maximum roundness (Telegram default). Label shows the numeric value. Dragging updates the preview live. |
+
+**Setting key:** `messageBubbleRadius` (int, default 16, valid range 0--16).
+
+**Rendering implementation** (`ui/chat/chat_style_radius.cpp`):
+- Stored as `AppliedBubbleRadius` global, set at startup via `SetAppliedBubbleRadius()`.
+- `BubbleRadiusLarge()`: maps slider value to the `st::bubbleRadiusLarge` maximum via linear interpolation: `(sliderValue * maximum + 8) / 16`.
+- `BubbleRadiusSmall()`: same mapping against `st::bubbleRadiusSmall`.
+- `MsgFileThumbRadiusSmall/Large()`: same mapping for file thumbnail corners.
+- Preview uses `SetBubbleRadiusOverride()` / `ClearBubbleRadiusOverride()` for live updates without affecting the global state.
+
+**Restart required:** Yes (prompted on slider release).
+
+### 54.5 Message Tail Removal
+
+Removes the speech bubble tail/pointer from message bubbles, giving messages a clean rectangular bottom edge.
+
+**Settings page location:** Chats > "Messages" subsection, below bubble radius slider.
+
+| Widget | Details |
+|--------|---------|
+| **Toggle** | "Remove Message Tail" -- boolean toggle. Default: `false`. |
+
+**Setting key:** `removeMessageTail` (bool, default false).
+
+**Rendering implementation** (`ui/chat/message_bubble.cpp`):
+When `removeMessageTail()` is true, the bubble painting code converts `Corner::Tail` values to `Corner::Large`:
+```
+if (bottomWithTailLeft == Corner::Tail) bottomWithTailLeft = Corner::Large;
+if (bottomWithTailRight == Corner::Tail) bottomWithTailRight = Corner::Large;
+```
+This replaces the tail cutout with a standard large-radius corner, eliminating the triangular pointer that normally appears at the bottom of the first/last message in a group.
+
+**Restart required:** No (reactive update, preview refreshes immediately).
+
+### 54.6 Quote & Reply Styling
+
+Simplifies the colorful quote/reply block styling to a minimal appearance.
+
+**Settings page location:** Chats > "Messages" subsection.
+
+| Widget | Details |
+|--------|---------|
+| **Toggle** | "Disable Colorful Replies" -- boolean toggle. Default: `false`. |
+
+**Setting key:** `simpleQuotesAndReplies` (bool, default false).
+
+**Rendering implementation** (`ui/chat/chat_style.cpp`, `history/view/history_view_reply.cpp`, `history/view/media/history_view_web_page.cpp`):
+When enabled:
+- Quote paint cache background (`cache->bg`) is set to fully transparent (`QColor(0, 0, 0, 0)`), removing the colored background fill from quote blocks.
+- Reply blocks and web page previews skip loading and rendering `backgroundEmojiData`, preventing the custom emoji pattern overlay that normally appears in colorful replies.
+- The left accent bar and outline colors remain, so quotes still have structural indication but lose the colorful fill and emoji patterns.
+- Also affects story repost views (`media/stories/media_stories_repost_view.cpp`).
+
+**Restart required:** No (reactive update).
+
+### 54.7 Context Menu Customization
+
+Each AyuGram-specific context menu item has a three-state visibility control.
+
+**Settings page location:** Chats > "Context Menu Elements" subsection.
+
+**Visibility states** (enum `ContextMenuVisibility`):
+| Value | Label | Behavior |
+|-------|-------|----------|
+| `Hidden` (0) | "Hidden" | Item never appears in context menu |
+| `Visible` (1) | "Shown" | Item always appears in context menu |
+| `VisibleWithModifier` (2) | "Extended Menu" | Item only appears when user holds Ctrl or Shift while right-clicking |
+
+**Description text:** "Extended menu items will be displayed if you hold CTRL or SHIFT while right-clicking on the message."
+
+Each item is configured via a "choose button" that opens a single-choice dialog box titled "Choose when to show the item":
+
+| Menu Item | Setting Key | Default | Icon |
+|-----------|-------------|---------|------|
+| Reactions Panel | `showReactionsPanelInContextMenu` | Visible | `menuIconReactions` |
+| Views Panel | `showViewsPanelInContextMenu` | Visible | `menuIconShowInChat` |
+| Hide Message | `showHideMessageInContextMenu` | Hidden | `menuIconClear` |
+| User Messages (search sender) | `showUserMessagesInContextMenu` | VisibleWithModifier | `menuIconTTL` |
+| Message Details (submenu) | `showMessageDetailsInContextMenu` | VisibleWithModifier | `menuIconInfo` |
+| Repeat Message | `showRepeatMessageInContextMenu` | Hidden | `ayuRepeatMenuIcon` |
+| Add Filter (regex) | `showAddFilterInContextMenu` | Visible | `menuIconAddToFolder` |
+
+The "Add Filter" option only appears in settings if `filtersEnabled` is true.
+
+**Additional fixed context menu actions** (always present, not configurable):
+- "View Deleted Messages" -- opens the message history section for the chat.
+- "Jump to Beginning" -- resolves the earliest message via `resolveJumpToDate(2013-08-01)` and scrolls to it.
+- "Open Channel" -- for megagroups with a linked channel, opens the channel.
+- "Shadow Ban" -- toggles shadow-ban for a user/channel (requires filters enabled).
+- "Delete Own Messages" -- batch-deletes all your messages in a group (with confirmation dialog), using paginated `messages.Search` + `messages.DeleteMessages`/`channels.DeleteMessages` with 500ms delays between batches.
+- "Edit History" -- shows revision history for an edited message (only if revisions exist in DB).
+- "Read Until" -- manually marks messages as read up to the selected one (only when ghost mode blocks read receipts).
+- "Burn" -- expires TTL media immediately by calling `messages.ReadMessageContents`.
+- "Create Filter" -- creates a regex filter from selected text (requires filters enabled).
+
+### 54.8 Drawer/Sidebar Customization
+
+Controls which items appear in the hamburger menu drawer (main menu) and system tray.
+
+**Settings page location:** Appearance > "Drawer Elements" subsection + "Tray Elements" subsection.
+
+**Drawer items** -- each is a boolean toggle with an icon matching the menu item it controls:
+
+| Drawer Item | Setting Key | Default | Icon |
+|-------------|-------------|---------|------|
+| My Profile | `showMyProfileInDrawer` | `true` | `menuIconProfile` |
+| Bots | `showBotsInDrawer` | `true` | `menuIconBot` |
+| New Group | `showNewGroupInDrawer` | `true` | `menuIconGroups` |
+| New Channel | `showNewChannelInDrawer` | `true` | `menuIconChannel` |
+| Contacts | `showContactsInDrawer` | `true` | `menuIconUserShow` |
+| Calls | `showCallsInDrawer` | `true` | `menuIconPhone` |
+| Saved Messages | `showSavedMessagesInDrawer` | `true` | `menuIconSavedMessages` |
+| Local Read Toggle | `showLReadToggleInDrawer` | `false` | `ayuLReadMenuIcon` |
+| Server Read Toggle | `showSReadToggleInDrawer` | `true` | `ayuSReadMenuIcon` |
+| Night Mode Toggle | `showNightModeToggleInDrawer` | `true` | `menuIconNightMode` |
+| Ghost Mode Toggle | `showGhostToggleInDrawer` | `true` | `ayuGhostIcon` |
+| Streamer Mode Toggle | `showStreamerToggleInDrawer` | `false` | `ayuStreamerModeMenuIcon` |
+
+The "Bots" toggle only appears if the current account has at least one attach-menu bot with `inMainMenu` flag.
+The "Streamer Mode Toggle" only appears on Windows and macOS.
+
+**Tray items** -- toggles for system tray context menu:
+
+| Tray Item | Setting Key | Default |
+|-----------|-------------|---------|
+| Ghost Mode Toggle | `showGhostToggleInTray` | `true` |
+| Streamer Mode Toggle | `showStreamerToggleInTray` | `false` |
+
+Streamer Mode tray toggle only on Windows/macOS.
+
+### 54.9 Message Field Button Toggles
+
+Controls which buttons are visible in the message compose area and which popup panels appear.
+
+**Settings page location:** Chats > "Message Field Elements" subsection + "Message Field Popups" subsection.
+
+**Field buttons** -- each is a boolean toggle with an icon matching the button it controls:
+
+| Button | Setting Key | Default | Icon |
+|--------|-------------|---------|------|
+| Attach (paperclip) | `showAttachButtonInMessageField` | `true` | `messageFieldAttachIcon` |
+| Commands (/) | `showCommandsButtonInMessageField` | `true` | `messageFieldCommandsIcon` |
+| TTL (auto-delete timer) | `showAutoDeleteButtonInMessageField` | `true` | `messageFieldTTLIcon` |
+| Emoji (smiley face) | `showEmojiButtonInMessageField` | `true` | `messageFieldEmojiIcon` |
+| Voice/Microphone | `showMicrophoneButtonInMessageField` | `true` | `messageFieldVoiceIcon` |
+| Gift | `showGiftButtonInMessageField` | `true` | `settingsButtonIconGift` |
+| AI Editor | `showAiEditorButtonInMessageField` | `true` | `messageFieldCocoonAiIcon` |
+
+**Popup panels** -- toggles for the expandable panels above the message field:
+
+| Popup | Setting Key | Default | Icon |
+|-------|-------------|---------|------|
+| Attach popup (file/photo picker) | `showAttachPopup` | `true` | `messageFieldAttachIcon` |
+| Emoji popup (emoji/sticker panel) | `showEmojiPopup` | `true` | `messageFieldEmojiIcon` |
+
+When a button is hidden, the corresponding functionality is still accessible via keyboard shortcuts or other UI paths -- only the button itself is removed from the compose area.
+
+### 54.10 Additional Appearance Settings
+
+Other visual customization options in the Appearance page:
+
+| Setting | Key | Type | Default | Description |
+|---------|-----|------|---------|-------------|
+| Disable Custom Backgrounds | `disableCustomBackgrounds` | bool | `true` | Prevents other users' custom chat themes/backgrounds from being applied in your client |
+| Hide Premium Statuses | `hidePremiumStatuses` | bool | `false` | Hides premium emoji status badges next to usernames |
+| Monospace Font | `monoFont` | string | `""` (= "Cascadia Mono") | Custom font for `<code>` and `<pre>` blocks. Opens a font selector dialog (`FontSelectorBox`). Label shows "Default" when empty. Applied at `lib_ui` level in `style_core_font.cpp`. |
+| Hide Notification Counters | `hideNotificationCounters` | bool | `false` | Hides unread count badges on chat folder tabs |
+| Hide "All Chats" Tab | `hideAllChatsFolder` | bool | `false` | Removes the "All Chats" folder tab from the folder bar |
+| Hide Notification Badge (Windows only) | `hideNotificationBadge` | bool | `false` | Hides the unread count overlay on the taskbar/tray icon. Description: "Hides the notification counter on the app icon in the taskbar and tray." |
+| App Icon | `appIcon` | string | `""` | Icon picker (`IconPicker` widget) with multiple icon themes: default, alt, bard, chibi, chibi2, discord, extera, extera2, nothing, spotify, win95, yaplus. Each theme provides `app.svg`/`app.png` + `app_icon.ico`. |
+
+### 54.11 Additional Chat Settings
+
+Other chat-related customization options in the Chats page:
+
+| Setting | Key | Type | Default | Description |
+|---------|-----|------|---------|-------------|
+| Show Only Added Emojis/Stickers | `showOnlyAddedEmojisAndStickers` | bool | `false` | Filters emoji/sticker picker to only show packs the user has explicitly added |
+| Hide Reactions | (collapsible) | -- | -- | Collapsible toggle with three nested checkboxes: hide reactions in channels (`showChannelReactions`, default true=shown), groups (`showGroupReactions`, default true), private chats (`showPrivateChatReactions`, default true). Parent toggles on when ALL children are unchecked. |
+| Recent Stickers Count | `recentStickersCount` | int | 100 | Slider, 0--200, controls how many recent stickers are shown. |
+| Channel Bottom Button | `channelBottomButton` | enum | `DiscussWithFallback` | Three-choice picker: Hidden, Mute/Unmute, Discuss (with fallback). |
+| Quick Admin Shortcuts | `quickAdminShortcuts` | bool | `true` | Enables quick admin action shortcuts in groups/channels. |
+| Message Shot | `showMessageShot` | bool | `true` | Enables the "message screenshot" feature for sharing styled message images. Description: explains the feature. |
+| Hide Side "Share" Button | `hideFastShare` | bool | `false` | Hides the circular forward/share button on the right side of messages. |
+| Replace Marks with Icons | `replaceBottomInfoWithIcons` | bool | `true` | Uses SVG icons instead of text for deleted/edited marks. When disabled, reveals sub-settings for custom deleted mark text and edited mark text (via `EditMarkBox` dialogs). |
+| Translucent Deleted Messages | `semiTransparentDeletedMessages` | bool | `false` | Makes deleted messages semi-transparent. Tagged with a beta badge. |
+
+### 54.12 Settings Page Structure
+
+AyuGram's settings are organized under a top-level "AyuGram" section in Telegram's Settings, with subsections:
+
+```
+Settings > AyuGram (AyuMain)
+  +-- Appearance (AyuAppearance)
+  |     +-- App Icon (icon picker)
+  |     +-- Avatar Corners (preview + slider + single radius toggle)
+  |     +-- Appearance (MD3 switches, disable backgrounds, hide premium, mono font)
+  |     +-- Chat Folders (notification counters, hide all chats tab)
+  |     +-- Tray Elements (ghost mode, streamer mode)
+  |     +-- Drawer Elements (12 toggles for menu items)
+  |
+  +-- Chats (AyuChats)
+  |     +-- Stickers & Emoji (show only added, hide reactions)
+  |     +-- Recent Stickers Limit (slider)
+  |     +-- Channels (bottom button, admin shortcuts, message shot)
+  |     +-- Messages (preview + marks toggles + tail + share + quotes + translucent)
+  |     +-- Message Bubble Radius (slider)
+  |     +-- Wide Messages Multiplier (slider)
+  |     +-- Context Menu Elements (7 choose buttons)
+  |     +-- Message Field Elements (7 button toggles)
+  |     +-- Message Field Popups (2 toggles)
+  |
+  +-- General (AyuGeneral) -- translation provider, QoL toggles, webview, confirmations
+  +-- Other (AyuOther) -- ghost mode, anti-recall, filters, etc.
+```
+
+Each settings page uses `SectionBuilder` (Telegram's standard) extended with `AyuSectionBuilder` which provides helpers: `addSettingToggle` (reactive bool toggle), `addSlider` (stepped slider with label), `addChooseButton` (opens single-choice box), `addCollapsibleToggle` (parent toggle with nested checkboxes), `addBetaBadge` (adds a "BETA" indicator), and `addSectionDivider`.
+
+### 54.13 Source Files Index
+
+| Component | File(s) |
+|-----------|---------|
+| Settings data model (90+ fields) | `ayu/ayu_settings.h`, `ayu_settings.cpp` |
+| Runtime rendering globals | `lib_ui/ayu/ayu_ui_settings.h`, `.cpp` |
+| Settings initialization | `ayu/ayu_infra.cpp` |
+| Appearance settings page | `ayu/ui/settings/settings_appearance.h`, `.cpp` |
+| Chats settings page | `ayu/ui/settings/settings_chats.h`, `.cpp` |
+| General settings page | `ayu/ui/settings/settings_general.h`, `.cpp` |
+| Builder helpers | `ayu/ui/settings/ayu_builder.h`, `.cpp` |
+| Avatar corners preview widget | `ayu/ui/components/avatar_corners_preview.h`, `.cpp` |
+| Avatar shape rendering | `ayu/ui/ayu_userpic.h`, `.cpp` |
+| Message preview widget | `ayu/ui/components/message_preview.h`, `.cpp` |
+| Icon picker widget | `ayu/ui/components/icon_picker.h`, `.cpp` |
+| Font selector dialog | `ayu/ui/boxes/font_selector.h`, `.cpp` |
+| Edit mark dialog | `ayu/ui/boxes/edit_mark_box.h`, `.cpp` |
+| Bubble radius system | `ui/chat/chat_style_radius.h`, `.cpp` |
+| Bubble tail removal | `ui/chat/message_bubble.cpp` |
+| Quote styling override | `ui/chat/chat_style.cpp` |
+| Material switch rendering | `lib_ui/ui/widgets/checkbox.cpp` |
+| Avatar image preparation | `lib_ui/ui/image/image_prepare.cpp` |
+| Mono font override | `lib_ui/ui/style/style_core_font.cpp` |
+| Context menu actions | `ayu/ui/context_menu/context_menu.h`, `.cpp` |
+| Style definitions | `ayu/ui/ayu_icons.style`, `ayu/ui/ayu_styles.style`, `ayu/ui/settings/ayu_settings.style` |
+
+---
+
+## §55 Channel & Group Statistics
+
+Statistics screens are shown as Info sections (same panel infrastructure as profile, members, etc.). They use a scrollable `VerticalLayout` filled with chart widgets, overview grids, and peer lists.
+
+### 55.1 Opening Statistics
+
+**Channel/Supergroup statistics:** From the channel/group info right-click context menu (or three-dot menu), select "Statistics". Only visible if the channel has the `CanGetStatistics` flag set (requires admin or sufficient subscriber count -- Telegram requires ~50 subscribers for channels, ~500 members for groups). The menu item uses the `menuIconStats` icon. Navigation: `Info::Statistics::Make(peer, {}, {})` pushes a new Info section with `Section::Type::Statistics`.
+
+**Message/story statistics:** From the channel statistics "Recent Messages" list, tap any message row. This navigates to a per-message statistics sub-page via `Info::Statistics::Make(peer, messageFullId, storyFullId)`.
+
+**Page title:** "Statistics" for channel/group stats (`lng_stats_title`), "Message Statistics" for individual posts (`lng_stats_message_title`), "Story Statistics" for stories (`lng_stats_story_title`).
+
+**Adjacent menu entries:** Below "Statistics", two more items may appear:
+- "Boosts" (`lng_boosts_title`, `menuIconBoosts`) -- visible if `CanGetStatistics` or creator or can post stories.
+- "Channel Earning" (`lng_channel_earn_title`, `menuIconEarn`) -- visible if `CanViewRevenue` or `CanViewCreditsRevenue`.
+
+### 55.2 Loading State
+
+While statistics data loads, a centered loading indicator is shown:
+- Animated Lottie icon (`stats` animation, looping), sized at `normalBoxLottieSize`, padded with `settingsBlockedListIconPadding`.
+- Title: "Loading Statistics..." (`lng_stats_loading`).
+- Subtitle: descriptive subtext (`lng_stats_loading_subtext`), centered, max width 256px, with `tryMakeSimilarLines` enabled.
+- Loading indicator is wrapped in a `SlideWrap` that toggles off once data arrives.
+- The Lottie animation starts looping only after the `showFinished` event fires (transition animation completes).
+
+### 55.3 Channel Statistics Layout
+
+Once data loads, the channel statistics page renders top-to-bottom:
+
+#### Overview Section
+
+Header: "Overview" (`lng_stats_overview_title`) with date range subtitle ("1 Jan 2024 -- 31 Jan 2024"). The header uses `statisticsChartHeaderPadding` and `statisticsLayerMargins`.
+
+**2x2 overview grid** -- four metric cards arranged in two rows, two columns (each column takes half the container width):
+
+| Position | Metric | Label Key |
+|---|---|---|
+| Top-left | **Followers** (member count) | `lng_stats_overview_member_count` |
+| Top-right | **Enabled Notifications** (percentage, e.g. "52.3%") | `lng_stats_overview_enabled_notifications` |
+| Bottom-left | **Views Per Post** (mean view count) | `lng_stats_overview_mean_view_count` |
+| Bottom-right | **Views Per Story** (mean story view count) | `lng_stats_overview_mean_story_view_count` |
+
+Each card displays:
+- **Primary value:** Large font (`statisticsOverviewValue`, 14px). Formatted with `FormatCountToShort` for large numbers (e.g., "12.3K").
+- **Change indicator:** Smaller text (`statisticsOverviewSecondValue`, 11px) showing delta and growth rate, e.g., "+1,234 (5.2%)". Green color for positive growth (`settingsIconBg2`), red for negative (`menuIconAttentionColor`). Uses +/- prefix with Unicode minus (U+2212) for negative. Padded `statisticsOverviewSecondValuePadding` (5px left, 3px top).
+- **Label:** Below the primary value (`statisticsOverviewSubtext`, 11px font, `windowSubTextFg` color). Min width 152px.
+
+Vertical spacing between rows: `statisticsOverviewMidSkip` (50px). Right column offset: `statisticsOverviewRightSkip` (14px) from halfway point. Outer margins: `statisticsLayerOverviewMargins` (17px top, 9px bottom).
+
+**Second overview (story metrics):** If the channel has story data, a second 2x2 grid appears immediately after with story-specific metrics:
+
+| Position | Metric | Label Key |
+|---|---|---|
+| Top-left | **Shares Per Post** | `lng_stats_overview_mean_share_count` |
+| Top-right | **Shares Per Story** | `lng_stats_overview_mean_story_share_count` |
+| Bottom-left | **Reactions Per Post** (or per story if no post reactions) | `lng_stats_overview_mean_reactions_count` / `lng_stats_overview_mean_story_reactions_count` |
+| Bottom-right | **Reactions Per Story** (only if post reactions exist) | `lng_stats_overview_mean_story_reactions_count` |
+
+#### Charts Section
+
+After the overview, a series of chart widgets, each separated by a divider. Each chart has:
+- Skip padding (`statisticsChartEntryPadding`: 13px top, 2px bottom) around dividers.
+- Chart widget with `statisticsLayerMargins` (20px horizontal).
+
+**Channel charts (in order):**
+
+| # | Chart Title | Chart Type | Data |
+|---|---|---|---|
+| 1 | "Followers" (`lng_chart_title_member_count`) | `Linear` | Member count over time |
+| 2 | "New Followers" (`lng_chart_title_join`) | `Linear` | Daily joins/leaves |
+| 3 | "Notifications" (`lng_chart_title_mute`) | `Linear` | Muted/unmuted ratio over time |
+| 4 | "Views By Hours" (`lng_chart_title_view_count_by_hour`) | `Linear` | Views distribution by hour of day |
+| 5 | "Views By Source" (`lng_chart_title_view_count_by_source`) | `StackBar` | Stacked bars by source (followers, search, etc.) |
+| 6 | "New Followers By Source" (`lng_chart_title_join_by_source`) | `StackBar` | Stacked bars showing join sources |
+| 7 | "Languages" (`lng_chart_title_language`) | `StackLinear` | Stacked area chart of subscriber languages |
+| 8 | "Interactions" (`lng_chart_title_message_interaction`) | `DoubleLinear` | Two-line chart: views + shares over time |
+| 9 | "IV Interactions" (`lng_chart_title_instant_view_interaction`) | `DoubleLinear` | Instant View views + shares |
+| 10 | "Reactions By Emotion" (`lng_chart_title_reactions_by_emotion`) | `Bar` | Bar chart of reaction types |
+| 11 | "Story Interactions" (`lng_chart_title_story_interactions`) | `DoubleLinear` | Story views + shares |
+| 12 | "Story Reactions By Emotion" (`lng_chart_title_story_reactions_by_emotion`) | `Bar` | Story reaction types |
+
+Charts that aren't available (empty data, no zoom token) are simply omitted. Charts with only a zoom token (data not yet loaded) are loaded asynchronously -- a `SlideWrap` hides the chart until data arrives, then reveals it instantly.
+
+#### Recent Messages Section
+
+Below charts, a "Recent Messages" section appears with header "Recent Messages" (`lng_stats_recent_messages_title`) and the same date range subtitle.
+
+**Message rows** are rendered as `SettingsButton` widgets (56px height, `statisticsRecentPostButton` style) containing a `MessagePreview` widget. Each row shows:
+
+- **Left:** Thumbnail (square, rounded corners `roundRadiusLarge`, `contactsPhotoSize` = 42px). If the message has a photo/video, it's loaded and scaled to fit. For stories, the thumbnail has a gradient outline ring (story indicator). If no media, the channel's userpic is shown instead. Spoiler media is blurred.
+- **Center column:**
+  - Top line: Message text preview (single line, elided), `boxTextFg` color.
+  - Bottom line: Date/time ("Jan 15, 2024, 14:30"), `windowSubTextFg` color.
+- **Right column:**
+  - Top: View count ("12.3K views", `lng_stats_recent_messages_views`).
+  - Bottom: Share count (with `statisticsRecentPostShareIcon` share icon) and reaction count (with `statisticsRecentPostReactionIcon` heart icon), separated by `statisticsChartRulerCaptionSkip` (4px).
+
+**Pagination:** Initially shows first 10 messages (`kFirstPage`). "Show More" button below loads 30 more at a time (`kPerPage`). Button has an up/down toggle arrow. When all messages are loaded, the button hides.
+
+**Context menu:** Right-clicking a message row shows a popup menu with "Show in Chat" (`lng_context_to_msg`, `menuIconShowInChat`).
+
+**Tap action:** Clicking a message row navigates to the individual message statistics page.
+
+### 55.4 Group (Supergroup) Statistics Layout
+
+#### Overview Section
+
+Same 2x2 grid as channels but with different metrics:
+
+| Position | Metric | Label Key |
+|---|---|---|
+| Top-left | **Members** | `lng_manage_peer_members` |
+| Top-right | **Messages** | `lng_stats_overview_messages` |
+| Bottom-left | **Viewing Members** (mean viewers) | `lng_stats_overview_group_mean_view_count` |
+| Bottom-right | **Posting Members** (mean senders) | `lng_stats_overview_group_mean_post_count` |
+
+#### Charts Section
+
+| # | Chart Title | Chart Type | Data |
+|---|---|---|---|
+| 1 | "Members" (`lng_chart_title_member_count`) | `Linear` | Member count over time |
+| 2 | "New Members" (`lng_chart_title_group_join`) | `Linear` | Daily joins |
+| 3 | "New Members By Source" (`lng_chart_title_group_join_by_source`) | `StackBar` | Join sources stacked |
+| 4 | "Members' Primary Language" (`lng_chart_title_group_language`) | `StackLinear` | Language distribution |
+| 5 | "Messages" (`lng_chart_title_group_message_content`) | `StackBar` | Message types (text, photo, video, etc.) |
+| 6 | "Actions" (`lng_chart_title_group_action`) | `DoubleLinear` | Admin actions over time |
+| 7 | "Top Hours" (`lng_chart_title_group_day`) | `Linear` | Activity by hour of day |
+| 8 | "Days Of Week" (`lng_chart_title_group_week`) | `StackLinear` | Activity by day of week |
+
+#### Top Members Lists
+
+After charts, three peer list sections appear (each only if data is non-empty):
+
+1. **Top Senders** (`lng_stats_members_title`): List of users who sent the most messages. Each row shows the user's avatar, name, and status text: "{N} messages, {M} characters" (`lng_stats_member_messages`, `lng_stats_member_characters`).
+
+2. **Top Administrators** (`lng_stats_admins_title`): Admins who performed the most moderation. Status: "{N} deletions, {M} bans, {K} restrictions" (`lng_stats_member_deletions`, `lng_stats_member_bans`, `lng_stats_member_restrictions`).
+
+3. **Top Inviters** (`lng_stats_inviters_title`): Users who invited the most members. Status: "{N} invitations" (`lng_stats_member_invitations`).
+
+Each list uses standard `PeerListContent` with `PeerListRow` entries. Initially loads one page, with "Show More" button (40 per page). Clicking a row opens that user's profile info.
+
+Sections are separated by `AddSkip` + `AddDivider` + `AddSkip` + `AddSkip`.
+
+### 55.5 Message Statistics Layout
+
+When viewing stats for an individual post or story:
+
+#### Message Preview
+
+At the top, the original message is shown as a `MessagePreview` widget (same format as in the recent messages list -- thumbnail, text preview, date). For stories, the thumbnail has the gradient story ring. Context menu on messages: "Show in Chat". Stories are non-interactive (transparent for mouse events).
+
+#### Overview Section
+
+2x2 grid with post-specific metrics:
+
+| Position | Metric | Label Key |
+|---|---|---|
+| Top-left | **Views** | `lng_stats_overview_message_views` |
+| Top-right | **Public Shares** (public forwards count) | `lng_stats_overview_message_public_shares` |
+| Bottom-left | **Reactions** | `lng_manage_peer_reactions` |
+| Bottom-right | **Private Shares** (private forwards count) | `lng_stats_overview_message_private_shares` |
+
+These values are displayed as raw numbers (no growth indicators, since they're single-post totals not time-series comparisons).
+
+#### Charts
+
+1. **"Interactions"** (`lng_chart_title_message_interaction`, `DoubleLinear`): Views and shares over time for this specific post.
+2. **"Reactions By Emotion"** (`lng_chart_title_reactions_by_emotion`, `Bar`): Breakdown of reaction emoji types.
+
+#### Public Forwards List
+
+Below charts, a "Public Shares" section (`lng_stats_overview_message_public_share`) with the total count. Lists channels/groups that forwarded this post publicly, using `PeerListContent`. Each row shows the forwarding channel's avatar and name. Clicking navigates to the forward (message or story in the forwarding channel).
+
+Rows for forwarded messages show a regular userpic. Rows for stories in other channels show the story ring gradient outline around the avatar.
+
+### 55.6 Chart Widget Architecture
+
+Each chart widget (`Statistic::ChartWidget`) is a self-contained component with these regions stacked vertically:
+
+```
++------------------------------------------+
+| Header (title + date range subtitle)     |  statisticsChartHeaderPadding
++------------------------------------------+
+|                                          |
+|          Chart Area (200px)              |  statisticsChartHeight
+|          (mouse-interactive)             |
+|                                          |
++------------------------------------------+
+|          Footer / Range Selector         |  statisticsChartFooterHeight (42px)
++------------------------------------------+
+|    [ Filter Buttons ] (if multi-line)    |  statisticsFilterButtonsPadding
++------------------------------------------+
+```
+
+**Total height** = header area + 200px chart + 42px footer + optional filter buttons.
+
+#### Chart Header
+
+`Statistic::Header` widget showing:
+- **Title** (semibold, `statisticsHeaderTitleTextStyle` = `boxFontSize semibold`): The chart name (e.g., "Followers", "Views By Source").
+- **Subtitle** (11px, `statisticsHeaderDatesTextStyle`): Date range matching the current zoom level, e.g., "1 Jan 2024 -- 31 Jan 2024". Updates as the footer range selector moves.
+
+Header height: `statisticsChartHeaderHeight` (36px).
+
+#### Chart Area
+
+200px tall interactive area where the chart is painted. Handles mouse press, move, and release for tooltip display.
+
+**Mouse interaction:**
+- **Click/drag on chart area:** A `PointDetailsWidget` tooltip appears showing values at the nearest X index (data point). The tooltip follows the mouse horizontally, snapping to the nearest data point.
+- **Tooltip positioning:** Appears to the left of the selected point's X position. If it would overflow left, it flips to the right. If it would overflow right, it pins to position 0.
+- **Tooltip appearance animation:** Fades in/out over 200ms. Clicking the same data point again hides the tooltip.
+
+#### Footer / Range Selector
+
+A 42px tall miniature of the full chart with a draggable range selector overlaid:
+
+- **Full miniature chart:** The entire dataset rendered at reduced scale as background.
+- **Selected range:** A highlighted window with semi-transparent side handles (`statisticsChartFooterSideWidth` = 10px each). The area outside the selection is dimmed with `statisticsChartInactive` overlay.
+- **Side handles:** Vertical bars in `premiumButtonFg` color with rounded corners (`statisticsChartFooterSideRadius` = 6px). Each handle has a small vertical arrow indicator (`statisticsChartFooterArrowHeight` = 10px).
+- **Minimum range width:** `statisticsChartFooterBetweenSide` (5px between handles).
+
+**Drag behaviors:**
+- **Drag left handle:** Adjusts the start of the visible range (zooms in/out from the left).
+- **Drag right handle:** Adjusts the end of the visible range (zooms in/out from the right).
+- **Drag center area:** Pans the range left/right without changing zoom level.
+- **Click outside range:** Animates the range center to the clicked position (`sineInOut` easing, `slideWrapDuration`).
+
+All range changes trigger immediate chart area re-render with animated transitions.
+
+#### Point Details Tooltip
+
+`PointDetailsWidget` -- a floating card that appears when interacting with the chart:
+
+- **Background:** Rounded rectangle (`boxRadius` corners, `boxBg` background) with shadow (multi-layer painted shadow at 20%/40% opacity offsets).
+- **Header line:** Date stamp in semibold 12px (`statisticsDetailsPopupHeaderStyle`). For weekly data: "1 Jan -- 7 Jan 2024". For daily: "Mon, Jan 15".
+- **Value lines:** One per data series (line), each showing:
+  - Name (12px, `statisticsDetailsPopupStyle`, `boxTextFg`).
+  - Value (12px, colored in the line's color). Formatted with `FormatCountDecimal`.
+  - Optional percentage (for stacked charts with `hasPercentages`).
+  - Each line's visibility is animated (alpha 0-1) based on filter state.
+- **Spacing:** `statisticsDetailsPopupMargins` (12px left/right, 8px top, 11px bottom), `statisticsDetailsPopupPadding` (6px all), `statisticsDetailsPopupMidLineSpace` (4px between value lines).
+- **Zoom arrow:** If zoom is enabled, a small chevron arrow (>) appears in the header area (`statisticsDetailsArrowShift` = 3px, stroke width 1.5px, `windowSubTextFg`). Clicking the tooltip triggers a zoom action.
+- **Ripple effect:** Standard ripple animation on click (only when zoom is enabled and values are positive).
+- **Currency support:** For earn/revenue charts, values show both native currency amount and USD conversion.
+
+#### Chart Rendering
+
+The chart area is painted by `AbstractChartView` subclasses:
+
+**Horizontal axis (bottom):** Date labels (`statisticsDetailsBottomCaptionStyle`, 10px font) centered under data points, `statisticsChartBottomCaptionHeight` (15px) + `statisticsChartBottomCaptionSkip` (6px). Labels fade in/out as zoom level changes to prevent overlap. Edge labels fade when partially clipped.
+
+**Vertical axis (rulers):** Horizontal grid lines with value labels (`statisticsChartRulerCaptionSkip` = 4px). Rulers are semi-transparent (`kRulerLineAlpha` = 0.06 opacity). New ruler sets animate in (alpha crossfade) when the Y-axis range changes significantly.
+
+**Line colors:** Mapped from server-provided color keys: BLUE, GREEN, RED, GOLDEN, LIGHTBLUE, LIGHTGREEN, ORANGE, INDIGO, PURPLE, CYAN -- each mapped to themed style colors (e.g., `statisticsChartLineBlue`).
+
+**Line width:** `statisticsChartLineWidth` (2px).
+
+**Selected point indicators:** Vertical line at the selected X index, with circular dots (`statisticsDetailsDotRadius` = 5px) on each data series line, colored to match the line.
+
+### 55.7 Chart Types
+
+Five chart rendering modes, created by `CreateChartView()`:
+
+#### Linear (`ChartViewType::Linear`)
+
+Standard line chart. Single continuous line per data series. Used for member count, views by hour, daily activity. Lines are rendered as cached `QImage`s for performance -- cache key includes x-indices, percentage limits, height limits, and rect size. Separate caches for main area and footer.
+
+#### DoubleLinear (`ChartViewType::DoubleLinear`)
+
+Two-line chart with independent Y-axis scaling. The two lines (e.g., views and shares) are auto-scaled via `DoubleLineRatios` so each line uses the full chart height independently. Created as `LinearChartView(true)`. Used for "Interactions" charts (views + shares on different scales).
+
+#### Bar (`ChartViewType::Bar`)
+
+Standard vertical bar chart. Non-stacked. Each data point is a discrete bar. Used for "Reactions By Emotion". Uses `SegmentTree` for efficient range min/max queries. Selected bar is highlighted; non-selected bars are dimmed.
+
+#### StackBar (`ChartViewType::StackBar`)
+
+Stacked vertical bar chart. Multiple series stacked on top of each other per X position. Used for "Views By Source", "New Followers By Source", "Messages" (content types). Created as `BarChartView(true)`. Y-axis shows cumulative totals with per-series colors.
+
+#### StackLinear (`ChartViewType::StackLinear`)
+
+Stacked area chart that transitions into a pie chart on zoom. This is the most complex chart type.
+
+**Normal view:** Stacked filled areas (100% height normalized). Used for "Languages", "Days Of Week".
+
+**Zoom behavior (local zoom):** Unlike other chart types that request server-side zoom data, `StackLinear` zooms locally:
+1. User clicks the tooltip on a data point.
+2. The chart animates (`easeOutCirc`, 400ms) from stacked area to a **pie chart** showing the percentage breakdown at that specific time point.
+3. Footer range selector zooms to show the selected range.
+4. Header subtitle updates to show the specific date.
+5. A "Zoom Out" button (`statisticsHeaderButton`, 20px height, 11px semibold text) appears in the header.
+6. **Pie chart interaction:** Mouse hovering over a pie slice pops it out (`statisticsPieChartPartOffset` = 8px outward shift). Percentage labels are drawn on slices (20px font, `statisticsPieChartFont`).
+7. Clicking "Zoom Out" animates back to the stacked area view.
+
+**Pie transition animation:** Each line endpoint animates from its stacked position to a radial position on the pie. Uses `TransitionLine` with start/end points and angles. The `ChangingPiePartController` smoothly animates percentage values when panning within zoomed view.
+
+### 55.8 Chart Zoom System
+
+Two zoom mechanisms:
+
+#### Server-Side Zoom (Linear, Bar, DoubleLinear, StackBar)
+
+Charts with a `zoomToken` support drill-down:
+1. User clicks the tooltip (enabled when `_zoomEnabled` is true).
+2. `zoomRequests` event fires with the X timestamp.
+3. API call `requestZoom(token, x)` fetches detailed chart data for that time period.
+4. A **new `ChartWidget`** (`_zoomedChartWidget`) is created and overlaid on the original:
+   - Shows the zoomed-in detail data.
+   - Header shows the parent chart's title and the specific date range.
+   - "Zoom Out" button in the header.
+   - Original chart hides with crossfade animation (`Ui::Animations::HideWidgets`/`ShowWidgets`).
+5. Clicking "Zoom Out" destroys the zoomed widget and reveals the original.
+
+#### Local Zoom (StackLinear only)
+
+Handled entirely client-side -- see §55.7 StackLinear description. The stacked area transforms into a pie chart without any server call. Footer range adjusts to the zoomed portion. Mouse tracking is enabled for pie slice hover detection.
+
+### 55.9 Filter Buttons
+
+Charts with multiple data series (more than 1 line) show filter toggle buttons below the footer:
+
+- `ChartLinesFilterWidget` renders a horizontal flow of `FlatCheckbox` buttons.
+- Each button shows the line name, colored with the line's color.
+- Padding: `statisticsChartFlatCheckboxMargins` (4px horizontal, 3px top, 5px bottom).
+- Check mark width: `statisticsChartFlatCheckboxCheckWidth` (3px), shrink width 4px.
+- Toggling a button animates the corresponding line's visibility (alpha fade).
+- The chart's Y-axis and rulers re-compute to fit only the visible lines.
+- Some lines start hidden (`isHiddenOnStart` flag from server).
+- Long-pressing a button (or toggling when it's the last enabled) -- standard Telegram behavior.
+- Filter button container padding: `statisticsFilterButtonsPadding` (12px top, 8px bottom).
+
+### 55.10 Animation System
+
+Chart animations use a custom `ChartAnimationController`:
+
+- **X-axis animation:** Linear easing, 200ms (`kXExpandingDuration`).
+- **Y-axis (height) animation:** `easeInCubic` with adaptive speed:
+  - Speed adjusts based on how much the Y range changed (larger changes = faster animation).
+  - Three speed tiers: `kDtHeightSpeed1` (0.06), `kDtHeightSpeed2` (0.06), `kDtHeightSpeed3` (0.09).
+  - Speed reduced by 1.2x when triggered by line filter changes.
+  - If Y range change ratio exceeds 0.97, instant snap (no animation).
+- **Height alpha crossfade:** When Y-axis rulers change significantly, old rulers fade out and new rulers fade in (`_animationValueHeightAlpha`).
+- **Bottom line alpha:** Date labels crossfade at `easeInCubic`, 200ms.
+- **FPS-adaptive:** Animation speed multiplied by `(60 / currentFPS)`. If FPS drops below 30, speed is doubled to minimize ugly frames.
+- **Footer height animation:** Separate animation track for footer miniature chart's Y range.
+
+### 55.11 Data Structures
+
+**`StatisticalValue`:** Each overview metric includes `.value` (current), `.previousValue` (previous period), and `.growthRatePercentage` (pre-computed percentage change).
+
+**`StatisticalGraph`:** Chart data comes either pre-loaded (`.chart` has data) or deferred (`.zoomToken` is set, data fetched on demand). Some graphs are only available via zoom token to save bandwidth.
+
+**`StatisticalChart` (data model):** Contains `x` (timestamps), `lines` (array of `Line` with `y` values, `name`, `colorKey`, `id`), `xPercentage` (normalized 0-1 positions), `defaultZoomXIndex` (initial visible range), `weekFormat` flag, `hasPercentages` flag, `isFooterHidden` flag, `dayStringMaxWidth`, `currencyRate`, and `currency`.
+
+### 55.12 Source Files
+
+| Component | File |
+|---|---|
+| Statistics page wrapper | `info/statistics/info_statistics_widget.h`, `.cpp` |
+| Statistics inner widget (layout) | `info/statistics/info_statistics_inner_widget.h`, `.cpp` |
+| Message preview row | `info/statistics/info_statistics_recent_message.h`, `.cpp` |
+| Peer list controllers (top members, public forwards) | `info/statistics/info_statistics_list_controllers.h`, `.cpp` |
+| Statistics tag (navigation params) | `info/statistics/info_statistics_tag.h` |
+| Data structures | `data/data_statistics.h`, `data/data_statistics_chart.h` |
+| API layer | `api/api_statistics.h`, `.cpp` |
+| Chart widget | `statistics/chart_widget.h`, `.cpp` |
+| Chart common types (Limits, ChartViewType) | `statistics/statistics_common.h` |
+| Chart header widget | `statistics/widgets/chart_header_widget.h`, `.cpp` |
+| Point details tooltip | `statistics/widgets/point_details_widget.h`, `.cpp` |
+| Filter buttons | `statistics/widgets/chart_lines_filter_widget.h`, `.cpp` |
+| Chart view factory | `statistics/view/chart_view_factory.h`, `.cpp` |
+| Abstract chart view base | `statistics/view/abstract_chart_view.h`, `.cpp` |
+| Linear chart view | `statistics/view/linear_chart_view.h`, `.cpp` |
+| Bar chart view | `statistics/view/bar_chart_view.h`, `.cpp` |
+| Stack linear chart view (area + pie) | `statistics/view/stack_linear_chart_view.h`, `.cpp` |
+| Stack chart common utils | `statistics/view/stack_chart_common.h`, `.cpp` |
+| Stack linear common (pie parts) | `statistics/view/stack_linear_chart_common.h`, `.cpp` |
+| Chart rulers view | `statistics/view/chart_rulers_view.h`, `.cpp` |
+| Segment tree (efficient range queries) | `statistics/segment_tree.h`, `.cpp` |
+| Format values (date helpers) | `statistics/statistics_format_values.h`, `.cpp` |
+| Chart data deserialization | `statistics/statistics_data_deserialize.h`, `.cpp` |
+| Chart graphics helpers | `statistics/statistics_graphics.h`, `.cpp` |
+| Lines filter controller | `statistics/chart_lines_filter_controller.h`, `.cpp` |
+| Chart rulers data | `statistics/chart_rulers_data.h`, `.cpp` |
+| Style definitions | `statistics/statistics.style` |
+| Menu entry (opening stats) | `window/window_peer_menu.cpp` (`addViewStatistics`) |
