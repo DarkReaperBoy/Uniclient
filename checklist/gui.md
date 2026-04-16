@@ -3,7 +3,7 @@
 **STATUS: ALPHA — scaffold exists but many features are placeholders, stubs, or broken.**
 
 ✅ = actually working with live data, 🔲 = placeholder/stub (UI exists, no backend), ❌ = not started, 🐛 = known bug.
-Last updated: 2026-04-15, session 26.
+Last updated: 2026-04-15, session 29.
 
 ## CRITICAL BUGS — Fixed in session 24
 
@@ -98,24 +98,24 @@ Comprehensive audit of all stubs, "coming soon", and empty handlers found in the
 - ❌ **Video playback** — `media_viewer.dart:289` "Video playback coming soon"
 - ❌ **Voice/video calls** — `chat_view.dart:236,246` "coming soon" snackbar
 - ✅ **File drag-and-drop** — Removed misleading overlay. Upload via + button (zenity) and Ctrl+V paste already work. (session 27)
-- ❌ **QR code auth** — `auth_screen.dart:270` static icon, not real QR render
+- ✅ **QR code auth** — Real `qr_flutter` rendering with auto-refresh polling, Telegram QR login token export. (session 28)
 - ✅ **#channel autocomplete** — Pulls group/channel names from chat list. (session 27)
 
 ### Nice to Have (deep features, less visible)
 - ❌ **Per-topic message loading** — `chat_view.dart:1094` uses 4 hardcoded mock channels
 - ❌ **Audio waveform** — `chat_view.dart:1732`, `media_viewer.dart:330` static bars, not real
-- ❌ **Sender avatars** — `chat_view.dart:691` hash-based initials, no real images
+- ✅ **Sender avatars** — Chat/account/user avatars rendered from cached `avatarPath` files when available, falls back to initials. (session 28)
 - ❌ **Channel edit** — `sidebar.dart:1040` "coming soon" snackbar
 
 ## MISSING FEATURES — Not Started
 
-- ❌ **System tray** — No tray icon, no minimize-to-tray, no background running. App closes when window closes.
+- ✅ **System tray** — AppIndicator tray icon on Linux (bundled .so libs), Show/Hide + Quit menu, minimize to tray on close, unread count tooltip. Graceful fallback when unavailable. (session 28)
 - ✅ **Native notifications** — `notify-send` on Linux for message notifications. (session 27)
 - ✅ **Chat type icons** — Group badge on avatars, channels have campaign icon, DMs have online dot. (session 27)
-- ❌ **Telegram folders** — No sync of Telegram's folder structure (Unread, Personal, Groups, etc.). Only local All/DMs/Groups/Channels tabs.
+- ✅ **Telegram folders** — Synced from Telegram's dialog filters via engine `GetFolders`. Shown as folder tabs alongside built-in All/DMs/Groups/Channels. (session 28)
 - ❌ **Platform-specific notification sounds** — No distinct sound/vibration per platform.
 - ❌ **IRC channel join UI** — No way to browse/join IRC channels from the GUI. Must use CLI.
-- ❌ **Multi-account UX** — Platform rail doesn't scale for multiple accounts per platform. No account switcher per-platform, no visual distinction.
+- ✅ **Multi-account UX** — Per-platform account picker (chip row with connection dots), platform grouping in All view (section headers + counts), platform icon badges on chat avatars. (session 28)
 - ❌ **Voice/video calls** — Call buttons show "coming soon" snackbar. No actual call UI.
 - ❌ **Voice message recording** — Mic button shows pulsing UI but no actual audio capture.
 - ❌ **Real sticker packs** — Sticker tab has 9 hardcoded mock packs. No Telegram/platform sticker sync.
@@ -141,7 +141,18 @@ Comprehensive audit of all stubs, "coming soon", and empty handlers found in the
 - 🔲 Custom user-created folders (local state only, lost on restart)
 - 🔲 Online dot on DM avatars (shows for all users, not real presence data)
 - 🔲 Draft text in preview (local state only, lost on restart)
-- 🔲 QR code auth (placeholder image, no real QR generation)
+- ✅ QR code auth (real qr_flutter rendering with Telegram token export)
+
+## SESSION 29 — Bale auth fix, phantom account removal
+
+### Bugs Fixed
+- ✅ **#63 Bale OTP truncated to 5 digits** — `engine/auth.go` set `CodeLength = 5` for Bale but Bale sends 6-digit codes. Flutter TextField `maxLength` silently truncated → "PHONE_CODE_INVALID". Fixed: `CodeLength = 6`.
+- ✅ **#64 Failed auth creates phantom accounts** — `sidebar.dart` `showDialog<void>` ignored auth result, leaving fake accounts in the list after failed login. Fixed: `showDialog<bool>`, `Navigator.pop(context, false)` on failure, `appState.removeAccount(id)` on `success != true`.
+- ✅ **#65 Bale SubmitOTP race condition** — `select { default: return nil }` in SubmitOTP could return nil before error channel was written. Fixed: blocking `return <-b.authErrCh`.
+
+### Known Bugs (not yet fixed)
+- 🐛 **#66 Bale chats don't load** — GetDialogs returns 0 results after WebSocket connect. WS handshake added but RPC calls still return empty. Needs WS lifecycle restructuring.
+- 🐛 **#67 Session path conflict** — `sessions/bale` can be file or directory depending on core init order. Causes `SaveSession`/`MkdirAll` failures.
 
 ## Bugs Found & Fixed (previous sessions)
 - ✅ **Multi-platform chat list wipe** (session 23) — `onChatSnapshot` replaced entire `_chats` with per-account snapshot. Fixed: unified SQLite query.

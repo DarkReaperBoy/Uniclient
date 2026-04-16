@@ -1,11 +1,11 @@
 # Pre-GUI Roadmap Progress
 
-**Current Step:** Step 15 — Build GUI — **Alpha → Beta** — all Must Fix done, keyboard shortcuts + notifications + chat icons added
+**Current Step:** Step 15 — Build GUI — **Alpha → Beta** — QR auth, system tray, folders sync, avatars, multi-account UX
 **Current Core:** All 10 cores
 **Current Method:** —
-**Last Updated:** 2026-04-15 (session 27 — all 8 Must Fix, 4 Should Fix, 4 Missing Features done. New: LeaveChat engine method, media download/open-with, channel mute/read/delete, language picker, cache size tile, DM profile, #channel autocomplete, keyboard shortcuts Ctrl+K/Escape, native notify-send, group chat icon badges, file upload cleanup)
+**Last Updated:** 2026-04-15 (session 28 — QR code auth with real token rendering, system tray with minimize-to-tray, Telegram folders sync, sender avatar display from cached photos, multi-account UX with platform grouping + account picker + icon badges)
 
-**NEXT:** Remaining "Should Fix": video playback (needs video_player or media_kit — both require native deps, may skip), voice/video call UI (complex), QR code auth (needs qr_flutter package). Remaining "Missing Features": system tray, Telegram folders sync, multi-account UX, voice/video recording, real sticker/GIF data. Then "Nice to Have": per-topic messages, audio waveform, sender avatars.
+**NEXT:** Remaining "Should Fix": video playback (needs video_player or media_kit — both require native deps, may skip), voice/video call UI (complex). Remaining "Missing Features": voice/video recording, real sticker/GIF data. Then "Nice to Have": per-topic messages, audio waveform, channel edit. Then polish: accessibility, distribution packaging.
 
 ## Steps
 
@@ -852,3 +852,82 @@ Event port for async updates (Go → Dart). Per-core protos for full type safety
 3. **Sidebar Stack layout fix** — Added `StackFit.expand` to sidebar's `Stack` widget (was using default `StackFit.loose` which gave `Column` children `minHeight=0`, breaking `Expanded` inside).
 
 4. **Debug logging cleanup** — Removed temporary debug logging from `chat_state.dart` and `sidebar.dart` added during investigation.
+
+#### Session 28 — QR auth, system tray, folders sync, avatars, multi-account UX
+
+**QR code auth (Go + Dart):**
+- Added `StartQRAuth()`, `RefreshQRToken()`, `exportQRLoginToken()` to `go/cores/telegram.go` — initializes client, exports QR login token via `auth.exportLoginToken`, handles token refresh + acceptance detection + `AuthLoginTokenSuccess` finalization
+- Updated `advanceTelegram` in `go/engine/auth.go` — `qr_code` choice now calls `StartQRAuth()` for real token; added `AuthStateQR` handler that calls `RefreshQRToken()` with auto-polling
+- Added `qr_flutter: ^4.1.0` to `dart/pubspec.yaml`
+- Updated `dart/lib/screens/auth_screen.dart` — QR placeholder replaced with real `QrImageView` rendering (blue eye style, circle data modules), auto-refresh timer (5s polling), helper instructions, clean timer disposal on state change
+
+**System tray (Linux, native C with graceful fallback):**
+- Added `libayatana-appindicator` to `flake.nix` build inputs
+- Updated `dart/linux/CMakeLists.txt` — pkg-config for appindicator, `HAVE_APPINDICATOR` compile flag, installs 5 bundled .so files
+- Extended `dart/linux/my_application.cc` — AppIndicator tray icon, Show/Hide + Quit menu, `delete-event` handler (minimize to tray on close), MethodChannel `com.uniclient.app/tray` for Dart↔native communication
+- Created `dart/lib/utils/system_tray.dart` — Dart tray manager wrapper: init, updateUnread, show/hide, onQuit/onWindowHidden callbacks, graceful no-op when unavailable
+- Wired into `dart/lib/main.dart` — tray init after engine, unread count updates from ChatState
+
+**Telegram folders sync (Go engine → proto → bridge → Dart → sidebar):**
+- Added `FolderInfo` struct + `GetFolders(accountID)` method to `go/engine/cache_chats.go` — uses `folderLister` interface duck typing to call core's `GetFolders()`
+- Added `EngineFolderInfo`, `EngineGetFoldersRequest`, `EngineGetFoldersResponse` to `proto/engine.proto`, regenerated Go + Dart proto
+- Added `"GetFolders"` dispatch case in `go/bridge/dispatch_engine.go`
+- Added `getFolders()` async method + `_folderInfoFromProto` to `dart/lib/bridge/engine_service.dart`
+- Added `FolderInfo` model to `dart/lib/models/engine_models.dart`
+- Updated `dart/lib/widgets/sidebar.dart` — `_syncedFolders` state, `_fetchSyncedFolders()` on platform switch, synced folder tabs shown between built-in and custom tabs with `folder_special_outlined` icon, `synced_` prefix folder filter in `_applyFolderFilter()`
+
+**Sender avatars (Dart rendering):**
+- Updated `_ChatAvatar` in `sidebar.dart` — checks `chat.avatarPath`, renders `FileImage` when file exists, preserves circle/rounded-rect shape for DM vs channel, falls back to existing color+initial placeholder
+- Updated drill-in header avatar, `_UserPanel` account avatar — same `FileImage` conditional rendering
+- Updated `_showChatInfoDialog` in `chat_view.dart` — 64px circle avatar from file when available
+
+**Multi-account UX (3 features in sidebar):**
+- **Per-platform account picker** — `_AccountPicker` widget shown below platform dropdown when >1 account exists for selected platform. Horizontal chip row with display name + connection status dot. "All" chip for full platform view.
+- **Platform grouping in All view** — Non-pinned chats grouped by platform with `_PlatformSectionHeader` (icon + name + count). Ordered by most recent activity.
+- **Platform icon badges** — 16px platform icon badge on chat avatars in All view (bottom-right corner, brand colored). Threaded through `_ChatItem`, `_ReorderableChatItem`, `_ChatAvatar` via `showPlatformBadge` param.
+- Added `_activeAccountId` + `setActiveAccountId()` to `app_state.dart`, `chatsForAccount()` to `chat_state.dart`
+
+**Build & test results:**
+- Go build: clean (CGO_ENABLED=0)
+- Dart analyze: 0 errors, 29 info
+- Widget tests: 83/83 pass
+- Smoke test: app launches, Telegram + IRC connect, chats load, platform grouping visible, tray icon active
+
+#### Session 29 — Bale auth fix, phantom account fix, WebSocket handshake
+
+**Bale OTP fix (ROOT CAUSE):**
+- `go/engine/auth.go`: `CodeLength = 5` → `CodeLength = 6` for Bale OTP state. Flutter `TextField` `maxLength: 5` was silently truncating 6-digit Bale codes → "PHONE_CODE_INVALID". This was the single root cause.
+
+**Bale SubmitOTP/Submit2FA race condition fix:**
+- `go/cores/bale.go`: `SubmitOTP` had `select { default: return nil }` that could return nil before the error channel was written. Changed to blocking `return <-b.authErrCh` after `authDoneCh` closes. Same fix applied to `Submit2FA`.
+
+**Bale HTTP cookie jar:**
+- `go/cores/bale.go`: Added `cookiejar.New()` to `newBaleHTTPClient` so HTTP session cookies persist across auth requests (StartPhoneAuth → ValidateCode).
+
+**Bale send_code_type fix:**
+- `go/cores/bale.go`: Changed `StartPhoneAuth` request field "9" from SMS type (3) to DEFAULT (1).
+
+**Bale WebSocket handshake:**
+- `go/cores/bale.go`: Added `wsReady chan struct{}` field. `wsConnect` now waits for `HandshakeResponse` (protobuf field 5) before returning. `wsHandleMessage` closes `wsReady` on HandshakeResponse. Also handles TerminateSession (field 3) and Pong (field 4).
+
+**Phantom account fix (Dart):**
+- `dart/lib/screens/auth_screen.dart`: Auth dialog now returns `bool` via `Navigator.pop(context, true/false)`.
+- `dart/lib/widgets/sidebar.dart`: Changed `showDialog<void>` → `showDialog<bool>` with `barrierDismissible: false`. On auth failure (`success != true`), calls `appState.removeAccount(id)` to prevent phantom accounts.
+
+**ConnectAccount logging:**
+- `go/engine/health.go`: Added `log.Printf` at key points (start, create core failure, credentials loaded with mode, auth result).
+
+**Debug logging cleanup:**
+- Removed all `fmt.Fprintf(os.Stderr, "bale: ...")` debug lines from `bale.go` added during investigation.
+
+**Known bugs (not yet fixed):**
+- Bale GetDialogs returns 0 results after WebSocket connect — needs restructured WS lifecycle (user hint: official harness keeps single persistent WS from page load)
+- Session path handling: Bale session file vs directory conflict (`sessions/bale` can be file or dir depending on core)
+- Stale OTP in vault: saved credentials include expired OTP on reconnect
+
+### TODOs — Future Sessions
+
+- **Single-file session/settings/keys store** — All sessions, settings, encryption keys in one importable/exportable file (user feature request, session 29)
+- **Bale folder support** — Bale supports folders; currently returns "not supported" (user confirmed, session 29)
+- **Bale chat loading** — Fix GetDialogs returning empty after WebSocket connect; restructure WS lifecycle to match official harness (persistent single connection from startup)
+- **Session path unification** — Resolve file-vs-directory conflict for session storage across all cores

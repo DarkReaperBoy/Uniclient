@@ -79,6 +79,12 @@ class ChatState extends ChangeNotifier {
     return _chats.where((c) => c.accountId.startsWith(prefix)).toList();
   }
 
+  /// Chats filtered by a specific account ID.
+  List<ChatInfo> chatsForAccount(String accountId) {
+    if (accountId.isEmpty) return _chats;
+    return _chats.where((c) => c.accountId == accountId).toList();
+  }
+
   /// Total unread count across all visible chats.
   int get totalUnread => _chats.fold(0, (sum, c) => sum + c.unreadCount);
 

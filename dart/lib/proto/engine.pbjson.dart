@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: proto/engine.proto
+//  source: engine.proto
 //
 // @dart = 2.12
 
@@ -1077,4 +1077,45 @@ final $typed_data.Uint8List engineUpdateConfigRequestDescriptor = $convert.base6
     '91cHMSMAoUbm90aWZ5X21lbnRpb25zX29ubHkYDiABKAhSEm5vdGlmeU1lbnRpb25zT25seRI3'
     'ChhoYXNfbm90aWZ5X21lbnRpb25zX29ubHkYDyABKAhSFWhhc05vdGlmeU1lbnRpb25zT25seQ'
     '==');
+
+@$core.Deprecated('Use engineFolderInfoDescriptor instead')
+const EngineFolderInfo$json = {
+  '1': 'EngineFolderInfo',
+  '2': [
+    {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'chat_ids', '3': 3, '4': 3, '5': 9, '10': 'chatIds'},
+  ],
+};
+
+/// Descriptor for `EngineFolderInfo`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineFolderInfoDescriptor = $convert.base64Decode(
+    'ChBFbmdpbmVGb2xkZXJJbmZvEg4KAmlkGAEgASgJUgJpZBISCgRuYW1lGAIgASgJUgRuYW1lEh'
+    'kKCGNoYXRfaWRzGAMgAygJUgdjaGF0SWRz');
+
+@$core.Deprecated('Use engineGetFoldersRequestDescriptor instead')
+const EngineGetFoldersRequest$json = {
+  '1': 'EngineGetFoldersRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+  ],
+};
+
+/// Descriptor for `EngineGetFoldersRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetFoldersRequestDescriptor = $convert.base64Decode(
+    'ChdFbmdpbmVHZXRGb2xkZXJzUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
+    'Q=');
+
+@$core.Deprecated('Use engineGetFoldersResponseDescriptor instead')
+const EngineGetFoldersResponse$json = {
+  '1': 'EngineGetFoldersResponse',
+  '2': [
+    {'1': 'folders', '3': 1, '4': 3, '5': 11, '6': '.uniclient.EngineFolderInfo', '10': 'folders'},
+  ],
+};
+
+/// Descriptor for `EngineGetFoldersResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetFoldersResponseDescriptor = $convert.base64Decode(
+    'ChhFbmdpbmVHZXRGb2xkZXJzUmVzcG9uc2USNQoHZm9sZGVycxgBIAMoCzIbLnVuaWNsaWVudC'
+    '5FbmdpbmVGb2xkZXJJbmZvUgdmb2xkZXJz');
 

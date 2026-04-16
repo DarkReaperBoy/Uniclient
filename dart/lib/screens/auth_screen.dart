@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../state/auth_state.dart';
 import '../models/engine_models.dart';
@@ -24,6 +27,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _inputController = TextEditingController();
   bool _obscureText = false;
   bool _autoCloseScheduled = false;
+  Timer? _qrRefreshTimer;
 
   @override
   void initState() {
@@ -36,6 +40,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   void dispose() {
+    _qrRefreshTimer?.cancel();
     _inputController.dispose();
     super.dispose();
   }
@@ -70,7 +75,7 @@ class _AuthScreenState extends State<AuthScreen> {
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () {
                       authState.cancelAuth();
-                      Navigator.pop(context);
+                      Navigator.pop(context, false);
                     },
                     splashRadius: 16,
                   ),
@@ -91,6 +96,11 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildAuthBody(BuildContext context, AuthStateData auth, AuthState authState) {
+    // Stop QR refresh timer when leaving QR state
+    if (auth.state != 'qr') {
+      _qrRefreshTimer?.cancel();
+      _qrRefreshTimer = null;
+    }
     return switch (auth.state) {
       'choose' => _buildChooseState(context, auth, authState),
       'input'  => _buildInputState(context, auth, authState),
@@ -258,6 +268,13 @@ class _AuthScreenState extends State<AuthScreen> {
 
   // ── QR: scan QR code ──
   Widget _buildQRState(BuildContext context, AuthStateData auth, AuthState authState) {
+    // Auto-refresh QR token every 5 seconds
+    _qrRefreshTimer ??= Timer.periodic(const Duration(seconds: 5), (_) {
+      if (mounted) authState.submitInput('__refresh');
+    });
+
+    final qrUrl = auth.qrData.isNotEmpty ? String.fromCharCodes(auth.qrData) : '';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -266,30 +283,60 @@ class _AuthScreenState extends State<AuthScreen> {
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodyLarge,
         ),
-        const SizedBox(height: 16),
-        // QR code placeholder — actual rendering requires qr_flutter package
-        Container(
-          height: 200,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Center(
-            child: Icon(Icons.qr_code_2, size: 160, color: Colors.black87),
+        const SizedBox(height: 4),
+        Text(
+          'Open Telegram on your phone → Settings → Devices → Link Desktop Device',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).textTheme.bodySmall?.color?.withValues(alpha: 0.7),
           ),
         ),
-        if (auth.timeoutSecs > 0)
+        const SizedBox(height: 16),
+        Center(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: qrUrl.isNotEmpty
+                ? QrImageView(
+                    data: qrUrl,
+                    version: QrVersions.auto,
+                    size: 200,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: Color(0xFF2AABEE), // Telegram blue
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.circle,
+                      color: Colors.black87,
+                    ),
+                  )
+                : const SizedBox(
+                    width: 200,
+                    height: 200,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+          ),
+        ),
+        if (auth.qrExpiresIn > 0)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              'Expires in ${auth.timeoutSecs}s',
+              'Refreshes automatically',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
         const SizedBox(height: 16),
         OutlinedButton(
-          onPressed: () => authState.cancelAuth(),
+          onPressed: () {
+            _qrRefreshTimer?.cancel();
+            _qrRefreshTimer = null;
+            authState.cancelAuth();
+          },
           child: const Text('Cancel'),
         ),
       ],
@@ -305,7 +352,7 @@ class _AuthScreenState extends State<AuthScreen> {
         Future.delayed(const Duration(seconds: 2), () {
           if (mounted) {
             context.read<AuthState>().clear();
-            Navigator.pop(context);
+            Navigator.pop(context, true);
           }
         });
       });
@@ -331,7 +378,7 @@ class _AuthScreenState extends State<AuthScreen> {
           onPressed: () {
             // Account is already connected by finalizeAuth — just close the dialog.
             context.read<AuthState>().clear();
-            Navigator.pop(context);
+            Navigator.pop(context, true);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.accent,
@@ -379,7 +426,7 @@ class _AuthScreenState extends State<AuthScreen> {
             OutlinedButton(
               onPressed: () {
                 authState.clear();
-                Navigator.pop(context);
+                Navigator.pop(context, false);
               },
               child: const Text('Close'),
             ),

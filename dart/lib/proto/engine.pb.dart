@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: proto/engine.proto
+//  source: engine.proto
 //
 // @dart = 2.12
 
@@ -5601,6 +5601,172 @@ class EngineUpdateConfigRequest extends $pb.GeneratedMessage {
   $core.bool hasHasNotifyMentionsOnly_15() => $_has(14);
   @$pb.TagNumber(15)
   void clearHasNotifyMentionsOnly_15() => clearField(15);
+}
+
+class EngineFolderInfo extends $pb.GeneratedMessage {
+  factory EngineFolderInfo({
+    $core.String? id,
+    $core.String? name,
+    $core.Iterable<$core.String>? chatIds,
+  }) {
+    final $result = create();
+    if (id != null) {
+      $result.id = id;
+    }
+    if (name != null) {
+      $result.name = name;
+    }
+    if (chatIds != null) {
+      $result.chatIds.addAll(chatIds);
+    }
+    return $result;
+  }
+  EngineFolderInfo._() : super();
+  factory EngineFolderInfo.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineFolderInfo.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineFolderInfo', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'id')
+    ..aOS(2, _omitFieldNames ? '' : 'name')
+    ..pPS(3, _omitFieldNames ? '' : 'chatIds')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineFolderInfo clone() => EngineFolderInfo()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineFolderInfo copyWith(void Function(EngineFolderInfo) updates) => super.copyWith((message) => updates(message as EngineFolderInfo)) as EngineFolderInfo;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineFolderInfo create() => EngineFolderInfo._();
+  EngineFolderInfo createEmptyInstance() => create();
+  static $pb.PbList<EngineFolderInfo> createRepeated() => $pb.PbList<EngineFolderInfo>();
+  @$core.pragma('dart2js:noInline')
+  static EngineFolderInfo getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineFolderInfo>(create);
+  static EngineFolderInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get id => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set id($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get name => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set name($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearName() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.String> get chatIds => $_getList(2);
+}
+
+class EngineGetFoldersRequest extends $pb.GeneratedMessage {
+  factory EngineGetFoldersRequest({
+    $core.String? accountId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    return $result;
+  }
+  EngineGetFoldersRequest._() : super();
+  factory EngineGetFoldersRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetFoldersRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetFoldersRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGetFoldersRequest clone() => EngineGetFoldersRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGetFoldersRequest copyWith(void Function(EngineGetFoldersRequest) updates) => super.copyWith((message) => updates(message as EngineGetFoldersRequest)) as EngineGetFoldersRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetFoldersRequest create() => EngineGetFoldersRequest._();
+  EngineGetFoldersRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetFoldersRequest> createRepeated() => $pb.PbList<EngineGetFoldersRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetFoldersRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetFoldersRequest>(create);
+  static EngineGetFoldersRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+}
+
+class EngineGetFoldersResponse extends $pb.GeneratedMessage {
+  factory EngineGetFoldersResponse({
+    $core.Iterable<EngineFolderInfo>? folders,
+  }) {
+    final $result = create();
+    if (folders != null) {
+      $result.folders.addAll(folders);
+    }
+    return $result;
+  }
+  EngineGetFoldersResponse._() : super();
+  factory EngineGetFoldersResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetFoldersResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetFoldersResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineFolderInfo>(1, _omitFieldNames ? '' : 'folders', $pb.PbFieldType.PM, subBuilder: EngineFolderInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGetFoldersResponse clone() => EngineGetFoldersResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGetFoldersResponse copyWith(void Function(EngineGetFoldersResponse) updates) => super.copyWith((message) => updates(message as EngineGetFoldersResponse)) as EngineGetFoldersResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetFoldersResponse create() => EngineGetFoldersResponse._();
+  EngineGetFoldersResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetFoldersResponse> createRepeated() => $pb.PbList<EngineGetFoldersResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetFoldersResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetFoldersResponse>(create);
+  static EngineGetFoldersResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineFolderInfo> get folders => $_getList(0);
 }
 
 

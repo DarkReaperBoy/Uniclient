@@ -15,6 +15,7 @@ class AppState extends ChangeNotifier {
   List<AccountInfo> _accounts = [];
   final Map<String, ConnState> _connStates = {};
   String _activePlatform = ''; // platform filter for chat list (empty = all)
+  String _activeAccountId = ''; // account filter within a platform (empty = all accounts for platform)
   AppConfig _config = AppConfig.defaults();
   bool _initialized = false;
   String? _initError;
@@ -41,6 +42,7 @@ class AppState extends ChangeNotifier {
   List<AccountInfo> get accounts => _accounts;
   Map<String, ConnState> get connStates => _connStates;
   String get activePlatform => _activePlatform;
+  String get activeAccountId => _activeAccountId;
   AppConfig get config => _config;
   bool get initialized => _initialized;
   String? get initError => _initError;
@@ -161,6 +163,12 @@ class AppState extends ChangeNotifier {
 
   void setActivePlatform(String platform) {
     _activePlatform = platform;
+    _activeAccountId = ''; // reset account filter when switching platforms
+    notifyListeners();
+  }
+
+  void setActiveAccountId(String accountId) {
+    _activeAccountId = accountId;
     notifyListeners();
   }
 

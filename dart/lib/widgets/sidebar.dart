@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -47,6 +49,10 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
 
   // Custom user-created folders: name + set of chatIds
   final List<({String name, Set<String> chatIds})> _customFolders = [];
+
+  // Synced folders from the platform (e.g. Telegram folders)
+  List<FolderInfo> _syncedFolders = [];
+  String _syncedFoldersAccountId = ''; // track which account we last fetched for
 
   // Drill-in state: when non-null, we show the sub-chat list for this parent.
   ChatInfo? _drillInChat;
@@ -126,6 +132,31 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     }
   }
 
+  /// Fetch synced folders for the given account. Called when platform changes.
+  Future<void> _fetchSyncedFolders(String accountId) async {
+    if (accountId == _syncedFoldersAccountId) return; // already fetched
+    _syncedFoldersAccountId = accountId;
+    try {
+      final engine = context.read<EngineService>();
+      final folders = await engine.getFolders(accountId);
+      if (!mounted || _syncedFoldersAccountId != accountId) return;
+      setState(() => _syncedFolders = folders);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _syncedFolders = []);
+    }
+  }
+
+  /// Clear synced folders when platform changes to one that doesn't support them.
+  void _clearSyncedFolders() {
+    if (_syncedFolders.isNotEmpty || _syncedFoldersAccountId.isNotEmpty) {
+      setState(() {
+        _syncedFolders = [];
+        _syncedFoldersAccountId = '';
+      });
+    }
+  }
+
   void _exitDrillIn() {
     _slideController.reverse().then((_) {
       if (mounted) {
@@ -145,11 +176,33 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     final chatState = context.watch<ChatState>();
     final appState = context.watch<AppState>();
 
-    // Feature 1: Platform filtering
+    // Feature 1: Platform filtering + per-account filtering
     final platformFilter = appState.activePlatform;
-    final allChats = platformFilter.isNotEmpty
-        ? chatState.chatsForPlatform(platformFilter)
-        : chatState.chats;
+    final accountFilter = appState.activeAccountId;
+    final List<ChatInfo> allChats;
+    if (accountFilter.isNotEmpty) {
+      allChats = chatState.chatsForAccount(accountFilter);
+    } else if (platformFilter.isNotEmpty) {
+      allChats = chatState.chatsForPlatform(platformFilter);
+    } else {
+      allChats = chatState.chats;
+    }
+
+    // Sync folders for platforms that support them (e.g. Telegram).
+    // Use addPostFrameCallback to avoid calling setState during build.
+    if (platformFilter.isNotEmpty) {
+      final platformAccounts = appState.accountsForPlatform(platformFilter);
+      final connectedAcc = platformAccounts.where((a) => a.connState == ConnState.connected).firstOrNull;
+      if (connectedAcc != null && connectedAcc.id != _syncedFoldersAccountId) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _fetchSyncedFolders(connectedAcc.id);
+        });
+      }
+    } else if (_syncedFolders.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _clearSyncedFolders();
+      });
+    }
 
     // Folder filtering
     final folderFiltered = _applyFolderFilter(allChats);
@@ -183,6 +236,18 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
             totalUnread: totalUnread,
           ),
 
+          // Per-platform account picker (shown when platform has multiple accounts)
+          if (platformFilter.isNotEmpty)
+            Builder(builder: (context) {
+              final platformAccounts = appState.accountsForPlatform(platformFilter);
+              if (platformAccounts.length <= 1) return const SizedBox.shrink();
+              return _AccountPicker(
+                accounts: platformAccounts,
+                activeAccountId: accountFilter,
+                connStates: appState.connStates,
+              );
+            }),
+
           // Search
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -212,6 +277,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
           // Folder tabs
           _FolderTabs(
             activeFolder: _activeFolder,
+            syncedFolders: _syncedFolders,
             customFolders: _customFolders,
             onFolderChanged: (folder) {
               setState(() {
@@ -239,6 +305,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                         regular: regular,
                         chats: topLevelChats,
                         allChats: allChats,
+                        showPlatformBadge: platformFilter.isEmpty,
                       ),
                     ),
                   // Drill-in page (slides in from right)
@@ -268,6 +335,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
     required List<ChatInfo> regular,
     required List<ChatInfo> chats,
     required List<ChatInfo> allChats,
+    bool showPlatformBadge = false,
   }) {
     final customFolders = _customFolders;
     // Check if there are sub-chats for any group (to show drill-in arrow)
@@ -345,34 +413,108 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                 onDrillIn: () => _enterDrillIn(chat),
                 customFolders: customFolders,
                 onAddToFolder: _addChatToFolder,
+                showPlatformBadge: showPlatformBadge,
               );
             },
           ),
         ],
-        // Regular section
+        // Regular section — grouped by platform in "All" view
         if (regular.isNotEmpty) ...[
-          if (pinned.isNotEmpty)
+          if (pinned.isNotEmpty && !showPlatformBadge)
             _SectionHeader(title: 'Messages', count: regular.length),
           Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.zero,
-              itemCount: regular.length,
-              itemBuilder: (context, index) {
-                final chat = regular[index];
-                return _ChatItem(
-                  chat: chat,
-                  showDrillArrow: hasSubChats(chat),
-                  onDrillIn: () => _enterDrillIn(chat),
-                  customFolders: customFolders,
-                  onAddToFolder: _addChatToFolder,
-                );
-              },
-            ),
+            child: showPlatformBadge
+                ? _buildGroupedChatList(
+                    regular: regular,
+                    hasSubChats: hasSubChats,
+                    customFolders: customFolders,
+                  )
+                : ListView.builder(
+                    padding: EdgeInsets.zero,
+                    itemCount: regular.length,
+                    itemBuilder: (context, index) {
+                      final chat = regular[index];
+                      return _ChatItem(
+                        chat: chat,
+                        showDrillArrow: hasSubChats(chat),
+                        onDrillIn: () => _enterDrillIn(chat),
+                        customFolders: customFolders,
+                        onAddToFolder: _addChatToFolder,
+                      );
+                    },
+                  ),
           ),
         ] else
           const Spacer(),
       ],
     );
+  }
+
+  /// Build a chat list grouped by platform with section headers.
+  /// Used in the "All" view to visually separate chats from different platforms.
+  Widget _buildGroupedChatList({
+    required List<ChatInfo> regular,
+    required bool Function(ChatInfo) hasSubChats,
+    required List<({String name, Set<String> chatIds})> customFolders,
+  }) {
+    // Group chats by platform, preserving order within each group (already sorted by time).
+    final appState = context.read<AppState>();
+    final grouped = <String, List<ChatInfo>>{};
+    for (final chat in regular) {
+      final platform = _platformForChat(chat, appState);
+      (grouped[platform] ??= []).add(chat);
+    }
+
+    // Build a flat list of widgets: section header + chat items for each platform.
+    // Order platforms by earliest lastMsgTime descending (most recent platform first).
+    final platformOrder = grouped.keys.toList()
+      ..sort((a, b) {
+        final aTime = grouped[a]!.first.lastMsgTime;
+        final bTime = grouped[b]!.first.lastMsgTime;
+        return bTime.compareTo(aTime);
+      });
+
+    final items = <Widget>[];
+    for (final platform in platformOrder) {
+      final platformChats = grouped[platform]!;
+      final meta = _platformMeta[platform];
+      items.add(_PlatformSectionHeader(
+        platform: platform,
+        icon: meta?.icon ?? Icons.extension_rounded,
+        color: meta?.color ?? AppColors.accent,
+        label: meta?.label ?? platform,
+        count: platformChats.length,
+      ));
+      for (final chat in platformChats) {
+        items.add(_ChatItem(
+          chat: chat,
+          showDrillArrow: hasSubChats(chat),
+          onDrillIn: () => _enterDrillIn(chat),
+          customFolders: customFolders,
+          onAddToFolder: _addChatToFolder,
+          showPlatformBadge: true,
+        ));
+      }
+    }
+
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: items,
+    );
+  }
+
+  /// Determine the platform name for a chat by matching its accountId to known accounts.
+  static String _platformForChat(ChatInfo chat, AppState appState) {
+    for (final account in appState.accounts) {
+      if (account.id == chat.accountId) return account.platform;
+    }
+    // Fallback: infer from accountId prefix (convention: first 4 chars of platform name).
+    final prefix = chat.accountId.length >= 4 ? chat.accountId.substring(0, 4) : chat.accountId;
+    for (final key in _platformMeta.keys) {
+      final keyPrefix = key.length > 4 ? key.substring(0, 4) : key;
+      if (prefix == keyPrefix) return key;
+    }
+    return 'unknown';
   }
 
   Widget _buildDrillInPage({
@@ -409,24 +551,37 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                     const Icon(Icons.arrow_back, size: 20),
                     const SizedBox(width: 8),
                     // Group avatar
-                    Container(
-                      width: AppSizes.avatarSizeSmall,
-                      height: AppSizes.avatarSizeSmall,
-                      decoration: BoxDecoration(
-                        color: bgColor,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          safeInitial(parent.title),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                    if (parent.avatarPath.isNotEmpty && File(parent.avatarPath).existsSync())
+                      Container(
+                        width: AppSizes.avatarSizeSmall,
+                        height: AppSizes.avatarSizeSmall,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          image: DecorationImage(
+                            image: FileImage(File(parent.avatarPath)),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        width: AppSizes.avatarSizeSmall,
+                        height: AppSizes.avatarSizeSmall,
+                        decoration: BoxDecoration(
+                          color: bgColor,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            safeInitial(parent.title),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
-                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
@@ -512,6 +667,14 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   }
 
   List<ChatInfo> _applyFolderFilter(List<ChatInfo> chats) {
+    if (_activeFolder.startsWith('synced_')) {
+      final idx = int.tryParse(_activeFolder.substring(7));
+      if (idx != null && idx < _syncedFolders.length) {
+        final ids = _syncedFolders[idx].chatIds.toSet();
+        return chats.where((c) => ids.contains(c.chatId)).toList();
+      }
+      return chats;
+    }
     if (_activeFolder.startsWith('custom_')) {
       final idx = int.tryParse(_activeFolder.substring(7));
       if (idx != null && idx < _customFolders.length) {
@@ -989,14 +1152,18 @@ class _PlatformHeader extends StatelessWidget {
                 try {
                   final appState = context.read<AppState>();
                   final id = appState.addAccount(entry.key);
-                  showDialog<void>(
+                  showDialog<bool>(
                     context: context,
-                    barrierDismissible: true,
+                    barrierDismissible: false,
                     builder: (_) => AuthScreen(accountId: id, platform: entry.key),
-                  ).then((_) {
-                    if (context.mounted) {
+                  ).then((success) {
+                    if (!context.mounted) return;
+                    if (success == true) {
                       appState.setActivePlatform(entry.key);
                       context.read<ChatState>().loadChats();
+                    } else {
+                      // Auth failed or cancelled — remove the placeholder account
+                      appState.removeAccount(id);
                     }
                   });
                 } catch (e, stack) {
@@ -1036,12 +1203,14 @@ class _PlatformHeader extends StatelessWidget {
 
 class _FolderTabs extends StatelessWidget {
   final String activeFolder;
+  final List<FolderInfo> syncedFolders;
   final List<({String name, Set<String> chatIds})> customFolders;
   final ValueChanged<String> onFolderChanged;
   final VoidCallback onAddFolder;
 
   const _FolderTabs({
     required this.activeFolder,
+    required this.syncedFolders,
     required this.customFolders,
     required this.onFolderChanged,
     required this.onAddFolder,
@@ -1059,6 +1228,9 @@ class _FolderTabs extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final allTabs = <(String id, String label, IconData? icon)>[
       ..._builtinFolders,
+      // Synced folders from the platform (e.g. Telegram folders) — after built-in, before custom
+      for (var i = 0; i < syncedFolders.length; i++)
+        ('synced_$i', syncedFolders[i].name, Icons.folder_special_outlined),
       for (var i = 0; i < customFolders.length; i++)
         ('custom_$i', customFolders[i].name, Icons.folder_outlined),
     ];
@@ -1181,6 +1353,174 @@ class _SectionHeader extends StatelessWidget {
             '$count',
             style: TextStyle(
               fontSize: 10,
+              color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Account Picker (shown when a platform has multiple accounts) ──
+
+class _AccountPicker extends StatelessWidget {
+  final List<AccountInfo> accounts;
+  final String activeAccountId;
+  final Map<String, ConnState> connStates;
+
+  const _AccountPicker({
+    required this.accounts,
+    required this.activeAccountId,
+    required this.connStates,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final appState = context.read<AppState>();
+    final mutedColor = isDark ? AppColors.darkTextDim : AppColors.lightTextDim;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: SizedBox(
+        height: 32,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            // "All" chip — show all accounts for this platform
+            _accountChip(
+              context: context,
+              label: 'All',
+              isActive: activeAccountId.isEmpty,
+              connState: ConnState.connected,
+              mutedColor: mutedColor,
+              onTap: () => appState.setActiveAccountId(''),
+            ),
+            const SizedBox(width: 4),
+            for (final account in accounts) ...[
+              _accountChip(
+                context: context,
+                label: account.displayName.isNotEmpty
+                    ? account.displayName
+                    : account.id.length > 8
+                        ? '${account.id.substring(0, 8)}...'
+                        : account.id,
+                isActive: activeAccountId == account.id,
+                connState: connStates[account.id] ?? ConnState.disconnected,
+                mutedColor: mutedColor,
+                onTap: () => appState.setActiveAccountId(account.id),
+              ),
+              const SizedBox(width: 4),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _accountChip({
+    required BuildContext context,
+    required String label,
+    required bool isActive,
+    required ConnState connState,
+    required Color mutedColor,
+    required VoidCallback onTap,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? AppColors.darkText : AppColors.lightText;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppColors.accent.withAlpha(30)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: isActive ? AppColors.accent.withAlpha(80) : mutedColor.withAlpha(60),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Connection status dot
+              Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color: switch (connState) {
+                    ConnState.connected => AppColors.online,
+                    ConnState.connecting || ConnState.unstable => AppColors.warning,
+                    ConnState.authRequired => AppColors.warning,
+                    _ => AppColors.danger,
+                  },
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                  color: isActive ? AppColors.accent : textColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Platform Section Header (used in "All" view for grouping) ──
+
+class _PlatformSectionHeader extends StatelessWidget {
+  final String platform;
+  final IconData icon;
+  final Color color;
+  final String label;
+  final int count;
+
+  const _PlatformSectionHeader({
+    required this.platform,
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.count,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 16, 2),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 14),
+          const SizedBox(width: 6),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: color.withAlpha(180),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 9,
               color: isDark ? AppColors.darkTextDim : AppColors.lightTextDim,
             ),
           ),
@@ -1414,6 +1754,7 @@ class _ReorderableChatItem extends StatelessWidget {
   final VoidCallback onDrillIn;
   final List<({String name, Set<String> chatIds})> customFolders;
   final void Function(int folderIndex, String chatId) onAddToFolder;
+  final bool showPlatformBadge;
 
   const _ReorderableChatItem({
     super.key,
@@ -1423,6 +1764,7 @@ class _ReorderableChatItem extends StatelessWidget {
     required this.onDrillIn,
     required this.customFolders,
     required this.onAddToFolder,
+    this.showPlatformBadge = false,
   });
 
   @override
@@ -1435,6 +1777,7 @@ class _ReorderableChatItem extends StatelessWidget {
         onDrillIn: onDrillIn,
         customFolders: customFolders,
         onAddToFolder: onAddToFolder,
+        showPlatformBadge: showPlatformBadge,
       ),
     );
   }
@@ -1448,6 +1791,7 @@ class _ChatItem extends StatelessWidget {
   final VoidCallback? onDrillIn;
   final List<({String name, Set<String> chatIds})> customFolders;
   final void Function(int folderIndex, String chatId)? onAddToFolder;
+  final bool showPlatformBadge;
 
   const _ChatItem({
     required this.chat,
@@ -1455,6 +1799,7 @@ class _ChatItem extends StatelessWidget {
     this.onDrillIn,
     this.customFolders = const [],
     this.onAddToFolder,
+    this.showPlatformBadge = false,
   });
 
   @override
@@ -1492,7 +1837,7 @@ class _ChatItem extends StatelessWidget {
             child: Row(
               children: [
                 // Avatar
-                _ChatAvatar(chat: chat),
+                _ChatAvatar(chat: chat, showPlatformBadge: showPlatformBadge),
                 const SizedBox(width: 12),
 
                 // Name + preview
@@ -1865,7 +2210,8 @@ class _ChatItem extends StatelessWidget {
 
 class _ChatAvatar extends StatelessWidget {
   final ChatInfo chat;
-  const _ChatAvatar({required this.chat});
+  final bool showPlatformBadge;
+  const _ChatAvatar({required this.chat, this.showPlatformBadge = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1876,34 +2222,76 @@ class _ChatAvatar extends StatelessWidget {
     final hue = (chat.chatId.hashCode % 360).abs().toDouble();
     final bgColor = HSLColor.fromAHSL(1, hue, 0.5, isDark ? 0.3 : 0.75).toColor();
 
+    // Check for real avatar file.
+    final hasAvatar = chat.avatarPath.isNotEmpty && File(chat.avatarPath).existsSync();
+    final isChannel = chat.type == ChatType.channel;
+
     return SizedBox(
       width: AppSizes.avatarSize,
       height: AppSizes.avatarSize,
       child: Stack(
         children: [
-          Container(
-            width: AppSizes.avatarSize,
-            height: AppSizes.avatarSize,
-            decoration: BoxDecoration(
-              color: bgColor,
-              shape: chat.type == ChatType.channel ? BoxShape.rectangle : BoxShape.circle,
-              borderRadius: chat.type == ChatType.channel ? BorderRadius.circular(8) : null,
-            ),
-            child: Center(
-              child: chat.type == ChatType.channel
-                  ? const Icon(Icons.campaign, color: Colors.white, size: 20)
-                  : Text(
-                      initial,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+          if (hasAvatar)
+            Container(
+              width: AppSizes.avatarSize,
+              height: AppSizes.avatarSize,
+              decoration: BoxDecoration(
+                shape: isChannel ? BoxShape.rectangle : BoxShape.circle,
+                borderRadius: isChannel ? BorderRadius.circular(8) : null,
+                image: DecorationImage(
+                  image: FileImage(File(chat.avatarPath)),
+                  fit: BoxFit.cover,
+                ),
+              ),
+            )
+          else
+            Container(
+              width: AppSizes.avatarSize,
+              height: AppSizes.avatarSize,
+              decoration: BoxDecoration(
+                color: bgColor,
+                shape: isChannel ? BoxShape.rectangle : BoxShape.circle,
+                borderRadius: isChannel ? BorderRadius.circular(8) : null,
+              ),
+              child: Center(
+                child: isChannel
+                    ? const Icon(Icons.campaign, color: Colors.white, size: 20)
+                    : Text(
+                        initial,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
+              ),
             ),
-          ),
-          // Online dot for DMs
-          if (chat.type == ChatType.dm)
+          // Platform badge in "All" view — small platform icon in bottom-right corner
+          if (showPlatformBadge)
+            Positioned(
+              bottom: -1,
+              right: -1,
+              child: Builder(builder: (context) {
+                final appState = context.read<AppState>();
+                final platform = _SidebarState._platformForChat(chat, appState);
+                final meta = _platformMeta[platform];
+                return Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: isDark ? AppColors.darkSidebar : AppColors.lightSidebar,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    meta?.icon ?? Icons.extension_rounded,
+                    size: 10,
+                    color: meta?.color ?? AppColors.accent,
+                  ),
+                );
+              }),
+            )
+          // Online dot for DMs (only when not showing platform badge)
+          else if (chat.type == ChatType.dm)
             Positioned(
               bottom: 0,
               right: 0,
@@ -1919,9 +2307,9 @@ class _ChatAvatar extends StatelessWidget {
                   ),
                 ),
               ),
-            ),
+            )
           // Chat type icon badge (groups only — DMs have online dot, channels have campaign icon)
-          if (chat.type == ChatType.group)
+          else if (chat.type == ChatType.group)
             Positioned(
               bottom: -1,
               right: -1,
@@ -1977,8 +2365,9 @@ class _UserPanelState extends State<_UserPanel> {
     final appState = context.watch<AppState>();
     final accounts = appState.accounts;
 
-    // Find the first connected account for display name.
+    // Find the first connected account for display name and avatar.
     String displayName = 'User';
+    String accountAvatarPath = '';
 
     if (accounts.isNotEmpty) {
       AccountInfo? connectedAccount;
@@ -1990,8 +2379,10 @@ class _UserPanelState extends State<_UserPanel> {
       }
       if (connectedAccount != null && connectedAccount.displayName.isNotEmpty) {
         displayName = connectedAccount.displayName;
+        accountAvatarPath = connectedAccount.avatarPath;
       } else if (accounts.first.displayName.isNotEmpty) {
         displayName = accounts.first.displayName;
+        accountAvatarPath = accounts.first.avatarPath;
       }
     }
 
@@ -2014,17 +2405,30 @@ class _UserPanelState extends State<_UserPanel> {
               height: AppSizes.avatarSizeSmall,
               child: Stack(
                 children: [
-                  Container(
-                    width: AppSizes.avatarSizeSmall,
-                    height: AppSizes.avatarSizeSmall,
-                    decoration: const BoxDecoration(
-                      color: AppColors.accent,
-                      shape: BoxShape.circle,
+                  if (accountAvatarPath.isNotEmpty && File(accountAvatarPath).existsSync())
+                    Container(
+                      width: AppSizes.avatarSizeSmall,
+                      height: AppSizes.avatarSizeSmall,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        image: DecorationImage(
+                          image: FileImage(File(accountAvatarPath)),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: AppSizes.avatarSizeSmall,
+                      height: AppSizes.avatarSizeSmall,
+                      decoration: const BoxDecoration(
+                        color: AppColors.accent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.person, color: Colors.white, size: 18),
+                      ),
                     ),
-                    child: const Center(
-                      child: Icon(Icons.person, color: Colors.white, size: 18),
-                    ),
-                  ),
                   // Status dot
                   Positioned(
                     bottom: 0,

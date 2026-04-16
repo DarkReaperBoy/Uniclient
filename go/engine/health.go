@@ -43,6 +43,7 @@ func (r *reconnectState) nextDelay() time.Duration {
 // ConnectAccount creates a core, authenticates using saved credentials,
 // registers the update handler, and starts connection monitoring.
 func (e *Engine) ConnectAccount(accountID string) error {
+	log.Printf("[engine] ConnectAccount(%s): starting", accountID)
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return fmt.Errorf("account %q not found", accountID)
@@ -56,15 +57,18 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	// Create core.
 	core, err := factory(acc.Platform, accountID)
 	if err != nil {
+		log.Printf("[engine] ConnectAccount(%s): create core failed: %v", accountID, err)
 		return fmt.Errorf("create core %s: %w", acc.Platform, err)
 	}
 
 	// Load saved credentials.
 	creds, err := e.LoadCredentials(accountID)
 	if err != nil {
+		log.Printf("[engine] ConnectAccount(%s): load credentials failed: %v", accountID, err)
 		core.Close()
 		return fmt.Errorf("load credentials: %w", err)
 	}
+	log.Printf("[engine] ConnectAccount(%s): credentials loaded, mode=%d", accountID, creds.Mode)
 
 	e.setConnState(accountID, ConnConnecting)
 	e.emitConnState(accountID, ConnConnecting, "")
@@ -84,11 +88,14 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	})
 
 	// Authenticate.
+	log.Printf("[engine] ConnectAccount(%s): authenticating...", accountID)
 	if err := core.Authenticate(*creds); err != nil {
+		log.Printf("[engine] ConnectAccount(%s): auth failed: %v", accountID, err)
 		e.setConnState(accountID, ConnAuthRequired)
 		e.emitConnState(accountID, ConnAuthRequired, err.Error())
 		return err
 	}
+	log.Printf("[engine] ConnectAccount(%s): auth succeeded", accountID)
 
 	e.setConnState(accountID, ConnConnected)
 	e.emitConnState(accountID, ConnConnected, "")

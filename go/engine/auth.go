@@ -313,11 +313,62 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			base.Hint = "123456:ABC-DEF..."
 			return base, nil
 		case "qr_code":
+			tc, ok := flow.core.(*cores.TelegramCore)
+			if !ok {
+				base.State = AuthStateError
+				base.Message = "QR login only supported for Telegram"
+				return base, nil
+			}
+			url, expires, err := tc.StartQRAuth()
+			if err != nil {
+				base.State = AuthStateError
+				base.Message = fmt.Sprintf("QR auth failed: %v", err)
+				return base, nil
+			}
+			if url == "" {
+				// Session was already valid
+				base.State = AuthStateReady
+				if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+					base.DisplayName = profile.DisplayName
+					if base.DisplayName == "" {
+						base.DisplayName = profile.Username
+					}
+					base.AvatarB64 = profile.AvatarB64
+				}
+				return base, nil
+			}
 			base.State = AuthStateQR
-			base.QRExpiresIn = 30
-			// QR data would come from core
+			base.QRData = []byte(url)
+			base.QRExpiresIn = expires
 			return base, nil
 		}
+	case AuthStateQR:
+		// QR refresh/poll — re-export token and check acceptance
+		tc, ok := flow.core.(*cores.TelegramCore)
+		if !ok {
+			return nil, fmt.Errorf("expected TelegramCore for QR refresh")
+		}
+		url, expires, accepted, err := tc.RefreshQRToken()
+		if err != nil {
+			base.State = AuthStateError
+			base.Message = fmt.Sprintf("QR refresh failed: %v", err)
+			return base, nil
+		}
+		if accepted {
+			base.State = AuthStateReady
+			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+				base.DisplayName = profile.DisplayName
+				if base.DisplayName == "" {
+					base.DisplayName = profile.Username
+				}
+				base.AvatarB64 = profile.AvatarB64
+			}
+			return base, nil
+		}
+		base.State = AuthStateQR
+		base.QRData = []byte(url)
+		base.QRExpiresIn = expires
+		return base, nil
 	case AuthStateInput:
 		if flow.collected["method"] == "bot_token" {
 			flow.collected["bot_token"] = input
@@ -425,13 +476,75 @@ func advanceBale(flow *authFlow, input string, base *AuthState) (*AuthState, err
 			return tryAuth(flow, base)
 		}
 		flow.collected["phone"] = input
+		// Trigger phone auth — Bale will send OTP via StartPhoneAuth.
+		err := flow.core.Authenticate(cores.AuthConfig{
+			Mode:  cores.AuthModeUser,
+			Phone: input,
+		})
+		if err == nil {
+			// Session was already valid — no OTP needed.
+			base.State = AuthStateReady
+			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+				base.DisplayName = profile.DisplayName
+				if base.DisplayName == "" {
+					base.DisplayName = profile.Username
+				}
+				base.AvatarB64 = profile.AvatarB64
+			}
+			return base, nil
+		}
+		if err.Error() != "otp_required" {
+			return nil, err
+		}
 		base.State = AuthStateOTP
-		base.CodeLength = 5
+		base.CodeLength = 6
 		base.SentTo = "Bale app"
+		base.TimeoutSecs = 120
 		return base, nil
 	case AuthStateOTP:
 		flow.collected["otp"] = input
-		return tryAuth(flow, base)
+		bc, ok := flow.core.(*cores.BaleCore)
+		if !ok {
+			return nil, fmt.Errorf("expected BaleCore for OTP submit")
+		}
+		err := bc.SubmitOTP(input)
+		if err == nil {
+			base.State = AuthStateReady
+			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+				base.DisplayName = profile.DisplayName
+				if base.DisplayName == "" {
+					base.DisplayName = profile.Username
+				}
+				base.AvatarB64 = profile.AvatarB64
+			}
+			return base, nil
+		}
+		if err.Error() == "2fa_required" {
+			base.State = AuthState2FA
+			base.Label = "Two-Factor Password"
+			base.HasRecovery = false
+			return base, nil
+		}
+		return nil, err
+	case AuthState2FA:
+		flow.collected["2fa"] = input
+		bc, ok := flow.core.(*cores.BaleCore)
+		if !ok {
+			return nil, fmt.Errorf("expected BaleCore for 2FA submit")
+		}
+		err := bc.Submit2FA(input)
+		if err == nil {
+			base.State = AuthStateReady
+			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+				base.DisplayName = profile.DisplayName
+				if base.DisplayName == "" {
+					base.DisplayName = profile.Username
+				}
+				base.AvatarB64 = profile.AvatarB64
+			}
+			return base, nil
+		}
+		return nil, err
 	}
 	return nil, fmt.Errorf("unexpected state %s for bale", flow.state.State)
 }

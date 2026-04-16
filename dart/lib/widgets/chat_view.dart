@@ -301,21 +301,34 @@ class _ChatHeader extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Large avatar
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
-                        child: Center(
-                          child: Text(
-                            initial,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 28,
-                              fontWeight: FontWeight.w600,
+                      if (chat.avatarPath.isNotEmpty && File(chat.avatarPath).existsSync())
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            image: DecorationImage(
+                              image: FileImage(File(chat.avatarPath)),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(color: avatarColor, shape: BoxShape.circle),
+                          child: Center(
+                            child: Text(
+                              initial,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ),
-                      ),
                       const SizedBox(height: 12),
 
                       // Title

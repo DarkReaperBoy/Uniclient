@@ -487,6 +487,27 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ClearCache(req.AccountId)
 
+	// ── Folders ──
+
+	case "GetFolders":
+		var req pb.EngineGetFoldersRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		folders, err := e.GetFolders(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetFoldersResponse{}
+		for _, f := range folders {
+			resp.Folders = append(resp.Folders, &pb.EngineFolderInfo{
+				Id:      f.ID,
+				Name:    f.Name,
+				ChatIds: f.ChatIDs,
+			})
+		}
+		return proto.Marshal(resp)
+
 	// ── Config ──
 
 	case "GetConfig":

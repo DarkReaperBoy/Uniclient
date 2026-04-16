@@ -472,6 +472,15 @@ class SharedMediaItem {
   }
 }
 
+// ── Folder info ──
+class FolderInfo {
+  final String id;
+  final String name;
+  final List<String> chatIds;
+
+  const FolderInfo({this.id = '', this.name = '', this.chatIds = const []});
+}
+
 // ── Search result ──
 class SearchResult {
   final String accountId;

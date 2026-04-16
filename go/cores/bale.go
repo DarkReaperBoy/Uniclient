@@ -12,6 +12,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"sort"
 	"strconv"
@@ -106,6 +107,7 @@ type BaleCore struct {
 	wsPingID   int64
 	wsSessionID string
 	wsMeta      map[string]interface{}
+	wsReady     chan struct{}                           // closed when HandshakeResponse received
 
 	// Context
 	ctx    context.Context
@@ -119,6 +121,15 @@ type BaleCore struct {
 	// Active call (LiveKit-based)
 	activeCall   *baleActiveCall
 	activeCallMu sync.Mutex
+
+	// Interactive auth (GUI mode)
+	authCodeCh    chan string    // OTP code from UI
+	authCodeReady chan struct{}  // closed when OTP is needed
+	authPwdCh     chan string    // 2FA password from UI
+	authPwdReady  chan struct{}  // closed when 2FA is needed
+	authDoneCh    chan struct{}  // closed when auth completes
+	authErrCh     chan error     // auth error result
+	authSetupDone chan struct{}  // closed after auth channels initialized
 }
 
 var _ Core = (*BaleCore)(nil)
@@ -253,9 +264,11 @@ func newBaleHTTPClient(timeout time.Duration) *http.Client {
 		},
 	}
 
+	jar, _ := cookiejar.New(nil)
 	return &http.Client{
 		Timeout:   timeout,
 		Transport: transport,
+		Jar:       jar,
 	}
 }
 
@@ -291,12 +304,13 @@ func dialTLS(sniHost string, addr string, timeout time.Duration) (net.Conn, erro
 func NewBaleCore(sessionPath string) *BaleCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &BaleCore{
-		httpClient:   newBaleHTTPClient(60 * time.Second),
-		baseURL:      "https://tapi.bale.ai",
-		sessionPath:  sessionPath,
-		groupIDCache: make(map[int64]int64),
-		ctx:          ctx,
-		cancel:      cancel,
+		httpClient:    newBaleHTTPClient(60 * time.Second),
+		baseURL:       "https://tapi.bale.ai",
+		sessionPath:   sessionPath,
+		groupIDCache:  make(map[int64]int64),
+		ctx:           ctx,
+		cancel:        cancel,
+		authSetupDone: make(chan struct{}),
 	}
 }
 
@@ -397,12 +411,58 @@ func (b *BaleCore) Capabilities() []string {
 // Authenticate logs in to Bale using bot token or user credentials.
 func (b *BaleCore) Authenticate(cfg AuthConfig) error {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 
 	if cfg.Mode == AuthModeBot {
+		defer b.mu.Unlock()
+		close(b.authSetupDone)
 		return b.authBot(cfg.BotToken)
 	}
-	return b.authUser(cfg)
+
+	// Interactive user mode: set up OTP/2FA channels
+	if cfg.OTP == "" {
+		b.authCodeCh = make(chan string, 1)
+		b.authCodeReady = make(chan struct{})
+	}
+	if cfg.Password2F == "" {
+		b.authPwdCh = make(chan string, 1)
+		b.authPwdReady = make(chan struct{})
+	}
+	close(b.authSetupDone)
+	b.mu.Unlock()
+
+	authDone := make(chan struct{})
+	errCh := make(chan error, 1)
+
+	b.wg.Add(1)
+	go func() {
+		defer b.wg.Done()
+		errCh <- b.authUser(cfg)
+		close(authDone)
+	}()
+
+	// For interactive mode (no pre-provided OTP), return when code is needed
+	if cfg.OTP == "" {
+		b.mu.Lock()
+		b.authDoneCh = authDone
+		b.authErrCh = errCh
+		b.mu.Unlock()
+
+		select {
+		case <-authDone:
+			// Auth completed without needing interactive OTP (session valid)
+			return <-errCh
+		case <-b.authCodeReady:
+			// OTP was requested — tell engine to ask user
+			return fmt.Errorf("otp_required")
+		case err := <-errCh:
+			return err
+		case <-time.After(30 * time.Second):
+			return fmt.Errorf("%w: timeout connecting to Bale", ErrAuth)
+		}
+	}
+
+	// Blocking mode (OTP pre-provided)
+	return <-errCh
 }
 
 func (b *BaleCore) authBot(token string) error {
@@ -3050,6 +3110,7 @@ func (b *BaleCore) wsConnect() error {
 	b.wsMeta = nil
 	b.wsPending = make(map[int64]chan map[string]interface{})
 	b.wsIndex = 1
+	b.wsReady = make(chan struct{})
 
 	headers := http.Header{}
 	headers.Set("Cookie", "access_token="+b.userToken)
@@ -3072,18 +3133,23 @@ func (b *BaleCore) wsConnect() error {
 	go b.wsRecvLoop()
 	go b.wsPingLoop()
 
-	// Send initial handshake: Request{handshake: {1: 1, 2: 1}} (authorized=1, ready=1)
+	// Send initial handshake: ClientFrame{3: HandshakeRequest{1: mkprotoVersion, 2: apiVersion}}
 	handshake := pbEncode(map[string]interface{}{
 		"3": map[string]interface{}{
-			"1": int64(1), // authorized
-			"2": int64(1), // ready
+			"1": int64(1), // mkprotoVersion
+			"2": int64(1), // apiVersion
 		},
 	})
 	b.wsConn.Write(ctx, websocket.MessageBinary, handshake)
 
+	// Wait for HandshakeResponse before allowing RPC calls
+	select {
+	case <-b.wsReady:
+	case <-time.After(10 * time.Second):
+	}
+
 	// Set online
 	go func() {
-		time.Sleep(500 * time.Millisecond)
 		b.UserSetOnline(true, 300)
 	}()
 
@@ -3134,7 +3200,18 @@ func (b *BaleCore) fireConnState(state string) {
 func (b *BaleCore) wsHandleMessage(data []byte) {
 	decoded := pbDecode(data)
 
-	// Check for response (field 1 = ws_response)
+	// Check for HandshakeResponse (ServerFrame field 5)
+	if hsResp := decoded["5"]; hsResp != nil {
+		select {
+		case <-b.wsReady:
+			// already closed
+		default:
+			close(b.wsReady)
+		}
+		return
+	}
+
+	// Check for response (ServerFrame field 1 = Response)
 	if wsResp := pbGetMsg(decoded, "1"); wsResp != nil {
 		idx := pbGetInt64(wsResp, "3") // index
 		b.wsPendMu.Lock()
@@ -3149,10 +3226,17 @@ func (b *BaleCore) wsHandleMessage(data []byte) {
 		return
 	}
 
-	// Check for pong (field 4 in aiobale Response)
-	// Balethon doesn't have explicit pong handling, just ignore
+	// Check for pong (ServerFrame field 4)
+	if decoded["4"] != nil {
+		return
+	}
 
-	// Check for update (field 2 = ws_update)
+	// Check for TerminateSession (ServerFrame field 3)
+	if decoded["3"] != nil {
+		return
+	}
+
+	// Check for update (ServerFrame field 2 = Update)
 	if wsUpdate := pbGetMsg(decoded, "2"); wsUpdate != nil {
 		b.wsHandleUpdate(wsUpdate)
 		return
@@ -3339,6 +3423,28 @@ func (b *BaleCore) wsPost(service, method string, payload map[string]interface{}
 		return nil, fmt.Errorf("bale gRPC error: %s", grpcMsg)
 	}
 
+	// Check for gRPC error in trailer (gRPC-Web encodes trailers in body)
+	if idx := bytes.Index(respBody, []byte("grpc-status:")); idx != -1 {
+		trailer := string(respBody[idx:])
+		// Parse grpc-status from trailer
+		for _, line := range strings.Split(trailer, "\r\n") {
+			if strings.HasPrefix(line, "grpc-status:") {
+				status := strings.TrimSpace(strings.TrimPrefix(line, "grpc-status:"))
+				if status != "0" && status != "" {
+					// Non-OK status — find message
+					msg := "unknown gRPC error"
+					for _, l2 := range strings.Split(trailer, "\r\n") {
+						if strings.HasPrefix(l2, "grpc-message:") {
+							msg = strings.TrimSpace(strings.TrimPrefix(l2, "grpc-message:"))
+							break
+						}
+					}
+					return nil, fmt.Errorf("bale gRPC error (status %s): %s", status, msg)
+				}
+			}
+		}
+	}
+
 	decoded := grpcWebDecode(respBody)
 	if len(decoded) == 0 {
 		return map[string]interface{}{}, nil
@@ -3403,7 +3509,7 @@ func (b *BaleCore) authUser(cfg AuthConfig) error {
 		"3":  "C28D46DC4C3A7A26564BFCC48B929086A95C93C98E789A19847BEE8627DE4E7D",          // app_key (api_key)
 		"4":  deviceHash,                                                                  // device_hash
 		"5":  "Chrome_138.0.0.0, Windows",                                                 // device_title
-		"9":  int64(3),                                // send_code_type = SMS
+		"9":  int64(1),                                // send_code_type = DEFAULT
 		"10": map[string]interface{}{"0": int64(1)},   // options (required!)
 	}
 
@@ -3416,26 +3522,15 @@ func (b *BaleCore) authUser(cfg AuthConfig) error {
 	if transactionHash == "" {
 		return fmt.Errorf("%w: no transaction_hash in StartPhoneAuth response: %v", ErrAuth, startResp)
 	}
-
 	// Step 2: Get OTP from user
 	otp := cfg.OTP
 	if otp == "" {
-		// Poll for OTP from file (same pattern as Telegram)
-		otpPath := "../../auth/otp_code.txt"
-		os.Remove(otpPath) // Clear any stale OTP
-		fmt.Fprintf(os.Stderr, "bale: OTP sent to %s. Write code to %s\n", phone, otpPath)
-
-		for i := 0; i < 120; i++ { // wait up to 2 minutes
-			time.Sleep(1 * time.Second)
-			data, err := os.ReadFile(otpPath)
-			if err == nil && len(strings.TrimSpace(string(data))) > 0 {
-				otp = strings.TrimSpace(string(data))
-				os.Remove(otpPath)
-				break
-			}
-		}
-		if otp == "" {
-			return fmt.Errorf("%w: OTP not provided within timeout", ErrAuth)
+		if b.authCodeCh != nil {
+			// Interactive mode — signal that OTP is needed, wait for it
+			close(b.authCodeReady)
+			otp = <-b.authCodeCh
+		} else {
+			return fmt.Errorf("%w: OTP not provided", ErrAuth)
 		}
 	}
 
@@ -3453,7 +3548,12 @@ func (b *BaleCore) authUser(cfg AuthConfig) error {
 			// 2FA required
 			pwd := cfg.Password2F
 			if pwd == "" {
-				return fmt.Errorf("%w: 2FA password required but not provided", ErrAuth)
+				if b.authPwdCh != nil {
+					close(b.authPwdReady)
+					pwd = <-b.authPwdCh
+				} else {
+					return fmt.Errorf("2fa_required")
+				}
 			}
 			validateResp, err = b.UserValidatePassword(transactionHash, pwd)
 			if err != nil {
@@ -3507,6 +3607,47 @@ func (b *BaleCore) authUser(cfg AuthConfig) error {
 		fmt.Fprintf(os.Stderr, "bale: warning: could not save session: %v\n", err)
 	}
 
+	return nil
+}
+
+// SubmitOTP sends the OTP code for interactive Bale auth.
+func (b *BaleCore) SubmitOTP(code string) error {
+	if b.authCodeCh != nil {
+		b.authCodeCh <- code
+	}
+	// Wait for auth to complete
+	if b.authDoneCh != nil {
+		select {
+		case <-b.authDoneCh:
+			// authUser wrote to errCh before closing authDone, so this is safe
+			if b.authErrCh != nil {
+				return <-b.authErrCh
+			}
+			return nil
+		case <-time.After(30 * time.Second):
+			return fmt.Errorf("timeout waiting for OTP validation")
+		}
+	}
+	return nil
+}
+
+// Submit2FA sends the 2FA password for interactive Bale auth.
+func (b *BaleCore) Submit2FA(password string) error {
+	if b.authPwdCh != nil {
+		b.authPwdCh <- password
+	}
+	// Wait for auth to complete
+	if b.authDoneCh != nil {
+		select {
+		case <-b.authDoneCh:
+			if b.authErrCh != nil {
+				return <-b.authErrCh
+			}
+			return nil
+		case <-time.After(30 * time.Second):
+			return fmt.Errorf("timeout waiting for 2FA validation")
+		}
+	}
 	return nil
 }
 

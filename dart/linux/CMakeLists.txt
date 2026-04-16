@@ -29,8 +29,13 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 # System-level dependencies.
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTK REQUIRED IMPORTED_TARGET gtk+-3.0)
+pkg_check_modules(APPINDICATOR IMPORTED_TARGET ayatana-appindicator3-0.1)
 
 add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
+
+if(APPINDICATOR_FOUND)
+  add_definitions(-DHAVE_APPINDICATOR)
+endif()
 
 # Application build target.
 add_executable(${BINARY_NAME}
@@ -43,6 +48,9 @@ apply_standard_settings(${BINARY_NAME})
 
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
+if(APPINDICATOR_FOUND)
+  target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::APPINDICATOR)
+endif()
 
 add_dependencies(${BINARY_NAME} flutter_assemble)
 
@@ -89,6 +97,35 @@ install(CODE "
   " COMPONENT Runtime)
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/flutter_assets"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
+
+# Bundle appindicator shared libraries into lib/ for runtime.
+# We install the versioned .so files (e.g. .so.1) that match the DT_NEEDED
+# entries, resolving the real file but keeping the soname as the filename.
+if(APPINDICATOR_FOUND)
+  set(_APPINDICATOR_SONAMES
+    "libayatana-appindicator3.so.1"
+    "libayatana-indicator3.so.7"
+    "libayatana-ido3-0.4.so.0"
+    "libdbusmenu-glib.so.4"
+    "libdbusmenu-gtk3.so.4"
+  )
+  foreach(_soname ${_APPINDICATOR_SONAMES})
+    # Extract the base library name (e.g. "ayatana-appindicator3") for find_library.
+    string(REGEX REPLACE "^lib" "" _bare "${_soname}")
+    string(REGEX REPLACE "\\.so.*" "" _bare "${_bare}")
+    find_library(_found_lib "${_bare}" HINTS ${APPINDICATOR_LIBRARY_DIRS})
+    if(_found_lib)
+      get_filename_component(_lib_dir "${_found_lib}" DIRECTORY)
+      set(_versioned "${_lib_dir}/${_soname}")
+      if(EXISTS "${_versioned}")
+        get_filename_component(_real "${_versioned}" REALPATH)
+        install(FILES "${_real}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+          RENAME "${_soname}" COMPONENT Runtime)
+      endif()
+    endif()
+    unset(_found_lib CACHE)
+  endforeach()
+endif()
 
 # Install the AOT library (if applicable).
 if(NOT("${AOT_LIBRARY}" STREQUAL ""))

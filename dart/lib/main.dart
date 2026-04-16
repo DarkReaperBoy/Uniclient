@@ -11,6 +11,7 @@ import 'state/auth_state.dart';
 import 'screens/home_screen.dart';
 import 'theme/theme.dart';
 import 'utils/debug.dart';
+import 'utils/system_tray.dart';
 import 'widgets/notification_overlay.dart';
 
 void main() {
@@ -53,6 +54,7 @@ class UniClientApp extends StatefulWidget {
 
 class _UniClientAppState extends State<UniClientApp> {
   bool _initStarted = false;
+  final SystemTray _tray = SystemTray();
 
   @override
   void didChangeDependencies() {
@@ -65,6 +67,7 @@ class _UniClientAppState extends State<UniClientApp> {
 
   Future<void> _initEngine() async {
     final appState = context.read<AppState>();
+    final chatState = context.read<ChatState>();
     final home = Platform.environment['HOME'] ?? '/tmp';
     final configDir = '$home/.config/uniclient';
     final cacheDir = '$home/.cache/uniclient';
@@ -87,6 +90,25 @@ class _UniClientAppState extends State<UniClientApp> {
       _raiseExistingWindow();
       exit(0);
     }
+
+    // Initialize system tray after engine is ready.
+    await _tray.init();
+    _tray.onQuit = () => exit(0);
+
+    // Track unread count changes and update tray tooltip.
+    if (_tray.isAvailable) {
+      chatState.addListener(() {
+        _tray.updateUnread(chatState.totalUnread);
+      });
+      // Set initial tooltip.
+      _tray.updateUnread(chatState.totalUnread);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tray.dispose();
+    super.dispose();
   }
 
   @override

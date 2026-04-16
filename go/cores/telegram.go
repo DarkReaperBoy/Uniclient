@@ -9584,6 +9584,124 @@ func (t *TelegramCore) AuthPasswordRequested() <-chan struct{} {
 	return t.authPwdReady
 }
 
+// --- QR auth ---
+
+// StartQRAuth initializes the Telegram client for QR code authentication
+// and exports the first login token. The returned URL should be displayed
+// as a QR code. Call RefreshQRToken periodically to check acceptance.
+func (t *TelegramCore) StartQRAuth() (tokenURL string, expiresSecs int, err error) {
+	t.mu.Lock()
+	t.initClient()
+	t.ctx, t.cancel = context.WithCancel(context.Background())
+	close(t.authSetupDone)
+	t.mu.Unlock()
+
+	clientReady := make(chan struct{})
+	errCh := make(chan error, 1)
+
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+		errCh <- t.client.Run(t.ctx, func(ctx context.Context) error {
+			api := tg.NewClient(t.client)
+			up := uploader.NewUploader(api)
+			sndr := message.NewSender(api).WithUploader(up)
+
+			t.mu.Lock()
+			t.api = api
+			t.sender = sndr
+			t.mu.Unlock()
+
+			close(clientReady)
+
+			// Stay connected until context is cancelled
+			<-ctx.Done()
+			return ctx.Err()
+		})
+	}()
+
+	select {
+	case <-clientReady:
+	case err := <-errCh:
+		return "", 0, fmt.Errorf("client failed: %w", err)
+	case <-time.After(30 * time.Second):
+		return "", 0, fmt.Errorf("timeout connecting")
+	}
+
+	return t.exportQRLoginToken()
+}
+
+// RefreshQRToken re-exports the QR login token and checks if it was accepted.
+// Returns accepted=true if the QR was scanned successfully.
+func (t *TelegramCore) RefreshQRToken() (tokenURL string, expiresSecs int, accepted bool, err error) {
+	t.mu.RLock()
+	if t.api == nil {
+		t.mu.RUnlock()
+		return "", 0, false, fmt.Errorf("client not initialized")
+	}
+	t.mu.RUnlock()
+
+	url, expires, exportErr := t.exportQRLoginToken()
+	if exportErr != nil {
+		return "", 0, false, exportErr
+	}
+	if url == "" {
+		// Empty URL means auth was accepted
+		return "", 0, true, nil
+	}
+	return url, expires, false, nil
+}
+
+func (t *TelegramCore) exportQRLoginToken() (string, int, error) {
+	result, err := t.api.AuthExportLoginToken(t.ctx, &tg.AuthExportLoginTokenRequest{
+		APIID:   t.apiID,
+		APIHash: t.apiHash,
+	})
+	if err != nil {
+		return "", 0, fmt.Errorf("export token: %w", err)
+	}
+
+	switch v := result.(type) {
+	case *tg.AuthLoginToken:
+		url := "tg://login?token=" + base64.RawURLEncoding.EncodeToString(v.Token)
+		expiry := int(v.Expires) - int(time.Now().Unix())
+		if expiry < 0 {
+			expiry = 30
+		}
+		return url, expiry, nil
+
+	case *tg.AuthLoginTokenSuccess:
+		authResult, ok := v.Authorization.(*tg.AuthAuthorization)
+		if !ok {
+			return "", 0, fmt.Errorf("unexpected auth type: %T", v.Authorization)
+		}
+		u, ok := authResult.User.(*tg.User)
+		if !ok {
+			return "", 0, fmt.Errorf("unexpected user type: %T", authResult.User)
+		}
+		t.mu.Lock()
+		t.authed = true
+		t.selfID = u.ID
+		t.selfName = strings.TrimSpace(u.FirstName + " " + u.LastName)
+		if t.selfName == "" {
+			t.selfName = u.Username
+		}
+		t.mu.Unlock()
+		t.peerMu.Lock()
+		t.userAccessHash[u.ID] = u.AccessHash
+		if t.selfName != "" {
+			t.userNames[u.ID] = t.selfName
+		}
+		t.peerMu.Unlock()
+		return "", 0, nil // empty URL = accepted
+
+	case *tg.AuthLoginTokenMigrateTo:
+		return "", 0, fmt.Errorf("DC migration required (DC %d)", v.DCID)
+	}
+
+	return "", 0, fmt.Errorf("unexpected token type: %T", result)
+}
+
 // --- Auth flow ---
 
 type telegramAuthFlow struct {

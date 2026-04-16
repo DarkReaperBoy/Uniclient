@@ -60,6 +60,7 @@
             libthai
             libdatrie
             libxkbcommon
+            libayatana-appindicator
             dbus
 
             # Protobuf

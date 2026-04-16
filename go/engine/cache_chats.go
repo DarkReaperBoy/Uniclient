@@ -328,6 +328,47 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
 	return scanChats(rows)
 }
 
+// FolderInfo represents a synced folder from the platform (e.g. Telegram folders).
+type FolderInfo struct {
+	ID      string
+	Name    string
+	ChatIDs []string
+}
+
+// GetFolders returns synced folders from the core, if the core supports them.
+// Returns an empty list for cores that don't support folders.
+func (e *Engine) GetFolders(accountID string) ([]FolderInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+
+	// Check if the core supports folders via type assertion.
+	type folderLister interface {
+		GetFolders() ([]cores.Folder, error)
+	}
+	fl, ok := acc.Core.(folderLister)
+	if !ok {
+		// Core doesn't support folders — return empty list gracefully.
+		return nil, nil
+	}
+
+	folders, err := fl.GetFolders()
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]FolderInfo, len(folders))
+	for i, f := range folders {
+		result[i] = FolderInfo{
+			ID:      f.ID,
+			Name:    f.Name,
+			ChatIDs: f.ChatIDs,
+		}
+	}
+	return result, nil
+}
+
 // emitChatUpdate reads the current chat state from DB and emits an update event.
 func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	row := e.db.QueryRow(

@@ -211,6 +211,18 @@ class EngineService {
     return resp.chats.map(_chatInfoFromProto).toList();
   }
 
+  // ── Folders ──
+
+  /// Fetch synced folders for an account. Returns empty list if the platform
+  /// doesn't support folders (e.g. only Telegram has them).
+  Future<List<FolderInfo>> getFolders(String accountId) async {
+    final req = epb.EngineGetFoldersRequest()..accountId = accountId;
+    final respBytes = await _callAsync('__engine', 'GetFolders', req.writeToBuffer());
+    if (respBytes.isEmpty) return [];
+    final resp = epb.EngineGetFoldersResponse.fromBuffer(respBytes);
+    return resp.folders.map(_folderInfoFromProto).toList();
+  }
+
   // ── Members ──
 
   Future<List<MemberInfo>> getChatMembers(String accountId, String chatId, {int limit = 50, int offset = 0}) async {
@@ -779,6 +791,12 @@ class EngineService {
     text: _safeStr(p.text),
     timestamp: p.timestamp.toInt(),
     chatTitle: _safeStr(p.chatTitle),
+  );
+
+  static FolderInfo _folderInfoFromProto(epb.EngineFolderInfo p) => FolderInfo(
+    id: p.id,
+    name: _safeStr(p.name),
+    chatIds: p.chatIds.toList(),
   );
 
   static SharedMediaItem _sharedMediaItemFromProto(epb.EngineSharedMediaItem p) => SharedMediaItem(
