@@ -7,7 +7,6 @@ package bridge
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -146,21 +145,21 @@ func (s *uniConfigSessionStorage) StoreSession(_ context.Context, data []byte) e
 // InitEngine initializes the engine and wires its event callback into the bridge.
 // Call this from the FFI Init handler before any other engine operations.
 func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
-	// Init engine first (opens uniconfig file).
+	// Init engine first (opens vault with config + sessions).
 	eng, err := engine.Init(configDir, cacheDir, downloadDir, vaultPassword)
 	if err != nil {
 		return err
 	}
 	SetEngine(eng)
 
-	uc := eng.UniConfig()
+	vault := eng.Vault()
 
-	// Migrate old per-file sessions into uniconfig.
-	migrateOldSessions(configDir, uc)
+	// Migrate old per-file sessions into vault.
+	migrateOldSessions(configDir, vault)
 
-	// Register core factory — each core gets a SessionStore backed by uniconfig.
+	// Register core factory — each core gets a SessionStore backed by vault.
 	engine.SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
-		store := utils.NewSessionStore(uc, accountID)
+		store := utils.NewSessionStore(vault, accountID)
 		switch platform {
 		case "telegram":
 			apiID := 2040
@@ -216,9 +215,9 @@ func InitEngine(configDir, cacheDir, downloadDir, vaultPassword string) error {
 	return nil
 }
 
-// migrateOldSessions imports old per-file sessions into the unified config.
+// migrateOldSessions imports old per-file sessions into the vault.
 // Scans configDir/sessions/<platform>/<accountID>.json and imports each.
-func migrateOldSessions(configDir string, uc *utils.UniConfig) {
+func migrateOldSessions(configDir string, vault *utils.Vault) {
 	sessDir := filepath.Join(configDir, "sessions")
 	platforms, err := os.ReadDir(sessDir)
 	if err != nil {
@@ -239,7 +238,7 @@ func migrateOldSessions(configDir string, uc *utils.UniConfig) {
 				continue
 			}
 			accountID := f.Name()[:len(f.Name())-5] // strip .json
-			if uc.HasSession(accountID) {
+			if vault.HasSession(accountID) {
 				continue // already migrated
 			}
 			fpath := filepath.Join(platDir, f.Name())
@@ -247,14 +246,7 @@ func migrateOldSessions(configDir string, uc *utils.UniConfig) {
 			if err != nil {
 				continue
 			}
-			// For Telegram sessions, gotd stores raw bytes (not JSON objects).
-			// Just store as-is.
-			if json.Valid(raw) {
-				_ = uc.MigrateOldSession(accountID, fpath)
-			} else {
-				// Raw bytes — store directly
-				_ = uc.SaveSessionRaw(accountID, raw)
-			}
+			_ = vault.SaveSessionRaw(accountID, raw)
 			migrated = true
 		}
 	}

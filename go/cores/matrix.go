@@ -4086,7 +4086,7 @@ func (m *MatrixCore) saveCryptoStore() error {
 	if key == "" {
 		return nil
 	}
-	return m.session.UC().SaveSession(key, json.RawMessage(data))
+	return m.session.Vault().SaveSession(key, json.RawMessage(data))
 }
 
 func (m *MatrixCore) loadCryptoStore(_ string) {
@@ -4095,7 +4095,7 @@ func (m *MatrixCore) loadCryptoStore(_ string) {
 		return
 	}
 	var raw json.RawMessage
-	err := m.session.UC().LoadSession(key, &raw)
+	err := m.session.Vault().LoadSession(key, &raw)
 	data := []byte(raw)
 	if err != nil {
 		return
@@ -4218,7 +4218,7 @@ func (m *MatrixCore) saveStateStore() error {
 	if key == "" {
 		return nil
 	}
-	return m.session.UC().SaveSession(key, json.RawMessage(data))
+	return m.session.Vault().SaveSession(key, json.RawMessage(data))
 }
 
 func (m *MatrixCore) loadStateStore() {
@@ -4227,7 +4227,7 @@ func (m *MatrixCore) loadStateStore() {
 		return
 	}
 	var raw json.RawMessage
-	err := m.session.UC().LoadSession(key, &raw)
+	err := m.session.Vault().LoadSession(key, &raw)
 	data := []byte(raw)
 	if err != nil {
 		return
