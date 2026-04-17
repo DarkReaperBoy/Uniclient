@@ -27,7 +27,7 @@ if [[ -z "$WEBSOCAT" ]] || ! command -v "$WEBSOCAT" &>/dev/null; then
 fi
 
 # Find the VM service URL from app logs
-LOG_FILE="${UNICLIENT_LOG:-/tmp/uniclient_stdout.log}"
+LOG_FILE="${UNICLIENT_LOG:-/tmp/uniclient_log.txt}"
 if [[ ! -f "$LOG_FILE" ]]; then
   echo "ERROR: App log not found at $LOG_FILE. Launch the app first." >&2
   exit 1

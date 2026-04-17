@@ -19,13 +19,12 @@
 
 - [x] **Last seen / online in DM top bar verified** — Screenshot-verified: online users show "online" in green, offline show "last seen yesterday at 16:57" etc. Fix: `convertUser` emits `UpdateUserStatus` for all status kinds (online/offline/recently/within_week/within_month/long_ago), seeding the engine cache on initial dialog load instead of waiting for a delta.
 - [x] **Forward display fixed** — Forwarded messages now show "Forwarded from {name}" header. Fixed: Go `convertMessage` resolves `FwdFrom` to display name (FromName > cached user/channel name > PostAuthor > fallback). Added `channelNames` cache. Migration made idempotent.
-- [ ] **Pinned bar jump partially verified** — Old code visually confirmed (clicking pinned bar loads older messages). Added `returnToLatest()` so scroll-to-bottom reloads newest after a jump — NOT yet visually verified after rebuild.
-- [ ] **Sender avatars resized (not verified)** — Code updated from 30px to 33px per spec §5 (skip 40px). Avatar now clickable. Compiles clean but NOT screenshot-verified.
-- [ ] **Sender profile popup redesigned (not verified)** — Redesigned as compact horizontal card. Code compiles but NOT screenshot-verified.
+- [x] **Pinned bar jump verified** — Clicking pinned bar scrolls to pinned message; scroll-to-bottom button (with unread badge) returns to newest via `returnToLatest()`. Screenshot-verified in group chat "انجمن اینترنت و فیلترشکن".
+- [x] **Sender avatars verified** — 33px circles with letter initials render next to each sender's first message in group chats. Screenshot-verified.
+- [x] **Sender profile popup verified** — Tapping sender avatar opens compact horizontal card (avatar + name + ID + "Send Message" action). Screenshot-verified.
 - [ ] **Sender avatars for basic groups (not verified)** — Go `GetMembers` now falls back to `MessagesGetFullChat` for basic groups. Dart paginates up to 1000 members. Compiles but NOT verified that avatars actually appear.
 - [ ] **Sender avatars still fallback for no-photo users** — Users who don't have a profile photo set will always show letter initials. This is correct behavior, not a bug. Very large channels (1000+ active posters) may still have some fallback avatars for non-recent members.
 - [ ] **Top bar avatar** — Chat avatar in top bar now uses real photo from `avatarPath` when available, falls back to colored letter avatar. Needs verification that `avatarPath` is populated for most chats.
-- [ ] **flutter_inspect.sh log path** — Script reads from `/tmp/uniclient_stdout.log`, must launch app with `> /tmp/uniclient_stdout.log 2>&1` (not `/tmp/uniclient_log.txt`).
 
 ## TODO (features not yet implemented)
 
