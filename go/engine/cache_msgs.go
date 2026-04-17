@@ -113,6 +113,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 }
 
 // GetPinnedMessages returns all pinned messages for a chat, ordered by timestamp descending.
+// Falls back to fetching from the core if the cache has none.
 func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, error) {
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name,
@@ -125,7 +126,37 @@ func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, e
 		return nil, err
 	}
 	defer rows.Close()
-	return scanMessages(rows)
+	cached, err := scanMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	if len(cached) > 0 {
+		return cached, nil
+	}
+
+	// Cache empty — try fetching pinned messages from the core.
+	type pinnedFetcher interface {
+		GetPinnedMessages(chatID string) ([]cores.Message, error)
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, nil
+	}
+	pf, ok := acc.Core.(pinnedFetcher)
+	if !ok {
+		return nil, nil
+	}
+	live, err := pf.GetPinnedMessages(chatID)
+	if err != nil {
+		log.Printf("[engine] GetPinnedMessages(%s, %s): core fetch failed: %v", accountID, chatID, err)
+		return nil, nil
+	}
+	result := make([]CachedMessage, 0, len(live))
+	for _, m := range live {
+		c := e.cacheMessage(accountID, chatID, &m)
+		result = append(result, c)
+	}
+	return result, nil
 }
 
 func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {

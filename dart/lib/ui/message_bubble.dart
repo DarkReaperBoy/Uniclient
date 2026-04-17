@@ -12,6 +12,7 @@ class MessageBubble extends StatelessWidget {
   final bool isFirstInGroup;
   final bool isLastInGroup;
   final VoidCallback? onReply;
+  final void Function(Offset position)? onContextMenu;
 
   const MessageBubble({
     super.key,
@@ -19,6 +20,7 @@ class MessageBubble extends StatelessWidget {
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
     this.onReply,
+    this.onContextMenu,
   });
 
   // Spec: max bubble width 430px.
@@ -57,8 +59,12 @@ class MessageBubble extends StatelessWidget {
         crossAxisAlignment: alignment,
         children: [
           GestureDetector(
-            onLongPress: onReply,
-            onSecondaryTap: onReply,
+            onLongPressStart: onContextMenu != null
+                ? (details) => onContextMenu!(details.globalPosition)
+                : null,
+            onSecondaryTapUp: onContextMenu != null
+                ? (details) => onContextMenu!(details.globalPosition)
+                : null,
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: _maxWidth),
               child: Container(

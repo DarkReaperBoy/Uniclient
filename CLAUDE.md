@@ -77,6 +77,7 @@ When the user says "add X", follow these steps in order:
 ## Key Rules
 
 - **SPEC FIRST, CODE SECOND — mandatory for all UI work** — Before writing ANY widget or screen code, you MUST: (1) Read the FULL spec sections for that component (`research/telegram_desktop_ui.md`), not just headers — every subsection, dimension, and state. (2) Write a component breakdown plan in `research/gui_component_plan_{name}.md` listing every widget, its nesting, exact dimensions, and state needs. (3) Cross-reference all related spec sections (a sidebar involves §1 layout + §2 chat list + §3 hamburger + §18 folders). (4) Explicitly note where your instinct differs from the spec. Do NOT start coding until the plan is written and reviewed against the spec. See `research/gui_build_process.md` for the full process. This rule exists because we wasted an entire session building a completely wrong left panel by skipping the spec.
+- **Research before implementing UI features** — If you check `research/telegram_desktop_ui.md` and don't find the UI feature you need to implement, you MUST research AyuGram Desktop source code (https://github.com/AyuGram/AyuGramDesktop) first and add your findings to the research file BEFORE writing any code. Never guess how a UI feature should work — find the real implementation.
 - **Smoke-test the GUI before declaring done** — After ANY GUI-related work, you MUST build the app, launch it, and **interact with it like a normal user** to verify changes work. Passing unit tests is not enough — the actual app must work.
 
   ### GUI Automation Toolkit

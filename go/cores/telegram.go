@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/big"
 	"os"
 	"strconv"
@@ -844,6 +845,7 @@ func (t *TelegramCore) Logout() error {
 }
 
 // GetDialogs returns the list of conversations for the authenticated user.
+// Paginates automatically to fetch up to opts.Limit dialogs (default 500).
 func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -851,27 +853,78 @@ func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		return nil, ErrAuth
 	}
 
-	limit := opts.Limit
-	if limit <= 0 {
-		limit = 100
+	totalLimit := opts.Limit
+	if totalLimit <= 0 {
+		totalLimit = 500
 	}
 
-	req := &tg.MessagesGetDialogsRequest{
-		Limit:      limit,
-		OffsetPeer: &tg.InputPeerEmpty{},
-	}
+	var allDialogs []Dialog
+	offsetDate := 0
+	offsetID := 0
+	var offsetPeer tg.InputPeerClass = &tg.InputPeerEmpty{}
+
 	if opts.Offset != "" {
-		if offsetDate, err := strconv.Atoi(opts.Offset); err == nil {
-			req.OffsetDate = offsetDate
+		if od, err := strconv.Atoi(opts.Offset); err == nil {
+			offsetDate = od
 		}
 	}
 
-	result, err := t.api.MessagesGetDialogs(t.ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("get dialogs: %w", err)
+	for len(allDialogs) < totalLimit {
+		batchLimit := 100
+		if remaining := totalLimit - len(allDialogs); remaining < batchLimit {
+			batchLimit = remaining
+		}
+
+		result, err := t.api.MessagesGetDialogs(t.ctx, &tg.MessagesGetDialogsRequest{
+			Limit:      batchLimit,
+			OffsetDate: offsetDate,
+			OffsetID:   offsetID,
+			OffsetPeer: offsetPeer,
+		})
+		if err != nil {
+			if len(allDialogs) > 0 {
+				return allDialogs, nil // Return what we got
+			}
+			return nil, fmt.Errorf("get dialogs: %w", err)
+		}
+
+		batch, err := t.convertDialogs(result)
+		if err != nil {
+			return allDialogs, err
+		}
+		if len(batch) == 0 {
+			break // No more dialogs
+		}
+
+		allDialogs = append(allDialogs, batch...)
+
+		// Check if server says we got everything (DialogsSlice has Count).
+		if slice, ok := result.(*tg.MessagesDialogsSlice); ok {
+			if len(allDialogs) >= slice.Count {
+				break
+			}
+		} else {
+			// Non-slice response means all dialogs fit in one response.
+			break
+		}
+
+		// Advance pagination using the last dialog's date/ID/peer.
+		last := batch[len(batch)-1]
+		if last.LastMessage != nil {
+			offsetDate = int(last.LastMessage.Timestamp.Unix())
+			if id, err := strconv.Atoi(last.LastMessage.ID); err == nil {
+				offsetID = id
+			}
+		}
+		peer, _ := t.resolvePeer(last.ID)
+		if peer != nil {
+			if ip, err := t.toInputPeer(peer); err == nil {
+				offsetPeer = ip
+			}
+		}
 	}
 
-	return t.convertDialogs(result)
+	return allDialogs, nil
 }
 
 // SendMessage sends a text message to the specified chat.
@@ -963,6 +1016,41 @@ func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Messag
 	}
 
 	return t.convertMessages(result), nil
+}
+
+// GetPinnedMessages returns all pinned messages in a chat.
+func (t *TelegramCore) GetPinnedMessages(chatID string) ([]Message, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := t.api.MessagesSearch(t.ctx, &tg.MessagesSearchRequest{
+		Peer:   inputPeer,
+		Q:      "",
+		Filter: &tg.InputMessagesFilterPinned{},
+		Limit:  50,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get pinned messages: %w", err)
+	}
+
+	msgs := t.convertMessages(result)
+	// Mark all as pinned since the filter guarantees it.
+	for i := range msgs {
+		msgs[i].IsPinned = true
+	}
+	return msgs, nil
 }
 
 // EditMessage modifies the text of a previously sent message.
@@ -8966,6 +9054,10 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 		for _, p := range filter.PinnedPeers {
 			folder.PinnedChatIDs = append(folder.PinnedChatIDs, inputPeerToID(p))
 		}
+		log.Printf("[tg-folders] Folder %q (id=%s): contacts=%v nonContacts=%v groups=%v channels=%v bots=%v excludeMuted=%v excludeRead=%v excludeArchived=%v includes=%d excludes=%d pinned=%d includeIDs=%v",
+			folder.Name, folder.ID, folder.Contacts, folder.NonContacts, folder.Groups, folder.Channels, folder.Bots,
+			folder.ExcludeMuted, folder.ExcludeRead, folder.ExcludeArchived,
+			len(folder.ChatIDs), len(folder.ExcludeChatIDs), len(folder.PinnedChatIDs), folder.ChatIDs)
 		folders = append(folders, folder)
 	}
 	return folders, nil

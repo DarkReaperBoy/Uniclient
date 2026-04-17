@@ -80,6 +80,47 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
+  void _showMessageContextMenu(String msgId, Offset position) {
+    final chatState = context.read<ChatState>();
+    final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
+    if (msg == null) return;
+
+    final theme = Theme.of(context);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      color: theme.colorScheme.surface,
+      items: [
+        const PopupMenuItem(value: 'reply', child: ListTile(dense: true, leading: Icon(Icons.reply, size: 20), title: Text('Reply'))),
+        if (msg.contentText.isNotEmpty)
+          const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.copy, size: 20), title: Text('Copy Text'))),
+        const PopupMenuItem(value: 'forward', child: ListTile(dense: true, leading: Icon(Icons.forward, size: 20), title: Text('Forward'))),
+        const PopupMenuItem(value: 'select', child: ListTile(dense: true, leading: Icon(Icons.check_circle_outline, size: 20), title: Text('Select'))),
+        if (msg.isOutgoing)
+          const PopupMenuItem(value: 'edit', child: ListTile(dense: true, leading: Icon(Icons.edit, size: 20), title: Text('Edit'))),
+        PopupMenuItem(value: 'delete', child: ListTile(dense: true, leading: Icon(Icons.delete_outline, size: 20, color: theme.colorScheme.error), title: Text('Delete', style: TextStyle(color: theme.colorScheme.error)))),
+      ],
+    ).then((action) {
+      if (action == null) return;
+      switch (action) {
+        case 'reply':
+          setState(() => _replyToId = msgId);
+        case 'copy':
+          Clipboard.setData(ClipboardData(text: msg.contentText));
+        case 'forward':
+          _selectedMsgIds.add(msgId);
+          _forwardSelected(context, chatState);
+        case 'select':
+          setState(() => _selectedMsgIds.add(msgId));
+        case 'edit':
+          _composeController.text = msg.contentText;
+          // TODO: wire up edit mode
+        case 'delete':
+          chatState.deleteMessage(msgId);
+      }
+    });
+  }
+
   void _deleteSelected(ChatState chatState) {
     for (final id in _selectedMsgIds) {
       chatState.deleteMessage(id);
@@ -177,6 +218,7 @@ class _ChatViewState extends State<ChatView> {
                   onLongPress: (msgId) => setState(() {
                     _selectedMsgIds.add(msgId);
                   }),
+                  onContextMenu: _showMessageContextMenu,
                 ),
                 // Scroll-to-bottom FAB (spec §5: JumpDownButton).
                 if (_showScrollToBottom)
@@ -322,6 +364,7 @@ class _MessageList extends StatelessWidget {
   final Set<String> selectedIds;
   final ValueChanged<String> onToggleSelect;
   final ValueChanged<String> onLongPress;
+  final void Function(String msgId, Offset position) onContextMenu;
 
   const _MessageList({
     required this.messages,
@@ -331,6 +374,7 @@ class _MessageList extends StatelessWidget {
     required this.selectedIds,
     required this.onToggleSelect,
     required this.onLongPress,
+    required this.onContextMenu,
   });
 
   @override
@@ -408,6 +452,7 @@ class _MessageList extends StatelessWidget {
                           isFirstInGroup: isFirstInGroup,
                           isLastInGroup: isLastInGroup,
                           onReply: () => onReply(msg.msgId),
+                          onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
                         ),
                       ),
                     ),

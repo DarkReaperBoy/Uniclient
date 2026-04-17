@@ -4,7 +4,8 @@
 
 ## Bugs
 
-(none currently)
+- [ ] **Online dot not verified** — Telegram OnUserStatus handler added, Dart tracking wired, green dot renders on avatar. But no user_status events observed in logs yet (contacts need to change status). Needs user verification over time.
+- [ ] **Folder contents may still miss chats beyond 500 dialogs** — Pagination added (was capped at 100, now fetches up to 500). Improved from 100→163 dialogs. Users with 500+ chats may still miss some.
 
 ## TODO
 
