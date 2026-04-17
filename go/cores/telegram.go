@@ -552,6 +552,26 @@ func (t *TelegramCore) initClient() {
 		})
 		return nil
 	})
+	// User status updates (online/offline).
+	dispatcher.OnUserStatus(func(ctx context.Context, e tg.Entities, u *tg.UpdateUserStatus) error {
+		userID := strconv.FormatInt(u.UserID, 10)
+		var isOnline bool
+		switch u.Status.(type) {
+		case *tg.UserStatusOnline:
+			isOnline = true
+		case *tg.UserStatusOffline:
+			isOnline = false
+		default:
+			return nil
+		}
+		t.fireUpdate(Update{
+			Type:     UpdateUserStatus,
+			UserID:   userID,
+			IsOnline: &isOnline,
+			Platform: tgPlatform,
+		})
+		return nil
+	})
 	// following the tgcalls protocol spec in docs/tgcalls_protocol.md
 }
 
