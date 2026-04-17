@@ -63,7 +63,8 @@ type Engine struct {
 		chatID    string
 	}
 
-	media *MediaManager
+	media   *MediaManager
+	avatars *avatarState
 
 	lockFile     *os.File       // single-instance lock file (held open with flock)
 	shuttingDown bool
@@ -83,6 +84,7 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		downloadDir: downloadDir,
 		mediaDir:    filepath.Join(cacheDir, "media"),
 		maxCache:    1 << 30, // 1GB default
+		avatars:     newAvatarState(),
 	}
 
 	// Ensure directories exist.

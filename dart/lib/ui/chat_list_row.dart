@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../models/engine_models.dart';
@@ -270,8 +272,8 @@ class _ChatAvatar extends StatelessWidget {
       height: size,
       child: chat.avatarPath.isNotEmpty
           ? ClipOval(
-              child: Image.network(
-                chat.avatarPath,
+              child: Image.file(
+                File(chat.avatarPath),
                 width: size,
                 height: size,
                 fit: BoxFit.cover,

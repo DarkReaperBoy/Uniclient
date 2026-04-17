@@ -24,7 +24,7 @@ class UniClientShell extends StatefulWidget {
 
 class _UniClientShellState extends State<UniClientShell> {
   // Dialogs column width ratio (0.0-1.0 of body width).
-  double _dialogsWidthRatio = 0.35;
+  double _dialogsWidthRatio = 0.17;
   bool _infoOpen = false;
 
   // Spec: min 260, max 540, collapse below 130.

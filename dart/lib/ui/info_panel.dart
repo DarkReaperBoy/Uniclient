@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -185,21 +187,17 @@ class _AvatarHeader extends StatelessWidget {
         SizedBox(
           width: 72,
           height: 72,
-          child: Container(
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
+          child: chat.avatarPath.isNotEmpty
+              ? ClipOval(
+                  child: Image.file(
+                    File(chat.avatarPath),
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _avatarFallback(color, initials),
+                  ),
+                )
+              : _avatarFallback(color, initials),
         ),
         const SizedBox(height: 12),
         // Name.
@@ -240,6 +238,23 @@ class _AvatarHeader extends StatelessWidget {
     if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
     if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
     return count.toString();
+  }
+
+  static Widget _avatarFallback(Color color, String initials) {
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 28,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 
   static String _initials(String title) {

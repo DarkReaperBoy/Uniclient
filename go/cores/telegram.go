@@ -94,6 +94,7 @@ type TelegramCore struct {
 	fileAccessHash    map[int64]int64  // fileID → accessHash
 	fileReference     map[int64][]byte // fileID → fileReference
 	userNames         map[int64]string // userID → display name (first + last)
+	peerPhotoID       map[int64]int64  // peerID → profile photo ID (for avatar downloads)
 	peerMu            sync.RWMutex
 
 	// Self user info (populated after auth)
@@ -183,6 +184,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		fileAccessHash:    make(map[int64]int64),
 		fileReference:     make(map[int64][]byte),
 		userNames:         make(map[int64]string),
+		peerPhotoID:       make(map[int64]int64),
 		activeCalls:        make(map[int64]*tgCall),
 		pendingDH:          make(map[int64]*pendingDHState),
 		rawSigInInterceptors:  make(map[int64]func([]byte)),
@@ -1282,6 +1284,63 @@ func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(
 	if err != nil {
 		os.Remove(dest)
 		return fmt.Errorf("download: %w", err)
+	}
+
+	return nil
+}
+
+// DownloadChatAvatar downloads the profile photo for a chat/user and saves it to destPath.
+// Uses InputPeerPhotoFileLocation to fetch the photo from the correct DC.
+func (t *TelegramCore) DownloadChatAvatar(chatID, destPath string) error {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return fmt.Errorf("resolve peer: %w", err)
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return fmt.Errorf("input peer: %w", err)
+	}
+
+	// Look up cached photo ID for this peer.
+	var rawID int64
+	switch p := peer.(type) {
+	case *tg.PeerUser:
+		rawID = p.UserID
+	case *tg.PeerChat:
+		rawID = p.ChatID
+	case *tg.PeerChannel:
+		rawID = p.ChannelID
+	}
+
+	t.peerMu.RLock()
+	photoID, ok := t.peerPhotoID[rawID]
+	t.peerMu.RUnlock()
+	if !ok || photoID == 0 {
+		return fmt.Errorf("no photo for peer %s", chatID)
+	}
+
+	location := &tg.InputPeerPhotoFileLocation{
+		Peer:    inputPeer,
+		PhotoID: photoID,
+	}
+
+	f, err := os.Create(destPath)
+	if err != nil {
+		return fmt.Errorf("create file: %w", err)
+	}
+	defer f.Close()
+
+	d := downloader.NewDownloader()
+	_, err = d.Download(t.api, location).Stream(t.ctx, f)
+	if err != nil {
+		os.Remove(destPath)
+		return fmt.Errorf("download avatar: %w", err)
 	}
 
 	return nil
@@ -9210,11 +9269,22 @@ func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass)
 			if name != "" {
 				t.userNames[user.ID] = name
 			}
+			if photo, ok := user.Photo.(*tg.UserProfilePhoto); ok {
+				t.peerPhotoID[user.ID] = photo.PhotoID
+			}
 		}
 	}
 	for _, c := range chats {
-		if ch, ok := c.(*tg.Channel); ok {
+		switch ch := c.(type) {
+		case *tg.Channel:
 			t.channelAccessHash[ch.ID] = ch.AccessHash
+			if photo, ok := ch.Photo.(*tg.ChatPhoto); ok {
+				t.peerPhotoID[ch.ID] = photo.PhotoID
+			}
+		case *tg.Chat:
+			if photo, ok := ch.Photo.(*tg.ChatPhoto); ok {
+				t.peerPhotoID[ch.ID] = photo.PhotoID
+			}
 		}
 	}
 	t.peerMu.Unlock()
@@ -9429,6 +9499,9 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 			dialog.Type = ChatTypeDM
 			if user, ok := userMap[p.UserID]; ok {
 				dialog.Title = strings.TrimSpace(user.FirstName + " " + user.LastName)
+				if _, ok := user.Photo.(*tg.UserProfilePhoto); ok {
+					dialog.AvatarURL = "has_photo"
+				}
 			}
 		case *tg.PeerChat:
 			dialog.ID = strconv.FormatInt(-p.ChatID, 10)
@@ -9437,6 +9510,9 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 				if c, ok := chat.(*tg.Chat); ok {
 					dialog.Title = c.Title
 					dialog.MemberCount = c.ParticipantsCount
+					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
+						dialog.AvatarURL = "has_photo"
+					}
 				}
 			}
 		case *tg.PeerChannel:
@@ -9449,6 +9525,9 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 						dialog.Type = ChatTypeChannel
 					} else {
 						dialog.Type = ChatTypeGroup
+					}
+					if _, ok := c.Photo.(*tg.ChatPhoto); ok {
+						dialog.AvatarURL = "has_photo"
 					}
 				}
 			}

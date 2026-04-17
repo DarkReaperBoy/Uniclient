@@ -41,8 +41,8 @@
 - [ ] Forward dialog
 - [x] Media rendering in messages (auto-download photos, video placeholders with play/duration, voice waveform, audio/file indicators)
 - [x] Media download pipeline (engine MediaManager init, auto-download photos/stickers/GIFs, Telegram access hash persistence via Extra field, DB schema V4)
-- [ ] Chat list column width too large vs message area — lower default ratio or cap tighter (Telegram Desktop ~260-300px)
-- [ ] Avatar/profile picture download — fetch and cache real avatars for chat list + info panel
+- [x] Chat list column width — lowered default ratio from 0.35 to 0.17 (~300px on 1920, clamped 260-540)
+- [x] Avatar/profile picture download — engine avatar pipeline: Telegram DownloadChatAvatar via InputPeerPhotoFileLocation, cached to {mediaDir}/{accountID}/avatars/{chatID}.jpg, DB avatar_path updated + chat_updated events, Dart Image.file rendering
 - [ ] Voice/video message players
 - [ ] Emoji/sticker/GIF panel
 - [ ] Calls UI

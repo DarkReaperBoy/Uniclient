@@ -181,7 +181,16 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
 		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, d.UnreadCount, boolToInt(d.IsMuted), boolToInt(d.IsPinned),
 		boolToInt(d.IsArchived), d.MemberCount, d.ParentID, now)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Mark that this chat has a photo available for download.
+	if d.AvatarURL != "" {
+		e.markAvatarAvailable(accountID, d.ID)
+	}
+
+	return nil
 }
 
 // SyncChats diffs network dialogs against cache and emits appropriate events.
@@ -197,6 +206,10 @@ func (e *Engine) SyncChats(accountID string, dialogs []cores.Dialog) error {
 		return err
 	}
 	e.emitEvent(EventChatSnapshot, accountID, ChatSnapshotEvent{Chats: chats})
+
+	// Download avatars in background.
+	go e.DownloadPendingAvatars(accountID)
+
 	return nil
 }
 
