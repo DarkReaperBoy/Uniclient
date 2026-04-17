@@ -97,8 +97,12 @@ type TypingEvent struct {
 }
 
 type UserStatusEvent struct {
-	UserID   string `json:"user_id"`
-	IsOnline bool   `json:"is_online"`
+	UserID       string `json:"user_id"`
+	IsOnline     bool   `json:"is_online"`
+	// LastSeenKind: "online", "recently", "within_week", "within_month",
+	// "long_ago", "exact", "hidden". When "exact", LastSeen holds the UTC timestamp.
+	LastSeenKind string `json:"last_seen_kind,omitempty"`
+	LastSeen     int64  `json:"last_seen,omitempty"` // Unix millis, only set for "exact" kind
 }
 
 type DownloadProgressEvent struct {
@@ -226,7 +230,11 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 
 	case cores.UpdateUserStatus:
 		if u.IsOnline != nil {
-			e.handleUserStatus(accountID, u.UserID, *u.IsOnline)
+			var lastSeenMs int64
+			if u.LastSeen != nil {
+				lastSeenMs = u.LastSeen.UnixMilli()
+			}
+			e.handleUserStatus(accountID, u.UserID, *u.IsOnline, u.LastSeenKind, lastSeenMs)
 		}
 
 	case cores.UpdateCallState:
@@ -321,7 +329,7 @@ func (e *Engine) handleReadState(accountID, chatID string, rs *cores.ReadState) 
 }
 
 // handleUserStatus updates user online state.
-func (e *Engine) handleUserStatus(accountID, userID string, online bool) {
+func (e *Engine) handleUserStatus(accountID, userID string, online bool, kind string, lastSeenMs int64) {
 	now := time.Now().UnixMilli()
 	e.db.Exec(
 		`INSERT INTO users (account_id, user_id, is_online, updated_at)
@@ -330,8 +338,10 @@ func (e *Engine) handleUserStatus(accountID, userID string, online bool) {
 		accountID, userID, boolToInt(online), now, boolToInt(online), now)
 
 	e.emitEvent(EventUserStatus, accountID, UserStatusEvent{
-		UserID:   userID,
-		IsOnline: online,
+		UserID:       userID,
+		IsOnline:     online,
+		LastSeenKind: kind,
+		LastSeen:     lastSeenMs,
 	})
 }
 

@@ -318,6 +318,8 @@ class _ChatViewState extends State<ChatView> {
             _ChatTopBar(
               chat: chat,
               typingUser: chatState.typingUserFor(chat.chatId),
+              isOnline: chatState.isChatOnline(chat),
+              lastSeen: chatState.chatLastSeen(chat),
               showBackButton: widget.showBackButton,
               onBack: widget.onBack,
               onToggleInfo: widget.onToggleInfo,
@@ -399,6 +401,8 @@ class _ChatViewState extends State<ChatView> {
 class _ChatTopBar extends StatelessWidget {
   final ChatInfo chat;
   final String? typingUser;
+  final bool isOnline;
+  final ({String kind, int lastSeenMs}) lastSeen;
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
@@ -406,10 +410,54 @@ class _ChatTopBar extends StatelessWidget {
   const _ChatTopBar({
     required this.chat,
     this.typingUser,
+    this.isOnline = false,
+    this.lastSeen = (kind: '', lastSeenMs: 0),
     required this.showBackButton,
     this.onBack,
     this.onToggleInfo,
   });
+
+  /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
+  static String _formatLastSeen(({String kind, int lastSeenMs}) ls) {
+    switch (ls.kind) {
+      case 'recently':
+        return 'last seen recently';
+      case 'within_week':
+        return 'last seen within a week';
+      case 'within_month':
+        return 'last seen within a month';
+      case 'long_ago':
+        return 'last seen a long time ago';
+      case 'exact':
+        if (ls.lastSeenMs <= 0) return '';
+        final then = DateTime.fromMillisecondsSinceEpoch(ls.lastSeenMs);
+        final now = DateTime.now();
+        final diff = now.difference(then);
+        if (diff.inSeconds < 60) return 'last seen just now';
+        if (diff.inMinutes < 60) {
+          final m = diff.inMinutes;
+          return 'last seen $m ${m == 1 ? "minute" : "minutes"} ago';
+        }
+        final sameDay = then.year == now.year &&
+            then.month == now.month &&
+            then.day == now.day;
+        final y = now.subtract(const Duration(days: 1));
+        final yesterday = then.year == y.year &&
+            then.month == y.month &&
+            then.day == y.day;
+        String twoDigits(int n) => n.toString().padLeft(2, '0');
+        final time = '${twoDigits(then.hour)}:${twoDigits(then.minute)}';
+        if (sameDay) return 'last seen today at $time';
+        if (yesterday) return 'last seen yesterday at $time';
+        const months = [
+          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+        ];
+        return 'last seen ${months[then.month - 1]} ${then.day} at $time';
+      default:
+        return '';
+    }
+  }
 
   static Widget _chatAvatar(ChatInfo chat, ThemeData theme, double radius) {
     if (chat.avatarPath.isNotEmpty) {
@@ -446,12 +494,17 @@ class _ChatTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Subtitle: typing, member count, or last seen.
+    // Subtitle: typing, online status, member count, or last seen.
     String subtitle;
     Color? subtitleColor;
     if (typingUser != null) {
       subtitle = '$typingUser is typing...';
       subtitleColor = theme.colorScheme.primary;
+    } else if (chat.type == ChatType.dm && isOnline) {
+      subtitle = 'online';
+      subtitleColor = const Color(0xFF3BA55C); // online green
+    } else if (chat.type == ChatType.dm) {
+      subtitle = _formatLastSeen(lastSeen);
     } else if (chat.memberCount > 0) {
       subtitle = '${chat.memberCount} members';
     } else {

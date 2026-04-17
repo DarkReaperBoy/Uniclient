@@ -290,6 +290,11 @@ type Update struct {
 	ReadState    *ReadState        `json:"read_state,omitempty"`
 	Call         *CallSession      `json:"call,omitempty"`
 	IsOnline     *bool             `json:"is_online,omitempty"`
+	// LastSeenKind carries coarse last-seen visibility for user_status updates:
+	// "online", "recently", "within_week", "within_month", "long_ago", "exact", "hidden".
+	// When "exact", LastSeen holds the actual timestamp.
+	LastSeenKind string            `json:"last_seen_kind,omitempty"`
+	LastSeen     *time.Time        `json:"last_seen,omitempty"`
 	Verification *VerificationInfo `json:"verification,omitempty"`
 	ConnState    string            `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
 	Platform     string            `json:"platform"`

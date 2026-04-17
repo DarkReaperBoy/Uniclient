@@ -17,6 +17,7 @@
 
 ## Bugs (fix first, verify with automated interaction)
 
+- [x] **Last seen / online in DM top bar verified** — Screenshot-verified: online users show "online" in green, offline show "last seen yesterday at 16:57" etc. Fix: `convertUser` emits `UpdateUserStatus` for all status kinds (online/offline/recently/within_week/within_month/long_ago), seeding the engine cache on initial dialog load instead of waiting for a delta.
 - [x] **Forward display fixed** — Forwarded messages now show "Forwarded from {name}" header. Fixed: Go `convertMessage` resolves `FwdFrom` to display name (FromName > cached user/channel name > PostAuthor > fallback). Added `channelNames` cache. Migration made idempotent.
 - [ ] **Pinned bar jump partially verified** — Old code visually confirmed (clicking pinned bar loads older messages). Added `returnToLatest()` so scroll-to-bottom reloads newest after a jump — NOT yet visually verified after rebuild.
 - [ ] **Sender avatars resized (not verified)** — Code updated from 30px to 33px per spec §5 (skip 40px). Avatar now clickable. Compiles clean but NOT screenshot-verified.
@@ -38,7 +39,6 @@
 - [ ] Auto-delete indicator ("1d", "1w" etc.) on DMs with auto-delete enabled
 
 ### Chat view / DM
-- [ ] Last seen / online status text in top bar ("last seen recently", "online", etc.)
 - [ ] Sticker rendering (static + animated + video stickers)
 - [ ] GIF rendering and playback
 - [ ] Video playback in messages (currently shows placeholder)

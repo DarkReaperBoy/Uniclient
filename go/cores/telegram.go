@@ -555,23 +555,39 @@ func (t *TelegramCore) initClient() {
 		})
 		return nil
 	})
-	// User status updates (online/offline).
+	// User status updates (online/offline + coarse last-seen kinds).
 	dispatcher.OnUserStatus(func(ctx context.Context, e tg.Entities, u *tg.UpdateUserStatus) error {
 		userID := strconv.FormatInt(u.UserID, 10)
 		var isOnline bool
-		switch u.Status.(type) {
+		var kind string
+		var lastSeen *time.Time
+		switch s := u.Status.(type) {
 		case *tg.UserStatusOnline:
 			isOnline = true
+			kind = "online"
 		case *tg.UserStatusOffline:
 			isOnline = false
+			kind = "exact"
+			ts := time.Unix(int64(s.WasOnline), 0)
+			lastSeen = &ts
+		case *tg.UserStatusRecently:
+			kind = "recently"
+		case *tg.UserStatusLastWeek:
+			kind = "within_week"
+		case *tg.UserStatusLastMonth:
+			kind = "within_month"
+		case *tg.UserStatusEmpty:
+			kind = "long_ago"
 		default:
 			return nil
 		}
 		t.fireUpdate(Update{
-			Type:     UpdateUserStatus,
-			UserID:   userID,
-			IsOnline: &isOnline,
-			Platform: tgPlatform,
+			Type:         UpdateUserStatus,
+			UserID:       userID,
+			IsOnline:     &isOnline,
+			LastSeenKind: kind,
+			LastSeen:     lastSeen,
+			Platform:     tgPlatform,
 		})
 		return nil
 	})
@@ -9611,12 +9627,45 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		Platform:    tgPlatform,
 	}
 
+	// Classify presence into (isOnline, kind, lastSeen) and propagate via the
+	// User struct AND seed an UpdateUserStatus event so the engine cache picks
+	// up initial state (the OnUserStatus dispatcher only fires on deltas, so
+	// without this the DM top bar has no subtitle until the peer toggles).
 	if status := user.Status; status != nil {
-		switch status.(type) {
+		var kind string
+		var lastSeen *time.Time
+		emit := true
+		switch s := status.(type) {
 		case *tg.UserStatusOnline:
 			u.IsOnline = true
+			kind = "online"
 		case *tg.UserStatusOffline:
 			u.IsOnline = false
+			kind = "exact"
+			ts := time.Unix(int64(s.WasOnline), 0)
+			u.LastSeen = &ts
+			lastSeen = &ts
+		case *tg.UserStatusRecently:
+			kind = "recently"
+		case *tg.UserStatusLastWeek:
+			kind = "within_week"
+		case *tg.UserStatusLastMonth:
+			kind = "within_month"
+		case *tg.UserStatusEmpty:
+			kind = "long_ago"
+		default:
+			emit = false
+		}
+		if emit {
+			isOnline := u.IsOnline
+			t.fireUpdate(Update{
+				Type:         UpdateUserStatus,
+				UserID:       u.ID,
+				IsOnline:     &isOnline,
+				LastSeenKind: kind,
+				LastSeen:     lastSeen,
+				Platform:     tgPlatform,
+			})
 		}
 	}
 

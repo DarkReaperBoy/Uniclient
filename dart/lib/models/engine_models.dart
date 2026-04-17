@@ -762,11 +762,24 @@ class UserStatusEvent {
   final String accountId;
   final String userId;
   final bool isOnline;
-  const UserStatusEvent({this.accountId = '', this.userId = '', this.isOnline = false});
+  /// Coarse visibility kind: "online", "recently", "within_week",
+  /// "within_month", "long_ago", "exact", "hidden", or "".
+  final String lastSeenKind;
+  /// Unix millis, only valid when [lastSeenKind] == "exact". 0 = unset.
+  final int lastSeenMs;
+  const UserStatusEvent({
+    this.accountId = '',
+    this.userId = '',
+    this.isOnline = false,
+    this.lastSeenKind = '',
+    this.lastSeenMs = 0,
+  });
 
   factory UserStatusEvent.fromJson(Map<String, dynamic> j, {String accountId = ''}) => UserStatusEvent(
     accountId: accountId,
     userId: j['user_id'] as String? ?? '',
     isOnline: j['is_online'] as bool? ?? false,
+    lastSeenKind: j['last_seen_kind'] as String? ?? '',
+    lastSeenMs: (j['last_seen'] as num?)?.toInt() ?? 0,
   );
 }

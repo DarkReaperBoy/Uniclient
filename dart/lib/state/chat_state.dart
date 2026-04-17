@@ -19,6 +19,8 @@ class ChatState extends ChangeNotifier {
   DateTime? _jumpedUntil; // suppress polling refresh until this time
   final Map<String, String> _typingUsers = {}; // chatId → userName
   final Map<String, bool> _onlineUsers = {}; // "accountId:chatId" → isOnline (DMs only)
+  // "accountId:userId" → (kind, lastSeenMs) for DM subtitle text.
+  final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
 
   // ── Folder state ──
@@ -667,17 +669,35 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     // For DMs, the user ID typically maps to the chat ID.
     final key = '${event.accountId}:${event.userId}';
-    final prev = _onlineUsers[key];
-    if (prev != event.isOnline) {
+    final prevOnline = _onlineUsers[key];
+    final prevLastSeen = _userLastSeen[key];
+    final newLastSeen = (kind: event.lastSeenKind, lastSeenMs: event.lastSeenMs);
+    var changed = false;
+    if (prevOnline != event.isOnline) {
       _onlineUsers[key] = event.isOnline;
-      notifyListeners();
+      changed = true;
     }
+    if (prevLastSeen?.kind != newLastSeen.kind ||
+        prevLastSeen?.lastSeenMs != newLastSeen.lastSeenMs) {
+      _userLastSeen[key] = newLastSeen;
+      changed = true;
+    }
+    if (changed) notifyListeners();
   }
 
   /// Whether a DM chat's peer is currently online.
   bool isChatOnline(ChatInfo chat) {
     if (chat.type != ChatType.dm) return false;
     return _onlineUsers['${chat.accountId}:${chat.chatId}'] ?? false;
+  }
+
+  /// Last-seen descriptor for a DM's peer: (kind, lastSeenMs).
+  /// kind ∈ {"", "online", "recently", "within_week", "within_month",
+  /// "long_ago", "exact", "hidden"}. Empty kind means unknown.
+  ({String kind, int lastSeenMs}) chatLastSeen(ChatInfo chat) {
+    if (chat.type != ChatType.dm) return (kind: '', lastSeenMs: 0);
+    return _userLastSeen['${chat.accountId}:${chat.chatId}'] ??
+        (kind: '', lastSeenMs: 0);
   }
 
   @override
