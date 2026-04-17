@@ -167,6 +167,58 @@ When the user says "add X", follow these steps in order:
   - Does the auth flow complete? (logs: `AUTH:` → `ready`)
   - Are events delivered? (logs: `EVENT:`)
   - If something is broken, fix it before saying you're done.
+
+## Harnesses — What To Use For What
+
+**RULE: Research is a living document, not a write-once artifact.** Every session, if research is outdated, vague, incomplete, or untested — go to the OFFICIAL source, study it, and update/add/remove/optimize the research file. The goal: next session, you spoonfeed yourself. Don't re-discover what you already learned.
+
+### UI Implementation & Testing
+
+| Task | Source of truth | Research file | How to verify |
+|------|----------------|---------------|---------------|
+| **Design any UI widget/screen** | [AyuGram Desktop](https://github.com/AyuGram/AyuGramDesktop) — match 1:1 | `research/telegram_desktop_ui.md` | Read spec section first. If missing/vague, send agent to AyuGram source, ADD findings to research, THEN implement. |
+| **Test UI renders correctly** | Flutter debug tools (built in-repo) | `research/gui_notes.md` | Build → launch → `flutter_inspect.sh screenshot` → `flutter_interact.sh` (tap/scroll/findtext/taptext) → screenshot → verify. Update `research/gui_notes.md` with any new patterns/gotchas. |
+| **Test UI interaction flows** | `scripts/flutter_interact.sh` | `checklist/gui.md` | `taptext "Button"` to click by label. `findtext "X"` to locate elements. `rightclick x y` for context menus. `scroll` for pagination. `alltext` to dump screen. Always screenshot before AND after. |
+| **Test auth flow** | `scripts/flutter_auth.sh` | `research/gui_notes.md` | `flutter_auth.sh auto phone "+..."` → monitor `AUTH:` logs → verify `ready` state. |
+
+### Telegram Backend
+
+| Task | Harness | Auth | Research file |
+|------|---------|------|---------------|
+| **Test Telegram API methods** | [gotd/td](https://github.com/gotd/td) | Two sessions in `auth/` | `research/telegram_notes.md` |
+| **Test Telegram desktop/web calls** | [TelegramMessenger/tgcalls](https://github.com/TelegramMessenger/tgcalls) (v8 + v13) | Two sessions in `auth/` for OTP | `research/tgcalls_protocol.md` |
+| **Test Telegram web calls** | [AyuGram/AyuGramDesktop](https://github.com/AyuGram/AyuGramDesktop) web call flow | Same auth | `research/tgcalls_web_protocol.md` (split from tgcalls — web-specific WebRTC flow) |
+
+### Bale
+
+| Task | Harness | Auth | Research file |
+|------|---------|------|---------------|
+| **Test Bale API methods** | [Enalite/aiobale](https://github.com/Enalite/aiobale) | Sessions in `auth/` | `research/bale_protocol.md` |
+| **Find unpublished Bale user API** | Scrape official Bale web client source | — | `research/bale_protocol.md` |
+| **Test Bale calls** | Same as above + Bale web client | — | `research/bale_protocol.md` |
+
+### Rubika
+
+| Task | Harness | Auth | Research file |
+|------|---------|------|---------------|
+| **Test Rubika API methods** | [shayanheidari01/rubika](https://github.com/shayanheidari01/rubika) | Sessions in `auth/` | `research/rubika_protocol.md` |
+| **Find unpublished Rubika user API** | Scrape official Rubika web client source | — | `research/rubika_protocol.md` |
+| **Test Rubika calls** | Same as above | — | `research/rubika_protocol.md` |
+
+### Other Cores
+
+| Core | Harness | Research file | Notes |
+|------|---------|---------------|-------|
+| **Matrix** | [mautrix-go](https://github.com/mautrix/go) | `research/matrix_protocol.md` | CS API, E2EE via goolm |
+| **XMPP** | [mellium.im/xmpp](https://pkg.go.dev/mellium.im/xmpp) | `research/xmpp_protocol.md` | RFC 6120/6121 + XEPs |
+| **IRC** | Direct socket (RFC 2812) | `research/irc_protocol.md` | Test against libera.chat/OFTC |
+| **Delta Chat** | [deltachat-core-rust](https://github.com/deltachat/deltachat-core-rust) (reference) | `research/deltachat_protocol.md` | IMAP/SMTP, Autocrypt |
+| **Mumble** | Spin up Murmur via NixOS | `research/mumble_protocol.md` | TCP+UDP, OCB2-AES128 |
+| **TeamSpeak** | Spin up TS3 server via NixOS | `research/teamspeak_protocol.md` | UDP client protocol |
+| **GitHub** | GitHub REST/GraphQL API directly | — | Standard OAuth |
+
+When adding a NEW core not listed here: research the official client libraries, find the best Go library or protocol spec, add a row to this table, and create the research file BEFORE writing any code.
+
 - **Build in batches, user reviews between batches** — Implement a cluster of related features, build, smoke-test with screenshots, then present the user with a specific list of things to manually verify (e.g. "open chat X, long-press a message, check the selection bar appears"). Wait for user feedback before moving to the next batch. Bugs found go into `checklist/gui.md` immediately. Don't ask "what should I do next" — just fix reported bugs first, then continue from `todolist.md`.
 - **Self-test BEFORE handing to user — MANDATORY** — After implementing a batch, you MUST launch the app and thoroughly test every feature yourself using `flutter_inspect.sh` (screenshots), `flutter_interact.sh` (tap/right-click/scroll/type at coordinates), `flutter_auth.sh` (auth flow), and app logs BEFORE presenting the verification list to the user. Use the gesture dispatch system to click through flows: open chats, tap buttons, right-click messages, scroll lists, and confirm features actually work visually via screenshots. The user should never be the first person to discover that something is broken.
 - **Log every bug found in checklists** — Any bug or issue discovered during testing, auditing, or smoke-testing MUST be added to the relevant checklist file in `checklist/` immediately. Don't just fix it silently — document it so there's a paper trail. If it's a GUI bug, add it to `checklist/gui.md`. If it's a core/engine bug, add it to the relevant platform checklist.
