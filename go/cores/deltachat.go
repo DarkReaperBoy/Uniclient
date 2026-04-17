@@ -822,6 +822,7 @@ func (d *DeltaChatCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 		Timestamp:  now,
 		Status:     MessageStatusSent,
 		ReplyToID:  msg.ReplyToID,
+		IsOutgoing: true,
 		Platform:   dcPlatform,
 	}
 
@@ -918,6 +919,7 @@ func (d *DeltaChatCore) EditMessage(chatID string, msgID string, text string) (*
 		Timestamp:  now,
 		EditedAt:   &now,
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Platform:   dcPlatform,
 	}
 
@@ -1043,6 +1045,7 @@ func (d *DeltaChatCore) ReplyToMessage(chatID string, replyToMsgID string, msg O
 		Status:       MessageStatusSent,
 		ReplyToID:    replyToMsgID,
 		ReplyPreview: replyPreview,
+		IsOutgoing:   true,
 		Platform:     dcPlatform,
 	}
 
@@ -1113,6 +1116,7 @@ func (d *DeltaChatCore) ForwardMessage(fromChatID string, msgID string, toChatID
 		Timestamp:   now,
 		Status:      MessageStatusSent,
 		ForwardFrom: original.SenderName,
+		IsOutgoing:  true,
 		Platform:    dcPlatform,
 	}
 
@@ -1327,6 +1331,7 @@ func (d *DeltaChatCore) UploadFile(chatID string, file FileUpload, progress func
 		Text:       file.Name,
 		Timestamp:  now,
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Attachments: []FileRef{{
 			Name:     file.Name,
 			MimeType: file.MimeType,
@@ -2492,6 +2497,7 @@ func (d *DeltaChatCore) SendSticker(chatID string, stickerID string) (*Message, 
 		SenderName: d.myName,
 		Timestamp:  now,
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Attachments: []FileRef{{
 			Name:     filepath.Base(stickerID),
 			MimeType: mimeType,
@@ -2861,9 +2867,10 @@ func (d *DeltaChatCore) SendLocation(chatID string, lat float64, lon float64) (*
 		return nil, err
 	}
 	return &Message{
-		ID:       msgID,
-		ChatID:   chatID,
-		Platform: dcPlatform,
+		ID:         msgID,
+		ChatID:     chatID,
+		IsOutgoing: true,
+		Platform:   dcPlatform,
 	}, nil
 }
 
@@ -3042,6 +3049,7 @@ sent:
 		Text:       plaintext,
 		Timestamp:  now,
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Platform:   dcPlatform,
 	}
 	d.cacheMessage(chatID, m)
@@ -3299,6 +3307,7 @@ func (d *DeltaChatCore) SendContact(chatID string, contactEmail string) (*Messag
 		Text:       contactEmail,
 		Timestamp:  now,
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Attachments: []FileRef{{
 			Name:     "contact.vcf",
 			MimeType: "text/vcard",
@@ -3358,6 +3367,7 @@ func (d *DeltaChatCore) SendVideochatInvitation(chatID string) (*Message, error)
 		Text:       "Video call invitation",
 		Timestamp:  now,
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Platform:   dcPlatform,
 	}
 	d.cacheMessage(chatID, m)
@@ -4606,6 +4616,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 		Status:     status,
 		ReplyToID:  replyToID,
 		IsPinned:   isPinned,
+		IsOutgoing: senderEmail == d.myAddr,
 		Platform:   dcPlatform,
 	}
 
@@ -5956,6 +5967,7 @@ func (d *DeltaChatCore) AddDeviceMessage(label, text string) error {
 		Text:       text,
 		Timestamp:  time.Now(),
 		Status:     MessageStatusSent,
+		IsOutgoing: false,
 		Platform:   dcPlatform,
 	}
 	d.cacheMessage(deviceChatID, msg)

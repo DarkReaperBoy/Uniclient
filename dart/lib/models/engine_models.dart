@@ -243,6 +243,7 @@ class CachedMessage {
   final String replyPreview;
   final String forwardFrom;
   final bool isPinned;
+  final bool isOutgoing;
   final bool hasMedia;
 
   // Media metadata.
@@ -275,6 +276,7 @@ class CachedMessage {
     this.replyPreview = '',
     this.forwardFrom = '',
     this.isPinned = false,
+    this.isOutgoing = false,
     this.hasMedia = false,
     this.mediaType = 0,
     this.mediaFileName = '',
@@ -306,6 +308,7 @@ class CachedMessage {
     replyPreview: safeStr(j['reply_preview'] as String? ?? ''),
     forwardFrom: safeStr(j['forward_from'] as String? ?? ''),
     isPinned: j['is_pinned'] as bool? ?? false,
+    isOutgoing: j['is_outgoing'] as bool? ?? false,
     hasMedia: j['has_media'] as bool? ?? false,
     mediaType: j['media_type'] as int? ?? 0,
     mediaFileName: j['media_file_name'] as String? ?? '',
@@ -326,7 +329,7 @@ class CachedMessage {
   bool get isEdited => editedAt > 0;
   bool get isSending => status == MsgStatus.sending;
   bool get isFailed => status == MsgStatus.failed;
-  bool get isSent => senderId.isEmpty; // Go leaves senderId empty for our messages
+  bool get isSent => isOutgoing; // Set by Go engine per-platform
   bool get isImage => mediaType == 1;
   bool get isVideo => mediaType == 2;
   bool get isAudio => mediaType == 3;
@@ -359,6 +362,7 @@ class CachedMessage {
     String? replyPreview,
     String? forwardFrom,
     bool? isPinned,
+    bool? isOutgoing,
     bool? hasMedia,
     int? mediaType,
     String? mediaFileName,
@@ -388,6 +392,7 @@ class CachedMessage {
     replyPreview: replyPreview ?? this.replyPreview,
     forwardFrom: forwardFrom ?? this.forwardFrom,
     isPinned: isPinned ?? this.isPinned,
+    isOutgoing: isOutgoing ?? this.isOutgoing,
     hasMedia: hasMedia ?? this.hasMedia,
     mediaType: mediaType ?? this.mediaType,
     mediaFileName: mediaFileName ?? this.mediaFileName,

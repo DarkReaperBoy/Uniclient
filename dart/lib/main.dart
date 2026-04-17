@@ -1,4 +1,6 @@
-import 'dart:io' show Directory, Platform, exit;
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show Directory, File, Platform, exit;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -56,6 +58,7 @@ class _UniClientAppState extends State<UniClientApp> {
   final SystemTray _tray = SystemTray();
   VoidCallback? _unreadListener;
   ChatState? _chatStateRef;
+  Timer? _debugCmdTimer;
 
   @override
   void didChangeDependencies() {
@@ -117,10 +120,89 @@ class _UniClientAppState extends State<UniClientApp> {
       // Set initial tooltip.
       _tray.updateUnread(chatState.totalUnread);
     }
+
+    // Debug command poller — reads /tmp/uniclient_debug_cmd.json for
+    // programmatic UI interaction (smoke testing on Wayland).
+    if (kDebugMode) {
+      _debugCmdTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        _pollDebugCommand(chatState);
+      });
+    }
+  }
+
+  void _pollDebugCommand(ChatState chatState) {
+    final file = File('/tmp/uniclient_debug_cmd.json');
+    if (!file.existsSync()) return;
+    try {
+      final content = file.readAsStringSync().trim();
+      file.deleteSync();
+      if (content.isEmpty) return;
+      final cmd = jsonDecode(content) as Map<String, dynamic>;
+      final action = cmd['action'] as String? ?? '';
+      Debug.log('DEBUG_CMD', 'action=$action data=$cmd');
+
+      switch (action) {
+        case 'openChat':
+          // Open a chat by index or chatId.
+          final index = cmd['index'] as int?;
+          final chatId = cmd['chatId'] as String?;
+          if (index != null && index < chatState.chats.length) {
+            chatState.openChat(chatState.chats[index]);
+          } else if (chatId != null) {
+            final chat = chatState.chats.where((c) => c.chatId == chatId).firstOrNull;
+            if (chat != null) chatState.openChat(chat);
+          }
+        case 'listChats':
+          // Dump chat list to /tmp/uniclient_debug_out.json.
+          final out = chatState.chats.take(20).map((c) => {
+            'index': chatState.chats.indexOf(c),
+            'chatId': c.chatId,
+            'title': c.title,
+            'unread': c.unreadCount,
+            'accountId': c.accountId,
+          }).toList();
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            const JsonEncoder.withIndent('  ').convert(out),
+          );
+        case 'sendMessage':
+          final text = cmd['text'] as String? ?? '';
+          if (text.isNotEmpty) {
+            chatState.sendMessage(text);
+          }
+        case 'getMessages':
+          // Dump current messages to output file.
+          final out = chatState.messages.take(20).map((m) => {
+            'msgId': m.msgId,
+            'senderId': m.senderId,
+            'senderName': m.senderName,
+            'text': m.contentText.length > 40 ? m.contentText.substring(0, 40) : m.contentText,
+            'status': m.status.name,
+            'isSent': m.isSent,
+          }).toList();
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            const JsonEncoder.withIndent('  ').convert(out),
+          );
+        case 'getState':
+          // Dump current app state.
+          final out = {
+            'activeChat': chatState.activeChat?.chatId,
+            'activeChatTitle': chatState.activeChat?.title,
+            'messageCount': chatState.messages.length,
+            'chatCount': chatState.chats.length,
+            'loadingMessages': chatState.loadingMessages,
+          };
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            const JsonEncoder.withIndent('  ').convert(out),
+          );
+      }
+    } catch (e) {
+      Debug.error('DEBUG_CMD', 'Error processing command', e, null);
+    }
   }
 
   @override
   void dispose() {
+    _debugCmdTimer?.cancel();
     if (_unreadListener != null && _chatStateRef != null) {
       _chatStateRef!.removeListener(_unreadListener!);
     }

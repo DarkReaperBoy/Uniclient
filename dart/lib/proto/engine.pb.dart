@@ -2271,6 +2271,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     $core.int? mediaHeight,
     $core.int? mediaDuration,
     $core.int? mediaDownloadState,
+    $core.bool? isOutgoing,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2354,6 +2355,9 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     if (mediaDownloadState != null) {
       $result.mediaDownloadState = mediaDownloadState;
     }
+    if (isOutgoing != null) {
+      $result.isOutgoing = isOutgoing;
+    }
     return $result;
   }
   EngineCachedMessage._() : super();
@@ -2388,6 +2392,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     ..a<$core.int>(25, _omitFieldNames ? '' : 'mediaHeight', $pb.PbFieldType.O3)
     ..a<$core.int>(26, _omitFieldNames ? '' : 'mediaDuration', $pb.PbFieldType.O3)
     ..a<$core.int>(27, _omitFieldNames ? '' : 'mediaDownloadState', $pb.PbFieldType.O3)
+    ..aOB(28, _omitFieldNames ? '' : 'isOutgoing')
     ..hasRequiredFields = false
   ;
 
@@ -2655,6 +2660,15 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
   $core.bool hasMediaDownloadState() => $_has(26);
   @$pb.TagNumber(27)
   void clearMediaDownloadState() => clearField(27);
+
+  @$pb.TagNumber(28)
+  $core.bool get isOutgoing => $_getBF(27);
+  @$pb.TagNumber(28)
+  set isOutgoing($core.bool v) { $_setBool(27, v); }
+  @$pb.TagNumber(28)
+  $core.bool hasIsOutgoing() => $_has(27);
+  @$pb.TagNumber(28)
+  void clearIsOutgoing() => clearField(28);
 }
 
 class EngineGetMessagesRequest extends $pb.GeneratedMessage {

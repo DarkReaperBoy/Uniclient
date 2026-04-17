@@ -21,26 +21,6 @@ message GithubAcceptInvitationRequest {
 message GithubAcceptInvitationResponse {
 }
 
-message GithubAddBlockingDependencyRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 issue_number = 3;
-  bytes payload = 4;
-}
-
-message GithubAddBlockingDependencyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddCodespacesAccessUsersRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubAddCodespacesAccessUsersResponse {
-  bytes result_1 = 1;
-}
-
 message GithubAddCollaboratorRequest {
   string owner = 1;
   string repo = 2;
@@ -59,24 +39,6 @@ message GithubAddContactRequest {
 }
 
 message GithubAddContactResponse {
-}
-
-message GithubAddCopilotTeamsRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubAddCopilotTeamsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddCopilotUsersRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubAddCopilotUsersResponse {
-  bytes result_1 = 1;
 }
 
 message GithubAddDiscussionCommentRequest {
@@ -126,90 +88,12 @@ message GithubAddMembersRequest {
 message GithubAddMembersResponse {
 }
 
-message GithubAddOrgEnabledRepoRequest {
-  string org = 1;
-  int64 repo_id = 2;
-}
-
-message GithubAddOrgEnabledRepoResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddOrgRunnerLabelsRequest {
-  string org = 1;
-  int64 runner_id = 2;
-  bytes payload = 3;
-}
-
-message GithubAddOrgRunnerLabelsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddOrgSecretRepoRequest {
-  string org = 1;
-  string name = 2;
-  int64 repo_id = 3;
-}
-
-message GithubAddOrgSecretRepoResponse {
-  bytes result_1 = 1;
-}
-
 message GithubAddProjectV2ItemRequest {
   string project_id = 1;
   string content_id = 2;
 }
 
 message GithubAddProjectV2ItemResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddRepoRunnerLabelsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 runner_id = 3;
-  bytes payload = 4;
-}
-
-message GithubAddRepoRunnerLabelsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddRepoToInstallationRequest {
-  int64 installation_id = 1;
-  int64 repo_id = 2;
-}
-
-message GithubAddRepoToInstallationResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddRunnerGroupRepoRequest {
-  string org = 1;
-  int64 group_id = 2;
-  int64 repo_id = 3;
-}
-
-message GithubAddRunnerGroupRepoResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddRunnerGroupRunnerRequest {
-  string org = 1;
-  int64 group_id = 2;
-  int64 runner_id = 3;
-}
-
-message GithubAddRunnerGroupRunnerResponse {
-  bytes result_1 = 1;
-}
-
-message GithubAddSecurityManagerTeamRequest {
-  string org = 1;
-  string team_slug = 2;
-}
-
-message GithubAddSecurityManagerTeamResponse {
   bytes result_1 = 1;
 }
 
@@ -252,16 +136,6 @@ message GithubAddTeamRepoRequest {
 }
 
 message GithubAddTeamRepoResponse {
-  bytes result_1 = 1;
-}
-
-message GithubApproveWorkflowRunRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubApproveWorkflowRunResponse {
   bytes result_1 = 1;
 }
 
@@ -324,39 +198,12 @@ message GithubBlockUserRequest {
 message GithubBlockUserResponse {
 }
 
-message GithubCancelImportRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubCancelImportResponse {
-}
-
 message GithubCancelOrgInvitationRequest {
   string org = 1;
   int64 invitation_id = 2;
 }
 
 message GithubCancelOrgInvitationResponse {
-}
-
-message GithubCancelPagesDeploymentRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 deployment_id = 3;
-}
-
-message GithubCancelPagesDeploymentResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCancelWorkflowRunRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubCancelWorkflowRunResponse {
 }
 
 message GithubCapabilitiesRequest {
@@ -366,63 +213,6 @@ message GithubCapabilitiesResponse {
   repeated string result_1 = 1;
 }
 
-message GithubCheckAppTokenRequest {
-  string client_id = 1;
-  bytes payload = 2;
-}
-
-message GithubCheckAppTokenResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCheckAssignableRequest {
-  string owner = 1;
-  string repo = 2;
-  string assignee = 3;
-}
-
-message GithubCheckAssignableResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCheckCollaboratorRequest {
-  string owner = 1;
-  string repo = 2;
-  string username = 3;
-}
-
-message GithubCheckCollaboratorResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCheckDevContainerPermissionsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubCheckDevContainerPermissionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCheckPRMergedRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 pr_number = 3;
-}
-
-message GithubCheckPRMergedResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCheckPublicMembershipRequest {
-  string org = 1;
-  string username = 2;
-}
-
-message GithubCheckPublicMembershipResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCheckRateLimitRequest {
 }
 
@@ -430,49 +220,10 @@ message GithubCheckRateLimitResponse {
   bytes result_1 = 1;
 }
 
-message GithubCheckTeamRepoRequest {
-  string org = 1;
-  string team_slug = 2;
-  string owner = 3;
-  string repo = 4;
-}
-
-message GithubCheckTeamRepoResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCheckVulnerabilityAlertsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubCheckVulnerabilityAlertsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCloseRequest {
 }
 
 message GithubCloseResponse {
-}
-
-message GithubCompareCommitsRequest {
-  string owner = 1;
-  string repo = 2;
-  string base = 3;
-  string head = 4;
-}
-
-message GithubCompareCommitsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubConcealMembershipRequest {
-  string org = 1;
-  string username = 2;
-}
-
-message GithubConcealMembershipResponse {
 }
 
 message GithubConvertToOutsideCollaboratorRequest {
@@ -494,57 +245,6 @@ message GithubCopyProjectV2Response {
   bytes result_1 = 1;
 }
 
-message GithubCreateAppFromManifestRequest {
-  string code = 1;
-}
-
-message GithubCreateAppFromManifestResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateAttestationRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateAttestationResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateAutolinkRequest {
-  string owner = 1;
-  string repo = 2;
-  string key_prefix = 3;
-  string url_template = 4;
-  bool is_alphanumeric = 5;
-}
-
-message GithubCreateAutolinkResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateBlobRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateBlobResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateBranchProtectionRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-  bytes rules = 4;
-}
-
-message GithubCreateBranchProtectionResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCreateChannelRequest {
   string name = 1;
   string description = 2;
@@ -552,38 +252,6 @@ message GithubCreateChannelRequest {
 
 message GithubCreateChannelResponse {
   uniclient.Dialog result_1 = 1;
-}
-
-message GithubCreateCheckRunRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-  string head_s_h_a = 4;
-}
-
-message GithubCreateCheckRunResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateCodeScanningAutofixRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-}
-
-message GithubCreateCodeScanningAutofixResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateCodespaceFromPRRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 pr_number = 3;
-  bytes payload = 4;
-}
-
-message GithubCreateCodespaceFromPRResponse {
-  bytes result_1 = 1;
 }
 
 message GithubCreateCommitCommentRequest {
@@ -608,87 +276,6 @@ message GithubCreateCommitCommentReactionResponse {
   bytes result_1 = 1;
 }
 
-message GithubCreateCommitStatusRequest {
-  string owner = 1;
-  string repo = 2;
-  string sha = 3;
-  string state = 4;
-  string target_url = 5;
-  string description = 6;
-  string context = 7;
-}
-
-message GithubCreateCommitStatusResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateDependencySnapshotRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateDependencySnapshotResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateDeployKeyRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateDeployKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateDeploymentRequest {
-  string owner = 1;
-  string repo = 2;
-  string ref = 3;
-  string environment = 4;
-  string description = 5;
-}
-
-message GithubCreateDeploymentResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateDeploymentBranchPolicyRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  bytes payload = 4;
-}
-
-message GithubCreateDeploymentBranchPolicyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateDeploymentProtectionRuleRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  bytes payload = 4;
-}
-
-message GithubCreateDeploymentProtectionRuleResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateDeploymentStatusRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 deployment_id = 3;
-  string state = 4;
-  string log_url = 5;
-  string description = 6;
-}
-
-message GithubCreateDeploymentStatusResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCreateDiscussionRequest {
   string repo_id = 1;
   string category_id = 2;
@@ -700,17 +287,6 @@ message GithubCreateDiscussionResponse {
   bytes result_1 = 1;
 }
 
-message GithubCreateEnvironmentVariableRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  bytes payload = 4;
-}
-
-message GithubCreateEnvironmentVariableResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCreateFolderRequest {
   string name = 1;
   repeated string chat_ids = 2;
@@ -718,14 +294,6 @@ message GithubCreateFolderRequest {
 
 message GithubCreateFolderResponse {
   uniclient.Folder result_1 = 1;
-}
-
-message GithubCreateGPGKeyRequest {
-  string armored_public_key = 1;
-}
-
-message GithubCreateGPGKeyResponse {
-  bytes result_1 = 1;
 }
 
 message GithubCreateGistRequest {
@@ -747,26 +315,6 @@ message GithubCreateGistCommentResponse {
   bytes result_1 = 1;
 }
 
-message GithubCreateGitCommitRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateGitCommitResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateGitTagRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateGitTagResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCreateGroupRequest {
   string name = 1;
   repeated string members = 2;
@@ -774,15 +322,6 @@ message GithubCreateGroupRequest {
 
 message GithubCreateGroupResponse {
   uniclient.Dialog result_1 = 1;
-}
-
-message GithubCreateInstallationAccessTokenRequest {
-  int64 installation_id = 1;
-  bytes payload = 2;
-}
-
-message GithubCreateInstallationAccessTokenResponse {
-  bytes result_1 = 1;
 }
 
 message GithubCreateIssueCommentReactionRequest {
@@ -804,16 +343,6 @@ message GithubCreateIssueReactionRequest {
 }
 
 message GithubCreateIssueReactionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateJITRunnerConfigRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateJITRunnerConfigResponse {
   bytes result_1 = 1;
 }
 
@@ -840,181 +369,12 @@ message GithubCreateMilestoneResponse {
   bytes result_1 = 1;
 }
 
-message GithubCreateOrUpdateEnvironmentRequest {
-  string owner = 1;
-  string repo = 2;
-  string env_name = 3;
-  bytes config = 4;
-}
-
-message GithubCreateOrUpdateEnvironmentResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrUpdateEnvironmentSecretRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  string name = 4;
-  bytes payload = 5;
-}
-
-message GithubCreateOrUpdateEnvironmentSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrUpdateFileContentsRequest {
-  string owner = 1;
-  string repo = 2;
-  string path = 3;
-  string message = 4;
-  string content_b64 = 5;
-  string sha = 6;
-  string branch = 7;
-}
-
-message GithubCreateOrUpdateFileContentsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrUpdateOrgCodespaceSecretRequest {
-  string org = 1;
-  string name = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateOrUpdateOrgCodespaceSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrUpdateOrgCustomPropertyRequest {
-  string org = 1;
-  string name = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateOrUpdateOrgCustomPropertyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrUpdateOrgDependabotSecretRequest {
-  string org = 1;
-  string name = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateOrUpdateOrgDependabotSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrUpdateOrgSecretRequest {
-  string org = 1;
-  string name = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateOrUpdateOrgSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrUpdateRepoDependabotSecretRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-  bytes payload = 4;
-}
-
-message GithubCreateOrUpdateRepoDependabotSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrUpdateSecretRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-  string encrypted_value = 4;
-  string key_id = 5;
-}
-
-message GithubCreateOrUpdateSecretResponse {
-}
-
-message GithubCreateOrgCustomPropertiesRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubCreateOrgCustomPropertiesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrgHostedRunnerRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubCreateOrgHostedRunnerResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCreateOrgInvitationRequest {
   string org = 1;
   bytes payload = 2;
 }
 
 message GithubCreateOrgInvitationResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrgJITRunnerConfigRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubCreateOrgJITRunnerConfigResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrgRunnerGroupRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubCreateOrgRunnerGroupResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrgRunnerRegistrationTokenRequest {
-  string org = 1;
-}
-
-message GithubCreateOrgRunnerRegistrationTokenResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrgRunnerRemoveTokenRequest {
-  string org = 1;
-}
-
-message GithubCreateOrgRunnerRemoveTokenResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrgVariableRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubCreateOrgVariableResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateOrgWebhookRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubCreateOrgWebhookResponse {
   bytes result_1 = 1;
 }
 
@@ -1067,27 +427,6 @@ message GithubCreatePRReviewResponse {
   bytes result_1 = 1;
 }
 
-message GithubCreatePagesDeploymentRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreatePagesDeploymentResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreatePagesSiteRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-  string path = 4;
-}
-
-message GithubCreatePagesSiteResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCreatePollRequest {
   string chat_id = 1;
   string question = 2;
@@ -1096,36 +435,6 @@ message GithubCreatePollRequest {
 
 message GithubCreatePollResponse {
   uniclient.Message result_1 = 1;
-}
-
-message GithubCreatePrivateForkRequest {
-  string owner = 1;
-  string repo = 2;
-  string ghsa_id = 3;
-}
-
-message GithubCreatePrivateForkResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateProjectRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-  string body = 4;
-}
-
-message GithubCreateProjectResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateProjectCardRequest {
-  int64 column_id = 1;
-  string note = 2;
-}
-
-message GithubCreateProjectCardResponse {
-  bytes result_1 = 1;
 }
 
 message GithubCreateProjectV2DraftItemRequest {
@@ -1159,27 +468,6 @@ message GithubCreatePullRequestResponse {
   bytes result_1 = 1;
 }
 
-message GithubCreatePushProtectionBypassRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreatePushProtectionBypassResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateRefRequest {
-  string owner = 1;
-  string repo = 2;
-  string ref = 3;
-  string sha = 4;
-}
-
-message GithubCreateRefResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCreateReleaseRequest {
   string owner = 1;
   string repo = 2;
@@ -1205,123 +493,6 @@ message GithubCreateReleaseReactionResponse {
   bytes result_1 = 1;
 }
 
-message GithubCreateRepoAdvisoryRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateRepoAdvisoryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateRepoCodespaceRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateRepoCodespaceResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateRepoFromTemplateRequest {
-  string template_owner = 1;
-  string template_repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateRepoFromTemplateResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateRepoVariableRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateRepoVariableResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateRepositoryDispatchRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubCreateRepositoryDispatchResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateRulesetRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes ruleset = 3;
-}
-
-message GithubCreateRulesetResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateRunnerRegistrationTokenRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubCreateRunnerRegistrationTokenResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateRunnerRemoveTokenRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubCreateRunnerRemoveTokenResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateSSHKeyRequest {
-  string title = 1;
-  string key = 2;
-}
-
-message GithubCreateSSHKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateSSHSigningKeyRequest {
-  bytes payload = 1;
-}
-
-message GithubCreateSSHSigningKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateScopedAccessTokenRequest {
-  string client_id = 1;
-  bytes payload = 2;
-}
-
-message GithubCreateScopedAccessTokenResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateTagRequest {
-  string owner = 1;
-  string repo = 2;
-  string tag = 3;
-  string message = 4;
-  string sha = 5;
-  string object_type = 6;
-}
-
-message GithubCreateTagResponse {
-  bytes result_1 = 1;
-}
-
 message GithubCreateTeamRequest {
   string org = 1;
   string name = 2;
@@ -1342,38 +513,6 @@ message GithubCreateTopicResponse {
   uniclient.Dialog result_1 = 1;
 }
 
-message GithubCreateUserCodespaceRequest {
-  bytes payload = 1;
-}
-
-message GithubCreateUserCodespaceResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateWebhookRequest {
-  string owner = 1;
-  string repo = 2;
-  string url = 3;
-  string content_type = 4;
-  string secret = 5;
-  repeated string events = 6;
-}
-
-message GithubCreateWebhookResponse {
-  bytes result_1 = 1;
-}
-
-message GithubCreateWorkflowDispatchRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 workflow_id = 3;
-  bytes payload = 4;
-}
-
-message GithubCreateWorkflowDispatchResponse {
-  bytes result_1 = 1;
-}
-
 message GithubDeclineCallRequest {
   string call_id = 1;
 }
@@ -1386,70 +525,6 @@ message GithubDeclineInvitationRequest {
 }
 
 message GithubDeclineInvitationResponse {
-}
-
-message GithubDeleteAppAuthorizationRequest {
-  string client_id = 1;
-}
-
-message GithubDeleteAppAuthorizationResponse {
-}
-
-message GithubDeleteAppInstallationRequest {
-  int64 installation_id = 1;
-}
-
-message GithubDeleteAppInstallationResponse {
-}
-
-message GithubDeleteAppTokenRequest {
-  string client_id = 1;
-}
-
-message GithubDeleteAppTokenResponse {
-}
-
-message GithubDeleteAutolinkRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 autolink_id = 3;
-}
-
-message GithubDeleteAutolinkResponse {
-}
-
-message GithubDeleteBranchProtectionRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubDeleteBranchProtectionResponse {
-}
-
-message GithubDeleteBranchRestrictionsRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubDeleteBranchRestrictionsResponse {
-}
-
-message GithubDeleteCodeScanningAnalysisRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 analysis_id = 3;
-}
-
-message GithubDeleteCodeScanningAnalysisResponse {
-}
-
-message GithubDeleteCodespaceRequest {
-  string name = 1;
-}
-
-message GithubDeleteCodespaceResponse {
 }
 
 message GithubDeleteCommitCommentRequest {
@@ -1478,25 +553,6 @@ message GithubDeleteContactRequest {
 message GithubDeleteContactResponse {
 }
 
-message GithubDeleteDeployKeyRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 key_id = 3;
-}
-
-message GithubDeleteDeployKeyResponse {
-}
-
-message GithubDeleteDeploymentBranchPolicyRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  int64 policy_id = 4;
-}
-
-message GithubDeleteDeploymentBranchPolicyResponse {
-}
-
 message GithubDeleteDiscussionRequest {
   string discussion_id = 1;
 }
@@ -1518,54 +574,6 @@ message GithubDeleteEmailRequest {
 }
 
 message GithubDeleteEmailResponse {
-}
-
-message GithubDeleteEnvironmentRequest {
-  string owner = 1;
-  string repo = 2;
-  string env_name = 3;
-}
-
-message GithubDeleteEnvironmentResponse {
-}
-
-message GithubDeleteEnvironmentSecretRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  string name = 4;
-}
-
-message GithubDeleteEnvironmentSecretResponse {
-}
-
-message GithubDeleteEnvironmentVariableRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  string name = 4;
-}
-
-message GithubDeleteEnvironmentVariableResponse {
-}
-
-message GithubDeleteFileContentsRequest {
-  string owner = 1;
-  string repo = 2;
-  string path = 3;
-  string message = 4;
-  string sha = 5;
-  string branch = 6;
-}
-
-message GithubDeleteFileContentsResponse {
-}
-
-message GithubDeleteGPGKeyRequest {
-  int64 key_id = 1;
-}
-
-message GithubDeleteGPGKeyResponse {
 }
 
 message GithubDeleteGistRequest {
@@ -1630,104 +638,6 @@ message GithubDeleteMilestoneRequest {
 message GithubDeleteMilestoneResponse {
 }
 
-message GithubDeleteOrgBudgetRequest {
-  string org = 1;
-  int64 budget_id = 2;
-}
-
-message GithubDeleteOrgBudgetResponse {
-}
-
-message GithubDeleteOrgCodespaceSecretRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubDeleteOrgCodespaceSecretResponse {
-}
-
-message GithubDeleteOrgCustomPropertyRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubDeleteOrgCustomPropertyResponse {
-}
-
-message GithubDeleteOrgDependabotSecretRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubDeleteOrgDependabotSecretResponse {
-}
-
-message GithubDeleteOrgHostedRunnerRequest {
-  string org = 1;
-  int64 runner_id = 2;
-}
-
-message GithubDeleteOrgHostedRunnerResponse {
-}
-
-message GithubDeleteOrgMigrationArchiveRequest {
-  string org = 1;
-  int64 migration_id = 2;
-}
-
-message GithubDeleteOrgMigrationArchiveResponse {
-}
-
-message GithubDeleteOrgPackageVersionRequest {
-  string org = 1;
-  string package_type = 2;
-  string package_name = 3;
-  int64 version_id = 4;
-}
-
-message GithubDeleteOrgPackageVersionResponse {
-}
-
-message GithubDeleteOrgRunnerRequest {
-  string org = 1;
-  int64 runner_id = 2;
-}
-
-message GithubDeleteOrgRunnerResponse {
-}
-
-message GithubDeleteOrgRunnerGroupRequest {
-  string org = 1;
-  int64 group_id = 2;
-}
-
-message GithubDeleteOrgRunnerGroupResponse {
-}
-
-message GithubDeleteOrgSecretRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubDeleteOrgSecretResponse {
-}
-
-message GithubDeleteOrgVariableRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubDeleteOrgVariableResponse {
-}
-
-message GithubDeleteOrgWebhookRequest {
-  string org = 1;
-  int64 hook_id = 2;
-}
-
-message GithubDeleteOrgWebhookResponse {
-}
-
 message GithubDeletePRCommentReactionRequest {
   string owner = 1;
   string repo = 2;
@@ -1736,39 +646,6 @@ message GithubDeletePRCommentReactionRequest {
 }
 
 message GithubDeletePRCommentReactionResponse {
-}
-
-message GithubDeletePackageRequest {
-  string package_type = 1;
-  string package_name = 2;
-}
-
-message GithubDeletePackageResponse {
-}
-
-message GithubDeletePagesSiteRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubDeletePagesSiteResponse {
-}
-
-message GithubDeletePendingPRReviewRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 pr_number = 3;
-  int64 review_id = 4;
-}
-
-message GithubDeletePendingPRReviewResponse {
-}
-
-message GithubDeleteProjectRequest {
-  int64 project_id = 1;
-}
-
-message GithubDeleteProjectResponse {
 }
 
 message GithubDeleteProjectV2Request {
@@ -1788,15 +665,6 @@ message GithubDeleteProjectV2ItemResponse {
   bytes result_1 = 1;
 }
 
-message GithubDeleteRefRequest {
-  string owner = 1;
-  string repo = 2;
-  string ref = 3;
-}
-
-message GithubDeleteRefResponse {
-}
-
 message GithubDeleteReleaseRequest {
   string owner = 1;
   string repo = 2;
@@ -1804,15 +672,6 @@ message GithubDeleteReleaseRequest {
 }
 
 message GithubDeleteReleaseResponse {
-}
-
-message GithubDeleteReleaseAssetRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 asset_id = 3;
-}
-
-message GithubDeleteReleaseAssetResponse {
 }
 
 message GithubDeleteReleaseReactionRequest {
@@ -1833,97 +692,11 @@ message GithubDeleteRepoRequest {
 message GithubDeleteRepoResponse {
 }
 
-message GithubDeleteRepoCacheByIDRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 cache_id = 3;
-}
-
-message GithubDeleteRepoCacheByIDResponse {
-}
-
-message GithubDeleteRepoCachesByKeyRequest {
-  string owner = 1;
-  string repo = 2;
-  string key = 3;
-}
-
-message GithubDeleteRepoCachesByKeyResponse {
-}
-
-message GithubDeleteRepoDependabotSecretRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-}
-
-message GithubDeleteRepoDependabotSecretResponse {
-}
-
-message GithubDeleteRepoRunnerRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 runner_id = 3;
-}
-
-message GithubDeleteRepoRunnerResponse {
-}
-
-message GithubDeleteRepoVariableRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-}
-
-message GithubDeleteRepoVariableResponse {
-}
-
-message GithubDeleteRulesetRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 ruleset_id = 3;
-}
-
-message GithubDeleteRulesetResponse {
-}
-
-message GithubDeleteSSHKeyRequest {
-  int64 key_id = 1;
-}
-
-message GithubDeleteSSHKeyResponse {
-}
-
-message GithubDeleteSSHSigningKeyRequest {
-  int64 key_id = 1;
-}
-
-message GithubDeleteSSHSigningKeyResponse {
-}
-
-message GithubDeleteSecretRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-}
-
-message GithubDeleteSecretResponse {
-}
-
 message GithubDeleteSocialAccountRequest {
   repeated string account_urls = 1;
 }
 
 message GithubDeleteSocialAccountResponse {
-}
-
-message GithubDeleteTagRequest {
-  string owner = 1;
-  string repo = 2;
-  string tag = 3;
-}
-
-message GithubDeleteTagResponse {
 }
 
 message GithubDeleteTeamRequest {
@@ -1932,67 +705,6 @@ message GithubDeleteTeamRequest {
 }
 
 message GithubDeleteTeamResponse {
-}
-
-message GithubDeleteUserMigrationArchiveRequest {
-  int64 migration_id = 1;
-}
-
-message GithubDeleteUserMigrationArchiveResponse {
-}
-
-message GithubDeleteUserPackageVersionRequest {
-  string package_type = 1;
-  string package_name = 2;
-  int64 version_id = 3;
-}
-
-message GithubDeleteUserPackageVersionResponse {
-}
-
-message GithubDeleteWebhookRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 hook_id = 3;
-}
-
-message GithubDeleteWebhookResponse {
-}
-
-message GithubDeleteWorkflowRunRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubDeleteWorkflowRunResponse {
-}
-
-message GithubDeleteWorkflowRunLogsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubDeleteWorkflowRunLogsResponse {
-}
-
-message GithubDisableVulnerabilityAlertsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubDisableVulnerabilityAlertsResponse {
-}
-
-message GithubDisableWorkflowRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 workflow_id = 3;
-}
-
-message GithubDisableWorkflowResponse {
-  bytes result_1 = 1;
 }
 
 message GithubDismissPRReviewRequest {
@@ -2004,64 +716,6 @@ message GithubDismissPRReviewRequest {
 }
 
 message GithubDismissPRReviewResponse {
-  bytes result_1 = 1;
-}
-
-message GithubDownloadArtifactRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 artifact_id = 3;
-}
-
-message GithubDownloadArtifactResponse {
-  bytes result_1 = 1;
-}
-
-message GithubDownloadOrgMigrationArchiveRequest {
-  string org = 1;
-  int64 migration_id = 2;
-}
-
-message GithubDownloadOrgMigrationArchiveResponse {
-  bytes result_1 = 1;
-}
-
-message GithubDownloadUserMigrationArchiveRequest {
-  int64 migration_id = 1;
-}
-
-message GithubDownloadUserMigrationArchiveResponse {
-  bytes result_1 = 1;
-}
-
-message GithubDownloadWorkflowJobLogsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 job_id = 3;
-}
-
-message GithubDownloadWorkflowJobLogsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubDownloadWorkflowRunAttemptLogsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-  int64 attempt = 4;
-}
-
-message GithubDownloadWorkflowRunAttemptLogsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubDownloadWorkflowRunLogsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubDownloadWorkflowRunLogsResponse {
   bytes result_1 = 1;
 }
 
@@ -2091,65 +745,11 @@ message GithubEditMessageResponse {
   uniclient.Message result_1 = 1;
 }
 
-message GithubEnableVulnerabilityAlertsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubEnableVulnerabilityAlertsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubEnableWorkflowRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 workflow_id = 3;
-}
-
-message GithubEnableWorkflowResponse {
-  bytes result_1 = 1;
-}
-
 message GithubEndCallRequest {
   string param_1 = 1;
 }
 
 message GithubEndCallResponse {
-}
-
-message GithubExportCodespaceRequest {
-  string name = 1;
-}
-
-message GithubExportCodespaceResponse {
-  bytes result_1 = 1;
-}
-
-message GithubExportSBOMRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubExportSBOMResponse {
-  bytes result_1 = 1;
-}
-
-message GithubForceCancelWorkflowRunRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubForceCancelWorkflowRunResponse {
-  bytes result_1 = 1;
-}
-
-message GithubForkGistRequest {
-  string gist_id = 1;
-}
-
-message GithubForkGistResponse {
-  bytes result_1 = 1;
 }
 
 message GithubForkRepoRequest {
@@ -2171,150 +771,11 @@ message GithubForwardMessageResponse {
   uniclient.Message result_1 = 1;
 }
 
-message GithubGenerateReleaseNotesRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubGenerateReleaseNotesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAPIRootRequest {
-}
-
-message GithubGetAPIRootResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAPIVersionsRequest {
-}
-
-message GithubGetAPIVersionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAdminEnforcementRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubGetAdminEnforcementResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAppBySlugRequest {
-  string app_slug = 1;
-}
-
-message GithubGetAppBySlugResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAppInstallationRequest {
-  int64 installation_id = 1;
-}
-
-message GithubGetAppInstallationResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAppWebhookConfigRequest {
-}
-
-message GithubGetAppWebhookConfigResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAppWebhookDeliveryRequest {
-  int64 delivery_id = 1;
-}
-
-message GithubGetAppWebhookDeliveryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetArchiveLinkRequest {
-  string owner = 1;
-  string repo = 2;
-  string format = 3;
-  string ref = 4;
-}
-
-message GithubGetArchiveLinkResponse {
-  string result_1 = 1;
-}
-
-message GithubGetAssignmentRequest {
-  int64 assignment_id = 1;
-}
-
-message GithubGetAssignmentResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAssignmentGradesRequest {
-  int64 assignment_id = 1;
-}
-
-message GithubGetAssignmentGradesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetAuthenticatedAppRequest {
-}
-
-message GithubGetAuthenticatedAppResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetBlobRequest {
-  string owner = 1;
-  string repo = 2;
-  string sha = 3;
-}
-
-message GithubGetBlobResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetBlockedUsersRequest {
 }
 
 message GithubGetBlockedUsersResponse {
   repeated uniclient.User result_1 = 1;
-}
-
-message GithubGetBranchRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubGetBranchResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetBranchRestrictionsRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubGetBranchRestrictionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetBranchRulesRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubGetBranchRulesResponse {
-  bytes result_1 = 1;
 }
 
 message GithubGetChatInfoRequest {
@@ -2325,281 +786,11 @@ message GithubGetChatInfoResponse {
   uniclient.Dialog result_1 = 1;
 }
 
-message GithubGetCheckRunRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 check_run_id = 3;
-}
-
-message GithubGetCheckRunResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCheckSuiteRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 check_suite_id = 3;
-}
-
-message GithubGetCheckSuiteResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetClassroomRequest {
-  int64 classroom_id = 1;
-}
-
-message GithubGetClassroomResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodeFrequencyStatsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetCodeFrequencyStatsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodeOfConductRequest {
-  string key = 1;
-}
-
-message GithubGetCodeOfConductResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodeQLDatabaseRequest {
-  string owner = 1;
-  string repo = 2;
-  string lang = 3;
-}
-
-message GithubGetCodeQLDatabaseResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodeScanningAlertRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-}
-
-message GithubGetCodeScanningAlertResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodeScanningAnalysisRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 analysis_id = 3;
-}
-
-message GithubGetCodeScanningAnalysisResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodeScanningAutofixRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-}
-
-message GithubGetCodeScanningAutofixResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodeScanningDefaultSetupRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetCodeScanningDefaultSetupResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodeownersErrorsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetCodeownersErrorsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodespaceRequest {
-  string name = 1;
-}
-
-message GithubGetCodespaceResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodespaceDefaultsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetCodespaceDefaultsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCodespaceExportRequest {
-  string name = 1;
-  string export_id = 2;
-}
-
-message GithubGetCodespaceExportResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCollaboratorPermissionRequest {
-  string owner = 1;
-  string repo = 2;
-  string username = 3;
-}
-
-message GithubGetCollaboratorPermissionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCombinedStatusRequest {
-  string owner = 1;
-  string repo = 2;
-  string ref = 3;
-}
-
-message GithubGetCombinedStatusResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCommitRequest {
-  string owner = 1;
-  string repo = 2;
-  string sha = 3;
-}
-
-message GithubGetCommitResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCommitActivityStatsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetCommitActivityStatsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCommunityProfileRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetCommunityProfileResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetContactsRequest {
 }
 
 message GithubGetContactsResponse {
   repeated uniclient.User result_1 = 1;
-}
-
-message GithubGetContributorStatsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetContributorStatsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCopilotMetricsRequest {
-  string org = 1;
-}
-
-message GithubGetCopilotMetricsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCopilotSeatInfoRequest {
-  string org = 1;
-}
-
-message GithubGetCopilotSeatInfoResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCopilotTeamMetricsRequest {
-  string org = 1;
-  string team_slug = 2;
-}
-
-message GithubGetCopilotTeamMetricsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCopilotUserSeatRequest {
-  string org = 1;
-  string username = 2;
-}
-
-message GithubGetCopilotUserSeatResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetCustomPropertyValuesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetCustomPropertyValuesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetDependabotAlertRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-}
-
-message GithubGetDependabotAlertResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetDependencyDiffRequest {
-  string owner = 1;
-  string repo = 2;
-  string basehead = 3;
-}
-
-message GithubGetDependencyDiffResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetDeployKeyRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 key_id = 3;
-}
-
-message GithubGetDeployKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetDeploymentBranchPolicyRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  int64 policy_id = 4;
-}
-
-message GithubGetDeploymentBranchPolicyResponse {
-  bytes result_1 = 1;
 }
 
 message GithubGetDialogsRequest {
@@ -2610,73 +801,10 @@ message GithubGetDialogsResponse {
   repeated uniclient.Dialog result_1 = 1;
 }
 
-message GithubGetDirREADMERequest {
-  string owner = 1;
-  string repo = 2;
-  string dir = 3;
-}
-
-message GithubGetDirREADMEResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetEnvironmentRequest {
-  string owner = 1;
-  string repo = 2;
-  string env_name = 3;
-}
-
-message GithubGetEnvironmentResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetEnvironmentPublicKeyRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-}
-
-message GithubGetEnvironmentPublicKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetEnvironmentSecretRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  string name = 4;
-}
-
-message GithubGetEnvironmentSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetEnvironmentVariableRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  string name = 4;
-}
-
-message GithubGetEnvironmentVariableResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetFeedsRequest {
 }
 
 message GithubGetFeedsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetFileContentsRequest {
-  string owner = 1;
-  string repo = 2;
-  string path = 3;
-  string ref = 4;
-}
-
-message GithubGetFileContentsResponse {
   bytes result_1 = 1;
 }
 
@@ -2685,60 +813,6 @@ message GithubGetFoldersRequest {
 
 message GithubGetFoldersResponse {
   repeated uniclient.Folder result_1 = 1;
-}
-
-message GithubGetGistRevisionRequest {
-  string gist_id = 1;
-  string sha = 2;
-}
-
-message GithubGetGistRevisionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetGitCommitRequest {
-  string owner = 1;
-  string repo = 2;
-  string sha = 3;
-}
-
-message GithubGetGitCommitResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetGitTagRequest {
-  string owner = 1;
-  string repo = 2;
-  string sha = 3;
-}
-
-message GithubGetGitTagResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetGitignoreTemplateRequest {
-  string name = 1;
-}
-
-message GithubGetGitignoreTemplateResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetGlobalAdvisoryRequest {
-  string ghsa_id = 1;
-}
-
-message GithubGetGlobalAdvisoryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetImportStatusRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetImportStatusResponse {
-  bytes result_1 = 1;
 }
 
 message GithubGetInviteLinkRequest {
@@ -2769,32 +843,6 @@ message GithubGetIssueTimelineResponse {
   bytes result_1 = 1;
 }
 
-message GithubGetLatestPagesBuildRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetLatestPagesBuildResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetLatestReleaseRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetLatestReleaseResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetLicenseRequest {
-  string license = 1;
-}
-
-message GithubGetLicenseResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetMembersRequest {
   string chat_id = 1;
   uniclient.PaginationOpts opts = 2;
@@ -2813,13 +861,6 @@ message GithubGetMessagesResponse {
   repeated uniclient.Message result_1 = 1;
 }
 
-message GithubGetMetaRequest {
-}
-
-message GithubGetMetaResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetNotificationThreadRequest {
   string thread_id = 1;
 }
@@ -2833,155 +874,6 @@ message GithubGetOrgRequest {
 }
 
 message GithubGetOrgResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgActionsPermissionsRequest {
-  string org = 1;
-}
-
-message GithubGetOrgActionsPermissionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgAllowedActionsRequest {
-  string org = 1;
-}
-
-message GithubGetOrgAllowedActionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgArtifactRetentionRequest {
-  string org = 1;
-}
-
-message GithubGetOrgArtifactRetentionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgBillingUsageRequest {
-  string org = 1;
-}
-
-message GithubGetOrgBillingUsageResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgBillingUsageSummaryRequest {
-  string org = 1;
-}
-
-message GithubGetOrgBillingUsageSummaryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgBudgetRequest {
-  string org = 1;
-  int64 budget_id = 2;
-}
-
-message GithubGetOrgBudgetResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgCacheUsageRequest {
-  string org = 1;
-}
-
-message GithubGetOrgCacheUsageResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgCacheUsageByRepoRequest {
-  string org = 1;
-}
-
-message GithubGetOrgCacheUsageByRepoResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgCodespacePublicKeyRequest {
-  string org = 1;
-}
-
-message GithubGetOrgCodespacePublicKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgCodespaceSecretRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubGetOrgCodespaceSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgCustomPropertyRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubGetOrgCustomPropertyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgDefaultWorkflowPermissionsRequest {
-  string org = 1;
-}
-
-message GithubGetOrgDefaultWorkflowPermissionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgDependabotPublicKeyRequest {
-  string org = 1;
-}
-
-message GithubGetOrgDependabotPublicKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgDependabotSecretRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubGetOrgDependabotSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgEnabledReposRequest {
-  string org = 1;
-}
-
-message GithubGetOrgEnabledReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgForkPRApprovalRequest {
-  string org = 1;
-}
-
-message GithubGetOrgForkPRApprovalResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgHostedRunnerRequest {
-  string org = 1;
-  int64 runner_id = 2;
-}
-
-message GithubGetOrgHostedRunnerResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgInstallationRequest {
-  string org = 1;
-}
-
-message GithubGetOrgInstallationResponse {
   bytes result_1 = 1;
 }
 
@@ -3002,188 +894,12 @@ message GithubGetOrgMembershipResponse {
   bytes result_1 = 1;
 }
 
-message GithubGetOrgMigrationRequest {
-  string org = 1;
-  int64 migration_id = 2;
-}
-
-message GithubGetOrgMigrationResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgOIDCPropertiesRequest {
-  string org = 1;
-}
-
-message GithubGetOrgOIDCPropertiesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgOIDCSubjectClaimRequest {
-  string org = 1;
-}
-
-message GithubGetOrgOIDCSubjectClaimResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgPackageVersionRequest {
-  string org = 1;
-  string package_type = 2;
-  string package_name = 3;
-  int64 version_id = 4;
-}
-
-message GithubGetOrgPackageVersionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgPublicKeyRequest {
-  string org = 1;
-}
-
-message GithubGetOrgPublicKeyResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetOrgRoleRequest {
   string org = 1;
   int64 role_id = 2;
 }
 
 message GithubGetOrgRoleResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgRunnerRequest {
-  string org = 1;
-  int64 runner_id = 2;
-}
-
-message GithubGetOrgRunnerResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgRunnerGroupRequest {
-  string org = 1;
-  int64 group_id = 2;
-}
-
-message GithubGetOrgRunnerGroupResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgSecretRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubGetOrgSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgVariableRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubGetOrgVariableResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetOrgWebhookRequest {
-  string org = 1;
-  int64 hook_id = 2;
-}
-
-message GithubGetOrgWebhookResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetPRReviewRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 pr_number = 3;
-  int64 review_id = 4;
-}
-
-message GithubGetPRReviewResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetPackageRequest {
-  string package_type = 1;
-  string package_name = 2;
-}
-
-message GithubGetPackageResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetPagesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetPagesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetPagesBuildRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 build_id = 3;
-}
-
-message GithubGetPagesBuildResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetPagesDNSHealthRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetPagesDNSHealthResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetPagesDeploymentStatusRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 deployment_id = 3;
-}
-
-message GithubGetPagesDeploymentStatusResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetParentIssueRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 issue_number = 3;
-}
-
-message GithubGetParentIssueResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetParticipationStatsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetParticipationStatsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetPendingDeploymentsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubGetPendingDeploymentsResponse {
   bytes result_1 = 1;
 }
 
@@ -3213,142 +929,12 @@ message GithubGetPullRequestResponse {
   bytes result_1 = 1;
 }
 
-message GithubGetPunchCardStatsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetPunchCardStatsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetReadStateRequest {
   string chat_id = 1;
 }
 
 message GithubGetReadStateResponse {
   uniclient.ReadState result_1 = 1;
-}
-
-message GithubGetReleaseAssetRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 asset_id = 3;
-}
-
-message GithubGetReleaseAssetResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetReleaseByTagRequest {
-  string owner = 1;
-  string repo = 2;
-  string tag = 3;
-}
-
-message GithubGetReleaseByTagResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoActionsAccessSettingsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoActionsAccessSettingsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoActionsPermissionsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoActionsPermissionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoActivityRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoActivityResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoAdvisoryRequest {
-  string owner = 1;
-  string repo = 2;
-  string ghsa_id = 3;
-}
-
-message GithubGetRepoAdvisoryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoAllowedActionsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoAllowedActionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoCacheUsageRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoCacheUsageResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoClonesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoClonesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoDefaultWorkflowPermissionsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoDefaultWorkflowPermissionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoDependabotPublicKeyRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoDependabotPublicKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoDependabotSecretRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-}
-
-message GithubGetRepoDependabotSecretResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoInstallationRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoInstallationResponse {
-  bytes result_1 = 1;
 }
 
 message GithubGetRepoInteractionLimitsRequest {
@@ -3360,68 +946,12 @@ message GithubGetRepoInteractionLimitsResponse {
   bytes result_1 = 1;
 }
 
-message GithubGetRepoLicenseRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoLicenseResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoOIDCSubjectClaimRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoOIDCSubjectClaimResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoPageViewsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoPageViewsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoREADMERequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetRepoREADMEResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoRunnerRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 runner_id = 3;
-}
-
-message GithubGetRepoRunnerResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetRepoTopicsRequest {
   string owner = 1;
   string repo = 2;
 }
 
 message GithubGetRepoTopicsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRepoVariableRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-}
-
-message GithubGetRepoVariableResponse {
   bytes result_1 = 1;
 }
 
@@ -3435,137 +965,11 @@ message GithubGetRequestedReviewersResponse {
   bytes result_1 = 1;
 }
 
-message GithubGetRequiredPRReviewsRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubGetRequiredPRReviewsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRequiredSignaturesRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubGetRequiredSignaturesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRequiredStatusChecksRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubGetRequiredStatusChecksResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRuleSuiteRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 suite_id = 3;
-}
-
-message GithubGetRuleSuiteResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRulesetRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 ruleset_id = 3;
-}
-
-message GithubGetRulesetResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRulesetHistoryRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 ruleset_id = 3;
-}
-
-message GithubGetRulesetHistoryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetRulesetVersionRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 ruleset_id = 3;
-  int64 version_id = 4;
-}
-
-message GithubGetRulesetVersionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetSARIFUploadRequest {
-  string owner = 1;
-  string repo = 2;
-  string sarif_id = 3;
-}
-
-message GithubGetSARIFUploadResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetSSHSigningKeyRequest {
-  int64 key_id = 1;
-}
-
-message GithubGetSSHSigningKeyResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetSecretScanHistoryRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetSecretScanHistoryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetSecretScanningAlertRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-}
-
-message GithubGetSecretScanningAlertResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetSessionsRequest {
 }
 
 message GithubGetSessionsResponse {
   repeated uniclient.Session result_1 = 1;
-}
-
-message GithubGetTopReferralPathsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetTopReferralPathsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetTopReferrersRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubGetTopReferrersResponse {
-  bytes result_1 = 1;
 }
 
 message GithubGetUserHovercardRequest {
@@ -3576,26 +980,10 @@ message GithubGetUserHovercardResponse {
   bytes result_1 = 1;
 }
 
-message GithubGetUserInstallationRequest {
-  string username = 1;
-}
-
-message GithubGetUserInstallationResponse {
-  bytes result_1 = 1;
-}
-
 message GithubGetUserInteractionLimitsRequest {
 }
 
 message GithubGetUserInteractionLimitsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetUserMigrationRequest {
-  int64 migration_id = 1;
-}
-
-message GithubGetUserMigrationResponse {
   bytes result_1 = 1;
 }
 
@@ -3604,108 +992,6 @@ message GithubGetUserOrgMembershipRequest {
 }
 
 message GithubGetUserOrgMembershipResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetUserPackageVersionRequest {
-  string package_type = 1;
-  string package_name = 2;
-  int64 version_id = 3;
-}
-
-message GithubGetUserPackageVersionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWebhookConfigRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 hook_id = 3;
-}
-
-message GithubGetWebhookConfigResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWebhookDeliveryRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 hook_id = 3;
-  int64 delivery_id = 4;
-}
-
-message GithubGetWebhookDeliveryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWorkflowRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 workflow_id = 3;
-}
-
-message GithubGetWorkflowResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWorkflowJobRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 job_id = 3;
-}
-
-message GithubGetWorkflowJobResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWorkflowRunRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubGetWorkflowRunResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWorkflowRunApprovalsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubGetWorkflowRunApprovalsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWorkflowRunAttemptRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-  int64 attempt = 4;
-}
-
-message GithubGetWorkflowRunAttemptResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWorkflowRunTimingRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubGetWorkflowRunTimingResponse {
-  bytes result_1 = 1;
-}
-
-message GithubGetWorkflowTimingRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 workflow_id = 3;
-}
-
-message GithubGetWorkflowTimingResponse {
   bytes result_1 = 1;
 }
 
@@ -3724,205 +1010,10 @@ message GithubLeaveChatRequest {
 message GithubLeaveChatResponse {
 }
 
-message GithubListAcceptedAssignmentsRequest {
-  int64 assignment_id = 1;
-}
-
-message GithubListAcceptedAssignmentsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListAppInstallationsRequest {
-}
-
-message GithubListAppInstallationsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListAppWebhookDeliveriesRequest {
-}
-
-message GithubListAppWebhookDeliveriesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListAttestationsRequest {
-  string owner = 1;
-  string repo = 2;
-  string subject_digest = 3;
-}
-
-message GithubListAttestationsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListAuthenticatedUserIssuesRequest {
 }
 
 message GithubListAuthenticatedUserIssuesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListAutolinksRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListAutolinksResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListBlockingDependenciesRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 issue_number = 3;
-}
-
-message GithubListBlockingDependenciesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListBranchesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListBranchesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListBranchesForHEADCommitRequest {
-  string owner = 1;
-  string repo = 2;
-  string sha = 3;
-}
-
-message GithubListBranchesForHEADCommitResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCheckRunAnnotationsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 check_run_id = 3;
-}
-
-message GithubListCheckRunAnnotationsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCheckRunsRequest {
-  string owner = 1;
-  string repo = 2;
-  string ref = 3;
-}
-
-message GithubListCheckRunsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCheckSuiteCheckRunsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 check_suite_id = 3;
-}
-
-message GithubListCheckSuiteCheckRunsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCheckSuitesRequest {
-  string owner = 1;
-  string repo = 2;
-  string ref = 3;
-}
-
-message GithubListCheckSuitesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListChildTeamsRequest {
-  string org = 1;
-  string team_slug = 2;
-}
-
-message GithubListChildTeamsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListClassroomAssignmentsRequest {
-  int64 classroom_id = 1;
-}
-
-message GithubListClassroomAssignmentsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListClassroomsRequest {
-}
-
-message GithubListClassroomsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCodeQLDatabasesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListCodeQLDatabasesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCodeScanningAlertInstancesRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-}
-
-message GithubListCodeScanningAlertInstancesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCodeScanningAlertsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListCodeScanningAlertsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCodeScanningAnalysesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListCodeScanningAnalysesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCodesOfConductRequest {
-}
-
-message GithubListCodesOfConductResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCodespaceMachineTypesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListCodespaceMachineTypesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCodespaceMachinesRequest {
-  string name = 1;
-}
-
-message GithubListCodespaceMachinesResponse {
   bytes result_1 = 1;
 }
 
@@ -3955,116 +1046,12 @@ message GithubListCommitCommentsResponse {
   bytes result_1 = 1;
 }
 
-message GithubListCommitStatusesRequest {
-  string owner = 1;
-  string repo = 2;
-  string ref = 3;
-}
-
-message GithubListCommitStatusesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCommitsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 per_page = 3;
-}
-
-message GithubListCommitsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListContributorsRequest {
   string owner = 1;
   string repo = 2;
 }
 
 message GithubListContributorsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListCopilotSeatsRequest {
-  string org = 1;
-}
-
-message GithubListCopilotSeatsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListDependabotAlertsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListDependabotAlertsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListDeployKeysRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListDeployKeysResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListDeploymentBranchPoliciesRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-}
-
-message GithubListDeploymentBranchPoliciesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListDeploymentProtectionRuleAppsRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-}
-
-message GithubListDeploymentProtectionRuleAppsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListDeploymentProtectionRulesRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-}
-
-message GithubListDeploymentProtectionRulesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListDeploymentStatusesRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 deployment_id = 3;
-}
-
-message GithubListDeploymentStatusesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListDeploymentsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListDeploymentsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListDevContainerConfigsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListDevContainerConfigsResponse {
   bytes result_1 = 1;
 }
 
@@ -4085,42 +1072,6 @@ message GithubListEmailsResponse {
   bytes result_1 = 1;
 }
 
-message GithubListEmojisRequest {
-}
-
-message GithubListEmojisResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListEnvironmentSecretsRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-}
-
-message GithubListEnvironmentSecretsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListEnvironmentVariablesRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-}
-
-message GithubListEnvironmentVariablesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListEnvironmentsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListEnvironmentsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListEventsRequest {
   int64 per_page = 1;
 }
@@ -4137,22 +1088,6 @@ message GithubListFailedInvitationsResponse {
   bytes result_1 = 1;
 }
 
-message GithubListForksRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListForksResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListGPGKeysRequest {
-}
-
-message GithubListGPGKeysResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListGistCommentsRequest {
   string gist_id = 1;
 }
@@ -4161,73 +1096,11 @@ message GithubListGistCommentsResponse {
   bytes result_1 = 1;
 }
 
-message GithubListGistCommitsRequest {
-  string gist_id = 1;
-}
-
-message GithubListGistCommitsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListGistForksRequest {
-  string gist_id = 1;
-}
-
-message GithubListGistForksResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListGistsRequest {
   int64 per_page = 1;
 }
 
 message GithubListGistsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListGitignoreTemplatesRequest {
-}
-
-message GithubListGitignoreTemplatesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListGlobalAdvisoriesRequest {
-}
-
-message GithubListGlobalAdvisoriesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListImportAuthorsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListImportAuthorsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListImportLargeFilesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListImportLargeFilesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListInstallationReposRequest {
-}
-
-message GithubListInstallationReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListInstallationRequestsRequest {
-}
-
-message GithubListInstallationRequestsResponse {
   bytes result_1 = 1;
 }
 
@@ -4288,33 +1161,6 @@ message GithubListLabelsResponse {
   bytes result_1 = 1;
 }
 
-message GithubListLicensesRequest {
-}
-
-message GithubListLicensesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListMatchingRefsRequest {
-  string owner = 1;
-  string repo = 2;
-  string ref = 3;
-}
-
-message GithubListMatchingRefsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListMilestoneLabelsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 milestone_number = 3;
-}
-
-message GithubListMilestoneLabelsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListMilestonesRequest {
   string owner = 1;
   string repo = 2;
@@ -4333,83 +1179,11 @@ message GithubListNotificationsResponse {
   bytes result_1 = 1;
 }
 
-message GithubListOrgAdvisoriesRequest {
-  string org = 1;
-}
-
-message GithubListOrgAdvisoriesResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListOrgBlockedUsersRequest {
   string org = 1;
 }
 
 message GithubListOrgBlockedUsersResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgBudgetsRequest {
-  string org = 1;
-}
-
-message GithubListOrgBudgetsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgCodeScanningAlertsRequest {
-  string org = 1;
-}
-
-message GithubListOrgCodeScanningAlertsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgCodespaceSecretsRequest {
-  string org = 1;
-}
-
-message GithubListOrgCodespaceSecretsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgCodespacesRequest {
-  string org = 1;
-}
-
-message GithubListOrgCodespacesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgCustomPropertiesRequest {
-  string org = 1;
-}
-
-message GithubListOrgCustomPropertiesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgDependabotAlertsRequest {
-  string org = 1;
-}
-
-message GithubListOrgDependabotAlertsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgDependabotSecretsRequest {
-  string org = 1;
-}
-
-message GithubListOrgDependabotSecretsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgHostedRunnersRequest {
-  string org = 1;
-}
-
-message GithubListOrgHostedRunnersResponse {
   bytes result_1 = 1;
 }
 
@@ -4437,39 +1211,6 @@ message GithubListOrgMembersResponse {
   bytes result_1 = 1;
 }
 
-message GithubListOrgMigrationReposRequest {
-  string org = 1;
-  int64 migration_id = 2;
-}
-
-message GithubListOrgMigrationReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgMigrationsRequest {
-  string org = 1;
-}
-
-message GithubListOrgMigrationsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgPATRequestsRequest {
-  string org = 1;
-}
-
-message GithubListOrgPATRequestsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgPATsRequest {
-  string org = 1;
-}
-
-message GithubListOrgPATsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListOrgProjectsV2Request {
   string org = 1;
 }
@@ -4486,85 +1227,11 @@ message GithubListOrgRolesResponse {
   bytes result_1 = 1;
 }
 
-message GithubListOrgRunnerApplicationsRequest {
-  string org = 1;
-}
-
-message GithubListOrgRunnerApplicationsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgRunnerGroupsRequest {
-  string org = 1;
-}
-
-message GithubListOrgRunnerGroupsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgRunnerLabelsRequest {
-  string org = 1;
-  int64 runner_id = 2;
-}
-
-message GithubListOrgRunnerLabelsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgRunnersRequest {
-  string org = 1;
-}
-
-message GithubListOrgRunnersResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgSecretReposRequest {
-  string org = 1;
-  string name = 2;
-}
-
-message GithubListOrgSecretReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgSecretScanningAlertsRequest {
-  string org = 1;
-}
-
-message GithubListOrgSecretScanningAlertsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgSecretsRequest {
-  string org = 1;
-}
-
-message GithubListOrgSecretsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListOrgTeamsRequest {
   string org = 1;
 }
 
 message GithubListOrgTeamsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgVariablesRequest {
-  string org = 1;
-}
-
-message GithubListOrgVariablesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListOrgWebhooksRequest {
-  string org = 1;
-}
-
-message GithubListOrgWebhooksResponse {
   bytes result_1 = 1;
 }
 
@@ -4603,26 +1270,6 @@ message GithubListPRCommentsResponse {
   bytes result_1 = 1;
 }
 
-message GithubListPRCommitsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 pr_number = 3;
-}
-
-message GithubListPRCommitsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListPRFilesRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 pr_number = 3;
-}
-
-message GithubListPRFilesResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListPRReviewCommentsRequest {
   string owner = 1;
   string repo = 2;
@@ -4644,50 +1291,6 @@ message GithubListPRReviewsResponse {
   bytes result_1 = 1;
 }
 
-message GithubListPRsForCommitRequest {
-  string owner = 1;
-  string repo = 2;
-  string sha = 3;
-}
-
-message GithubListPRsForCommitResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListPackageVersionsRequest {
-  string package_type = 1;
-  string package_name = 2;
-}
-
-message GithubListPackageVersionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListPackagesRequest {
-  string package_type = 1;
-}
-
-message GithubListPackagesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListPagesBuildsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListPagesBuildsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListProjectColumnsRequest {
-  int64 project_id = 1;
-}
-
-message GithubListProjectColumnsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListProjectV2FieldsRequest {
   string project_id = 1;
 }
@@ -4701,29 +1304,6 @@ message GithubListProjectV2ItemsRequest {
 }
 
 message GithubListProjectV2ItemsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListProjectsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListProjectsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListPublicEmailsRequest {
-}
-
-message GithubListPublicEmailsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListPublicGistsRequest {
-}
-
-message GithubListPublicGistsResponse {
   bytes result_1 = 1;
 }
 
@@ -4743,15 +1323,6 @@ message GithubListPullRequestsRequest {
 }
 
 message GithubListPullRequestsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRefsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRefsResponse {
   bytes result_1 = 1;
 }
 
@@ -4784,51 +1355,6 @@ message GithubListReleasesResponse {
   bytes result_1 = 1;
 }
 
-message GithubListRepoAdvisoriesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoAdvisoriesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoAssigneesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoAssigneesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoCachesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoCachesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoCodespacesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoCodespacesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoDependabotSecretsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoDependabotSecretsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListRepoEventsRequest {
   string owner = 1;
   string repo = 2;
@@ -4844,158 +1370,6 @@ message GithubListRepoIssueEventsRequest {
 }
 
 message GithubListRepoIssueEventsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoLanguagesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoLanguagesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoRunnerLabelsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 runner_id = 3;
-}
-
-message GithubListRepoRunnerLabelsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoRunnersRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoRunnersResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoTeamsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoTeamsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepoVariablesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepoVariablesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepositorySecretsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRepositorySecretsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRepositoryTreeRequest {
-  string owner = 1;
-  string repo = 2;
-  string sha = 3;
-  bool recursive = 4;
-}
-
-message GithubListRepositoryTreeResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRuleSuitesRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRuleSuitesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRulesetsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRulesetsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRunnerApplicationsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListRunnerApplicationsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRunnerGroupReposRequest {
-  string org = 1;
-  int64 group_id = 2;
-}
-
-message GithubListRunnerGroupReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListRunnerGroupRunnersRequest {
-  string org = 1;
-  int64 group_id = 2;
-}
-
-message GithubListRunnerGroupRunnersResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListSSHKeysRequest {
-}
-
-message GithubListSSHKeysResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListSSHSigningKeysRequest {
-}
-
-message GithubListSSHSigningKeysResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListSecretScanningAlertLocationsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-}
-
-message GithubListSecretScanningAlertLocationsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListSecretScanningAlertsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListSecretScanningAlertsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListSecurityManagersRequest {
-  string org = 1;
-}
-
-message GithubListSecurityManagersResponse {
   bytes result_1 = 1;
 }
 
@@ -5015,13 +1389,6 @@ message GithubListStargazersResponse {
   bytes result_1 = 1;
 }
 
-message GithubListStarredGistsRequest {
-}
-
-message GithubListStarredGistsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListSubIssuesRequest {
   string owner = 1;
   string repo = 2;
@@ -5029,15 +1396,6 @@ message GithubListSubIssuesRequest {
 }
 
 message GithubListSubIssuesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListTagsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListTagsResponse {
   bytes result_1 = 1;
 }
 
@@ -5068,56 +1426,11 @@ message GithubListTeamsForRoleResponse {
   bytes result_1 = 1;
 }
 
-message GithubListUserCodespacesRequest {
-}
-
-message GithubListUserCodespacesResponse {
-  bytes result_1 = 1;
-}
-
 message GithubListUserEventsRequest {
   string username = 1;
 }
 
 message GithubListUserEventsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListUserGistsRequest {
-  string username = 1;
-}
-
-message GithubListUserGistsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListUserInstallationReposRequest {
-  int64 installation_id = 1;
-}
-
-message GithubListUserInstallationReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListUserInstallationsRequest {
-}
-
-message GithubListUserInstallationsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListUserMigrationReposRequest {
-  int64 migration_id = 1;
-}
-
-message GithubListUserMigrationReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListUserMigrationsRequest {
-}
-
-message GithubListUserMigrationsResponse {
   bytes result_1 = 1;
 }
 
@@ -5153,66 +1466,6 @@ message GithubListWatchersResponse {
   bytes result_1 = 1;
 }
 
-message GithubListWebhookDeliveriesRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 hook_id = 3;
-}
-
-message GithubListWebhookDeliveriesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListWorkflowRunArtifactsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubListWorkflowRunArtifactsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListWorkflowRunAttemptJobsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-  int64 attempt = 4;
-}
-
-message GithubListWorkflowRunAttemptJobsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListWorkflowRunJobsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubListWorkflowRunJobsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListWorkflowRunsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 per_page = 3;
-}
-
-message GithubListWorkflowRunsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubListWorkflowsRequest {
-  string owner = 1;
-  string repo = 2;
-}
-
-message GithubListWorkflowsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubLockIssueRequest {
   string owner = 1;
   string repo = 2;
@@ -5227,17 +1480,6 @@ message GithubLogoutRequest {
 }
 
 message GithubLogoutResponse {
-}
-
-message GithubMapImportAuthorRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 author_id = 3;
-  bytes payload = 4;
-}
-
-message GithubMapImportAuthorResponse {
-  bytes result_1 = 1;
 }
 
 message GithubMarkAllNotificationsReadRequest {
@@ -5277,16 +1519,6 @@ message GithubMarkUnreadRequest {
 message GithubMarkUnreadResponse {
 }
 
-message GithubMergeBranchRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubMergeBranchResponse {
-  bytes result_1 = 1;
-}
-
 message GithubMergePullRequestRequest {
   string owner = 1;
   string repo = 2;
@@ -5297,16 +1529,6 @@ message GithubMergePullRequestRequest {
 }
 
 message GithubMergePullRequestResponse {
-  bytes result_1 = 1;
-}
-
-message GithubMoveProjectCardRequest {
-  int64 card_id = 1;
-  string position = 2;
-  int64 column_id = 3;
-}
-
-message GithubMoveProjectCardResponse {
   bytes result_1 = 1;
 }
 
@@ -5333,51 +1555,6 @@ message GithubPinMessageRequest {
 message GithubPinMessageResponse {
 }
 
-message GithubPingOrgWebhookRequest {
-  string org = 1;
-  int64 hook_id = 2;
-}
-
-message GithubPingOrgWebhookResponse {
-  bytes result_1 = 1;
-}
-
-message GithubPingWebhookRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 hook_id = 3;
-}
-
-message GithubPingWebhookResponse {
-}
-
-message GithubPublicizeMembershipRequest {
-  string org = 1;
-  string username = 2;
-}
-
-message GithubPublicizeMembershipResponse {
-  bytes result_1 = 1;
-}
-
-message GithubPublishCodespaceRequest {
-  string name = 1;
-  bytes payload = 2;
-}
-
-message GithubPublishCodespaceResponse {
-  bytes result_1 = 1;
-}
-
-message GithubReRunWorkflowRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-}
-
-message GithubReRunWorkflowResponse {
-}
-
 message GithubReactToMessageRequest {
   string chat_id = 1;
   string msg_id = 2;
@@ -5387,52 +1564,6 @@ message GithubReactToMessageRequest {
 message GithubReactToMessageResponse {
 }
 
-message GithubRedeliverAppWebhookRequest {
-  int64 delivery_id = 1;
-}
-
-message GithubRedeliverAppWebhookResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRedeliverWebhookRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 hook_id = 3;
-  int64 delivery_id = 4;
-}
-
-message GithubRedeliverWebhookResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRemoveAdminEnforcementRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubRemoveAdminEnforcementResponse {
-}
-
-message GithubRemoveBlockingDependencyRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 issue_number = 3;
-  int64 dep_id = 4;
-}
-
-message GithubRemoveBlockingDependencyResponse {
-}
-
-message GithubRemoveCodespacesAccessUsersRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubRemoveCodespacesAccessUsersResponse {
-}
-
 message GithubRemoveCollaboratorRequest {
   string owner = 1;
   string repo = 2;
@@ -5440,22 +1571,6 @@ message GithubRemoveCollaboratorRequest {
 }
 
 message GithubRemoveCollaboratorResponse {
-}
-
-message GithubRemoveCopilotTeamsRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubRemoveCopilotTeamsResponse {
-}
-
-message GithubRemoveCopilotUsersRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubRemoveCopilotUsersResponse {
 }
 
 message GithubRemoveIssueAssigneesRequest {
@@ -5486,14 +1601,6 @@ message GithubRemoveMemberRequest {
 message GithubRemoveMemberResponse {
 }
 
-message GithubRemoveOrgEnabledRepoRequest {
-  string org = 1;
-  int64 repo_id = 2;
-}
-
-message GithubRemoveOrgEnabledRepoResponse {
-}
-
 message GithubRemoveOrgInteractionLimitsRequest {
   string org = 1;
 }
@@ -5509,38 +1616,12 @@ message GithubRemoveOrgMembershipRequest {
 message GithubRemoveOrgMembershipResponse {
 }
 
-message GithubRemoveOrgRunnerLabelRequest {
-  string org = 1;
-  int64 runner_id = 2;
-  string name = 3;
-}
-
-message GithubRemoveOrgRunnerLabelResponse {
-}
-
-message GithubRemoveOrgSecretRepoRequest {
-  string org = 1;
-  string name = 2;
-  int64 repo_id = 3;
-}
-
-message GithubRemoveOrgSecretRepoResponse {
-}
-
 message GithubRemoveOutsideCollaboratorRequest {
   string org = 1;
   string username = 2;
 }
 
 message GithubRemoveOutsideCollaboratorResponse {
-}
-
-message GithubRemoveRepoFromInstallationRequest {
-  int64 installation_id = 1;
-  int64 repo_id = 2;
-}
-
-message GithubRemoveRepoFromInstallationResponse {
 }
 
 message GithubRemoveRepoInteractionLimitsRequest {
@@ -5551,16 +1632,6 @@ message GithubRemoveRepoInteractionLimitsRequest {
 message GithubRemoveRepoInteractionLimitsResponse {
 }
 
-message GithubRemoveRepoRunnerLabelRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 runner_id = 3;
-  string name = 4;
-}
-
-message GithubRemoveRepoRunnerLabelResponse {
-}
-
 message GithubRemoveRequestedReviewersRequest {
   string owner = 1;
   string repo = 2;
@@ -5569,68 +1640,6 @@ message GithubRemoveRequestedReviewersRequest {
 }
 
 message GithubRemoveRequestedReviewersResponse {
-}
-
-message GithubRemoveRequiredPRReviewsRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubRemoveRequiredPRReviewsResponse {
-}
-
-message GithubRemoveRequiredSignaturesRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubRemoveRequiredSignaturesResponse {
-}
-
-message GithubRemoveRequiredStatusChecksRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubRemoveRequiredStatusChecksResponse {
-}
-
-message GithubRemoveRunnerGroupRepoRequest {
-  string org = 1;
-  int64 group_id = 2;
-  int64 repo_id = 3;
-}
-
-message GithubRemoveRunnerGroupRepoResponse {
-}
-
-message GithubRemoveRunnerGroupRunnerRequest {
-  string org = 1;
-  int64 group_id = 2;
-  int64 runner_id = 3;
-}
-
-message GithubRemoveRunnerGroupRunnerResponse {
-}
-
-message GithubRemoveSecurityManagerTeamRequest {
-  string org = 1;
-  string team_slug = 2;
-}
-
-message GithubRemoveSecurityManagerTeamResponse {
-}
-
-message GithubRemoveSubIssueRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 issue_number = 3;
-}
-
-message GithubRemoveSubIssueResponse {
 }
 
 message GithubRemoveTeamMemberRequest {
@@ -5676,27 +1685,6 @@ message GithubRemoveUserRoleRequest {
 message GithubRemoveUserRoleResponse {
 }
 
-message GithubRenameBranchRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-  string new_name = 4;
-}
-
-message GithubRenameBranchResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRenderMarkdownRequest {
-  string text = 1;
-  string mode = 2;
-  string context = 3;
-}
-
-message GithubRenderMarkdownResponse {
-  string result_1 = 1;
-}
-
 message GithubReplyToMessageRequest {
   string chat_id = 1;
   string reply_to_msg_id = 2;
@@ -5705,37 +1693,6 @@ message GithubReplyToMessageRequest {
 
 message GithubReplyToMessageResponse {
   uniclient.Message result_1 = 1;
-}
-
-message GithubReportVulnerabilityRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubReportVulnerabilityResponse {
-  bytes result_1 = 1;
-}
-
-message GithubReprioritizeSubIssueRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 issue_number = 3;
-  bytes payload = 4;
-}
-
-message GithubReprioritizeSubIssueResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRequestCVERequest {
-  string owner = 1;
-  string repo = 2;
-  string ghsa_id = 3;
-}
-
-message GithubRequestCVEResponse {
-  bytes result_1 = 1;
 }
 
 message GithubRequestReviewersRequest {
@@ -5747,151 +1704,6 @@ message GithubRequestReviewersRequest {
 }
 
 message GithubRequestReviewersResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRerequestCheckRunRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 check_run_id = 3;
-}
-
-message GithubRerequestCheckRunResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRerequestCheckSuiteRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 check_suite_id = 3;
-}
-
-message GithubRerequestCheckSuiteResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRerunFailedJobsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-  bytes payload = 4;
-}
-
-message GithubRerunFailedJobsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRerunWorkflowJobRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 job_id = 3;
-  bytes payload = 4;
-}
-
-message GithubRerunWorkflowJobResponse {
-  bytes result_1 = 1;
-}
-
-message GithubResetAppTokenRequest {
-  string client_id = 1;
-  bytes payload = 2;
-}
-
-message GithubResetAppTokenResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRestoreOrgPackageRequest {
-  string org = 1;
-  string package_type = 2;
-  string package_name = 3;
-}
-
-message GithubRestoreOrgPackageResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRestoreOrgPackageVersionRequest {
-  string org = 1;
-  string package_type = 2;
-  string package_name = 3;
-  int64 version_id = 4;
-}
-
-message GithubRestoreOrgPackageVersionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRestoreUserPackageRequest {
-  string package_type = 1;
-  string package_name = 2;
-}
-
-message GithubRestoreUserPackageResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRestoreUserPackageVersionRequest {
-  string package_type = 1;
-  string package_name = 2;
-  int64 version_id = 3;
-}
-
-message GithubRestoreUserPackageVersionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubReviewOrgPATRequestRequest {
-  string org = 1;
-  int64 request_id = 2;
-  bytes payload = 3;
-}
-
-message GithubReviewOrgPATRequestResponse {
-  bytes result_1 = 1;
-}
-
-message GithubReviewOrgPATRequestsRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubReviewOrgPATRequestsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubReviewPendingDeploymentsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 run_id = 3;
-  bytes payload = 4;
-}
-
-message GithubReviewPendingDeploymentsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubRevokeInstallationAccessTokenRequest {
-}
-
-message GithubRevokeInstallationAccessTokenResponse {
-}
-
-message GithubSearchCodeRequest {
-  string query = 1;
-  int64 per_page = 2;
-}
-
-message GithubSearchCodeResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSearchCommitsRequest {
-  string query = 1;
-  int64 per_page = 2;
-}
-
-message GithubSearchCommitsResponse {
   bytes result_1 = 1;
 }
 
@@ -5913,15 +1725,6 @@ message GithubSearchIssuesAndPRsResponse {
   bytes result_1 = 1;
 }
 
-message GithubSearchLabelsRequest {
-  int64 repo_id = 1;
-  string query = 2;
-}
-
-message GithubSearchLabelsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubSearchMessagesRequest {
   string chat_id = 1;
   string query = 2;
@@ -5938,14 +1741,6 @@ message GithubSearchRepositoriesRequest {
 }
 
 message GithubSearchRepositoriesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSearchTopicsRequest {
-  string query = 1;
-}
-
-message GithubSearchTopicsResponse {
   bytes result_1 = 1;
 }
 
@@ -6003,6 +1798,13 @@ message GithubSendTypingRequest {
 message GithubSendTypingResponse {
 }
 
+message GithubSetActiveChatRequest {
+  string chat_id = 1;
+}
+
+message GithubSetActiveChatResponse {
+}
+
 message GithubSetAdminRequest {
   string chat_id = 1;
   string user_id = 2;
@@ -6010,23 +1812,6 @@ message GithubSetAdminRequest {
 }
 
 message GithubSetAdminResponse {
-}
-
-message GithubSetAdminEnforcementRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubSetAdminEnforcementResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetActiveChatRequest {
-  string chat_id = 1;
-}
-
-message GithubSetActiveChatResponse {
 }
 
 message GithubSetCallMutedRequest {
@@ -6037,24 +1822,6 @@ message GithubSetCallMutedRequest {
 message GithubSetCallMutedResponse {
 }
 
-message GithubSetCustomPropertyValuesRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubSetCustomPropertyValuesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetEmailVisibilityRequest {
-  bytes payload = 1;
-}
-
-message GithubSetEmailVisibilityResponse {
-  bytes result_1 = 1;
-}
-
 message GithubSetLabelsRequest {
   string owner = 1;
   string repo = 2;
@@ -6063,69 +1830,6 @@ message GithubSetLabelsRequest {
 }
 
 message GithubSetLabelsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgActionsPermissionsRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgActionsPermissionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgAllowedActionsRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgAllowedActionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgArtifactRetentionRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgArtifactRetentionResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgCodespacesAccessRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgCodespacesAccessResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgDefaultWorkflowPermissionsRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgDefaultWorkflowPermissionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgEnabledReposRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgEnabledReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgForkPRApprovalRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgForkPRApprovalResponse {
   bytes result_1 = 1;
 }
 
@@ -6148,84 +1852,6 @@ message GithubSetOrgMembershipResponse {
   bytes result_1 = 1;
 }
 
-message GithubSetOrgOIDCPropertiesRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgOIDCPropertiesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgOIDCSubjectClaimRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubSetOrgOIDCSubjectClaimResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgRunnerLabelsRequest {
-  string org = 1;
-  int64 runner_id = 2;
-  bytes payload = 3;
-}
-
-message GithubSetOrgRunnerLabelsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetOrgSecretReposRequest {
-  string org = 1;
-  string name = 2;
-  bytes payload = 3;
-}
-
-message GithubSetOrgSecretReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetRepoActionsAccessSettingsRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubSetRepoActionsAccessSettingsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetRepoActionsPermissionsRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubSetRepoActionsPermissionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetRepoAllowedActionsRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubSetRepoAllowedActionsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetRepoDefaultWorkflowPermissionsRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubSetRepoDefaultWorkflowPermissionsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubSetRepoInteractionLimitsRequest {
   string owner = 1;
   string repo = 2;
@@ -6236,27 +1862,6 @@ message GithubSetRepoInteractionLimitsResponse {
   bytes result_1 = 1;
 }
 
-message GithubSetRepoOIDCSubjectClaimRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubSetRepoOIDCSubjectClaimResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetRepoRunnerLabelsRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 runner_id = 3;
-  bytes payload = 4;
-}
-
-message GithubSetRepoRunnerLabelsResponse {
-  bytes result_1 = 1;
-}
-
 message GithubSetRepoTopicsRequest {
   string owner = 1;
   string repo = 2;
@@ -6264,36 +1869,6 @@ message GithubSetRepoTopicsRequest {
 }
 
 message GithubSetRepoTopicsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetRequiredSignaturesRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-}
-
-message GithubSetRequiredSignaturesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetRunnerGroupReposRequest {
-  string org = 1;
-  int64 group_id = 2;
-  bytes payload = 3;
-}
-
-message GithubSetRunnerGroupReposResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSetRunnerGroupRunnersRequest {
-  string org = 1;
-  int64 group_id = 2;
-  bytes payload = 3;
-}
-
-message GithubSetRunnerGroupRunnersResponse {
   bytes result_1 = 1;
 }
 
@@ -6329,49 +1904,6 @@ message GithubStartCallResponse {
   uniclient.CallSession result_1 = 1;
 }
 
-message GithubStartCodespaceRequest {
-  string name = 1;
-}
-
-message GithubStartCodespaceResponse {
-  bytes result_1 = 1;
-}
-
-message GithubStartImportRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubStartImportResponse {
-  bytes result_1 = 1;
-}
-
-message GithubStartOrgMigrationRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubStartOrgMigrationResponse {
-  bytes result_1 = 1;
-}
-
-message GithubStartUserMigrationRequest {
-  bytes payload = 1;
-}
-
-message GithubStartUserMigrationResponse {
-  bytes result_1 = 1;
-}
-
-message GithubStopCodespaceRequest {
-  string name = 1;
-}
-
-message GithubStopCodespaceResponse {
-  bytes result_1 = 1;
-}
-
 message GithubSubmitPRReviewRequest {
   string owner = 1;
   string repo = 2;
@@ -6390,24 +1922,6 @@ message GithubSubscribeThreadRequest {
 }
 
 message GithubSubscribeThreadResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSuspendAppInstallationRequest {
-  int64 installation_id = 1;
-}
-
-message GithubSuspendAppInstallationResponse {
-  bytes result_1 = 1;
-}
-
-message GithubSyncForkWithUpstreamRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubSyncForkWithUpstreamResponse {
   bytes result_1 = 1;
 }
 
@@ -6460,23 +1974,6 @@ message GithubUnlockIssueRequest {
 message GithubUnlockIssueResponse {
 }
 
-message GithubUnlockOrgMigrationRepoRequest {
-  string org = 1;
-  int64 migration_id = 2;
-  string repo_name = 3;
-}
-
-message GithubUnlockOrgMigrationRepoResponse {
-}
-
-message GithubUnlockUserMigrationRepoRequest {
-  int64 migration_id = 1;
-  string repo_name = 2;
-}
-
-message GithubUnlockUserMigrationRepoResponse {
-}
-
 message GithubUnpinAllMessagesRequest {
   string chat_id = 1;
 }
@@ -6514,67 +2011,12 @@ message GithubUnsubscribeThreadRequest {
 message GithubUnsubscribeThreadResponse {
 }
 
-message GithubUnsuspendAppInstallationRequest {
-  int64 installation_id = 1;
-}
-
-message GithubUnsuspendAppInstallationResponse {
-}
-
 message GithubUnwatchRepoRequest {
   string owner = 1;
   string repo = 2;
 }
 
 message GithubUnwatchRepoResponse {
-}
-
-message GithubUpdateAppWebhookConfigRequest {
-  bytes payload = 1;
-}
-
-message GithubUpdateAppWebhookConfigResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateCheckSuitePreferencesRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateCheckSuitePreferencesResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateCodeScanningAlertRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateCodeScanningAlertResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateCodeScanningDefaultSetupRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateCodeScanningDefaultSetupResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateCodespaceRequest {
-  string name = 1;
-  bytes payload = 2;
-}
-
-message GithubUpdateCodespaceResponse {
-  bytes result_1 = 1;
 }
 
 message GithubUpdateCommitCommentRequest {
@@ -6585,29 +2027,6 @@ message GithubUpdateCommitCommentRequest {
 }
 
 message GithubUpdateCommitCommentResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateDependabotAlertRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateDependabotAlertResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateDeploymentBranchPolicyRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  int64 policy_id = 4;
-  bytes payload = 5;
-}
-
-message GithubUpdateDeploymentBranchPolicyResponse {
   bytes result_1 = 1;
 }
 
@@ -6630,18 +2049,6 @@ message GithubUpdateDiscussionCommentResponse {
   bytes result_1 = 1;
 }
 
-message GithubUpdateEnvironmentVariableRequest {
-  string owner = 1;
-  string repo = 2;
-  string env = 3;
-  string name = 4;
-  bytes payload = 5;
-}
-
-message GithubUpdateEnvironmentVariableResponse {
-  bytes result_1 = 1;
-}
-
 message GithubUpdateGistRequest {
   string gist_id = 1;
   string description = 2;
@@ -6649,26 +2056,6 @@ message GithubUpdateGistRequest {
 }
 
 message GithubUpdateGistResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateImportRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateImportResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateImportLFSRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateImportLFSResponse {
   bytes result_1 = 1;
 }
 
@@ -6705,108 +2092,6 @@ message GithubUpdateMilestoneResponse {
   bytes result_1 = 1;
 }
 
-message GithubUpdateOrgBudgetRequest {
-  string org = 1;
-  int64 budget_id = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateOrgBudgetResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateOrgHostedRunnerRequest {
-  string org = 1;
-  int64 runner_id = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateOrgHostedRunnerResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateOrgPATRequest {
-  string org = 1;
-  int64 pat_id = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateOrgPATResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateOrgPATsRequest {
-  string org = 1;
-  bytes payload = 2;
-}
-
-message GithubUpdateOrgPATsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateOrgRunnerGroupRequest {
-  string org = 1;
-  int64 group_id = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateOrgRunnerGroupResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateOrgVariableRequest {
-  string org = 1;
-  string name = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateOrgVariableResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateOrgWebhookRequest {
-  string org = 1;
-  int64 hook_id = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdateOrgWebhookResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdatePRBranchRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 pr_number = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdatePRBranchResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdatePRReviewRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 pr_number = 3;
-  int64 review_id = 4;
-  bytes payload = 5;
-}
-
-message GithubUpdatePRReviewResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdatePagesSiteRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubUpdatePagesSiteResponse {
-  bytes result_1 = 1;
-}
-
 message GithubUpdateProfileRequest {
   string name = 1;
   string bio = 2;
@@ -6816,15 +2101,6 @@ message GithubUpdateProfileRequest {
 }
 
 message GithubUpdateProfileResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateProjectRequest {
-  int64 project_id = 1;
-  bytes updates = 2;
-}
-
-message GithubUpdateProjectResponse {
   bytes result_1 = 1;
 }
 
@@ -6870,83 +2146,6 @@ message GithubUpdateReleaseResponse {
   bytes result_1 = 1;
 }
 
-message GithubUpdateReleaseAssetRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 asset_id = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateReleaseAssetResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateRepoAdvisoryRequest {
-  string owner = 1;
-  string repo = 2;
-  string ghsa_id = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateRepoAdvisoryResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateRepoVariableRequest {
-  string owner = 1;
-  string repo = 2;
-  string name = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateRepoVariableResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateRequiredPRReviewsRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateRequiredPRReviewsResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateRequiredStatusChecksRequest {
-  string owner = 1;
-  string repo = 2;
-  string branch = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateRequiredStatusChecksResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateRulesetRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 ruleset_id = 3;
-  bytes updates = 4;
-}
-
-message GithubUpdateRulesetResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateSecretScanningAlertRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 alert_number = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateSecretScanningAlertResponse {
-  bytes result_1 = 1;
-}
-
 message GithubUpdateTeamRequest {
   string org = 1;
   string team_slug = 2;
@@ -6954,28 +2153,6 @@ message GithubUpdateTeamRequest {
 }
 
 message GithubUpdateTeamResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateWebhookRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 hook_id = 3;
-  bytes updates = 4;
-}
-
-message GithubUpdateWebhookResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUpdateWebhookConfigRequest {
-  string owner = 1;
-  string repo = 2;
-  int64 hook_id = 3;
-  bytes payload = 4;
-}
-
-message GithubUpdateWebhookConfigResponse {
   bytes result_1 = 1;
 }
 
@@ -6989,16 +2166,6 @@ message GithubUploadReleaseAssetRequest {
 }
 
 message GithubUploadReleaseAssetResponse {
-  bytes result_1 = 1;
-}
-
-message GithubUploadSARIFRequest {
-  string owner = 1;
-  string repo = 2;
-  bytes payload = 3;
-}
-
-message GithubUploadSARIFResponse {
   bytes result_1 = 1;
 }
 

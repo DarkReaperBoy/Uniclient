@@ -27,13 +27,8 @@ class MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    // Determine if this is an outgoing message.
-    // For now, detect by senderId being empty (own messages often have no sender name in DMs).
-    // The real heuristic: sent status or matching selfId (not available here yet).
-    final isOutgoing = message.status == MsgStatus.sent ||
-        message.status == MsgStatus.delivered ||
-        message.status == MsgStatus.read ||
-        message.status == MsgStatus.sending;
+    // Determine if this is an outgoing message (set by Go engine per-platform).
+    final isOutgoing = message.isOutgoing;
 
     final bubbleColor = isOutgoing
         ? (isDark ? AppColors.bubbleSent : AppColors.bubbleSentLight)

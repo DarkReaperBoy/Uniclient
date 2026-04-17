@@ -1350,6 +1350,7 @@ func (g *GitHubCore) SearchMessages(chatID string, query string, opts Pagination
 			Text:       strOf(m["title"]) + "\n\n" + strOf(m["body"]),
 			Timestamp:  ts,
 			Status:     MessageStatusSent,
+			IsOutgoing: strOf(user["login"]) == g.username,
 			Platform:   ghPlatform,
 		})
 	}
@@ -2014,6 +2015,7 @@ func (g *GitHubCore) getRepoMessages(chatID string, limit int) ([]Message, error
 			Text:       fmt.Sprintf("**#%d %s** (%d messages)", num, strOf(issue["title"]), comments),
 			Timestamp:  ts,
 			Status:     MessageStatusSent,
+			IsOutgoing: strOf(user["login"]) == g.username,
 			Platform:   ghPlatform,
 		})
 	}
@@ -3026,6 +3028,7 @@ func (g *GitHubCore) commentToMessage(chatID string, raw json.RawMessage) *Messa
 		Timestamp:  ts,
 		EditedAt:   editedAt,
 		Status:     MessageStatusSent,
+		IsOutgoing: strOf(user["login"]) == g.username,
 		Reactions:  g.parseRESTReactions(c),
 		Platform:   ghPlatform,
 	}

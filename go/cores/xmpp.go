@@ -1452,6 +1452,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 			Text:       fmt.Sprintf("[MUC invitation to %s from %s]", parsed.MUCInviteRoom, parsed.MUCInviteFrom),
 			Timestamp:  time.Now(),
 			Status:     MessageStatusDelivered,
+			IsOutgoing: false,
 			Platform:   xmppPlatform,
 		}
 		c.bufferMessage(chatID, m)
@@ -1523,6 +1524,17 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		msgID = "xmpp_" + strconv.FormatInt(atomic.AddInt64(&c.msgCounter, 1), 10)
 	}
 
+	isOutgoing := false
+	if msg.Type == "groupchat" {
+		c.roomsMu.RLock()
+		if room, ok := c.rooms[chatID]; ok {
+			isOutgoing = room.Nick != "" && senderID == room.Nick
+		}
+		c.roomsMu.RUnlock()
+	} else {
+		isOutgoing = senderID == c.bareJID
+	}
+
 	m := &Message{
 		ID:         msgID,
 		ChatID:     chatID,
@@ -1531,6 +1543,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		Text:       parsed.Body,
 		Timestamp:  ts,
 		Status:     MessageStatusDelivered,
+		IsOutgoing: isOutgoing,
 		Platform:   xmppPlatform,
 	}
 
@@ -1580,13 +1593,14 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 			Type:     UpdateNewMessage,
 			ChatID:   fromBare,
 			Message: &Message{
-				ID:        fmt.Sprintf("sub_%d", time.Now().UnixNano()),
-				ChatID:    fromBare,
-				SenderID:  fromBare,
-				Text:      "[Subscription request]",
-				Timestamp: time.Now(),
-				Status:    MessageStatusDelivered,
-				Platform:  xmppPlatform,
+				ID:         fmt.Sprintf("sub_%d", time.Now().UnixNano()),
+				ChatID:     fromBare,
+				SenderID:   fromBare,
+				Text:       "[Subscription request]",
+				Timestamp:  time.Now(),
+				Status:     MessageStatusDelivered,
+				IsOutgoing: false,
+				Platform:   xmppPlatform,
 			},
 			Platform: xmppPlatform,
 		})
@@ -2156,15 +2170,16 @@ func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 	}
 
 	m := &Message{
-		ID:        id,
-		ChatID:    chatID,
-		SenderID:  c.bareJID,
+		ID:         id,
+		ChatID:     chatID,
+		SenderID:   c.bareJID,
 		SenderName: c.bareJID,
-		Text:      msg.Text,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		ReplyToID: msg.ReplyToID,
-		Platform:  xmppPlatform,
+		Text:       msg.Text,
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		ReplyToID:  msg.ReplyToID,
+		IsOutgoing: true,
+		Platform:   xmppPlatform,
 	}
 
 	// Don't buffer groupchat messages — we'll get them back from the server
@@ -2247,13 +2262,14 @@ func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Messa
 	c.messagesMu.Unlock()
 
 	return &Message{
-		ID:        id,
-		ChatID:    chatID,
-		SenderID:  c.bareJID,
-		Text:      text,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		Platform:  xmppPlatform,
+		ID:         id,
+		ChatID:     chatID,
+		SenderID:   c.bareJID,
+		Text:       text,
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		IsOutgoing: true,
+		Platform:   xmppPlatform,
 	}, nil
 }
 
@@ -4105,14 +4121,15 @@ func (c *XMPPCore) SendFileURL(chatID, url, caption string) (*Message, error) {
 	}
 
 	m := &Message{
-		ID:        id,
-		ChatID:    chatID,
-		SenderID:  c.bareJID,
-		Text:      body,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
+		ID:          id,
+		ChatID:      chatID,
+		SenderID:    c.bareJID,
+		Text:        body,
+		Timestamp:   time.Now(),
+		Status:      MessageStatusSent,
+		IsOutgoing:  true,
 		Attachments: []FileRef{{URL: url, Name: caption}},
-		Platform:  xmppPlatform,
+		Platform:    xmppPlatform,
 	}
 	c.bufferMessage(chatID, m)
 	return m, nil

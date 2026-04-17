@@ -1306,7 +1306,7 @@ func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string
 
 	msg := t.extractMessageFromUpdates(updates, chatID)
 	if msg != nil { return msg, nil }
-	return &Message{ChatID: chatID, Text: caption, Platform: tgPlatform}, nil
+	return &Message{ChatID: chatID, Text: caption, IsOutgoing: true, Platform: tgPlatform}, nil
 }
 
 
@@ -9228,6 +9228,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		Timestamp:  time.Unix(int64(msg.Date), 0),
 		Status:     MessageStatusSent,
 		IsPinned:   msg.Pinned,
+		IsOutgoing: msg.Out,
 		Platform:   tgPlatform,
 	}
 
@@ -9463,11 +9464,12 @@ func (t *TelegramCore) extractMessageFromUpdates(updates tg.UpdatesClass, chatID
 			SenderName: t.selfName,
 			Timestamp:  time.Unix(int64(u.Date), 0),
 			Status:     MessageStatusSent,
+			IsOutgoing: true,
 			Platform:   tgPlatform,
 		}
 	}
 	// Fallback — at minimum provide timestamp and status
-	return &Message{ChatID: chatID, Platform: tgPlatform, Status: MessageStatusSent, Timestamp: time.Now()}
+	return &Message{ChatID: chatID, Platform: tgPlatform, Status: MessageStatusSent, IsOutgoing: true, Timestamp: time.Now()}
 }
 
 func (t *TelegramCore) extractDialogFromUpdates(updates tg.UpdatesClass) *Dialog {

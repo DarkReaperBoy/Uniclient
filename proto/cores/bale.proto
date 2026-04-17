@@ -1507,6 +1507,20 @@ message BaleStartCallResponse {
   uniclient.CallSession result_1 = 1;
 }
 
+message BaleSubmit2FARequest {
+  string password = 1;
+}
+
+message BaleSubmit2FAResponse {
+}
+
+message BaleSubmitOTPRequest {
+  string code = 1;
+}
+
+message BaleSubmitOTPResponse {
+}
+
 message BaleTerminateAllSessionsRequest {
 }
 

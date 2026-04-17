@@ -1669,6 +1669,7 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 		Timestamp:  ts,
 		Platform:   ircPlatform,
 		Status:     MessageStatusDelivered,
+		IsOutgoing: strings.EqualFold(nick, myNick),
 	}
 
 	// Check if message ID is in tags
@@ -1716,6 +1717,7 @@ func (c *IRCCore) handleNotice(msg *ircMsg) {
 		Timestamp:  time.Now(),
 		Platform:   ircPlatform,
 		Status:     MessageStatusDelivered,
+		IsOutgoing: strings.EqualFold(nick, myNick),
 	}
 	c.bufferMessage(chatID, m)
 
@@ -1778,6 +1780,7 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 			Timestamp:  time.Now(),
 			Platform:   ircPlatform,
 			Status:     MessageStatusDelivered,
+			IsOutgoing: strings.EqualFold(nick, myNick),
 		}
 		c.bufferMessage(chatID, m)
 
@@ -1836,6 +1839,7 @@ func (c *IRCCore) handleCTCP(msg *ircMsg, nick, target, ctcp string) {
 			Timestamp:  time.Now(),
 			Platform:   ircPlatform,
 			Status:     MessageStatusDelivered,
+			IsOutgoing: false,
 		}
 		c.bufferMessage(dccChatID, dccMsg)
 		c.fireUpdate(Update{
@@ -2087,6 +2091,7 @@ func (c *IRCCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, err
 				Timestamp:  time.Now(),
 				Platform:   ircPlatform,
 				Status:     MessageStatusSent,
+				IsOutgoing: true,
 			}
 			c.bufferMessage(chatID, lastMsg)
 		}
@@ -3092,6 +3097,7 @@ func (c *IRCCore) handleInvite(msg *ircMsg) {
 				Timestamp:  time.Now(),
 				Platform:   ircPlatform,
 				Status:     MessageStatusDelivered,
+				IsOutgoing: false,
 			},
 		})
 	}
@@ -3195,6 +3201,7 @@ func (c *IRCCore) handleTagMsg(msg *ircMsg) {
 			Timestamp:  time.Now(),
 			Platform:   ircPlatform,
 			Status:     MessageStatusDelivered,
+			IsOutgoing: strings.EqualFold(nick, myNick),
 		}
 		c.bufferMessage(chatID, reactMsg)
 		c.fireUpdate(Update{
@@ -3234,6 +3241,7 @@ func (c *IRCCore) handleErrorNumeric(msg *ircMsg) {
 		Timestamp:  time.Now(),
 		Platform:   ircPlatform,
 		Status:     MessageStatusDelivered,
+		IsOutgoing: false,
 	}
 	c.bufferMessage("*server*", m)
 }
@@ -3250,6 +3258,7 @@ func (c *IRCCore) handleServerError(msg *ircMsg) {
 		Timestamp:  time.Now(),
 		Platform:   ircPlatform,
 		Status:     MessageStatusDelivered,
+		IsOutgoing: false,
 	}
 	c.bufferMessage("*server*", m)
 }
@@ -3409,6 +3418,7 @@ func (c *IRCCore) SendAction(target, text string) {
 		Timestamp:  time.Now(),
 		Platform:   ircPlatform,
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 	}
 	c.bufferMessage(target, m)
 }

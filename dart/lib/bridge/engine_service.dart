@@ -760,6 +760,7 @@ class EngineService {
     replyPreview: _safeStr(p.replyPreview),
     forwardFrom: _safeStr(p.forwardFrom),
     isPinned: p.isPinned,
+    isOutgoing: p.isOutgoing,
     hasMedia: p.hasMedia,
     mediaType: p.mediaType,
     mediaFileName: _safeStr(p.mediaFileName),

@@ -1975,9 +1975,10 @@ func (r *RubikaCore) botUploadAndSendFile(chatID string, file FileUpload, progre
 	}
 
 	return &Message{
-		ID:        msgID,
-		ChatID:    chatID,
-		Timestamp: time.Now(),
+		ID:         msgID,
+		ChatID:     chatID,
+		Timestamp:  time.Now(),
+		IsOutgoing: true,
 		Attachments: []FileRef{{
 			ID:       fileID,
 			Name:     file.Name,
@@ -2046,7 +2047,7 @@ func (r *RubikaCore) EditMessage(chatID string, msgID string, text string) (*Mes
 		if err != nil {
 			return nil, err
 		}
-		return &Message{ID: msgID, ChatID: chatID, Text: text, Timestamp: time.Now(), Platform: rubikaPlatform}, nil
+		return &Message{ID: msgID, ChatID: chatID, Text: text, Timestamp: time.Now(), IsOutgoing: true, Platform: rubikaPlatform}, nil
 	}
 
 	input := map[string]interface{}{
@@ -2106,7 +2107,7 @@ func (r *RubikaCore) ForwardMessage(fromChatID string, msgID string, toChatID st
 		if err != nil {
 			return nil, err
 		}
-		return &Message{ID: newMsgID, ChatID: toChatID, Timestamp: time.Now(), Platform: rubikaPlatform}, nil
+		return &Message{ID: newMsgID, ChatID: toChatID, Timestamp: time.Now(), IsOutgoing: true, Platform: rubikaPlatform}, nil
 	}
 
 	input := map[string]interface{}{
@@ -3331,7 +3332,7 @@ func (r *RubikaCore) handleWSMessage(data []byte) {
 
 func (r *RubikaCore) mapResponseToMessage(data map[string]interface{}, chatID string) *Message {
 	if data == nil {
-		return &Message{ChatID: chatID, Platform: rubikaPlatform, Timestamp: time.Now(), Status: MessageStatusSent}
+		return &Message{ChatID: chatID, Platform: rubikaPlatform, Timestamp: time.Now(), Status: MessageStatusSent, IsOutgoing: true}
 	}
 
 	// Response structure: {message_update: {message_id, message: {...}}, chat_update: {...}}
@@ -3375,13 +3376,14 @@ func (r *RubikaCore) mapResponseToMessage(data map[string]interface{}, chatID st
 	}
 
 	return &Message{
-		ID:        msgID,
-		ChatID:    chatID,
-		SenderID:  authorGUID,
-		Text:      text,
-		Timestamp: ts,
-		Status:    MessageStatusSent,
-		Platform:  rubikaPlatform,
+		ID:         msgID,
+		ChatID:     chatID,
+		SenderID:   authorGUID,
+		Text:       text,
+		Timestamp:  ts,
+		Status:     MessageStatusSent,
+		IsOutgoing: authorGUID == "" || authorGUID == r.guid,
+		Platform:   rubikaPlatform,
 	}
 }
 
@@ -3446,13 +3448,14 @@ func (r *RubikaCore) mapDataToMessage(mm map[string]interface{}, chatID string) 
 		ForwardFrom: forwardFrom,
 		Attachments: attachments,
 		Status:      MessageStatusSent,
+		IsOutgoing:  authorGUID == r.guid,
 		Platform:    rubikaPlatform,
 	}
 }
 
 func (r *RubikaCore) mapBotResponseToMessage(data map[string]interface{}, chatID string) *Message {
 	if data == nil {
-		return &Message{ChatID: chatID, Platform: rubikaPlatform, Timestamp: time.Now(), Status: MessageStatusSent}
+		return &Message{ChatID: chatID, Platform: rubikaPlatform, Timestamp: time.Now(), Status: MessageStatusSent, IsOutgoing: true}
 	}
 
 	result, _ := data["result"].(map[string]interface{})
@@ -3470,12 +3473,13 @@ func (r *RubikaCore) mapBotResponseToMessage(data map[string]interface{}, chatID
 	text, _ := mapGetString(result, "text")
 
 	return &Message{
-		ID:        msgID,
-		ChatID:    chatID,
-		Text:      text,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		Platform:  rubikaPlatform,
+		ID:         msgID,
+		ChatID:     chatID,
+		Text:       text,
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		IsOutgoing: true,
+		Platform:   rubikaPlatform,
 	}
 }
 
@@ -4784,12 +4788,13 @@ func (r *RubikaCore) SendLocation(chatID string, lat float64, lon float64) (*Mes
 	if mu, ok := resp["message_update"].(map[string]interface{}); ok {
 		msgID, _ := mu["message_id"].(string)
 		return &Message{
-			ID:       msgID,
-			ChatID:   chatID,
-			Platform: rubikaPlatform,
+			ID:         msgID,
+			ChatID:     chatID,
+			IsOutgoing: true,
+			Platform:   rubikaPlatform,
 		}, nil
 	}
-	return &Message{ChatID: chatID, Platform: rubikaPlatform}, nil
+	return &Message{ChatID: chatID, IsOutgoing: true, Platform: rubikaPlatform}, nil
 }
 
 // SeenChats marks multiple chats as seen. seenList maps chat GUID → last seen message ID.
@@ -5096,6 +5101,7 @@ func (r *RubikaCore) SearchMessages(chatID string, query string, opts Pagination
 				}
 				if sender, ok := mm["author_object_guid"].(string); ok {
 					msg.SenderID = sender
+					msg.IsOutgoing = sender == r.guid
 				}
 				msgs = append(msgs, msg)
 			}
@@ -5145,7 +5151,7 @@ func (r *RubikaCore) CreatePoll(chatID string, question string, options []string
 	if err != nil {
 		return nil, err
 	}
-	msg := &Message{Platform: rubikaPlatform, ChatID: chatID}
+	msg := &Message{Platform: rubikaPlatform, ChatID: chatID, IsOutgoing: true}
 	if msgData, ok := raw["message"].(map[string]interface{}); ok {
 		if id, ok := msgData["message_id"].(string); ok {
 			msg.ID = id

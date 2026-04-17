@@ -24,7 +24,7 @@ echo "=== Step 3: Run protoc (Go types) ==="
 cd "$PROJECT_DIR"
 protoc --proto_path=. \
   --go_out=go --go_opt=paths=source_relative \
-  proto/cores/*.proto proto/models.proto
+  proto/cores/*.proto proto/models.proto proto/engine.proto
 
 echo "=== Step 4: Generate dispatch code ==="
 cd "$GEN_DIR"

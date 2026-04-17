@@ -102,6 +102,7 @@ func checkIntegrity(db *sql.DB) error {
 // Migrations run inside a transaction for atomicity.
 var migrations = []func(*sql.Tx) error{
 	migrateV1,
+	migrateV2,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -185,6 +186,7 @@ func migrateV1(tx *sql.Tx) error {
 			reply_preview TEXT,
 			forward_from  TEXT,
 			is_pinned     INTEGER NOT NULL DEFAULT 0,
+			is_outgoing   INTEGER NOT NULL DEFAULT 0,
 			has_media     INTEGER NOT NULL DEFAULT 0,
 			PRIMARY KEY (account_id, chat_id, msg_id)
 		)`,
@@ -322,3 +324,9 @@ const (
 	MediaGIF       = 7
 	MediaFile      = 8
 )
+
+// migrateV2 adds is_outgoing column to messages table.
+func migrateV2(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN is_outgoing INTEGER NOT NULL DEFAULT 0`)
+	return err
+}

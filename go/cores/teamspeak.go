@@ -2305,6 +2305,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Text:       "[poke] " + cmd.params["msg"],
 			Timestamp:  time.Now(),
 			Status:     MessageStatusDelivered,
+			IsOutgoing: false,
 			Platform:   ts3Platform,
 		}
 		t.tsAddMessage(msg.ChatID, &msg)
@@ -2393,6 +2394,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Text:       "[plugin:" + cmd.params["name"] + "] " + cmd.params["data"],
 			Timestamp:  time.Now(),
 			Status:     MessageStatusDelivered,
+			IsOutgoing: false,
 			Platform:   ts3Platform,
 		}
 		t.tsAddMessage(msg.ChatID, &msg)
@@ -2586,6 +2588,7 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 		Text:       kv["msg"],
 		Timestamp:  time.Now(),
 		Status:     MessageStatusDelivered,
+		IsOutgoing: false,
 		Platform:   ts3Platform,
 	}
 	t.tsAddMessage(chatID, &msg)
@@ -3198,6 +3201,7 @@ func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 		Text:       msg.Text,
 		Timestamp:  time.Now(),
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Platform:   ts3Platform,
 	}
 	t.tsAddMessage(chatID, m)
@@ -3359,6 +3363,7 @@ func (t *TeamSpeakCore) UploadFile(chatID string, file FileUpload, progress func
 		Text:       fmt.Sprintf("[File: %s]", file.Name),
 		Timestamp:  time.Now(),
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Platform:   ts3Platform,
 		Attachments: []FileRef{{
 			Name:     file.Name,

@@ -3514,6 +3514,7 @@ func (c *MumbleCore) handleTextMessage(msg *mumbleTextMsg) {
 		Text:       msg.Message,
 		Timestamp:  entry.Timestamp,
 		Status:     MessageStatusDelivered,
+		IsOutgoing: msg.Actor == c.mySession,
 		Platform:   mumblePlatform,
 	}
 
@@ -3915,6 +3916,7 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 					SenderName: c.messages[i].SenderName,
 					Text:       c.messages[i].Message,
 					Timestamp:  c.messages[i].Timestamp,
+					IsOutgoing: c.messages[i].Sender == c.mySession,
 					Platform:   mumblePlatform,
 				}
 				break
@@ -4099,6 +4101,7 @@ func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 		Text:       msg.Text,
 		Timestamp:  entry.Timestamp,
 		Status:     MessageStatusSent,
+		IsOutgoing: true,
 		Platform:   mumblePlatform,
 	}, nil
 }
@@ -4139,6 +4142,7 @@ func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 				Text:       entry.Message,
 				Timestamp:  entry.Timestamp,
 				Status:     MessageStatusDelivered,
+				IsOutgoing: entry.Sender == c.mySession,
 				Platform:   mumblePlatform,
 			})
 		}
@@ -4688,6 +4692,7 @@ func (c *MumbleCore) SearchMessages(chatID, query string, opts PaginationOpts) (
 				SenderName: entry.SenderName,
 				Text:       entry.Message,
 				Timestamp:  entry.Timestamp,
+				IsOutgoing: entry.Sender == c.mySession,
 				Platform:   mumblePlatform,
 			})
 		}

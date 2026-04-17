@@ -650,13 +650,14 @@ func (m *MatrixCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 	}
 
 	return &Message{
-		ID:        resp.EventID.String(),
-		ChatID:    chatID,
-		SenderID:  m.userID.String(),
-		Text:      msg.Text,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		Platform:  mxPlatform,
+		ID:         resp.EventID.String(),
+		ChatID:     chatID,
+		SenderID:   m.userID.String(),
+		Text:       msg.Text,
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		IsOutgoing: true,
+		Platform:   mxPlatform,
 	}, nil
 }
 
@@ -719,13 +720,14 @@ func (m *MatrixCore) EditMessage(chatID string, msgID string, text string) (*Mes
 	}
 
 	return &Message{
-		ID:        resp.EventID.String(),
-		ChatID:    chatID,
-		SenderID:  m.userID.String(),
-		Text:      text,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		Platform:  mxPlatform,
+		ID:         resp.EventID.String(),
+		ChatID:     chatID,
+		SenderID:   m.userID.String(),
+		Text:       text,
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		IsOutgoing: true,
+		Platform:   mxPlatform,
 	}, nil
 }
 
@@ -766,14 +768,15 @@ func (m *MatrixCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outg
 	}
 
 	return &Message{
-		ID:        resp.EventID.String(),
-		ChatID:    chatID,
-		SenderID:  m.userID.String(),
-		Text:      msg.Text,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		ReplyToID: replyToMsgID,
-		Platform:  mxPlatform,
+		ID:         resp.EventID.String(),
+		ChatID:     chatID,
+		SenderID:   m.userID.String(),
+		Text:       msg.Text,
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		ReplyToID:  replyToMsgID,
+		IsOutgoing: true,
+		Platform:   mxPlatform,
 	}, nil
 }
 
@@ -817,6 +820,7 @@ func (m *MatrixCore) ForwardMessage(fromChatID string, msgID string, toChatID st
 		Timestamp:   time.Now(),
 		Status:      MessageStatusSent,
 		ForwardFrom: evt.Sender.String(),
+		IsOutgoing:  true,
 		Platform:    mxPlatform,
 	}, nil
 }
@@ -1008,14 +1012,15 @@ func (m *MatrixCore) UploadFile(chatID string, file FileUpload, progress func(se
 	}
 
 	return &Message{
-		ID:        sendResp.EventID.String(),
-		ChatID:    chatID,
-		SenderID:  m.userID.String(),
-		Text:      file.Name,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
+		ID:          sendResp.EventID.String(),
+		ChatID:      chatID,
+		SenderID:    m.userID.String(),
+		Text:        file.Name,
+		Timestamp:   time.Now(),
+		Status:      MessageStatusSent,
+		IsOutgoing:  true,
 		Attachments: []FileRef{attRef},
-		Platform:  mxPlatform,
+		Platform:    mxPlatform,
 	}, nil
 }
 
@@ -2319,13 +2324,14 @@ func (m *MatrixCore) CreatePoll(chatID string, question string, options []string
 	}
 
 	return &Message{
-		ID:        resp.EventID.String(),
-		ChatID:    chatID,
-		SenderID:  m.userID.String(),
-		Text:      question,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		Platform:  mxPlatform,
+		ID:         resp.EventID.String(),
+		ChatID:     chatID,
+		SenderID:   m.userID.String(),
+		Text:       question,
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		IsOutgoing: true,
+		Platform:   mxPlatform,
 	}, nil
 }
 
@@ -2384,13 +2390,14 @@ func (m *MatrixCore) SendSticker(chatID string, stickerID string) (*Message, err
 	}
 
 	return &Message{
-		ID:        resp.EventID.String(),
-		ChatID:    chatID,
-		SenderID:  m.userID.String(),
-		Text:      "sticker",
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		Platform:  mxPlatform,
+		ID:         resp.EventID.String(),
+		ChatID:     chatID,
+		SenderID:   m.userID.String(),
+		Text:       "sticker",
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		IsOutgoing: true,
+		Platform:   mxPlatform,
 	}, nil
 }
 
@@ -3501,12 +3508,13 @@ func (m *MatrixCore) eventToMessage(evt *event.Event) *Message {
 	}
 
 	msg := &Message{
-		ID:        evt.ID.String(),
-		ChatID:    evt.RoomID.String(),
-		SenderID:  evt.Sender.String(),
-		Timestamp: time.UnixMilli(evt.Timestamp),
-		Status:    MessageStatusSent,
-		Platform:  mxPlatform,
+		ID:         evt.ID.String(),
+		ChatID:     evt.RoomID.String(),
+		SenderID:   evt.Sender.String(),
+		Timestamp:  time.UnixMilli(evt.Timestamp),
+		Status:     MessageStatusSent,
+		IsOutgoing: evt.Sender == m.userID,
+		Platform:   mxPlatform,
 	}
 
 	if mc.NewContent != nil {
@@ -6585,13 +6593,14 @@ func (m *MatrixCore) SendLocation(chatID string, lat float64, lon float64) (*Mes
 		return nil, err
 	}
 	return &Message{
-		ID:        eventID,
-		ChatID:    chatID,
-		SenderID:  m.userID.String(),
-		Text:      body,
-		Timestamp: time.Now(),
-		Status:    MessageStatusSent,
-		Platform:  mxPlatform,
+		ID:         eventID,
+		ChatID:     chatID,
+		SenderID:   m.userID.String(),
+		Text:       body,
+		Timestamp:  time.Now(),
+		Status:     MessageStatusSent,
+		IsOutgoing: true,
+		Platform:   mxPlatform,
 	}, nil
 }
 

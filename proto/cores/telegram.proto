@@ -4867,6 +4867,15 @@ message TelegramReadReactionsRequest {
 message TelegramReadReactionsResponse {
 }
 
+message TelegramRefreshQRTokenRequest {
+}
+
+message TelegramRefreshQRTokenResponse {
+  string token_url = 1;
+  int64 expires_secs = 2;
+  bool accepted = 3;
+}
+
 message TelegramRemoveMemberRequest {
   string chat_id = 1;
   string user_id = 2;
@@ -5321,6 +5330,14 @@ message TelegramStartGroupCallScreenShareRequest {
 message TelegramStartGroupCallScreenShareResponse {
 }
 
+message TelegramStartQRAuthRequest {
+}
+
+message TelegramStartQRAuthResponse {
+  string token_url = 1;
+  int64 expires_secs = 2;
+}
+
 message TelegramStartScheduledGroupCallRequest {
   string call_id = 1;
 }
@@ -5689,6 +5706,20 @@ message TelegramStoriesUpdateAlbumRequest {
 
 message TelegramStoriesUpdateAlbumResponse {
   bytes result_1 = 1;
+}
+
+message TelegramSubmit2FARequest {
+  string password = 1;
+}
+
+message TelegramSubmit2FAResponse {
+}
+
+message TelegramSubmitOTPRequest {
+  string code = 1;
+}
+
+message TelegramSubmitOTPResponse {
 }
 
 message TelegramTerminateSessionRequest {

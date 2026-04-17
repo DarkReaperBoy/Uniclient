@@ -16130,6 +16130,166 @@ func (x *BaleStartCallResponse) GetResult_1() *proto.CallSession {
 	return nil
 }
 
+type BaleSubmit2FARequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Password      string                 `protobuf:"bytes,1,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BaleSubmit2FARequest) Reset() {
+	*x = BaleSubmit2FARequest{}
+	mi := &file_proto_cores_bale_proto_msgTypes[347]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BaleSubmit2FARequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BaleSubmit2FARequest) ProtoMessage() {}
+
+func (x *BaleSubmit2FARequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_bale_proto_msgTypes[347]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BaleSubmit2FARequest.ProtoReflect.Descriptor instead.
+func (*BaleSubmit2FARequest) Descriptor() ([]byte, []int) {
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{347}
+}
+
+func (x *BaleSubmit2FARequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type BaleSubmit2FAResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BaleSubmit2FAResponse) Reset() {
+	*x = BaleSubmit2FAResponse{}
+	mi := &file_proto_cores_bale_proto_msgTypes[348]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BaleSubmit2FAResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BaleSubmit2FAResponse) ProtoMessage() {}
+
+func (x *BaleSubmit2FAResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_bale_proto_msgTypes[348]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BaleSubmit2FAResponse.ProtoReflect.Descriptor instead.
+func (*BaleSubmit2FAResponse) Descriptor() ([]byte, []int) {
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{348}
+}
+
+type BaleSubmitOTPRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BaleSubmitOTPRequest) Reset() {
+	*x = BaleSubmitOTPRequest{}
+	mi := &file_proto_cores_bale_proto_msgTypes[349]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BaleSubmitOTPRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BaleSubmitOTPRequest) ProtoMessage() {}
+
+func (x *BaleSubmitOTPRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_bale_proto_msgTypes[349]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BaleSubmitOTPRequest.ProtoReflect.Descriptor instead.
+func (*BaleSubmitOTPRequest) Descriptor() ([]byte, []int) {
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{349}
+}
+
+func (x *BaleSubmitOTPRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+type BaleSubmitOTPResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BaleSubmitOTPResponse) Reset() {
+	*x = BaleSubmitOTPResponse{}
+	mi := &file_proto_cores_bale_proto_msgTypes[350]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BaleSubmitOTPResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BaleSubmitOTPResponse) ProtoMessage() {}
+
+func (x *BaleSubmitOTPResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_bale_proto_msgTypes[350]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BaleSubmitOTPResponse.ProtoReflect.Descriptor instead.
+func (*BaleSubmitOTPResponse) Descriptor() ([]byte, []int) {
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{350}
+}
+
 type BaleTerminateAllSessionsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -16138,7 +16298,7 @@ type BaleTerminateAllSessionsRequest struct {
 
 func (x *BaleTerminateAllSessionsRequest) Reset() {
 	*x = BaleTerminateAllSessionsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[347]
+	mi := &file_proto_cores_bale_proto_msgTypes[351]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16150,7 +16310,7 @@ func (x *BaleTerminateAllSessionsRequest) String() string {
 func (*BaleTerminateAllSessionsRequest) ProtoMessage() {}
 
 func (x *BaleTerminateAllSessionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[347]
+	mi := &file_proto_cores_bale_proto_msgTypes[351]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16163,7 +16323,7 @@ func (x *BaleTerminateAllSessionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleTerminateAllSessionsRequest.ProtoReflect.Descriptor instead.
 func (*BaleTerminateAllSessionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{347}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{351}
 }
 
 type BaleTerminateAllSessionsResponse struct {
@@ -16175,7 +16335,7 @@ type BaleTerminateAllSessionsResponse struct {
 
 func (x *BaleTerminateAllSessionsResponse) Reset() {
 	*x = BaleTerminateAllSessionsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[348]
+	mi := &file_proto_cores_bale_proto_msgTypes[352]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16187,7 +16347,7 @@ func (x *BaleTerminateAllSessionsResponse) String() string {
 func (*BaleTerminateAllSessionsResponse) ProtoMessage() {}
 
 func (x *BaleTerminateAllSessionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[348]
+	mi := &file_proto_cores_bale_proto_msgTypes[352]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16200,7 +16360,7 @@ func (x *BaleTerminateAllSessionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleTerminateAllSessionsResponse.ProtoReflect.Descriptor instead.
 func (*BaleTerminateAllSessionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{348}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{352}
 }
 
 func (x *BaleTerminateAllSessionsResponse) GetResult_1() []byte {
@@ -16219,7 +16379,7 @@ type BaleTerminateSessionRequest struct {
 
 func (x *BaleTerminateSessionRequest) Reset() {
 	*x = BaleTerminateSessionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[349]
+	mi := &file_proto_cores_bale_proto_msgTypes[353]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16231,7 +16391,7 @@ func (x *BaleTerminateSessionRequest) String() string {
 func (*BaleTerminateSessionRequest) ProtoMessage() {}
 
 func (x *BaleTerminateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[349]
+	mi := &file_proto_cores_bale_proto_msgTypes[353]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16244,7 +16404,7 @@ func (x *BaleTerminateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleTerminateSessionRequest.ProtoReflect.Descriptor instead.
 func (*BaleTerminateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{349}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{353}
 }
 
 func (x *BaleTerminateSessionRequest) GetSessionId() string {
@@ -16262,7 +16422,7 @@ type BaleTerminateSessionResponse struct {
 
 func (x *BaleTerminateSessionResponse) Reset() {
 	*x = BaleTerminateSessionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[350]
+	mi := &file_proto_cores_bale_proto_msgTypes[354]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16274,7 +16434,7 @@ func (x *BaleTerminateSessionResponse) String() string {
 func (*BaleTerminateSessionResponse) ProtoMessage() {}
 
 func (x *BaleTerminateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[350]
+	mi := &file_proto_cores_bale_proto_msgTypes[354]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16287,7 +16447,7 @@ func (x *BaleTerminateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleTerminateSessionResponse.ProtoReflect.Descriptor instead.
 func (*BaleTerminateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{350}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{354}
 }
 
 type BaleUnbanMemberRequest struct {
@@ -16300,7 +16460,7 @@ type BaleUnbanMemberRequest struct {
 
 func (x *BaleUnbanMemberRequest) Reset() {
 	*x = BaleUnbanMemberRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[351]
+	mi := &file_proto_cores_bale_proto_msgTypes[355]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16312,7 +16472,7 @@ func (x *BaleUnbanMemberRequest) String() string {
 func (*BaleUnbanMemberRequest) ProtoMessage() {}
 
 func (x *BaleUnbanMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[351]
+	mi := &file_proto_cores_bale_proto_msgTypes[355]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16325,7 +16485,7 @@ func (x *BaleUnbanMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnbanMemberRequest.ProtoReflect.Descriptor instead.
 func (*BaleUnbanMemberRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{351}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{355}
 }
 
 func (x *BaleUnbanMemberRequest) GetChatId() string {
@@ -16350,7 +16510,7 @@ type BaleUnbanMemberResponse struct {
 
 func (x *BaleUnbanMemberResponse) Reset() {
 	*x = BaleUnbanMemberResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[352]
+	mi := &file_proto_cores_bale_proto_msgTypes[356]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16362,7 +16522,7 @@ func (x *BaleUnbanMemberResponse) String() string {
 func (*BaleUnbanMemberResponse) ProtoMessage() {}
 
 func (x *BaleUnbanMemberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[352]
+	mi := &file_proto_cores_bale_proto_msgTypes[356]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16375,7 +16535,7 @@ func (x *BaleUnbanMemberResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnbanMemberResponse.ProtoReflect.Descriptor instead.
 func (*BaleUnbanMemberResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{352}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{356}
 }
 
 type BaleUnblockUserRequest struct {
@@ -16387,7 +16547,7 @@ type BaleUnblockUserRequest struct {
 
 func (x *BaleUnblockUserRequest) Reset() {
 	*x = BaleUnblockUserRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[353]
+	mi := &file_proto_cores_bale_proto_msgTypes[357]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16399,7 +16559,7 @@ func (x *BaleUnblockUserRequest) String() string {
 func (*BaleUnblockUserRequest) ProtoMessage() {}
 
 func (x *BaleUnblockUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[353]
+	mi := &file_proto_cores_bale_proto_msgTypes[357]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16412,7 +16572,7 @@ func (x *BaleUnblockUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnblockUserRequest.ProtoReflect.Descriptor instead.
 func (*BaleUnblockUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{353}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{357}
 }
 
 func (x *BaleUnblockUserRequest) GetUserId() string {
@@ -16430,7 +16590,7 @@ type BaleUnblockUserResponse struct {
 
 func (x *BaleUnblockUserResponse) Reset() {
 	*x = BaleUnblockUserResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[354]
+	mi := &file_proto_cores_bale_proto_msgTypes[358]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16442,7 +16602,7 @@ func (x *BaleUnblockUserResponse) String() string {
 func (*BaleUnblockUserResponse) ProtoMessage() {}
 
 func (x *BaleUnblockUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[354]
+	mi := &file_proto_cores_bale_proto_msgTypes[358]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16455,7 +16615,7 @@ func (x *BaleUnblockUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnblockUserResponse.ProtoReflect.Descriptor instead.
 func (*BaleUnblockUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{354}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{358}
 }
 
 type BaleUnpinAllMessagesRequest struct {
@@ -16467,7 +16627,7 @@ type BaleUnpinAllMessagesRequest struct {
 
 func (x *BaleUnpinAllMessagesRequest) Reset() {
 	*x = BaleUnpinAllMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[355]
+	mi := &file_proto_cores_bale_proto_msgTypes[359]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16479,7 +16639,7 @@ func (x *BaleUnpinAllMessagesRequest) String() string {
 func (*BaleUnpinAllMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUnpinAllMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[355]
+	mi := &file_proto_cores_bale_proto_msgTypes[359]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16492,7 +16652,7 @@ func (x *BaleUnpinAllMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnpinAllMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUnpinAllMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{355}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{359}
 }
 
 func (x *BaleUnpinAllMessagesRequest) GetChatId() string {
@@ -16510,7 +16670,7 @@ type BaleUnpinAllMessagesResponse struct {
 
 func (x *BaleUnpinAllMessagesResponse) Reset() {
 	*x = BaleUnpinAllMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[356]
+	mi := &file_proto_cores_bale_proto_msgTypes[360]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16522,7 +16682,7 @@ func (x *BaleUnpinAllMessagesResponse) String() string {
 func (*BaleUnpinAllMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUnpinAllMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[356]
+	mi := &file_proto_cores_bale_proto_msgTypes[360]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16535,7 +16695,7 @@ func (x *BaleUnpinAllMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnpinAllMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUnpinAllMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{356}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{360}
 }
 
 type BaleUnpinMessageRequest struct {
@@ -16548,7 +16708,7 @@ type BaleUnpinMessageRequest struct {
 
 func (x *BaleUnpinMessageRequest) Reset() {
 	*x = BaleUnpinMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[357]
+	mi := &file_proto_cores_bale_proto_msgTypes[361]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16560,7 +16720,7 @@ func (x *BaleUnpinMessageRequest) String() string {
 func (*BaleUnpinMessageRequest) ProtoMessage() {}
 
 func (x *BaleUnpinMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[357]
+	mi := &file_proto_cores_bale_proto_msgTypes[361]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16573,7 +16733,7 @@ func (x *BaleUnpinMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnpinMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUnpinMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{357}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{361}
 }
 
 func (x *BaleUnpinMessageRequest) GetChatId() string {
@@ -16598,7 +16758,7 @@ type BaleUnpinMessageResponse struct {
 
 func (x *BaleUnpinMessageResponse) Reset() {
 	*x = BaleUnpinMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[358]
+	mi := &file_proto_cores_bale_proto_msgTypes[362]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16610,7 +16770,7 @@ func (x *BaleUnpinMessageResponse) String() string {
 func (*BaleUnpinMessageResponse) ProtoMessage() {}
 
 func (x *BaleUnpinMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[358]
+	mi := &file_proto_cores_bale_proto_msgTypes[362]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16623,7 +16783,7 @@ func (x *BaleUnpinMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnpinMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUnpinMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{358}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{362}
 }
 
 type BaleUnregisterAllPushCredentialsRequest struct {
@@ -16634,7 +16794,7 @@ type BaleUnregisterAllPushCredentialsRequest struct {
 
 func (x *BaleUnregisterAllPushCredentialsRequest) Reset() {
 	*x = BaleUnregisterAllPushCredentialsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[359]
+	mi := &file_proto_cores_bale_proto_msgTypes[363]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16646,7 +16806,7 @@ func (x *BaleUnregisterAllPushCredentialsRequest) String() string {
 func (*BaleUnregisterAllPushCredentialsRequest) ProtoMessage() {}
 
 func (x *BaleUnregisterAllPushCredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[359]
+	mi := &file_proto_cores_bale_proto_msgTypes[363]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16659,7 +16819,7 @@ func (x *BaleUnregisterAllPushCredentialsRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUnregisterAllPushCredentialsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUnregisterAllPushCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{359}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{363}
 }
 
 type BaleUnregisterAllPushCredentialsResponse struct {
@@ -16671,7 +16831,7 @@ type BaleUnregisterAllPushCredentialsResponse struct {
 
 func (x *BaleUnregisterAllPushCredentialsResponse) Reset() {
 	*x = BaleUnregisterAllPushCredentialsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[360]
+	mi := &file_proto_cores_bale_proto_msgTypes[364]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16683,7 +16843,7 @@ func (x *BaleUnregisterAllPushCredentialsResponse) String() string {
 func (*BaleUnregisterAllPushCredentialsResponse) ProtoMessage() {}
 
 func (x *BaleUnregisterAllPushCredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[360]
+	mi := &file_proto_cores_bale_proto_msgTypes[364]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16696,7 +16856,7 @@ func (x *BaleUnregisterAllPushCredentialsResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUnregisterAllPushCredentialsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUnregisterAllPushCredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{360}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{364}
 }
 
 func (x *BaleUnregisterAllPushCredentialsResponse) GetResult_1() []byte {
@@ -16715,7 +16875,7 @@ type BaleUnregisterGooglePushRequest struct {
 
 func (x *BaleUnregisterGooglePushRequest) Reset() {
 	*x = BaleUnregisterGooglePushRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[361]
+	mi := &file_proto_cores_bale_proto_msgTypes[365]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16727,7 +16887,7 @@ func (x *BaleUnregisterGooglePushRequest) String() string {
 func (*BaleUnregisterGooglePushRequest) ProtoMessage() {}
 
 func (x *BaleUnregisterGooglePushRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[361]
+	mi := &file_proto_cores_bale_proto_msgTypes[365]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16740,7 +16900,7 @@ func (x *BaleUnregisterGooglePushRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnregisterGooglePushRequest.ProtoReflect.Descriptor instead.
 func (*BaleUnregisterGooglePushRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{361}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{365}
 }
 
 func (x *BaleUnregisterGooglePushRequest) GetToken() string {
@@ -16759,7 +16919,7 @@ type BaleUnregisterGooglePushResponse struct {
 
 func (x *BaleUnregisterGooglePushResponse) Reset() {
 	*x = BaleUnregisterGooglePushResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[362]
+	mi := &file_proto_cores_bale_proto_msgTypes[366]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16771,7 +16931,7 @@ func (x *BaleUnregisterGooglePushResponse) String() string {
 func (*BaleUnregisterGooglePushResponse) ProtoMessage() {}
 
 func (x *BaleUnregisterGooglePushResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[362]
+	mi := &file_proto_cores_bale_proto_msgTypes[366]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16784,7 +16944,7 @@ func (x *BaleUnregisterGooglePushResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnregisterGooglePushResponse.ProtoReflect.Descriptor instead.
 func (*BaleUnregisterGooglePushResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{362}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{366}
 }
 
 func (x *BaleUnregisterGooglePushResponse) GetResult_1() []byte {
@@ -16803,7 +16963,7 @@ type BaleUnregisterPushRequest struct {
 
 func (x *BaleUnregisterPushRequest) Reset() {
 	*x = BaleUnregisterPushRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[363]
+	mi := &file_proto_cores_bale_proto_msgTypes[367]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16815,7 +16975,7 @@ func (x *BaleUnregisterPushRequest) String() string {
 func (*BaleUnregisterPushRequest) ProtoMessage() {}
 
 func (x *BaleUnregisterPushRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[363]
+	mi := &file_proto_cores_bale_proto_msgTypes[367]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16828,7 +16988,7 @@ func (x *BaleUnregisterPushRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnregisterPushRequest.ProtoReflect.Descriptor instead.
 func (*BaleUnregisterPushRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{363}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{367}
 }
 
 func (x *BaleUnregisterPushRequest) GetToken() string {
@@ -16847,7 +17007,7 @@ type BaleUnregisterPushResponse struct {
 
 func (x *BaleUnregisterPushResponse) Reset() {
 	*x = BaleUnregisterPushResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[364]
+	mi := &file_proto_cores_bale_proto_msgTypes[368]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16859,7 +17019,7 @@ func (x *BaleUnregisterPushResponse) String() string {
 func (*BaleUnregisterPushResponse) ProtoMessage() {}
 
 func (x *BaleUnregisterPushResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[364]
+	mi := &file_proto_cores_bale_proto_msgTypes[368]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16872,7 +17032,7 @@ func (x *BaleUnregisterPushResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUnregisterPushResponse.ProtoReflect.Descriptor instead.
 func (*BaleUnregisterPushResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{364}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{368}
 }
 
 func (x *BaleUnregisterPushResponse) GetResult_1() []byte {
@@ -16892,7 +17052,7 @@ type BaleUploadRawPUTRequest struct {
 
 func (x *BaleUploadRawPUTRequest) Reset() {
 	*x = BaleUploadRawPUTRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[365]
+	mi := &file_proto_cores_bale_proto_msgTypes[369]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16904,7 +17064,7 @@ func (x *BaleUploadRawPUTRequest) String() string {
 func (*BaleUploadRawPUTRequest) ProtoMessage() {}
 
 func (x *BaleUploadRawPUTRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[365]
+	mi := &file_proto_cores_bale_proto_msgTypes[369]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16917,7 +17077,7 @@ func (x *BaleUploadRawPUTRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUploadRawPUTRequest.ProtoReflect.Descriptor instead.
 func (*BaleUploadRawPUTRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{365}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{369}
 }
 
 func (x *BaleUploadRawPUTRequest) GetUrl() string {
@@ -16942,7 +17102,7 @@ type BaleUploadRawPUTResponse struct {
 
 func (x *BaleUploadRawPUTResponse) Reset() {
 	*x = BaleUploadRawPUTResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[366]
+	mi := &file_proto_cores_bale_proto_msgTypes[370]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16954,7 +17114,7 @@ func (x *BaleUploadRawPUTResponse) String() string {
 func (*BaleUploadRawPUTResponse) ProtoMessage() {}
 
 func (x *BaleUploadRawPUTResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[366]
+	mi := &file_proto_cores_bale_proto_msgTypes[370]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -16967,7 +17127,7 @@ func (x *BaleUploadRawPUTResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUploadRawPUTResponse.ProtoReflect.Descriptor instead.
 func (*BaleUploadRawPUTResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{366}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{370}
 }
 
 type BaleUploadStickerFileRequest struct {
@@ -16981,7 +17141,7 @@ type BaleUploadStickerFileRequest struct {
 
 func (x *BaleUploadStickerFileRequest) Reset() {
 	*x = BaleUploadStickerFileRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[367]
+	mi := &file_proto_cores_bale_proto_msgTypes[371]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -16993,7 +17153,7 @@ func (x *BaleUploadStickerFileRequest) String() string {
 func (*BaleUploadStickerFileRequest) ProtoMessage() {}
 
 func (x *BaleUploadStickerFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[367]
+	mi := &file_proto_cores_bale_proto_msgTypes[371]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17006,7 +17166,7 @@ func (x *BaleUploadStickerFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUploadStickerFileRequest.ProtoReflect.Descriptor instead.
 func (*BaleUploadStickerFileRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{367}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{371}
 }
 
 func (x *BaleUploadStickerFileRequest) GetUserId() int64 {
@@ -17039,7 +17199,7 @@ type BaleUploadStickerFileResponse struct {
 
 func (x *BaleUploadStickerFileResponse) Reset() {
 	*x = BaleUploadStickerFileResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[368]
+	mi := &file_proto_cores_bale_proto_msgTypes[372]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17051,7 +17211,7 @@ func (x *BaleUploadStickerFileResponse) String() string {
 func (*BaleUploadStickerFileResponse) ProtoMessage() {}
 
 func (x *BaleUploadStickerFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[368]
+	mi := &file_proto_cores_bale_proto_msgTypes[372]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17064,7 +17224,7 @@ func (x *BaleUploadStickerFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUploadStickerFileResponse.ProtoReflect.Descriptor instead.
 func (*BaleUploadStickerFileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{368}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{372}
 }
 
 func (x *BaleUploadStickerFileResponse) GetResult_1() []byte {
@@ -17085,7 +17245,7 @@ type BaleUpvotePostRequest struct {
 
 func (x *BaleUpvotePostRequest) Reset() {
 	*x = BaleUpvotePostRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[369]
+	mi := &file_proto_cores_bale_proto_msgTypes[373]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17097,7 +17257,7 @@ func (x *BaleUpvotePostRequest) String() string {
 func (*BaleUpvotePostRequest) ProtoMessage() {}
 
 func (x *BaleUpvotePostRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[369]
+	mi := &file_proto_cores_bale_proto_msgTypes[373]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17110,7 +17270,7 @@ func (x *BaleUpvotePostRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUpvotePostRequest.ProtoReflect.Descriptor instead.
 func (*BaleUpvotePostRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{369}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{373}
 }
 
 func (x *BaleUpvotePostRequest) GetChatId() string {
@@ -17143,7 +17303,7 @@ type BaleUpvotePostResponse struct {
 
 func (x *BaleUpvotePostResponse) Reset() {
 	*x = BaleUpvotePostResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[370]
+	mi := &file_proto_cores_bale_proto_msgTypes[374]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17155,7 +17315,7 @@ func (x *BaleUpvotePostResponse) String() string {
 func (*BaleUpvotePostResponse) ProtoMessage() {}
 
 func (x *BaleUpvotePostResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[370]
+	mi := &file_proto_cores_bale_proto_msgTypes[374]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17168,7 +17328,7 @@ func (x *BaleUpvotePostResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUpvotePostResponse.ProtoReflect.Descriptor instead.
 func (*BaleUpvotePostResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{370}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{374}
 }
 
 func (x *BaleUpvotePostResponse) GetResult_1() []byte {
@@ -17188,7 +17348,7 @@ type BaleUserAIGetTranscriptRequest struct {
 
 func (x *BaleUserAIGetTranscriptRequest) Reset() {
 	*x = BaleUserAIGetTranscriptRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[371]
+	mi := &file_proto_cores_bale_proto_msgTypes[375]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17200,7 +17360,7 @@ func (x *BaleUserAIGetTranscriptRequest) String() string {
 func (*BaleUserAIGetTranscriptRequest) ProtoMessage() {}
 
 func (x *BaleUserAIGetTranscriptRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[371]
+	mi := &file_proto_cores_bale_proto_msgTypes[375]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17213,7 +17373,7 @@ func (x *BaleUserAIGetTranscriptRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAIGetTranscriptRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAIGetTranscriptRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{371}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{375}
 }
 
 func (x *BaleUserAIGetTranscriptRequest) GetChatId() string {
@@ -17239,7 +17399,7 @@ type BaleUserAIGetTranscriptResponse struct {
 
 func (x *BaleUserAIGetTranscriptResponse) Reset() {
 	*x = BaleUserAIGetTranscriptResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[372]
+	mi := &file_proto_cores_bale_proto_msgTypes[376]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17251,7 +17411,7 @@ func (x *BaleUserAIGetTranscriptResponse) String() string {
 func (*BaleUserAIGetTranscriptResponse) ProtoMessage() {}
 
 func (x *BaleUserAIGetTranscriptResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[372]
+	mi := &file_proto_cores_bale_proto_msgTypes[376]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17264,7 +17424,7 @@ func (x *BaleUserAIGetTranscriptResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAIGetTranscriptResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAIGetTranscriptResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{372}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{376}
 }
 
 func (x *BaleUserAIGetTranscriptResponse) GetResult_1() []byte {
@@ -17283,7 +17443,7 @@ type BaleUserAISendEventRequest struct {
 
 func (x *BaleUserAISendEventRequest) Reset() {
 	*x = BaleUserAISendEventRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[373]
+	mi := &file_proto_cores_bale_proto_msgTypes[377]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17295,7 +17455,7 @@ func (x *BaleUserAISendEventRequest) String() string {
 func (*BaleUserAISendEventRequest) ProtoMessage() {}
 
 func (x *BaleUserAISendEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[373]
+	mi := &file_proto_cores_bale_proto_msgTypes[377]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17308,7 +17468,7 @@ func (x *BaleUserAISendEventRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAISendEventRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAISendEventRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{373}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{377}
 }
 
 func (x *BaleUserAISendEventRequest) GetEventData() []byte {
@@ -17327,7 +17487,7 @@ type BaleUserAISendEventResponse struct {
 
 func (x *BaleUserAISendEventResponse) Reset() {
 	*x = BaleUserAISendEventResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[374]
+	mi := &file_proto_cores_bale_proto_msgTypes[378]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17339,7 +17499,7 @@ func (x *BaleUserAISendEventResponse) String() string {
 func (*BaleUserAISendEventResponse) ProtoMessage() {}
 
 func (x *BaleUserAISendEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[374]
+	mi := &file_proto_cores_bale_proto_msgTypes[378]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17352,7 +17512,7 @@ func (x *BaleUserAISendEventResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAISendEventResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAISendEventResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{374}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{378}
 }
 
 func (x *BaleUserAISendEventResponse) GetResult_1() []byte {
@@ -17371,7 +17531,7 @@ type BaleUserAcceptCallMeetRequest struct {
 
 func (x *BaleUserAcceptCallMeetRequest) Reset() {
 	*x = BaleUserAcceptCallMeetRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[375]
+	mi := &file_proto_cores_bale_proto_msgTypes[379]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17383,7 +17543,7 @@ func (x *BaleUserAcceptCallMeetRequest) String() string {
 func (*BaleUserAcceptCallMeetRequest) ProtoMessage() {}
 
 func (x *BaleUserAcceptCallMeetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[375]
+	mi := &file_proto_cores_bale_proto_msgTypes[379]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17396,7 +17556,7 @@ func (x *BaleUserAcceptCallMeetRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAcceptCallMeetRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAcceptCallMeetRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{375}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{379}
 }
 
 func (x *BaleUserAcceptCallMeetRequest) GetCallId() int64 {
@@ -17415,7 +17575,7 @@ type BaleUserAcceptCallMeetResponse struct {
 
 func (x *BaleUserAcceptCallMeetResponse) Reset() {
 	*x = BaleUserAcceptCallMeetResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[376]
+	mi := &file_proto_cores_bale_proto_msgTypes[380]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17427,7 +17587,7 @@ func (x *BaleUserAcceptCallMeetResponse) String() string {
 func (*BaleUserAcceptCallMeetResponse) ProtoMessage() {}
 
 func (x *BaleUserAcceptCallMeetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[376]
+	mi := &file_proto_cores_bale_proto_msgTypes[380]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17440,7 +17600,7 @@ func (x *BaleUserAcceptCallMeetResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAcceptCallMeetResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAcceptCallMeetResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{376}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{380}
 }
 
 func (x *BaleUserAcceptCallMeetResponse) GetResult_1() []byte {
@@ -17460,7 +17620,7 @@ type BaleUserAddBotStoryRequest struct {
 
 func (x *BaleUserAddBotStoryRequest) Reset() {
 	*x = BaleUserAddBotStoryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[377]
+	mi := &file_proto_cores_bale_proto_msgTypes[381]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17472,7 +17632,7 @@ func (x *BaleUserAddBotStoryRequest) String() string {
 func (*BaleUserAddBotStoryRequest) ProtoMessage() {}
 
 func (x *BaleUserAddBotStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[377]
+	mi := &file_proto_cores_bale_proto_msgTypes[381]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17485,7 +17645,7 @@ func (x *BaleUserAddBotStoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddBotStoryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAddBotStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{377}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{381}
 }
 
 func (x *BaleUserAddBotStoryRequest) GetBotId() int64 {
@@ -17511,7 +17671,7 @@ type BaleUserAddBotStoryResponse struct {
 
 func (x *BaleUserAddBotStoryResponse) Reset() {
 	*x = BaleUserAddBotStoryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[378]
+	mi := &file_proto_cores_bale_proto_msgTypes[382]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17523,7 +17683,7 @@ func (x *BaleUserAddBotStoryResponse) String() string {
 func (*BaleUserAddBotStoryResponse) ProtoMessage() {}
 
 func (x *BaleUserAddBotStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[378]
+	mi := &file_proto_cores_bale_proto_msgTypes[382]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17536,7 +17696,7 @@ func (x *BaleUserAddBotStoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddBotStoryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAddBotStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{378}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{382}
 }
 
 func (x *BaleUserAddBotStoryResponse) GetResult_1() []byte {
@@ -17556,7 +17716,7 @@ type BaleUserAddChannelStoryRequest struct {
 
 func (x *BaleUserAddChannelStoryRequest) Reset() {
 	*x = BaleUserAddChannelStoryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[379]
+	mi := &file_proto_cores_bale_proto_msgTypes[383]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17568,7 +17728,7 @@ func (x *BaleUserAddChannelStoryRequest) String() string {
 func (*BaleUserAddChannelStoryRequest) ProtoMessage() {}
 
 func (x *BaleUserAddChannelStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[379]
+	mi := &file_proto_cores_bale_proto_msgTypes[383]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17581,7 +17741,7 @@ func (x *BaleUserAddChannelStoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddChannelStoryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAddChannelStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{379}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{383}
 }
 
 func (x *BaleUserAddChannelStoryRequest) GetChannelId() int64 {
@@ -17607,7 +17767,7 @@ type BaleUserAddChannelStoryResponse struct {
 
 func (x *BaleUserAddChannelStoryResponse) Reset() {
 	*x = BaleUserAddChannelStoryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[380]
+	mi := &file_proto_cores_bale_proto_msgTypes[384]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17619,7 +17779,7 @@ func (x *BaleUserAddChannelStoryResponse) String() string {
 func (*BaleUserAddChannelStoryResponse) ProtoMessage() {}
 
 func (x *BaleUserAddChannelStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[380]
+	mi := &file_proto_cores_bale_proto_msgTypes[384]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17632,7 +17792,7 @@ func (x *BaleUserAddChannelStoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddChannelStoryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAddChannelStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{380}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{384}
 }
 
 func (x *BaleUserAddChannelStoryResponse) GetResult_1() []byte {
@@ -17651,7 +17811,7 @@ type BaleUserAddContactRequest struct {
 
 func (x *BaleUserAddContactRequest) Reset() {
 	*x = BaleUserAddContactRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[381]
+	mi := &file_proto_cores_bale_proto_msgTypes[385]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17663,7 +17823,7 @@ func (x *BaleUserAddContactRequest) String() string {
 func (*BaleUserAddContactRequest) ProtoMessage() {}
 
 func (x *BaleUserAddContactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[381]
+	mi := &file_proto_cores_bale_proto_msgTypes[385]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17676,7 +17836,7 @@ func (x *BaleUserAddContactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddContactRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAddContactRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{381}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{385}
 }
 
 func (x *BaleUserAddContactRequest) GetUserId() int64 {
@@ -17695,7 +17855,7 @@ type BaleUserAddContactResponse struct {
 
 func (x *BaleUserAddContactResponse) Reset() {
 	*x = BaleUserAddContactResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[382]
+	mi := &file_proto_cores_bale_proto_msgTypes[386]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17707,7 +17867,7 @@ func (x *BaleUserAddContactResponse) String() string {
 func (*BaleUserAddContactResponse) ProtoMessage() {}
 
 func (x *BaleUserAddContactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[382]
+	mi := &file_proto_cores_bale_proto_msgTypes[386]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17720,7 +17880,7 @@ func (x *BaleUserAddContactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddContactResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAddContactResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{382}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{386}
 }
 
 func (x *BaleUserAddContactResponse) GetResult_1() []byte {
@@ -17740,7 +17900,7 @@ type BaleUserAddDiscussionGroupAdminRequest struct {
 
 func (x *BaleUserAddDiscussionGroupAdminRequest) Reset() {
 	*x = BaleUserAddDiscussionGroupAdminRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[383]
+	mi := &file_proto_cores_bale_proto_msgTypes[387]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17752,7 +17912,7 @@ func (x *BaleUserAddDiscussionGroupAdminRequest) String() string {
 func (*BaleUserAddDiscussionGroupAdminRequest) ProtoMessage() {}
 
 func (x *BaleUserAddDiscussionGroupAdminRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[383]
+	mi := &file_proto_cores_bale_proto_msgTypes[387]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17765,7 +17925,7 @@ func (x *BaleUserAddDiscussionGroupAdminRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserAddDiscussionGroupAdminRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAddDiscussionGroupAdminRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{383}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{387}
 }
 
 func (x *BaleUserAddDiscussionGroupAdminRequest) GetChannelId() int64 {
@@ -17791,7 +17951,7 @@ type BaleUserAddDiscussionGroupAdminResponse struct {
 
 func (x *BaleUserAddDiscussionGroupAdminResponse) Reset() {
 	*x = BaleUserAddDiscussionGroupAdminResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[384]
+	mi := &file_proto_cores_bale_proto_msgTypes[388]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17803,7 +17963,7 @@ func (x *BaleUserAddDiscussionGroupAdminResponse) String() string {
 func (*BaleUserAddDiscussionGroupAdminResponse) ProtoMessage() {}
 
 func (x *BaleUserAddDiscussionGroupAdminResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[384]
+	mi := &file_proto_cores_bale_proto_msgTypes[388]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17816,7 +17976,7 @@ func (x *BaleUserAddDiscussionGroupAdminResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserAddDiscussionGroupAdminResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAddDiscussionGroupAdminResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{384}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{388}
 }
 
 func (x *BaleUserAddDiscussionGroupAdminResponse) GetResult_1() []byte {
@@ -17836,7 +17996,7 @@ type BaleUserAddGifRequest struct {
 
 func (x *BaleUserAddGifRequest) Reset() {
 	*x = BaleUserAddGifRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[385]
+	mi := &file_proto_cores_bale_proto_msgTypes[389]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17848,7 +18008,7 @@ func (x *BaleUserAddGifRequest) String() string {
 func (*BaleUserAddGifRequest) ProtoMessage() {}
 
 func (x *BaleUserAddGifRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[385]
+	mi := &file_proto_cores_bale_proto_msgTypes[389]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17861,7 +18021,7 @@ func (x *BaleUserAddGifRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddGifRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAddGifRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{385}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{389}
 }
 
 func (x *BaleUserAddGifRequest) GetFileId() int64 {
@@ -17887,7 +18047,7 @@ type BaleUserAddGifResponse struct {
 
 func (x *BaleUserAddGifResponse) Reset() {
 	*x = BaleUserAddGifResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[386]
+	mi := &file_proto_cores_bale_proto_msgTypes[390]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17899,7 +18059,7 @@ func (x *BaleUserAddGifResponse) String() string {
 func (*BaleUserAddGifResponse) ProtoMessage() {}
 
 func (x *BaleUserAddGifResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[386]
+	mi := &file_proto_cores_bale_proto_msgTypes[390]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17912,7 +18072,7 @@ func (x *BaleUserAddGifResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddGifResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAddGifResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{386}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{390}
 }
 
 func (x *BaleUserAddGifResponse) GetResult_1() []byte {
@@ -17931,7 +18091,7 @@ type BaleUserAddStickerCollectionRequest struct {
 
 func (x *BaleUserAddStickerCollectionRequest) Reset() {
 	*x = BaleUserAddStickerCollectionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[387]
+	mi := &file_proto_cores_bale_proto_msgTypes[391]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17943,7 +18103,7 @@ func (x *BaleUserAddStickerCollectionRequest) String() string {
 func (*BaleUserAddStickerCollectionRequest) ProtoMessage() {}
 
 func (x *BaleUserAddStickerCollectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[387]
+	mi := &file_proto_cores_bale_proto_msgTypes[391]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -17956,7 +18116,7 @@ func (x *BaleUserAddStickerCollectionRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserAddStickerCollectionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAddStickerCollectionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{387}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{391}
 }
 
 func (x *BaleUserAddStickerCollectionRequest) GetCollectionId() int64 {
@@ -17975,7 +18135,7 @@ type BaleUserAddStickerCollectionResponse struct {
 
 func (x *BaleUserAddStickerCollectionResponse) Reset() {
 	*x = BaleUserAddStickerCollectionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[388]
+	mi := &file_proto_cores_bale_proto_msgTypes[392]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -17987,7 +18147,7 @@ func (x *BaleUserAddStickerCollectionResponse) String() string {
 func (*BaleUserAddStickerCollectionResponse) ProtoMessage() {}
 
 func (x *BaleUserAddStickerCollectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[388]
+	mi := &file_proto_cores_bale_proto_msgTypes[392]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18000,7 +18160,7 @@ func (x *BaleUserAddStickerCollectionResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserAddStickerCollectionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAddStickerCollectionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{388}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{392}
 }
 
 func (x *BaleUserAddStickerCollectionResponse) GetResult_1() []byte {
@@ -18019,7 +18179,7 @@ type BaleUserAddStickerPackRequest struct {
 
 func (x *BaleUserAddStickerPackRequest) Reset() {
 	*x = BaleUserAddStickerPackRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[389]
+	mi := &file_proto_cores_bale_proto_msgTypes[393]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18031,7 +18191,7 @@ func (x *BaleUserAddStickerPackRequest) String() string {
 func (*BaleUserAddStickerPackRequest) ProtoMessage() {}
 
 func (x *BaleUserAddStickerPackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[389]
+	mi := &file_proto_cores_bale_proto_msgTypes[393]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18044,7 +18204,7 @@ func (x *BaleUserAddStickerPackRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddStickerPackRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAddStickerPackRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{389}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{393}
 }
 
 func (x *BaleUserAddStickerPackRequest) GetPackId() int64 {
@@ -18063,7 +18223,7 @@ type BaleUserAddStickerPackResponse struct {
 
 func (x *BaleUserAddStickerPackResponse) Reset() {
 	*x = BaleUserAddStickerPackResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[390]
+	mi := &file_proto_cores_bale_proto_msgTypes[394]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18075,7 +18235,7 @@ func (x *BaleUserAddStickerPackResponse) String() string {
 func (*BaleUserAddStickerPackResponse) ProtoMessage() {}
 
 func (x *BaleUserAddStickerPackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[390]
+	mi := &file_proto_cores_bale_proto_msgTypes[394]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18088,7 +18248,7 @@ func (x *BaleUserAddStickerPackResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddStickerPackResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAddStickerPackResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{390}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{394}
 }
 
 func (x *BaleUserAddStickerPackResponse) GetResult_1() []byte {
@@ -18107,7 +18267,7 @@ type BaleUserAddStoryRequest struct {
 
 func (x *BaleUserAddStoryRequest) Reset() {
 	*x = BaleUserAddStoryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[391]
+	mi := &file_proto_cores_bale_proto_msgTypes[395]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18119,7 +18279,7 @@ func (x *BaleUserAddStoryRequest) String() string {
 func (*BaleUserAddStoryRequest) ProtoMessage() {}
 
 func (x *BaleUserAddStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[391]
+	mi := &file_proto_cores_bale_proto_msgTypes[395]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18132,7 +18292,7 @@ func (x *BaleUserAddStoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddStoryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAddStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{391}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{395}
 }
 
 func (x *BaleUserAddStoryRequest) GetContent() []byte {
@@ -18151,7 +18311,7 @@ type BaleUserAddStoryResponse struct {
 
 func (x *BaleUserAddStoryResponse) Reset() {
 	*x = BaleUserAddStoryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[392]
+	mi := &file_proto_cores_bale_proto_msgTypes[396]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18163,7 +18323,7 @@ func (x *BaleUserAddStoryResponse) String() string {
 func (*BaleUserAddStoryResponse) ProtoMessage() {}
 
 func (x *BaleUserAddStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[392]
+	mi := &file_proto_cores_bale_proto_msgTypes[396]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18176,7 +18336,7 @@ func (x *BaleUserAddStoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAddStoryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAddStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{392}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{396}
 }
 
 func (x *BaleUserAddStoryResponse) GetResult_1() []byte {
@@ -18197,7 +18357,7 @@ type BaleUserAnswerCallJoinRequestRequest struct {
 
 func (x *BaleUserAnswerCallJoinRequestRequest) Reset() {
 	*x = BaleUserAnswerCallJoinRequestRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[393]
+	mi := &file_proto_cores_bale_proto_msgTypes[397]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18209,7 +18369,7 @@ func (x *BaleUserAnswerCallJoinRequestRequest) String() string {
 func (*BaleUserAnswerCallJoinRequestRequest) ProtoMessage() {}
 
 func (x *BaleUserAnswerCallJoinRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[393]
+	mi := &file_proto_cores_bale_proto_msgTypes[397]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18222,7 +18382,7 @@ func (x *BaleUserAnswerCallJoinRequestRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserAnswerCallJoinRequestRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAnswerCallJoinRequestRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{393}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{397}
 }
 
 func (x *BaleUserAnswerCallJoinRequestRequest) GetCallId() int64 {
@@ -18255,7 +18415,7 @@ type BaleUserAnswerCallJoinRequestResponse struct {
 
 func (x *BaleUserAnswerCallJoinRequestResponse) Reset() {
 	*x = BaleUserAnswerCallJoinRequestResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[394]
+	mi := &file_proto_cores_bale_proto_msgTypes[398]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18267,7 +18427,7 @@ func (x *BaleUserAnswerCallJoinRequestResponse) String() string {
 func (*BaleUserAnswerCallJoinRequestResponse) ProtoMessage() {}
 
 func (x *BaleUserAnswerCallJoinRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[394]
+	mi := &file_proto_cores_bale_proto_msgTypes[398]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18280,7 +18440,7 @@ func (x *BaleUserAnswerCallJoinRequestResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserAnswerCallJoinRequestResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAnswerCallJoinRequestResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{394}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{398}
 }
 
 func (x *BaleUserAnswerCallJoinRequestResponse) GetResult_1() []byte {
@@ -18299,7 +18459,7 @@ type BaleUserArchiveDialogsRequest struct {
 
 func (x *BaleUserArchiveDialogsRequest) Reset() {
 	*x = BaleUserArchiveDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[395]
+	mi := &file_proto_cores_bale_proto_msgTypes[399]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18311,7 +18471,7 @@ func (x *BaleUserArchiveDialogsRequest) String() string {
 func (*BaleUserArchiveDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserArchiveDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[395]
+	mi := &file_proto_cores_bale_proto_msgTypes[399]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18324,7 +18484,7 @@ func (x *BaleUserArchiveDialogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserArchiveDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserArchiveDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{395}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{399}
 }
 
 func (x *BaleUserArchiveDialogsRequest) GetChatIds() []string {
@@ -18343,7 +18503,7 @@ type BaleUserArchiveDialogsResponse struct {
 
 func (x *BaleUserArchiveDialogsResponse) Reset() {
 	*x = BaleUserArchiveDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[396]
+	mi := &file_proto_cores_bale_proto_msgTypes[400]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18355,7 +18515,7 @@ func (x *BaleUserArchiveDialogsResponse) String() string {
 func (*BaleUserArchiveDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserArchiveDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[396]
+	mi := &file_proto_cores_bale_proto_msgTypes[400]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18368,7 +18528,7 @@ func (x *BaleUserArchiveDialogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserArchiveDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserArchiveDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{396}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{400}
 }
 
 func (x *BaleUserArchiveDialogsResponse) GetResult_1() []byte {
@@ -18387,7 +18547,7 @@ type BaleUserAskToJoinCallRequest struct {
 
 func (x *BaleUserAskToJoinCallRequest) Reset() {
 	*x = BaleUserAskToJoinCallRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[397]
+	mi := &file_proto_cores_bale_proto_msgTypes[401]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18399,7 +18559,7 @@ func (x *BaleUserAskToJoinCallRequest) String() string {
 func (*BaleUserAskToJoinCallRequest) ProtoMessage() {}
 
 func (x *BaleUserAskToJoinCallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[397]
+	mi := &file_proto_cores_bale_proto_msgTypes[401]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18412,7 +18572,7 @@ func (x *BaleUserAskToJoinCallRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAskToJoinCallRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserAskToJoinCallRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{397}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{401}
 }
 
 func (x *BaleUserAskToJoinCallRequest) GetCallId() int64 {
@@ -18431,7 +18591,7 @@ type BaleUserAskToJoinCallResponse struct {
 
 func (x *BaleUserAskToJoinCallResponse) Reset() {
 	*x = BaleUserAskToJoinCallResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[398]
+	mi := &file_proto_cores_bale_proto_msgTypes[402]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18443,7 +18603,7 @@ func (x *BaleUserAskToJoinCallResponse) String() string {
 func (*BaleUserAskToJoinCallResponse) ProtoMessage() {}
 
 func (x *BaleUserAskToJoinCallResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[398]
+	mi := &file_proto_cores_bale_proto_msgTypes[402]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18456,7 +18616,7 @@ func (x *BaleUserAskToJoinCallResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserAskToJoinCallResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserAskToJoinCallResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{398}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{402}
 }
 
 func (x *BaleUserAskToJoinCallResponse) GetResult_1() []byte {
@@ -18475,7 +18635,7 @@ type BaleUserBlockUserRequest struct {
 
 func (x *BaleUserBlockUserRequest) Reset() {
 	*x = BaleUserBlockUserRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[399]
+	mi := &file_proto_cores_bale_proto_msgTypes[403]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18487,7 +18647,7 @@ func (x *BaleUserBlockUserRequest) String() string {
 func (*BaleUserBlockUserRequest) ProtoMessage() {}
 
 func (x *BaleUserBlockUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[399]
+	mi := &file_proto_cores_bale_proto_msgTypes[403]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18500,7 +18660,7 @@ func (x *BaleUserBlockUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserBlockUserRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserBlockUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{399}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{403}
 }
 
 func (x *BaleUserBlockUserRequest) GetUserId() int64 {
@@ -18519,7 +18679,7 @@ type BaleUserBlockUserResponse struct {
 
 func (x *BaleUserBlockUserResponse) Reset() {
 	*x = BaleUserBlockUserResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[400]
+	mi := &file_proto_cores_bale_proto_msgTypes[404]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18531,7 +18691,7 @@ func (x *BaleUserBlockUserResponse) String() string {
 func (*BaleUserBlockUserResponse) ProtoMessage() {}
 
 func (x *BaleUserBlockUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[400]
+	mi := &file_proto_cores_bale_proto_msgTypes[404]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18544,7 +18704,7 @@ func (x *BaleUserBlockUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserBlockUserResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserBlockUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{400}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{404}
 }
 
 func (x *BaleUserBlockUserResponse) GetResult_1() []byte {
@@ -18563,7 +18723,7 @@ type BaleUserCanAddBotStoryRequest struct {
 
 func (x *BaleUserCanAddBotStoryRequest) Reset() {
 	*x = BaleUserCanAddBotStoryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[401]
+	mi := &file_proto_cores_bale_proto_msgTypes[405]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18575,7 +18735,7 @@ func (x *BaleUserCanAddBotStoryRequest) String() string {
 func (*BaleUserCanAddBotStoryRequest) ProtoMessage() {}
 
 func (x *BaleUserCanAddBotStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[401]
+	mi := &file_proto_cores_bale_proto_msgTypes[405]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18588,7 +18748,7 @@ func (x *BaleUserCanAddBotStoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCanAddBotStoryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCanAddBotStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{401}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{405}
 }
 
 func (x *BaleUserCanAddBotStoryRequest) GetBotId() int64 {
@@ -18607,7 +18767,7 @@ type BaleUserCanAddBotStoryResponse struct {
 
 func (x *BaleUserCanAddBotStoryResponse) Reset() {
 	*x = BaleUserCanAddBotStoryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[402]
+	mi := &file_proto_cores_bale_proto_msgTypes[406]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18619,7 +18779,7 @@ func (x *BaleUserCanAddBotStoryResponse) String() string {
 func (*BaleUserCanAddBotStoryResponse) ProtoMessage() {}
 
 func (x *BaleUserCanAddBotStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[402]
+	mi := &file_proto_cores_bale_proto_msgTypes[406]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18632,7 +18792,7 @@ func (x *BaleUserCanAddBotStoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCanAddBotStoryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCanAddBotStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{402}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{406}
 }
 
 func (x *BaleUserCanAddBotStoryResponse) GetResult_1() []byte {
@@ -18651,7 +18811,7 @@ type BaleUserCancelMessageStreamRequest struct {
 
 func (x *BaleUserCancelMessageStreamRequest) Reset() {
 	*x = BaleUserCancelMessageStreamRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[403]
+	mi := &file_proto_cores_bale_proto_msgTypes[407]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18663,7 +18823,7 @@ func (x *BaleUserCancelMessageStreamRequest) String() string {
 func (*BaleUserCancelMessageStreamRequest) ProtoMessage() {}
 
 func (x *BaleUserCancelMessageStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[403]
+	mi := &file_proto_cores_bale_proto_msgTypes[407]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18676,7 +18836,7 @@ func (x *BaleUserCancelMessageStreamRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserCancelMessageStreamRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCancelMessageStreamRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{403}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{407}
 }
 
 func (x *BaleUserCancelMessageStreamRequest) GetStreamId() int64 {
@@ -18695,7 +18855,7 @@ type BaleUserCancelMessageStreamResponse struct {
 
 func (x *BaleUserCancelMessageStreamResponse) Reset() {
 	*x = BaleUserCancelMessageStreamResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[404]
+	mi := &file_proto_cores_bale_proto_msgTypes[408]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18707,7 +18867,7 @@ func (x *BaleUserCancelMessageStreamResponse) String() string {
 func (*BaleUserCancelMessageStreamResponse) ProtoMessage() {}
 
 func (x *BaleUserCancelMessageStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[404]
+	mi := &file_proto_cores_bale_proto_msgTypes[408]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18720,7 +18880,7 @@ func (x *BaleUserCancelMessageStreamResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserCancelMessageStreamResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCancelMessageStreamResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{404}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{408}
 }
 
 func (x *BaleUserCancelMessageStreamResponse) GetResult_1() []byte {
@@ -18739,7 +18899,7 @@ type BaleUserCheckNickNameRequest struct {
 
 func (x *BaleUserCheckNickNameRequest) Reset() {
 	*x = BaleUserCheckNickNameRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[405]
+	mi := &file_proto_cores_bale_proto_msgTypes[409]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18751,7 +18911,7 @@ func (x *BaleUserCheckNickNameRequest) String() string {
 func (*BaleUserCheckNickNameRequest) ProtoMessage() {}
 
 func (x *BaleUserCheckNickNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[405]
+	mi := &file_proto_cores_bale_proto_msgTypes[409]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18764,7 +18924,7 @@ func (x *BaleUserCheckNickNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCheckNickNameRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCheckNickNameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{405}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{409}
 }
 
 func (x *BaleUserCheckNickNameRequest) GetNick() string {
@@ -18783,7 +18943,7 @@ type BaleUserCheckNickNameResponse struct {
 
 func (x *BaleUserCheckNickNameResponse) Reset() {
 	*x = BaleUserCheckNickNameResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[406]
+	mi := &file_proto_cores_bale_proto_msgTypes[410]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18795,7 +18955,7 @@ func (x *BaleUserCheckNickNameResponse) String() string {
 func (*BaleUserCheckNickNameResponse) ProtoMessage() {}
 
 func (x *BaleUserCheckNickNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[406]
+	mi := &file_proto_cores_bale_proto_msgTypes[410]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18808,7 +18968,7 @@ func (x *BaleUserCheckNickNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCheckNickNameResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCheckNickNameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{406}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{410}
 }
 
 func (x *BaleUserCheckNickNameResponse) GetResult_1() []byte {
@@ -18827,7 +18987,7 @@ type BaleUserCheckStoryLinkValidityRequest struct {
 
 func (x *BaleUserCheckStoryLinkValidityRequest) Reset() {
 	*x = BaleUserCheckStoryLinkValidityRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[407]
+	mi := &file_proto_cores_bale_proto_msgTypes[411]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18839,7 +18999,7 @@ func (x *BaleUserCheckStoryLinkValidityRequest) String() string {
 func (*BaleUserCheckStoryLinkValidityRequest) ProtoMessage() {}
 
 func (x *BaleUserCheckStoryLinkValidityRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[407]
+	mi := &file_proto_cores_bale_proto_msgTypes[411]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18852,7 +19012,7 @@ func (x *BaleUserCheckStoryLinkValidityRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserCheckStoryLinkValidityRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCheckStoryLinkValidityRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{407}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{411}
 }
 
 func (x *BaleUserCheckStoryLinkValidityRequest) GetLink() string {
@@ -18871,7 +19031,7 @@ type BaleUserCheckStoryLinkValidityResponse struct {
 
 func (x *BaleUserCheckStoryLinkValidityResponse) Reset() {
 	*x = BaleUserCheckStoryLinkValidityResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[408]
+	mi := &file_proto_cores_bale_proto_msgTypes[412]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18883,7 +19043,7 @@ func (x *BaleUserCheckStoryLinkValidityResponse) String() string {
 func (*BaleUserCheckStoryLinkValidityResponse) ProtoMessage() {}
 
 func (x *BaleUserCheckStoryLinkValidityResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[408]
+	mi := &file_proto_cores_bale_proto_msgTypes[412]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18896,7 +19056,7 @@ func (x *BaleUserCheckStoryLinkValidityResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserCheckStoryLinkValidityResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCheckStoryLinkValidityResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{408}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{412}
 }
 
 func (x *BaleUserCheckStoryLinkValidityResponse) GetResult_1() []byte {
@@ -18915,7 +19075,7 @@ type BaleUserClearChatRequest struct {
 
 func (x *BaleUserClearChatRequest) Reset() {
 	*x = BaleUserClearChatRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[409]
+	mi := &file_proto_cores_bale_proto_msgTypes[413]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18927,7 +19087,7 @@ func (x *BaleUserClearChatRequest) String() string {
 func (*BaleUserClearChatRequest) ProtoMessage() {}
 
 func (x *BaleUserClearChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[409]
+	mi := &file_proto_cores_bale_proto_msgTypes[413]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18940,7 +19100,7 @@ func (x *BaleUserClearChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserClearChatRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserClearChatRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{409}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{413}
 }
 
 func (x *BaleUserClearChatRequest) GetChatId() string {
@@ -18959,7 +19119,7 @@ type BaleUserClearChatResponse struct {
 
 func (x *BaleUserClearChatResponse) Reset() {
 	*x = BaleUserClearChatResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[410]
+	mi := &file_proto_cores_bale_proto_msgTypes[414]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -18971,7 +19131,7 @@ func (x *BaleUserClearChatResponse) String() string {
 func (*BaleUserClearChatResponse) ProtoMessage() {}
 
 func (x *BaleUserClearChatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[410]
+	mi := &file_proto_cores_bale_proto_msgTypes[414]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -18984,7 +19144,7 @@ func (x *BaleUserClearChatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserClearChatResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserClearChatResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{410}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{414}
 }
 
 func (x *BaleUserClearChatResponse) GetResult_1() []byte {
@@ -19004,7 +19164,7 @@ type BaleUserClosePollServiceRequest struct {
 
 func (x *BaleUserClosePollServiceRequest) Reset() {
 	*x = BaleUserClosePollServiceRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[411]
+	mi := &file_proto_cores_bale_proto_msgTypes[415]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19016,7 +19176,7 @@ func (x *BaleUserClosePollServiceRequest) String() string {
 func (*BaleUserClosePollServiceRequest) ProtoMessage() {}
 
 func (x *BaleUserClosePollServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[411]
+	mi := &file_proto_cores_bale_proto_msgTypes[415]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19029,7 +19189,7 @@ func (x *BaleUserClosePollServiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserClosePollServiceRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserClosePollServiceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{411}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{415}
 }
 
 func (x *BaleUserClosePollServiceRequest) GetChatId() string {
@@ -19055,7 +19215,7 @@ type BaleUserClosePollServiceResponse struct {
 
 func (x *BaleUserClosePollServiceResponse) Reset() {
 	*x = BaleUserClosePollServiceResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[412]
+	mi := &file_proto_cores_bale_proto_msgTypes[416]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19067,7 +19227,7 @@ func (x *BaleUserClosePollServiceResponse) String() string {
 func (*BaleUserClosePollServiceResponse) ProtoMessage() {}
 
 func (x *BaleUserClosePollServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[412]
+	mi := &file_proto_cores_bale_proto_msgTypes[416]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19080,7 +19240,7 @@ func (x *BaleUserClosePollServiceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserClosePollServiceResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserClosePollServiceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{412}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{416}
 }
 
 func (x *BaleUserClosePollServiceResponse) GetResult_1() []byte {
@@ -19100,7 +19260,7 @@ type BaleUserCreateFolderRequest struct {
 
 func (x *BaleUserCreateFolderRequest) Reset() {
 	*x = BaleUserCreateFolderRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[413]
+	mi := &file_proto_cores_bale_proto_msgTypes[417]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19112,7 +19272,7 @@ func (x *BaleUserCreateFolderRequest) String() string {
 func (*BaleUserCreateFolderRequest) ProtoMessage() {}
 
 func (x *BaleUserCreateFolderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[413]
+	mi := &file_proto_cores_bale_proto_msgTypes[417]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19125,7 +19285,7 @@ func (x *BaleUserCreateFolderRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateFolderRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateFolderRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{413}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{417}
 }
 
 func (x *BaleUserCreateFolderRequest) GetTitle() string {
@@ -19151,7 +19311,7 @@ type BaleUserCreateFolderResponse struct {
 
 func (x *BaleUserCreateFolderResponse) Reset() {
 	*x = BaleUserCreateFolderResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[414]
+	mi := &file_proto_cores_bale_proto_msgTypes[418]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19163,7 +19323,7 @@ func (x *BaleUserCreateFolderResponse) String() string {
 func (*BaleUserCreateFolderResponse) ProtoMessage() {}
 
 func (x *BaleUserCreateFolderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[414]
+	mi := &file_proto_cores_bale_proto_msgTypes[418]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19176,7 +19336,7 @@ func (x *BaleUserCreateFolderResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateFolderResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateFolderResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{414}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{418}
 }
 
 func (x *BaleUserCreateFolderResponse) GetResult_1() []byte {
@@ -19196,7 +19356,7 @@ type BaleUserCreateGroupRequest struct {
 
 func (x *BaleUserCreateGroupRequest) Reset() {
 	*x = BaleUserCreateGroupRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[415]
+	mi := &file_proto_cores_bale_proto_msgTypes[419]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19208,7 +19368,7 @@ func (x *BaleUserCreateGroupRequest) String() string {
 func (*BaleUserCreateGroupRequest) ProtoMessage() {}
 
 func (x *BaleUserCreateGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[415]
+	mi := &file_proto_cores_bale_proto_msgTypes[419]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19221,7 +19381,7 @@ func (x *BaleUserCreateGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateGroupRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{415}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{419}
 }
 
 func (x *BaleUserCreateGroupRequest) GetTitle() string {
@@ -19247,7 +19407,7 @@ type BaleUserCreateGroupResponse struct {
 
 func (x *BaleUserCreateGroupResponse) Reset() {
 	*x = BaleUserCreateGroupResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[416]
+	mi := &file_proto_cores_bale_proto_msgTypes[420]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19259,7 +19419,7 @@ func (x *BaleUserCreateGroupResponse) String() string {
 func (*BaleUserCreateGroupResponse) ProtoMessage() {}
 
 func (x *BaleUserCreateGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[416]
+	mi := &file_proto_cores_bale_proto_msgTypes[420]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19272,7 +19432,7 @@ func (x *BaleUserCreateGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateGroupResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{416}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{420}
 }
 
 func (x *BaleUserCreateGroupResponse) GetResult_1() []byte {
@@ -19295,7 +19455,7 @@ type BaleUserCreateGroupFullRequest struct {
 
 func (x *BaleUserCreateGroupFullRequest) Reset() {
 	*x = BaleUserCreateGroupFullRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[417]
+	mi := &file_proto_cores_bale_proto_msgTypes[421]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19307,7 +19467,7 @@ func (x *BaleUserCreateGroupFullRequest) String() string {
 func (*BaleUserCreateGroupFullRequest) ProtoMessage() {}
 
 func (x *BaleUserCreateGroupFullRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[417]
+	mi := &file_proto_cores_bale_proto_msgTypes[421]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19320,7 +19480,7 @@ func (x *BaleUserCreateGroupFullRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateGroupFullRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateGroupFullRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{417}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{421}
 }
 
 func (x *BaleUserCreateGroupFullRequest) GetTitle() string {
@@ -19367,7 +19527,7 @@ type BaleUserCreateGroupFullResponse struct {
 
 func (x *BaleUserCreateGroupFullResponse) Reset() {
 	*x = BaleUserCreateGroupFullResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[418]
+	mi := &file_proto_cores_bale_proto_msgTypes[422]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19379,7 +19539,7 @@ func (x *BaleUserCreateGroupFullResponse) String() string {
 func (*BaleUserCreateGroupFullResponse) ProtoMessage() {}
 
 func (x *BaleUserCreateGroupFullResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[418]
+	mi := &file_proto_cores_bale_proto_msgTypes[422]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19392,7 +19552,7 @@ func (x *BaleUserCreateGroupFullResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateGroupFullResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateGroupFullResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{418}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{422}
 }
 
 func (x *BaleUserCreateGroupFullResponse) GetResult_1() []byte {
@@ -19415,7 +19575,7 @@ type BaleUserCreatePollRequest struct {
 
 func (x *BaleUserCreatePollRequest) Reset() {
 	*x = BaleUserCreatePollRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[419]
+	mi := &file_proto_cores_bale_proto_msgTypes[423]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19427,7 +19587,7 @@ func (x *BaleUserCreatePollRequest) String() string {
 func (*BaleUserCreatePollRequest) ProtoMessage() {}
 
 func (x *BaleUserCreatePollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[419]
+	mi := &file_proto_cores_bale_proto_msgTypes[423]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19440,7 +19600,7 @@ func (x *BaleUserCreatePollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreatePollRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCreatePollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{419}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{423}
 }
 
 func (x *BaleUserCreatePollRequest) GetChatId() string {
@@ -19487,7 +19647,7 @@ type BaleUserCreatePollResponse struct {
 
 func (x *BaleUserCreatePollResponse) Reset() {
 	*x = BaleUserCreatePollResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[420]
+	mi := &file_proto_cores_bale_proto_msgTypes[424]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19499,7 +19659,7 @@ func (x *BaleUserCreatePollResponse) String() string {
 func (*BaleUserCreatePollResponse) ProtoMessage() {}
 
 func (x *BaleUserCreatePollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[420]
+	mi := &file_proto_cores_bale_proto_msgTypes[424]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19512,7 +19672,7 @@ func (x *BaleUserCreatePollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreatePollResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCreatePollResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{420}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{424}
 }
 
 func (x *BaleUserCreatePollResponse) GetResult_1() []byte {
@@ -19531,7 +19691,7 @@ type BaleUserCreateReservedFolderRequest struct {
 
 func (x *BaleUserCreateReservedFolderRequest) Reset() {
 	*x = BaleUserCreateReservedFolderRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[421]
+	mi := &file_proto_cores_bale_proto_msgTypes[425]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19543,7 +19703,7 @@ func (x *BaleUserCreateReservedFolderRequest) String() string {
 func (*BaleUserCreateReservedFolderRequest) ProtoMessage() {}
 
 func (x *BaleUserCreateReservedFolderRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[421]
+	mi := &file_proto_cores_bale_proto_msgTypes[425]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19556,7 +19716,7 @@ func (x *BaleUserCreateReservedFolderRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserCreateReservedFolderRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateReservedFolderRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{421}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{425}
 }
 
 func (x *BaleUserCreateReservedFolderRequest) GetTitle() string {
@@ -19575,7 +19735,7 @@ type BaleUserCreateReservedFolderResponse struct {
 
 func (x *BaleUserCreateReservedFolderResponse) Reset() {
 	*x = BaleUserCreateReservedFolderResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[422]
+	mi := &file_proto_cores_bale_proto_msgTypes[426]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19587,7 +19747,7 @@ func (x *BaleUserCreateReservedFolderResponse) String() string {
 func (*BaleUserCreateReservedFolderResponse) ProtoMessage() {}
 
 func (x *BaleUserCreateReservedFolderResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[422]
+	mi := &file_proto_cores_bale_proto_msgTypes[426]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19600,7 +19760,7 @@ func (x *BaleUserCreateReservedFolderResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserCreateReservedFolderResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateReservedFolderResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{422}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{426}
 }
 
 func (x *BaleUserCreateReservedFolderResponse) GetResult_1() []byte {
@@ -19620,7 +19780,7 @@ type BaleUserCreateThreadRequest struct {
 
 func (x *BaleUserCreateThreadRequest) Reset() {
 	*x = BaleUserCreateThreadRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[423]
+	mi := &file_proto_cores_bale_proto_msgTypes[427]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19632,7 +19792,7 @@ func (x *BaleUserCreateThreadRequest) String() string {
 func (*BaleUserCreateThreadRequest) ProtoMessage() {}
 
 func (x *BaleUserCreateThreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[423]
+	mi := &file_proto_cores_bale_proto_msgTypes[427]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19645,7 +19805,7 @@ func (x *BaleUserCreateThreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateThreadRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateThreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{423}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{427}
 }
 
 func (x *BaleUserCreateThreadRequest) GetChatId() string {
@@ -19671,7 +19831,7 @@ type BaleUserCreateThreadResponse struct {
 
 func (x *BaleUserCreateThreadResponse) Reset() {
 	*x = BaleUserCreateThreadResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[424]
+	mi := &file_proto_cores_bale_proto_msgTypes[428]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19683,7 +19843,7 @@ func (x *BaleUserCreateThreadResponse) String() string {
 func (*BaleUserCreateThreadResponse) ProtoMessage() {}
 
 func (x *BaleUserCreateThreadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[424]
+	mi := &file_proto_cores_bale_proto_msgTypes[428]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19696,7 +19856,7 @@ func (x *BaleUserCreateThreadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateThreadResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateThreadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{424}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{428}
 }
 
 func (x *BaleUserCreateThreadResponse) GetResult_1() []byte {
@@ -19716,7 +19876,7 @@ type BaleUserCreateTopicRequest struct {
 
 func (x *BaleUserCreateTopicRequest) Reset() {
 	*x = BaleUserCreateTopicRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[425]
+	mi := &file_proto_cores_bale_proto_msgTypes[429]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19728,7 +19888,7 @@ func (x *BaleUserCreateTopicRequest) String() string {
 func (*BaleUserCreateTopicRequest) ProtoMessage() {}
 
 func (x *BaleUserCreateTopicRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[425]
+	mi := &file_proto_cores_bale_proto_msgTypes[429]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19741,7 +19901,7 @@ func (x *BaleUserCreateTopicRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateTopicRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateTopicRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{425}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{429}
 }
 
 func (x *BaleUserCreateTopicRequest) GetChatId() string {
@@ -19767,7 +19927,7 @@ type BaleUserCreateTopicResponse struct {
 
 func (x *BaleUserCreateTopicResponse) Reset() {
 	*x = BaleUserCreateTopicResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[426]
+	mi := &file_proto_cores_bale_proto_msgTypes[430]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19779,7 +19939,7 @@ func (x *BaleUserCreateTopicResponse) String() string {
 func (*BaleUserCreateTopicResponse) ProtoMessage() {}
 
 func (x *BaleUserCreateTopicResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[426]
+	mi := &file_proto_cores_bale_proto_msgTypes[430]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19792,7 +19952,7 @@ func (x *BaleUserCreateTopicResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserCreateTopicResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserCreateTopicResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{426}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{430}
 }
 
 func (x *BaleUserCreateTopicResponse) GetResult_1() []byte {
@@ -19811,7 +19971,7 @@ type BaleUserDeleteCallLogsRequest struct {
 
 func (x *BaleUserDeleteCallLogsRequest) Reset() {
 	*x = BaleUserDeleteCallLogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[427]
+	mi := &file_proto_cores_bale_proto_msgTypes[431]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19823,7 +19983,7 @@ func (x *BaleUserDeleteCallLogsRequest) String() string {
 func (*BaleUserDeleteCallLogsRequest) ProtoMessage() {}
 
 func (x *BaleUserDeleteCallLogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[427]
+	mi := &file_proto_cores_bale_proto_msgTypes[431]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19836,7 +19996,7 @@ func (x *BaleUserDeleteCallLogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteCallLogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteCallLogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{427}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{431}
 }
 
 func (x *BaleUserDeleteCallLogsRequest) GetCallIds() []int64 {
@@ -19855,7 +20015,7 @@ type BaleUserDeleteCallLogsResponse struct {
 
 func (x *BaleUserDeleteCallLogsResponse) Reset() {
 	*x = BaleUserDeleteCallLogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[428]
+	mi := &file_proto_cores_bale_proto_msgTypes[432]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19867,7 +20027,7 @@ func (x *BaleUserDeleteCallLogsResponse) String() string {
 func (*BaleUserDeleteCallLogsResponse) ProtoMessage() {}
 
 func (x *BaleUserDeleteCallLogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[428]
+	mi := &file_proto_cores_bale_proto_msgTypes[432]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19880,7 +20040,7 @@ func (x *BaleUserDeleteCallLogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteCallLogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteCallLogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{428}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{432}
 }
 
 func (x *BaleUserDeleteCallLogsResponse) GetResult_1() []byte {
@@ -19899,7 +20059,7 @@ type BaleUserDeleteChatRequest struct {
 
 func (x *BaleUserDeleteChatRequest) Reset() {
 	*x = BaleUserDeleteChatRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[429]
+	mi := &file_proto_cores_bale_proto_msgTypes[433]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19911,7 +20071,7 @@ func (x *BaleUserDeleteChatRequest) String() string {
 func (*BaleUserDeleteChatRequest) ProtoMessage() {}
 
 func (x *BaleUserDeleteChatRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[429]
+	mi := &file_proto_cores_bale_proto_msgTypes[433]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19924,7 +20084,7 @@ func (x *BaleUserDeleteChatRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteChatRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteChatRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{429}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{433}
 }
 
 func (x *BaleUserDeleteChatRequest) GetChatId() string {
@@ -19943,7 +20103,7 @@ type BaleUserDeleteChatResponse struct {
 
 func (x *BaleUserDeleteChatResponse) Reset() {
 	*x = BaleUserDeleteChatResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[430]
+	mi := &file_proto_cores_bale_proto_msgTypes[434]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -19955,7 +20115,7 @@ func (x *BaleUserDeleteChatResponse) String() string {
 func (*BaleUserDeleteChatResponse) ProtoMessage() {}
 
 func (x *BaleUserDeleteChatResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[430]
+	mi := &file_proto_cores_bale_proto_msgTypes[434]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19968,7 +20128,7 @@ func (x *BaleUserDeleteChatResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteChatResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteChatResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{430}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{434}
 }
 
 func (x *BaleUserDeleteChatResponse) GetResult_1() []byte {
@@ -19989,7 +20149,7 @@ type BaleUserDeleteMessageRequest struct {
 
 func (x *BaleUserDeleteMessageRequest) Reset() {
 	*x = BaleUserDeleteMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[431]
+	mi := &file_proto_cores_bale_proto_msgTypes[435]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20001,7 +20161,7 @@ func (x *BaleUserDeleteMessageRequest) String() string {
 func (*BaleUserDeleteMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserDeleteMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[431]
+	mi := &file_proto_cores_bale_proto_msgTypes[435]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20014,7 +20174,7 @@ func (x *BaleUserDeleteMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{431}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{435}
 }
 
 func (x *BaleUserDeleteMessageRequest) GetChatId() string {
@@ -20047,7 +20207,7 @@ type BaleUserDeleteMessageResponse struct {
 
 func (x *BaleUserDeleteMessageResponse) Reset() {
 	*x = BaleUserDeleteMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[432]
+	mi := &file_proto_cores_bale_proto_msgTypes[436]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20059,7 +20219,7 @@ func (x *BaleUserDeleteMessageResponse) String() string {
 func (*BaleUserDeleteMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserDeleteMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[432]
+	mi := &file_proto_cores_bale_proto_msgTypes[436]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20072,7 +20232,7 @@ func (x *BaleUserDeleteMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{432}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{436}
 }
 
 func (x *BaleUserDeleteMessageResponse) GetResult_1() []byte {
@@ -20090,7 +20250,7 @@ type BaleUserDeleteMyCommandsRequest struct {
 
 func (x *BaleUserDeleteMyCommandsRequest) Reset() {
 	*x = BaleUserDeleteMyCommandsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[433]
+	mi := &file_proto_cores_bale_proto_msgTypes[437]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20102,7 +20262,7 @@ func (x *BaleUserDeleteMyCommandsRequest) String() string {
 func (*BaleUserDeleteMyCommandsRequest) ProtoMessage() {}
 
 func (x *BaleUserDeleteMyCommandsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[433]
+	mi := &file_proto_cores_bale_proto_msgTypes[437]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20115,7 +20275,7 @@ func (x *BaleUserDeleteMyCommandsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteMyCommandsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteMyCommandsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{433}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{437}
 }
 
 type BaleUserDeleteMyCommandsResponse struct {
@@ -20127,7 +20287,7 @@ type BaleUserDeleteMyCommandsResponse struct {
 
 func (x *BaleUserDeleteMyCommandsResponse) Reset() {
 	*x = BaleUserDeleteMyCommandsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[434]
+	mi := &file_proto_cores_bale_proto_msgTypes[438]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20139,7 +20299,7 @@ func (x *BaleUserDeleteMyCommandsResponse) String() string {
 func (*BaleUserDeleteMyCommandsResponse) ProtoMessage() {}
 
 func (x *BaleUserDeleteMyCommandsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[434]
+	mi := &file_proto_cores_bale_proto_msgTypes[438]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20152,7 +20312,7 @@ func (x *BaleUserDeleteMyCommandsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteMyCommandsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteMyCommandsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{434}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{438}
 }
 
 func (x *BaleUserDeleteMyCommandsResponse) GetResult_1() []byte {
@@ -20171,7 +20331,7 @@ type BaleUserDeleteStreamRequest struct {
 
 func (x *BaleUserDeleteStreamRequest) Reset() {
 	*x = BaleUserDeleteStreamRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[435]
+	mi := &file_proto_cores_bale_proto_msgTypes[439]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20183,7 +20343,7 @@ func (x *BaleUserDeleteStreamRequest) String() string {
 func (*BaleUserDeleteStreamRequest) ProtoMessage() {}
 
 func (x *BaleUserDeleteStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[435]
+	mi := &file_proto_cores_bale_proto_msgTypes[439]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20196,7 +20356,7 @@ func (x *BaleUserDeleteStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteStreamRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteStreamRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{435}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{439}
 }
 
 func (x *BaleUserDeleteStreamRequest) GetCallId() int64 {
@@ -20215,7 +20375,7 @@ type BaleUserDeleteStreamResponse struct {
 
 func (x *BaleUserDeleteStreamResponse) Reset() {
 	*x = BaleUserDeleteStreamResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[436]
+	mi := &file_proto_cores_bale_proto_msgTypes[440]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20227,7 +20387,7 @@ func (x *BaleUserDeleteStreamResponse) String() string {
 func (*BaleUserDeleteStreamResponse) ProtoMessage() {}
 
 func (x *BaleUserDeleteStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[436]
+	mi := &file_proto_cores_bale_proto_msgTypes[440]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20240,7 +20400,7 @@ func (x *BaleUserDeleteStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserDeleteStreamResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserDeleteStreamResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{436}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{440}
 }
 
 func (x *BaleUserDeleteStreamResponse) GetResult_1() []byte {
@@ -20259,7 +20419,7 @@ type BaleUserEditAboutRequest struct {
 
 func (x *BaleUserEditAboutRequest) Reset() {
 	*x = BaleUserEditAboutRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[437]
+	mi := &file_proto_cores_bale_proto_msgTypes[441]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20271,7 +20431,7 @@ func (x *BaleUserEditAboutRequest) String() string {
 func (*BaleUserEditAboutRequest) ProtoMessage() {}
 
 func (x *BaleUserEditAboutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[437]
+	mi := &file_proto_cores_bale_proto_msgTypes[441]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20284,7 +20444,7 @@ func (x *BaleUserEditAboutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditAboutRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditAboutRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{437}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{441}
 }
 
 func (x *BaleUserEditAboutRequest) GetAbout() string {
@@ -20303,7 +20463,7 @@ type BaleUserEditAboutResponse struct {
 
 func (x *BaleUserEditAboutResponse) Reset() {
 	*x = BaleUserEditAboutResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[438]
+	mi := &file_proto_cores_bale_proto_msgTypes[442]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20315,7 +20475,7 @@ func (x *BaleUserEditAboutResponse) String() string {
 func (*BaleUserEditAboutResponse) ProtoMessage() {}
 
 func (x *BaleUserEditAboutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[438]
+	mi := &file_proto_cores_bale_proto_msgTypes[442]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20328,7 +20488,7 @@ func (x *BaleUserEditAboutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditAboutResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditAboutResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{438}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{442}
 }
 
 func (x *BaleUserEditAboutResponse) GetResult_1() []byte {
@@ -20348,7 +20508,7 @@ type BaleUserEditChannelNickRequest struct {
 
 func (x *BaleUserEditChannelNickRequest) Reset() {
 	*x = BaleUserEditChannelNickRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[439]
+	mi := &file_proto_cores_bale_proto_msgTypes[443]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20360,7 +20520,7 @@ func (x *BaleUserEditChannelNickRequest) String() string {
 func (*BaleUserEditChannelNickRequest) ProtoMessage() {}
 
 func (x *BaleUserEditChannelNickRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[439]
+	mi := &file_proto_cores_bale_proto_msgTypes[443]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20373,7 +20533,7 @@ func (x *BaleUserEditChannelNickRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditChannelNickRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditChannelNickRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{439}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{443}
 }
 
 func (x *BaleUserEditChannelNickRequest) GetGroupId() int64 {
@@ -20399,7 +20559,7 @@ type BaleUserEditChannelNickResponse struct {
 
 func (x *BaleUserEditChannelNickResponse) Reset() {
 	*x = BaleUserEditChannelNickResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[440]
+	mi := &file_proto_cores_bale_proto_msgTypes[444]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20411,7 +20571,7 @@ func (x *BaleUserEditChannelNickResponse) String() string {
 func (*BaleUserEditChannelNickResponse) ProtoMessage() {}
 
 func (x *BaleUserEditChannelNickResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[440]
+	mi := &file_proto_cores_bale_proto_msgTypes[444]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20424,7 +20584,7 @@ func (x *BaleUserEditChannelNickResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditChannelNickResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditChannelNickResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{440}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{444}
 }
 
 func (x *BaleUserEditChannelNickResponse) GetResult_1() []byte {
@@ -20444,7 +20604,7 @@ type BaleUserEditGroupAboutRequest struct {
 
 func (x *BaleUserEditGroupAboutRequest) Reset() {
 	*x = BaleUserEditGroupAboutRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[441]
+	mi := &file_proto_cores_bale_proto_msgTypes[445]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20456,7 +20616,7 @@ func (x *BaleUserEditGroupAboutRequest) String() string {
 func (*BaleUserEditGroupAboutRequest) ProtoMessage() {}
 
 func (x *BaleUserEditGroupAboutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[441]
+	mi := &file_proto_cores_bale_proto_msgTypes[445]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20469,7 +20629,7 @@ func (x *BaleUserEditGroupAboutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditGroupAboutRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditGroupAboutRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{441}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{445}
 }
 
 func (x *BaleUserEditGroupAboutRequest) GetGroupId() int64 {
@@ -20495,7 +20655,7 @@ type BaleUserEditGroupAboutResponse struct {
 
 func (x *BaleUserEditGroupAboutResponse) Reset() {
 	*x = BaleUserEditGroupAboutResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[442]
+	mi := &file_proto_cores_bale_proto_msgTypes[446]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20507,7 +20667,7 @@ func (x *BaleUserEditGroupAboutResponse) String() string {
 func (*BaleUserEditGroupAboutResponse) ProtoMessage() {}
 
 func (x *BaleUserEditGroupAboutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[442]
+	mi := &file_proto_cores_bale_proto_msgTypes[446]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20520,7 +20680,7 @@ func (x *BaleUserEditGroupAboutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditGroupAboutResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditGroupAboutResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{442}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{446}
 }
 
 func (x *BaleUserEditGroupAboutResponse) GetResult_1() []byte {
@@ -20541,7 +20701,7 @@ type BaleUserEditGroupAvatarRequest struct {
 
 func (x *BaleUserEditGroupAvatarRequest) Reset() {
 	*x = BaleUserEditGroupAvatarRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[443]
+	mi := &file_proto_cores_bale_proto_msgTypes[447]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20553,7 +20713,7 @@ func (x *BaleUserEditGroupAvatarRequest) String() string {
 func (*BaleUserEditGroupAvatarRequest) ProtoMessage() {}
 
 func (x *BaleUserEditGroupAvatarRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[443]
+	mi := &file_proto_cores_bale_proto_msgTypes[447]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20566,7 +20726,7 @@ func (x *BaleUserEditGroupAvatarRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditGroupAvatarRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditGroupAvatarRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{443}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{447}
 }
 
 func (x *BaleUserEditGroupAvatarRequest) GetGroupId() int64 {
@@ -20599,7 +20759,7 @@ type BaleUserEditGroupAvatarResponse struct {
 
 func (x *BaleUserEditGroupAvatarResponse) Reset() {
 	*x = BaleUserEditGroupAvatarResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[444]
+	mi := &file_proto_cores_bale_proto_msgTypes[448]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20611,7 +20771,7 @@ func (x *BaleUserEditGroupAvatarResponse) String() string {
 func (*BaleUserEditGroupAvatarResponse) ProtoMessage() {}
 
 func (x *BaleUserEditGroupAvatarResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[444]
+	mi := &file_proto_cores_bale_proto_msgTypes[448]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20624,7 +20784,7 @@ func (x *BaleUserEditGroupAvatarResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditGroupAvatarResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditGroupAvatarResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{444}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{448}
 }
 
 func (x *BaleUserEditGroupAvatarResponse) GetResult_1() []byte {
@@ -20644,7 +20804,7 @@ type BaleUserEditGroupDefaultCardNumberRequest struct {
 
 func (x *BaleUserEditGroupDefaultCardNumberRequest) Reset() {
 	*x = BaleUserEditGroupDefaultCardNumberRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[445]
+	mi := &file_proto_cores_bale_proto_msgTypes[449]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20656,7 +20816,7 @@ func (x *BaleUserEditGroupDefaultCardNumberRequest) String() string {
 func (*BaleUserEditGroupDefaultCardNumberRequest) ProtoMessage() {}
 
 func (x *BaleUserEditGroupDefaultCardNumberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[445]
+	mi := &file_proto_cores_bale_proto_msgTypes[449]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20669,7 +20829,7 @@ func (x *BaleUserEditGroupDefaultCardNumberRequest) ProtoReflect() protoreflect.
 
 // Deprecated: Use BaleUserEditGroupDefaultCardNumberRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditGroupDefaultCardNumberRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{445}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{449}
 }
 
 func (x *BaleUserEditGroupDefaultCardNumberRequest) GetGroupId() int64 {
@@ -20695,7 +20855,7 @@ type BaleUserEditGroupDefaultCardNumberResponse struct {
 
 func (x *BaleUserEditGroupDefaultCardNumberResponse) Reset() {
 	*x = BaleUserEditGroupDefaultCardNumberResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[446]
+	mi := &file_proto_cores_bale_proto_msgTypes[450]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20707,7 +20867,7 @@ func (x *BaleUserEditGroupDefaultCardNumberResponse) String() string {
 func (*BaleUserEditGroupDefaultCardNumberResponse) ProtoMessage() {}
 
 func (x *BaleUserEditGroupDefaultCardNumberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[446]
+	mi := &file_proto_cores_bale_proto_msgTypes[450]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20720,7 +20880,7 @@ func (x *BaleUserEditGroupDefaultCardNumberResponse) ProtoReflect() protoreflect
 
 // Deprecated: Use BaleUserEditGroupDefaultCardNumberResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditGroupDefaultCardNumberResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{446}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{450}
 }
 
 func (x *BaleUserEditGroupDefaultCardNumberResponse) GetResult_1() []byte {
@@ -20740,7 +20900,7 @@ type BaleUserEditGroupTitleRequest struct {
 
 func (x *BaleUserEditGroupTitleRequest) Reset() {
 	*x = BaleUserEditGroupTitleRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[447]
+	mi := &file_proto_cores_bale_proto_msgTypes[451]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20752,7 +20912,7 @@ func (x *BaleUserEditGroupTitleRequest) String() string {
 func (*BaleUserEditGroupTitleRequest) ProtoMessage() {}
 
 func (x *BaleUserEditGroupTitleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[447]
+	mi := &file_proto_cores_bale_proto_msgTypes[451]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20765,7 +20925,7 @@ func (x *BaleUserEditGroupTitleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditGroupTitleRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditGroupTitleRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{447}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{451}
 }
 
 func (x *BaleUserEditGroupTitleRequest) GetGroupId() int64 {
@@ -20791,7 +20951,7 @@ type BaleUserEditGroupTitleResponse struct {
 
 func (x *BaleUserEditGroupTitleResponse) Reset() {
 	*x = BaleUserEditGroupTitleResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[448]
+	mi := &file_proto_cores_bale_proto_msgTypes[452]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20803,7 +20963,7 @@ func (x *BaleUserEditGroupTitleResponse) String() string {
 func (*BaleUserEditGroupTitleResponse) ProtoMessage() {}
 
 func (x *BaleUserEditGroupTitleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[448]
+	mi := &file_proto_cores_bale_proto_msgTypes[452]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20816,7 +20976,7 @@ func (x *BaleUserEditGroupTitleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditGroupTitleResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditGroupTitleResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{448}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{452}
 }
 
 func (x *BaleUserEditGroupTitleResponse) GetResult_1() []byte {
@@ -20836,7 +20996,7 @@ type BaleUserEditLocalNameRequest struct {
 
 func (x *BaleUserEditLocalNameRequest) Reset() {
 	*x = BaleUserEditLocalNameRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[449]
+	mi := &file_proto_cores_bale_proto_msgTypes[453]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20848,7 +21008,7 @@ func (x *BaleUserEditLocalNameRequest) String() string {
 func (*BaleUserEditLocalNameRequest) ProtoMessage() {}
 
 func (x *BaleUserEditLocalNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[449]
+	mi := &file_proto_cores_bale_proto_msgTypes[453]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20861,7 +21021,7 @@ func (x *BaleUserEditLocalNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditLocalNameRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditLocalNameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{449}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{453}
 }
 
 func (x *BaleUserEditLocalNameRequest) GetUserId() int64 {
@@ -20887,7 +21047,7 @@ type BaleUserEditLocalNameResponse struct {
 
 func (x *BaleUserEditLocalNameResponse) Reset() {
 	*x = BaleUserEditLocalNameResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[450]
+	mi := &file_proto_cores_bale_proto_msgTypes[454]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20899,7 +21059,7 @@ func (x *BaleUserEditLocalNameResponse) String() string {
 func (*BaleUserEditLocalNameResponse) ProtoMessage() {}
 
 func (x *BaleUserEditLocalNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[450]
+	mi := &file_proto_cores_bale_proto_msgTypes[454]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20912,7 +21072,7 @@ func (x *BaleUserEditLocalNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditLocalNameResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditLocalNameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{450}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{454}
 }
 
 func (x *BaleUserEditLocalNameResponse) GetResult_1() []byte {
@@ -20931,7 +21091,7 @@ type BaleUserEditNameRequest struct {
 
 func (x *BaleUserEditNameRequest) Reset() {
 	*x = BaleUserEditNameRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[451]
+	mi := &file_proto_cores_bale_proto_msgTypes[455]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20943,7 +21103,7 @@ func (x *BaleUserEditNameRequest) String() string {
 func (*BaleUserEditNameRequest) ProtoMessage() {}
 
 func (x *BaleUserEditNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[451]
+	mi := &file_proto_cores_bale_proto_msgTypes[455]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20956,7 +21116,7 @@ func (x *BaleUserEditNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditNameRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditNameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{451}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{455}
 }
 
 func (x *BaleUserEditNameRequest) GetName() string {
@@ -20975,7 +21135,7 @@ type BaleUserEditNameResponse struct {
 
 func (x *BaleUserEditNameResponse) Reset() {
 	*x = BaleUserEditNameResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[452]
+	mi := &file_proto_cores_bale_proto_msgTypes[456]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -20987,7 +21147,7 @@ func (x *BaleUserEditNameResponse) String() string {
 func (*BaleUserEditNameResponse) ProtoMessage() {}
 
 func (x *BaleUserEditNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[452]
+	mi := &file_proto_cores_bale_proto_msgTypes[456]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21000,7 +21160,7 @@ func (x *BaleUserEditNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditNameResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditNameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{452}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{456}
 }
 
 func (x *BaleUserEditNameResponse) GetResult_1() []byte {
@@ -21019,7 +21179,7 @@ type BaleUserEditNickNameRequest struct {
 
 func (x *BaleUserEditNickNameRequest) Reset() {
 	*x = BaleUserEditNickNameRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[453]
+	mi := &file_proto_cores_bale_proto_msgTypes[457]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21031,7 +21191,7 @@ func (x *BaleUserEditNickNameRequest) String() string {
 func (*BaleUserEditNickNameRequest) ProtoMessage() {}
 
 func (x *BaleUserEditNickNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[453]
+	mi := &file_proto_cores_bale_proto_msgTypes[457]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21044,7 +21204,7 @@ func (x *BaleUserEditNickNameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditNickNameRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditNickNameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{453}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{457}
 }
 
 func (x *BaleUserEditNickNameRequest) GetNick() string {
@@ -21063,7 +21223,7 @@ type BaleUserEditNickNameResponse struct {
 
 func (x *BaleUserEditNickNameResponse) Reset() {
 	*x = BaleUserEditNickNameResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[454]
+	mi := &file_proto_cores_bale_proto_msgTypes[458]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21075,7 +21235,7 @@ func (x *BaleUserEditNickNameResponse) String() string {
 func (*BaleUserEditNickNameResponse) ProtoMessage() {}
 
 func (x *BaleUserEditNickNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[454]
+	mi := &file_proto_cores_bale_proto_msgTypes[458]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21088,7 +21248,7 @@ func (x *BaleUserEditNickNameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditNickNameResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditNickNameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{454}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{458}
 }
 
 func (x *BaleUserEditNickNameResponse) GetResult_1() []byte {
@@ -21108,7 +21268,7 @@ type BaleUserEditParameterRequest struct {
 
 func (x *BaleUserEditParameterRequest) Reset() {
 	*x = BaleUserEditParameterRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[455]
+	mi := &file_proto_cores_bale_proto_msgTypes[459]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21120,7 +21280,7 @@ func (x *BaleUserEditParameterRequest) String() string {
 func (*BaleUserEditParameterRequest) ProtoMessage() {}
 
 func (x *BaleUserEditParameterRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[455]
+	mi := &file_proto_cores_bale_proto_msgTypes[459]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21133,7 +21293,7 @@ func (x *BaleUserEditParameterRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditParameterRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEditParameterRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{455}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{459}
 }
 
 func (x *BaleUserEditParameterRequest) GetKey() string {
@@ -21159,7 +21319,7 @@ type BaleUserEditParameterResponse struct {
 
 func (x *BaleUserEditParameterResponse) Reset() {
 	*x = BaleUserEditParameterResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[456]
+	mi := &file_proto_cores_bale_proto_msgTypes[460]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21171,7 +21331,7 @@ func (x *BaleUserEditParameterResponse) String() string {
 func (*BaleUserEditParameterResponse) ProtoMessage() {}
 
 func (x *BaleUserEditParameterResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[456]
+	mi := &file_proto_cores_bale_proto_msgTypes[460]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21184,7 +21344,7 @@ func (x *BaleUserEditParameterResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserEditParameterResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEditParameterResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{456}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{460}
 }
 
 func (x *BaleUserEditParameterResponse) GetResult_1() []byte {
@@ -21203,7 +21363,7 @@ type BaleUserEnableShowReactionFlagRequest struct {
 
 func (x *BaleUserEnableShowReactionFlagRequest) Reset() {
 	*x = BaleUserEnableShowReactionFlagRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[457]
+	mi := &file_proto_cores_bale_proto_msgTypes[461]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21215,7 +21375,7 @@ func (x *BaleUserEnableShowReactionFlagRequest) String() string {
 func (*BaleUserEnableShowReactionFlagRequest) ProtoMessage() {}
 
 func (x *BaleUserEnableShowReactionFlagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[457]
+	mi := &file_proto_cores_bale_proto_msgTypes[461]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21228,7 +21388,7 @@ func (x *BaleUserEnableShowReactionFlagRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserEnableShowReactionFlagRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserEnableShowReactionFlagRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{457}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{461}
 }
 
 func (x *BaleUserEnableShowReactionFlagRequest) GetEnabled() bool {
@@ -21247,7 +21407,7 @@ type BaleUserEnableShowReactionFlagResponse struct {
 
 func (x *BaleUserEnableShowReactionFlagResponse) Reset() {
 	*x = BaleUserEnableShowReactionFlagResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[458]
+	mi := &file_proto_cores_bale_proto_msgTypes[462]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21259,7 +21419,7 @@ func (x *BaleUserEnableShowReactionFlagResponse) String() string {
 func (*BaleUserEnableShowReactionFlagResponse) ProtoMessage() {}
 
 func (x *BaleUserEnableShowReactionFlagResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[458]
+	mi := &file_proto_cores_bale_proto_msgTypes[462]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21272,7 +21432,7 @@ func (x *BaleUserEnableShowReactionFlagResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserEnableShowReactionFlagResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserEnableShowReactionFlagResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{458}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{462}
 }
 
 func (x *BaleUserEnableShowReactionFlagResponse) GetResult_1() []byte {
@@ -21291,7 +21451,7 @@ type BaleUserExecuteTaskNowRequest struct {
 
 func (x *BaleUserExecuteTaskNowRequest) Reset() {
 	*x = BaleUserExecuteTaskNowRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[459]
+	mi := &file_proto_cores_bale_proto_msgTypes[463]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21303,7 +21463,7 @@ func (x *BaleUserExecuteTaskNowRequest) String() string {
 func (*BaleUserExecuteTaskNowRequest) ProtoMessage() {}
 
 func (x *BaleUserExecuteTaskNowRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[459]
+	mi := &file_proto_cores_bale_proto_msgTypes[463]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21316,7 +21476,7 @@ func (x *BaleUserExecuteTaskNowRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserExecuteTaskNowRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserExecuteTaskNowRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{459}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{463}
 }
 
 func (x *BaleUserExecuteTaskNowRequest) GetTaskId() int64 {
@@ -21335,7 +21495,7 @@ type BaleUserExecuteTaskNowResponse struct {
 
 func (x *BaleUserExecuteTaskNowResponse) Reset() {
 	*x = BaleUserExecuteTaskNowResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[460]
+	mi := &file_proto_cores_bale_proto_msgTypes[464]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21347,7 +21507,7 @@ func (x *BaleUserExecuteTaskNowResponse) String() string {
 func (*BaleUserExecuteTaskNowResponse) ProtoMessage() {}
 
 func (x *BaleUserExecuteTaskNowResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[460]
+	mi := &file_proto_cores_bale_proto_msgTypes[464]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21360,7 +21520,7 @@ func (x *BaleUserExecuteTaskNowResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserExecuteTaskNowResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserExecuteTaskNowResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{460}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{464}
 }
 
 func (x *BaleUserExecuteTaskNowResponse) GetResult_1() []byte {
@@ -21379,7 +21539,7 @@ type BaleUserFetchGroupAdminsRequest struct {
 
 func (x *BaleUserFetchGroupAdminsRequest) Reset() {
 	*x = BaleUserFetchGroupAdminsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[461]
+	mi := &file_proto_cores_bale_proto_msgTypes[465]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21391,7 +21551,7 @@ func (x *BaleUserFetchGroupAdminsRequest) String() string {
 func (*BaleUserFetchGroupAdminsRequest) ProtoMessage() {}
 
 func (x *BaleUserFetchGroupAdminsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[461]
+	mi := &file_proto_cores_bale_proto_msgTypes[465]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21404,7 +21564,7 @@ func (x *BaleUserFetchGroupAdminsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserFetchGroupAdminsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserFetchGroupAdminsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{461}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{465}
 }
 
 func (x *BaleUserFetchGroupAdminsRequest) GetGroupId() int64 {
@@ -21423,7 +21583,7 @@ type BaleUserFetchGroupAdminsResponse struct {
 
 func (x *BaleUserFetchGroupAdminsResponse) Reset() {
 	*x = BaleUserFetchGroupAdminsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[462]
+	mi := &file_proto_cores_bale_proto_msgTypes[466]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21435,7 +21595,7 @@ func (x *BaleUserFetchGroupAdminsResponse) String() string {
 func (*BaleUserFetchGroupAdminsResponse) ProtoMessage() {}
 
 func (x *BaleUserFetchGroupAdminsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[462]
+	mi := &file_proto_cores_bale_proto_msgTypes[466]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21448,7 +21608,7 @@ func (x *BaleUserFetchGroupAdminsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserFetchGroupAdminsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserFetchGroupAdminsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{462}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{466}
 }
 
 func (x *BaleUserFetchGroupAdminsResponse) GetResult_1() []byte {
@@ -21468,7 +21628,7 @@ type BaleUserFetchProtectedMessageRequest struct {
 
 func (x *BaleUserFetchProtectedMessageRequest) Reset() {
 	*x = BaleUserFetchProtectedMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[463]
+	mi := &file_proto_cores_bale_proto_msgTypes[467]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21480,7 +21640,7 @@ func (x *BaleUserFetchProtectedMessageRequest) String() string {
 func (*BaleUserFetchProtectedMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserFetchProtectedMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[463]
+	mi := &file_proto_cores_bale_proto_msgTypes[467]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21493,7 +21653,7 @@ func (x *BaleUserFetchProtectedMessageRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserFetchProtectedMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserFetchProtectedMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{463}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{467}
 }
 
 func (x *BaleUserFetchProtectedMessageRequest) GetChatId() string {
@@ -21519,7 +21679,7 @@ type BaleUserFetchProtectedMessageResponse struct {
 
 func (x *BaleUserFetchProtectedMessageResponse) Reset() {
 	*x = BaleUserFetchProtectedMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[464]
+	mi := &file_proto_cores_bale_proto_msgTypes[468]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21531,7 +21691,7 @@ func (x *BaleUserFetchProtectedMessageResponse) String() string {
 func (*BaleUserFetchProtectedMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserFetchProtectedMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[464]
+	mi := &file_proto_cores_bale_proto_msgTypes[468]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21544,7 +21704,7 @@ func (x *BaleUserFetchProtectedMessageResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserFetchProtectedMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserFetchProtectedMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{464}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{468}
 }
 
 func (x *BaleUserFetchProtectedMessageResponse) GetResult_1() []byte {
@@ -21563,7 +21723,7 @@ type BaleUserFileUploadCancelRequest struct {
 
 func (x *BaleUserFileUploadCancelRequest) Reset() {
 	*x = BaleUserFileUploadCancelRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[465]
+	mi := &file_proto_cores_bale_proto_msgTypes[469]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21575,7 +21735,7 @@ func (x *BaleUserFileUploadCancelRequest) String() string {
 func (*BaleUserFileUploadCancelRequest) ProtoMessage() {}
 
 func (x *BaleUserFileUploadCancelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[465]
+	mi := &file_proto_cores_bale_proto_msgTypes[469]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21588,7 +21748,7 @@ func (x *BaleUserFileUploadCancelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserFileUploadCancelRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserFileUploadCancelRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{465}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{469}
 }
 
 func (x *BaleUserFileUploadCancelRequest) GetFileId() int64 {
@@ -21607,7 +21767,7 @@ type BaleUserFileUploadCancelResponse struct {
 
 func (x *BaleUserFileUploadCancelResponse) Reset() {
 	*x = BaleUserFileUploadCancelResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[466]
+	mi := &file_proto_cores_bale_proto_msgTypes[470]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21619,7 +21779,7 @@ func (x *BaleUserFileUploadCancelResponse) String() string {
 func (*BaleUserFileUploadCancelResponse) ProtoMessage() {}
 
 func (x *BaleUserFileUploadCancelResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[466]
+	mi := &file_proto_cores_bale_proto_msgTypes[470]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21632,7 +21792,7 @@ func (x *BaleUserFileUploadCancelResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserFileUploadCancelResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserFileUploadCancelResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{466}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{470}
 }
 
 func (x *BaleUserFileUploadCancelResponse) GetResult_1() []byte {
@@ -21654,7 +21814,7 @@ type BaleUserForwardMessagesRequest struct {
 
 func (x *BaleUserForwardMessagesRequest) Reset() {
 	*x = BaleUserForwardMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[467]
+	mi := &file_proto_cores_bale_proto_msgTypes[471]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21666,7 +21826,7 @@ func (x *BaleUserForwardMessagesRequest) String() string {
 func (*BaleUserForwardMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserForwardMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[467]
+	mi := &file_proto_cores_bale_proto_msgTypes[471]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21679,7 +21839,7 @@ func (x *BaleUserForwardMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserForwardMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserForwardMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{467}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{471}
 }
 
 func (x *BaleUserForwardMessagesRequest) GetToChatId() string {
@@ -21719,7 +21879,7 @@ type BaleUserForwardMessagesResponse struct {
 
 func (x *BaleUserForwardMessagesResponse) Reset() {
 	*x = BaleUserForwardMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[468]
+	mi := &file_proto_cores_bale_proto_msgTypes[472]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21731,7 +21891,7 @@ func (x *BaleUserForwardMessagesResponse) String() string {
 func (*BaleUserForwardMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserForwardMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[468]
+	mi := &file_proto_cores_bale_proto_msgTypes[472]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21744,7 +21904,7 @@ func (x *BaleUserForwardMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserForwardMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserForwardMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{468}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{472}
 }
 
 func (x *BaleUserForwardMessagesResponse) GetResult_1() []byte {
@@ -21763,7 +21923,7 @@ type BaleUserGenerateCallLinkRequest struct {
 
 func (x *BaleUserGenerateCallLinkRequest) Reset() {
 	*x = BaleUserGenerateCallLinkRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[469]
+	mi := &file_proto_cores_bale_proto_msgTypes[473]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21775,7 +21935,7 @@ func (x *BaleUserGenerateCallLinkRequest) String() string {
 func (*BaleUserGenerateCallLinkRequest) ProtoMessage() {}
 
 func (x *BaleUserGenerateCallLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[469]
+	mi := &file_proto_cores_bale_proto_msgTypes[473]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21788,7 +21948,7 @@ func (x *BaleUserGenerateCallLinkRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGenerateCallLinkRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGenerateCallLinkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{469}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{473}
 }
 
 func (x *BaleUserGenerateCallLinkRequest) GetCallId() int64 {
@@ -21807,7 +21967,7 @@ type BaleUserGenerateCallLinkResponse struct {
 
 func (x *BaleUserGenerateCallLinkResponse) Reset() {
 	*x = BaleUserGenerateCallLinkResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[470]
+	mi := &file_proto_cores_bale_proto_msgTypes[474]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21819,7 +21979,7 @@ func (x *BaleUserGenerateCallLinkResponse) String() string {
 func (*BaleUserGenerateCallLinkResponse) ProtoMessage() {}
 
 func (x *BaleUserGenerateCallLinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[470]
+	mi := &file_proto_cores_bale_proto_msgTypes[474]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21832,7 +21992,7 @@ func (x *BaleUserGenerateCallLinkResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGenerateCallLinkResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGenerateCallLinkResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{470}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{474}
 }
 
 func (x *BaleUserGenerateCallLinkResponse) GetResult_1() []byte {
@@ -21851,7 +22011,7 @@ type BaleUserGetActiveSharedMediaRequest struct {
 
 func (x *BaleUserGetActiveSharedMediaRequest) Reset() {
 	*x = BaleUserGetActiveSharedMediaRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[471]
+	mi := &file_proto_cores_bale_proto_msgTypes[475]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21863,7 +22023,7 @@ func (x *BaleUserGetActiveSharedMediaRequest) String() string {
 func (*BaleUserGetActiveSharedMediaRequest) ProtoMessage() {}
 
 func (x *BaleUserGetActiveSharedMediaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[471]
+	mi := &file_proto_cores_bale_proto_msgTypes[475]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21876,7 +22036,7 @@ func (x *BaleUserGetActiveSharedMediaRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetActiveSharedMediaRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetActiveSharedMediaRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{471}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{475}
 }
 
 func (x *BaleUserGetActiveSharedMediaRequest) GetChatId() string {
@@ -21895,7 +22055,7 @@ type BaleUserGetActiveSharedMediaResponse struct {
 
 func (x *BaleUserGetActiveSharedMediaResponse) Reset() {
 	*x = BaleUserGetActiveSharedMediaResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[472]
+	mi := &file_proto_cores_bale_proto_msgTypes[476]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21907,7 +22067,7 @@ func (x *BaleUserGetActiveSharedMediaResponse) String() string {
 func (*BaleUserGetActiveSharedMediaResponse) ProtoMessage() {}
 
 func (x *BaleUserGetActiveSharedMediaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[472]
+	mi := &file_proto_cores_bale_proto_msgTypes[476]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21920,7 +22080,7 @@ func (x *BaleUserGetActiveSharedMediaResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetActiveSharedMediaResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetActiveSharedMediaResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{472}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{476}
 }
 
 func (x *BaleUserGetActiveSharedMediaResponse) GetResult_1() []byte {
@@ -21938,7 +22098,7 @@ type BaleUserGetAnonymousContactPageRequest struct {
 
 func (x *BaleUserGetAnonymousContactPageRequest) Reset() {
 	*x = BaleUserGetAnonymousContactPageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[473]
+	mi := &file_proto_cores_bale_proto_msgTypes[477]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21950,7 +22110,7 @@ func (x *BaleUserGetAnonymousContactPageRequest) String() string {
 func (*BaleUserGetAnonymousContactPageRequest) ProtoMessage() {}
 
 func (x *BaleUserGetAnonymousContactPageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[473]
+	mi := &file_proto_cores_bale_proto_msgTypes[477]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21963,7 +22123,7 @@ func (x *BaleUserGetAnonymousContactPageRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserGetAnonymousContactPageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetAnonymousContactPageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{473}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{477}
 }
 
 type BaleUserGetAnonymousContactPageResponse struct {
@@ -21975,7 +22135,7 @@ type BaleUserGetAnonymousContactPageResponse struct {
 
 func (x *BaleUserGetAnonymousContactPageResponse) Reset() {
 	*x = BaleUserGetAnonymousContactPageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[474]
+	mi := &file_proto_cores_bale_proto_msgTypes[478]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -21987,7 +22147,7 @@ func (x *BaleUserGetAnonymousContactPageResponse) String() string {
 func (*BaleUserGetAnonymousContactPageResponse) ProtoMessage() {}
 
 func (x *BaleUserGetAnonymousContactPageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[474]
+	mi := &file_proto_cores_bale_proto_msgTypes[478]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22000,7 +22160,7 @@ func (x *BaleUserGetAnonymousContactPageResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserGetAnonymousContactPageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetAnonymousContactPageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{474}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{478}
 }
 
 func (x *BaleUserGetAnonymousContactPageResponse) GetResult_1() []byte {
@@ -22019,7 +22179,7 @@ type BaleUserGetBannedUsersRequest struct {
 
 func (x *BaleUserGetBannedUsersRequest) Reset() {
 	*x = BaleUserGetBannedUsersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[475]
+	mi := &file_proto_cores_bale_proto_msgTypes[479]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22031,7 +22191,7 @@ func (x *BaleUserGetBannedUsersRequest) String() string {
 func (*BaleUserGetBannedUsersRequest) ProtoMessage() {}
 
 func (x *BaleUserGetBannedUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[475]
+	mi := &file_proto_cores_bale_proto_msgTypes[479]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22044,7 +22204,7 @@ func (x *BaleUserGetBannedUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBannedUsersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBannedUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{475}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{479}
 }
 
 func (x *BaleUserGetBannedUsersRequest) GetGroupId() int64 {
@@ -22063,7 +22223,7 @@ type BaleUserGetBannedUsersResponse struct {
 
 func (x *BaleUserGetBannedUsersResponse) Reset() {
 	*x = BaleUserGetBannedUsersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[476]
+	mi := &file_proto_cores_bale_proto_msgTypes[480]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22075,7 +22235,7 @@ func (x *BaleUserGetBannedUsersResponse) String() string {
 func (*BaleUserGetBannedUsersResponse) ProtoMessage() {}
 
 func (x *BaleUserGetBannedUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[476]
+	mi := &file_proto_cores_bale_proto_msgTypes[480]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22088,7 +22248,7 @@ func (x *BaleUserGetBannedUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBannedUsersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBannedUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{476}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{480}
 }
 
 func (x *BaleUserGetBannedUsersResponse) GetResult_1() []byte {
@@ -22108,7 +22268,7 @@ type BaleUserGetBotGroupPermissionsRequest struct {
 
 func (x *BaleUserGetBotGroupPermissionsRequest) Reset() {
 	*x = BaleUserGetBotGroupPermissionsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[477]
+	mi := &file_proto_cores_bale_proto_msgTypes[481]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22120,7 +22280,7 @@ func (x *BaleUserGetBotGroupPermissionsRequest) String() string {
 func (*BaleUserGetBotGroupPermissionsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetBotGroupPermissionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[477]
+	mi := &file_proto_cores_bale_proto_msgTypes[481]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22133,7 +22293,7 @@ func (x *BaleUserGetBotGroupPermissionsRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserGetBotGroupPermissionsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotGroupPermissionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{477}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{481}
 }
 
 func (x *BaleUserGetBotGroupPermissionsRequest) GetBotId() int64 {
@@ -22159,7 +22319,7 @@ type BaleUserGetBotGroupPermissionsResponse struct {
 
 func (x *BaleUserGetBotGroupPermissionsResponse) Reset() {
 	*x = BaleUserGetBotGroupPermissionsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[478]
+	mi := &file_proto_cores_bale_proto_msgTypes[482]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22171,7 +22331,7 @@ func (x *BaleUserGetBotGroupPermissionsResponse) String() string {
 func (*BaleUserGetBotGroupPermissionsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetBotGroupPermissionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[478]
+	mi := &file_proto_cores_bale_proto_msgTypes[482]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22184,7 +22344,7 @@ func (x *BaleUserGetBotGroupPermissionsResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserGetBotGroupPermissionsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotGroupPermissionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{478}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{482}
 }
 
 func (x *BaleUserGetBotGroupPermissionsResponse) GetResult_1() []byte {
@@ -22203,7 +22363,7 @@ type BaleUserGetBotInfoRequest struct {
 
 func (x *BaleUserGetBotInfoRequest) Reset() {
 	*x = BaleUserGetBotInfoRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[479]
+	mi := &file_proto_cores_bale_proto_msgTypes[483]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22215,7 +22375,7 @@ func (x *BaleUserGetBotInfoRequest) String() string {
 func (*BaleUserGetBotInfoRequest) ProtoMessage() {}
 
 func (x *BaleUserGetBotInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[479]
+	mi := &file_proto_cores_bale_proto_msgTypes[483]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22228,7 +22388,7 @@ func (x *BaleUserGetBotInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBotInfoRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotInfoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{479}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{483}
 }
 
 func (x *BaleUserGetBotInfoRequest) GetBotId() int64 {
@@ -22247,7 +22407,7 @@ type BaleUserGetBotInfoResponse struct {
 
 func (x *BaleUserGetBotInfoResponse) Reset() {
 	*x = BaleUserGetBotInfoResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[480]
+	mi := &file_proto_cores_bale_proto_msgTypes[484]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22259,7 +22419,7 @@ func (x *BaleUserGetBotInfoResponse) String() string {
 func (*BaleUserGetBotInfoResponse) ProtoMessage() {}
 
 func (x *BaleUserGetBotInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[480]
+	mi := &file_proto_cores_bale_proto_msgTypes[484]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22272,7 +22432,7 @@ func (x *BaleUserGetBotInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBotInfoResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotInfoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{480}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{484}
 }
 
 func (x *BaleUserGetBotInfoResponse) GetResult_1() []byte {
@@ -22291,7 +22451,7 @@ type BaleUserGetBotStoriesRequest struct {
 
 func (x *BaleUserGetBotStoriesRequest) Reset() {
 	*x = BaleUserGetBotStoriesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[481]
+	mi := &file_proto_cores_bale_proto_msgTypes[485]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22303,7 +22463,7 @@ func (x *BaleUserGetBotStoriesRequest) String() string {
 func (*BaleUserGetBotStoriesRequest) ProtoMessage() {}
 
 func (x *BaleUserGetBotStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[481]
+	mi := &file_proto_cores_bale_proto_msgTypes[485]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22316,7 +22476,7 @@ func (x *BaleUserGetBotStoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBotStoriesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{481}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{485}
 }
 
 func (x *BaleUserGetBotStoriesRequest) GetBotId() int64 {
@@ -22335,7 +22495,7 @@ type BaleUserGetBotStoriesResponse struct {
 
 func (x *BaleUserGetBotStoriesResponse) Reset() {
 	*x = BaleUserGetBotStoriesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[482]
+	mi := &file_proto_cores_bale_proto_msgTypes[486]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22347,7 +22507,7 @@ func (x *BaleUserGetBotStoriesResponse) String() string {
 func (*BaleUserGetBotStoriesResponse) ProtoMessage() {}
 
 func (x *BaleUserGetBotStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[482]
+	mi := &file_proto_cores_bale_proto_msgTypes[486]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22360,7 +22520,7 @@ func (x *BaleUserGetBotStoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBotStoriesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{482}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{486}
 }
 
 func (x *BaleUserGetBotStoriesResponse) GetResult_1() []byte {
@@ -22378,7 +22538,7 @@ type BaleUserGetBotWhiteListRequest struct {
 
 func (x *BaleUserGetBotWhiteListRequest) Reset() {
 	*x = BaleUserGetBotWhiteListRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[483]
+	mi := &file_proto_cores_bale_proto_msgTypes[487]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22390,7 +22550,7 @@ func (x *BaleUserGetBotWhiteListRequest) String() string {
 func (*BaleUserGetBotWhiteListRequest) ProtoMessage() {}
 
 func (x *BaleUserGetBotWhiteListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[483]
+	mi := &file_proto_cores_bale_proto_msgTypes[487]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22403,7 +22563,7 @@ func (x *BaleUserGetBotWhiteListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBotWhiteListRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotWhiteListRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{483}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{487}
 }
 
 type BaleUserGetBotWhiteListResponse struct {
@@ -22415,7 +22575,7 @@ type BaleUserGetBotWhiteListResponse struct {
 
 func (x *BaleUserGetBotWhiteListResponse) Reset() {
 	*x = BaleUserGetBotWhiteListResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[484]
+	mi := &file_proto_cores_bale_proto_msgTypes[488]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22427,7 +22587,7 @@ func (x *BaleUserGetBotWhiteListResponse) String() string {
 func (*BaleUserGetBotWhiteListResponse) ProtoMessage() {}
 
 func (x *BaleUserGetBotWhiteListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[484]
+	mi := &file_proto_cores_bale_proto_msgTypes[488]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22440,7 +22600,7 @@ func (x *BaleUserGetBotWhiteListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBotWhiteListResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotWhiteListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{484}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{488}
 }
 
 func (x *BaleUserGetBotWhiteListResponse) GetResult_1() []byte {
@@ -22458,7 +22618,7 @@ type BaleUserGetBotsRequest struct {
 
 func (x *BaleUserGetBotsRequest) Reset() {
 	*x = BaleUserGetBotsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[485]
+	mi := &file_proto_cores_bale_proto_msgTypes[489]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22470,7 +22630,7 @@ func (x *BaleUserGetBotsRequest) String() string {
 func (*BaleUserGetBotsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetBotsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[485]
+	mi := &file_proto_cores_bale_proto_msgTypes[489]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22483,7 +22643,7 @@ func (x *BaleUserGetBotsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBotsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{485}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{489}
 }
 
 type BaleUserGetBotsResponse struct {
@@ -22495,7 +22655,7 @@ type BaleUserGetBotsResponse struct {
 
 func (x *BaleUserGetBotsResponse) Reset() {
 	*x = BaleUserGetBotsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[486]
+	mi := &file_proto_cores_bale_proto_msgTypes[490]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22507,7 +22667,7 @@ func (x *BaleUserGetBotsResponse) String() string {
 func (*BaleUserGetBotsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetBotsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[486]
+	mi := &file_proto_cores_bale_proto_msgTypes[490]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22520,7 +22680,7 @@ func (x *BaleUserGetBotsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetBotsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetBotsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{486}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{490}
 }
 
 func (x *BaleUserGetBotsResponse) GetResult_1() []byte {
@@ -22539,7 +22699,7 @@ type BaleUserGetCallLinkDetailsRequest struct {
 
 func (x *BaleUserGetCallLinkDetailsRequest) Reset() {
 	*x = BaleUserGetCallLinkDetailsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[487]
+	mi := &file_proto_cores_bale_proto_msgTypes[491]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22551,7 +22711,7 @@ func (x *BaleUserGetCallLinkDetailsRequest) String() string {
 func (*BaleUserGetCallLinkDetailsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetCallLinkDetailsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[487]
+	mi := &file_proto_cores_bale_proto_msgTypes[491]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22564,7 +22724,7 @@ func (x *BaleUserGetCallLinkDetailsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserGetCallLinkDetailsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetCallLinkDetailsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{487}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{491}
 }
 
 func (x *BaleUserGetCallLinkDetailsRequest) GetLink() string {
@@ -22583,7 +22743,7 @@ type BaleUserGetCallLinkDetailsResponse struct {
 
 func (x *BaleUserGetCallLinkDetailsResponse) Reset() {
 	*x = BaleUserGetCallLinkDetailsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[488]
+	mi := &file_proto_cores_bale_proto_msgTypes[492]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22595,7 +22755,7 @@ func (x *BaleUserGetCallLinkDetailsResponse) String() string {
 func (*BaleUserGetCallLinkDetailsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetCallLinkDetailsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[488]
+	mi := &file_proto_cores_bale_proto_msgTypes[492]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22608,7 +22768,7 @@ func (x *BaleUserGetCallLinkDetailsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetCallLinkDetailsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetCallLinkDetailsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{488}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{492}
 }
 
 func (x *BaleUserGetCallLinkDetailsResponse) GetResult_1() []byte {
@@ -22627,7 +22787,7 @@ type BaleUserGetCallStateRequest struct {
 
 func (x *BaleUserGetCallStateRequest) Reset() {
 	*x = BaleUserGetCallStateRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[489]
+	mi := &file_proto_cores_bale_proto_msgTypes[493]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22639,7 +22799,7 @@ func (x *BaleUserGetCallStateRequest) String() string {
 func (*BaleUserGetCallStateRequest) ProtoMessage() {}
 
 func (x *BaleUserGetCallStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[489]
+	mi := &file_proto_cores_bale_proto_msgTypes[493]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22652,7 +22812,7 @@ func (x *BaleUserGetCallStateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetCallStateRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetCallStateRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{489}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{493}
 }
 
 func (x *BaleUserGetCallStateRequest) GetCallId() int64 {
@@ -22671,7 +22831,7 @@ type BaleUserGetCallStateResponse struct {
 
 func (x *BaleUserGetCallStateResponse) Reset() {
 	*x = BaleUserGetCallStateResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[490]
+	mi := &file_proto_cores_bale_proto_msgTypes[494]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22683,7 +22843,7 @@ func (x *BaleUserGetCallStateResponse) String() string {
 func (*BaleUserGetCallStateResponse) ProtoMessage() {}
 
 func (x *BaleUserGetCallStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[490]
+	mi := &file_proto_cores_bale_proto_msgTypes[494]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22696,7 +22856,7 @@ func (x *BaleUserGetCallStateResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetCallStateResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetCallStateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{490}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{494}
 }
 
 func (x *BaleUserGetCallStateResponse) GetResult_1() []byte {
@@ -22715,7 +22875,7 @@ type BaleUserGetCanSeeMessagesRequest struct {
 
 func (x *BaleUserGetCanSeeMessagesRequest) Reset() {
 	*x = BaleUserGetCanSeeMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[491]
+	mi := &file_proto_cores_bale_proto_msgTypes[495]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22727,7 +22887,7 @@ func (x *BaleUserGetCanSeeMessagesRequest) String() string {
 func (*BaleUserGetCanSeeMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserGetCanSeeMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[491]
+	mi := &file_proto_cores_bale_proto_msgTypes[495]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22740,7 +22900,7 @@ func (x *BaleUserGetCanSeeMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetCanSeeMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetCanSeeMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{491}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{495}
 }
 
 func (x *BaleUserGetCanSeeMessagesRequest) GetGroupId() int64 {
@@ -22759,7 +22919,7 @@ type BaleUserGetCanSeeMessagesResponse struct {
 
 func (x *BaleUserGetCanSeeMessagesResponse) Reset() {
 	*x = BaleUserGetCanSeeMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[492]
+	mi := &file_proto_cores_bale_proto_msgTypes[496]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22771,7 +22931,7 @@ func (x *BaleUserGetCanSeeMessagesResponse) String() string {
 func (*BaleUserGetCanSeeMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserGetCanSeeMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[492]
+	mi := &file_proto_cores_bale_proto_msgTypes[496]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22784,7 +22944,7 @@ func (x *BaleUserGetCanSeeMessagesResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserGetCanSeeMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetCanSeeMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{492}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{496}
 }
 
 func (x *BaleUserGetCanSeeMessagesResponse) GetResult_1() []byte {
@@ -22803,7 +22963,7 @@ type BaleUserGetChannelRecommendationsRequest struct {
 
 func (x *BaleUserGetChannelRecommendationsRequest) Reset() {
 	*x = BaleUserGetChannelRecommendationsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[493]
+	mi := &file_proto_cores_bale_proto_msgTypes[497]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22815,7 +22975,7 @@ func (x *BaleUserGetChannelRecommendationsRequest) String() string {
 func (*BaleUserGetChannelRecommendationsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetChannelRecommendationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[493]
+	mi := &file_proto_cores_bale_proto_msgTypes[497]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22828,7 +22988,7 @@ func (x *BaleUserGetChannelRecommendationsRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserGetChannelRecommendationsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetChannelRecommendationsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{493}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{497}
 }
 
 func (x *BaleUserGetChannelRecommendationsRequest) GetChannelId() int64 {
@@ -22847,7 +23007,7 @@ type BaleUserGetChannelRecommendationsResponse struct {
 
 func (x *BaleUserGetChannelRecommendationsResponse) Reset() {
 	*x = BaleUserGetChannelRecommendationsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[494]
+	mi := &file_proto_cores_bale_proto_msgTypes[498]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22859,7 +23019,7 @@ func (x *BaleUserGetChannelRecommendationsResponse) String() string {
 func (*BaleUserGetChannelRecommendationsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetChannelRecommendationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[494]
+	mi := &file_proto_cores_bale_proto_msgTypes[498]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22872,7 +23032,7 @@ func (x *BaleUserGetChannelRecommendationsResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use BaleUserGetChannelRecommendationsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetChannelRecommendationsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{494}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{498}
 }
 
 func (x *BaleUserGetChannelRecommendationsResponse) GetResult_1() []byte {
@@ -22891,7 +23051,7 @@ type BaleUserGetChannelStoriesRequest struct {
 
 func (x *BaleUserGetChannelStoriesRequest) Reset() {
 	*x = BaleUserGetChannelStoriesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[495]
+	mi := &file_proto_cores_bale_proto_msgTypes[499]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22903,7 +23063,7 @@ func (x *BaleUserGetChannelStoriesRequest) String() string {
 func (*BaleUserGetChannelStoriesRequest) ProtoMessage() {}
 
 func (x *BaleUserGetChannelStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[495]
+	mi := &file_proto_cores_bale_proto_msgTypes[499]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22916,7 +23076,7 @@ func (x *BaleUserGetChannelStoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetChannelStoriesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetChannelStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{495}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{499}
 }
 
 func (x *BaleUserGetChannelStoriesRequest) GetChannelId() int64 {
@@ -22935,7 +23095,7 @@ type BaleUserGetChannelStoriesResponse struct {
 
 func (x *BaleUserGetChannelStoriesResponse) Reset() {
 	*x = BaleUserGetChannelStoriesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[496]
+	mi := &file_proto_cores_bale_proto_msgTypes[500]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22947,7 +23107,7 @@ func (x *BaleUserGetChannelStoriesResponse) String() string {
 func (*BaleUserGetChannelStoriesResponse) ProtoMessage() {}
 
 func (x *BaleUserGetChannelStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[496]
+	mi := &file_proto_cores_bale_proto_msgTypes[500]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22960,7 +23120,7 @@ func (x *BaleUserGetChannelStoriesResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserGetChannelStoriesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetChannelStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{496}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{500}
 }
 
 func (x *BaleUserGetChannelStoriesResponse) GetResult_1() []byte {
@@ -22978,7 +23138,7 @@ type BaleUserGetContactsRequest struct {
 
 func (x *BaleUserGetContactsRequest) Reset() {
 	*x = BaleUserGetContactsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[497]
+	mi := &file_proto_cores_bale_proto_msgTypes[501]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -22990,7 +23150,7 @@ func (x *BaleUserGetContactsRequest) String() string {
 func (*BaleUserGetContactsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetContactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[497]
+	mi := &file_proto_cores_bale_proto_msgTypes[501]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23003,7 +23163,7 @@ func (x *BaleUserGetContactsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetContactsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetContactsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{497}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{501}
 }
 
 type BaleUserGetContactsResponse struct {
@@ -23015,7 +23175,7 @@ type BaleUserGetContactsResponse struct {
 
 func (x *BaleUserGetContactsResponse) Reset() {
 	*x = BaleUserGetContactsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[498]
+	mi := &file_proto_cores_bale_proto_msgTypes[502]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23027,7 +23187,7 @@ func (x *BaleUserGetContactsResponse) String() string {
 func (*BaleUserGetContactsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetContactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[498]
+	mi := &file_proto_cores_bale_proto_msgTypes[502]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23040,7 +23200,7 @@ func (x *BaleUserGetContactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetContactsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetContactsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{498}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{502}
 }
 
 func (x *BaleUserGetContactsResponse) GetResult_1() []byte {
@@ -23058,7 +23218,7 @@ type BaleUserGetContactsPresencesRequest struct {
 
 func (x *BaleUserGetContactsPresencesRequest) Reset() {
 	*x = BaleUserGetContactsPresencesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[499]
+	mi := &file_proto_cores_bale_proto_msgTypes[503]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23070,7 +23230,7 @@ func (x *BaleUserGetContactsPresencesRequest) String() string {
 func (*BaleUserGetContactsPresencesRequest) ProtoMessage() {}
 
 func (x *BaleUserGetContactsPresencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[499]
+	mi := &file_proto_cores_bale_proto_msgTypes[503]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23083,7 +23243,7 @@ func (x *BaleUserGetContactsPresencesRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetContactsPresencesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetContactsPresencesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{499}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{503}
 }
 
 type BaleUserGetContactsPresencesResponse struct {
@@ -23095,7 +23255,7 @@ type BaleUserGetContactsPresencesResponse struct {
 
 func (x *BaleUserGetContactsPresencesResponse) Reset() {
 	*x = BaleUserGetContactsPresencesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[500]
+	mi := &file_proto_cores_bale_proto_msgTypes[504]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23107,7 +23267,7 @@ func (x *BaleUserGetContactsPresencesResponse) String() string {
 func (*BaleUserGetContactsPresencesResponse) ProtoMessage() {}
 
 func (x *BaleUserGetContactsPresencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[500]
+	mi := &file_proto_cores_bale_proto_msgTypes[504]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23120,7 +23280,7 @@ func (x *BaleUserGetContactsPresencesResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetContactsPresencesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetContactsPresencesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{500}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{504}
 }
 
 func (x *BaleUserGetContactsPresencesResponse) GetResult_1() []byte {
@@ -23138,7 +23298,7 @@ type BaleUserGetDefaultStoryBackgroundsRequest struct {
 
 func (x *BaleUserGetDefaultStoryBackgroundsRequest) Reset() {
 	*x = BaleUserGetDefaultStoryBackgroundsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[501]
+	mi := &file_proto_cores_bale_proto_msgTypes[505]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23150,7 +23310,7 @@ func (x *BaleUserGetDefaultStoryBackgroundsRequest) String() string {
 func (*BaleUserGetDefaultStoryBackgroundsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetDefaultStoryBackgroundsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[501]
+	mi := &file_proto_cores_bale_proto_msgTypes[505]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23163,7 +23323,7 @@ func (x *BaleUserGetDefaultStoryBackgroundsRequest) ProtoReflect() protoreflect.
 
 // Deprecated: Use BaleUserGetDefaultStoryBackgroundsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetDefaultStoryBackgroundsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{501}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{505}
 }
 
 type BaleUserGetDefaultStoryBackgroundsResponse struct {
@@ -23175,7 +23335,7 @@ type BaleUserGetDefaultStoryBackgroundsResponse struct {
 
 func (x *BaleUserGetDefaultStoryBackgroundsResponse) Reset() {
 	*x = BaleUserGetDefaultStoryBackgroundsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[502]
+	mi := &file_proto_cores_bale_proto_msgTypes[506]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23187,7 +23347,7 @@ func (x *BaleUserGetDefaultStoryBackgroundsResponse) String() string {
 func (*BaleUserGetDefaultStoryBackgroundsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetDefaultStoryBackgroundsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[502]
+	mi := &file_proto_cores_bale_proto_msgTypes[506]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23200,7 +23360,7 @@ func (x *BaleUserGetDefaultStoryBackgroundsResponse) ProtoReflect() protoreflect
 
 // Deprecated: Use BaleUserGetDefaultStoryBackgroundsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetDefaultStoryBackgroundsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{502}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{506}
 }
 
 func (x *BaleUserGetDefaultStoryBackgroundsResponse) GetResult_1() []byte {
@@ -23219,7 +23379,7 @@ type BaleUserGetDifferenceRequest struct {
 
 func (x *BaleUserGetDifferenceRequest) Reset() {
 	*x = BaleUserGetDifferenceRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[503]
+	mi := &file_proto_cores_bale_proto_msgTypes[507]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23231,7 +23391,7 @@ func (x *BaleUserGetDifferenceRequest) String() string {
 func (*BaleUserGetDifferenceRequest) ProtoMessage() {}
 
 func (x *BaleUserGetDifferenceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[503]
+	mi := &file_proto_cores_bale_proto_msgTypes[507]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23244,7 +23404,7 @@ func (x *BaleUserGetDifferenceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetDifferenceRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetDifferenceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{503}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{507}
 }
 
 func (x *BaleUserGetDifferenceRequest) GetSeq() int64 {
@@ -23263,7 +23423,7 @@ type BaleUserGetDifferenceResponse struct {
 
 func (x *BaleUserGetDifferenceResponse) Reset() {
 	*x = BaleUserGetDifferenceResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[504]
+	mi := &file_proto_cores_bale_proto_msgTypes[508]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23275,7 +23435,7 @@ func (x *BaleUserGetDifferenceResponse) String() string {
 func (*BaleUserGetDifferenceResponse) ProtoMessage() {}
 
 func (x *BaleUserGetDifferenceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[504]
+	mi := &file_proto_cores_bale_proto_msgTypes[508]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23288,7 +23448,7 @@ func (x *BaleUserGetDifferenceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetDifferenceResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetDifferenceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{504}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{508}
 }
 
 func (x *BaleUserGetDifferenceResponse) GetResult_1() []byte {
@@ -23308,7 +23468,7 @@ type BaleUserGetDiscussionMessageRequest struct {
 
 func (x *BaleUserGetDiscussionMessageRequest) Reset() {
 	*x = BaleUserGetDiscussionMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[505]
+	mi := &file_proto_cores_bale_proto_msgTypes[509]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23320,7 +23480,7 @@ func (x *BaleUserGetDiscussionMessageRequest) String() string {
 func (*BaleUserGetDiscussionMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserGetDiscussionMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[505]
+	mi := &file_proto_cores_bale_proto_msgTypes[509]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23333,7 +23493,7 @@ func (x *BaleUserGetDiscussionMessageRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetDiscussionMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetDiscussionMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{505}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{509}
 }
 
 func (x *BaleUserGetDiscussionMessageRequest) GetChatId() string {
@@ -23359,7 +23519,7 @@ type BaleUserGetDiscussionMessageResponse struct {
 
 func (x *BaleUserGetDiscussionMessageResponse) Reset() {
 	*x = BaleUserGetDiscussionMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[506]
+	mi := &file_proto_cores_bale_proto_msgTypes[510]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23371,7 +23531,7 @@ func (x *BaleUserGetDiscussionMessageResponse) String() string {
 func (*BaleUserGetDiscussionMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserGetDiscussionMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[506]
+	mi := &file_proto_cores_bale_proto_msgTypes[510]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23384,7 +23544,7 @@ func (x *BaleUserGetDiscussionMessageResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetDiscussionMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetDiscussionMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{506}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{510}
 }
 
 func (x *BaleUserGetDiscussionMessageResponse) GetResult_1() []byte {
@@ -23404,7 +23564,7 @@ type BaleUserGetFileURLRequest struct {
 
 func (x *BaleUserGetFileURLRequest) Reset() {
 	*x = BaleUserGetFileURLRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[507]
+	mi := &file_proto_cores_bale_proto_msgTypes[511]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23416,7 +23576,7 @@ func (x *BaleUserGetFileURLRequest) String() string {
 func (*BaleUserGetFileURLRequest) ProtoMessage() {}
 
 func (x *BaleUserGetFileURLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[507]
+	mi := &file_proto_cores_bale_proto_msgTypes[511]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23429,7 +23589,7 @@ func (x *BaleUserGetFileURLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetFileURLRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetFileURLRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{507}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{511}
 }
 
 func (x *BaleUserGetFileURLRequest) GetFileId() int64 {
@@ -23455,7 +23615,7 @@ type BaleUserGetFileURLResponse struct {
 
 func (x *BaleUserGetFileURLResponse) Reset() {
 	*x = BaleUserGetFileURLResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[508]
+	mi := &file_proto_cores_bale_proto_msgTypes[512]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23467,7 +23627,7 @@ func (x *BaleUserGetFileURLResponse) String() string {
 func (*BaleUserGetFileURLResponse) ProtoMessage() {}
 
 func (x *BaleUserGetFileURLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[508]
+	mi := &file_proto_cores_bale_proto_msgTypes[512]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23480,7 +23640,7 @@ func (x *BaleUserGetFileURLResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetFileURLResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetFileURLResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{508}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{512}
 }
 
 func (x *BaleUserGetFileURLResponse) GetResult_1() []byte {
@@ -23501,7 +23661,7 @@ type BaleUserGetFileUploadURLRequest struct {
 
 func (x *BaleUserGetFileUploadURLRequest) Reset() {
 	*x = BaleUserGetFileUploadURLRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[509]
+	mi := &file_proto_cores_bale_proto_msgTypes[513]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23513,7 +23673,7 @@ func (x *BaleUserGetFileUploadURLRequest) String() string {
 func (*BaleUserGetFileUploadURLRequest) ProtoMessage() {}
 
 func (x *BaleUserGetFileUploadURLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[509]
+	mi := &file_proto_cores_bale_proto_msgTypes[513]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23526,7 +23686,7 @@ func (x *BaleUserGetFileUploadURLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetFileUploadURLRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetFileUploadURLRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{509}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{513}
 }
 
 func (x *BaleUserGetFileUploadURLRequest) GetSize() int64 {
@@ -23559,7 +23719,7 @@ type BaleUserGetFileUploadURLResponse struct {
 
 func (x *BaleUserGetFileUploadURLResponse) Reset() {
 	*x = BaleUserGetFileUploadURLResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[510]
+	mi := &file_proto_cores_bale_proto_msgTypes[514]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23571,7 +23731,7 @@ func (x *BaleUserGetFileUploadURLResponse) String() string {
 func (*BaleUserGetFileUploadURLResponse) ProtoMessage() {}
 
 func (x *BaleUserGetFileUploadURLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[510]
+	mi := &file_proto_cores_bale_proto_msgTypes[514]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23584,7 +23744,7 @@ func (x *BaleUserGetFileUploadURLResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetFileUploadURLResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetFileUploadURLResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{510}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{514}
 }
 
 func (x *BaleUserGetFileUploadURLResponse) GetResult_1() []byte {
@@ -23603,7 +23763,7 @@ type BaleUserGetFullGroupRequest struct {
 
 func (x *BaleUserGetFullGroupRequest) Reset() {
 	*x = BaleUserGetFullGroupRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[511]
+	mi := &file_proto_cores_bale_proto_msgTypes[515]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23615,7 +23775,7 @@ func (x *BaleUserGetFullGroupRequest) String() string {
 func (*BaleUserGetFullGroupRequest) ProtoMessage() {}
 
 func (x *BaleUserGetFullGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[511]
+	mi := &file_proto_cores_bale_proto_msgTypes[515]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23628,7 +23788,7 @@ func (x *BaleUserGetFullGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetFullGroupRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetFullGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{511}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{515}
 }
 
 func (x *BaleUserGetFullGroupRequest) GetGroupId() int64 {
@@ -23647,7 +23807,7 @@ type BaleUserGetFullGroupResponse struct {
 
 func (x *BaleUserGetFullGroupResponse) Reset() {
 	*x = BaleUserGetFullGroupResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[512]
+	mi := &file_proto_cores_bale_proto_msgTypes[516]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23659,7 +23819,7 @@ func (x *BaleUserGetFullGroupResponse) String() string {
 func (*BaleUserGetFullGroupResponse) ProtoMessage() {}
 
 func (x *BaleUserGetFullGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[512]
+	mi := &file_proto_cores_bale_proto_msgTypes[516]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23672,7 +23832,7 @@ func (x *BaleUserGetFullGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetFullGroupResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetFullGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{512}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{516}
 }
 
 func (x *BaleUserGetFullGroupResponse) GetResult_1() []byte {
@@ -23693,7 +23853,7 @@ type BaleUserGetFullPollResultServiceRequest struct {
 
 func (x *BaleUserGetFullPollResultServiceRequest) Reset() {
 	*x = BaleUserGetFullPollResultServiceRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[513]
+	mi := &file_proto_cores_bale_proto_msgTypes[517]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23705,7 +23865,7 @@ func (x *BaleUserGetFullPollResultServiceRequest) String() string {
 func (*BaleUserGetFullPollResultServiceRequest) ProtoMessage() {}
 
 func (x *BaleUserGetFullPollResultServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[513]
+	mi := &file_proto_cores_bale_proto_msgTypes[517]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23718,7 +23878,7 @@ func (x *BaleUserGetFullPollResultServiceRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserGetFullPollResultServiceRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetFullPollResultServiceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{513}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{517}
 }
 
 func (x *BaleUserGetFullPollResultServiceRequest) GetChatId() string {
@@ -23751,7 +23911,7 @@ type BaleUserGetFullPollResultServiceResponse struct {
 
 func (x *BaleUserGetFullPollResultServiceResponse) Reset() {
 	*x = BaleUserGetFullPollResultServiceResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[514]
+	mi := &file_proto_cores_bale_proto_msgTypes[518]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23763,7 +23923,7 @@ func (x *BaleUserGetFullPollResultServiceResponse) String() string {
 func (*BaleUserGetFullPollResultServiceResponse) ProtoMessage() {}
 
 func (x *BaleUserGetFullPollResultServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[514]
+	mi := &file_proto_cores_bale_proto_msgTypes[518]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23776,7 +23936,7 @@ func (x *BaleUserGetFullPollResultServiceResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserGetFullPollResultServiceResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetFullPollResultServiceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{514}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{518}
 }
 
 func (x *BaleUserGetFullPollResultServiceResponse) GetResult_1() []byte {
@@ -23795,7 +23955,7 @@ type BaleUserGetGroupDefaultCardNumberRequest struct {
 
 func (x *BaleUserGetGroupDefaultCardNumberRequest) Reset() {
 	*x = BaleUserGetGroupDefaultCardNumberRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[515]
+	mi := &file_proto_cores_bale_proto_msgTypes[519]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23807,7 +23967,7 @@ func (x *BaleUserGetGroupDefaultCardNumberRequest) String() string {
 func (*BaleUserGetGroupDefaultCardNumberRequest) ProtoMessage() {}
 
 func (x *BaleUserGetGroupDefaultCardNumberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[515]
+	mi := &file_proto_cores_bale_proto_msgTypes[519]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23820,7 +23980,7 @@ func (x *BaleUserGetGroupDefaultCardNumberRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserGetGroupDefaultCardNumberRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupDefaultCardNumberRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{515}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{519}
 }
 
 func (x *BaleUserGetGroupDefaultCardNumberRequest) GetGroupId() int64 {
@@ -23839,7 +23999,7 @@ type BaleUserGetGroupDefaultCardNumberResponse struct {
 
 func (x *BaleUserGetGroupDefaultCardNumberResponse) Reset() {
 	*x = BaleUserGetGroupDefaultCardNumberResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[516]
+	mi := &file_proto_cores_bale_proto_msgTypes[520]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23851,7 +24011,7 @@ func (x *BaleUserGetGroupDefaultCardNumberResponse) String() string {
 func (*BaleUserGetGroupDefaultCardNumberResponse) ProtoMessage() {}
 
 func (x *BaleUserGetGroupDefaultCardNumberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[516]
+	mi := &file_proto_cores_bale_proto_msgTypes[520]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23864,7 +24024,7 @@ func (x *BaleUserGetGroupDefaultCardNumberResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use BaleUserGetGroupDefaultCardNumberResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupDefaultCardNumberResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{516}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{520}
 }
 
 func (x *BaleUserGetGroupDefaultCardNumberResponse) GetResult_1() []byte {
@@ -23883,7 +24043,7 @@ type BaleUserGetGroupInviteURLRequest struct {
 
 func (x *BaleUserGetGroupInviteURLRequest) Reset() {
 	*x = BaleUserGetGroupInviteURLRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[517]
+	mi := &file_proto_cores_bale_proto_msgTypes[521]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23895,7 +24055,7 @@ func (x *BaleUserGetGroupInviteURLRequest) String() string {
 func (*BaleUserGetGroupInviteURLRequest) ProtoMessage() {}
 
 func (x *BaleUserGetGroupInviteURLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[517]
+	mi := &file_proto_cores_bale_proto_msgTypes[521]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23908,7 +24068,7 @@ func (x *BaleUserGetGroupInviteURLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetGroupInviteURLRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupInviteURLRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{517}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{521}
 }
 
 func (x *BaleUserGetGroupInviteURLRequest) GetGroupId() int64 {
@@ -23927,7 +24087,7 @@ type BaleUserGetGroupInviteURLResponse struct {
 
 func (x *BaleUserGetGroupInviteURLResponse) Reset() {
 	*x = BaleUserGetGroupInviteURLResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[518]
+	mi := &file_proto_cores_bale_proto_msgTypes[522]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23939,7 +24099,7 @@ func (x *BaleUserGetGroupInviteURLResponse) String() string {
 func (*BaleUserGetGroupInviteURLResponse) ProtoMessage() {}
 
 func (x *BaleUserGetGroupInviteURLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[518]
+	mi := &file_proto_cores_bale_proto_msgTypes[522]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23952,7 +24112,7 @@ func (x *BaleUserGetGroupInviteURLResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserGetGroupInviteURLResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupInviteURLResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{518}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{522}
 }
 
 func (x *BaleUserGetGroupInviteURLResponse) GetResult_1() []byte {
@@ -23971,7 +24131,7 @@ type BaleUserGetGroupMembersCountRequest struct {
 
 func (x *BaleUserGetGroupMembersCountRequest) Reset() {
 	*x = BaleUserGetGroupMembersCountRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[519]
+	mi := &file_proto_cores_bale_proto_msgTypes[523]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -23983,7 +24143,7 @@ func (x *BaleUserGetGroupMembersCountRequest) String() string {
 func (*BaleUserGetGroupMembersCountRequest) ProtoMessage() {}
 
 func (x *BaleUserGetGroupMembersCountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[519]
+	mi := &file_proto_cores_bale_proto_msgTypes[523]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23996,7 +24156,7 @@ func (x *BaleUserGetGroupMembersCountRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetGroupMembersCountRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupMembersCountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{519}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{523}
 }
 
 func (x *BaleUserGetGroupMembersCountRequest) GetGroupId() int64 {
@@ -24015,7 +24175,7 @@ type BaleUserGetGroupMembersCountResponse struct {
 
 func (x *BaleUserGetGroupMembersCountResponse) Reset() {
 	*x = BaleUserGetGroupMembersCountResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[520]
+	mi := &file_proto_cores_bale_proto_msgTypes[524]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24027,7 +24187,7 @@ func (x *BaleUserGetGroupMembersCountResponse) String() string {
 func (*BaleUserGetGroupMembersCountResponse) ProtoMessage() {}
 
 func (x *BaleUserGetGroupMembersCountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[520]
+	mi := &file_proto_cores_bale_proto_msgTypes[524]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24040,7 +24200,7 @@ func (x *BaleUserGetGroupMembersCountResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetGroupMembersCountResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupMembersCountResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{520}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{524}
 }
 
 func (x *BaleUserGetGroupMembersCountResponse) GetResult_1() []byte {
@@ -24059,7 +24219,7 @@ type BaleUserGetGroupMembersPresencesRequest struct {
 
 func (x *BaleUserGetGroupMembersPresencesRequest) Reset() {
 	*x = BaleUserGetGroupMembersPresencesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[521]
+	mi := &file_proto_cores_bale_proto_msgTypes[525]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24071,7 +24231,7 @@ func (x *BaleUserGetGroupMembersPresencesRequest) String() string {
 func (*BaleUserGetGroupMembersPresencesRequest) ProtoMessage() {}
 
 func (x *BaleUserGetGroupMembersPresencesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[521]
+	mi := &file_proto_cores_bale_proto_msgTypes[525]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24084,7 +24244,7 @@ func (x *BaleUserGetGroupMembersPresencesRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserGetGroupMembersPresencesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupMembersPresencesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{521}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{525}
 }
 
 func (x *BaleUserGetGroupMembersPresencesRequest) GetGroupId() int64 {
@@ -24103,7 +24263,7 @@ type BaleUserGetGroupMembersPresencesResponse struct {
 
 func (x *BaleUserGetGroupMembersPresencesResponse) Reset() {
 	*x = BaleUserGetGroupMembersPresencesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[522]
+	mi := &file_proto_cores_bale_proto_msgTypes[526]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24115,7 +24275,7 @@ func (x *BaleUserGetGroupMembersPresencesResponse) String() string {
 func (*BaleUserGetGroupMembersPresencesResponse) ProtoMessage() {}
 
 func (x *BaleUserGetGroupMembersPresencesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[522]
+	mi := &file_proto_cores_bale_proto_msgTypes[526]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24128,7 +24288,7 @@ func (x *BaleUserGetGroupMembersPresencesResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserGetGroupMembersPresencesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupMembersPresencesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{522}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{526}
 }
 
 func (x *BaleUserGetGroupMembersPresencesResponse) GetResult_1() []byte {
@@ -24147,7 +24307,7 @@ type BaleUserGetGroupOnlineCountRequest struct {
 
 func (x *BaleUserGetGroupOnlineCountRequest) Reset() {
 	*x = BaleUserGetGroupOnlineCountRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[523]
+	mi := &file_proto_cores_bale_proto_msgTypes[527]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24159,7 +24319,7 @@ func (x *BaleUserGetGroupOnlineCountRequest) String() string {
 func (*BaleUserGetGroupOnlineCountRequest) ProtoMessage() {}
 
 func (x *BaleUserGetGroupOnlineCountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[523]
+	mi := &file_proto_cores_bale_proto_msgTypes[527]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24172,7 +24332,7 @@ func (x *BaleUserGetGroupOnlineCountRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetGroupOnlineCountRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupOnlineCountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{523}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{527}
 }
 
 func (x *BaleUserGetGroupOnlineCountRequest) GetGroupId() int64 {
@@ -24191,7 +24351,7 @@ type BaleUserGetGroupOnlineCountResponse struct {
 
 func (x *BaleUserGetGroupOnlineCountResponse) Reset() {
 	*x = BaleUserGetGroupOnlineCountResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[524]
+	mi := &file_proto_cores_bale_proto_msgTypes[528]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24203,7 +24363,7 @@ func (x *BaleUserGetGroupOnlineCountResponse) String() string {
 func (*BaleUserGetGroupOnlineCountResponse) ProtoMessage() {}
 
 func (x *BaleUserGetGroupOnlineCountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[524]
+	mi := &file_proto_cores_bale_proto_msgTypes[528]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24216,7 +24376,7 @@ func (x *BaleUserGetGroupOnlineCountResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetGroupOnlineCountResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupOnlineCountResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{524}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{528}
 }
 
 func (x *BaleUserGetGroupOnlineCountResponse) GetResult_1() []byte {
@@ -24235,7 +24395,7 @@ type BaleUserGetGroupPreviewRequest struct {
 
 func (x *BaleUserGetGroupPreviewRequest) Reset() {
 	*x = BaleUserGetGroupPreviewRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[525]
+	mi := &file_proto_cores_bale_proto_msgTypes[529]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24247,7 +24407,7 @@ func (x *BaleUserGetGroupPreviewRequest) String() string {
 func (*BaleUserGetGroupPreviewRequest) ProtoMessage() {}
 
 func (x *BaleUserGetGroupPreviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[525]
+	mi := &file_proto_cores_bale_proto_msgTypes[529]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24260,7 +24420,7 @@ func (x *BaleUserGetGroupPreviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetGroupPreviewRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupPreviewRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{525}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{529}
 }
 
 func (x *BaleUserGetGroupPreviewRequest) GetGroupId() int64 {
@@ -24279,7 +24439,7 @@ type BaleUserGetGroupPreviewResponse struct {
 
 func (x *BaleUserGetGroupPreviewResponse) Reset() {
 	*x = BaleUserGetGroupPreviewResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[526]
+	mi := &file_proto_cores_bale_proto_msgTypes[530]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24291,7 +24451,7 @@ func (x *BaleUserGetGroupPreviewResponse) String() string {
 func (*BaleUserGetGroupPreviewResponse) ProtoMessage() {}
 
 func (x *BaleUserGetGroupPreviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[526]
+	mi := &file_proto_cores_bale_proto_msgTypes[530]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24304,7 +24464,7 @@ func (x *BaleUserGetGroupPreviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetGroupPreviewResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupPreviewResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{526}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{530}
 }
 
 func (x *BaleUserGetGroupPreviewResponse) GetResult_1() []byte {
@@ -24323,7 +24483,7 @@ type BaleUserGetGroupRecommendationsRequest struct {
 
 func (x *BaleUserGetGroupRecommendationsRequest) Reset() {
 	*x = BaleUserGetGroupRecommendationsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[527]
+	mi := &file_proto_cores_bale_proto_msgTypes[531]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24335,7 +24495,7 @@ func (x *BaleUserGetGroupRecommendationsRequest) String() string {
 func (*BaleUserGetGroupRecommendationsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetGroupRecommendationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[527]
+	mi := &file_proto_cores_bale_proto_msgTypes[531]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24348,7 +24508,7 @@ func (x *BaleUserGetGroupRecommendationsRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserGetGroupRecommendationsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupRecommendationsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{527}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{531}
 }
 
 func (x *BaleUserGetGroupRecommendationsRequest) GetGroupId() int64 {
@@ -24367,7 +24527,7 @@ type BaleUserGetGroupRecommendationsResponse struct {
 
 func (x *BaleUserGetGroupRecommendationsResponse) Reset() {
 	*x = BaleUserGetGroupRecommendationsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[528]
+	mi := &file_proto_cores_bale_proto_msgTypes[532]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24379,7 +24539,7 @@ func (x *BaleUserGetGroupRecommendationsResponse) String() string {
 func (*BaleUserGetGroupRecommendationsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetGroupRecommendationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[528]
+	mi := &file_proto_cores_bale_proto_msgTypes[532]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24392,7 +24552,7 @@ func (x *BaleUserGetGroupRecommendationsResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserGetGroupRecommendationsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupRecommendationsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{528}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{532}
 }
 
 func (x *BaleUserGetGroupRecommendationsResponse) GetResult_1() []byte {
@@ -24410,7 +24570,7 @@ type BaleUserGetGroupsRecommendationRequest struct {
 
 func (x *BaleUserGetGroupsRecommendationRequest) Reset() {
 	*x = BaleUserGetGroupsRecommendationRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[529]
+	mi := &file_proto_cores_bale_proto_msgTypes[533]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24422,7 +24582,7 @@ func (x *BaleUserGetGroupsRecommendationRequest) String() string {
 func (*BaleUserGetGroupsRecommendationRequest) ProtoMessage() {}
 
 func (x *BaleUserGetGroupsRecommendationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[529]
+	mi := &file_proto_cores_bale_proto_msgTypes[533]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24435,7 +24595,7 @@ func (x *BaleUserGetGroupsRecommendationRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserGetGroupsRecommendationRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupsRecommendationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{529}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{533}
 }
 
 type BaleUserGetGroupsRecommendationResponse struct {
@@ -24447,7 +24607,7 @@ type BaleUserGetGroupsRecommendationResponse struct {
 
 func (x *BaleUserGetGroupsRecommendationResponse) Reset() {
 	*x = BaleUserGetGroupsRecommendationResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[530]
+	mi := &file_proto_cores_bale_proto_msgTypes[534]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24459,7 +24619,7 @@ func (x *BaleUserGetGroupsRecommendationResponse) String() string {
 func (*BaleUserGetGroupsRecommendationResponse) ProtoMessage() {}
 
 func (x *BaleUserGetGroupsRecommendationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[530]
+	mi := &file_proto_cores_bale_proto_msgTypes[534]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24472,7 +24632,7 @@ func (x *BaleUserGetGroupsRecommendationResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserGetGroupsRecommendationResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetGroupsRecommendationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{530}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{534}
 }
 
 func (x *BaleUserGetGroupsRecommendationResponse) GetResult_1() []byte {
@@ -24493,7 +24653,7 @@ type BaleUserGetInlineBotResultsRequest struct {
 
 func (x *BaleUserGetInlineBotResultsRequest) Reset() {
 	*x = BaleUserGetInlineBotResultsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[531]
+	mi := &file_proto_cores_bale_proto_msgTypes[535]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24505,7 +24665,7 @@ func (x *BaleUserGetInlineBotResultsRequest) String() string {
 func (*BaleUserGetInlineBotResultsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetInlineBotResultsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[531]
+	mi := &file_proto_cores_bale_proto_msgTypes[535]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24518,7 +24678,7 @@ func (x *BaleUserGetInlineBotResultsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetInlineBotResultsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetInlineBotResultsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{531}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{535}
 }
 
 func (x *BaleUserGetInlineBotResultsRequest) GetBotId() int64 {
@@ -24551,7 +24711,7 @@ type BaleUserGetInlineBotResultsResponse struct {
 
 func (x *BaleUserGetInlineBotResultsResponse) Reset() {
 	*x = BaleUserGetInlineBotResultsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[532]
+	mi := &file_proto_cores_bale_proto_msgTypes[536]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24563,7 +24723,7 @@ func (x *BaleUserGetInlineBotResultsResponse) String() string {
 func (*BaleUserGetInlineBotResultsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetInlineBotResultsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[532]
+	mi := &file_proto_cores_bale_proto_msgTypes[536]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24576,7 +24736,7 @@ func (x *BaleUserGetInlineBotResultsResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetInlineBotResultsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetInlineBotResultsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{532}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{536}
 }
 
 func (x *BaleUserGetInlineBotResultsResponse) GetResult_1() []byte {
@@ -24594,7 +24754,7 @@ type BaleUserGetLLMAuthTokenRequest struct {
 
 func (x *BaleUserGetLLMAuthTokenRequest) Reset() {
 	*x = BaleUserGetLLMAuthTokenRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[533]
+	mi := &file_proto_cores_bale_proto_msgTypes[537]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24606,7 +24766,7 @@ func (x *BaleUserGetLLMAuthTokenRequest) String() string {
 func (*BaleUserGetLLMAuthTokenRequest) ProtoMessage() {}
 
 func (x *BaleUserGetLLMAuthTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[533]
+	mi := &file_proto_cores_bale_proto_msgTypes[537]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24619,7 +24779,7 @@ func (x *BaleUserGetLLMAuthTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetLLMAuthTokenRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetLLMAuthTokenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{533}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{537}
 }
 
 type BaleUserGetLLMAuthTokenResponse struct {
@@ -24631,7 +24791,7 @@ type BaleUserGetLLMAuthTokenResponse struct {
 
 func (x *BaleUserGetLLMAuthTokenResponse) Reset() {
 	*x = BaleUserGetLLMAuthTokenResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[534]
+	mi := &file_proto_cores_bale_proto_msgTypes[538]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24643,7 +24803,7 @@ func (x *BaleUserGetLLMAuthTokenResponse) String() string {
 func (*BaleUserGetLLMAuthTokenResponse) ProtoMessage() {}
 
 func (x *BaleUserGetLLMAuthTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[534]
+	mi := &file_proto_cores_bale_proto_msgTypes[538]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24656,7 +24816,7 @@ func (x *BaleUserGetLLMAuthTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetLLMAuthTokenResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetLLMAuthTokenResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{534}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{538}
 }
 
 func (x *BaleUserGetLLMAuthTokenResponse) GetResult_1() []byte {
@@ -24675,7 +24835,7 @@ type BaleUserGetLinkPreviewRequest struct {
 
 func (x *BaleUserGetLinkPreviewRequest) Reset() {
 	*x = BaleUserGetLinkPreviewRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[535]
+	mi := &file_proto_cores_bale_proto_msgTypes[539]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24687,7 +24847,7 @@ func (x *BaleUserGetLinkPreviewRequest) String() string {
 func (*BaleUserGetLinkPreviewRequest) ProtoMessage() {}
 
 func (x *BaleUserGetLinkPreviewRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[535]
+	mi := &file_proto_cores_bale_proto_msgTypes[539]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24700,7 +24860,7 @@ func (x *BaleUserGetLinkPreviewRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetLinkPreviewRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetLinkPreviewRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{535}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{539}
 }
 
 func (x *BaleUserGetLinkPreviewRequest) GetUrl() string {
@@ -24719,7 +24879,7 @@ type BaleUserGetLinkPreviewResponse struct {
 
 func (x *BaleUserGetLinkPreviewResponse) Reset() {
 	*x = BaleUserGetLinkPreviewResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[536]
+	mi := &file_proto_cores_bale_proto_msgTypes[540]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24731,7 +24891,7 @@ func (x *BaleUserGetLinkPreviewResponse) String() string {
 func (*BaleUserGetLinkPreviewResponse) ProtoMessage() {}
 
 func (x *BaleUserGetLinkPreviewResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[536]
+	mi := &file_proto_cores_bale_proto_msgTypes[540]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24744,7 +24904,7 @@ func (x *BaleUserGetLinkPreviewResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetLinkPreviewResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetLinkPreviewResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{536}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{540}
 }
 
 func (x *BaleUserGetLinkPreviewResponse) GetResult_1() []byte {
@@ -24763,7 +24923,7 @@ type BaleUserGetLinkStatusRequest struct {
 
 func (x *BaleUserGetLinkStatusRequest) Reset() {
 	*x = BaleUserGetLinkStatusRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[537]
+	mi := &file_proto_cores_bale_proto_msgTypes[541]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24775,7 +24935,7 @@ func (x *BaleUserGetLinkStatusRequest) String() string {
 func (*BaleUserGetLinkStatusRequest) ProtoMessage() {}
 
 func (x *BaleUserGetLinkStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[537]
+	mi := &file_proto_cores_bale_proto_msgTypes[541]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24788,7 +24948,7 @@ func (x *BaleUserGetLinkStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetLinkStatusRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetLinkStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{537}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{541}
 }
 
 func (x *BaleUserGetLinkStatusRequest) GetLink() string {
@@ -24807,7 +24967,7 @@ type BaleUserGetLinkStatusResponse struct {
 
 func (x *BaleUserGetLinkStatusResponse) Reset() {
 	*x = BaleUserGetLinkStatusResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[538]
+	mi := &file_proto_cores_bale_proto_msgTypes[542]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24819,7 +24979,7 @@ func (x *BaleUserGetLinkStatusResponse) String() string {
 func (*BaleUserGetLinkStatusResponse) ProtoMessage() {}
 
 func (x *BaleUserGetLinkStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[538]
+	mi := &file_proto_cores_bale_proto_msgTypes[542]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24832,7 +24992,7 @@ func (x *BaleUserGetLinkStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetLinkStatusResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetLinkStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{538}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{542}
 }
 
 func (x *BaleUserGetLinkStatusResponse) GetResult_1() []byte {
@@ -24851,7 +25011,7 @@ type BaleUserGetLinkSummaryRequest struct {
 
 func (x *BaleUserGetLinkSummaryRequest) Reset() {
 	*x = BaleUserGetLinkSummaryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[539]
+	mi := &file_proto_cores_bale_proto_msgTypes[543]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24863,7 +25023,7 @@ func (x *BaleUserGetLinkSummaryRequest) String() string {
 func (*BaleUserGetLinkSummaryRequest) ProtoMessage() {}
 
 func (x *BaleUserGetLinkSummaryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[539]
+	mi := &file_proto_cores_bale_proto_msgTypes[543]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24876,7 +25036,7 @@ func (x *BaleUserGetLinkSummaryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetLinkSummaryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetLinkSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{539}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{543}
 }
 
 func (x *BaleUserGetLinkSummaryRequest) GetUrl() string {
@@ -24895,7 +25055,7 @@ type BaleUserGetLinkSummaryResponse struct {
 
 func (x *BaleUserGetLinkSummaryResponse) Reset() {
 	*x = BaleUserGetLinkSummaryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[540]
+	mi := &file_proto_cores_bale_proto_msgTypes[544]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24907,7 +25067,7 @@ func (x *BaleUserGetLinkSummaryResponse) String() string {
 func (*BaleUserGetLinkSummaryResponse) ProtoMessage() {}
 
 func (x *BaleUserGetLinkSummaryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[540]
+	mi := &file_proto_cores_bale_proto_msgTypes[544]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24920,7 +25080,7 @@ func (x *BaleUserGetLinkSummaryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetLinkSummaryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetLinkSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{540}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{544}
 }
 
 func (x *BaleUserGetLinkSummaryResponse) GetResult_1() []byte {
@@ -24940,7 +25100,7 @@ type BaleUserGetMemberPermissionsRequest struct {
 
 func (x *BaleUserGetMemberPermissionsRequest) Reset() {
 	*x = BaleUserGetMemberPermissionsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[541]
+	mi := &file_proto_cores_bale_proto_msgTypes[545]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -24952,7 +25112,7 @@ func (x *BaleUserGetMemberPermissionsRequest) String() string {
 func (*BaleUserGetMemberPermissionsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMemberPermissionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[541]
+	mi := &file_proto_cores_bale_proto_msgTypes[545]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24965,7 +25125,7 @@ func (x *BaleUserGetMemberPermissionsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetMemberPermissionsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMemberPermissionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{541}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{545}
 }
 
 func (x *BaleUserGetMemberPermissionsRequest) GetGroupId() int64 {
@@ -24991,7 +25151,7 @@ type BaleUserGetMemberPermissionsResponse struct {
 
 func (x *BaleUserGetMemberPermissionsResponse) Reset() {
 	*x = BaleUserGetMemberPermissionsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[542]
+	mi := &file_proto_cores_bale_proto_msgTypes[546]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25003,7 +25163,7 @@ func (x *BaleUserGetMemberPermissionsResponse) String() string {
 func (*BaleUserGetMemberPermissionsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMemberPermissionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[542]
+	mi := &file_proto_cores_bale_proto_msgTypes[546]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25016,7 +25176,7 @@ func (x *BaleUserGetMemberPermissionsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetMemberPermissionsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMemberPermissionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{542}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{546}
 }
 
 func (x *BaleUserGetMemberPermissionsResponse) GetResult_1() []byte {
@@ -25035,7 +25195,7 @@ type BaleUserGetMenuButtonRequest struct {
 
 func (x *BaleUserGetMenuButtonRequest) Reset() {
 	*x = BaleUserGetMenuButtonRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[543]
+	mi := &file_proto_cores_bale_proto_msgTypes[547]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25047,7 +25207,7 @@ func (x *BaleUserGetMenuButtonRequest) String() string {
 func (*BaleUserGetMenuButtonRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMenuButtonRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[543]
+	mi := &file_proto_cores_bale_proto_msgTypes[547]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25060,7 +25220,7 @@ func (x *BaleUserGetMenuButtonRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMenuButtonRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMenuButtonRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{543}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{547}
 }
 
 func (x *BaleUserGetMenuButtonRequest) GetBotId() int64 {
@@ -25079,7 +25239,7 @@ type BaleUserGetMenuButtonResponse struct {
 
 func (x *BaleUserGetMenuButtonResponse) Reset() {
 	*x = BaleUserGetMenuButtonResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[544]
+	mi := &file_proto_cores_bale_proto_msgTypes[548]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25091,7 +25251,7 @@ func (x *BaleUserGetMenuButtonResponse) String() string {
 func (*BaleUserGetMenuButtonResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMenuButtonResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[544]
+	mi := &file_proto_cores_bale_proto_msgTypes[548]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25104,7 +25264,7 @@ func (x *BaleUserGetMenuButtonResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMenuButtonResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMenuButtonResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{544}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{548}
 }
 
 func (x *BaleUserGetMenuButtonResponse) GetResult_1() []byte {
@@ -25124,7 +25284,7 @@ type BaleUserGetMessageSeenListRequest struct {
 
 func (x *BaleUserGetMessageSeenListRequest) Reset() {
 	*x = BaleUserGetMessageSeenListRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[545]
+	mi := &file_proto_cores_bale_proto_msgTypes[549]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25136,7 +25296,7 @@ func (x *BaleUserGetMessageSeenListRequest) String() string {
 func (*BaleUserGetMessageSeenListRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMessageSeenListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[545]
+	mi := &file_proto_cores_bale_proto_msgTypes[549]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25149,7 +25309,7 @@ func (x *BaleUserGetMessageSeenListRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserGetMessageSeenListRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMessageSeenListRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{545}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{549}
 }
 
 func (x *BaleUserGetMessageSeenListRequest) GetChatId() string {
@@ -25175,7 +25335,7 @@ type BaleUserGetMessageSeenListResponse struct {
 
 func (x *BaleUserGetMessageSeenListResponse) Reset() {
 	*x = BaleUserGetMessageSeenListResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[546]
+	mi := &file_proto_cores_bale_proto_msgTypes[550]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25187,7 +25347,7 @@ func (x *BaleUserGetMessageSeenListResponse) String() string {
 func (*BaleUserGetMessageSeenListResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMessageSeenListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[546]
+	mi := &file_proto_cores_bale_proto_msgTypes[550]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25200,7 +25360,7 @@ func (x *BaleUserGetMessageSeenListResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetMessageSeenListResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMessageSeenListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{546}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{550}
 }
 
 func (x *BaleUserGetMessageSeenListResponse) GetResult_1() []byte {
@@ -25221,7 +25381,7 @@ type BaleUserGetMessageViewsRequest struct {
 
 func (x *BaleUserGetMessageViewsRequest) Reset() {
 	*x = BaleUserGetMessageViewsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[547]
+	mi := &file_proto_cores_bale_proto_msgTypes[551]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25233,7 +25393,7 @@ func (x *BaleUserGetMessageViewsRequest) String() string {
 func (*BaleUserGetMessageViewsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMessageViewsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[547]
+	mi := &file_proto_cores_bale_proto_msgTypes[551]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25246,7 +25406,7 @@ func (x *BaleUserGetMessageViewsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMessageViewsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMessageViewsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{547}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{551}
 }
 
 func (x *BaleUserGetMessageViewsRequest) GetChatId() string {
@@ -25279,7 +25439,7 @@ type BaleUserGetMessageViewsResponse struct {
 
 func (x *BaleUserGetMessageViewsResponse) Reset() {
 	*x = BaleUserGetMessageViewsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[548]
+	mi := &file_proto_cores_bale_proto_msgTypes[552]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25291,7 +25451,7 @@ func (x *BaleUserGetMessageViewsResponse) String() string {
 func (*BaleUserGetMessageViewsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMessageViewsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[548]
+	mi := &file_proto_cores_bale_proto_msgTypes[552]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25304,7 +25464,7 @@ func (x *BaleUserGetMessageViewsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMessageViewsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMessageViewsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{548}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{552}
 }
 
 func (x *BaleUserGetMessageViewsResponse) GetResult_1() []byte {
@@ -25324,7 +25484,7 @@ type BaleUserGetMessagesRepliesInfoRequest struct {
 
 func (x *BaleUserGetMessagesRepliesInfoRequest) Reset() {
 	*x = BaleUserGetMessagesRepliesInfoRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[549]
+	mi := &file_proto_cores_bale_proto_msgTypes[553]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25336,7 +25496,7 @@ func (x *BaleUserGetMessagesRepliesInfoRequest) String() string {
 func (*BaleUserGetMessagesRepliesInfoRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMessagesRepliesInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[549]
+	mi := &file_proto_cores_bale_proto_msgTypes[553]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25349,7 +25509,7 @@ func (x *BaleUserGetMessagesRepliesInfoRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserGetMessagesRepliesInfoRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMessagesRepliesInfoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{549}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{553}
 }
 
 func (x *BaleUserGetMessagesRepliesInfoRequest) GetChatId() string {
@@ -25375,7 +25535,7 @@ type BaleUserGetMessagesRepliesInfoResponse struct {
 
 func (x *BaleUserGetMessagesRepliesInfoResponse) Reset() {
 	*x = BaleUserGetMessagesRepliesInfoResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[550]
+	mi := &file_proto_cores_bale_proto_msgTypes[554]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25387,7 +25547,7 @@ func (x *BaleUserGetMessagesRepliesInfoResponse) String() string {
 func (*BaleUserGetMessagesRepliesInfoResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMessagesRepliesInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[550]
+	mi := &file_proto_cores_bale_proto_msgTypes[554]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25400,7 +25560,7 @@ func (x *BaleUserGetMessagesRepliesInfoResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserGetMessagesRepliesInfoResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMessagesRepliesInfoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{550}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{554}
 }
 
 func (x *BaleUserGetMessagesRepliesInfoResponse) GetResult_1() []byte {
@@ -25420,7 +25580,7 @@ type BaleUserGetMiniAppUrlAppzarRequest struct {
 
 func (x *BaleUserGetMiniAppUrlAppzarRequest) Reset() {
 	*x = BaleUserGetMiniAppUrlAppzarRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[551]
+	mi := &file_proto_cores_bale_proto_msgTypes[555]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25432,7 +25592,7 @@ func (x *BaleUserGetMiniAppUrlAppzarRequest) String() string {
 func (*BaleUserGetMiniAppUrlAppzarRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMiniAppUrlAppzarRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[551]
+	mi := &file_proto_cores_bale_proto_msgTypes[555]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25445,7 +25605,7 @@ func (x *BaleUserGetMiniAppUrlAppzarRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetMiniAppUrlAppzarRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMiniAppUrlAppzarRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{551}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{555}
 }
 
 func (x *BaleUserGetMiniAppUrlAppzarRequest) GetBotId() int64 {
@@ -25471,7 +25631,7 @@ type BaleUserGetMiniAppUrlAppzarResponse struct {
 
 func (x *BaleUserGetMiniAppUrlAppzarResponse) Reset() {
 	*x = BaleUserGetMiniAppUrlAppzarResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[552]
+	mi := &file_proto_cores_bale_proto_msgTypes[556]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25483,7 +25643,7 @@ func (x *BaleUserGetMiniAppUrlAppzarResponse) String() string {
 func (*BaleUserGetMiniAppUrlAppzarResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMiniAppUrlAppzarResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[552]
+	mi := &file_proto_cores_bale_proto_msgTypes[556]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25496,7 +25656,7 @@ func (x *BaleUserGetMiniAppUrlAppzarResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetMiniAppUrlAppzarResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMiniAppUrlAppzarResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{552}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{556}
 }
 
 func (x *BaleUserGetMiniAppUrlAppzarResponse) GetResult_1() []byte {
@@ -25514,7 +25674,7 @@ type BaleUserGetMostPopularStoriesRequest struct {
 
 func (x *BaleUserGetMostPopularStoriesRequest) Reset() {
 	*x = BaleUserGetMostPopularStoriesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[553]
+	mi := &file_proto_cores_bale_proto_msgTypes[557]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25526,7 +25686,7 @@ func (x *BaleUserGetMostPopularStoriesRequest) String() string {
 func (*BaleUserGetMostPopularStoriesRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMostPopularStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[553]
+	mi := &file_proto_cores_bale_proto_msgTypes[557]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25539,7 +25699,7 @@ func (x *BaleUserGetMostPopularStoriesRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetMostPopularStoriesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMostPopularStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{553}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{557}
 }
 
 type BaleUserGetMostPopularStoriesResponse struct {
@@ -25551,7 +25711,7 @@ type BaleUserGetMostPopularStoriesResponse struct {
 
 func (x *BaleUserGetMostPopularStoriesResponse) Reset() {
 	*x = BaleUserGetMostPopularStoriesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[554]
+	mi := &file_proto_cores_bale_proto_msgTypes[558]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25563,7 +25723,7 @@ func (x *BaleUserGetMostPopularStoriesResponse) String() string {
 func (*BaleUserGetMostPopularStoriesResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMostPopularStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[554]
+	mi := &file_proto_cores_bale_proto_msgTypes[558]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25576,7 +25736,7 @@ func (x *BaleUserGetMostPopularStoriesResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserGetMostPopularStoriesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMostPopularStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{554}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{558}
 }
 
 func (x *BaleUserGetMostPopularStoriesResponse) GetResult_1() []byte {
@@ -25595,7 +25755,7 @@ type BaleUserGetMutualGroupsRequest struct {
 
 func (x *BaleUserGetMutualGroupsRequest) Reset() {
 	*x = BaleUserGetMutualGroupsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[555]
+	mi := &file_proto_cores_bale_proto_msgTypes[559]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25607,7 +25767,7 @@ func (x *BaleUserGetMutualGroupsRequest) String() string {
 func (*BaleUserGetMutualGroupsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMutualGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[555]
+	mi := &file_proto_cores_bale_proto_msgTypes[559]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25620,7 +25780,7 @@ func (x *BaleUserGetMutualGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMutualGroupsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMutualGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{555}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{559}
 }
 
 func (x *BaleUserGetMutualGroupsRequest) GetUserId() int64 {
@@ -25639,7 +25799,7 @@ type BaleUserGetMutualGroupsResponse struct {
 
 func (x *BaleUserGetMutualGroupsResponse) Reset() {
 	*x = BaleUserGetMutualGroupsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[556]
+	mi := &file_proto_cores_bale_proto_msgTypes[560]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25651,7 +25811,7 @@ func (x *BaleUserGetMutualGroupsResponse) String() string {
 func (*BaleUserGetMutualGroupsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMutualGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[556]
+	mi := &file_proto_cores_bale_proto_msgTypes[560]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25664,7 +25824,7 @@ func (x *BaleUserGetMutualGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMutualGroupsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMutualGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{556}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{560}
 }
 
 func (x *BaleUserGetMutualGroupsResponse) GetResult_1() []byte {
@@ -25682,7 +25842,7 @@ type BaleUserGetMyCommandsRequest struct {
 
 func (x *BaleUserGetMyCommandsRequest) Reset() {
 	*x = BaleUserGetMyCommandsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[557]
+	mi := &file_proto_cores_bale_proto_msgTypes[561]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25694,7 +25854,7 @@ func (x *BaleUserGetMyCommandsRequest) String() string {
 func (*BaleUserGetMyCommandsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMyCommandsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[557]
+	mi := &file_proto_cores_bale_proto_msgTypes[561]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25707,7 +25867,7 @@ func (x *BaleUserGetMyCommandsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMyCommandsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMyCommandsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{557}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{561}
 }
 
 type BaleUserGetMyCommandsResponse struct {
@@ -25719,7 +25879,7 @@ type BaleUserGetMyCommandsResponse struct {
 
 func (x *BaleUserGetMyCommandsResponse) Reset() {
 	*x = BaleUserGetMyCommandsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[558]
+	mi := &file_proto_cores_bale_proto_msgTypes[562]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25731,7 +25891,7 @@ func (x *BaleUserGetMyCommandsResponse) String() string {
 func (*BaleUserGetMyCommandsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMyCommandsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[558]
+	mi := &file_proto_cores_bale_proto_msgTypes[562]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25744,7 +25904,7 @@ func (x *BaleUserGetMyCommandsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMyCommandsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMyCommandsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{558}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{562}
 }
 
 func (x *BaleUserGetMyCommandsResponse) GetResult_1() []byte {
@@ -25762,7 +25922,7 @@ type BaleUserGetMyGroupsRequest struct {
 
 func (x *BaleUserGetMyGroupsRequest) Reset() {
 	*x = BaleUserGetMyGroupsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[559]
+	mi := &file_proto_cores_bale_proto_msgTypes[563]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25774,7 +25934,7 @@ func (x *BaleUserGetMyGroupsRequest) String() string {
 func (*BaleUserGetMyGroupsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMyGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[559]
+	mi := &file_proto_cores_bale_proto_msgTypes[563]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25787,7 +25947,7 @@ func (x *BaleUserGetMyGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMyGroupsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMyGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{559}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{563}
 }
 
 type BaleUserGetMyGroupsResponse struct {
@@ -25799,7 +25959,7 @@ type BaleUserGetMyGroupsResponse struct {
 
 func (x *BaleUserGetMyGroupsResponse) Reset() {
 	*x = BaleUserGetMyGroupsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[560]
+	mi := &file_proto_cores_bale_proto_msgTypes[564]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25811,7 +25971,7 @@ func (x *BaleUserGetMyGroupsResponse) String() string {
 func (*BaleUserGetMyGroupsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMyGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[560]
+	mi := &file_proto_cores_bale_proto_msgTypes[564]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25824,7 +25984,7 @@ func (x *BaleUserGetMyGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMyGroupsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMyGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{560}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{564}
 }
 
 func (x *BaleUserGetMyGroupsResponse) GetResult_1() []byte {
@@ -25844,7 +26004,7 @@ type BaleUserGetMyUpvotesRequest struct {
 
 func (x *BaleUserGetMyUpvotesRequest) Reset() {
 	*x = BaleUserGetMyUpvotesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[561]
+	mi := &file_proto_cores_bale_proto_msgTypes[565]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25856,7 +26016,7 @@ func (x *BaleUserGetMyUpvotesRequest) String() string {
 func (*BaleUserGetMyUpvotesRequest) ProtoMessage() {}
 
 func (x *BaleUserGetMyUpvotesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[561]
+	mi := &file_proto_cores_bale_proto_msgTypes[565]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25869,7 +26029,7 @@ func (x *BaleUserGetMyUpvotesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMyUpvotesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMyUpvotesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{561}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{565}
 }
 
 func (x *BaleUserGetMyUpvotesRequest) GetOffset() int64 {
@@ -25895,7 +26055,7 @@ type BaleUserGetMyUpvotesResponse struct {
 
 func (x *BaleUserGetMyUpvotesResponse) Reset() {
 	*x = BaleUserGetMyUpvotesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[562]
+	mi := &file_proto_cores_bale_proto_msgTypes[566]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25907,7 +26067,7 @@ func (x *BaleUserGetMyUpvotesResponse) String() string {
 func (*BaleUserGetMyUpvotesResponse) ProtoMessage() {}
 
 func (x *BaleUserGetMyUpvotesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[562]
+	mi := &file_proto_cores_bale_proto_msgTypes[566]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25920,7 +26080,7 @@ func (x *BaleUserGetMyUpvotesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetMyUpvotesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetMyUpvotesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{562}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{566}
 }
 
 func (x *BaleUserGetMyUpvotesResponse) GetResult_1() []byte {
@@ -25940,7 +26100,7 @@ type BaleUserGetNasimFilePublicUrlRequest struct {
 
 func (x *BaleUserGetNasimFilePublicUrlRequest) Reset() {
 	*x = BaleUserGetNasimFilePublicUrlRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[563]
+	mi := &file_proto_cores_bale_proto_msgTypes[567]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -25952,7 +26112,7 @@ func (x *BaleUserGetNasimFilePublicUrlRequest) String() string {
 func (*BaleUserGetNasimFilePublicUrlRequest) ProtoMessage() {}
 
 func (x *BaleUserGetNasimFilePublicUrlRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[563]
+	mi := &file_proto_cores_bale_proto_msgTypes[567]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25965,7 +26125,7 @@ func (x *BaleUserGetNasimFilePublicUrlRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetNasimFilePublicUrlRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetNasimFilePublicUrlRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{563}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{567}
 }
 
 func (x *BaleUserGetNasimFilePublicUrlRequest) GetFileId() int64 {
@@ -25991,7 +26151,7 @@ type BaleUserGetNasimFilePublicUrlResponse struct {
 
 func (x *BaleUserGetNasimFilePublicUrlResponse) Reset() {
 	*x = BaleUserGetNasimFilePublicUrlResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[564]
+	mi := &file_proto_cores_bale_proto_msgTypes[568]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26003,7 +26163,7 @@ func (x *BaleUserGetNasimFilePublicUrlResponse) String() string {
 func (*BaleUserGetNasimFilePublicUrlResponse) ProtoMessage() {}
 
 func (x *BaleUserGetNasimFilePublicUrlResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[564]
+	mi := &file_proto_cores_bale_proto_msgTypes[568]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26016,7 +26176,7 @@ func (x *BaleUserGetNasimFilePublicUrlResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserGetNasimFilePublicUrlResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetNasimFilePublicUrlResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{564}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{568}
 }
 
 func (x *BaleUserGetNasimFilePublicUrlResponse) GetResult_1() []byte {
@@ -26035,7 +26195,7 @@ type BaleUserGetNasimFileUploadResumeRequest struct {
 
 func (x *BaleUserGetNasimFileUploadResumeRequest) Reset() {
 	*x = BaleUserGetNasimFileUploadResumeRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[565]
+	mi := &file_proto_cores_bale_proto_msgTypes[569]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26047,7 +26207,7 @@ func (x *BaleUserGetNasimFileUploadResumeRequest) String() string {
 func (*BaleUserGetNasimFileUploadResumeRequest) ProtoMessage() {}
 
 func (x *BaleUserGetNasimFileUploadResumeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[565]
+	mi := &file_proto_cores_bale_proto_msgTypes[569]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26060,7 +26220,7 @@ func (x *BaleUserGetNasimFileUploadResumeRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserGetNasimFileUploadResumeRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetNasimFileUploadResumeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{565}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{569}
 }
 
 func (x *BaleUserGetNasimFileUploadResumeRequest) GetFileId() int64 {
@@ -26079,7 +26239,7 @@ type BaleUserGetNasimFileUploadResumeResponse struct {
 
 func (x *BaleUserGetNasimFileUploadResumeResponse) Reset() {
 	*x = BaleUserGetNasimFileUploadResumeResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[566]
+	mi := &file_proto_cores_bale_proto_msgTypes[570]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26091,7 +26251,7 @@ func (x *BaleUserGetNasimFileUploadResumeResponse) String() string {
 func (*BaleUserGetNasimFileUploadResumeResponse) ProtoMessage() {}
 
 func (x *BaleUserGetNasimFileUploadResumeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[566]
+	mi := &file_proto_cores_bale_proto_msgTypes[570]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26104,7 +26264,7 @@ func (x *BaleUserGetNasimFileUploadResumeResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserGetNasimFileUploadResumeResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetNasimFileUploadResumeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{566}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{570}
 }
 
 func (x *BaleUserGetNasimFileUploadResumeResponse) GetResult_1() []byte {
@@ -26123,7 +26283,7 @@ type BaleUserGetNasimFileUrlsRequest struct {
 
 func (x *BaleUserGetNasimFileUrlsRequest) Reset() {
 	*x = BaleUserGetNasimFileUrlsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[567]
+	mi := &file_proto_cores_bale_proto_msgTypes[571]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26135,7 +26295,7 @@ func (x *BaleUserGetNasimFileUrlsRequest) String() string {
 func (*BaleUserGetNasimFileUrlsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetNasimFileUrlsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[567]
+	mi := &file_proto_cores_bale_proto_msgTypes[571]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26148,7 +26308,7 @@ func (x *BaleUserGetNasimFileUrlsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetNasimFileUrlsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetNasimFileUrlsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{567}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{571}
 }
 
 func (x *BaleUserGetNasimFileUrlsRequest) GetFileIds() []byte {
@@ -26167,7 +26327,7 @@ type BaleUserGetNasimFileUrlsResponse struct {
 
 func (x *BaleUserGetNasimFileUrlsResponse) Reset() {
 	*x = BaleUserGetNasimFileUrlsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[568]
+	mi := &file_proto_cores_bale_proto_msgTypes[572]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26179,7 +26339,7 @@ func (x *BaleUserGetNasimFileUrlsResponse) String() string {
 func (*BaleUserGetNasimFileUrlsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetNasimFileUrlsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[568]
+	mi := &file_proto_cores_bale_proto_msgTypes[572]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26192,7 +26352,7 @@ func (x *BaleUserGetNasimFileUrlsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetNasimFileUrlsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetNasimFileUrlsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{568}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{572}
 }
 
 func (x *BaleUserGetNasimFileUrlsResponse) GetResult_1() []byte {
@@ -26210,7 +26370,7 @@ type BaleUserGetOrganizationInfoRequest struct {
 
 func (x *BaleUserGetOrganizationInfoRequest) Reset() {
 	*x = BaleUserGetOrganizationInfoRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[569]
+	mi := &file_proto_cores_bale_proto_msgTypes[573]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26222,7 +26382,7 @@ func (x *BaleUserGetOrganizationInfoRequest) String() string {
 func (*BaleUserGetOrganizationInfoRequest) ProtoMessage() {}
 
 func (x *BaleUserGetOrganizationInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[569]
+	mi := &file_proto_cores_bale_proto_msgTypes[573]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26235,7 +26395,7 @@ func (x *BaleUserGetOrganizationInfoRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetOrganizationInfoRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetOrganizationInfoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{569}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{573}
 }
 
 type BaleUserGetOrganizationInfoResponse struct {
@@ -26247,7 +26407,7 @@ type BaleUserGetOrganizationInfoResponse struct {
 
 func (x *BaleUserGetOrganizationInfoResponse) Reset() {
 	*x = BaleUserGetOrganizationInfoResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[570]
+	mi := &file_proto_cores_bale_proto_msgTypes[574]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26259,7 +26419,7 @@ func (x *BaleUserGetOrganizationInfoResponse) String() string {
 func (*BaleUserGetOrganizationInfoResponse) ProtoMessage() {}
 
 func (x *BaleUserGetOrganizationInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[570]
+	mi := &file_proto_cores_bale_proto_msgTypes[574]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26272,7 +26432,7 @@ func (x *BaleUserGetOrganizationInfoResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetOrganizationInfoResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetOrganizationInfoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{570}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{574}
 }
 
 func (x *BaleUserGetOrganizationInfoResponse) GetResult_1() []byte {
@@ -26290,7 +26450,7 @@ type BaleUserGetOrganizationalContactsRequest struct {
 
 func (x *BaleUserGetOrganizationalContactsRequest) Reset() {
 	*x = BaleUserGetOrganizationalContactsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[571]
+	mi := &file_proto_cores_bale_proto_msgTypes[575]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26302,7 +26462,7 @@ func (x *BaleUserGetOrganizationalContactsRequest) String() string {
 func (*BaleUserGetOrganizationalContactsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetOrganizationalContactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[571]
+	mi := &file_proto_cores_bale_proto_msgTypes[575]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26315,7 +26475,7 @@ func (x *BaleUserGetOrganizationalContactsRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserGetOrganizationalContactsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetOrganizationalContactsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{571}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{575}
 }
 
 type BaleUserGetOrganizationalContactsResponse struct {
@@ -26327,7 +26487,7 @@ type BaleUserGetOrganizationalContactsResponse struct {
 
 func (x *BaleUserGetOrganizationalContactsResponse) Reset() {
 	*x = BaleUserGetOrganizationalContactsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[572]
+	mi := &file_proto_cores_bale_proto_msgTypes[576]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26339,7 +26499,7 @@ func (x *BaleUserGetOrganizationalContactsResponse) String() string {
 func (*BaleUserGetOrganizationalContactsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetOrganizationalContactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[572]
+	mi := &file_proto_cores_bale_proto_msgTypes[576]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26352,7 +26512,7 @@ func (x *BaleUserGetOrganizationalContactsResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use BaleUserGetOrganizationalContactsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetOrganizationalContactsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{572}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{576}
 }
 
 func (x *BaleUserGetOrganizationalContactsResponse) GetResult_1() []byte {
@@ -26370,7 +26530,7 @@ type BaleUserGetParametersRequest struct {
 
 func (x *BaleUserGetParametersRequest) Reset() {
 	*x = BaleUserGetParametersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[573]
+	mi := &file_proto_cores_bale_proto_msgTypes[577]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26382,7 +26542,7 @@ func (x *BaleUserGetParametersRequest) String() string {
 func (*BaleUserGetParametersRequest) ProtoMessage() {}
 
 func (x *BaleUserGetParametersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[573]
+	mi := &file_proto_cores_bale_proto_msgTypes[577]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26395,7 +26555,7 @@ func (x *BaleUserGetParametersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetParametersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetParametersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{573}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{577}
 }
 
 type BaleUserGetParametersResponse struct {
@@ -26407,7 +26567,7 @@ type BaleUserGetParametersResponse struct {
 
 func (x *BaleUserGetParametersResponse) Reset() {
 	*x = BaleUserGetParametersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[574]
+	mi := &file_proto_cores_bale_proto_msgTypes[578]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26419,7 +26579,7 @@ func (x *BaleUserGetParametersResponse) String() string {
 func (*BaleUserGetParametersResponse) ProtoMessage() {}
 
 func (x *BaleUserGetParametersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[574]
+	mi := &file_proto_cores_bale_proto_msgTypes[578]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26432,7 +26592,7 @@ func (x *BaleUserGetParametersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetParametersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetParametersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{574}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{578}
 }
 
 func (x *BaleUserGetParametersResponse) GetResult_1() []byte {
@@ -26451,7 +26611,7 @@ type BaleUserGetPaymentDetailsRequest struct {
 
 func (x *BaleUserGetPaymentDetailsRequest) Reset() {
 	*x = BaleUserGetPaymentDetailsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[575]
+	mi := &file_proto_cores_bale_proto_msgTypes[579]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26463,7 +26623,7 @@ func (x *BaleUserGetPaymentDetailsRequest) String() string {
 func (*BaleUserGetPaymentDetailsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetPaymentDetailsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[575]
+	mi := &file_proto_cores_bale_proto_msgTypes[579]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26476,7 +26636,7 @@ func (x *BaleUserGetPaymentDetailsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetPaymentDetailsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetPaymentDetailsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{575}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{579}
 }
 
 func (x *BaleUserGetPaymentDetailsRequest) GetPaymentId() string {
@@ -26495,7 +26655,7 @@ type BaleUserGetPaymentDetailsResponse struct {
 
 func (x *BaleUserGetPaymentDetailsResponse) Reset() {
 	*x = BaleUserGetPaymentDetailsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[576]
+	mi := &file_proto_cores_bale_proto_msgTypes[580]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26507,7 +26667,7 @@ func (x *BaleUserGetPaymentDetailsResponse) String() string {
 func (*BaleUserGetPaymentDetailsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetPaymentDetailsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[576]
+	mi := &file_proto_cores_bale_proto_msgTypes[580]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26520,7 +26680,7 @@ func (x *BaleUserGetPaymentDetailsResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserGetPaymentDetailsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetPaymentDetailsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{576}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{580}
 }
 
 func (x *BaleUserGetPaymentDetailsResponse) GetResult_1() []byte {
@@ -26541,7 +26701,7 @@ type BaleUserGetPinsRequest struct {
 
 func (x *BaleUserGetPinsRequest) Reset() {
 	*x = BaleUserGetPinsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[577]
+	mi := &file_proto_cores_bale_proto_msgTypes[581]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26553,7 +26713,7 @@ func (x *BaleUserGetPinsRequest) String() string {
 func (*BaleUserGetPinsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetPinsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[577]
+	mi := &file_proto_cores_bale_proto_msgTypes[581]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26566,7 +26726,7 @@ func (x *BaleUserGetPinsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetPinsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetPinsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{577}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{581}
 }
 
 func (x *BaleUserGetPinsRequest) GetGroupId() int64 {
@@ -26599,7 +26759,7 @@ type BaleUserGetPinsResponse struct {
 
 func (x *BaleUserGetPinsResponse) Reset() {
 	*x = BaleUserGetPinsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[578]
+	mi := &file_proto_cores_bale_proto_msgTypes[582]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26611,7 +26771,7 @@ func (x *BaleUserGetPinsResponse) String() string {
 func (*BaleUserGetPinsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetPinsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[578]
+	mi := &file_proto_cores_bale_proto_msgTypes[582]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26624,7 +26784,7 @@ func (x *BaleUserGetPinsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetPinsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetPinsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{578}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{582}
 }
 
 func (x *BaleUserGetPinsResponse) GetResult_1() []byte {
@@ -26644,7 +26804,7 @@ type BaleUserGetPollResultsServiceRequest struct {
 
 func (x *BaleUserGetPollResultsServiceRequest) Reset() {
 	*x = BaleUserGetPollResultsServiceRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[579]
+	mi := &file_proto_cores_bale_proto_msgTypes[583]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26656,7 +26816,7 @@ func (x *BaleUserGetPollResultsServiceRequest) String() string {
 func (*BaleUserGetPollResultsServiceRequest) ProtoMessage() {}
 
 func (x *BaleUserGetPollResultsServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[579]
+	mi := &file_proto_cores_bale_proto_msgTypes[583]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26669,7 +26829,7 @@ func (x *BaleUserGetPollResultsServiceRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetPollResultsServiceRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetPollResultsServiceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{579}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{583}
 }
 
 func (x *BaleUserGetPollResultsServiceRequest) GetChatId() string {
@@ -26695,7 +26855,7 @@ type BaleUserGetPollResultsServiceResponse struct {
 
 func (x *BaleUserGetPollResultsServiceResponse) Reset() {
 	*x = BaleUserGetPollResultsServiceResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[580]
+	mi := &file_proto_cores_bale_proto_msgTypes[584]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26707,7 +26867,7 @@ func (x *BaleUserGetPollResultsServiceResponse) String() string {
 func (*BaleUserGetPollResultsServiceResponse) ProtoMessage() {}
 
 func (x *BaleUserGetPollResultsServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[580]
+	mi := &file_proto_cores_bale_proto_msgTypes[584]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26720,7 +26880,7 @@ func (x *BaleUserGetPollResultsServiceResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserGetPollResultsServiceResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetPollResultsServiceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{580}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{584}
 }
 
 func (x *BaleUserGetPollResultsServiceResponse) GetResult_1() []byte {
@@ -26741,7 +26901,7 @@ type BaleUserGetReactionsRequest struct {
 
 func (x *BaleUserGetReactionsRequest) Reset() {
 	*x = BaleUserGetReactionsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[581]
+	mi := &file_proto_cores_bale_proto_msgTypes[585]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26753,7 +26913,7 @@ func (x *BaleUserGetReactionsRequest) String() string {
 func (*BaleUserGetReactionsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetReactionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[581]
+	mi := &file_proto_cores_bale_proto_msgTypes[585]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26766,7 +26926,7 @@ func (x *BaleUserGetReactionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetReactionsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetReactionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{581}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{585}
 }
 
 func (x *BaleUserGetReactionsRequest) GetChatId() string {
@@ -26799,7 +26959,7 @@ type BaleUserGetReactionsResponse struct {
 
 func (x *BaleUserGetReactionsResponse) Reset() {
 	*x = BaleUserGetReactionsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[582]
+	mi := &file_proto_cores_bale_proto_msgTypes[586]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26811,7 +26971,7 @@ func (x *BaleUserGetReactionsResponse) String() string {
 func (*BaleUserGetReactionsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetReactionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[582]
+	mi := &file_proto_cores_bale_proto_msgTypes[586]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26824,7 +26984,7 @@ func (x *BaleUserGetReactionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetReactionsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetReactionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{582}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{586}
 }
 
 func (x *BaleUserGetReactionsResponse) GetResult_1() []byte {
@@ -26846,7 +27006,7 @@ type BaleUserGetReactionsListRequest struct {
 
 func (x *BaleUserGetReactionsListRequest) Reset() {
 	*x = BaleUserGetReactionsListRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[583]
+	mi := &file_proto_cores_bale_proto_msgTypes[587]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26858,7 +27018,7 @@ func (x *BaleUserGetReactionsListRequest) String() string {
 func (*BaleUserGetReactionsListRequest) ProtoMessage() {}
 
 func (x *BaleUserGetReactionsListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[583]
+	mi := &file_proto_cores_bale_proto_msgTypes[587]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26871,7 +27031,7 @@ func (x *BaleUserGetReactionsListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetReactionsListRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetReactionsListRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{583}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{587}
 }
 
 func (x *BaleUserGetReactionsListRequest) GetChatId() string {
@@ -26911,7 +27071,7 @@ type BaleUserGetReactionsListResponse struct {
 
 func (x *BaleUserGetReactionsListResponse) Reset() {
 	*x = BaleUserGetReactionsListResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[584]
+	mi := &file_proto_cores_bale_proto_msgTypes[588]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26923,7 +27083,7 @@ func (x *BaleUserGetReactionsListResponse) String() string {
 func (*BaleUserGetReactionsListResponse) ProtoMessage() {}
 
 func (x *BaleUserGetReactionsListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[584]
+	mi := &file_proto_cores_bale_proto_msgTypes[588]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26936,7 +27096,7 @@ func (x *BaleUserGetReactionsListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetReactionsListResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetReactionsListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{584}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{588}
 }
 
 func (x *BaleUserGetReactionsListResponse) GetResult_1() []byte {
@@ -26955,7 +27115,7 @@ type BaleUserGetRelatedChannelsRequest struct {
 
 func (x *BaleUserGetRelatedChannelsRequest) Reset() {
 	*x = BaleUserGetRelatedChannelsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[585]
+	mi := &file_proto_cores_bale_proto_msgTypes[589]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -26967,7 +27127,7 @@ func (x *BaleUserGetRelatedChannelsRequest) String() string {
 func (*BaleUserGetRelatedChannelsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetRelatedChannelsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[585]
+	mi := &file_proto_cores_bale_proto_msgTypes[589]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26980,7 +27140,7 @@ func (x *BaleUserGetRelatedChannelsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserGetRelatedChannelsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetRelatedChannelsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{585}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{589}
 }
 
 func (x *BaleUserGetRelatedChannelsRequest) GetChannelId() int64 {
@@ -26999,7 +27159,7 @@ type BaleUserGetRelatedChannelsResponse struct {
 
 func (x *BaleUserGetRelatedChannelsResponse) Reset() {
 	*x = BaleUserGetRelatedChannelsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[586]
+	mi := &file_proto_cores_bale_proto_msgTypes[590]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27011,7 +27171,7 @@ func (x *BaleUserGetRelatedChannelsResponse) String() string {
 func (*BaleUserGetRelatedChannelsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetRelatedChannelsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[586]
+	mi := &file_proto_cores_bale_proto_msgTypes[590]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27024,7 +27184,7 @@ func (x *BaleUserGetRelatedChannelsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetRelatedChannelsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetRelatedChannelsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{586}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{590}
 }
 
 func (x *BaleUserGetRelatedChannelsResponse) GetResult_1() []byte {
@@ -27043,7 +27203,7 @@ type BaleUserGetRelatedGroupsRequest struct {
 
 func (x *BaleUserGetRelatedGroupsRequest) Reset() {
 	*x = BaleUserGetRelatedGroupsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[587]
+	mi := &file_proto_cores_bale_proto_msgTypes[591]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27055,7 +27215,7 @@ func (x *BaleUserGetRelatedGroupsRequest) String() string {
 func (*BaleUserGetRelatedGroupsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetRelatedGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[587]
+	mi := &file_proto_cores_bale_proto_msgTypes[591]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27068,7 +27228,7 @@ func (x *BaleUserGetRelatedGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetRelatedGroupsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetRelatedGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{587}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{591}
 }
 
 func (x *BaleUserGetRelatedGroupsRequest) GetGroupId() int64 {
@@ -27087,7 +27247,7 @@ type BaleUserGetRelatedGroupsResponse struct {
 
 func (x *BaleUserGetRelatedGroupsResponse) Reset() {
 	*x = BaleUserGetRelatedGroupsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[588]
+	mi := &file_proto_cores_bale_proto_msgTypes[592]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27099,7 +27259,7 @@ func (x *BaleUserGetRelatedGroupsResponse) String() string {
 func (*BaleUserGetRelatedGroupsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetRelatedGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[588]
+	mi := &file_proto_cores_bale_proto_msgTypes[592]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27112,7 +27272,7 @@ func (x *BaleUserGetRelatedGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetRelatedGroupsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetRelatedGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{588}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{592}
 }
 
 func (x *BaleUserGetRelatedGroupsResponse) GetResult_1() []byte {
@@ -27130,7 +27290,7 @@ type BaleUserGetSavedGifsRequest struct {
 
 func (x *BaleUserGetSavedGifsRequest) Reset() {
 	*x = BaleUserGetSavedGifsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[589]
+	mi := &file_proto_cores_bale_proto_msgTypes[593]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27142,7 +27302,7 @@ func (x *BaleUserGetSavedGifsRequest) String() string {
 func (*BaleUserGetSavedGifsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetSavedGifsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[589]
+	mi := &file_proto_cores_bale_proto_msgTypes[593]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27155,7 +27315,7 @@ func (x *BaleUserGetSavedGifsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetSavedGifsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetSavedGifsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{589}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{593}
 }
 
 type BaleUserGetSavedGifsResponse struct {
@@ -27167,7 +27327,7 @@ type BaleUserGetSavedGifsResponse struct {
 
 func (x *BaleUserGetSavedGifsResponse) Reset() {
 	*x = BaleUserGetSavedGifsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[590]
+	mi := &file_proto_cores_bale_proto_msgTypes[594]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27179,7 +27339,7 @@ func (x *BaleUserGetSavedGifsResponse) String() string {
 func (*BaleUserGetSavedGifsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetSavedGifsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[590]
+	mi := &file_proto_cores_bale_proto_msgTypes[594]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27192,7 +27352,7 @@ func (x *BaleUserGetSavedGifsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetSavedGifsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetSavedGifsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{590}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{594}
 }
 
 func (x *BaleUserGetSavedGifsResponse) GetResult_1() []byte {
@@ -27210,7 +27370,7 @@ type BaleUserGetShowReactionFlagRequest struct {
 
 func (x *BaleUserGetShowReactionFlagRequest) Reset() {
 	*x = BaleUserGetShowReactionFlagRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[591]
+	mi := &file_proto_cores_bale_proto_msgTypes[595]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27222,7 +27382,7 @@ func (x *BaleUserGetShowReactionFlagRequest) String() string {
 func (*BaleUserGetShowReactionFlagRequest) ProtoMessage() {}
 
 func (x *BaleUserGetShowReactionFlagRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[591]
+	mi := &file_proto_cores_bale_proto_msgTypes[595]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27235,7 +27395,7 @@ func (x *BaleUserGetShowReactionFlagRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetShowReactionFlagRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetShowReactionFlagRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{591}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{595}
 }
 
 type BaleUserGetShowReactionFlagResponse struct {
@@ -27247,7 +27407,7 @@ type BaleUserGetShowReactionFlagResponse struct {
 
 func (x *BaleUserGetShowReactionFlagResponse) Reset() {
 	*x = BaleUserGetShowReactionFlagResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[592]
+	mi := &file_proto_cores_bale_proto_msgTypes[596]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27259,7 +27419,7 @@ func (x *BaleUserGetShowReactionFlagResponse) String() string {
 func (*BaleUserGetShowReactionFlagResponse) ProtoMessage() {}
 
 func (x *BaleUserGetShowReactionFlagResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[592]
+	mi := &file_proto_cores_bale_proto_msgTypes[596]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27272,7 +27432,7 @@ func (x *BaleUserGetShowReactionFlagResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetShowReactionFlagResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetShowReactionFlagResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{592}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{596}
 }
 
 func (x *BaleUserGetShowReactionFlagResponse) GetResult_1() []byte {
@@ -27292,7 +27452,7 @@ type BaleUserGetSimilarPostsRequest struct {
 
 func (x *BaleUserGetSimilarPostsRequest) Reset() {
 	*x = BaleUserGetSimilarPostsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[593]
+	mi := &file_proto_cores_bale_proto_msgTypes[597]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27304,7 +27464,7 @@ func (x *BaleUserGetSimilarPostsRequest) String() string {
 func (*BaleUserGetSimilarPostsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetSimilarPostsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[593]
+	mi := &file_proto_cores_bale_proto_msgTypes[597]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27317,7 +27477,7 @@ func (x *BaleUserGetSimilarPostsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetSimilarPostsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetSimilarPostsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{593}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{597}
 }
 
 func (x *BaleUserGetSimilarPostsRequest) GetChatId() string {
@@ -27343,7 +27503,7 @@ type BaleUserGetSimilarPostsResponse struct {
 
 func (x *BaleUserGetSimilarPostsResponse) Reset() {
 	*x = BaleUserGetSimilarPostsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[594]
+	mi := &file_proto_cores_bale_proto_msgTypes[598]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27355,7 +27515,7 @@ func (x *BaleUserGetSimilarPostsResponse) String() string {
 func (*BaleUserGetSimilarPostsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetSimilarPostsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[594]
+	mi := &file_proto_cores_bale_proto_msgTypes[598]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27368,7 +27528,7 @@ func (x *BaleUserGetSimilarPostsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetSimilarPostsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetSimilarPostsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{594}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{598}
 }
 
 func (x *BaleUserGetSimilarPostsResponse) GetResult_1() []byte {
@@ -27387,7 +27547,7 @@ type BaleUserGetStoriesRequest struct {
 
 func (x *BaleUserGetStoriesRequest) Reset() {
 	*x = BaleUserGetStoriesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[595]
+	mi := &file_proto_cores_bale_proto_msgTypes[599]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27399,7 +27559,7 @@ func (x *BaleUserGetStoriesRequest) String() string {
 func (*BaleUserGetStoriesRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[595]
+	mi := &file_proto_cores_bale_proto_msgTypes[599]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27412,7 +27572,7 @@ func (x *BaleUserGetStoriesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoriesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{595}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{599}
 }
 
 func (x *BaleUserGetStoriesRequest) GetPeerId() int64 {
@@ -27431,7 +27591,7 @@ type BaleUserGetStoriesResponse struct {
 
 func (x *BaleUserGetStoriesResponse) Reset() {
 	*x = BaleUserGetStoriesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[596]
+	mi := &file_proto_cores_bale_proto_msgTypes[600]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27443,7 +27603,7 @@ func (x *BaleUserGetStoriesResponse) String() string {
 func (*BaleUserGetStoriesResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[596]
+	mi := &file_proto_cores_bale_proto_msgTypes[600]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27456,7 +27616,7 @@ func (x *BaleUserGetStoriesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoriesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{596}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{600}
 }
 
 func (x *BaleUserGetStoriesResponse) GetResult_1() []byte {
@@ -27475,7 +27635,7 @@ type BaleUserGetStoriesByListRequest struct {
 
 func (x *BaleUserGetStoriesByListRequest) Reset() {
 	*x = BaleUserGetStoriesByListRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[597]
+	mi := &file_proto_cores_bale_proto_msgTypes[601]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27487,7 +27647,7 @@ func (x *BaleUserGetStoriesByListRequest) String() string {
 func (*BaleUserGetStoriesByListRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoriesByListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[597]
+	mi := &file_proto_cores_bale_proto_msgTypes[601]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27500,7 +27660,7 @@ func (x *BaleUserGetStoriesByListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoriesByListRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoriesByListRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{597}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{601}
 }
 
 func (x *BaleUserGetStoriesByListRequest) GetStoryIds() []int64 {
@@ -27519,7 +27679,7 @@ type BaleUserGetStoriesByListResponse struct {
 
 func (x *BaleUserGetStoriesByListResponse) Reset() {
 	*x = BaleUserGetStoriesByListResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[598]
+	mi := &file_proto_cores_bale_proto_msgTypes[602]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27531,7 +27691,7 @@ func (x *BaleUserGetStoriesByListResponse) String() string {
 func (*BaleUserGetStoriesByListResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoriesByListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[598]
+	mi := &file_proto_cores_bale_proto_msgTypes[602]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27544,7 +27704,7 @@ func (x *BaleUserGetStoriesByListResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoriesByListResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoriesByListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{598}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{602}
 }
 
 func (x *BaleUserGetStoriesByListResponse) GetResult_1() []byte {
@@ -27563,7 +27723,7 @@ type BaleUserGetStoryByIDRequest struct {
 
 func (x *BaleUserGetStoryByIDRequest) Reset() {
 	*x = BaleUserGetStoryByIDRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[599]
+	mi := &file_proto_cores_bale_proto_msgTypes[603]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27575,7 +27735,7 @@ func (x *BaleUserGetStoryByIDRequest) String() string {
 func (*BaleUserGetStoryByIDRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoryByIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[599]
+	mi := &file_proto_cores_bale_proto_msgTypes[603]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27588,7 +27748,7 @@ func (x *BaleUserGetStoryByIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoryByIDRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryByIDRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{599}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{603}
 }
 
 func (x *BaleUserGetStoryByIDRequest) GetStoryId() int64 {
@@ -27607,7 +27767,7 @@ type BaleUserGetStoryByIDResponse struct {
 
 func (x *BaleUserGetStoryByIDResponse) Reset() {
 	*x = BaleUserGetStoryByIDResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[600]
+	mi := &file_proto_cores_bale_proto_msgTypes[604]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27619,7 +27779,7 @@ func (x *BaleUserGetStoryByIDResponse) String() string {
 func (*BaleUserGetStoryByIDResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoryByIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[600]
+	mi := &file_proto_cores_bale_proto_msgTypes[604]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27632,7 +27792,7 @@ func (x *BaleUserGetStoryByIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoryByIDResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryByIDResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{600}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{604}
 }
 
 func (x *BaleUserGetStoryByIDResponse) GetResult_1() []byte {
@@ -27650,7 +27810,7 @@ type BaleUserGetStoryPrivacyConfigRequest struct {
 
 func (x *BaleUserGetStoryPrivacyConfigRequest) Reset() {
 	*x = BaleUserGetStoryPrivacyConfigRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[601]
+	mi := &file_proto_cores_bale_proto_msgTypes[605]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27662,7 +27822,7 @@ func (x *BaleUserGetStoryPrivacyConfigRequest) String() string {
 func (*BaleUserGetStoryPrivacyConfigRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoryPrivacyConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[601]
+	mi := &file_proto_cores_bale_proto_msgTypes[605]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27675,7 +27835,7 @@ func (x *BaleUserGetStoryPrivacyConfigRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetStoryPrivacyConfigRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryPrivacyConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{601}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{605}
 }
 
 type BaleUserGetStoryPrivacyConfigResponse struct {
@@ -27687,7 +27847,7 @@ type BaleUserGetStoryPrivacyConfigResponse struct {
 
 func (x *BaleUserGetStoryPrivacyConfigResponse) Reset() {
 	*x = BaleUserGetStoryPrivacyConfigResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[602]
+	mi := &file_proto_cores_bale_proto_msgTypes[606]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27699,7 +27859,7 @@ func (x *BaleUserGetStoryPrivacyConfigResponse) String() string {
 func (*BaleUserGetStoryPrivacyConfigResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoryPrivacyConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[602]
+	mi := &file_proto_cores_bale_proto_msgTypes[606]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27712,7 +27872,7 @@ func (x *BaleUserGetStoryPrivacyConfigResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserGetStoryPrivacyConfigResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryPrivacyConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{602}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{606}
 }
 
 func (x *BaleUserGetStoryPrivacyConfigResponse) GetResult_1() []byte {
@@ -27730,7 +27890,7 @@ type BaleUserGetStoryReactionEmojisRequest struct {
 
 func (x *BaleUserGetStoryReactionEmojisRequest) Reset() {
 	*x = BaleUserGetStoryReactionEmojisRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[603]
+	mi := &file_proto_cores_bale_proto_msgTypes[607]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27742,7 +27902,7 @@ func (x *BaleUserGetStoryReactionEmojisRequest) String() string {
 func (*BaleUserGetStoryReactionEmojisRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoryReactionEmojisRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[603]
+	mi := &file_proto_cores_bale_proto_msgTypes[607]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27755,7 +27915,7 @@ func (x *BaleUserGetStoryReactionEmojisRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserGetStoryReactionEmojisRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryReactionEmojisRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{603}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{607}
 }
 
 type BaleUserGetStoryReactionEmojisResponse struct {
@@ -27767,7 +27927,7 @@ type BaleUserGetStoryReactionEmojisResponse struct {
 
 func (x *BaleUserGetStoryReactionEmojisResponse) Reset() {
 	*x = BaleUserGetStoryReactionEmojisResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[604]
+	mi := &file_proto_cores_bale_proto_msgTypes[608]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27779,7 +27939,7 @@ func (x *BaleUserGetStoryReactionEmojisResponse) String() string {
 func (*BaleUserGetStoryReactionEmojisResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoryReactionEmojisResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[604]
+	mi := &file_proto_cores_bale_proto_msgTypes[608]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27792,7 +27952,7 @@ func (x *BaleUserGetStoryReactionEmojisResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserGetStoryReactionEmojisResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryReactionEmojisResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{604}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{608}
 }
 
 func (x *BaleUserGetStoryReactionEmojisResponse) GetResult_1() []byte {
@@ -27810,7 +27970,7 @@ type BaleUserGetStoryTagsRequest struct {
 
 func (x *BaleUserGetStoryTagsRequest) Reset() {
 	*x = BaleUserGetStoryTagsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[605]
+	mi := &file_proto_cores_bale_proto_msgTypes[609]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27822,7 +27982,7 @@ func (x *BaleUserGetStoryTagsRequest) String() string {
 func (*BaleUserGetStoryTagsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoryTagsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[605]
+	mi := &file_proto_cores_bale_proto_msgTypes[609]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27835,7 +27995,7 @@ func (x *BaleUserGetStoryTagsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoryTagsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryTagsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{605}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{609}
 }
 
 type BaleUserGetStoryTagsResponse struct {
@@ -27847,7 +28007,7 @@ type BaleUserGetStoryTagsResponse struct {
 
 func (x *BaleUserGetStoryTagsResponse) Reset() {
 	*x = BaleUserGetStoryTagsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[606]
+	mi := &file_proto_cores_bale_proto_msgTypes[610]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27859,7 +28019,7 @@ func (x *BaleUserGetStoryTagsResponse) String() string {
 func (*BaleUserGetStoryTagsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoryTagsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[606]
+	mi := &file_proto_cores_bale_proto_msgTypes[610]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27872,7 +28032,7 @@ func (x *BaleUserGetStoryTagsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoryTagsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryTagsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{606}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{610}
 }
 
 func (x *BaleUserGetStoryTagsResponse) GetResult_1() []byte {
@@ -27893,7 +28053,7 @@ type BaleUserGetStoryViewersRequest struct {
 
 func (x *BaleUserGetStoryViewersRequest) Reset() {
 	*x = BaleUserGetStoryViewersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[607]
+	mi := &file_proto_cores_bale_proto_msgTypes[611]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27905,7 +28065,7 @@ func (x *BaleUserGetStoryViewersRequest) String() string {
 func (*BaleUserGetStoryViewersRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoryViewersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[607]
+	mi := &file_proto_cores_bale_proto_msgTypes[611]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27918,7 +28078,7 @@ func (x *BaleUserGetStoryViewersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoryViewersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryViewersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{607}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{611}
 }
 
 func (x *BaleUserGetStoryViewersRequest) GetStoryId() int64 {
@@ -27951,7 +28111,7 @@ type BaleUserGetStoryViewersResponse struct {
 
 func (x *BaleUserGetStoryViewersResponse) Reset() {
 	*x = BaleUserGetStoryViewersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[608]
+	mi := &file_proto_cores_bale_proto_msgTypes[612]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -27963,7 +28123,7 @@ func (x *BaleUserGetStoryViewersResponse) String() string {
 func (*BaleUserGetStoryViewersResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoryViewersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[608]
+	mi := &file_proto_cores_bale_proto_msgTypes[612]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -27976,7 +28136,7 @@ func (x *BaleUserGetStoryViewersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoryViewersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryViewersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{608}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{612}
 }
 
 func (x *BaleUserGetStoryViewersResponse) GetResult_1() []byte {
@@ -27995,7 +28155,7 @@ type BaleUserGetStoryViewersCountRequest struct {
 
 func (x *BaleUserGetStoryViewersCountRequest) Reset() {
 	*x = BaleUserGetStoryViewersCountRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[609]
+	mi := &file_proto_cores_bale_proto_msgTypes[613]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28007,7 +28167,7 @@ func (x *BaleUserGetStoryViewersCountRequest) String() string {
 func (*BaleUserGetStoryViewersCountRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoryViewersCountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[609]
+	mi := &file_proto_cores_bale_proto_msgTypes[613]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28020,7 +28180,7 @@ func (x *BaleUserGetStoryViewersCountRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserGetStoryViewersCountRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryViewersCountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{609}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{613}
 }
 
 func (x *BaleUserGetStoryViewersCountRequest) GetStoryId() int64 {
@@ -28039,7 +28199,7 @@ type BaleUserGetStoryViewersCountResponse struct {
 
 func (x *BaleUserGetStoryViewersCountResponse) Reset() {
 	*x = BaleUserGetStoryViewersCountResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[610]
+	mi := &file_proto_cores_bale_proto_msgTypes[614]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28051,7 +28211,7 @@ func (x *BaleUserGetStoryViewersCountResponse) String() string {
 func (*BaleUserGetStoryViewersCountResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoryViewersCountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[610]
+	mi := &file_proto_cores_bale_proto_msgTypes[614]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28064,7 +28224,7 @@ func (x *BaleUserGetStoryViewersCountResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserGetStoryViewersCountResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryViewersCountResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{610}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{614}
 }
 
 func (x *BaleUserGetStoryViewersCountResponse) GetResult_1() []byte {
@@ -28082,7 +28242,7 @@ type BaleUserGetStoryWidgetsRequest struct {
 
 func (x *BaleUserGetStoryWidgetsRequest) Reset() {
 	*x = BaleUserGetStoryWidgetsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[611]
+	mi := &file_proto_cores_bale_proto_msgTypes[615]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28094,7 +28254,7 @@ func (x *BaleUserGetStoryWidgetsRequest) String() string {
 func (*BaleUserGetStoryWidgetsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetStoryWidgetsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[611]
+	mi := &file_proto_cores_bale_proto_msgTypes[615]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28107,7 +28267,7 @@ func (x *BaleUserGetStoryWidgetsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoryWidgetsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryWidgetsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{611}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{615}
 }
 
 type BaleUserGetStoryWidgetsResponse struct {
@@ -28119,7 +28279,7 @@ type BaleUserGetStoryWidgetsResponse struct {
 
 func (x *BaleUserGetStoryWidgetsResponse) Reset() {
 	*x = BaleUserGetStoryWidgetsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[612]
+	mi := &file_proto_cores_bale_proto_msgTypes[616]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28131,7 +28291,7 @@ func (x *BaleUserGetStoryWidgetsResponse) String() string {
 func (*BaleUserGetStoryWidgetsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetStoryWidgetsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[612]
+	mi := &file_proto_cores_bale_proto_msgTypes[616]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28144,7 +28304,7 @@ func (x *BaleUserGetStoryWidgetsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetStoryWidgetsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetStoryWidgetsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{612}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{616}
 }
 
 func (x *BaleUserGetStoryWidgetsResponse) GetResult_1() []byte {
@@ -28162,7 +28322,7 @@ type BaleUserGetTopPeerRequest struct {
 
 func (x *BaleUserGetTopPeerRequest) Reset() {
 	*x = BaleUserGetTopPeerRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[613]
+	mi := &file_proto_cores_bale_proto_msgTypes[617]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28174,7 +28334,7 @@ func (x *BaleUserGetTopPeerRequest) String() string {
 func (*BaleUserGetTopPeerRequest) ProtoMessage() {}
 
 func (x *BaleUserGetTopPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[613]
+	mi := &file_proto_cores_bale_proto_msgTypes[617]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28187,7 +28347,7 @@ func (x *BaleUserGetTopPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetTopPeerRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetTopPeerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{613}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{617}
 }
 
 type BaleUserGetTopPeerResponse struct {
@@ -28199,7 +28359,7 @@ type BaleUserGetTopPeerResponse struct {
 
 func (x *BaleUserGetTopPeerResponse) Reset() {
 	*x = BaleUserGetTopPeerResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[614]
+	mi := &file_proto_cores_bale_proto_msgTypes[618]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28211,7 +28371,7 @@ func (x *BaleUserGetTopPeerResponse) String() string {
 func (*BaleUserGetTopPeerResponse) ProtoMessage() {}
 
 func (x *BaleUserGetTopPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[614]
+	mi := &file_proto_cores_bale_proto_msgTypes[618]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28224,7 +28384,7 @@ func (x *BaleUserGetTopPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetTopPeerResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetTopPeerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{614}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{618}
 }
 
 func (x *BaleUserGetTopPeerResponse) GetResult_1() []byte {
@@ -28244,7 +28404,7 @@ type BaleUserGetTopicByIDRequest struct {
 
 func (x *BaleUserGetTopicByIDRequest) Reset() {
 	*x = BaleUserGetTopicByIDRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[615]
+	mi := &file_proto_cores_bale_proto_msgTypes[619]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28256,7 +28416,7 @@ func (x *BaleUserGetTopicByIDRequest) String() string {
 func (*BaleUserGetTopicByIDRequest) ProtoMessage() {}
 
 func (x *BaleUserGetTopicByIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[615]
+	mi := &file_proto_cores_bale_proto_msgTypes[619]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28269,7 +28429,7 @@ func (x *BaleUserGetTopicByIDRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetTopicByIDRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetTopicByIDRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{615}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{619}
 }
 
 func (x *BaleUserGetTopicByIDRequest) GetChatId() string {
@@ -28295,7 +28455,7 @@ type BaleUserGetTopicByIDResponse struct {
 
 func (x *BaleUserGetTopicByIDResponse) Reset() {
 	*x = BaleUserGetTopicByIDResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[616]
+	mi := &file_proto_cores_bale_proto_msgTypes[620]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28307,7 +28467,7 @@ func (x *BaleUserGetTopicByIDResponse) String() string {
 func (*BaleUserGetTopicByIDResponse) ProtoMessage() {}
 
 func (x *BaleUserGetTopicByIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[616]
+	mi := &file_proto_cores_bale_proto_msgTypes[620]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28320,7 +28480,7 @@ func (x *BaleUserGetTopicByIDResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetTopicByIDResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetTopicByIDResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{616}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{620}
 }
 
 func (x *BaleUserGetTopicByIDResponse) GetResult_1() []byte {
@@ -28339,7 +28499,7 @@ type BaleUserGetTopicsRequest struct {
 
 func (x *BaleUserGetTopicsRequest) Reset() {
 	*x = BaleUserGetTopicsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[617]
+	mi := &file_proto_cores_bale_proto_msgTypes[621]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28351,7 +28511,7 @@ func (x *BaleUserGetTopicsRequest) String() string {
 func (*BaleUserGetTopicsRequest) ProtoMessage() {}
 
 func (x *BaleUserGetTopicsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[617]
+	mi := &file_proto_cores_bale_proto_msgTypes[621]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28364,7 +28524,7 @@ func (x *BaleUserGetTopicsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetTopicsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetTopicsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{617}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{621}
 }
 
 func (x *BaleUserGetTopicsRequest) GetChatId() string {
@@ -28383,7 +28543,7 @@ type BaleUserGetTopicsResponse struct {
 
 func (x *BaleUserGetTopicsResponse) Reset() {
 	*x = BaleUserGetTopicsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[618]
+	mi := &file_proto_cores_bale_proto_msgTypes[622]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28395,7 +28555,7 @@ func (x *BaleUserGetTopicsResponse) String() string {
 func (*BaleUserGetTopicsResponse) ProtoMessage() {}
 
 func (x *BaleUserGetTopicsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[618]
+	mi := &file_proto_cores_bale_proto_msgTypes[622]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28408,7 +28568,7 @@ func (x *BaleUserGetTopicsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetTopicsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetTopicsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{618}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{622}
 }
 
 func (x *BaleUserGetTopicsResponse) GetResult_1() []byte {
@@ -28427,7 +28587,7 @@ type BaleUserGetUserContextRequest struct {
 
 func (x *BaleUserGetUserContextRequest) Reset() {
 	*x = BaleUserGetUserContextRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[619]
+	mi := &file_proto_cores_bale_proto_msgTypes[623]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28439,7 +28599,7 @@ func (x *BaleUserGetUserContextRequest) String() string {
 func (*BaleUserGetUserContextRequest) ProtoMessage() {}
 
 func (x *BaleUserGetUserContextRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[619]
+	mi := &file_proto_cores_bale_proto_msgTypes[623]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28452,7 +28612,7 @@ func (x *BaleUserGetUserContextRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetUserContextRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetUserContextRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{619}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{623}
 }
 
 func (x *BaleUserGetUserContextRequest) GetBotId() int64 {
@@ -28471,7 +28631,7 @@ type BaleUserGetUserContextResponse struct {
 
 func (x *BaleUserGetUserContextResponse) Reset() {
 	*x = BaleUserGetUserContextResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[620]
+	mi := &file_proto_cores_bale_proto_msgTypes[624]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28483,7 +28643,7 @@ func (x *BaleUserGetUserContextResponse) String() string {
 func (*BaleUserGetUserContextResponse) ProtoMessage() {}
 
 func (x *BaleUserGetUserContextResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[620]
+	mi := &file_proto_cores_bale_proto_msgTypes[624]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28496,7 +28656,7 @@ func (x *BaleUserGetUserContextResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetUserContextResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetUserContextResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{620}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{624}
 }
 
 func (x *BaleUserGetUserContextResponse) GetResult_1() []byte {
@@ -28514,7 +28674,7 @@ type BaleUserGetUserStoryConfigRequest struct {
 
 func (x *BaleUserGetUserStoryConfigRequest) Reset() {
 	*x = BaleUserGetUserStoryConfigRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[621]
+	mi := &file_proto_cores_bale_proto_msgTypes[625]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28526,7 +28686,7 @@ func (x *BaleUserGetUserStoryConfigRequest) String() string {
 func (*BaleUserGetUserStoryConfigRequest) ProtoMessage() {}
 
 func (x *BaleUserGetUserStoryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[621]
+	mi := &file_proto_cores_bale_proto_msgTypes[625]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28539,7 +28699,7 @@ func (x *BaleUserGetUserStoryConfigRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserGetUserStoryConfigRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetUserStoryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{621}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{625}
 }
 
 type BaleUserGetUserStoryConfigResponse struct {
@@ -28551,7 +28711,7 @@ type BaleUserGetUserStoryConfigResponse struct {
 
 func (x *BaleUserGetUserStoryConfigResponse) Reset() {
 	*x = BaleUserGetUserStoryConfigResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[622]
+	mi := &file_proto_cores_bale_proto_msgTypes[626]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28563,7 +28723,7 @@ func (x *BaleUserGetUserStoryConfigResponse) String() string {
 func (*BaleUserGetUserStoryConfigResponse) ProtoMessage() {}
 
 func (x *BaleUserGetUserStoryConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[622]
+	mi := &file_proto_cores_bale_proto_msgTypes[626]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28576,7 +28736,7 @@ func (x *BaleUserGetUserStoryConfigResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserGetUserStoryConfigResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetUserStoryConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{622}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{626}
 }
 
 func (x *BaleUserGetUserStoryConfigResponse) GetResult_1() []byte {
@@ -28595,7 +28755,7 @@ type BaleUserGetUsersPresenceRequest struct {
 
 func (x *BaleUserGetUsersPresenceRequest) Reset() {
 	*x = BaleUserGetUsersPresenceRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[623]
+	mi := &file_proto_cores_bale_proto_msgTypes[627]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28607,7 +28767,7 @@ func (x *BaleUserGetUsersPresenceRequest) String() string {
 func (*BaleUserGetUsersPresenceRequest) ProtoMessage() {}
 
 func (x *BaleUserGetUsersPresenceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[623]
+	mi := &file_proto_cores_bale_proto_msgTypes[627]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28620,7 +28780,7 @@ func (x *BaleUserGetUsersPresenceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetUsersPresenceRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetUsersPresenceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{623}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{627}
 }
 
 func (x *BaleUserGetUsersPresenceRequest) GetUserIds() []int64 {
@@ -28639,7 +28799,7 @@ type BaleUserGetUsersPresenceResponse struct {
 
 func (x *BaleUserGetUsersPresenceResponse) Reset() {
 	*x = BaleUserGetUsersPresenceResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[624]
+	mi := &file_proto_cores_bale_proto_msgTypes[628]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28651,7 +28811,7 @@ func (x *BaleUserGetUsersPresenceResponse) String() string {
 func (*BaleUserGetUsersPresenceResponse) ProtoMessage() {}
 
 func (x *BaleUserGetUsersPresenceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[624]
+	mi := &file_proto_cores_bale_proto_msgTypes[628]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28664,7 +28824,7 @@ func (x *BaleUserGetUsersPresenceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetUsersPresenceResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetUsersPresenceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{624}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{628}
 }
 
 func (x *BaleUserGetUsersPresenceResponse) GetResult_1() []byte {
@@ -28683,7 +28843,7 @@ type BaleUserGetWebappHashRequest struct {
 
 func (x *BaleUserGetWebappHashRequest) Reset() {
 	*x = BaleUserGetWebappHashRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[625]
+	mi := &file_proto_cores_bale_proto_msgTypes[629]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28695,7 +28855,7 @@ func (x *BaleUserGetWebappHashRequest) String() string {
 func (*BaleUserGetWebappHashRequest) ProtoMessage() {}
 
 func (x *BaleUserGetWebappHashRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[625]
+	mi := &file_proto_cores_bale_proto_msgTypes[629]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28708,7 +28868,7 @@ func (x *BaleUserGetWebappHashRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetWebappHashRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserGetWebappHashRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{625}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{629}
 }
 
 func (x *BaleUserGetWebappHashRequest) GetBotId() int64 {
@@ -28727,7 +28887,7 @@ type BaleUserGetWebappHashResponse struct {
 
 func (x *BaleUserGetWebappHashResponse) Reset() {
 	*x = BaleUserGetWebappHashResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[626]
+	mi := &file_proto_cores_bale_proto_msgTypes[630]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28739,7 +28899,7 @@ func (x *BaleUserGetWebappHashResponse) String() string {
 func (*BaleUserGetWebappHashResponse) ProtoMessage() {}
 
 func (x *BaleUserGetWebappHashResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[626]
+	mi := &file_proto_cores_bale_proto_msgTypes[630]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28752,7 +28912,7 @@ func (x *BaleUserGetWebappHashResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserGetWebappHashResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserGetWebappHashResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{626}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{630}
 }
 
 func (x *BaleUserGetWebappHashResponse) GetResult_1() []byte {
@@ -28773,7 +28933,7 @@ type BaleUserHTTPPostRequest struct {
 
 func (x *BaleUserHTTPPostRequest) Reset() {
 	*x = BaleUserHTTPPostRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[627]
+	mi := &file_proto_cores_bale_proto_msgTypes[631]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28785,7 +28945,7 @@ func (x *BaleUserHTTPPostRequest) String() string {
 func (*BaleUserHTTPPostRequest) ProtoMessage() {}
 
 func (x *BaleUserHTTPPostRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[627]
+	mi := &file_proto_cores_bale_proto_msgTypes[631]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28798,7 +28958,7 @@ func (x *BaleUserHTTPPostRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserHTTPPostRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserHTTPPostRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{627}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{631}
 }
 
 func (x *BaleUserHTTPPostRequest) GetService() string {
@@ -28831,7 +28991,7 @@ type BaleUserHTTPPostResponse struct {
 
 func (x *BaleUserHTTPPostResponse) Reset() {
 	*x = BaleUserHTTPPostResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[628]
+	mi := &file_proto_cores_bale_proto_msgTypes[632]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28843,7 +29003,7 @@ func (x *BaleUserHTTPPostResponse) String() string {
 func (*BaleUserHTTPPostResponse) ProtoMessage() {}
 
 func (x *BaleUserHTTPPostResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[628]
+	mi := &file_proto_cores_bale_proto_msgTypes[632]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28856,7 +29016,7 @@ func (x *BaleUserHTTPPostResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserHTTPPostResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserHTTPPostResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{628}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{632}
 }
 
 func (x *BaleUserHTTPPostResponse) GetResult_1() []byte {
@@ -28875,7 +29035,7 @@ type BaleUserImportContactsRequest struct {
 
 func (x *BaleUserImportContactsRequest) Reset() {
 	*x = BaleUserImportContactsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[629]
+	mi := &file_proto_cores_bale_proto_msgTypes[633]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28887,7 +29047,7 @@ func (x *BaleUserImportContactsRequest) String() string {
 func (*BaleUserImportContactsRequest) ProtoMessage() {}
 
 func (x *BaleUserImportContactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[629]
+	mi := &file_proto_cores_bale_proto_msgTypes[633]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28900,7 +29060,7 @@ func (x *BaleUserImportContactsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserImportContactsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserImportContactsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{629}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{633}
 }
 
 func (x *BaleUserImportContactsRequest) GetContacts() []byte {
@@ -28919,7 +29079,7 @@ type BaleUserImportContactsResponse struct {
 
 func (x *BaleUserImportContactsResponse) Reset() {
 	*x = BaleUserImportContactsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[630]
+	mi := &file_proto_cores_bale_proto_msgTypes[634]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28931,7 +29091,7 @@ func (x *BaleUserImportContactsResponse) String() string {
 func (*BaleUserImportContactsResponse) ProtoMessage() {}
 
 func (x *BaleUserImportContactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[630]
+	mi := &file_proto_cores_bale_proto_msgTypes[634]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28944,7 +29104,7 @@ func (x *BaleUserImportContactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserImportContactsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserImportContactsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{630}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{634}
 }
 
 func (x *BaleUserImportContactsResponse) GetResult_1() []byte {
@@ -28964,7 +29124,7 @@ type BaleUserInviteToCallRequest struct {
 
 func (x *BaleUserInviteToCallRequest) Reset() {
 	*x = BaleUserInviteToCallRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[631]
+	mi := &file_proto_cores_bale_proto_msgTypes[635]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -28976,7 +29136,7 @@ func (x *BaleUserInviteToCallRequest) String() string {
 func (*BaleUserInviteToCallRequest) ProtoMessage() {}
 
 func (x *BaleUserInviteToCallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[631]
+	mi := &file_proto_cores_bale_proto_msgTypes[635]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -28989,7 +29149,7 @@ func (x *BaleUserInviteToCallRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserInviteToCallRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserInviteToCallRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{631}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{635}
 }
 
 func (x *BaleUserInviteToCallRequest) GetCallId() int64 {
@@ -29015,7 +29175,7 @@ type BaleUserInviteToCallResponse struct {
 
 func (x *BaleUserInviteToCallResponse) Reset() {
 	*x = BaleUserInviteToCallResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[632]
+	mi := &file_proto_cores_bale_proto_msgTypes[636]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29027,7 +29187,7 @@ func (x *BaleUserInviteToCallResponse) String() string {
 func (*BaleUserInviteToCallResponse) ProtoMessage() {}
 
 func (x *BaleUserInviteToCallResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[632]
+	mi := &file_proto_cores_bale_proto_msgTypes[636]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29040,7 +29200,7 @@ func (x *BaleUserInviteToCallResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserInviteToCallResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserInviteToCallResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{632}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{636}
 }
 
 func (x *BaleUserInviteToCallResponse) GetResult_1() []byte {
@@ -29060,7 +29220,7 @@ type BaleUserInviteUserRequest struct {
 
 func (x *BaleUserInviteUserRequest) Reset() {
 	*x = BaleUserInviteUserRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[633]
+	mi := &file_proto_cores_bale_proto_msgTypes[637]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29072,7 +29232,7 @@ func (x *BaleUserInviteUserRequest) String() string {
 func (*BaleUserInviteUserRequest) ProtoMessage() {}
 
 func (x *BaleUserInviteUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[633]
+	mi := &file_proto_cores_bale_proto_msgTypes[637]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29085,7 +29245,7 @@ func (x *BaleUserInviteUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserInviteUserRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserInviteUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{633}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{637}
 }
 
 func (x *BaleUserInviteUserRequest) GetGroupId() int64 {
@@ -29111,7 +29271,7 @@ type BaleUserInviteUserResponse struct {
 
 func (x *BaleUserInviteUserResponse) Reset() {
 	*x = BaleUserInviteUserResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[634]
+	mi := &file_proto_cores_bale_proto_msgTypes[638]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29123,7 +29283,7 @@ func (x *BaleUserInviteUserResponse) String() string {
 func (*BaleUserInviteUserResponse) ProtoMessage() {}
 
 func (x *BaleUserInviteUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[634]
+	mi := &file_proto_cores_bale_proto_msgTypes[638]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29136,7 +29296,7 @@ func (x *BaleUserInviteUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserInviteUserResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserInviteUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{634}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{638}
 }
 
 func (x *BaleUserInviteUserResponse) GetResult_1() []byte {
@@ -29156,7 +29316,7 @@ type BaleUserInviteUsersRequest struct {
 
 func (x *BaleUserInviteUsersRequest) Reset() {
 	*x = BaleUserInviteUsersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[635]
+	mi := &file_proto_cores_bale_proto_msgTypes[639]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29168,7 +29328,7 @@ func (x *BaleUserInviteUsersRequest) String() string {
 func (*BaleUserInviteUsersRequest) ProtoMessage() {}
 
 func (x *BaleUserInviteUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[635]
+	mi := &file_proto_cores_bale_proto_msgTypes[639]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29181,7 +29341,7 @@ func (x *BaleUserInviteUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserInviteUsersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserInviteUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{635}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{639}
 }
 
 func (x *BaleUserInviteUsersRequest) GetGroupId() int64 {
@@ -29207,7 +29367,7 @@ type BaleUserInviteUsersResponse struct {
 
 func (x *BaleUserInviteUsersResponse) Reset() {
 	*x = BaleUserInviteUsersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[636]
+	mi := &file_proto_cores_bale_proto_msgTypes[640]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29219,7 +29379,7 @@ func (x *BaleUserInviteUsersResponse) String() string {
 func (*BaleUserInviteUsersResponse) ProtoMessage() {}
 
 func (x *BaleUserInviteUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[636]
+	mi := &file_proto_cores_bale_proto_msgTypes[640]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29232,7 +29392,7 @@ func (x *BaleUserInviteUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserInviteUsersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserInviteUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{636}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{640}
 }
 
 func (x *BaleUserInviteUsersResponse) GetResult_1() []byte {
@@ -29253,7 +29413,7 @@ type BaleUserInvokeCustomActionRequest struct {
 
 func (x *BaleUserInvokeCustomActionRequest) Reset() {
 	*x = BaleUserInvokeCustomActionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[637]
+	mi := &file_proto_cores_bale_proto_msgTypes[641]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29265,7 +29425,7 @@ func (x *BaleUserInvokeCustomActionRequest) String() string {
 func (*BaleUserInvokeCustomActionRequest) ProtoMessage() {}
 
 func (x *BaleUserInvokeCustomActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[637]
+	mi := &file_proto_cores_bale_proto_msgTypes[641]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29278,7 +29438,7 @@ func (x *BaleUserInvokeCustomActionRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserInvokeCustomActionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserInvokeCustomActionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{637}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{641}
 }
 
 func (x *BaleUserInvokeCustomActionRequest) GetBotId() int64 {
@@ -29311,7 +29471,7 @@ type BaleUserInvokeCustomActionResponse struct {
 
 func (x *BaleUserInvokeCustomActionResponse) Reset() {
 	*x = BaleUserInvokeCustomActionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[638]
+	mi := &file_proto_cores_bale_proto_msgTypes[642]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29323,7 +29483,7 @@ func (x *BaleUserInvokeCustomActionResponse) String() string {
 func (*BaleUserInvokeCustomActionResponse) ProtoMessage() {}
 
 func (x *BaleUserInvokeCustomActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[638]
+	mi := &file_proto_cores_bale_proto_msgTypes[642]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29336,7 +29496,7 @@ func (x *BaleUserInvokeCustomActionResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserInvokeCustomActionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserInvokeCustomActionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{638}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{642}
 }
 
 func (x *BaleUserInvokeCustomActionResponse) GetResult_1() []byte {
@@ -29357,7 +29517,7 @@ type BaleUserInvokeCustomMethodAppzarRequest struct {
 
 func (x *BaleUserInvokeCustomMethodAppzarRequest) Reset() {
 	*x = BaleUserInvokeCustomMethodAppzarRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[639]
+	mi := &file_proto_cores_bale_proto_msgTypes[643]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29369,7 +29529,7 @@ func (x *BaleUserInvokeCustomMethodAppzarRequest) String() string {
 func (*BaleUserInvokeCustomMethodAppzarRequest) ProtoMessage() {}
 
 func (x *BaleUserInvokeCustomMethodAppzarRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[639]
+	mi := &file_proto_cores_bale_proto_msgTypes[643]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29382,7 +29542,7 @@ func (x *BaleUserInvokeCustomMethodAppzarRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserInvokeCustomMethodAppzarRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserInvokeCustomMethodAppzarRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{639}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{643}
 }
 
 func (x *BaleUserInvokeCustomMethodAppzarRequest) GetBotId() int64 {
@@ -29415,7 +29575,7 @@ type BaleUserInvokeCustomMethodAppzarResponse struct {
 
 func (x *BaleUserInvokeCustomMethodAppzarResponse) Reset() {
 	*x = BaleUserInvokeCustomMethodAppzarResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[640]
+	mi := &file_proto_cores_bale_proto_msgTypes[644]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29427,7 +29587,7 @@ func (x *BaleUserInvokeCustomMethodAppzarResponse) String() string {
 func (*BaleUserInvokeCustomMethodAppzarResponse) ProtoMessage() {}
 
 func (x *BaleUserInvokeCustomMethodAppzarResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[640]
+	mi := &file_proto_cores_bale_proto_msgTypes[644]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29440,7 +29600,7 @@ func (x *BaleUserInvokeCustomMethodAppzarResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserInvokeCustomMethodAppzarResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserInvokeCustomMethodAppzarResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{640}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{644}
 }
 
 func (x *BaleUserInvokeCustomMethodAppzarResponse) GetResult_1() []byte {
@@ -29459,7 +29619,7 @@ type BaleUserJoinGroupRequest struct {
 
 func (x *BaleUserJoinGroupRequest) Reset() {
 	*x = BaleUserJoinGroupRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[641]
+	mi := &file_proto_cores_bale_proto_msgTypes[645]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29471,7 +29631,7 @@ func (x *BaleUserJoinGroupRequest) String() string {
 func (*BaleUserJoinGroupRequest) ProtoMessage() {}
 
 func (x *BaleUserJoinGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[641]
+	mi := &file_proto_cores_bale_proto_msgTypes[645]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29484,7 +29644,7 @@ func (x *BaleUserJoinGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserJoinGroupRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserJoinGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{641}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{645}
 }
 
 func (x *BaleUserJoinGroupRequest) GetToken() string {
@@ -29503,7 +29663,7 @@ type BaleUserJoinGroupResponse struct {
 
 func (x *BaleUserJoinGroupResponse) Reset() {
 	*x = BaleUserJoinGroupResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[642]
+	mi := &file_proto_cores_bale_proto_msgTypes[646]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29515,7 +29675,7 @@ func (x *BaleUserJoinGroupResponse) String() string {
 func (*BaleUserJoinGroupResponse) ProtoMessage() {}
 
 func (x *BaleUserJoinGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[642]
+	mi := &file_proto_cores_bale_proto_msgTypes[646]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29528,7 +29688,7 @@ func (x *BaleUserJoinGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserJoinGroupResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserJoinGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{642}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{646}
 }
 
 func (x *BaleUserJoinGroupResponse) GetResult_1() []byte {
@@ -29548,7 +29708,7 @@ type BaleUserJoinPublicGroupRequest struct {
 
 func (x *BaleUserJoinPublicGroupRequest) Reset() {
 	*x = BaleUserJoinPublicGroupRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[643]
+	mi := &file_proto_cores_bale_proto_msgTypes[647]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29560,7 +29720,7 @@ func (x *BaleUserJoinPublicGroupRequest) String() string {
 func (*BaleUserJoinPublicGroupRequest) ProtoMessage() {}
 
 func (x *BaleUserJoinPublicGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[643]
+	mi := &file_proto_cores_bale_proto_msgTypes[647]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29573,7 +29733,7 @@ func (x *BaleUserJoinPublicGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserJoinPublicGroupRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserJoinPublicGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{643}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{647}
 }
 
 func (x *BaleUserJoinPublicGroupRequest) GetPeerId() int64 {
@@ -29599,7 +29759,7 @@ type BaleUserJoinPublicGroupResponse struct {
 
 func (x *BaleUserJoinPublicGroupResponse) Reset() {
 	*x = BaleUserJoinPublicGroupResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[644]
+	mi := &file_proto_cores_bale_proto_msgTypes[648]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29611,7 +29771,7 @@ func (x *BaleUserJoinPublicGroupResponse) String() string {
 func (*BaleUserJoinPublicGroupResponse) ProtoMessage() {}
 
 func (x *BaleUserJoinPublicGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[644]
+	mi := &file_proto_cores_bale_proto_msgTypes[648]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29624,7 +29784,7 @@ func (x *BaleUserJoinPublicGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserJoinPublicGroupResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserJoinPublicGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{644}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{648}
 }
 
 func (x *BaleUserJoinPublicGroupResponse) GetResult_1() []byte {
@@ -29644,7 +29804,7 @@ type BaleUserKickUserRequest struct {
 
 func (x *BaleUserKickUserRequest) Reset() {
 	*x = BaleUserKickUserRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[645]
+	mi := &file_proto_cores_bale_proto_msgTypes[649]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29656,7 +29816,7 @@ func (x *BaleUserKickUserRequest) String() string {
 func (*BaleUserKickUserRequest) ProtoMessage() {}
 
 func (x *BaleUserKickUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[645]
+	mi := &file_proto_cores_bale_proto_msgTypes[649]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29669,7 +29829,7 @@ func (x *BaleUserKickUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserKickUserRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserKickUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{645}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{649}
 }
 
 func (x *BaleUserKickUserRequest) GetGroupId() int64 {
@@ -29695,7 +29855,7 @@ type BaleUserKickUserResponse struct {
 
 func (x *BaleUserKickUserResponse) Reset() {
 	*x = BaleUserKickUserResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[646]
+	mi := &file_proto_cores_bale_proto_msgTypes[650]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29707,7 +29867,7 @@ func (x *BaleUserKickUserResponse) String() string {
 func (*BaleUserKickUserResponse) ProtoMessage() {}
 
 func (x *BaleUserKickUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[646]
+	mi := &file_proto_cores_bale_proto_msgTypes[650]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29720,7 +29880,7 @@ func (x *BaleUserKickUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserKickUserResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserKickUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{646}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{650}
 }
 
 func (x *BaleUserKickUserResponse) GetResult_1() []byte {
@@ -29739,7 +29899,7 @@ type BaleUserLeaveGroupRequest struct {
 
 func (x *BaleUserLeaveGroupRequest) Reset() {
 	*x = BaleUserLeaveGroupRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[647]
+	mi := &file_proto_cores_bale_proto_msgTypes[651]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29751,7 +29911,7 @@ func (x *BaleUserLeaveGroupRequest) String() string {
 func (*BaleUserLeaveGroupRequest) ProtoMessage() {}
 
 func (x *BaleUserLeaveGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[647]
+	mi := &file_proto_cores_bale_proto_msgTypes[651]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29764,7 +29924,7 @@ func (x *BaleUserLeaveGroupRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLeaveGroupRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLeaveGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{647}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{651}
 }
 
 func (x *BaleUserLeaveGroupRequest) GetGroupId() int64 {
@@ -29783,7 +29943,7 @@ type BaleUserLeaveGroupResponse struct {
 
 func (x *BaleUserLeaveGroupResponse) Reset() {
 	*x = BaleUserLeaveGroupResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[648]
+	mi := &file_proto_cores_bale_proto_msgTypes[652]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29795,7 +29955,7 @@ func (x *BaleUserLeaveGroupResponse) String() string {
 func (*BaleUserLeaveGroupResponse) ProtoMessage() {}
 
 func (x *BaleUserLeaveGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[648]
+	mi := &file_proto_cores_bale_proto_msgTypes[652]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29808,7 +29968,7 @@ func (x *BaleUserLeaveGroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLeaveGroupResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLeaveGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{648}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{652}
 }
 
 func (x *BaleUserLeaveGroupResponse) GetResult_1() []byte {
@@ -29827,7 +29987,7 @@ type BaleUserListScheduledTasksRequest struct {
 
 func (x *BaleUserListScheduledTasksRequest) Reset() {
 	*x = BaleUserListScheduledTasksRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[649]
+	mi := &file_proto_cores_bale_proto_msgTypes[653]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29839,7 +29999,7 @@ func (x *BaleUserListScheduledTasksRequest) String() string {
 func (*BaleUserListScheduledTasksRequest) ProtoMessage() {}
 
 func (x *BaleUserListScheduledTasksRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[649]
+	mi := &file_proto_cores_bale_proto_msgTypes[653]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29852,7 +30012,7 @@ func (x *BaleUserListScheduledTasksRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserListScheduledTasksRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserListScheduledTasksRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{649}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{653}
 }
 
 func (x *BaleUserListScheduledTasksRequest) GetChatId() string {
@@ -29871,7 +30031,7 @@ type BaleUserListScheduledTasksResponse struct {
 
 func (x *BaleUserListScheduledTasksResponse) Reset() {
 	*x = BaleUserListScheduledTasksResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[650]
+	mi := &file_proto_cores_bale_proto_msgTypes[654]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29883,7 +30043,7 @@ func (x *BaleUserListScheduledTasksResponse) String() string {
 func (*BaleUserListScheduledTasksResponse) ProtoMessage() {}
 
 func (x *BaleUserListScheduledTasksResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[650]
+	mi := &file_proto_cores_bale_proto_msgTypes[654]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29896,7 +30056,7 @@ func (x *BaleUserListScheduledTasksResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserListScheduledTasksResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserListScheduledTasksResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{650}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{654}
 }
 
 func (x *BaleUserListScheduledTasksResponse) GetResult_1() []byte {
@@ -29914,7 +30074,7 @@ type BaleUserLoadBlockedUsersRequest struct {
 
 func (x *BaleUserLoadBlockedUsersRequest) Reset() {
 	*x = BaleUserLoadBlockedUsersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[651]
+	mi := &file_proto_cores_bale_proto_msgTypes[655]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29926,7 +30086,7 @@ func (x *BaleUserLoadBlockedUsersRequest) String() string {
 func (*BaleUserLoadBlockedUsersRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadBlockedUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[651]
+	mi := &file_proto_cores_bale_proto_msgTypes[655]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29939,7 +30099,7 @@ func (x *BaleUserLoadBlockedUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadBlockedUsersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadBlockedUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{651}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{655}
 }
 
 type BaleUserLoadBlockedUsersResponse struct {
@@ -29951,7 +30111,7 @@ type BaleUserLoadBlockedUsersResponse struct {
 
 func (x *BaleUserLoadBlockedUsersResponse) Reset() {
 	*x = BaleUserLoadBlockedUsersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[652]
+	mi := &file_proto_cores_bale_proto_msgTypes[656]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -29963,7 +30123,7 @@ func (x *BaleUserLoadBlockedUsersResponse) String() string {
 func (*BaleUserLoadBlockedUsersResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadBlockedUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[652]
+	mi := &file_proto_cores_bale_proto_msgTypes[656]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -29976,7 +30136,7 @@ func (x *BaleUserLoadBlockedUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadBlockedUsersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadBlockedUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{652}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{656}
 }
 
 func (x *BaleUserLoadBlockedUsersResponse) GetResult_1() []byte {
@@ -29997,7 +30157,7 @@ type BaleUserLoadCategoryFeedMessagesRequest struct {
 
 func (x *BaleUserLoadCategoryFeedMessagesRequest) Reset() {
 	*x = BaleUserLoadCategoryFeedMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[653]
+	mi := &file_proto_cores_bale_proto_msgTypes[657]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30009,7 +30169,7 @@ func (x *BaleUserLoadCategoryFeedMessagesRequest) String() string {
 func (*BaleUserLoadCategoryFeedMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadCategoryFeedMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[653]
+	mi := &file_proto_cores_bale_proto_msgTypes[657]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30022,7 +30182,7 @@ func (x *BaleUserLoadCategoryFeedMessagesRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserLoadCategoryFeedMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadCategoryFeedMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{653}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{657}
 }
 
 func (x *BaleUserLoadCategoryFeedMessagesRequest) GetCategoryId() int64 {
@@ -30055,7 +30215,7 @@ type BaleUserLoadCategoryFeedMessagesResponse struct {
 
 func (x *BaleUserLoadCategoryFeedMessagesResponse) Reset() {
 	*x = BaleUserLoadCategoryFeedMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[654]
+	mi := &file_proto_cores_bale_proto_msgTypes[658]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30067,7 +30227,7 @@ func (x *BaleUserLoadCategoryFeedMessagesResponse) String() string {
 func (*BaleUserLoadCategoryFeedMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadCategoryFeedMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[654]
+	mi := &file_proto_cores_bale_proto_msgTypes[658]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30080,7 +30240,7 @@ func (x *BaleUserLoadCategoryFeedMessagesResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserLoadCategoryFeedMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadCategoryFeedMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{654}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{658}
 }
 
 func (x *BaleUserLoadCategoryFeedMessagesResponse) GetResult_1() []byte {
@@ -30100,7 +30260,7 @@ type BaleUserLoadDialogsRequest struct {
 
 func (x *BaleUserLoadDialogsRequest) Reset() {
 	*x = BaleUserLoadDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[655]
+	mi := &file_proto_cores_bale_proto_msgTypes[659]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30112,7 +30272,7 @@ func (x *BaleUserLoadDialogsRequest) String() string {
 func (*BaleUserLoadDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[655]
+	mi := &file_proto_cores_bale_proto_msgTypes[659]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30125,7 +30285,7 @@ func (x *BaleUserLoadDialogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{655}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{659}
 }
 
 func (x *BaleUserLoadDialogsRequest) GetOffsetDate() int64 {
@@ -30151,7 +30311,7 @@ type BaleUserLoadDialogsResponse struct {
 
 func (x *BaleUserLoadDialogsResponse) Reset() {
 	*x = BaleUserLoadDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[656]
+	mi := &file_proto_cores_bale_proto_msgTypes[660]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30163,7 +30323,7 @@ func (x *BaleUserLoadDialogsResponse) String() string {
 func (*BaleUserLoadDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[656]
+	mi := &file_proto_cores_bale_proto_msgTypes[660]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30176,7 +30336,7 @@ func (x *BaleUserLoadDialogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{656}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{660}
 }
 
 func (x *BaleUserLoadDialogsResponse) GetResult_1() []byte {
@@ -30197,7 +30357,7 @@ type BaleUserLoadDialogsFilteredRequest struct {
 
 func (x *BaleUserLoadDialogsFilteredRequest) Reset() {
 	*x = BaleUserLoadDialogsFilteredRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[657]
+	mi := &file_proto_cores_bale_proto_msgTypes[661]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30209,7 +30369,7 @@ func (x *BaleUserLoadDialogsFilteredRequest) String() string {
 func (*BaleUserLoadDialogsFilteredRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadDialogsFilteredRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[657]
+	mi := &file_proto_cores_bale_proto_msgTypes[661]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30222,7 +30382,7 @@ func (x *BaleUserLoadDialogsFilteredRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserLoadDialogsFilteredRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadDialogsFilteredRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{657}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{661}
 }
 
 func (x *BaleUserLoadDialogsFilteredRequest) GetFilterType() int64 {
@@ -30255,7 +30415,7 @@ type BaleUserLoadDialogsFilteredResponse struct {
 
 func (x *BaleUserLoadDialogsFilteredResponse) Reset() {
 	*x = BaleUserLoadDialogsFilteredResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[658]
+	mi := &file_proto_cores_bale_proto_msgTypes[662]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30267,7 +30427,7 @@ func (x *BaleUserLoadDialogsFilteredResponse) String() string {
 func (*BaleUserLoadDialogsFilteredResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadDialogsFilteredResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[658]
+	mi := &file_proto_cores_bale_proto_msgTypes[662]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30280,7 +30440,7 @@ func (x *BaleUserLoadDialogsFilteredResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserLoadDialogsFilteredResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadDialogsFilteredResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{658}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{662}
 }
 
 func (x *BaleUserLoadDialogsFilteredResponse) GetResult_1() []byte {
@@ -30300,7 +30460,7 @@ type BaleUserLoadFeedMessagesRequest struct {
 
 func (x *BaleUserLoadFeedMessagesRequest) Reset() {
 	*x = BaleUserLoadFeedMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[659]
+	mi := &file_proto_cores_bale_proto_msgTypes[663]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30312,7 +30472,7 @@ func (x *BaleUserLoadFeedMessagesRequest) String() string {
 func (*BaleUserLoadFeedMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadFeedMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[659]
+	mi := &file_proto_cores_bale_proto_msgTypes[663]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30325,7 +30485,7 @@ func (x *BaleUserLoadFeedMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadFeedMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadFeedMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{659}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{663}
 }
 
 func (x *BaleUserLoadFeedMessagesRequest) GetOffset() int64 {
@@ -30351,7 +30511,7 @@ type BaleUserLoadFeedMessagesResponse struct {
 
 func (x *BaleUserLoadFeedMessagesResponse) Reset() {
 	*x = BaleUserLoadFeedMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[660]
+	mi := &file_proto_cores_bale_proto_msgTypes[664]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30363,7 +30523,7 @@ func (x *BaleUserLoadFeedMessagesResponse) String() string {
 func (*BaleUserLoadFeedMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadFeedMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[660]
+	mi := &file_proto_cores_bale_proto_msgTypes[664]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30376,7 +30536,7 @@ func (x *BaleUserLoadFeedMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadFeedMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadFeedMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{660}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{664}
 }
 
 func (x *BaleUserLoadFeedMessagesResponse) GetResult_1() []byte {
@@ -30397,7 +30557,7 @@ type BaleUserLoadFolderDialogsRequest struct {
 
 func (x *BaleUserLoadFolderDialogsRequest) Reset() {
 	*x = BaleUserLoadFolderDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[661]
+	mi := &file_proto_cores_bale_proto_msgTypes[665]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30409,7 +30569,7 @@ func (x *BaleUserLoadFolderDialogsRequest) String() string {
 func (*BaleUserLoadFolderDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadFolderDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[661]
+	mi := &file_proto_cores_bale_proto_msgTypes[665]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30422,7 +30582,7 @@ func (x *BaleUserLoadFolderDialogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadFolderDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadFolderDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{661}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{665}
 }
 
 func (x *BaleUserLoadFolderDialogsRequest) GetFolderId() int64 {
@@ -30455,7 +30615,7 @@ type BaleUserLoadFolderDialogsResponse struct {
 
 func (x *BaleUserLoadFolderDialogsResponse) Reset() {
 	*x = BaleUserLoadFolderDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[662]
+	mi := &file_proto_cores_bale_proto_msgTypes[666]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30467,7 +30627,7 @@ func (x *BaleUserLoadFolderDialogsResponse) String() string {
 func (*BaleUserLoadFolderDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadFolderDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[662]
+	mi := &file_proto_cores_bale_proto_msgTypes[666]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30480,7 +30640,7 @@ func (x *BaleUserLoadFolderDialogsResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserLoadFolderDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadFolderDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{662}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{666}
 }
 
 func (x *BaleUserLoadFolderDialogsResponse) GetResult_1() []byte {
@@ -30499,7 +30659,7 @@ type BaleUserLoadFullGroupsRequest struct {
 
 func (x *BaleUserLoadFullGroupsRequest) Reset() {
 	*x = BaleUserLoadFullGroupsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[663]
+	mi := &file_proto_cores_bale_proto_msgTypes[667]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30511,7 +30671,7 @@ func (x *BaleUserLoadFullGroupsRequest) String() string {
 func (*BaleUserLoadFullGroupsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadFullGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[663]
+	mi := &file_proto_cores_bale_proto_msgTypes[667]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30524,7 +30684,7 @@ func (x *BaleUserLoadFullGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadFullGroupsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadFullGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{663}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{667}
 }
 
 func (x *BaleUserLoadFullGroupsRequest) GetGroupIds() []int64 {
@@ -30543,7 +30703,7 @@ type BaleUserLoadFullGroupsResponse struct {
 
 func (x *BaleUserLoadFullGroupsResponse) Reset() {
 	*x = BaleUserLoadFullGroupsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[664]
+	mi := &file_proto_cores_bale_proto_msgTypes[668]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30555,7 +30715,7 @@ func (x *BaleUserLoadFullGroupsResponse) String() string {
 func (*BaleUserLoadFullGroupsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadFullGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[664]
+	mi := &file_proto_cores_bale_proto_msgTypes[668]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30568,7 +30728,7 @@ func (x *BaleUserLoadFullGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadFullGroupsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadFullGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{664}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{668}
 }
 
 func (x *BaleUserLoadFullGroupsResponse) GetResult_1() []byte {
@@ -30587,7 +30747,7 @@ type BaleUserLoadFullUsersRequest struct {
 
 func (x *BaleUserLoadFullUsersRequest) Reset() {
 	*x = BaleUserLoadFullUsersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[665]
+	mi := &file_proto_cores_bale_proto_msgTypes[669]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30599,7 +30759,7 @@ func (x *BaleUserLoadFullUsersRequest) String() string {
 func (*BaleUserLoadFullUsersRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadFullUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[665]
+	mi := &file_proto_cores_bale_proto_msgTypes[669]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30612,7 +30772,7 @@ func (x *BaleUserLoadFullUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadFullUsersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadFullUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{665}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{669}
 }
 
 func (x *BaleUserLoadFullUsersRequest) GetUserIds() []int64 {
@@ -30631,7 +30791,7 @@ type BaleUserLoadFullUsersResponse struct {
 
 func (x *BaleUserLoadFullUsersResponse) Reset() {
 	*x = BaleUserLoadFullUsersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[666]
+	mi := &file_proto_cores_bale_proto_msgTypes[670]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30643,7 +30803,7 @@ func (x *BaleUserLoadFullUsersResponse) String() string {
 func (*BaleUserLoadFullUsersResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadFullUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[666]
+	mi := &file_proto_cores_bale_proto_msgTypes[670]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30656,7 +30816,7 @@ func (x *BaleUserLoadFullUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadFullUsersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadFullUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{666}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{670}
 }
 
 func (x *BaleUserLoadFullUsersResponse) GetResult_1() []byte {
@@ -30675,7 +30835,7 @@ type BaleUserLoadGroupAvatarsRequest struct {
 
 func (x *BaleUserLoadGroupAvatarsRequest) Reset() {
 	*x = BaleUserLoadGroupAvatarsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[667]
+	mi := &file_proto_cores_bale_proto_msgTypes[671]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30687,7 +30847,7 @@ func (x *BaleUserLoadGroupAvatarsRequest) String() string {
 func (*BaleUserLoadGroupAvatarsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadGroupAvatarsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[667]
+	mi := &file_proto_cores_bale_proto_msgTypes[671]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30700,7 +30860,7 @@ func (x *BaleUserLoadGroupAvatarsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadGroupAvatarsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadGroupAvatarsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{667}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{671}
 }
 
 func (x *BaleUserLoadGroupAvatarsRequest) GetGroupId() int64 {
@@ -30719,7 +30879,7 @@ type BaleUserLoadGroupAvatarsResponse struct {
 
 func (x *BaleUserLoadGroupAvatarsResponse) Reset() {
 	*x = BaleUserLoadGroupAvatarsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[668]
+	mi := &file_proto_cores_bale_proto_msgTypes[672]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30731,7 +30891,7 @@ func (x *BaleUserLoadGroupAvatarsResponse) String() string {
 func (*BaleUserLoadGroupAvatarsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadGroupAvatarsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[668]
+	mi := &file_proto_cores_bale_proto_msgTypes[672]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30744,7 +30904,7 @@ func (x *BaleUserLoadGroupAvatarsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadGroupAvatarsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadGroupAvatarsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{668}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{672}
 }
 
 func (x *BaleUserLoadGroupAvatarsResponse) GetResult_1() []byte {
@@ -30764,7 +30924,7 @@ type BaleUserLoadGroupedDialogsRequest struct {
 
 func (x *BaleUserLoadGroupedDialogsRequest) Reset() {
 	*x = BaleUserLoadGroupedDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[669]
+	mi := &file_proto_cores_bale_proto_msgTypes[673]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30776,7 +30936,7 @@ func (x *BaleUserLoadGroupedDialogsRequest) String() string {
 func (*BaleUserLoadGroupedDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadGroupedDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[669]
+	mi := &file_proto_cores_bale_proto_msgTypes[673]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30789,7 +30949,7 @@ func (x *BaleUserLoadGroupedDialogsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserLoadGroupedDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadGroupedDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{669}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{673}
 }
 
 func (x *BaleUserLoadGroupedDialogsRequest) GetOffsetDate() int64 {
@@ -30815,7 +30975,7 @@ type BaleUserLoadGroupedDialogsResponse struct {
 
 func (x *BaleUserLoadGroupedDialogsResponse) Reset() {
 	*x = BaleUserLoadGroupedDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[670]
+	mi := &file_proto_cores_bale_proto_msgTypes[674]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30827,7 +30987,7 @@ func (x *BaleUserLoadGroupedDialogsResponse) String() string {
 func (*BaleUserLoadGroupedDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadGroupedDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[670]
+	mi := &file_proto_cores_bale_proto_msgTypes[674]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30840,7 +31000,7 @@ func (x *BaleUserLoadGroupedDialogsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserLoadGroupedDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadGroupedDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{670}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{674}
 }
 
 func (x *BaleUserLoadGroupedDialogsResponse) GetResult_1() []byte {
@@ -30859,7 +31019,7 @@ type BaleUserLoadGroupsRequest struct {
 
 func (x *BaleUserLoadGroupsRequest) Reset() {
 	*x = BaleUserLoadGroupsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[671]
+	mi := &file_proto_cores_bale_proto_msgTypes[675]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30871,7 +31031,7 @@ func (x *BaleUserLoadGroupsRequest) String() string {
 func (*BaleUserLoadGroupsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadGroupsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[671]
+	mi := &file_proto_cores_bale_proto_msgTypes[675]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30884,7 +31044,7 @@ func (x *BaleUserLoadGroupsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadGroupsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{671}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{675}
 }
 
 func (x *BaleUserLoadGroupsRequest) GetGroupIds() []int64 {
@@ -30903,7 +31063,7 @@ type BaleUserLoadGroupsResponse struct {
 
 func (x *BaleUserLoadGroupsResponse) Reset() {
 	*x = BaleUserLoadGroupsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[672]
+	mi := &file_proto_cores_bale_proto_msgTypes[676]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30915,7 +31075,7 @@ func (x *BaleUserLoadGroupsResponse) String() string {
 func (*BaleUserLoadGroupsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadGroupsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[672]
+	mi := &file_proto_cores_bale_proto_msgTypes[676]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30928,7 +31088,7 @@ func (x *BaleUserLoadGroupsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadGroupsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{672}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{676}
 }
 
 func (x *BaleUserLoadGroupsResponse) GetResult_1() []byte {
@@ -30950,7 +31110,7 @@ type BaleUserLoadHistoryRequest struct {
 
 func (x *BaleUserLoadHistoryRequest) Reset() {
 	*x = BaleUserLoadHistoryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[673]
+	mi := &file_proto_cores_bale_proto_msgTypes[677]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -30962,7 +31122,7 @@ func (x *BaleUserLoadHistoryRequest) String() string {
 func (*BaleUserLoadHistoryRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[673]
+	mi := &file_proto_cores_bale_proto_msgTypes[677]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -30975,7 +31135,7 @@ func (x *BaleUserLoadHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadHistoryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{673}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{677}
 }
 
 func (x *BaleUserLoadHistoryRequest) GetChatId() string {
@@ -31015,7 +31175,7 @@ type BaleUserLoadHistoryResponse struct {
 
 func (x *BaleUserLoadHistoryResponse) Reset() {
 	*x = BaleUserLoadHistoryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[674]
+	mi := &file_proto_cores_bale_proto_msgTypes[678]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31027,7 +31187,7 @@ func (x *BaleUserLoadHistoryResponse) String() string {
 func (*BaleUserLoadHistoryResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[674]
+	mi := &file_proto_cores_bale_proto_msgTypes[678]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31040,7 +31200,7 @@ func (x *BaleUserLoadHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadHistoryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{674}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{678}
 }
 
 func (x *BaleUserLoadHistoryResponse) GetResult_1() []byte {
@@ -31060,7 +31220,7 @@ type BaleUserLoadInternalFeedMessagesRequest struct {
 
 func (x *BaleUserLoadInternalFeedMessagesRequest) Reset() {
 	*x = BaleUserLoadInternalFeedMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[675]
+	mi := &file_proto_cores_bale_proto_msgTypes[679]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31072,7 +31232,7 @@ func (x *BaleUserLoadInternalFeedMessagesRequest) String() string {
 func (*BaleUserLoadInternalFeedMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadInternalFeedMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[675]
+	mi := &file_proto_cores_bale_proto_msgTypes[679]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31085,7 +31245,7 @@ func (x *BaleUserLoadInternalFeedMessagesRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserLoadInternalFeedMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadInternalFeedMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{675}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{679}
 }
 
 func (x *BaleUserLoadInternalFeedMessagesRequest) GetOffset() int64 {
@@ -31111,7 +31271,7 @@ type BaleUserLoadInternalFeedMessagesResponse struct {
 
 func (x *BaleUserLoadInternalFeedMessagesResponse) Reset() {
 	*x = BaleUserLoadInternalFeedMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[676]
+	mi := &file_proto_cores_bale_proto_msgTypes[680]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31123,7 +31283,7 @@ func (x *BaleUserLoadInternalFeedMessagesResponse) String() string {
 func (*BaleUserLoadInternalFeedMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadInternalFeedMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[676]
+	mi := &file_proto_cores_bale_proto_msgTypes[680]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31136,7 +31296,7 @@ func (x *BaleUserLoadInternalFeedMessagesResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserLoadInternalFeedMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadInternalFeedMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{676}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{680}
 }
 
 func (x *BaleUserLoadInternalFeedMessagesResponse) GetResult_1() []byte {
@@ -31154,7 +31314,7 @@ type BaleUserLoadMagazineCategoriesRequest struct {
 
 func (x *BaleUserLoadMagazineCategoriesRequest) Reset() {
 	*x = BaleUserLoadMagazineCategoriesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[677]
+	mi := &file_proto_cores_bale_proto_msgTypes[681]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31166,7 +31326,7 @@ func (x *BaleUserLoadMagazineCategoriesRequest) String() string {
 func (*BaleUserLoadMagazineCategoriesRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadMagazineCategoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[677]
+	mi := &file_proto_cores_bale_proto_msgTypes[681]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31179,7 +31339,7 @@ func (x *BaleUserLoadMagazineCategoriesRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserLoadMagazineCategoriesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadMagazineCategoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{677}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{681}
 }
 
 type BaleUserLoadMagazineCategoriesResponse struct {
@@ -31191,7 +31351,7 @@ type BaleUserLoadMagazineCategoriesResponse struct {
 
 func (x *BaleUserLoadMagazineCategoriesResponse) Reset() {
 	*x = BaleUserLoadMagazineCategoriesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[678]
+	mi := &file_proto_cores_bale_proto_msgTypes[682]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31203,7 +31363,7 @@ func (x *BaleUserLoadMagazineCategoriesResponse) String() string {
 func (*BaleUserLoadMagazineCategoriesResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadMagazineCategoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[678]
+	mi := &file_proto_cores_bale_proto_msgTypes[682]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31216,7 +31376,7 @@ func (x *BaleUserLoadMagazineCategoriesResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserLoadMagazineCategoriesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadMagazineCategoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{678}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{682}
 }
 
 func (x *BaleUserLoadMagazineCategoriesResponse) GetResult_1() []byte {
@@ -31237,7 +31397,7 @@ type BaleUserLoadMembersRequest struct {
 
 func (x *BaleUserLoadMembersRequest) Reset() {
 	*x = BaleUserLoadMembersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[679]
+	mi := &file_proto_cores_bale_proto_msgTypes[683]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31249,7 +31409,7 @@ func (x *BaleUserLoadMembersRequest) String() string {
 func (*BaleUserLoadMembersRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadMembersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[679]
+	mi := &file_proto_cores_bale_proto_msgTypes[683]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31262,7 +31422,7 @@ func (x *BaleUserLoadMembersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadMembersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadMembersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{679}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{683}
 }
 
 func (x *BaleUserLoadMembersRequest) GetGroupId() int64 {
@@ -31295,7 +31455,7 @@ type BaleUserLoadMembersResponse struct {
 
 func (x *BaleUserLoadMembersResponse) Reset() {
 	*x = BaleUserLoadMembersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[680]
+	mi := &file_proto_cores_bale_proto_msgTypes[684]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31307,7 +31467,7 @@ func (x *BaleUserLoadMembersResponse) String() string {
 func (*BaleUserLoadMembersResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadMembersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[680]
+	mi := &file_proto_cores_bale_proto_msgTypes[684]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31320,7 +31480,7 @@ func (x *BaleUserLoadMembersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadMembersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadMembersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{680}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{684}
 }
 
 func (x *BaleUserLoadMembersResponse) GetResult_1() []byte {
@@ -31338,7 +31498,7 @@ type BaleUserLoadOwnStickersRequest struct {
 
 func (x *BaleUserLoadOwnStickersRequest) Reset() {
 	*x = BaleUserLoadOwnStickersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[681]
+	mi := &file_proto_cores_bale_proto_msgTypes[685]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31350,7 +31510,7 @@ func (x *BaleUserLoadOwnStickersRequest) String() string {
 func (*BaleUserLoadOwnStickersRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadOwnStickersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[681]
+	mi := &file_proto_cores_bale_proto_msgTypes[685]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31363,7 +31523,7 @@ func (x *BaleUserLoadOwnStickersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadOwnStickersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadOwnStickersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{681}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{685}
 }
 
 type BaleUserLoadOwnStickersResponse struct {
@@ -31375,7 +31535,7 @@ type BaleUserLoadOwnStickersResponse struct {
 
 func (x *BaleUserLoadOwnStickersResponse) Reset() {
 	*x = BaleUserLoadOwnStickersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[682]
+	mi := &file_proto_cores_bale_proto_msgTypes[686]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31387,7 +31547,7 @@ func (x *BaleUserLoadOwnStickersResponse) String() string {
 func (*BaleUserLoadOwnStickersResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadOwnStickersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[682]
+	mi := &file_proto_cores_bale_proto_msgTypes[686]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31400,7 +31560,7 @@ func (x *BaleUserLoadOwnStickersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadOwnStickersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadOwnStickersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{682}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{686}
 }
 
 func (x *BaleUserLoadOwnStickersResponse) GetResult_1() []byte {
@@ -31419,7 +31579,7 @@ type BaleUserLoadPeerDialogsRequest struct {
 
 func (x *BaleUserLoadPeerDialogsRequest) Reset() {
 	*x = BaleUserLoadPeerDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[683]
+	mi := &file_proto_cores_bale_proto_msgTypes[687]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31431,7 +31591,7 @@ func (x *BaleUserLoadPeerDialogsRequest) String() string {
 func (*BaleUserLoadPeerDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadPeerDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[683]
+	mi := &file_proto_cores_bale_proto_msgTypes[687]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31444,7 +31604,7 @@ func (x *BaleUserLoadPeerDialogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadPeerDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadPeerDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{683}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{687}
 }
 
 func (x *BaleUserLoadPeerDialogsRequest) GetPeerIds() []string {
@@ -31463,7 +31623,7 @@ type BaleUserLoadPeerDialogsResponse struct {
 
 func (x *BaleUserLoadPeerDialogsResponse) Reset() {
 	*x = BaleUserLoadPeerDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[684]
+	mi := &file_proto_cores_bale_proto_msgTypes[688]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31475,7 +31635,7 @@ func (x *BaleUserLoadPeerDialogsResponse) String() string {
 func (*BaleUserLoadPeerDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadPeerDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[684]
+	mi := &file_proto_cores_bale_proto_msgTypes[688]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31488,7 +31648,7 @@ func (x *BaleUserLoadPeerDialogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadPeerDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadPeerDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{684}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{688}
 }
 
 func (x *BaleUserLoadPeerDialogsResponse) GetResult_1() []byte {
@@ -31507,7 +31667,7 @@ type BaleUserLoadPeersRequest struct {
 
 func (x *BaleUserLoadPeersRequest) Reset() {
 	*x = BaleUserLoadPeersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[685]
+	mi := &file_proto_cores_bale_proto_msgTypes[689]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31519,7 +31679,7 @@ func (x *BaleUserLoadPeersRequest) String() string {
 func (*BaleUserLoadPeersRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadPeersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[685]
+	mi := &file_proto_cores_bale_proto_msgTypes[689]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31532,7 +31692,7 @@ func (x *BaleUserLoadPeersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadPeersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadPeersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{685}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{689}
 }
 
 func (x *BaleUserLoadPeersRequest) GetPeerIds() []string {
@@ -31551,7 +31711,7 @@ type BaleUserLoadPeersResponse struct {
 
 func (x *BaleUserLoadPeersResponse) Reset() {
 	*x = BaleUserLoadPeersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[686]
+	mi := &file_proto_cores_bale_proto_msgTypes[690]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31563,7 +31723,7 @@ func (x *BaleUserLoadPeersResponse) String() string {
 func (*BaleUserLoadPeersResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadPeersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[686]
+	mi := &file_proto_cores_bale_proto_msgTypes[690]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31576,7 +31736,7 @@ func (x *BaleUserLoadPeersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadPeersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadPeersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{686}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{690}
 }
 
 func (x *BaleUserLoadPeersResponse) GetResult_1() []byte {
@@ -31594,7 +31754,7 @@ type BaleUserLoadPinnedDialogsRequest struct {
 
 func (x *BaleUserLoadPinnedDialogsRequest) Reset() {
 	*x = BaleUserLoadPinnedDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[687]
+	mi := &file_proto_cores_bale_proto_msgTypes[691]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31606,7 +31766,7 @@ func (x *BaleUserLoadPinnedDialogsRequest) String() string {
 func (*BaleUserLoadPinnedDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadPinnedDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[687]
+	mi := &file_proto_cores_bale_proto_msgTypes[691]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31619,7 +31779,7 @@ func (x *BaleUserLoadPinnedDialogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadPinnedDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadPinnedDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{687}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{691}
 }
 
 type BaleUserLoadPinnedDialogsResponse struct {
@@ -31631,7 +31791,7 @@ type BaleUserLoadPinnedDialogsResponse struct {
 
 func (x *BaleUserLoadPinnedDialogsResponse) Reset() {
 	*x = BaleUserLoadPinnedDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[688]
+	mi := &file_proto_cores_bale_proto_msgTypes[692]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31643,7 +31803,7 @@ func (x *BaleUserLoadPinnedDialogsResponse) String() string {
 func (*BaleUserLoadPinnedDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadPinnedDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[688]
+	mi := &file_proto_cores_bale_proto_msgTypes[692]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31656,7 +31816,7 @@ func (x *BaleUserLoadPinnedDialogsResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserLoadPinnedDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadPinnedDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{688}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{692}
 }
 
 func (x *BaleUserLoadPinnedDialogsResponse) GetResult_1() []byte {
@@ -31675,7 +31835,7 @@ type BaleUserLoadPinnedMessagesRequest struct {
 
 func (x *BaleUserLoadPinnedMessagesRequest) Reset() {
 	*x = BaleUserLoadPinnedMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[689]
+	mi := &file_proto_cores_bale_proto_msgTypes[693]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31687,7 +31847,7 @@ func (x *BaleUserLoadPinnedMessagesRequest) String() string {
 func (*BaleUserLoadPinnedMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadPinnedMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[689]
+	mi := &file_proto_cores_bale_proto_msgTypes[693]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31700,7 +31860,7 @@ func (x *BaleUserLoadPinnedMessagesRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserLoadPinnedMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadPinnedMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{689}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{693}
 }
 
 func (x *BaleUserLoadPinnedMessagesRequest) GetChatId() string {
@@ -31719,7 +31879,7 @@ type BaleUserLoadPinnedMessagesResponse struct {
 
 func (x *BaleUserLoadPinnedMessagesResponse) Reset() {
 	*x = BaleUserLoadPinnedMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[690]
+	mi := &file_proto_cores_bale_proto_msgTypes[694]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31731,7 +31891,7 @@ func (x *BaleUserLoadPinnedMessagesResponse) String() string {
 func (*BaleUserLoadPinnedMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadPinnedMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[690]
+	mi := &file_proto_cores_bale_proto_msgTypes[694]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31744,7 +31904,7 @@ func (x *BaleUserLoadPinnedMessagesResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserLoadPinnedMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadPinnedMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{690}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{694}
 }
 
 func (x *BaleUserLoadPinnedMessagesResponse) GetResult_1() []byte {
@@ -31762,7 +31922,7 @@ type BaleUserLoadReactionsRequest struct {
 
 func (x *BaleUserLoadReactionsRequest) Reset() {
 	*x = BaleUserLoadReactionsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[691]
+	mi := &file_proto_cores_bale_proto_msgTypes[695]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31774,7 +31934,7 @@ func (x *BaleUserLoadReactionsRequest) String() string {
 func (*BaleUserLoadReactionsRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadReactionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[691]
+	mi := &file_proto_cores_bale_proto_msgTypes[695]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31787,7 +31947,7 @@ func (x *BaleUserLoadReactionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadReactionsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadReactionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{691}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{695}
 }
 
 type BaleUserLoadReactionsResponse struct {
@@ -31799,7 +31959,7 @@ type BaleUserLoadReactionsResponse struct {
 
 func (x *BaleUserLoadReactionsResponse) Reset() {
 	*x = BaleUserLoadReactionsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[692]
+	mi := &file_proto_cores_bale_proto_msgTypes[696]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31811,7 +31971,7 @@ func (x *BaleUserLoadReactionsResponse) String() string {
 func (*BaleUserLoadReactionsResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadReactionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[692]
+	mi := &file_proto_cores_bale_proto_msgTypes[696]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31824,7 +31984,7 @@ func (x *BaleUserLoadReactionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadReactionsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadReactionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{692}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{696}
 }
 
 func (x *BaleUserLoadReactionsResponse) GetResult_1() []byte {
@@ -31846,7 +32006,7 @@ type BaleUserLoadRepliesRequest struct {
 
 func (x *BaleUserLoadRepliesRequest) Reset() {
 	*x = BaleUserLoadRepliesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[693]
+	mi := &file_proto_cores_bale_proto_msgTypes[697]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31858,7 +32018,7 @@ func (x *BaleUserLoadRepliesRequest) String() string {
 func (*BaleUserLoadRepliesRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadRepliesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[693]
+	mi := &file_proto_cores_bale_proto_msgTypes[697]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31871,7 +32031,7 @@ func (x *BaleUserLoadRepliesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadRepliesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadRepliesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{693}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{697}
 }
 
 func (x *BaleUserLoadRepliesRequest) GetChatId() string {
@@ -31911,7 +32071,7 @@ type BaleUserLoadRepliesResponse struct {
 
 func (x *BaleUserLoadRepliesResponse) Reset() {
 	*x = BaleUserLoadRepliesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[694]
+	mi := &file_proto_cores_bale_proto_msgTypes[698]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31923,7 +32083,7 @@ func (x *BaleUserLoadRepliesResponse) String() string {
 func (*BaleUserLoadRepliesResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadRepliesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[694]
+	mi := &file_proto_cores_bale_proto_msgTypes[698]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31936,7 +32096,7 @@ func (x *BaleUserLoadRepliesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadRepliesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadRepliesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{694}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{698}
 }
 
 func (x *BaleUserLoadRepliesResponse) GetResult_1() []byte {
@@ -31958,7 +32118,7 @@ type BaleUserLoadSharedMediaRequest struct {
 
 func (x *BaleUserLoadSharedMediaRequest) Reset() {
 	*x = BaleUserLoadSharedMediaRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[695]
+	mi := &file_proto_cores_bale_proto_msgTypes[699]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -31970,7 +32130,7 @@ func (x *BaleUserLoadSharedMediaRequest) String() string {
 func (*BaleUserLoadSharedMediaRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadSharedMediaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[695]
+	mi := &file_proto_cores_bale_proto_msgTypes[699]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -31983,7 +32143,7 @@ func (x *BaleUserLoadSharedMediaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadSharedMediaRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadSharedMediaRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{695}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{699}
 }
 
 func (x *BaleUserLoadSharedMediaRequest) GetChatId() string {
@@ -32023,7 +32183,7 @@ type BaleUserLoadSharedMediaResponse struct {
 
 func (x *BaleUserLoadSharedMediaResponse) Reset() {
 	*x = BaleUserLoadSharedMediaResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[696]
+	mi := &file_proto_cores_bale_proto_msgTypes[700]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32035,7 +32195,7 @@ func (x *BaleUserLoadSharedMediaResponse) String() string {
 func (*BaleUserLoadSharedMediaResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadSharedMediaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[696]
+	mi := &file_proto_cores_bale_proto_msgTypes[700]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32048,7 +32208,7 @@ func (x *BaleUserLoadSharedMediaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadSharedMediaResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadSharedMediaResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{696}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{700}
 }
 
 func (x *BaleUserLoadSharedMediaResponse) GetResult_1() []byte {
@@ -32067,7 +32227,7 @@ type BaleUserLoadStickerCollectionRequest struct {
 
 func (x *BaleUserLoadStickerCollectionRequest) Reset() {
 	*x = BaleUserLoadStickerCollectionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[697]
+	mi := &file_proto_cores_bale_proto_msgTypes[701]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32079,7 +32239,7 @@ func (x *BaleUserLoadStickerCollectionRequest) String() string {
 func (*BaleUserLoadStickerCollectionRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadStickerCollectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[697]
+	mi := &file_proto_cores_bale_proto_msgTypes[701]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32092,7 +32252,7 @@ func (x *BaleUserLoadStickerCollectionRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserLoadStickerCollectionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadStickerCollectionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{697}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{701}
 }
 
 func (x *BaleUserLoadStickerCollectionRequest) GetCollectionId() int64 {
@@ -32111,7 +32271,7 @@ type BaleUserLoadStickerCollectionResponse struct {
 
 func (x *BaleUserLoadStickerCollectionResponse) Reset() {
 	*x = BaleUserLoadStickerCollectionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[698]
+	mi := &file_proto_cores_bale_proto_msgTypes[702]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32123,7 +32283,7 @@ func (x *BaleUserLoadStickerCollectionResponse) String() string {
 func (*BaleUserLoadStickerCollectionResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadStickerCollectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[698]
+	mi := &file_proto_cores_bale_proto_msgTypes[702]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32136,7 +32296,7 @@ func (x *BaleUserLoadStickerCollectionResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserLoadStickerCollectionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadStickerCollectionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{698}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{702}
 }
 
 func (x *BaleUserLoadStickerCollectionResponse) GetResult_1() []byte {
@@ -32155,7 +32315,7 @@ type BaleUserLoadUsersRequest struct {
 
 func (x *BaleUserLoadUsersRequest) Reset() {
 	*x = BaleUserLoadUsersRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[699]
+	mi := &file_proto_cores_bale_proto_msgTypes[703]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32167,7 +32327,7 @@ func (x *BaleUserLoadUsersRequest) String() string {
 func (*BaleUserLoadUsersRequest) ProtoMessage() {}
 
 func (x *BaleUserLoadUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[699]
+	mi := &file_proto_cores_bale_proto_msgTypes[703]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32180,7 +32340,7 @@ func (x *BaleUserLoadUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadUsersRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadUsersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{699}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{703}
 }
 
 func (x *BaleUserLoadUsersRequest) GetUserIds() []int64 {
@@ -32199,7 +32359,7 @@ type BaleUserLoadUsersResponse struct {
 
 func (x *BaleUserLoadUsersResponse) Reset() {
 	*x = BaleUserLoadUsersResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[700]
+	mi := &file_proto_cores_bale_proto_msgTypes[704]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32211,7 +32371,7 @@ func (x *BaleUserLoadUsersResponse) String() string {
 func (*BaleUserLoadUsersResponse) ProtoMessage() {}
 
 func (x *BaleUserLoadUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[700]
+	mi := &file_proto_cores_bale_proto_msgTypes[704]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32224,7 +32384,7 @@ func (x *BaleUserLoadUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserLoadUsersResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserLoadUsersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{700}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{704}
 }
 
 func (x *BaleUserLoadUsersResponse) GetResult_1() []byte {
@@ -32243,7 +32403,7 @@ type BaleUserMakePaymentRequest struct {
 
 func (x *BaleUserMakePaymentRequest) Reset() {
 	*x = BaleUserMakePaymentRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[701]
+	mi := &file_proto_cores_bale_proto_msgTypes[705]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32255,7 +32415,7 @@ func (x *BaleUserMakePaymentRequest) String() string {
 func (*BaleUserMakePaymentRequest) ProtoMessage() {}
 
 func (x *BaleUserMakePaymentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[701]
+	mi := &file_proto_cores_bale_proto_msgTypes[705]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32268,7 +32428,7 @@ func (x *BaleUserMakePaymentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMakePaymentRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMakePaymentRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{701}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{705}
 }
 
 func (x *BaleUserMakePaymentRequest) GetPaymentId() string {
@@ -32287,7 +32447,7 @@ type BaleUserMakePaymentResponse struct {
 
 func (x *BaleUserMakePaymentResponse) Reset() {
 	*x = BaleUserMakePaymentResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[702]
+	mi := &file_proto_cores_bale_proto_msgTypes[706]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32299,7 +32459,7 @@ func (x *BaleUserMakePaymentResponse) String() string {
 func (*BaleUserMakePaymentResponse) ProtoMessage() {}
 
 func (x *BaleUserMakePaymentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[702]
+	mi := &file_proto_cores_bale_proto_msgTypes[706]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32312,7 +32472,7 @@ func (x *BaleUserMakePaymentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMakePaymentResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMakePaymentResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{702}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{706}
 }
 
 func (x *BaleUserMakePaymentResponse) GetResult_1() []byte {
@@ -32332,7 +32492,7 @@ type BaleUserMakeUserAdminRequest struct {
 
 func (x *BaleUserMakeUserAdminRequest) Reset() {
 	*x = BaleUserMakeUserAdminRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[703]
+	mi := &file_proto_cores_bale_proto_msgTypes[707]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32344,7 +32504,7 @@ func (x *BaleUserMakeUserAdminRequest) String() string {
 func (*BaleUserMakeUserAdminRequest) ProtoMessage() {}
 
 func (x *BaleUserMakeUserAdminRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[703]
+	mi := &file_proto_cores_bale_proto_msgTypes[707]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32357,7 +32517,7 @@ func (x *BaleUserMakeUserAdminRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMakeUserAdminRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMakeUserAdminRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{703}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{707}
 }
 
 func (x *BaleUserMakeUserAdminRequest) GetGroupId() int64 {
@@ -32383,7 +32543,7 @@ type BaleUserMakeUserAdminResponse struct {
 
 func (x *BaleUserMakeUserAdminResponse) Reset() {
 	*x = BaleUserMakeUserAdminResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[704]
+	mi := &file_proto_cores_bale_proto_msgTypes[708]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32395,7 +32555,7 @@ func (x *BaleUserMakeUserAdminResponse) String() string {
 func (*BaleUserMakeUserAdminResponse) ProtoMessage() {}
 
 func (x *BaleUserMakeUserAdminResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[704]
+	mi := &file_proto_cores_bale_proto_msgTypes[708]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32408,7 +32568,7 @@ func (x *BaleUserMakeUserAdminResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMakeUserAdminResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMakeUserAdminResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{704}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{708}
 }
 
 func (x *BaleUserMakeUserAdminResponse) GetResult_1() []byte {
@@ -32428,7 +32588,7 @@ type BaleUserMarkAsUnreadRequest struct {
 
 func (x *BaleUserMarkAsUnreadRequest) Reset() {
 	*x = BaleUserMarkAsUnreadRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[705]
+	mi := &file_proto_cores_bale_proto_msgTypes[709]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32440,7 +32600,7 @@ func (x *BaleUserMarkAsUnreadRequest) String() string {
 func (*BaleUserMarkAsUnreadRequest) ProtoMessage() {}
 
 func (x *BaleUserMarkAsUnreadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[705]
+	mi := &file_proto_cores_bale_proto_msgTypes[709]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32453,7 +32613,7 @@ func (x *BaleUserMarkAsUnreadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMarkAsUnreadRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMarkAsUnreadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{705}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{709}
 }
 
 func (x *BaleUserMarkAsUnreadRequest) GetChatId() string {
@@ -32479,7 +32639,7 @@ type BaleUserMarkAsUnreadResponse struct {
 
 func (x *BaleUserMarkAsUnreadResponse) Reset() {
 	*x = BaleUserMarkAsUnreadResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[706]
+	mi := &file_proto_cores_bale_proto_msgTypes[710]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32491,7 +32651,7 @@ func (x *BaleUserMarkAsUnreadResponse) String() string {
 func (*BaleUserMarkAsUnreadResponse) ProtoMessage() {}
 
 func (x *BaleUserMarkAsUnreadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[706]
+	mi := &file_proto_cores_bale_proto_msgTypes[710]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32504,7 +32664,7 @@ func (x *BaleUserMarkAsUnreadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMarkAsUnreadResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMarkAsUnreadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{706}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{710}
 }
 
 func (x *BaleUserMarkAsUnreadResponse) GetResult_1() []byte {
@@ -32523,7 +32683,7 @@ type BaleUserMarkDialogsAsReadRequest struct {
 
 func (x *BaleUserMarkDialogsAsReadRequest) Reset() {
 	*x = BaleUserMarkDialogsAsReadRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[707]
+	mi := &file_proto_cores_bale_proto_msgTypes[711]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32535,7 +32695,7 @@ func (x *BaleUserMarkDialogsAsReadRequest) String() string {
 func (*BaleUserMarkDialogsAsReadRequest) ProtoMessage() {}
 
 func (x *BaleUserMarkDialogsAsReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[707]
+	mi := &file_proto_cores_bale_proto_msgTypes[711]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32548,7 +32708,7 @@ func (x *BaleUserMarkDialogsAsReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMarkDialogsAsReadRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMarkDialogsAsReadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{707}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{711}
 }
 
 func (x *BaleUserMarkDialogsAsReadRequest) GetChatIds() []string {
@@ -32567,7 +32727,7 @@ type BaleUserMarkDialogsAsReadResponse struct {
 
 func (x *BaleUserMarkDialogsAsReadResponse) Reset() {
 	*x = BaleUserMarkDialogsAsReadResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[708]
+	mi := &file_proto_cores_bale_proto_msgTypes[712]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32579,7 +32739,7 @@ func (x *BaleUserMarkDialogsAsReadResponse) String() string {
 func (*BaleUserMarkDialogsAsReadResponse) ProtoMessage() {}
 
 func (x *BaleUserMarkDialogsAsReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[708]
+	mi := &file_proto_cores_bale_proto_msgTypes[712]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32592,7 +32752,7 @@ func (x *BaleUserMarkDialogsAsReadResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserMarkDialogsAsReadResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMarkDialogsAsReadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{708}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{712}
 }
 
 func (x *BaleUserMarkDialogsAsReadResponse) GetResult_1() []byte {
@@ -32612,7 +32772,7 @@ type BaleUserMentionReadRequest struct {
 
 func (x *BaleUserMentionReadRequest) Reset() {
 	*x = BaleUserMentionReadRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[709]
+	mi := &file_proto_cores_bale_proto_msgTypes[713]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32624,7 +32784,7 @@ func (x *BaleUserMentionReadRequest) String() string {
 func (*BaleUserMentionReadRequest) ProtoMessage() {}
 
 func (x *BaleUserMentionReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[709]
+	mi := &file_proto_cores_bale_proto_msgTypes[713]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32637,7 +32797,7 @@ func (x *BaleUserMentionReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMentionReadRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMentionReadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{709}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{713}
 }
 
 func (x *BaleUserMentionReadRequest) GetChatId() string {
@@ -32663,7 +32823,7 @@ type BaleUserMentionReadResponse struct {
 
 func (x *BaleUserMentionReadResponse) Reset() {
 	*x = BaleUserMentionReadResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[710]
+	mi := &file_proto_cores_bale_proto_msgTypes[714]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32675,7 +32835,7 @@ func (x *BaleUserMentionReadResponse) String() string {
 func (*BaleUserMentionReadResponse) ProtoMessage() {}
 
 func (x *BaleUserMentionReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[710]
+	mi := &file_proto_cores_bale_proto_msgTypes[714]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32688,7 +32848,7 @@ func (x *BaleUserMentionReadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMentionReadResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMentionReadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{710}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{714}
 }
 
 func (x *BaleUserMentionReadResponse) GetResult_1() []byte {
@@ -32708,7 +32868,7 @@ type BaleUserMessageReactionsReadRequest struct {
 
 func (x *BaleUserMessageReactionsReadRequest) Reset() {
 	*x = BaleUserMessageReactionsReadRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[711]
+	mi := &file_proto_cores_bale_proto_msgTypes[715]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32720,7 +32880,7 @@ func (x *BaleUserMessageReactionsReadRequest) String() string {
 func (*BaleUserMessageReactionsReadRequest) ProtoMessage() {}
 
 func (x *BaleUserMessageReactionsReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[711]
+	mi := &file_proto_cores_bale_proto_msgTypes[715]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32733,7 +32893,7 @@ func (x *BaleUserMessageReactionsReadRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserMessageReactionsReadRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMessageReactionsReadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{711}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{715}
 }
 
 func (x *BaleUserMessageReactionsReadRequest) GetChatId() string {
@@ -32759,7 +32919,7 @@ type BaleUserMessageReactionsReadResponse struct {
 
 func (x *BaleUserMessageReactionsReadResponse) Reset() {
 	*x = BaleUserMessageReactionsReadResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[712]
+	mi := &file_proto_cores_bale_proto_msgTypes[716]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32771,7 +32931,7 @@ func (x *BaleUserMessageReactionsReadResponse) String() string {
 func (*BaleUserMessageReactionsReadResponse) ProtoMessage() {}
 
 func (x *BaleUserMessageReactionsReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[712]
+	mi := &file_proto_cores_bale_proto_msgTypes[716]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32784,7 +32944,7 @@ func (x *BaleUserMessageReactionsReadResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserMessageReactionsReadResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMessageReactionsReadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{712}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{716}
 }
 
 func (x *BaleUserMessageReactionsReadResponse) GetResult_1() []byte {
@@ -32804,7 +32964,7 @@ type BaleUserMessageReadRequest struct {
 
 func (x *BaleUserMessageReadRequest) Reset() {
 	*x = BaleUserMessageReadRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[713]
+	mi := &file_proto_cores_bale_proto_msgTypes[717]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32816,7 +32976,7 @@ func (x *BaleUserMessageReadRequest) String() string {
 func (*BaleUserMessageReadRequest) ProtoMessage() {}
 
 func (x *BaleUserMessageReadRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[713]
+	mi := &file_proto_cores_bale_proto_msgTypes[717]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32829,7 +32989,7 @@ func (x *BaleUserMessageReadRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMessageReadRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMessageReadRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{713}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{717}
 }
 
 func (x *BaleUserMessageReadRequest) GetChatId() string {
@@ -32855,7 +33015,7 @@ type BaleUserMessageReadResponse struct {
 
 func (x *BaleUserMessageReadResponse) Reset() {
 	*x = BaleUserMessageReadResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[714]
+	mi := &file_proto_cores_bale_proto_msgTypes[718]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32867,7 +33027,7 @@ func (x *BaleUserMessageReadResponse) String() string {
 func (*BaleUserMessageReadResponse) ProtoMessage() {}
 
 func (x *BaleUserMessageReadResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[714]
+	mi := &file_proto_cores_bale_proto_msgTypes[718]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32880,7 +33040,7 @@ func (x *BaleUserMessageReadResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMessageReadResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMessageReadResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{714}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{718}
 }
 
 func (x *BaleUserMessageReadResponse) GetResult_1() []byte {
@@ -32900,7 +33060,7 @@ type BaleUserMessageReceivedRequest struct {
 
 func (x *BaleUserMessageReceivedRequest) Reset() {
 	*x = BaleUserMessageReceivedRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[715]
+	mi := &file_proto_cores_bale_proto_msgTypes[719]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32912,7 +33072,7 @@ func (x *BaleUserMessageReceivedRequest) String() string {
 func (*BaleUserMessageReceivedRequest) ProtoMessage() {}
 
 func (x *BaleUserMessageReceivedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[715]
+	mi := &file_proto_cores_bale_proto_msgTypes[719]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32925,7 +33085,7 @@ func (x *BaleUserMessageReceivedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMessageReceivedRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMessageReceivedRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{715}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{719}
 }
 
 func (x *BaleUserMessageReceivedRequest) GetChatId() string {
@@ -32951,7 +33111,7 @@ type BaleUserMessageReceivedResponse struct {
 
 func (x *BaleUserMessageReceivedResponse) Reset() {
 	*x = BaleUserMessageReceivedResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[716]
+	mi := &file_proto_cores_bale_proto_msgTypes[720]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -32963,7 +33123,7 @@ func (x *BaleUserMessageReceivedResponse) String() string {
 func (*BaleUserMessageReceivedResponse) ProtoMessage() {}
 
 func (x *BaleUserMessageReceivedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[716]
+	mi := &file_proto_cores_bale_proto_msgTypes[720]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -32976,7 +33136,7 @@ func (x *BaleUserMessageReceivedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserMessageReceivedResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMessageReceivedResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{716}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{720}
 }
 
 func (x *BaleUserMessageReceivedResponse) GetResult_1() []byte {
@@ -32997,7 +33157,7 @@ type BaleUserMuteCallParticipantRequest struct {
 
 func (x *BaleUserMuteCallParticipantRequest) Reset() {
 	*x = BaleUserMuteCallParticipantRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[717]
+	mi := &file_proto_cores_bale_proto_msgTypes[721]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33009,7 +33169,7 @@ func (x *BaleUserMuteCallParticipantRequest) String() string {
 func (*BaleUserMuteCallParticipantRequest) ProtoMessage() {}
 
 func (x *BaleUserMuteCallParticipantRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[717]
+	mi := &file_proto_cores_bale_proto_msgTypes[721]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33022,7 +33182,7 @@ func (x *BaleUserMuteCallParticipantRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserMuteCallParticipantRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserMuteCallParticipantRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{717}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{721}
 }
 
 func (x *BaleUserMuteCallParticipantRequest) GetCallId() int64 {
@@ -33055,7 +33215,7 @@ type BaleUserMuteCallParticipantResponse struct {
 
 func (x *BaleUserMuteCallParticipantResponse) Reset() {
 	*x = BaleUserMuteCallParticipantResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[718]
+	mi := &file_proto_cores_bale_proto_msgTypes[722]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33067,7 +33227,7 @@ func (x *BaleUserMuteCallParticipantResponse) String() string {
 func (*BaleUserMuteCallParticipantResponse) ProtoMessage() {}
 
 func (x *BaleUserMuteCallParticipantResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[718]
+	mi := &file_proto_cores_bale_proto_msgTypes[722]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33080,7 +33240,7 @@ func (x *BaleUserMuteCallParticipantResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserMuteCallParticipantResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserMuteCallParticipantResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{718}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{722}
 }
 
 func (x *BaleUserMuteCallParticipantResponse) GetResult_1() []byte {
@@ -33098,7 +33258,7 @@ type BaleUserPeersWithScheduleTaskRequest struct {
 
 func (x *BaleUserPeersWithScheduleTaskRequest) Reset() {
 	*x = BaleUserPeersWithScheduleTaskRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[719]
+	mi := &file_proto_cores_bale_proto_msgTypes[723]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33110,7 +33270,7 @@ func (x *BaleUserPeersWithScheduleTaskRequest) String() string {
 func (*BaleUserPeersWithScheduleTaskRequest) ProtoMessage() {}
 
 func (x *BaleUserPeersWithScheduleTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[719]
+	mi := &file_proto_cores_bale_proto_msgTypes[723]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33123,7 +33283,7 @@ func (x *BaleUserPeersWithScheduleTaskRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserPeersWithScheduleTaskRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserPeersWithScheduleTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{719}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{723}
 }
 
 type BaleUserPeersWithScheduleTaskResponse struct {
@@ -33135,7 +33295,7 @@ type BaleUserPeersWithScheduleTaskResponse struct {
 
 func (x *BaleUserPeersWithScheduleTaskResponse) Reset() {
 	*x = BaleUserPeersWithScheduleTaskResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[720]
+	mi := &file_proto_cores_bale_proto_msgTypes[724]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33147,7 +33307,7 @@ func (x *BaleUserPeersWithScheduleTaskResponse) String() string {
 func (*BaleUserPeersWithScheduleTaskResponse) ProtoMessage() {}
 
 func (x *BaleUserPeersWithScheduleTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[720]
+	mi := &file_proto_cores_bale_proto_msgTypes[724]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33160,7 +33320,7 @@ func (x *BaleUserPeersWithScheduleTaskResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserPeersWithScheduleTaskResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserPeersWithScheduleTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{720}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{724}
 }
 
 func (x *BaleUserPeersWithScheduleTaskResponse) GetResult_1() []byte {
@@ -33179,7 +33339,7 @@ type BaleUserPinDialogsRequest struct {
 
 func (x *BaleUserPinDialogsRequest) Reset() {
 	*x = BaleUserPinDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[721]
+	mi := &file_proto_cores_bale_proto_msgTypes[725]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33191,7 +33351,7 @@ func (x *BaleUserPinDialogsRequest) String() string {
 func (*BaleUserPinDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserPinDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[721]
+	mi := &file_proto_cores_bale_proto_msgTypes[725]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33204,7 +33364,7 @@ func (x *BaleUserPinDialogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserPinDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserPinDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{721}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{725}
 }
 
 func (x *BaleUserPinDialogsRequest) GetChatIds() []string {
@@ -33223,7 +33383,7 @@ type BaleUserPinDialogsResponse struct {
 
 func (x *BaleUserPinDialogsResponse) Reset() {
 	*x = BaleUserPinDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[722]
+	mi := &file_proto_cores_bale_proto_msgTypes[726]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33235,7 +33395,7 @@ func (x *BaleUserPinDialogsResponse) String() string {
 func (*BaleUserPinDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserPinDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[722]
+	mi := &file_proto_cores_bale_proto_msgTypes[726]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33248,7 +33408,7 @@ func (x *BaleUserPinDialogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserPinDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserPinDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{722}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{726}
 }
 
 func (x *BaleUserPinDialogsResponse) GetResult_1() []byte {
@@ -33270,7 +33430,7 @@ type BaleUserPinMessageRequest struct {
 
 func (x *BaleUserPinMessageRequest) Reset() {
 	*x = BaleUserPinMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[723]
+	mi := &file_proto_cores_bale_proto_msgTypes[727]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33282,7 +33442,7 @@ func (x *BaleUserPinMessageRequest) String() string {
 func (*BaleUserPinMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserPinMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[723]
+	mi := &file_proto_cores_bale_proto_msgTypes[727]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33295,7 +33455,7 @@ func (x *BaleUserPinMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserPinMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserPinMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{723}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{727}
 }
 
 func (x *BaleUserPinMessageRequest) GetChatId() string {
@@ -33335,7 +33495,7 @@ type BaleUserPinMessageResponse struct {
 
 func (x *BaleUserPinMessageResponse) Reset() {
 	*x = BaleUserPinMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[724]
+	mi := &file_proto_cores_bale_proto_msgTypes[728]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33347,7 +33507,7 @@ func (x *BaleUserPinMessageResponse) String() string {
 func (*BaleUserPinMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserPinMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[724]
+	mi := &file_proto_cores_bale_proto_msgTypes[728]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33360,7 +33520,7 @@ func (x *BaleUserPinMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserPinMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserPinMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{724}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{728}
 }
 
 func (x *BaleUserPinMessageResponse) GetResult_1() []byte {
@@ -33379,7 +33539,7 @@ type BaleUserPushSetConfigRequest struct {
 
 func (x *BaleUserPushSetConfigRequest) Reset() {
 	*x = BaleUserPushSetConfigRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[725]
+	mi := &file_proto_cores_bale_proto_msgTypes[729]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33391,7 +33551,7 @@ func (x *BaleUserPushSetConfigRequest) String() string {
 func (*BaleUserPushSetConfigRequest) ProtoMessage() {}
 
 func (x *BaleUserPushSetConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[725]
+	mi := &file_proto_cores_bale_proto_msgTypes[729]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33404,7 +33564,7 @@ func (x *BaleUserPushSetConfigRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserPushSetConfigRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserPushSetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{725}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{729}
 }
 
 func (x *BaleUserPushSetConfigRequest) GetConfig() []byte {
@@ -33423,7 +33583,7 @@ type BaleUserPushSetConfigResponse struct {
 
 func (x *BaleUserPushSetConfigResponse) Reset() {
 	*x = BaleUserPushSetConfigResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[726]
+	mi := &file_proto_cores_bale_proto_msgTypes[730]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33435,7 +33595,7 @@ func (x *BaleUserPushSetConfigResponse) String() string {
 func (*BaleUserPushSetConfigResponse) ProtoMessage() {}
 
 func (x *BaleUserPushSetConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[726]
+	mi := &file_proto_cores_bale_proto_msgTypes[730]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33448,7 +33608,7 @@ func (x *BaleUserPushSetConfigResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserPushSetConfigResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserPushSetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{726}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{730}
 }
 
 func (x *BaleUserPushSetConfigResponse) GetResult_1() []byte {
@@ -33468,7 +33628,7 @@ type BaleUserReScheduleTaskRequest struct {
 
 func (x *BaleUserReScheduleTaskRequest) Reset() {
 	*x = BaleUserReScheduleTaskRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[727]
+	mi := &file_proto_cores_bale_proto_msgTypes[731]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33480,7 +33640,7 @@ func (x *BaleUserReScheduleTaskRequest) String() string {
 func (*BaleUserReScheduleTaskRequest) ProtoMessage() {}
 
 func (x *BaleUserReScheduleTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[727]
+	mi := &file_proto_cores_bale_proto_msgTypes[731]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33493,7 +33653,7 @@ func (x *BaleUserReScheduleTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserReScheduleTaskRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserReScheduleTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{727}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{731}
 }
 
 func (x *BaleUserReScheduleTaskRequest) GetTaskId() int64 {
@@ -33519,7 +33679,7 @@ type BaleUserReScheduleTaskResponse struct {
 
 func (x *BaleUserReScheduleTaskResponse) Reset() {
 	*x = BaleUserReScheduleTaskResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[728]
+	mi := &file_proto_cores_bale_proto_msgTypes[732]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33531,7 +33691,7 @@ func (x *BaleUserReScheduleTaskResponse) String() string {
 func (*BaleUserReScheduleTaskResponse) ProtoMessage() {}
 
 func (x *BaleUserReScheduleTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[728]
+	mi := &file_proto_cores_bale_proto_msgTypes[732]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33544,7 +33704,7 @@ func (x *BaleUserReScheduleTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserReScheduleTaskResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserReScheduleTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{728}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{732}
 }
 
 func (x *BaleUserReScheduleTaskResponse) GetResult_1() []byte {
@@ -33564,7 +33724,7 @@ type BaleUserReactToStoryRequest struct {
 
 func (x *BaleUserReactToStoryRequest) Reset() {
 	*x = BaleUserReactToStoryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[729]
+	mi := &file_proto_cores_bale_proto_msgTypes[733]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33576,7 +33736,7 @@ func (x *BaleUserReactToStoryRequest) String() string {
 func (*BaleUserReactToStoryRequest) ProtoMessage() {}
 
 func (x *BaleUserReactToStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[729]
+	mi := &file_proto_cores_bale_proto_msgTypes[733]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33589,7 +33749,7 @@ func (x *BaleUserReactToStoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserReactToStoryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserReactToStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{729}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{733}
 }
 
 func (x *BaleUserReactToStoryRequest) GetStoryId() int64 {
@@ -33615,7 +33775,7 @@ type BaleUserReactToStoryResponse struct {
 
 func (x *BaleUserReactToStoryResponse) Reset() {
 	*x = BaleUserReactToStoryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[730]
+	mi := &file_proto_cores_bale_proto_msgTypes[734]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33627,7 +33787,7 @@ func (x *BaleUserReactToStoryResponse) String() string {
 func (*BaleUserReactToStoryResponse) ProtoMessage() {}
 
 func (x *BaleUserReactToStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[730]
+	mi := &file_proto_cores_bale_proto_msgTypes[734]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33640,7 +33800,7 @@ func (x *BaleUserReactToStoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserReactToStoryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserReactToStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{730}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{734}
 }
 
 func (x *BaleUserReactToStoryResponse) GetResult_1() []byte {
@@ -33659,7 +33819,7 @@ type BaleUserReceiveMessageStreamRequest struct {
 
 func (x *BaleUserReceiveMessageStreamRequest) Reset() {
 	*x = BaleUserReceiveMessageStreamRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[731]
+	mi := &file_proto_cores_bale_proto_msgTypes[735]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33671,7 +33831,7 @@ func (x *BaleUserReceiveMessageStreamRequest) String() string {
 func (*BaleUserReceiveMessageStreamRequest) ProtoMessage() {}
 
 func (x *BaleUserReceiveMessageStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[731]
+	mi := &file_proto_cores_bale_proto_msgTypes[735]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33684,7 +33844,7 @@ func (x *BaleUserReceiveMessageStreamRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserReceiveMessageStreamRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserReceiveMessageStreamRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{731}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{735}
 }
 
 func (x *BaleUserReceiveMessageStreamRequest) GetStreamId() int64 {
@@ -33703,7 +33863,7 @@ type BaleUserReceiveMessageStreamResponse struct {
 
 func (x *BaleUserReceiveMessageStreamResponse) Reset() {
 	*x = BaleUserReceiveMessageStreamResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[732]
+	mi := &file_proto_cores_bale_proto_msgTypes[736]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33715,7 +33875,7 @@ func (x *BaleUserReceiveMessageStreamResponse) String() string {
 func (*BaleUserReceiveMessageStreamResponse) ProtoMessage() {}
 
 func (x *BaleUserReceiveMessageStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[732]
+	mi := &file_proto_cores_bale_proto_msgTypes[736]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33728,7 +33888,7 @@ func (x *BaleUserReceiveMessageStreamResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserReceiveMessageStreamResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserReceiveMessageStreamResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{732}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{736}
 }
 
 func (x *BaleUserReceiveMessageStreamResponse) GetResult_1() []byte {
@@ -33747,7 +33907,7 @@ type BaleUserRemoveAllPinsRequest struct {
 
 func (x *BaleUserRemoveAllPinsRequest) Reset() {
 	*x = BaleUserRemoveAllPinsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[733]
+	mi := &file_proto_cores_bale_proto_msgTypes[737]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33759,7 +33919,7 @@ func (x *BaleUserRemoveAllPinsRequest) String() string {
 func (*BaleUserRemoveAllPinsRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveAllPinsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[733]
+	mi := &file_proto_cores_bale_proto_msgTypes[737]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33772,7 +33932,7 @@ func (x *BaleUserRemoveAllPinsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveAllPinsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveAllPinsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{733}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{737}
 }
 
 func (x *BaleUserRemoveAllPinsRequest) GetGroupId() int64 {
@@ -33791,7 +33951,7 @@ type BaleUserRemoveAllPinsResponse struct {
 
 func (x *BaleUserRemoveAllPinsResponse) Reset() {
 	*x = BaleUserRemoveAllPinsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[734]
+	mi := &file_proto_cores_bale_proto_msgTypes[738]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33803,7 +33963,7 @@ func (x *BaleUserRemoveAllPinsResponse) String() string {
 func (*BaleUserRemoveAllPinsResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveAllPinsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[734]
+	mi := &file_proto_cores_bale_proto_msgTypes[738]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33816,7 +33976,7 @@ func (x *BaleUserRemoveAllPinsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveAllPinsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveAllPinsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{734}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{738}
 }
 
 func (x *BaleUserRemoveAllPinsResponse) GetResult_1() []byte {
@@ -33836,7 +33996,7 @@ type BaleUserRemoveCallParticipantRequest struct {
 
 func (x *BaleUserRemoveCallParticipantRequest) Reset() {
 	*x = BaleUserRemoveCallParticipantRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[735]
+	mi := &file_proto_cores_bale_proto_msgTypes[739]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33848,7 +34008,7 @@ func (x *BaleUserRemoveCallParticipantRequest) String() string {
 func (*BaleUserRemoveCallParticipantRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveCallParticipantRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[735]
+	mi := &file_proto_cores_bale_proto_msgTypes[739]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33861,7 +34021,7 @@ func (x *BaleUserRemoveCallParticipantRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserRemoveCallParticipantRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveCallParticipantRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{735}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{739}
 }
 
 func (x *BaleUserRemoveCallParticipantRequest) GetCallId() int64 {
@@ -33887,7 +34047,7 @@ type BaleUserRemoveCallParticipantResponse struct {
 
 func (x *BaleUserRemoveCallParticipantResponse) Reset() {
 	*x = BaleUserRemoveCallParticipantResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[736]
+	mi := &file_proto_cores_bale_proto_msgTypes[740]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33899,7 +34059,7 @@ func (x *BaleUserRemoveCallParticipantResponse) String() string {
 func (*BaleUserRemoveCallParticipantResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveCallParticipantResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[736]
+	mi := &file_proto_cores_bale_proto_msgTypes[740]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33912,7 +34072,7 @@ func (x *BaleUserRemoveCallParticipantResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserRemoveCallParticipantResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveCallParticipantResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{736}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{740}
 }
 
 func (x *BaleUserRemoveCallParticipantResponse) GetResult_1() []byte {
@@ -33931,7 +34091,7 @@ type BaleUserRemoveContactRequest struct {
 
 func (x *BaleUserRemoveContactRequest) Reset() {
 	*x = BaleUserRemoveContactRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[737]
+	mi := &file_proto_cores_bale_proto_msgTypes[741]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33943,7 +34103,7 @@ func (x *BaleUserRemoveContactRequest) String() string {
 func (*BaleUserRemoveContactRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveContactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[737]
+	mi := &file_proto_cores_bale_proto_msgTypes[741]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -33956,7 +34116,7 @@ func (x *BaleUserRemoveContactRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveContactRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveContactRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{737}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{741}
 }
 
 func (x *BaleUserRemoveContactRequest) GetUserId() int64 {
@@ -33975,7 +34135,7 @@ type BaleUserRemoveContactResponse struct {
 
 func (x *BaleUserRemoveContactResponse) Reset() {
 	*x = BaleUserRemoveContactResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[738]
+	mi := &file_proto_cores_bale_proto_msgTypes[742]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -33987,7 +34147,7 @@ func (x *BaleUserRemoveContactResponse) String() string {
 func (*BaleUserRemoveContactResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveContactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[738]
+	mi := &file_proto_cores_bale_proto_msgTypes[742]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34000,7 +34160,7 @@ func (x *BaleUserRemoveContactResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveContactResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveContactResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{738}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{742}
 }
 
 func (x *BaleUserRemoveContactResponse) GetResult_1() []byte {
@@ -34019,7 +34179,7 @@ type BaleUserRemoveDiscussionGroupRequest struct {
 
 func (x *BaleUserRemoveDiscussionGroupRequest) Reset() {
 	*x = BaleUserRemoveDiscussionGroupRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[739]
+	mi := &file_proto_cores_bale_proto_msgTypes[743]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34031,7 +34191,7 @@ func (x *BaleUserRemoveDiscussionGroupRequest) String() string {
 func (*BaleUserRemoveDiscussionGroupRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveDiscussionGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[739]
+	mi := &file_proto_cores_bale_proto_msgTypes[743]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34044,7 +34204,7 @@ func (x *BaleUserRemoveDiscussionGroupRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserRemoveDiscussionGroupRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveDiscussionGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{739}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{743}
 }
 
 func (x *BaleUserRemoveDiscussionGroupRequest) GetChannelId() int64 {
@@ -34063,7 +34223,7 @@ type BaleUserRemoveDiscussionGroupResponse struct {
 
 func (x *BaleUserRemoveDiscussionGroupResponse) Reset() {
 	*x = BaleUserRemoveDiscussionGroupResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[740]
+	mi := &file_proto_cores_bale_proto_msgTypes[744]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34075,7 +34235,7 @@ func (x *BaleUserRemoveDiscussionGroupResponse) String() string {
 func (*BaleUserRemoveDiscussionGroupResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveDiscussionGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[740]
+	mi := &file_proto_cores_bale_proto_msgTypes[744]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34088,7 +34248,7 @@ func (x *BaleUserRemoveDiscussionGroupResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserRemoveDiscussionGroupResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveDiscussionGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{740}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{744}
 }
 
 func (x *BaleUserRemoveDiscussionGroupResponse) GetResult_1() []byte {
@@ -34107,7 +34267,7 @@ type BaleUserRemoveGifRequest struct {
 
 func (x *BaleUserRemoveGifRequest) Reset() {
 	*x = BaleUserRemoveGifRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[741]
+	mi := &file_proto_cores_bale_proto_msgTypes[745]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34119,7 +34279,7 @@ func (x *BaleUserRemoveGifRequest) String() string {
 func (*BaleUserRemoveGifRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveGifRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[741]
+	mi := &file_proto_cores_bale_proto_msgTypes[745]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34132,7 +34292,7 @@ func (x *BaleUserRemoveGifRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveGifRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveGifRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{741}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{745}
 }
 
 func (x *BaleUserRemoveGifRequest) GetFileId() int64 {
@@ -34151,7 +34311,7 @@ type BaleUserRemoveGifResponse struct {
 
 func (x *BaleUserRemoveGifResponse) Reset() {
 	*x = BaleUserRemoveGifResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[742]
+	mi := &file_proto_cores_bale_proto_msgTypes[746]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34163,7 +34323,7 @@ func (x *BaleUserRemoveGifResponse) String() string {
 func (*BaleUserRemoveGifResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveGifResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[742]
+	mi := &file_proto_cores_bale_proto_msgTypes[746]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34176,7 +34336,7 @@ func (x *BaleUserRemoveGifResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveGifResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveGifResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{742}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{746}
 }
 
 func (x *BaleUserRemoveGifResponse) GetResult_1() []byte {
@@ -34195,7 +34355,7 @@ type BaleUserRemoveGroupAvatarRequest struct {
 
 func (x *BaleUserRemoveGroupAvatarRequest) Reset() {
 	*x = BaleUserRemoveGroupAvatarRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[743]
+	mi := &file_proto_cores_bale_proto_msgTypes[747]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34207,7 +34367,7 @@ func (x *BaleUserRemoveGroupAvatarRequest) String() string {
 func (*BaleUserRemoveGroupAvatarRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveGroupAvatarRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[743]
+	mi := &file_proto_cores_bale_proto_msgTypes[747]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34220,7 +34380,7 @@ func (x *BaleUserRemoveGroupAvatarRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveGroupAvatarRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveGroupAvatarRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{743}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{747}
 }
 
 func (x *BaleUserRemoveGroupAvatarRequest) GetGroupId() int64 {
@@ -34239,7 +34399,7 @@ type BaleUserRemoveGroupAvatarResponse struct {
 
 func (x *BaleUserRemoveGroupAvatarResponse) Reset() {
 	*x = BaleUserRemoveGroupAvatarResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[744]
+	mi := &file_proto_cores_bale_proto_msgTypes[748]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34251,7 +34411,7 @@ func (x *BaleUserRemoveGroupAvatarResponse) String() string {
 func (*BaleUserRemoveGroupAvatarResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveGroupAvatarResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[744]
+	mi := &file_proto_cores_bale_proto_msgTypes[748]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34264,7 +34424,7 @@ func (x *BaleUserRemoveGroupAvatarResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserRemoveGroupAvatarResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveGroupAvatarResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{744}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{748}
 }
 
 func (x *BaleUserRemoveGroupAvatarResponse) GetResult_1() []byte {
@@ -34285,7 +34445,7 @@ type BaleUserRemovePinRequest struct {
 
 func (x *BaleUserRemovePinRequest) Reset() {
 	*x = BaleUserRemovePinRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[745]
+	mi := &file_proto_cores_bale_proto_msgTypes[749]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34297,7 +34457,7 @@ func (x *BaleUserRemovePinRequest) String() string {
 func (*BaleUserRemovePinRequest) ProtoMessage() {}
 
 func (x *BaleUserRemovePinRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[745]
+	mi := &file_proto_cores_bale_proto_msgTypes[749]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34310,7 +34470,7 @@ func (x *BaleUserRemovePinRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemovePinRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemovePinRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{745}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{749}
 }
 
 func (x *BaleUserRemovePinRequest) GetGroupId() int64 {
@@ -34343,7 +34503,7 @@ type BaleUserRemovePinResponse struct {
 
 func (x *BaleUserRemovePinResponse) Reset() {
 	*x = BaleUserRemovePinResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[746]
+	mi := &file_proto_cores_bale_proto_msgTypes[750]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34355,7 +34515,7 @@ func (x *BaleUserRemovePinResponse) String() string {
 func (*BaleUserRemovePinResponse) ProtoMessage() {}
 
 func (x *BaleUserRemovePinResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[746]
+	mi := &file_proto_cores_bale_proto_msgTypes[750]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34368,7 +34528,7 @@ func (x *BaleUserRemovePinResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemovePinResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemovePinResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{746}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{750}
 }
 
 func (x *BaleUserRemovePinResponse) GetResult_1() []byte {
@@ -34390,7 +34550,7 @@ type BaleUserRemoveReactionRequest struct {
 
 func (x *BaleUserRemoveReactionRequest) Reset() {
 	*x = BaleUserRemoveReactionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[747]
+	mi := &file_proto_cores_bale_proto_msgTypes[751]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34402,7 +34562,7 @@ func (x *BaleUserRemoveReactionRequest) String() string {
 func (*BaleUserRemoveReactionRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveReactionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[747]
+	mi := &file_proto_cores_bale_proto_msgTypes[751]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34415,7 +34575,7 @@ func (x *BaleUserRemoveReactionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveReactionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveReactionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{747}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{751}
 }
 
 func (x *BaleUserRemoveReactionRequest) GetChatId() string {
@@ -34455,7 +34615,7 @@ type BaleUserRemoveReactionResponse struct {
 
 func (x *BaleUserRemoveReactionResponse) Reset() {
 	*x = BaleUserRemoveReactionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[748]
+	mi := &file_proto_cores_bale_proto_msgTypes[752]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34467,7 +34627,7 @@ func (x *BaleUserRemoveReactionResponse) String() string {
 func (*BaleUserRemoveReactionResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveReactionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[748]
+	mi := &file_proto_cores_bale_proto_msgTypes[752]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34480,7 +34640,7 @@ func (x *BaleUserRemoveReactionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveReactionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveReactionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{748}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{752}
 }
 
 func (x *BaleUserRemoveReactionResponse) GetResult_1() []byte {
@@ -34499,7 +34659,7 @@ type BaleUserRemoveStickerCollectionRequest struct {
 
 func (x *BaleUserRemoveStickerCollectionRequest) Reset() {
 	*x = BaleUserRemoveStickerCollectionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[749]
+	mi := &file_proto_cores_bale_proto_msgTypes[753]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34511,7 +34671,7 @@ func (x *BaleUserRemoveStickerCollectionRequest) String() string {
 func (*BaleUserRemoveStickerCollectionRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveStickerCollectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[749]
+	mi := &file_proto_cores_bale_proto_msgTypes[753]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34524,7 +34684,7 @@ func (x *BaleUserRemoveStickerCollectionRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserRemoveStickerCollectionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveStickerCollectionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{749}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{753}
 }
 
 func (x *BaleUserRemoveStickerCollectionRequest) GetCollectionId() int64 {
@@ -34543,7 +34703,7 @@ type BaleUserRemoveStickerCollectionResponse struct {
 
 func (x *BaleUserRemoveStickerCollectionResponse) Reset() {
 	*x = BaleUserRemoveStickerCollectionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[750]
+	mi := &file_proto_cores_bale_proto_msgTypes[754]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34555,7 +34715,7 @@ func (x *BaleUserRemoveStickerCollectionResponse) String() string {
 func (*BaleUserRemoveStickerCollectionResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveStickerCollectionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[750]
+	mi := &file_proto_cores_bale_proto_msgTypes[754]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34568,7 +34728,7 @@ func (x *BaleUserRemoveStickerCollectionResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserRemoveStickerCollectionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveStickerCollectionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{750}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{754}
 }
 
 func (x *BaleUserRemoveStickerCollectionResponse) GetResult_1() []byte {
@@ -34587,7 +34747,7 @@ type BaleUserRemoveStickerPackRequest struct {
 
 func (x *BaleUserRemoveStickerPackRequest) Reset() {
 	*x = BaleUserRemoveStickerPackRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[751]
+	mi := &file_proto_cores_bale_proto_msgTypes[755]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34599,7 +34759,7 @@ func (x *BaleUserRemoveStickerPackRequest) String() string {
 func (*BaleUserRemoveStickerPackRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveStickerPackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[751]
+	mi := &file_proto_cores_bale_proto_msgTypes[755]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34612,7 +34772,7 @@ func (x *BaleUserRemoveStickerPackRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveStickerPackRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveStickerPackRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{751}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{755}
 }
 
 func (x *BaleUserRemoveStickerPackRequest) GetPackId() int64 {
@@ -34631,7 +34791,7 @@ type BaleUserRemoveStickerPackResponse struct {
 
 func (x *BaleUserRemoveStickerPackResponse) Reset() {
 	*x = BaleUserRemoveStickerPackResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[752]
+	mi := &file_proto_cores_bale_proto_msgTypes[756]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34643,7 +34803,7 @@ func (x *BaleUserRemoveStickerPackResponse) String() string {
 func (*BaleUserRemoveStickerPackResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveStickerPackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[752]
+	mi := &file_proto_cores_bale_proto_msgTypes[756]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34656,7 +34816,7 @@ func (x *BaleUserRemoveStickerPackResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserRemoveStickerPackResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveStickerPackResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{752}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{756}
 }
 
 func (x *BaleUserRemoveStickerPackResponse) GetResult_1() []byte {
@@ -34675,7 +34835,7 @@ type BaleUserRemoveStoryRequest struct {
 
 func (x *BaleUserRemoveStoryRequest) Reset() {
 	*x = BaleUserRemoveStoryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[753]
+	mi := &file_proto_cores_bale_proto_msgTypes[757]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34687,7 +34847,7 @@ func (x *BaleUserRemoveStoryRequest) String() string {
 func (*BaleUserRemoveStoryRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[753]
+	mi := &file_proto_cores_bale_proto_msgTypes[757]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34700,7 +34860,7 @@ func (x *BaleUserRemoveStoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveStoryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{753}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{757}
 }
 
 func (x *BaleUserRemoveStoryRequest) GetStoryId() int64 {
@@ -34719,7 +34879,7 @@ type BaleUserRemoveStoryResponse struct {
 
 func (x *BaleUserRemoveStoryResponse) Reset() {
 	*x = BaleUserRemoveStoryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[754]
+	mi := &file_proto_cores_bale_proto_msgTypes[758]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34731,7 +34891,7 @@ func (x *BaleUserRemoveStoryResponse) String() string {
 func (*BaleUserRemoveStoryResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[754]
+	mi := &file_proto_cores_bale_proto_msgTypes[758]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34744,7 +34904,7 @@ func (x *BaleUserRemoveStoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveStoryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{754}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{758}
 }
 
 func (x *BaleUserRemoveStoryResponse) GetResult_1() []byte {
@@ -34763,7 +34923,7 @@ type BaleUserRemoveTopPeerRequest struct {
 
 func (x *BaleUserRemoveTopPeerRequest) Reset() {
 	*x = BaleUserRemoveTopPeerRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[755]
+	mi := &file_proto_cores_bale_proto_msgTypes[759]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34775,7 +34935,7 @@ func (x *BaleUserRemoveTopPeerRequest) String() string {
 func (*BaleUserRemoveTopPeerRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveTopPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[755]
+	mi := &file_proto_cores_bale_proto_msgTypes[759]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34788,7 +34948,7 @@ func (x *BaleUserRemoveTopPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveTopPeerRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveTopPeerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{755}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{759}
 }
 
 func (x *BaleUserRemoveTopPeerRequest) GetPeerId() string {
@@ -34807,7 +34967,7 @@ type BaleUserRemoveTopPeerResponse struct {
 
 func (x *BaleUserRemoveTopPeerResponse) Reset() {
 	*x = BaleUserRemoveTopPeerResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[756]
+	mi := &file_proto_cores_bale_proto_msgTypes[760]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34819,7 +34979,7 @@ func (x *BaleUserRemoveTopPeerResponse) String() string {
 func (*BaleUserRemoveTopPeerResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveTopPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[756]
+	mi := &file_proto_cores_bale_proto_msgTypes[760]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34832,7 +34992,7 @@ func (x *BaleUserRemoveTopPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveTopPeerResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveTopPeerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{756}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{760}
 }
 
 func (x *BaleUserRemoveTopPeerResponse) GetResult_1() []byte {
@@ -34852,7 +35012,7 @@ type BaleUserRemoveUserAdminRequest struct {
 
 func (x *BaleUserRemoveUserAdminRequest) Reset() {
 	*x = BaleUserRemoveUserAdminRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[757]
+	mi := &file_proto_cores_bale_proto_msgTypes[761]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34864,7 +35024,7 @@ func (x *BaleUserRemoveUserAdminRequest) String() string {
 func (*BaleUserRemoveUserAdminRequest) ProtoMessage() {}
 
 func (x *BaleUserRemoveUserAdminRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[757]
+	mi := &file_proto_cores_bale_proto_msgTypes[761]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34877,7 +35037,7 @@ func (x *BaleUserRemoveUserAdminRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveUserAdminRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveUserAdminRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{757}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{761}
 }
 
 func (x *BaleUserRemoveUserAdminRequest) GetGroupId() int64 {
@@ -34903,7 +35063,7 @@ type BaleUserRemoveUserAdminResponse struct {
 
 func (x *BaleUserRemoveUserAdminResponse) Reset() {
 	*x = BaleUserRemoveUserAdminResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[758]
+	mi := &file_proto_cores_bale_proto_msgTypes[762]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34915,7 +35075,7 @@ func (x *BaleUserRemoveUserAdminResponse) String() string {
 func (*BaleUserRemoveUserAdminResponse) ProtoMessage() {}
 
 func (x *BaleUserRemoveUserAdminResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[758]
+	mi := &file_proto_cores_bale_proto_msgTypes[762]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34928,7 +35088,7 @@ func (x *BaleUserRemoveUserAdminResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRemoveUserAdminResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRemoveUserAdminResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{758}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{762}
 }
 
 func (x *BaleUserRemoveUserAdminResponse) GetResult_1() []byte {
@@ -34947,7 +35107,7 @@ type BaleUserReorderPinnedDialogsRequest struct {
 
 func (x *BaleUserReorderPinnedDialogsRequest) Reset() {
 	*x = BaleUserReorderPinnedDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[759]
+	mi := &file_proto_cores_bale_proto_msgTypes[763]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -34959,7 +35119,7 @@ func (x *BaleUserReorderPinnedDialogsRequest) String() string {
 func (*BaleUserReorderPinnedDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserReorderPinnedDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[759]
+	mi := &file_proto_cores_bale_proto_msgTypes[763]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -34972,7 +35132,7 @@ func (x *BaleUserReorderPinnedDialogsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserReorderPinnedDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserReorderPinnedDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{759}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{763}
 }
 
 func (x *BaleUserReorderPinnedDialogsRequest) GetChatIds() []string {
@@ -34991,7 +35151,7 @@ type BaleUserReorderPinnedDialogsResponse struct {
 
 func (x *BaleUserReorderPinnedDialogsResponse) Reset() {
 	*x = BaleUserReorderPinnedDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[760]
+	mi := &file_proto_cores_bale_proto_msgTypes[764]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35003,7 +35163,7 @@ func (x *BaleUserReorderPinnedDialogsResponse) String() string {
 func (*BaleUserReorderPinnedDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserReorderPinnedDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[760]
+	mi := &file_proto_cores_bale_proto_msgTypes[764]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35016,7 +35176,7 @@ func (x *BaleUserReorderPinnedDialogsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserReorderPinnedDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserReorderPinnedDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{760}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{764}
 }
 
 func (x *BaleUserReorderPinnedDialogsResponse) GetResult_1() []byte {
@@ -35034,7 +35194,7 @@ type BaleUserResetContactsRequest struct {
 
 func (x *BaleUserResetContactsRequest) Reset() {
 	*x = BaleUserResetContactsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[761]
+	mi := &file_proto_cores_bale_proto_msgTypes[765]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35046,7 +35206,7 @@ func (x *BaleUserResetContactsRequest) String() string {
 func (*BaleUserResetContactsRequest) ProtoMessage() {}
 
 func (x *BaleUserResetContactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[761]
+	mi := &file_proto_cores_bale_proto_msgTypes[765]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35059,7 +35219,7 @@ func (x *BaleUserResetContactsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserResetContactsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserResetContactsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{761}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{765}
 }
 
 type BaleUserResetContactsResponse struct {
@@ -35071,7 +35231,7 @@ type BaleUserResetContactsResponse struct {
 
 func (x *BaleUserResetContactsResponse) Reset() {
 	*x = BaleUserResetContactsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[762]
+	mi := &file_proto_cores_bale_proto_msgTypes[766]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35083,7 +35243,7 @@ func (x *BaleUserResetContactsResponse) String() string {
 func (*BaleUserResetContactsResponse) ProtoMessage() {}
 
 func (x *BaleUserResetContactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[762]
+	mi := &file_proto_cores_bale_proto_msgTypes[766]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35096,7 +35256,7 @@ func (x *BaleUserResetContactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserResetContactsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserResetContactsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{762}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{766}
 }
 
 func (x *BaleUserResetContactsResponse) GetResult_1() []byte {
@@ -35115,7 +35275,7 @@ type BaleUserRevokeInviteURLRequest struct {
 
 func (x *BaleUserRevokeInviteURLRequest) Reset() {
 	*x = BaleUserRevokeInviteURLRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[763]
+	mi := &file_proto_cores_bale_proto_msgTypes[767]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35127,7 +35287,7 @@ func (x *BaleUserRevokeInviteURLRequest) String() string {
 func (*BaleUserRevokeInviteURLRequest) ProtoMessage() {}
 
 func (x *BaleUserRevokeInviteURLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[763]
+	mi := &file_proto_cores_bale_proto_msgTypes[767]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35140,7 +35300,7 @@ func (x *BaleUserRevokeInviteURLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRevokeInviteURLRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserRevokeInviteURLRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{763}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{767}
 }
 
 func (x *BaleUserRevokeInviteURLRequest) GetGroupId() int64 {
@@ -35159,7 +35319,7 @@ type BaleUserRevokeInviteURLResponse struct {
 
 func (x *BaleUserRevokeInviteURLResponse) Reset() {
 	*x = BaleUserRevokeInviteURLResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[764]
+	mi := &file_proto_cores_bale_proto_msgTypes[768]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35171,7 +35331,7 @@ func (x *BaleUserRevokeInviteURLResponse) String() string {
 func (*BaleUserRevokeInviteURLResponse) ProtoMessage() {}
 
 func (x *BaleUserRevokeInviteURLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[764]
+	mi := &file_proto_cores_bale_proto_msgTypes[768]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35184,7 +35344,7 @@ func (x *BaleUserRevokeInviteURLResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserRevokeInviteURLResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserRevokeInviteURLResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{764}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{768}
 }
 
 func (x *BaleUserRevokeInviteURLResponse) GetResult_1() []byte {
@@ -35204,7 +35364,7 @@ type BaleUserScheduleTaskRequest struct {
 
 func (x *BaleUserScheduleTaskRequest) Reset() {
 	*x = BaleUserScheduleTaskRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[765]
+	mi := &file_proto_cores_bale_proto_msgTypes[769]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35216,7 +35376,7 @@ func (x *BaleUserScheduleTaskRequest) String() string {
 func (*BaleUserScheduleTaskRequest) ProtoMessage() {}
 
 func (x *BaleUserScheduleTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[765]
+	mi := &file_proto_cores_bale_proto_msgTypes[769]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35229,7 +35389,7 @@ func (x *BaleUserScheduleTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserScheduleTaskRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserScheduleTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{765}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{769}
 }
 
 func (x *BaleUserScheduleTaskRequest) GetChatId() string {
@@ -35255,7 +35415,7 @@ type BaleUserScheduleTaskResponse struct {
 
 func (x *BaleUserScheduleTaskResponse) Reset() {
 	*x = BaleUserScheduleTaskResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[766]
+	mi := &file_proto_cores_bale_proto_msgTypes[770]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35267,7 +35427,7 @@ func (x *BaleUserScheduleTaskResponse) String() string {
 func (*BaleUserScheduleTaskResponse) ProtoMessage() {}
 
 func (x *BaleUserScheduleTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[766]
+	mi := &file_proto_cores_bale_proto_msgTypes[770]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35280,7 +35440,7 @@ func (x *BaleUserScheduleTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserScheduleTaskResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserScheduleTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{766}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{770}
 }
 
 func (x *BaleUserScheduleTaskResponse) GetResult_1() []byte {
@@ -35299,7 +35459,7 @@ type BaleUserSearchContactsRequest struct {
 
 func (x *BaleUserSearchContactsRequest) Reset() {
 	*x = BaleUserSearchContactsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[767]
+	mi := &file_proto_cores_bale_proto_msgTypes[771]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35311,7 +35471,7 @@ func (x *BaleUserSearchContactsRequest) String() string {
 func (*BaleUserSearchContactsRequest) ProtoMessage() {}
 
 func (x *BaleUserSearchContactsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[767]
+	mi := &file_proto_cores_bale_proto_msgTypes[771]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35324,7 +35484,7 @@ func (x *BaleUserSearchContactsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchContactsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchContactsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{767}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{771}
 }
 
 func (x *BaleUserSearchContactsRequest) GetQuery() string {
@@ -35343,7 +35503,7 @@ type BaleUserSearchContactsResponse struct {
 
 func (x *BaleUserSearchContactsResponse) Reset() {
 	*x = BaleUserSearchContactsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[768]
+	mi := &file_proto_cores_bale_proto_msgTypes[772]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35355,7 +35515,7 @@ func (x *BaleUserSearchContactsResponse) String() string {
 func (*BaleUserSearchContactsResponse) ProtoMessage() {}
 
 func (x *BaleUserSearchContactsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[768]
+	mi := &file_proto_cores_bale_proto_msgTypes[772]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35368,7 +35528,7 @@ func (x *BaleUserSearchContactsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchContactsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchContactsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{768}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{772}
 }
 
 func (x *BaleUserSearchContactsResponse) GetResult_1() []byte {
@@ -35388,7 +35548,7 @@ type BaleUserSearchContentRequest struct {
 
 func (x *BaleUserSearchContentRequest) Reset() {
 	*x = BaleUserSearchContentRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[769]
+	mi := &file_proto_cores_bale_proto_msgTypes[773]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35400,7 +35560,7 @@ func (x *BaleUserSearchContentRequest) String() string {
 func (*BaleUserSearchContentRequest) ProtoMessage() {}
 
 func (x *BaleUserSearchContentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[769]
+	mi := &file_proto_cores_bale_proto_msgTypes[773]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35413,7 +35573,7 @@ func (x *BaleUserSearchContentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchContentRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchContentRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{769}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{773}
 }
 
 func (x *BaleUserSearchContentRequest) GetQuery() string {
@@ -35439,7 +35599,7 @@ type BaleUserSearchContentResponse struct {
 
 func (x *BaleUserSearchContentResponse) Reset() {
 	*x = BaleUserSearchContentResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[770]
+	mi := &file_proto_cores_bale_proto_msgTypes[774]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35451,7 +35611,7 @@ func (x *BaleUserSearchContentResponse) String() string {
 func (*BaleUserSearchContentResponse) ProtoMessage() {}
 
 func (x *BaleUserSearchContentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[770]
+	mi := &file_proto_cores_bale_proto_msgTypes[774]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35464,7 +35624,7 @@ func (x *BaleUserSearchContentResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchContentResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchContentResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{770}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{774}
 }
 
 func (x *BaleUserSearchContentResponse) GetResult_1() []byte {
@@ -35484,7 +35644,7 @@ type BaleUserSearchDialogRequest struct {
 
 func (x *BaleUserSearchDialogRequest) Reset() {
 	*x = BaleUserSearchDialogRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[771]
+	mi := &file_proto_cores_bale_proto_msgTypes[775]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35496,7 +35656,7 @@ func (x *BaleUserSearchDialogRequest) String() string {
 func (*BaleUserSearchDialogRequest) ProtoMessage() {}
 
 func (x *BaleUserSearchDialogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[771]
+	mi := &file_proto_cores_bale_proto_msgTypes[775]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35509,7 +35669,7 @@ func (x *BaleUserSearchDialogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchDialogRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchDialogRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{771}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{775}
 }
 
 func (x *BaleUserSearchDialogRequest) GetQuery() string {
@@ -35535,7 +35695,7 @@ type BaleUserSearchDialogResponse struct {
 
 func (x *BaleUserSearchDialogResponse) Reset() {
 	*x = BaleUserSearchDialogResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[772]
+	mi := &file_proto_cores_bale_proto_msgTypes[776]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35547,7 +35707,7 @@ func (x *BaleUserSearchDialogResponse) String() string {
 func (*BaleUserSearchDialogResponse) ProtoMessage() {}
 
 func (x *BaleUserSearchDialogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[772]
+	mi := &file_proto_cores_bale_proto_msgTypes[776]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35560,7 +35720,7 @@ func (x *BaleUserSearchDialogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchDialogResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchDialogResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{772}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{776}
 }
 
 func (x *BaleUserSearchDialogResponse) GetResult_1() []byte {
@@ -35581,7 +35741,7 @@ type BaleUserSearchMediaServiceRequest struct {
 
 func (x *BaleUserSearchMediaServiceRequest) Reset() {
 	*x = BaleUserSearchMediaServiceRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[773]
+	mi := &file_proto_cores_bale_proto_msgTypes[777]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35593,7 +35753,7 @@ func (x *BaleUserSearchMediaServiceRequest) String() string {
 func (*BaleUserSearchMediaServiceRequest) ProtoMessage() {}
 
 func (x *BaleUserSearchMediaServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[773]
+	mi := &file_proto_cores_bale_proto_msgTypes[777]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35606,7 +35766,7 @@ func (x *BaleUserSearchMediaServiceRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSearchMediaServiceRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchMediaServiceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{773}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{777}
 }
 
 func (x *BaleUserSearchMediaServiceRequest) GetChatId() string {
@@ -35639,7 +35799,7 @@ type BaleUserSearchMediaServiceResponse struct {
 
 func (x *BaleUserSearchMediaServiceResponse) Reset() {
 	*x = BaleUserSearchMediaServiceResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[774]
+	mi := &file_proto_cores_bale_proto_msgTypes[778]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35651,7 +35811,7 @@ func (x *BaleUserSearchMediaServiceResponse) String() string {
 func (*BaleUserSearchMediaServiceResponse) ProtoMessage() {}
 
 func (x *BaleUserSearchMediaServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[774]
+	mi := &file_proto_cores_bale_proto_msgTypes[778]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35664,7 +35824,7 @@ func (x *BaleUserSearchMediaServiceResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSearchMediaServiceResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchMediaServiceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{774}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{778}
 }
 
 func (x *BaleUserSearchMediaServiceResponse) GetResult_1() []byte {
@@ -35684,7 +35844,7 @@ type BaleUserSearchMembersServiceRequest struct {
 
 func (x *BaleUserSearchMembersServiceRequest) Reset() {
 	*x = BaleUserSearchMembersServiceRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[775]
+	mi := &file_proto_cores_bale_proto_msgTypes[779]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35696,7 +35856,7 @@ func (x *BaleUserSearchMembersServiceRequest) String() string {
 func (*BaleUserSearchMembersServiceRequest) ProtoMessage() {}
 
 func (x *BaleUserSearchMembersServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[775]
+	mi := &file_proto_cores_bale_proto_msgTypes[779]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35709,7 +35869,7 @@ func (x *BaleUserSearchMembersServiceRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSearchMembersServiceRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchMembersServiceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{775}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{779}
 }
 
 func (x *BaleUserSearchMembersServiceRequest) GetChatId() string {
@@ -35735,7 +35895,7 @@ type BaleUserSearchMembersServiceResponse struct {
 
 func (x *BaleUserSearchMembersServiceResponse) Reset() {
 	*x = BaleUserSearchMembersServiceResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[776]
+	mi := &file_proto_cores_bale_proto_msgTypes[780]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35747,7 +35907,7 @@ func (x *BaleUserSearchMembersServiceResponse) String() string {
 func (*BaleUserSearchMembersServiceResponse) ProtoMessage() {}
 
 func (x *BaleUserSearchMembersServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[776]
+	mi := &file_proto_cores_bale_proto_msgTypes[780]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35760,7 +35920,7 @@ func (x *BaleUserSearchMembersServiceResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserSearchMembersServiceResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchMembersServiceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{776}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{780}
 }
 
 func (x *BaleUserSearchMembersServiceResponse) GetResult_1() []byte {
@@ -35782,7 +35942,7 @@ type BaleUserSearchMessageMoreRequest struct {
 
 func (x *BaleUserSearchMessageMoreRequest) Reset() {
 	*x = BaleUserSearchMessageMoreRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[777]
+	mi := &file_proto_cores_bale_proto_msgTypes[781]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35794,7 +35954,7 @@ func (x *BaleUserSearchMessageMoreRequest) String() string {
 func (*BaleUserSearchMessageMoreRequest) ProtoMessage() {}
 
 func (x *BaleUserSearchMessageMoreRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[777]
+	mi := &file_proto_cores_bale_proto_msgTypes[781]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35807,7 +35967,7 @@ func (x *BaleUserSearchMessageMoreRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchMessageMoreRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchMessageMoreRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{777}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{781}
 }
 
 func (x *BaleUserSearchMessageMoreRequest) GetQuery() string {
@@ -35847,7 +36007,7 @@ type BaleUserSearchMessageMoreResponse struct {
 
 func (x *BaleUserSearchMessageMoreResponse) Reset() {
 	*x = BaleUserSearchMessageMoreResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[778]
+	mi := &file_proto_cores_bale_proto_msgTypes[782]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35859,7 +36019,7 @@ func (x *BaleUserSearchMessageMoreResponse) String() string {
 func (*BaleUserSearchMessageMoreResponse) ProtoMessage() {}
 
 func (x *BaleUserSearchMessageMoreResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[778]
+	mi := &file_proto_cores_bale_proto_msgTypes[782]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35872,7 +36032,7 @@ func (x *BaleUserSearchMessageMoreResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSearchMessageMoreResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchMessageMoreResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{778}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{782}
 }
 
 func (x *BaleUserSearchMessageMoreResponse) GetResult_1() []byte {
@@ -35893,7 +36053,7 @@ type BaleUserSearchMessagesRequest struct {
 
 func (x *BaleUserSearchMessagesRequest) Reset() {
 	*x = BaleUserSearchMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[779]
+	mi := &file_proto_cores_bale_proto_msgTypes[783]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35905,7 +36065,7 @@ func (x *BaleUserSearchMessagesRequest) String() string {
 func (*BaleUserSearchMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserSearchMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[779]
+	mi := &file_proto_cores_bale_proto_msgTypes[783]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35918,7 +36078,7 @@ func (x *BaleUserSearchMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{779}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{783}
 }
 
 func (x *BaleUserSearchMessagesRequest) GetQuery() string {
@@ -35951,7 +36111,7 @@ type BaleUserSearchMessagesResponse struct {
 
 func (x *BaleUserSearchMessagesResponse) Reset() {
 	*x = BaleUserSearchMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[780]
+	mi := &file_proto_cores_bale_proto_msgTypes[784]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -35963,7 +36123,7 @@ func (x *BaleUserSearchMessagesResponse) String() string {
 func (*BaleUserSearchMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserSearchMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[780]
+	mi := &file_proto_cores_bale_proto_msgTypes[784]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -35976,7 +36136,7 @@ func (x *BaleUserSearchMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{780}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{784}
 }
 
 func (x *BaleUserSearchMessagesResponse) GetResult_1() []byte {
@@ -35996,7 +36156,7 @@ type BaleUserSearchPeerRequest struct {
 
 func (x *BaleUserSearchPeerRequest) Reset() {
 	*x = BaleUserSearchPeerRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[781]
+	mi := &file_proto_cores_bale_proto_msgTypes[785]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36008,7 +36168,7 @@ func (x *BaleUserSearchPeerRequest) String() string {
 func (*BaleUserSearchPeerRequest) ProtoMessage() {}
 
 func (x *BaleUserSearchPeerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[781]
+	mi := &file_proto_cores_bale_proto_msgTypes[785]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36021,7 +36181,7 @@ func (x *BaleUserSearchPeerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchPeerRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchPeerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{781}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{785}
 }
 
 func (x *BaleUserSearchPeerRequest) GetQuery() string {
@@ -36047,7 +36207,7 @@ type BaleUserSearchPeerResponse struct {
 
 func (x *BaleUserSearchPeerResponse) Reset() {
 	*x = BaleUserSearchPeerResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[782]
+	mi := &file_proto_cores_bale_proto_msgTypes[786]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36059,7 +36219,7 @@ func (x *BaleUserSearchPeerResponse) String() string {
 func (*BaleUserSearchPeerResponse) ProtoMessage() {}
 
 func (x *BaleUserSearchPeerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[782]
+	mi := &file_proto_cores_bale_proto_msgTypes[786]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36072,7 +36232,7 @@ func (x *BaleUserSearchPeerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSearchPeerResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSearchPeerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{782}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{786}
 }
 
 func (x *BaleUserSearchPeerResponse) GetResult_1() []byte {
@@ -36092,7 +36252,7 @@ type BaleUserSendAnimatedStickerRequest struct {
 
 func (x *BaleUserSendAnimatedStickerRequest) Reset() {
 	*x = BaleUserSendAnimatedStickerRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[783]
+	mi := &file_proto_cores_bale_proto_msgTypes[787]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36104,7 +36264,7 @@ func (x *BaleUserSendAnimatedStickerRequest) String() string {
 func (*BaleUserSendAnimatedStickerRequest) ProtoMessage() {}
 
 func (x *BaleUserSendAnimatedStickerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[783]
+	mi := &file_proto_cores_bale_proto_msgTypes[787]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36117,7 +36277,7 @@ func (x *BaleUserSendAnimatedStickerRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSendAnimatedStickerRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendAnimatedStickerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{783}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{787}
 }
 
 func (x *BaleUserSendAnimatedStickerRequest) GetChatId() string {
@@ -36143,7 +36303,7 @@ type BaleUserSendAnimatedStickerResponse struct {
 
 func (x *BaleUserSendAnimatedStickerResponse) Reset() {
 	*x = BaleUserSendAnimatedStickerResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[784]
+	mi := &file_proto_cores_bale_proto_msgTypes[788]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36155,7 +36315,7 @@ func (x *BaleUserSendAnimatedStickerResponse) String() string {
 func (*BaleUserSendAnimatedStickerResponse) ProtoMessage() {}
 
 func (x *BaleUserSendAnimatedStickerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[784]
+	mi := &file_proto_cores_bale_proto_msgTypes[788]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36168,7 +36328,7 @@ func (x *BaleUserSendAnimatedStickerResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSendAnimatedStickerResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendAnimatedStickerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{784}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{788}
 }
 
 func (x *BaleUserSendAnimatedStickerResponse) GetResult_1() []byte {
@@ -36189,7 +36349,7 @@ type BaleUserSendAuthenticatedInlineCallBackDataRequest struct {
 
 func (x *BaleUserSendAuthenticatedInlineCallBackDataRequest) Reset() {
 	*x = BaleUserSendAuthenticatedInlineCallBackDataRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[785]
+	mi := &file_proto_cores_bale_proto_msgTypes[789]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36201,7 +36361,7 @@ func (x *BaleUserSendAuthenticatedInlineCallBackDataRequest) String() string {
 func (*BaleUserSendAuthenticatedInlineCallBackDataRequest) ProtoMessage() {}
 
 func (x *BaleUserSendAuthenticatedInlineCallBackDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[785]
+	mi := &file_proto_cores_bale_proto_msgTypes[789]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36214,7 +36374,7 @@ func (x *BaleUserSendAuthenticatedInlineCallBackDataRequest) ProtoReflect() prot
 
 // Deprecated: Use BaleUserSendAuthenticatedInlineCallBackDataRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendAuthenticatedInlineCallBackDataRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{785}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{789}
 }
 
 func (x *BaleUserSendAuthenticatedInlineCallBackDataRequest) GetBotId() int64 {
@@ -36247,7 +36407,7 @@ type BaleUserSendAuthenticatedInlineCallBackDataResponse struct {
 
 func (x *BaleUserSendAuthenticatedInlineCallBackDataResponse) Reset() {
 	*x = BaleUserSendAuthenticatedInlineCallBackDataResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[786]
+	mi := &file_proto_cores_bale_proto_msgTypes[790]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36259,7 +36419,7 @@ func (x *BaleUserSendAuthenticatedInlineCallBackDataResponse) String() string {
 func (*BaleUserSendAuthenticatedInlineCallBackDataResponse) ProtoMessage() {}
 
 func (x *BaleUserSendAuthenticatedInlineCallBackDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[786]
+	mi := &file_proto_cores_bale_proto_msgTypes[790]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36272,7 +36432,7 @@ func (x *BaleUserSendAuthenticatedInlineCallBackDataResponse) ProtoReflect() pro
 
 // Deprecated: Use BaleUserSendAuthenticatedInlineCallBackDataResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendAuthenticatedInlineCallBackDataResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{786}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{790}
 }
 
 func (x *BaleUserSendAuthenticatedInlineCallBackDataResponse) GetResult_1() []byte {
@@ -36292,7 +36452,7 @@ type BaleUserSendBankMessageRequest struct {
 
 func (x *BaleUserSendBankMessageRequest) Reset() {
 	*x = BaleUserSendBankMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[787]
+	mi := &file_proto_cores_bale_proto_msgTypes[791]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36304,7 +36464,7 @@ func (x *BaleUserSendBankMessageRequest) String() string {
 func (*BaleUserSendBankMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendBankMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[787]
+	mi := &file_proto_cores_bale_proto_msgTypes[791]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36317,7 +36477,7 @@ func (x *BaleUserSendBankMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendBankMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendBankMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{787}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{791}
 }
 
 func (x *BaleUserSendBankMessageRequest) GetChatId() string {
@@ -36343,7 +36503,7 @@ type BaleUserSendBankMessageResponse struct {
 
 func (x *BaleUserSendBankMessageResponse) Reset() {
 	*x = BaleUserSendBankMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[788]
+	mi := &file_proto_cores_bale_proto_msgTypes[792]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36355,7 +36515,7 @@ func (x *BaleUserSendBankMessageResponse) String() string {
 func (*BaleUserSendBankMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendBankMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[788]
+	mi := &file_proto_cores_bale_proto_msgTypes[792]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36368,7 +36528,7 @@ func (x *BaleUserSendBankMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendBankMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendBankMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{788}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{792}
 }
 
 func (x *BaleUserSendBankMessageResponse) GetResult_1() []byte {
@@ -36388,7 +36548,7 @@ type BaleUserSendCallFanoosEventRequest struct {
 
 func (x *BaleUserSendCallFanoosEventRequest) Reset() {
 	*x = BaleUserSendCallFanoosEventRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[789]
+	mi := &file_proto_cores_bale_proto_msgTypes[793]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36400,7 +36560,7 @@ func (x *BaleUserSendCallFanoosEventRequest) String() string {
 func (*BaleUserSendCallFanoosEventRequest) ProtoMessage() {}
 
 func (x *BaleUserSendCallFanoosEventRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[789]
+	mi := &file_proto_cores_bale_proto_msgTypes[793]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36413,7 +36573,7 @@ func (x *BaleUserSendCallFanoosEventRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSendCallFanoosEventRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendCallFanoosEventRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{789}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{793}
 }
 
 func (x *BaleUserSendCallFanoosEventRequest) GetCallId() int64 {
@@ -36439,7 +36599,7 @@ type BaleUserSendCallFanoosEventResponse struct {
 
 func (x *BaleUserSendCallFanoosEventResponse) Reset() {
 	*x = BaleUserSendCallFanoosEventResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[790]
+	mi := &file_proto_cores_bale_proto_msgTypes[794]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36451,7 +36611,7 @@ func (x *BaleUserSendCallFanoosEventResponse) String() string {
 func (*BaleUserSendCallFanoosEventResponse) ProtoMessage() {}
 
 func (x *BaleUserSendCallFanoosEventResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[790]
+	mi := &file_proto_cores_bale_proto_msgTypes[794]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36464,7 +36624,7 @@ func (x *BaleUserSendCallFanoosEventResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSendCallFanoosEventResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendCallFanoosEventResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{790}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{794}
 }
 
 func (x *BaleUserSendCallFanoosEventResponse) GetResult_1() []byte {
@@ -36484,7 +36644,7 @@ type BaleUserSendCallReactionRequest struct {
 
 func (x *BaleUserSendCallReactionRequest) Reset() {
 	*x = BaleUserSendCallReactionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[791]
+	mi := &file_proto_cores_bale_proto_msgTypes[795]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36496,7 +36656,7 @@ func (x *BaleUserSendCallReactionRequest) String() string {
 func (*BaleUserSendCallReactionRequest) ProtoMessage() {}
 
 func (x *BaleUserSendCallReactionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[791]
+	mi := &file_proto_cores_bale_proto_msgTypes[795]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36509,7 +36669,7 @@ func (x *BaleUserSendCallReactionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendCallReactionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendCallReactionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{791}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{795}
 }
 
 func (x *BaleUserSendCallReactionRequest) GetCallId() int64 {
@@ -36535,7 +36695,7 @@ type BaleUserSendCallReactionResponse struct {
 
 func (x *BaleUserSendCallReactionResponse) Reset() {
 	*x = BaleUserSendCallReactionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[792]
+	mi := &file_proto_cores_bale_proto_msgTypes[796]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36547,7 +36707,7 @@ func (x *BaleUserSendCallReactionResponse) String() string {
 func (*BaleUserSendCallReactionResponse) ProtoMessage() {}
 
 func (x *BaleUserSendCallReactionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[792]
+	mi := &file_proto_cores_bale_proto_msgTypes[796]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36560,7 +36720,7 @@ func (x *BaleUserSendCallReactionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendCallReactionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendCallReactionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{792}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{796}
 }
 
 func (x *BaleUserSendCallReactionResponse) GetResult_1() []byte {
@@ -36581,7 +36741,7 @@ type BaleUserSendInlineCallBackDataRequest struct {
 
 func (x *BaleUserSendInlineCallBackDataRequest) Reset() {
 	*x = BaleUserSendInlineCallBackDataRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[793]
+	mi := &file_proto_cores_bale_proto_msgTypes[797]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36593,7 +36753,7 @@ func (x *BaleUserSendInlineCallBackDataRequest) String() string {
 func (*BaleUserSendInlineCallBackDataRequest) ProtoMessage() {}
 
 func (x *BaleUserSendInlineCallBackDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[793]
+	mi := &file_proto_cores_bale_proto_msgTypes[797]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36606,7 +36766,7 @@ func (x *BaleUserSendInlineCallBackDataRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserSendInlineCallBackDataRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendInlineCallBackDataRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{793}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{797}
 }
 
 func (x *BaleUserSendInlineCallBackDataRequest) GetBotId() int64 {
@@ -36639,7 +36799,7 @@ type BaleUserSendInlineCallBackDataResponse struct {
 
 func (x *BaleUserSendInlineCallBackDataResponse) Reset() {
 	*x = BaleUserSendInlineCallBackDataResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[794]
+	mi := &file_proto_cores_bale_proto_msgTypes[798]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36651,7 +36811,7 @@ func (x *BaleUserSendInlineCallBackDataResponse) String() string {
 func (*BaleUserSendInlineCallBackDataResponse) ProtoMessage() {}
 
 func (x *BaleUserSendInlineCallBackDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[794]
+	mi := &file_proto_cores_bale_proto_msgTypes[798]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36664,7 +36824,7 @@ func (x *BaleUserSendInlineCallBackDataResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserSendInlineCallBackDataResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendInlineCallBackDataResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{794}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{798}
 }
 
 func (x *BaleUserSendInlineCallBackDataResponse) GetResult_1() []byte {
@@ -36685,7 +36845,7 @@ type BaleUserSendInlineCallbackRequest struct {
 
 func (x *BaleUserSendInlineCallbackRequest) Reset() {
 	*x = BaleUserSendInlineCallbackRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[795]
+	mi := &file_proto_cores_bale_proto_msgTypes[799]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36697,7 +36857,7 @@ func (x *BaleUserSendInlineCallbackRequest) String() string {
 func (*BaleUserSendInlineCallbackRequest) ProtoMessage() {}
 
 func (x *BaleUserSendInlineCallbackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[795]
+	mi := &file_proto_cores_bale_proto_msgTypes[799]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36710,7 +36870,7 @@ func (x *BaleUserSendInlineCallbackRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSendInlineCallbackRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendInlineCallbackRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{795}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{799}
 }
 
 func (x *BaleUserSendInlineCallbackRequest) GetBotId() int64 {
@@ -36743,7 +36903,7 @@ type BaleUserSendInlineCallbackResponse struct {
 
 func (x *BaleUserSendInlineCallbackResponse) Reset() {
 	*x = BaleUserSendInlineCallbackResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[796]
+	mi := &file_proto_cores_bale_proto_msgTypes[800]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36755,7 +36915,7 @@ func (x *BaleUserSendInlineCallbackResponse) String() string {
 func (*BaleUserSendInlineCallbackResponse) ProtoMessage() {}
 
 func (x *BaleUserSendInlineCallbackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[796]
+	mi := &file_proto_cores_bale_proto_msgTypes[800]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36768,7 +36928,7 @@ func (x *BaleUserSendInlineCallbackResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSendInlineCallbackResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendInlineCallbackResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{796}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{800}
 }
 
 func (x *BaleUserSendInlineCallbackResponse) GetResult_1() []byte {
@@ -36788,7 +36948,7 @@ type BaleUserSendJsonMessageRequest struct {
 
 func (x *BaleUserSendJsonMessageRequest) Reset() {
 	*x = BaleUserSendJsonMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[797]
+	mi := &file_proto_cores_bale_proto_msgTypes[801]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36800,7 +36960,7 @@ func (x *BaleUserSendJsonMessageRequest) String() string {
 func (*BaleUserSendJsonMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendJsonMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[797]
+	mi := &file_proto_cores_bale_proto_msgTypes[801]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36813,7 +36973,7 @@ func (x *BaleUserSendJsonMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendJsonMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendJsonMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{797}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{801}
 }
 
 func (x *BaleUserSendJsonMessageRequest) GetChatId() string {
@@ -36839,7 +36999,7 @@ type BaleUserSendJsonMessageResponse struct {
 
 func (x *BaleUserSendJsonMessageResponse) Reset() {
 	*x = BaleUserSendJsonMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[798]
+	mi := &file_proto_cores_bale_proto_msgTypes[802]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36851,7 +37011,7 @@ func (x *BaleUserSendJsonMessageResponse) String() string {
 func (*BaleUserSendJsonMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendJsonMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[798]
+	mi := &file_proto_cores_bale_proto_msgTypes[802]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36864,7 +37024,7 @@ func (x *BaleUserSendJsonMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendJsonMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendJsonMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{798}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{802}
 }
 
 func (x *BaleUserSendJsonMessageResponse) GetResult_1() []byte {
@@ -36884,7 +37044,7 @@ type BaleUserSendLiveMessageRequest struct {
 
 func (x *BaleUserSendLiveMessageRequest) Reset() {
 	*x = BaleUserSendLiveMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[799]
+	mi := &file_proto_cores_bale_proto_msgTypes[803]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36896,7 +37056,7 @@ func (x *BaleUserSendLiveMessageRequest) String() string {
 func (*BaleUserSendLiveMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendLiveMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[799]
+	mi := &file_proto_cores_bale_proto_msgTypes[803]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36909,7 +37069,7 @@ func (x *BaleUserSendLiveMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendLiveMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendLiveMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{799}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{803}
 }
 
 func (x *BaleUserSendLiveMessageRequest) GetChatId() string {
@@ -36935,7 +37095,7 @@ type BaleUserSendLiveMessageResponse struct {
 
 func (x *BaleUserSendLiveMessageResponse) Reset() {
 	*x = BaleUserSendLiveMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[800]
+	mi := &file_proto_cores_bale_proto_msgTypes[804]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36947,7 +37107,7 @@ func (x *BaleUserSendLiveMessageResponse) String() string {
 func (*BaleUserSendLiveMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendLiveMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[800]
+	mi := &file_proto_cores_bale_proto_msgTypes[804]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -36960,7 +37120,7 @@ func (x *BaleUserSendLiveMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendLiveMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendLiveMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{800}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{804}
 }
 
 func (x *BaleUserSendLiveMessageResponse) GetResult_1() []byte {
@@ -36980,7 +37140,7 @@ type BaleUserSendLongTextMessageRequest struct {
 
 func (x *BaleUserSendLongTextMessageRequest) Reset() {
 	*x = BaleUserSendLongTextMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[801]
+	mi := &file_proto_cores_bale_proto_msgTypes[805]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -36992,7 +37152,7 @@ func (x *BaleUserSendLongTextMessageRequest) String() string {
 func (*BaleUserSendLongTextMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendLongTextMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[801]
+	mi := &file_proto_cores_bale_proto_msgTypes[805]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37005,7 +37165,7 @@ func (x *BaleUserSendLongTextMessageRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSendLongTextMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendLongTextMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{801}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{805}
 }
 
 func (x *BaleUserSendLongTextMessageRequest) GetChatId() string {
@@ -37031,7 +37191,7 @@ type BaleUserSendLongTextMessageResponse struct {
 
 func (x *BaleUserSendLongTextMessageResponse) Reset() {
 	*x = BaleUserSendLongTextMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[802]
+	mi := &file_proto_cores_bale_proto_msgTypes[806]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37043,7 +37203,7 @@ func (x *BaleUserSendLongTextMessageResponse) String() string {
 func (*BaleUserSendLongTextMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendLongTextMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[802]
+	mi := &file_proto_cores_bale_proto_msgTypes[806]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37056,7 +37216,7 @@ func (x *BaleUserSendLongTextMessageResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSendLongTextMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendLongTextMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{802}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{806}
 }
 
 func (x *BaleUserSendLongTextMessageResponse) GetResult_1() []byte {
@@ -37078,7 +37238,7 @@ type BaleUserSendMessageRequest struct {
 
 func (x *BaleUserSendMessageRequest) Reset() {
 	*x = BaleUserSendMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[803]
+	mi := &file_proto_cores_bale_proto_msgTypes[807]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37090,7 +37250,7 @@ func (x *BaleUserSendMessageRequest) String() string {
 func (*BaleUserSendMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[803]
+	mi := &file_proto_cores_bale_proto_msgTypes[807]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37103,7 +37263,7 @@ func (x *BaleUserSendMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{803}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{807}
 }
 
 func (x *BaleUserSendMessageRequest) GetChatId() string {
@@ -37143,7 +37303,7 @@ type BaleUserSendMessageResponse struct {
 
 func (x *BaleUserSendMessageResponse) Reset() {
 	*x = BaleUserSendMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[804]
+	mi := &file_proto_cores_bale_proto_msgTypes[808]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37155,7 +37315,7 @@ func (x *BaleUserSendMessageResponse) String() string {
 func (*BaleUserSendMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[804]
+	mi := &file_proto_cores_bale_proto_msgTypes[808]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37168,7 +37328,7 @@ func (x *BaleUserSendMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{804}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{808}
 }
 
 func (x *BaleUserSendMessageResponse) GetResult_1() []byte {
@@ -37188,7 +37348,7 @@ type BaleUserSendMiniAppDataRequest struct {
 
 func (x *BaleUserSendMiniAppDataRequest) Reset() {
 	*x = BaleUserSendMiniAppDataRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[805]
+	mi := &file_proto_cores_bale_proto_msgTypes[809]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37200,7 +37360,7 @@ func (x *BaleUserSendMiniAppDataRequest) String() string {
 func (*BaleUserSendMiniAppDataRequest) ProtoMessage() {}
 
 func (x *BaleUserSendMiniAppDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[805]
+	mi := &file_proto_cores_bale_proto_msgTypes[809]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37213,7 +37373,7 @@ func (x *BaleUserSendMiniAppDataRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendMiniAppDataRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendMiniAppDataRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{805}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{809}
 }
 
 func (x *BaleUserSendMiniAppDataRequest) GetBotId() int64 {
@@ -37239,7 +37399,7 @@ type BaleUserSendMiniAppDataResponse struct {
 
 func (x *BaleUserSendMiniAppDataResponse) Reset() {
 	*x = BaleUserSendMiniAppDataResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[806]
+	mi := &file_proto_cores_bale_proto_msgTypes[810]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37251,7 +37411,7 @@ func (x *BaleUserSendMiniAppDataResponse) String() string {
 func (*BaleUserSendMiniAppDataResponse) ProtoMessage() {}
 
 func (x *BaleUserSendMiniAppDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[806]
+	mi := &file_proto_cores_bale_proto_msgTypes[810]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37264,7 +37424,7 @@ func (x *BaleUserSendMiniAppDataResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendMiniAppDataResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendMiniAppDataResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{806}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{810}
 }
 
 func (x *BaleUserSendMiniAppDataResponse) GetResult_1() []byte {
@@ -37284,7 +37444,7 @@ type BaleUserSendMultiMediaMessageRequest struct {
 
 func (x *BaleUserSendMultiMediaMessageRequest) Reset() {
 	*x = BaleUserSendMultiMediaMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[807]
+	mi := &file_proto_cores_bale_proto_msgTypes[811]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37296,7 +37456,7 @@ func (x *BaleUserSendMultiMediaMessageRequest) String() string {
 func (*BaleUserSendMultiMediaMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendMultiMediaMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[807]
+	mi := &file_proto_cores_bale_proto_msgTypes[811]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37309,7 +37469,7 @@ func (x *BaleUserSendMultiMediaMessageRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserSendMultiMediaMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendMultiMediaMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{807}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{811}
 }
 
 func (x *BaleUserSendMultiMediaMessageRequest) GetChatId() string {
@@ -37335,7 +37495,7 @@ type BaleUserSendMultiMediaMessageResponse struct {
 
 func (x *BaleUserSendMultiMediaMessageResponse) Reset() {
 	*x = BaleUserSendMultiMediaMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[808]
+	mi := &file_proto_cores_bale_proto_msgTypes[812]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37347,7 +37507,7 @@ func (x *BaleUserSendMultiMediaMessageResponse) String() string {
 func (*BaleUserSendMultiMediaMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendMultiMediaMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[808]
+	mi := &file_proto_cores_bale_proto_msgTypes[812]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37360,7 +37520,7 @@ func (x *BaleUserSendMultiMediaMessageResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserSendMultiMediaMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendMultiMediaMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{808}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{812}
 }
 
 func (x *BaleUserSendMultiMediaMessageResponse) GetResult_1() []byte {
@@ -37380,7 +37540,7 @@ type BaleUserSendOrderMessageRequest struct {
 
 func (x *BaleUserSendOrderMessageRequest) Reset() {
 	*x = BaleUserSendOrderMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[809]
+	mi := &file_proto_cores_bale_proto_msgTypes[813]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37392,7 +37552,7 @@ func (x *BaleUserSendOrderMessageRequest) String() string {
 func (*BaleUserSendOrderMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendOrderMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[809]
+	mi := &file_proto_cores_bale_proto_msgTypes[813]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37405,7 +37565,7 @@ func (x *BaleUserSendOrderMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendOrderMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendOrderMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{809}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{813}
 }
 
 func (x *BaleUserSendOrderMessageRequest) GetChatId() string {
@@ -37431,7 +37591,7 @@ type BaleUserSendOrderMessageResponse struct {
 
 func (x *BaleUserSendOrderMessageResponse) Reset() {
 	*x = BaleUserSendOrderMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[810]
+	mi := &file_proto_cores_bale_proto_msgTypes[814]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37443,7 +37603,7 @@ func (x *BaleUserSendOrderMessageResponse) String() string {
 func (*BaleUserSendOrderMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendOrderMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[810]
+	mi := &file_proto_cores_bale_proto_msgTypes[814]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37456,7 +37616,7 @@ func (x *BaleUserSendOrderMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendOrderMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendOrderMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{810}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{814}
 }
 
 func (x *BaleUserSendOrderMessageResponse) GetResult_1() []byte {
@@ -37476,7 +37636,7 @@ type BaleUserSendProtectedMessageRequest struct {
 
 func (x *BaleUserSendProtectedMessageRequest) Reset() {
 	*x = BaleUserSendProtectedMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[811]
+	mi := &file_proto_cores_bale_proto_msgTypes[815]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37488,7 +37648,7 @@ func (x *BaleUserSendProtectedMessageRequest) String() string {
 func (*BaleUserSendProtectedMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendProtectedMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[811]
+	mi := &file_proto_cores_bale_proto_msgTypes[815]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37501,7 +37661,7 @@ func (x *BaleUserSendProtectedMessageRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSendProtectedMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendProtectedMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{811}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{815}
 }
 
 func (x *BaleUserSendProtectedMessageRequest) GetChatId() string {
@@ -37527,7 +37687,7 @@ type BaleUserSendProtectedMessageResponse struct {
 
 func (x *BaleUserSendProtectedMessageResponse) Reset() {
 	*x = BaleUserSendProtectedMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[812]
+	mi := &file_proto_cores_bale_proto_msgTypes[816]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37539,7 +37699,7 @@ func (x *BaleUserSendProtectedMessageResponse) String() string {
 func (*BaleUserSendProtectedMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendProtectedMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[812]
+	mi := &file_proto_cores_bale_proto_msgTypes[816]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37552,7 +37712,7 @@ func (x *BaleUserSendProtectedMessageResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserSendProtectedMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendProtectedMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{812}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{816}
 }
 
 func (x *BaleUserSendProtectedMessageResponse) GetResult_1() []byte {
@@ -37573,7 +37733,7 @@ type BaleUserSendRawRequest struct {
 
 func (x *BaleUserSendRawRequest) Reset() {
 	*x = BaleUserSendRawRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[813]
+	mi := &file_proto_cores_bale_proto_msgTypes[817]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37585,7 +37745,7 @@ func (x *BaleUserSendRawRequest) String() string {
 func (*BaleUserSendRawRequest) ProtoMessage() {}
 
 func (x *BaleUserSendRawRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[813]
+	mi := &file_proto_cores_bale_proto_msgTypes[817]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37598,7 +37758,7 @@ func (x *BaleUserSendRawRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendRawRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendRawRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{813}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{817}
 }
 
 func (x *BaleUserSendRawRequest) GetService() string {
@@ -37631,7 +37791,7 @@ type BaleUserSendRawResponse struct {
 
 func (x *BaleUserSendRawResponse) Reset() {
 	*x = BaleUserSendRawResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[814]
+	mi := &file_proto_cores_bale_proto_msgTypes[818]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37643,7 +37803,7 @@ func (x *BaleUserSendRawResponse) String() string {
 func (*BaleUserSendRawResponse) ProtoMessage() {}
 
 func (x *BaleUserSendRawResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[814]
+	mi := &file_proto_cores_bale_proto_msgTypes[818]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37656,7 +37816,7 @@ func (x *BaleUserSendRawResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSendRawResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendRawResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{814}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{818}
 }
 
 func (x *BaleUserSendRawResponse) GetResult_1() []byte {
@@ -37677,7 +37837,7 @@ type BaleUserSendScheduledMessageRequest struct {
 
 func (x *BaleUserSendScheduledMessageRequest) Reset() {
 	*x = BaleUserSendScheduledMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[815]
+	mi := &file_proto_cores_bale_proto_msgTypes[819]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37689,7 +37849,7 @@ func (x *BaleUserSendScheduledMessageRequest) String() string {
 func (*BaleUserSendScheduledMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserSendScheduledMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[815]
+	mi := &file_proto_cores_bale_proto_msgTypes[819]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37702,7 +37862,7 @@ func (x *BaleUserSendScheduledMessageRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSendScheduledMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSendScheduledMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{815}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{819}
 }
 
 func (x *BaleUserSendScheduledMessageRequest) GetChatId() string {
@@ -37735,7 +37895,7 @@ type BaleUserSendScheduledMessageResponse struct {
 
 func (x *BaleUserSendScheduledMessageResponse) Reset() {
 	*x = BaleUserSendScheduledMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[816]
+	mi := &file_proto_cores_bale_proto_msgTypes[820]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37747,7 +37907,7 @@ func (x *BaleUserSendScheduledMessageResponse) String() string {
 func (*BaleUserSendScheduledMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserSendScheduledMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[816]
+	mi := &file_proto_cores_bale_proto_msgTypes[820]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37760,7 +37920,7 @@ func (x *BaleUserSendScheduledMessageResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserSendScheduledMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSendScheduledMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{816}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{820}
 }
 
 func (x *BaleUserSendScheduledMessageResponse) GetResult_1() []byte {
@@ -37780,7 +37940,7 @@ type BaleUserSetAvailableReactionsRequest struct {
 
 func (x *BaleUserSetAvailableReactionsRequest) Reset() {
 	*x = BaleUserSetAvailableReactionsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[817]
+	mi := &file_proto_cores_bale_proto_msgTypes[821]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37792,7 +37952,7 @@ func (x *BaleUserSetAvailableReactionsRequest) String() string {
 func (*BaleUserSetAvailableReactionsRequest) ProtoMessage() {}
 
 func (x *BaleUserSetAvailableReactionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[817]
+	mi := &file_proto_cores_bale_proto_msgTypes[821]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37805,7 +37965,7 @@ func (x *BaleUserSetAvailableReactionsRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserSetAvailableReactionsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetAvailableReactionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{817}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{821}
 }
 
 func (x *BaleUserSetAvailableReactionsRequest) GetGroupId() int64 {
@@ -37831,7 +37991,7 @@ type BaleUserSetAvailableReactionsResponse struct {
 
 func (x *BaleUserSetAvailableReactionsResponse) Reset() {
 	*x = BaleUserSetAvailableReactionsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[818]
+	mi := &file_proto_cores_bale_proto_msgTypes[822]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37843,7 +38003,7 @@ func (x *BaleUserSetAvailableReactionsResponse) String() string {
 func (*BaleUserSetAvailableReactionsResponse) ProtoMessage() {}
 
 func (x *BaleUserSetAvailableReactionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[818]
+	mi := &file_proto_cores_bale_proto_msgTypes[822]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37856,7 +38016,7 @@ func (x *BaleUserSetAvailableReactionsResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserSetAvailableReactionsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetAvailableReactionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{818}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{822}
 }
 
 func (x *BaleUserSetAvailableReactionsResponse) GetResult_1() []byte {
@@ -37876,7 +38036,7 @@ type BaleUserSetCallLinkTitleRequest struct {
 
 func (x *BaleUserSetCallLinkTitleRequest) Reset() {
 	*x = BaleUserSetCallLinkTitleRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[819]
+	mi := &file_proto_cores_bale_proto_msgTypes[823]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37888,7 +38048,7 @@ func (x *BaleUserSetCallLinkTitleRequest) String() string {
 func (*BaleUserSetCallLinkTitleRequest) ProtoMessage() {}
 
 func (x *BaleUserSetCallLinkTitleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[819]
+	mi := &file_proto_cores_bale_proto_msgTypes[823]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37901,7 +38061,7 @@ func (x *BaleUserSetCallLinkTitleRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetCallLinkTitleRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetCallLinkTitleRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{819}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{823}
 }
 
 func (x *BaleUserSetCallLinkTitleRequest) GetCallId() int64 {
@@ -37927,7 +38087,7 @@ type BaleUserSetCallLinkTitleResponse struct {
 
 func (x *BaleUserSetCallLinkTitleResponse) Reset() {
 	*x = BaleUserSetCallLinkTitleResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[820]
+	mi := &file_proto_cores_bale_proto_msgTypes[824]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37939,7 +38099,7 @@ func (x *BaleUserSetCallLinkTitleResponse) String() string {
 func (*BaleUserSetCallLinkTitleResponse) ProtoMessage() {}
 
 func (x *BaleUserSetCallLinkTitleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[820]
+	mi := &file_proto_cores_bale_proto_msgTypes[824]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37952,7 +38112,7 @@ func (x *BaleUserSetCallLinkTitleResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetCallLinkTitleResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetCallLinkTitleResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{820}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{824}
 }
 
 func (x *BaleUserSetCallLinkTitleResponse) GetResult_1() []byte {
@@ -37972,7 +38132,7 @@ type BaleUserSetCanSeeHistoryRequest struct {
 
 func (x *BaleUserSetCanSeeHistoryRequest) Reset() {
 	*x = BaleUserSetCanSeeHistoryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[821]
+	mi := &file_proto_cores_bale_proto_msgTypes[825]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -37984,7 +38144,7 @@ func (x *BaleUserSetCanSeeHistoryRequest) String() string {
 func (*BaleUserSetCanSeeHistoryRequest) ProtoMessage() {}
 
 func (x *BaleUserSetCanSeeHistoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[821]
+	mi := &file_proto_cores_bale_proto_msgTypes[825]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -37997,7 +38157,7 @@ func (x *BaleUserSetCanSeeHistoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetCanSeeHistoryRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetCanSeeHistoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{821}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{825}
 }
 
 func (x *BaleUserSetCanSeeHistoryRequest) GetGroupId() int64 {
@@ -38023,7 +38183,7 @@ type BaleUserSetCanSeeHistoryResponse struct {
 
 func (x *BaleUserSetCanSeeHistoryResponse) Reset() {
 	*x = BaleUserSetCanSeeHistoryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[822]
+	mi := &file_proto_cores_bale_proto_msgTypes[826]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38035,7 +38195,7 @@ func (x *BaleUserSetCanSeeHistoryResponse) String() string {
 func (*BaleUserSetCanSeeHistoryResponse) ProtoMessage() {}
 
 func (x *BaleUserSetCanSeeHistoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[822]
+	mi := &file_proto_cores_bale_proto_msgTypes[826]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38048,7 +38208,7 @@ func (x *BaleUserSetCanSeeHistoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetCanSeeHistoryResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetCanSeeHistoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{822}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{826}
 }
 
 func (x *BaleUserSetCanSeeHistoryResponse) GetResult_1() []byte {
@@ -38068,7 +38228,7 @@ type BaleUserSetCanSeeMessagesRequest struct {
 
 func (x *BaleUserSetCanSeeMessagesRequest) Reset() {
 	*x = BaleUserSetCanSeeMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[823]
+	mi := &file_proto_cores_bale_proto_msgTypes[827]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38080,7 +38240,7 @@ func (x *BaleUserSetCanSeeMessagesRequest) String() string {
 func (*BaleUserSetCanSeeMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserSetCanSeeMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[823]
+	mi := &file_proto_cores_bale_proto_msgTypes[827]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38093,7 +38253,7 @@ func (x *BaleUserSetCanSeeMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetCanSeeMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetCanSeeMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{823}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{827}
 }
 
 func (x *BaleUserSetCanSeeMessagesRequest) GetGroupId() int64 {
@@ -38119,7 +38279,7 @@ type BaleUserSetCanSeeMessagesResponse struct {
 
 func (x *BaleUserSetCanSeeMessagesResponse) Reset() {
 	*x = BaleUserSetCanSeeMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[824]
+	mi := &file_proto_cores_bale_proto_msgTypes[828]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38131,7 +38291,7 @@ func (x *BaleUserSetCanSeeMessagesResponse) String() string {
 func (*BaleUserSetCanSeeMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserSetCanSeeMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[824]
+	mi := &file_proto_cores_bale_proto_msgTypes[828]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38144,7 +38304,7 @@ func (x *BaleUserSetCanSeeMessagesResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSetCanSeeMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetCanSeeMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{824}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{828}
 }
 
 func (x *BaleUserSetCanSeeMessagesResponse) GetResult_1() []byte {
@@ -38164,7 +38324,7 @@ type BaleUserSetDiscussionGroupRequest struct {
 
 func (x *BaleUserSetDiscussionGroupRequest) Reset() {
 	*x = BaleUserSetDiscussionGroupRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[825]
+	mi := &file_proto_cores_bale_proto_msgTypes[829]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38176,7 +38336,7 @@ func (x *BaleUserSetDiscussionGroupRequest) String() string {
 func (*BaleUserSetDiscussionGroupRequest) ProtoMessage() {}
 
 func (x *BaleUserSetDiscussionGroupRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[825]
+	mi := &file_proto_cores_bale_proto_msgTypes[829]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38189,7 +38349,7 @@ func (x *BaleUserSetDiscussionGroupRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSetDiscussionGroupRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetDiscussionGroupRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{825}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{829}
 }
 
 func (x *BaleUserSetDiscussionGroupRequest) GetChannelId() int64 {
@@ -38215,7 +38375,7 @@ type BaleUserSetDiscussionGroupResponse struct {
 
 func (x *BaleUserSetDiscussionGroupResponse) Reset() {
 	*x = BaleUserSetDiscussionGroupResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[826]
+	mi := &file_proto_cores_bale_proto_msgTypes[830]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38227,7 +38387,7 @@ func (x *BaleUserSetDiscussionGroupResponse) String() string {
 func (*BaleUserSetDiscussionGroupResponse) ProtoMessage() {}
 
 func (x *BaleUserSetDiscussionGroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[826]
+	mi := &file_proto_cores_bale_proto_msgTypes[830]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38240,7 +38400,7 @@ func (x *BaleUserSetDiscussionGroupResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSetDiscussionGroupResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetDiscussionGroupResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{826}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{830}
 }
 
 func (x *BaleUserSetDiscussionGroupResponse) GetResult_1() []byte {
@@ -38260,7 +38420,7 @@ type BaleUserSetGroupDefaultPermissionsRequest struct {
 
 func (x *BaleUserSetGroupDefaultPermissionsRequest) Reset() {
 	*x = BaleUserSetGroupDefaultPermissionsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[827]
+	mi := &file_proto_cores_bale_proto_msgTypes[831]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38272,7 +38432,7 @@ func (x *BaleUserSetGroupDefaultPermissionsRequest) String() string {
 func (*BaleUserSetGroupDefaultPermissionsRequest) ProtoMessage() {}
 
 func (x *BaleUserSetGroupDefaultPermissionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[827]
+	mi := &file_proto_cores_bale_proto_msgTypes[831]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38285,7 +38445,7 @@ func (x *BaleUserSetGroupDefaultPermissionsRequest) ProtoReflect() protoreflect.
 
 // Deprecated: Use BaleUserSetGroupDefaultPermissionsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetGroupDefaultPermissionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{827}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{831}
 }
 
 func (x *BaleUserSetGroupDefaultPermissionsRequest) GetGroupId() int64 {
@@ -38311,7 +38471,7 @@ type BaleUserSetGroupDefaultPermissionsResponse struct {
 
 func (x *BaleUserSetGroupDefaultPermissionsResponse) Reset() {
 	*x = BaleUserSetGroupDefaultPermissionsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[828]
+	mi := &file_proto_cores_bale_proto_msgTypes[832]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38323,7 +38483,7 @@ func (x *BaleUserSetGroupDefaultPermissionsResponse) String() string {
 func (*BaleUserSetGroupDefaultPermissionsResponse) ProtoMessage() {}
 
 func (x *BaleUserSetGroupDefaultPermissionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[828]
+	mi := &file_proto_cores_bale_proto_msgTypes[832]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38336,7 +38496,7 @@ func (x *BaleUserSetGroupDefaultPermissionsResponse) ProtoReflect() protoreflect
 
 // Deprecated: Use BaleUserSetGroupDefaultPermissionsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetGroupDefaultPermissionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{828}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{832}
 }
 
 func (x *BaleUserSetGroupDefaultPermissionsResponse) GetResult_1() []byte {
@@ -38357,7 +38517,7 @@ type BaleUserSetMemberCustomTitleRequest struct {
 
 func (x *BaleUserSetMemberCustomTitleRequest) Reset() {
 	*x = BaleUserSetMemberCustomTitleRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[829]
+	mi := &file_proto_cores_bale_proto_msgTypes[833]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38369,7 +38529,7 @@ func (x *BaleUserSetMemberCustomTitleRequest) String() string {
 func (*BaleUserSetMemberCustomTitleRequest) ProtoMessage() {}
 
 func (x *BaleUserSetMemberCustomTitleRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[829]
+	mi := &file_proto_cores_bale_proto_msgTypes[833]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38382,7 +38542,7 @@ func (x *BaleUserSetMemberCustomTitleRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSetMemberCustomTitleRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetMemberCustomTitleRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{829}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{833}
 }
 
 func (x *BaleUserSetMemberCustomTitleRequest) GetGroupId() int64 {
@@ -38415,7 +38575,7 @@ type BaleUserSetMemberCustomTitleResponse struct {
 
 func (x *BaleUserSetMemberCustomTitleResponse) Reset() {
 	*x = BaleUserSetMemberCustomTitleResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[830]
+	mi := &file_proto_cores_bale_proto_msgTypes[834]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38427,7 +38587,7 @@ func (x *BaleUserSetMemberCustomTitleResponse) String() string {
 func (*BaleUserSetMemberCustomTitleResponse) ProtoMessage() {}
 
 func (x *BaleUserSetMemberCustomTitleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[830]
+	mi := &file_proto_cores_bale_proto_msgTypes[834]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38440,7 +38600,7 @@ func (x *BaleUserSetMemberCustomTitleResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserSetMemberCustomTitleResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetMemberCustomTitleResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{830}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{834}
 }
 
 func (x *BaleUserSetMemberCustomTitleResponse) GetResult_1() []byte {
@@ -38461,7 +38621,7 @@ type BaleUserSetMemberPermissionsRequest struct {
 
 func (x *BaleUserSetMemberPermissionsRequest) Reset() {
 	*x = BaleUserSetMemberPermissionsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[831]
+	mi := &file_proto_cores_bale_proto_msgTypes[835]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38473,7 +38633,7 @@ func (x *BaleUserSetMemberPermissionsRequest) String() string {
 func (*BaleUserSetMemberPermissionsRequest) ProtoMessage() {}
 
 func (x *BaleUserSetMemberPermissionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[831]
+	mi := &file_proto_cores_bale_proto_msgTypes[835]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38486,7 +38646,7 @@ func (x *BaleUserSetMemberPermissionsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSetMemberPermissionsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetMemberPermissionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{831}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{835}
 }
 
 func (x *BaleUserSetMemberPermissionsRequest) GetGroupId() int64 {
@@ -38519,7 +38679,7 @@ type BaleUserSetMemberPermissionsResponse struct {
 
 func (x *BaleUserSetMemberPermissionsResponse) Reset() {
 	*x = BaleUserSetMemberPermissionsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[832]
+	mi := &file_proto_cores_bale_proto_msgTypes[836]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38531,7 +38691,7 @@ func (x *BaleUserSetMemberPermissionsResponse) String() string {
 func (*BaleUserSetMemberPermissionsResponse) ProtoMessage() {}
 
 func (x *BaleUserSetMemberPermissionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[832]
+	mi := &file_proto_cores_bale_proto_msgTypes[836]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38544,7 +38704,7 @@ func (x *BaleUserSetMemberPermissionsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserSetMemberPermissionsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetMemberPermissionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{832}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{836}
 }
 
 func (x *BaleUserSetMemberPermissionsResponse) GetResult_1() []byte {
@@ -38563,7 +38723,7 @@ type BaleUserSetMyCommandsRequest struct {
 
 func (x *BaleUserSetMyCommandsRequest) Reset() {
 	*x = BaleUserSetMyCommandsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[833]
+	mi := &file_proto_cores_bale_proto_msgTypes[837]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38575,7 +38735,7 @@ func (x *BaleUserSetMyCommandsRequest) String() string {
 func (*BaleUserSetMyCommandsRequest) ProtoMessage() {}
 
 func (x *BaleUserSetMyCommandsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[833]
+	mi := &file_proto_cores_bale_proto_msgTypes[837]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38588,7 +38748,7 @@ func (x *BaleUserSetMyCommandsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetMyCommandsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetMyCommandsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{833}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{837}
 }
 
 func (x *BaleUserSetMyCommandsRequest) GetCommands() []byte {
@@ -38607,7 +38767,7 @@ type BaleUserSetMyCommandsResponse struct {
 
 func (x *BaleUserSetMyCommandsResponse) Reset() {
 	*x = BaleUserSetMyCommandsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[834]
+	mi := &file_proto_cores_bale_proto_msgTypes[838]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38619,7 +38779,7 @@ func (x *BaleUserSetMyCommandsResponse) String() string {
 func (*BaleUserSetMyCommandsResponse) ProtoMessage() {}
 
 func (x *BaleUserSetMyCommandsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[834]
+	mi := &file_proto_cores_bale_proto_msgTypes[838]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38632,7 +38792,7 @@ func (x *BaleUserSetMyCommandsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetMyCommandsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetMyCommandsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{834}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{838}
 }
 
 func (x *BaleUserSetMyCommandsResponse) GetResult_1() []byte {
@@ -38652,7 +38812,7 @@ type BaleUserSetOnlineRequest struct {
 
 func (x *BaleUserSetOnlineRequest) Reset() {
 	*x = BaleUserSetOnlineRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[835]
+	mi := &file_proto_cores_bale_proto_msgTypes[839]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38664,7 +38824,7 @@ func (x *BaleUserSetOnlineRequest) String() string {
 func (*BaleUserSetOnlineRequest) ProtoMessage() {}
 
 func (x *BaleUserSetOnlineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[835]
+	mi := &file_proto_cores_bale_proto_msgTypes[839]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38677,7 +38837,7 @@ func (x *BaleUserSetOnlineRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetOnlineRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetOnlineRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{835}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{839}
 }
 
 func (x *BaleUserSetOnlineRequest) GetIsOnline() bool {
@@ -38703,7 +38863,7 @@ type BaleUserSetOnlineResponse struct {
 
 func (x *BaleUserSetOnlineResponse) Reset() {
 	*x = BaleUserSetOnlineResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[836]
+	mi := &file_proto_cores_bale_proto_msgTypes[840]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38715,7 +38875,7 @@ func (x *BaleUserSetOnlineResponse) String() string {
 func (*BaleUserSetOnlineResponse) ProtoMessage() {}
 
 func (x *BaleUserSetOnlineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[836]
+	mi := &file_proto_cores_bale_proto_msgTypes[840]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38728,7 +38888,7 @@ func (x *BaleUserSetOnlineResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetOnlineResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetOnlineResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{836}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{840}
 }
 
 func (x *BaleUserSetOnlineResponse) GetResult_1() []byte {
@@ -38750,7 +38910,7 @@ type BaleUserSetReactionRequest struct {
 
 func (x *BaleUserSetReactionRequest) Reset() {
 	*x = BaleUserSetReactionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[837]
+	mi := &file_proto_cores_bale_proto_msgTypes[841]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38762,7 +38922,7 @@ func (x *BaleUserSetReactionRequest) String() string {
 func (*BaleUserSetReactionRequest) ProtoMessage() {}
 
 func (x *BaleUserSetReactionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[837]
+	mi := &file_proto_cores_bale_proto_msgTypes[841]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38775,7 +38935,7 @@ func (x *BaleUserSetReactionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetReactionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetReactionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{837}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{841}
 }
 
 func (x *BaleUserSetReactionRequest) GetChatId() string {
@@ -38815,7 +38975,7 @@ type BaleUserSetReactionResponse struct {
 
 func (x *BaleUserSetReactionResponse) Reset() {
 	*x = BaleUserSetReactionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[838]
+	mi := &file_proto_cores_bale_proto_msgTypes[842]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38827,7 +38987,7 @@ func (x *BaleUserSetReactionResponse) String() string {
 func (*BaleUserSetReactionResponse) ProtoMessage() {}
 
 func (x *BaleUserSetReactionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[838]
+	mi := &file_proto_cores_bale_proto_msgTypes[842]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38840,7 +39000,7 @@ func (x *BaleUserSetReactionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetReactionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetReactionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{838}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{842}
 }
 
 func (x *BaleUserSetReactionResponse) GetResult_1() []byte {
@@ -38861,7 +39021,7 @@ type BaleUserSetRestrictionRequest struct {
 
 func (x *BaleUserSetRestrictionRequest) Reset() {
 	*x = BaleUserSetRestrictionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[839]
+	mi := &file_proto_cores_bale_proto_msgTypes[843]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38873,7 +39033,7 @@ func (x *BaleUserSetRestrictionRequest) String() string {
 func (*BaleUserSetRestrictionRequest) ProtoMessage() {}
 
 func (x *BaleUserSetRestrictionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[839]
+	mi := &file_proto_cores_bale_proto_msgTypes[843]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38886,7 +39046,7 @@ func (x *BaleUserSetRestrictionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetRestrictionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetRestrictionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{839}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{843}
 }
 
 func (x *BaleUserSetRestrictionRequest) GetGroupId() int64 {
@@ -38919,7 +39079,7 @@ type BaleUserSetRestrictionResponse struct {
 
 func (x *BaleUserSetRestrictionResponse) Reset() {
 	*x = BaleUserSetRestrictionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[840]
+	mi := &file_proto_cores_bale_proto_msgTypes[844]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38931,7 +39091,7 @@ func (x *BaleUserSetRestrictionResponse) String() string {
 func (*BaleUserSetRestrictionResponse) ProtoMessage() {}
 
 func (x *BaleUserSetRestrictionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[840]
+	mi := &file_proto_cores_bale_proto_msgTypes[844]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38944,7 +39104,7 @@ func (x *BaleUserSetRestrictionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSetRestrictionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetRestrictionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{840}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{844}
 }
 
 func (x *BaleUserSetRestrictionResponse) GetResult_1() []byte {
@@ -38963,7 +39123,7 @@ type BaleUserSetStoryPrivacyConfigRequest struct {
 
 func (x *BaleUserSetStoryPrivacyConfigRequest) Reset() {
 	*x = BaleUserSetStoryPrivacyConfigRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[841]
+	mi := &file_proto_cores_bale_proto_msgTypes[845]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -38975,7 +39135,7 @@ func (x *BaleUserSetStoryPrivacyConfigRequest) String() string {
 func (*BaleUserSetStoryPrivacyConfigRequest) ProtoMessage() {}
 
 func (x *BaleUserSetStoryPrivacyConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[841]
+	mi := &file_proto_cores_bale_proto_msgTypes[845]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -38988,7 +39148,7 @@ func (x *BaleUserSetStoryPrivacyConfigRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use BaleUserSetStoryPrivacyConfigRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetStoryPrivacyConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{841}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{845}
 }
 
 func (x *BaleUserSetStoryPrivacyConfigRequest) GetConfig() []byte {
@@ -39007,7 +39167,7 @@ type BaleUserSetStoryPrivacyConfigResponse struct {
 
 func (x *BaleUserSetStoryPrivacyConfigResponse) Reset() {
 	*x = BaleUserSetStoryPrivacyConfigResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[842]
+	mi := &file_proto_cores_bale_proto_msgTypes[846]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39019,7 +39179,7 @@ func (x *BaleUserSetStoryPrivacyConfigResponse) String() string {
 func (*BaleUserSetStoryPrivacyConfigResponse) ProtoMessage() {}
 
 func (x *BaleUserSetStoryPrivacyConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[842]
+	mi := &file_proto_cores_bale_proto_msgTypes[846]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39032,7 +39192,7 @@ func (x *BaleUserSetStoryPrivacyConfigResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserSetStoryPrivacyConfigResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetStoryPrivacyConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{842}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{846}
 }
 
 func (x *BaleUserSetStoryPrivacyConfigResponse) GetResult_1() []byte {
@@ -39051,7 +39211,7 @@ type BaleUserSetUserStoryConfigRequest struct {
 
 func (x *BaleUserSetUserStoryConfigRequest) Reset() {
 	*x = BaleUserSetUserStoryConfigRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[843]
+	mi := &file_proto_cores_bale_proto_msgTypes[847]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39063,7 +39223,7 @@ func (x *BaleUserSetUserStoryConfigRequest) String() string {
 func (*BaleUserSetUserStoryConfigRequest) ProtoMessage() {}
 
 func (x *BaleUserSetUserStoryConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[843]
+	mi := &file_proto_cores_bale_proto_msgTypes[847]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39076,7 +39236,7 @@ func (x *BaleUserSetUserStoryConfigRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSetUserStoryConfigRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSetUserStoryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{843}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{847}
 }
 
 func (x *BaleUserSetUserStoryConfigRequest) GetConfig() []byte {
@@ -39095,7 +39255,7 @@ type BaleUserSetUserStoryConfigResponse struct {
 
 func (x *BaleUserSetUserStoryConfigResponse) Reset() {
 	*x = BaleUserSetUserStoryConfigResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[844]
+	mi := &file_proto_cores_bale_proto_msgTypes[848]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39107,7 +39267,7 @@ func (x *BaleUserSetUserStoryConfigResponse) String() string {
 func (*BaleUserSetUserStoryConfigResponse) ProtoMessage() {}
 
 func (x *BaleUserSetUserStoryConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[844]
+	mi := &file_proto_cores_bale_proto_msgTypes[848]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39120,7 +39280,7 @@ func (x *BaleUserSetUserStoryConfigResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSetUserStoryConfigResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSetUserStoryConfigResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{844}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{848}
 }
 
 func (x *BaleUserSetUserStoryConfigResponse) GetResult_1() []byte {
@@ -39138,7 +39298,7 @@ type BaleUserSignOutRequest struct {
 
 func (x *BaleUserSignOutRequest) Reset() {
 	*x = BaleUserSignOutRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[845]
+	mi := &file_proto_cores_bale_proto_msgTypes[849]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39150,7 +39310,7 @@ func (x *BaleUserSignOutRequest) String() string {
 func (*BaleUserSignOutRequest) ProtoMessage() {}
 
 func (x *BaleUserSignOutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[845]
+	mi := &file_proto_cores_bale_proto_msgTypes[849]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39163,7 +39323,7 @@ func (x *BaleUserSignOutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSignOutRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSignOutRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{845}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{849}
 }
 
 type BaleUserSignOutResponse struct {
@@ -39175,7 +39335,7 @@ type BaleUserSignOutResponse struct {
 
 func (x *BaleUserSignOutResponse) Reset() {
 	*x = BaleUserSignOutResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[846]
+	mi := &file_proto_cores_bale_proto_msgTypes[850]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39187,7 +39347,7 @@ func (x *BaleUserSignOutResponse) String() string {
 func (*BaleUserSignOutResponse) ProtoMessage() {}
 
 func (x *BaleUserSignOutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[846]
+	mi := &file_proto_cores_bale_proto_msgTypes[850]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39200,7 +39360,7 @@ func (x *BaleUserSignOutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSignOutResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSignOutResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{846}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{850}
 }
 
 func (x *BaleUserSignOutResponse) GetResult_1() []byte {
@@ -39220,7 +39380,7 @@ type BaleUserSignUpRequest struct {
 
 func (x *BaleUserSignUpRequest) Reset() {
 	*x = BaleUserSignUpRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[847]
+	mi := &file_proto_cores_bale_proto_msgTypes[851]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39232,7 +39392,7 @@ func (x *BaleUserSignUpRequest) String() string {
 func (*BaleUserSignUpRequest) ProtoMessage() {}
 
 func (x *BaleUserSignUpRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[847]
+	mi := &file_proto_cores_bale_proto_msgTypes[851]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39245,7 +39405,7 @@ func (x *BaleUserSignUpRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSignUpRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSignUpRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{847}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{851}
 }
 
 func (x *BaleUserSignUpRequest) GetTransactionHash() string {
@@ -39271,7 +39431,7 @@ type BaleUserSignUpResponse struct {
 
 func (x *BaleUserSignUpResponse) Reset() {
 	*x = BaleUserSignUpResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[848]
+	mi := &file_proto_cores_bale_proto_msgTypes[852]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39283,7 +39443,7 @@ func (x *BaleUserSignUpResponse) String() string {
 func (*BaleUserSignUpResponse) ProtoMessage() {}
 
 func (x *BaleUserSignUpResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[848]
+	mi := &file_proto_cores_bale_proto_msgTypes[852]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39296,7 +39456,7 @@ func (x *BaleUserSignUpResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSignUpResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSignUpResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{848}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{852}
 }
 
 func (x *BaleUserSignUpResponse) GetResult_1() []byte {
@@ -39315,7 +39475,7 @@ type BaleUserStartRecordingRequest struct {
 
 func (x *BaleUserStartRecordingRequest) Reset() {
 	*x = BaleUserStartRecordingRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[849]
+	mi := &file_proto_cores_bale_proto_msgTypes[853]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39327,7 +39487,7 @@ func (x *BaleUserStartRecordingRequest) String() string {
 func (*BaleUserStartRecordingRequest) ProtoMessage() {}
 
 func (x *BaleUserStartRecordingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[849]
+	mi := &file_proto_cores_bale_proto_msgTypes[853]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39340,7 +39500,7 @@ func (x *BaleUserStartRecordingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserStartRecordingRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserStartRecordingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{849}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{853}
 }
 
 func (x *BaleUserStartRecordingRequest) GetCallId() int64 {
@@ -39359,7 +39519,7 @@ type BaleUserStartRecordingResponse struct {
 
 func (x *BaleUserStartRecordingResponse) Reset() {
 	*x = BaleUserStartRecordingResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[850]
+	mi := &file_proto_cores_bale_proto_msgTypes[854]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39371,7 +39531,7 @@ func (x *BaleUserStartRecordingResponse) String() string {
 func (*BaleUserStartRecordingResponse) ProtoMessage() {}
 
 func (x *BaleUserStartRecordingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[850]
+	mi := &file_proto_cores_bale_proto_msgTypes[854]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39384,7 +39544,7 @@ func (x *BaleUserStartRecordingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserStartRecordingResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserStartRecordingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{850}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{854}
 }
 
 func (x *BaleUserStartRecordingResponse) GetResult_1() []byte {
@@ -39403,7 +39563,7 @@ type BaleUserStartStreamRequest struct {
 
 func (x *BaleUserStartStreamRequest) Reset() {
 	*x = BaleUserStartStreamRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[851]
+	mi := &file_proto_cores_bale_proto_msgTypes[855]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39415,7 +39575,7 @@ func (x *BaleUserStartStreamRequest) String() string {
 func (*BaleUserStartStreamRequest) ProtoMessage() {}
 
 func (x *BaleUserStartStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[851]
+	mi := &file_proto_cores_bale_proto_msgTypes[855]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39428,7 +39588,7 @@ func (x *BaleUserStartStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserStartStreamRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserStartStreamRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{851}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{855}
 }
 
 func (x *BaleUserStartStreamRequest) GetCallId() int64 {
@@ -39447,7 +39607,7 @@ type BaleUserStartStreamResponse struct {
 
 func (x *BaleUserStartStreamResponse) Reset() {
 	*x = BaleUserStartStreamResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[852]
+	mi := &file_proto_cores_bale_proto_msgTypes[856]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39459,7 +39619,7 @@ func (x *BaleUserStartStreamResponse) String() string {
 func (*BaleUserStartStreamResponse) ProtoMessage() {}
 
 func (x *BaleUserStartStreamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[852]
+	mi := &file_proto_cores_bale_proto_msgTypes[856]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39472,7 +39632,7 @@ func (x *BaleUserStartStreamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserStartStreamResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserStartStreamResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{852}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{856}
 }
 
 func (x *BaleUserStartStreamResponse) GetResult_1() []byte {
@@ -39491,7 +39651,7 @@ type BaleUserStopRecordingRequest struct {
 
 func (x *BaleUserStopRecordingRequest) Reset() {
 	*x = BaleUserStopRecordingRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[853]
+	mi := &file_proto_cores_bale_proto_msgTypes[857]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39503,7 +39663,7 @@ func (x *BaleUserStopRecordingRequest) String() string {
 func (*BaleUserStopRecordingRequest) ProtoMessage() {}
 
 func (x *BaleUserStopRecordingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[853]
+	mi := &file_proto_cores_bale_proto_msgTypes[857]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39516,7 +39676,7 @@ func (x *BaleUserStopRecordingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserStopRecordingRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserStopRecordingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{853}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{857}
 }
 
 func (x *BaleUserStopRecordingRequest) GetCallId() int64 {
@@ -39535,7 +39695,7 @@ type BaleUserStopRecordingResponse struct {
 
 func (x *BaleUserStopRecordingResponse) Reset() {
 	*x = BaleUserStopRecordingResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[854]
+	mi := &file_proto_cores_bale_proto_msgTypes[858]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39547,7 +39707,7 @@ func (x *BaleUserStopRecordingResponse) String() string {
 func (*BaleUserStopRecordingResponse) ProtoMessage() {}
 
 func (x *BaleUserStopRecordingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[854]
+	mi := &file_proto_cores_bale_proto_msgTypes[858]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39560,7 +39720,7 @@ func (x *BaleUserStopRecordingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserStopRecordingResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserStopRecordingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{854}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{858}
 }
 
 func (x *BaleUserStopRecordingResponse) GetResult_1() []byte {
@@ -39579,7 +39739,7 @@ type BaleUserStopTypingRequest struct {
 
 func (x *BaleUserStopTypingRequest) Reset() {
 	*x = BaleUserStopTypingRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[855]
+	mi := &file_proto_cores_bale_proto_msgTypes[859]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39591,7 +39751,7 @@ func (x *BaleUserStopTypingRequest) String() string {
 func (*BaleUserStopTypingRequest) ProtoMessage() {}
 
 func (x *BaleUserStopTypingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[855]
+	mi := &file_proto_cores_bale_proto_msgTypes[859]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39604,7 +39764,7 @@ func (x *BaleUserStopTypingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserStopTypingRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserStopTypingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{855}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{859}
 }
 
 func (x *BaleUserStopTypingRequest) GetChatId() string {
@@ -39623,7 +39783,7 @@ type BaleUserStopTypingResponse struct {
 
 func (x *BaleUserStopTypingResponse) Reset() {
 	*x = BaleUserStopTypingResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[856]
+	mi := &file_proto_cores_bale_proto_msgTypes[860]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39635,7 +39795,7 @@ func (x *BaleUserStopTypingResponse) String() string {
 func (*BaleUserStopTypingResponse) ProtoMessage() {}
 
 func (x *BaleUserStopTypingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[856]
+	mi := &file_proto_cores_bale_proto_msgTypes[860]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39648,7 +39808,7 @@ func (x *BaleUserStopTypingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserStopTypingResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserStopTypingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{856}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{860}
 }
 
 func (x *BaleUserStopTypingResponse) GetResult_1() []byte {
@@ -39669,7 +39829,7 @@ type BaleUserSubmitCallFeedbackRequest struct {
 
 func (x *BaleUserSubmitCallFeedbackRequest) Reset() {
 	*x = BaleUserSubmitCallFeedbackRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[857]
+	mi := &file_proto_cores_bale_proto_msgTypes[861]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39681,7 +39841,7 @@ func (x *BaleUserSubmitCallFeedbackRequest) String() string {
 func (*BaleUserSubmitCallFeedbackRequest) ProtoMessage() {}
 
 func (x *BaleUserSubmitCallFeedbackRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[857]
+	mi := &file_proto_cores_bale_proto_msgTypes[861]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39694,7 +39854,7 @@ func (x *BaleUserSubmitCallFeedbackRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSubmitCallFeedbackRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSubmitCallFeedbackRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{857}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{861}
 }
 
 func (x *BaleUserSubmitCallFeedbackRequest) GetCallId() int64 {
@@ -39727,7 +39887,7 @@ type BaleUserSubmitCallFeedbackResponse struct {
 
 func (x *BaleUserSubmitCallFeedbackResponse) Reset() {
 	*x = BaleUserSubmitCallFeedbackResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[858]
+	mi := &file_proto_cores_bale_proto_msgTypes[862]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39739,7 +39899,7 @@ func (x *BaleUserSubmitCallFeedbackResponse) String() string {
 func (*BaleUserSubmitCallFeedbackResponse) ProtoMessage() {}
 
 func (x *BaleUserSubmitCallFeedbackResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[858]
+	mi := &file_proto_cores_bale_proto_msgTypes[862]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39752,7 +39912,7 @@ func (x *BaleUserSubmitCallFeedbackResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSubmitCallFeedbackResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSubmitCallFeedbackResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{858}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{862}
 }
 
 func (x *BaleUserSubmitCallFeedbackResponse) GetResult_1() []byte {
@@ -39771,7 +39931,7 @@ type BaleUserSubscribeFromGroupOnlineRequest struct {
 
 func (x *BaleUserSubscribeFromGroupOnlineRequest) Reset() {
 	*x = BaleUserSubscribeFromGroupOnlineRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[859]
+	mi := &file_proto_cores_bale_proto_msgTypes[863]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39783,7 +39943,7 @@ func (x *BaleUserSubscribeFromGroupOnlineRequest) String() string {
 func (*BaleUserSubscribeFromGroupOnlineRequest) ProtoMessage() {}
 
 func (x *BaleUserSubscribeFromGroupOnlineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[859]
+	mi := &file_proto_cores_bale_proto_msgTypes[863]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39796,7 +39956,7 @@ func (x *BaleUserSubscribeFromGroupOnlineRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserSubscribeFromGroupOnlineRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeFromGroupOnlineRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{859}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{863}
 }
 
 func (x *BaleUserSubscribeFromGroupOnlineRequest) GetGroupId() int64 {
@@ -39815,7 +39975,7 @@ type BaleUserSubscribeFromGroupOnlineResponse struct {
 
 func (x *BaleUserSubscribeFromGroupOnlineResponse) Reset() {
 	*x = BaleUserSubscribeFromGroupOnlineResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[860]
+	mi := &file_proto_cores_bale_proto_msgTypes[864]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39827,7 +39987,7 @@ func (x *BaleUserSubscribeFromGroupOnlineResponse) String() string {
 func (*BaleUserSubscribeFromGroupOnlineResponse) ProtoMessage() {}
 
 func (x *BaleUserSubscribeFromGroupOnlineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[860]
+	mi := &file_proto_cores_bale_proto_msgTypes[864]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39840,7 +40000,7 @@ func (x *BaleUserSubscribeFromGroupOnlineResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserSubscribeFromGroupOnlineResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeFromGroupOnlineResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{860}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{864}
 }
 
 func (x *BaleUserSubscribeFromGroupOnlineResponse) GetResult_1() []byte {
@@ -39859,7 +40019,7 @@ type BaleUserSubscribeFromOnlineRequest struct {
 
 func (x *BaleUserSubscribeFromOnlineRequest) Reset() {
 	*x = BaleUserSubscribeFromOnlineRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[861]
+	mi := &file_proto_cores_bale_proto_msgTypes[865]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39871,7 +40031,7 @@ func (x *BaleUserSubscribeFromOnlineRequest) String() string {
 func (*BaleUserSubscribeFromOnlineRequest) ProtoMessage() {}
 
 func (x *BaleUserSubscribeFromOnlineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[861]
+	mi := &file_proto_cores_bale_proto_msgTypes[865]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39884,7 +40044,7 @@ func (x *BaleUserSubscribeFromOnlineRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSubscribeFromOnlineRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeFromOnlineRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{861}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{865}
 }
 
 func (x *BaleUserSubscribeFromOnlineRequest) GetUserIds() []int64 {
@@ -39903,7 +40063,7 @@ type BaleUserSubscribeFromOnlineResponse struct {
 
 func (x *BaleUserSubscribeFromOnlineResponse) Reset() {
 	*x = BaleUserSubscribeFromOnlineResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[862]
+	mi := &file_proto_cores_bale_proto_msgTypes[866]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39915,7 +40075,7 @@ func (x *BaleUserSubscribeFromOnlineResponse) String() string {
 func (*BaleUserSubscribeFromOnlineResponse) ProtoMessage() {}
 
 func (x *BaleUserSubscribeFromOnlineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[862]
+	mi := &file_proto_cores_bale_proto_msgTypes[866]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39928,7 +40088,7 @@ func (x *BaleUserSubscribeFromOnlineResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use BaleUserSubscribeFromOnlineResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeFromOnlineResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{862}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{866}
 }
 
 func (x *BaleUserSubscribeFromOnlineResponse) GetResult_1() []byte {
@@ -39947,7 +40107,7 @@ type BaleUserSubscribeToGroupOnlineRequest struct {
 
 func (x *BaleUserSubscribeToGroupOnlineRequest) Reset() {
 	*x = BaleUserSubscribeToGroupOnlineRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[863]
+	mi := &file_proto_cores_bale_proto_msgTypes[867]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -39959,7 +40119,7 @@ func (x *BaleUserSubscribeToGroupOnlineRequest) String() string {
 func (*BaleUserSubscribeToGroupOnlineRequest) ProtoMessage() {}
 
 func (x *BaleUserSubscribeToGroupOnlineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[863]
+	mi := &file_proto_cores_bale_proto_msgTypes[867]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -39972,7 +40132,7 @@ func (x *BaleUserSubscribeToGroupOnlineRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use BaleUserSubscribeToGroupOnlineRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeToGroupOnlineRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{863}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{867}
 }
 
 func (x *BaleUserSubscribeToGroupOnlineRequest) GetGroupId() int64 {
@@ -39991,7 +40151,7 @@ type BaleUserSubscribeToGroupOnlineResponse struct {
 
 func (x *BaleUserSubscribeToGroupOnlineResponse) Reset() {
 	*x = BaleUserSubscribeToGroupOnlineResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[864]
+	mi := &file_proto_cores_bale_proto_msgTypes[868]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40003,7 +40163,7 @@ func (x *BaleUserSubscribeToGroupOnlineResponse) String() string {
 func (*BaleUserSubscribeToGroupOnlineResponse) ProtoMessage() {}
 
 func (x *BaleUserSubscribeToGroupOnlineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[864]
+	mi := &file_proto_cores_bale_proto_msgTypes[868]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40016,7 +40176,7 @@ func (x *BaleUserSubscribeToGroupOnlineResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use BaleUserSubscribeToGroupOnlineResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeToGroupOnlineResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{864}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{868}
 }
 
 func (x *BaleUserSubscribeToGroupOnlineResponse) GetResult_1() []byte {
@@ -40035,7 +40195,7 @@ type BaleUserSubscribeToOnlineRequest struct {
 
 func (x *BaleUserSubscribeToOnlineRequest) Reset() {
 	*x = BaleUserSubscribeToOnlineRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[865]
+	mi := &file_proto_cores_bale_proto_msgTypes[869]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40047,7 +40207,7 @@ func (x *BaleUserSubscribeToOnlineRequest) String() string {
 func (*BaleUserSubscribeToOnlineRequest) ProtoMessage() {}
 
 func (x *BaleUserSubscribeToOnlineRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[865]
+	mi := &file_proto_cores_bale_proto_msgTypes[869]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40060,7 +40220,7 @@ func (x *BaleUserSubscribeToOnlineRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserSubscribeToOnlineRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeToOnlineRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{865}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{869}
 }
 
 func (x *BaleUserSubscribeToOnlineRequest) GetUserIds() []int64 {
@@ -40079,7 +40239,7 @@ type BaleUserSubscribeToOnlineResponse struct {
 
 func (x *BaleUserSubscribeToOnlineResponse) Reset() {
 	*x = BaleUserSubscribeToOnlineResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[866]
+	mi := &file_proto_cores_bale_proto_msgTypes[870]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40091,7 +40251,7 @@ func (x *BaleUserSubscribeToOnlineResponse) String() string {
 func (*BaleUserSubscribeToOnlineResponse) ProtoMessage() {}
 
 func (x *BaleUserSubscribeToOnlineResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[866]
+	mi := &file_proto_cores_bale_proto_msgTypes[870]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40104,7 +40264,7 @@ func (x *BaleUserSubscribeToOnlineResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSubscribeToOnlineResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeToOnlineResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{866}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{870}
 }
 
 func (x *BaleUserSubscribeToOnlineResponse) GetResult_1() []byte {
@@ -40124,7 +40284,7 @@ type BaleUserSubscribeToThreadUpdatesRequest struct {
 
 func (x *BaleUserSubscribeToThreadUpdatesRequest) Reset() {
 	*x = BaleUserSubscribeToThreadUpdatesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[867]
+	mi := &file_proto_cores_bale_proto_msgTypes[871]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40136,7 +40296,7 @@ func (x *BaleUserSubscribeToThreadUpdatesRequest) String() string {
 func (*BaleUserSubscribeToThreadUpdatesRequest) ProtoMessage() {}
 
 func (x *BaleUserSubscribeToThreadUpdatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[867]
+	mi := &file_proto_cores_bale_proto_msgTypes[871]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40149,7 +40309,7 @@ func (x *BaleUserSubscribeToThreadUpdatesRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserSubscribeToThreadUpdatesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeToThreadUpdatesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{867}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{871}
 }
 
 func (x *BaleUserSubscribeToThreadUpdatesRequest) GetChatId() string {
@@ -40175,7 +40335,7 @@ type BaleUserSubscribeToThreadUpdatesResponse struct {
 
 func (x *BaleUserSubscribeToThreadUpdatesResponse) Reset() {
 	*x = BaleUserSubscribeToThreadUpdatesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[868]
+	mi := &file_proto_cores_bale_proto_msgTypes[872]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40187,7 +40347,7 @@ func (x *BaleUserSubscribeToThreadUpdatesResponse) String() string {
 func (*BaleUserSubscribeToThreadUpdatesResponse) ProtoMessage() {}
 
 func (x *BaleUserSubscribeToThreadUpdatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[868]
+	mi := &file_proto_cores_bale_proto_msgTypes[872]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40200,7 +40360,7 @@ func (x *BaleUserSubscribeToThreadUpdatesResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserSubscribeToThreadUpdatesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeToThreadUpdatesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{868}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{872}
 }
 
 func (x *BaleUserSubscribeToThreadUpdatesResponse) GetResult_1() []byte {
@@ -40218,7 +40378,7 @@ type BaleUserSubscribeToUpdatesRequest struct {
 
 func (x *BaleUserSubscribeToUpdatesRequest) Reset() {
 	*x = BaleUserSubscribeToUpdatesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[869]
+	mi := &file_proto_cores_bale_proto_msgTypes[873]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40230,7 +40390,7 @@ func (x *BaleUserSubscribeToUpdatesRequest) String() string {
 func (*BaleUserSubscribeToUpdatesRequest) ProtoMessage() {}
 
 func (x *BaleUserSubscribeToUpdatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[869]
+	mi := &file_proto_cores_bale_proto_msgTypes[873]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40243,7 +40403,7 @@ func (x *BaleUserSubscribeToUpdatesRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserSubscribeToUpdatesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeToUpdatesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{869}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{873}
 }
 
 type BaleUserSubscribeToUpdatesResponse struct {
@@ -40255,7 +40415,7 @@ type BaleUserSubscribeToUpdatesResponse struct {
 
 func (x *BaleUserSubscribeToUpdatesResponse) Reset() {
 	*x = BaleUserSubscribeToUpdatesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[870]
+	mi := &file_proto_cores_bale_proto_msgTypes[874]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40267,7 +40427,7 @@ func (x *BaleUserSubscribeToUpdatesResponse) String() string {
 func (*BaleUserSubscribeToUpdatesResponse) ProtoMessage() {}
 
 func (x *BaleUserSubscribeToUpdatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[870]
+	mi := &file_proto_cores_bale_proto_msgTypes[874]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40280,7 +40440,7 @@ func (x *BaleUserSubscribeToUpdatesResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleUserSubscribeToUpdatesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserSubscribeToUpdatesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{870}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{874}
 }
 
 func (x *BaleUserSubscribeToUpdatesResponse) GetResult_1() []byte {
@@ -40300,7 +40460,7 @@ type BaleUserTakeCallActionRequest struct {
 
 func (x *BaleUserTakeCallActionRequest) Reset() {
 	*x = BaleUserTakeCallActionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[871]
+	mi := &file_proto_cores_bale_proto_msgTypes[875]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40312,7 +40472,7 @@ func (x *BaleUserTakeCallActionRequest) String() string {
 func (*BaleUserTakeCallActionRequest) ProtoMessage() {}
 
 func (x *BaleUserTakeCallActionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[871]
+	mi := &file_proto_cores_bale_proto_msgTypes[875]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40325,7 +40485,7 @@ func (x *BaleUserTakeCallActionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserTakeCallActionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserTakeCallActionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{871}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{875}
 }
 
 func (x *BaleUserTakeCallActionRequest) GetCallId() int64 {
@@ -40351,7 +40511,7 @@ type BaleUserTakeCallActionResponse struct {
 
 func (x *BaleUserTakeCallActionResponse) Reset() {
 	*x = BaleUserTakeCallActionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[872]
+	mi := &file_proto_cores_bale_proto_msgTypes[876]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40363,7 +40523,7 @@ func (x *BaleUserTakeCallActionResponse) String() string {
 func (*BaleUserTakeCallActionResponse) ProtoMessage() {}
 
 func (x *BaleUserTakeCallActionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[872]
+	mi := &file_proto_cores_bale_proto_msgTypes[876]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40376,7 +40536,7 @@ func (x *BaleUserTakeCallActionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserTakeCallActionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserTakeCallActionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{872}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{876}
 }
 
 func (x *BaleUserTakeCallActionResponse) GetResult_1() []byte {
@@ -40395,7 +40555,7 @@ type BaleUserTerminateSessionRequest struct {
 
 func (x *BaleUserTerminateSessionRequest) Reset() {
 	*x = BaleUserTerminateSessionRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[873]
+	mi := &file_proto_cores_bale_proto_msgTypes[877]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40407,7 +40567,7 @@ func (x *BaleUserTerminateSessionRequest) String() string {
 func (*BaleUserTerminateSessionRequest) ProtoMessage() {}
 
 func (x *BaleUserTerminateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[873]
+	mi := &file_proto_cores_bale_proto_msgTypes[877]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40420,7 +40580,7 @@ func (x *BaleUserTerminateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserTerminateSessionRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserTerminateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{873}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{877}
 }
 
 func (x *BaleUserTerminateSessionRequest) GetSessionId() int64 {
@@ -40439,7 +40599,7 @@ type BaleUserTerminateSessionResponse struct {
 
 func (x *BaleUserTerminateSessionResponse) Reset() {
 	*x = BaleUserTerminateSessionResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[874]
+	mi := &file_proto_cores_bale_proto_msgTypes[878]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40451,7 +40611,7 @@ func (x *BaleUserTerminateSessionResponse) String() string {
 func (*BaleUserTerminateSessionResponse) ProtoMessage() {}
 
 func (x *BaleUserTerminateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[874]
+	mi := &file_proto_cores_bale_proto_msgTypes[878]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40464,7 +40624,7 @@ func (x *BaleUserTerminateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserTerminateSessionResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserTerminateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{874}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{878}
 }
 
 func (x *BaleUserTerminateSessionResponse) GetResult_1() []byte {
@@ -40484,7 +40644,7 @@ type BaleUserTransferOwnershipRequest struct {
 
 func (x *BaleUserTransferOwnershipRequest) Reset() {
 	*x = BaleUserTransferOwnershipRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[875]
+	mi := &file_proto_cores_bale_proto_msgTypes[879]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40496,7 +40656,7 @@ func (x *BaleUserTransferOwnershipRequest) String() string {
 func (*BaleUserTransferOwnershipRequest) ProtoMessage() {}
 
 func (x *BaleUserTransferOwnershipRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[875]
+	mi := &file_proto_cores_bale_proto_msgTypes[879]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40509,7 +40669,7 @@ func (x *BaleUserTransferOwnershipRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserTransferOwnershipRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserTransferOwnershipRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{875}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{879}
 }
 
 func (x *BaleUserTransferOwnershipRequest) GetGroupId() int64 {
@@ -40535,7 +40695,7 @@ type BaleUserTransferOwnershipResponse struct {
 
 func (x *BaleUserTransferOwnershipResponse) Reset() {
 	*x = BaleUserTransferOwnershipResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[876]
+	mi := &file_proto_cores_bale_proto_msgTypes[880]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40547,7 +40707,7 @@ func (x *BaleUserTransferOwnershipResponse) String() string {
 func (*BaleUserTransferOwnershipResponse) ProtoMessage() {}
 
 func (x *BaleUserTransferOwnershipResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[876]
+	mi := &file_proto_cores_bale_proto_msgTypes[880]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40560,7 +40720,7 @@ func (x *BaleUserTransferOwnershipResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleUserTransferOwnershipResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserTransferOwnershipResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{876}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{880}
 }
 
 func (x *BaleUserTransferOwnershipResponse) GetResult_1() []byte {
@@ -40579,7 +40739,7 @@ type BaleUserTypingRequest struct {
 
 func (x *BaleUserTypingRequest) Reset() {
 	*x = BaleUserTypingRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[877]
+	mi := &file_proto_cores_bale_proto_msgTypes[881]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40591,7 +40751,7 @@ func (x *BaleUserTypingRequest) String() string {
 func (*BaleUserTypingRequest) ProtoMessage() {}
 
 func (x *BaleUserTypingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[877]
+	mi := &file_proto_cores_bale_proto_msgTypes[881]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40604,7 +40764,7 @@ func (x *BaleUserTypingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserTypingRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserTypingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{877}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{881}
 }
 
 func (x *BaleUserTypingRequest) GetChatId() string {
@@ -40623,7 +40783,7 @@ type BaleUserTypingResponse struct {
 
 func (x *BaleUserTypingResponse) Reset() {
 	*x = BaleUserTypingResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[878]
+	mi := &file_proto_cores_bale_proto_msgTypes[882]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40635,7 +40795,7 @@ func (x *BaleUserTypingResponse) String() string {
 func (*BaleUserTypingResponse) ProtoMessage() {}
 
 func (x *BaleUserTypingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[878]
+	mi := &file_proto_cores_bale_proto_msgTypes[882]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40648,7 +40808,7 @@ func (x *BaleUserTypingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserTypingResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserTypingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{878}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{882}
 }
 
 func (x *BaleUserTypingResponse) GetResult_1() []byte {
@@ -40667,7 +40827,7 @@ type BaleUserUnArchiveDialogsRequest struct {
 
 func (x *BaleUserUnArchiveDialogsRequest) Reset() {
 	*x = BaleUserUnArchiveDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[879]
+	mi := &file_proto_cores_bale_proto_msgTypes[883]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40679,7 +40839,7 @@ func (x *BaleUserUnArchiveDialogsRequest) String() string {
 func (*BaleUserUnArchiveDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserUnArchiveDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[879]
+	mi := &file_proto_cores_bale_proto_msgTypes[883]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40692,7 +40852,7 @@ func (x *BaleUserUnArchiveDialogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnArchiveDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUnArchiveDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{879}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{883}
 }
 
 func (x *BaleUserUnArchiveDialogsRequest) GetChatIds() []string {
@@ -40711,7 +40871,7 @@ type BaleUserUnArchiveDialogsResponse struct {
 
 func (x *BaleUserUnArchiveDialogsResponse) Reset() {
 	*x = BaleUserUnArchiveDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[880]
+	mi := &file_proto_cores_bale_proto_msgTypes[884]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40723,7 +40883,7 @@ func (x *BaleUserUnArchiveDialogsResponse) String() string {
 func (*BaleUserUnArchiveDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserUnArchiveDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[880]
+	mi := &file_proto_cores_bale_proto_msgTypes[884]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40736,7 +40896,7 @@ func (x *BaleUserUnArchiveDialogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnArchiveDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUnArchiveDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{880}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{884}
 }
 
 func (x *BaleUserUnArchiveDialogsResponse) GetResult_1() []byte {
@@ -40756,7 +40916,7 @@ type BaleUserUnBanUserRequest struct {
 
 func (x *BaleUserUnBanUserRequest) Reset() {
 	*x = BaleUserUnBanUserRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[881]
+	mi := &file_proto_cores_bale_proto_msgTypes[885]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40768,7 +40928,7 @@ func (x *BaleUserUnBanUserRequest) String() string {
 func (*BaleUserUnBanUserRequest) ProtoMessage() {}
 
 func (x *BaleUserUnBanUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[881]
+	mi := &file_proto_cores_bale_proto_msgTypes[885]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40781,7 +40941,7 @@ func (x *BaleUserUnBanUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnBanUserRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUnBanUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{881}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{885}
 }
 
 func (x *BaleUserUnBanUserRequest) GetGroupId() int64 {
@@ -40807,7 +40967,7 @@ type BaleUserUnBanUserResponse struct {
 
 func (x *BaleUserUnBanUserResponse) Reset() {
 	*x = BaleUserUnBanUserResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[882]
+	mi := &file_proto_cores_bale_proto_msgTypes[886]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40819,7 +40979,7 @@ func (x *BaleUserUnBanUserResponse) String() string {
 func (*BaleUserUnBanUserResponse) ProtoMessage() {}
 
 func (x *BaleUserUnBanUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[882]
+	mi := &file_proto_cores_bale_proto_msgTypes[886]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40832,7 +40992,7 @@ func (x *BaleUserUnBanUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnBanUserResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUnBanUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{882}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{886}
 }
 
 func (x *BaleUserUnBanUserResponse) GetResult_1() []byte {
@@ -40853,7 +41013,7 @@ type BaleUserUnPinMessagesRequest struct {
 
 func (x *BaleUserUnPinMessagesRequest) Reset() {
 	*x = BaleUserUnPinMessagesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[883]
+	mi := &file_proto_cores_bale_proto_msgTypes[887]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40865,7 +41025,7 @@ func (x *BaleUserUnPinMessagesRequest) String() string {
 func (*BaleUserUnPinMessagesRequest) ProtoMessage() {}
 
 func (x *BaleUserUnPinMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[883]
+	mi := &file_proto_cores_bale_proto_msgTypes[887]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40878,7 +41038,7 @@ func (x *BaleUserUnPinMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnPinMessagesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUnPinMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{883}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{887}
 }
 
 func (x *BaleUserUnPinMessagesRequest) GetChatId() string {
@@ -40911,7 +41071,7 @@ type BaleUserUnPinMessagesResponse struct {
 
 func (x *BaleUserUnPinMessagesResponse) Reset() {
 	*x = BaleUserUnPinMessagesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[884]
+	mi := &file_proto_cores_bale_proto_msgTypes[888]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40923,7 +41083,7 @@ func (x *BaleUserUnPinMessagesResponse) String() string {
 func (*BaleUserUnPinMessagesResponse) ProtoMessage() {}
 
 func (x *BaleUserUnPinMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[884]
+	mi := &file_proto_cores_bale_proto_msgTypes[888]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40936,7 +41096,7 @@ func (x *BaleUserUnPinMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnPinMessagesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUnPinMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{884}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{888}
 }
 
 func (x *BaleUserUnPinMessagesResponse) GetResult_1() []byte {
@@ -40955,7 +41115,7 @@ type BaleUserUnScheduleTaskRequest struct {
 
 func (x *BaleUserUnScheduleTaskRequest) Reset() {
 	*x = BaleUserUnScheduleTaskRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[885]
+	mi := &file_proto_cores_bale_proto_msgTypes[889]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -40967,7 +41127,7 @@ func (x *BaleUserUnScheduleTaskRequest) String() string {
 func (*BaleUserUnScheduleTaskRequest) ProtoMessage() {}
 
 func (x *BaleUserUnScheduleTaskRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[885]
+	mi := &file_proto_cores_bale_proto_msgTypes[889]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -40980,7 +41140,7 @@ func (x *BaleUserUnScheduleTaskRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnScheduleTaskRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUnScheduleTaskRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{885}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{889}
 }
 
 func (x *BaleUserUnScheduleTaskRequest) GetTaskId() int64 {
@@ -40999,7 +41159,7 @@ type BaleUserUnScheduleTaskResponse struct {
 
 func (x *BaleUserUnScheduleTaskResponse) Reset() {
 	*x = BaleUserUnScheduleTaskResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[886]
+	mi := &file_proto_cores_bale_proto_msgTypes[890]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41011,7 +41171,7 @@ func (x *BaleUserUnScheduleTaskResponse) String() string {
 func (*BaleUserUnScheduleTaskResponse) ProtoMessage() {}
 
 func (x *BaleUserUnScheduleTaskResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[886]
+	mi := &file_proto_cores_bale_proto_msgTypes[890]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41024,7 +41184,7 @@ func (x *BaleUserUnScheduleTaskResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnScheduleTaskResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUnScheduleTaskResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{886}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{890}
 }
 
 func (x *BaleUserUnScheduleTaskResponse) GetResult_1() []byte {
@@ -41043,7 +41203,7 @@ type BaleUserUnblockUserRequest struct {
 
 func (x *BaleUserUnblockUserRequest) Reset() {
 	*x = BaleUserUnblockUserRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[887]
+	mi := &file_proto_cores_bale_proto_msgTypes[891]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41055,7 +41215,7 @@ func (x *BaleUserUnblockUserRequest) String() string {
 func (*BaleUserUnblockUserRequest) ProtoMessage() {}
 
 func (x *BaleUserUnblockUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[887]
+	mi := &file_proto_cores_bale_proto_msgTypes[891]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41068,7 +41228,7 @@ func (x *BaleUserUnblockUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnblockUserRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUnblockUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{887}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{891}
 }
 
 func (x *BaleUserUnblockUserRequest) GetUserId() int64 {
@@ -41087,7 +41247,7 @@ type BaleUserUnblockUserResponse struct {
 
 func (x *BaleUserUnblockUserResponse) Reset() {
 	*x = BaleUserUnblockUserResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[888]
+	mi := &file_proto_cores_bale_proto_msgTypes[892]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41099,7 +41259,7 @@ func (x *BaleUserUnblockUserResponse) String() string {
 func (*BaleUserUnblockUserResponse) ProtoMessage() {}
 
 func (x *BaleUserUnblockUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[888]
+	mi := &file_proto_cores_bale_proto_msgTypes[892]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41112,7 +41272,7 @@ func (x *BaleUserUnblockUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnblockUserResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUnblockUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{888}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{892}
 }
 
 func (x *BaleUserUnblockUserResponse) GetResult_1() []byte {
@@ -41131,7 +41291,7 @@ type BaleUserUnpinDialogsRequest struct {
 
 func (x *BaleUserUnpinDialogsRequest) Reset() {
 	*x = BaleUserUnpinDialogsRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[889]
+	mi := &file_proto_cores_bale_proto_msgTypes[893]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41143,7 +41303,7 @@ func (x *BaleUserUnpinDialogsRequest) String() string {
 func (*BaleUserUnpinDialogsRequest) ProtoMessage() {}
 
 func (x *BaleUserUnpinDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[889]
+	mi := &file_proto_cores_bale_proto_msgTypes[893]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41156,7 +41316,7 @@ func (x *BaleUserUnpinDialogsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnpinDialogsRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUnpinDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{889}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{893}
 }
 
 func (x *BaleUserUnpinDialogsRequest) GetChatIds() []string {
@@ -41175,7 +41335,7 @@ type BaleUserUnpinDialogsResponse struct {
 
 func (x *BaleUserUnpinDialogsResponse) Reset() {
 	*x = BaleUserUnpinDialogsResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[890]
+	mi := &file_proto_cores_bale_proto_msgTypes[894]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41187,7 +41347,7 @@ func (x *BaleUserUnpinDialogsResponse) String() string {
 func (*BaleUserUnpinDialogsResponse) ProtoMessage() {}
 
 func (x *BaleUserUnpinDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[890]
+	mi := &file_proto_cores_bale_proto_msgTypes[894]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41200,7 +41360,7 @@ func (x *BaleUserUnpinDialogsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUnpinDialogsResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUnpinDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{890}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{894}
 }
 
 func (x *BaleUserUnpinDialogsResponse) GetResult_1() []byte {
@@ -41220,7 +41380,7 @@ type BaleUserUnsubscribeFromThreadUpdatesRequest struct {
 
 func (x *BaleUserUnsubscribeFromThreadUpdatesRequest) Reset() {
 	*x = BaleUserUnsubscribeFromThreadUpdatesRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[891]
+	mi := &file_proto_cores_bale_proto_msgTypes[895]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41232,7 +41392,7 @@ func (x *BaleUserUnsubscribeFromThreadUpdatesRequest) String() string {
 func (*BaleUserUnsubscribeFromThreadUpdatesRequest) ProtoMessage() {}
 
 func (x *BaleUserUnsubscribeFromThreadUpdatesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[891]
+	mi := &file_proto_cores_bale_proto_msgTypes[895]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41245,7 +41405,7 @@ func (x *BaleUserUnsubscribeFromThreadUpdatesRequest) ProtoReflect() protoreflec
 
 // Deprecated: Use BaleUserUnsubscribeFromThreadUpdatesRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUnsubscribeFromThreadUpdatesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{891}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{895}
 }
 
 func (x *BaleUserUnsubscribeFromThreadUpdatesRequest) GetChatId() string {
@@ -41271,7 +41431,7 @@ type BaleUserUnsubscribeFromThreadUpdatesResponse struct {
 
 func (x *BaleUserUnsubscribeFromThreadUpdatesResponse) Reset() {
 	*x = BaleUserUnsubscribeFromThreadUpdatesResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[892]
+	mi := &file_proto_cores_bale_proto_msgTypes[896]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41283,7 +41443,7 @@ func (x *BaleUserUnsubscribeFromThreadUpdatesResponse) String() string {
 func (*BaleUserUnsubscribeFromThreadUpdatesResponse) ProtoMessage() {}
 
 func (x *BaleUserUnsubscribeFromThreadUpdatesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[892]
+	mi := &file_proto_cores_bale_proto_msgTypes[896]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41296,7 +41456,7 @@ func (x *BaleUserUnsubscribeFromThreadUpdatesResponse) ProtoReflect() protorefle
 
 // Deprecated: Use BaleUserUnsubscribeFromThreadUpdatesResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUnsubscribeFromThreadUpdatesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{892}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{896}
 }
 
 func (x *BaleUserUnsubscribeFromThreadUpdatesResponse) GetResult_1() []byte {
@@ -41316,7 +41476,7 @@ type BaleUserUpdateCallLayoutRequest struct {
 
 func (x *BaleUserUpdateCallLayoutRequest) Reset() {
 	*x = BaleUserUpdateCallLayoutRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[893]
+	mi := &file_proto_cores_bale_proto_msgTypes[897]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41328,7 +41488,7 @@ func (x *BaleUserUpdateCallLayoutRequest) String() string {
 func (*BaleUserUpdateCallLayoutRequest) ProtoMessage() {}
 
 func (x *BaleUserUpdateCallLayoutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[893]
+	mi := &file_proto_cores_bale_proto_msgTypes[897]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41341,7 +41501,7 @@ func (x *BaleUserUpdateCallLayoutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUpdateCallLayoutRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUpdateCallLayoutRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{893}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{897}
 }
 
 func (x *BaleUserUpdateCallLayoutRequest) GetCallId() int64 {
@@ -41367,7 +41527,7 @@ type BaleUserUpdateCallLayoutResponse struct {
 
 func (x *BaleUserUpdateCallLayoutResponse) Reset() {
 	*x = BaleUserUpdateCallLayoutResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[894]
+	mi := &file_proto_cores_bale_proto_msgTypes[898]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41379,7 +41539,7 @@ func (x *BaleUserUpdateCallLayoutResponse) String() string {
 func (*BaleUserUpdateCallLayoutResponse) ProtoMessage() {}
 
 func (x *BaleUserUpdateCallLayoutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[894]
+	mi := &file_proto_cores_bale_proto_msgTypes[898]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41392,7 +41552,7 @@ func (x *BaleUserUpdateCallLayoutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUpdateCallLayoutResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUpdateCallLayoutResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{894}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{898}
 }
 
 func (x *BaleUserUpdateCallLayoutResponse) GetResult_1() []byte {
@@ -41414,7 +41574,7 @@ type BaleUserUpdateMessageRequest struct {
 
 func (x *BaleUserUpdateMessageRequest) Reset() {
 	*x = BaleUserUpdateMessageRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[895]
+	mi := &file_proto_cores_bale_proto_msgTypes[899]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41426,7 +41586,7 @@ func (x *BaleUserUpdateMessageRequest) String() string {
 func (*BaleUserUpdateMessageRequest) ProtoMessage() {}
 
 func (x *BaleUserUpdateMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[895]
+	mi := &file_proto_cores_bale_proto_msgTypes[899]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41439,7 +41599,7 @@ func (x *BaleUserUpdateMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUpdateMessageRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUpdateMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{895}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{899}
 }
 
 func (x *BaleUserUpdateMessageRequest) GetChatId() string {
@@ -41479,7 +41639,7 @@ type BaleUserUpdateMessageResponse struct {
 
 func (x *BaleUserUpdateMessageResponse) Reset() {
 	*x = BaleUserUpdateMessageResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[896]
+	mi := &file_proto_cores_bale_proto_msgTypes[900]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41491,7 +41651,7 @@ func (x *BaleUserUpdateMessageResponse) String() string {
 func (*BaleUserUpdateMessageResponse) ProtoMessage() {}
 
 func (x *BaleUserUpdateMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[896]
+	mi := &file_proto_cores_bale_proto_msgTypes[900]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41504,7 +41664,7 @@ func (x *BaleUserUpdateMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUpdateMessageResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUpdateMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{896}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{900}
 }
 
 func (x *BaleUserUpdateMessageResponse) GetResult_1() []byte {
@@ -41523,7 +41683,7 @@ type BaleUserUpdateSearchContentClickRequest struct {
 
 func (x *BaleUserUpdateSearchContentClickRequest) Reset() {
 	*x = BaleUserUpdateSearchContentClickRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[897]
+	mi := &file_proto_cores_bale_proto_msgTypes[901]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41535,7 +41695,7 @@ func (x *BaleUserUpdateSearchContentClickRequest) String() string {
 func (*BaleUserUpdateSearchContentClickRequest) ProtoMessage() {}
 
 func (x *BaleUserUpdateSearchContentClickRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[897]
+	mi := &file_proto_cores_bale_proto_msgTypes[901]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41548,7 +41708,7 @@ func (x *BaleUserUpdateSearchContentClickRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use BaleUserUpdateSearchContentClickRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUpdateSearchContentClickRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{897}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{901}
 }
 
 func (x *BaleUserUpdateSearchContentClickRequest) GetContentId() string {
@@ -41567,7 +41727,7 @@ type BaleUserUpdateSearchContentClickResponse struct {
 
 func (x *BaleUserUpdateSearchContentClickResponse) Reset() {
 	*x = BaleUserUpdateSearchContentClickResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[898]
+	mi := &file_proto_cores_bale_proto_msgTypes[902]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41579,7 +41739,7 @@ func (x *BaleUserUpdateSearchContentClickResponse) String() string {
 func (*BaleUserUpdateSearchContentClickResponse) ProtoMessage() {}
 
 func (x *BaleUserUpdateSearchContentClickResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[898]
+	mi := &file_proto_cores_bale_proto_msgTypes[902]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41592,7 +41752,7 @@ func (x *BaleUserUpdateSearchContentClickResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use BaleUserUpdateSearchContentClickResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUpdateSearchContentClickResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{898}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{902}
 }
 
 func (x *BaleUserUpdateSearchContentClickResponse) GetResult_1() []byte {
@@ -41611,7 +41771,7 @@ type BaleUserUseGifRequest struct {
 
 func (x *BaleUserUseGifRequest) Reset() {
 	*x = BaleUserUseGifRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[899]
+	mi := &file_proto_cores_bale_proto_msgTypes[903]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41623,7 +41783,7 @@ func (x *BaleUserUseGifRequest) String() string {
 func (*BaleUserUseGifRequest) ProtoMessage() {}
 
 func (x *BaleUserUseGifRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[899]
+	mi := &file_proto_cores_bale_proto_msgTypes[903]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41636,7 +41796,7 @@ func (x *BaleUserUseGifRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUseGifRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserUseGifRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{899}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{903}
 }
 
 func (x *BaleUserUseGifRequest) GetFileId() int64 {
@@ -41655,7 +41815,7 @@ type BaleUserUseGifResponse struct {
 
 func (x *BaleUserUseGifResponse) Reset() {
 	*x = BaleUserUseGifResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[900]
+	mi := &file_proto_cores_bale_proto_msgTypes[904]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41667,7 +41827,7 @@ func (x *BaleUserUseGifResponse) String() string {
 func (*BaleUserUseGifResponse) ProtoMessage() {}
 
 func (x *BaleUserUseGifResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[900]
+	mi := &file_proto_cores_bale_proto_msgTypes[904]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41680,7 +41840,7 @@ func (x *BaleUserUseGifResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserUseGifResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserUseGifResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{900}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{904}
 }
 
 func (x *BaleUserUseGifResponse) GetResult_1() []byte {
@@ -41700,7 +41860,7 @@ type BaleUserValidatePasswordRequest struct {
 
 func (x *BaleUserValidatePasswordRequest) Reset() {
 	*x = BaleUserValidatePasswordRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[901]
+	mi := &file_proto_cores_bale_proto_msgTypes[905]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41712,7 +41872,7 @@ func (x *BaleUserValidatePasswordRequest) String() string {
 func (*BaleUserValidatePasswordRequest) ProtoMessage() {}
 
 func (x *BaleUserValidatePasswordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[901]
+	mi := &file_proto_cores_bale_proto_msgTypes[905]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41725,7 +41885,7 @@ func (x *BaleUserValidatePasswordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserValidatePasswordRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserValidatePasswordRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{901}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{905}
 }
 
 func (x *BaleUserValidatePasswordRequest) GetTransactionHash() string {
@@ -41751,7 +41911,7 @@ type BaleUserValidatePasswordResponse struct {
 
 func (x *BaleUserValidatePasswordResponse) Reset() {
 	*x = BaleUserValidatePasswordResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[902]
+	mi := &file_proto_cores_bale_proto_msgTypes[906]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41763,7 +41923,7 @@ func (x *BaleUserValidatePasswordResponse) String() string {
 func (*BaleUserValidatePasswordResponse) ProtoMessage() {}
 
 func (x *BaleUserValidatePasswordResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[902]
+	mi := &file_proto_cores_bale_proto_msgTypes[906]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41776,7 +41936,7 @@ func (x *BaleUserValidatePasswordResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserValidatePasswordResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserValidatePasswordResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{902}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{906}
 }
 
 func (x *BaleUserValidatePasswordResponse) GetResult_1() []byte {
@@ -41797,7 +41957,7 @@ type BaleUserVotePollServiceRequest struct {
 
 func (x *BaleUserVotePollServiceRequest) Reset() {
 	*x = BaleUserVotePollServiceRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[903]
+	mi := &file_proto_cores_bale_proto_msgTypes[907]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41809,7 +41969,7 @@ func (x *BaleUserVotePollServiceRequest) String() string {
 func (*BaleUserVotePollServiceRequest) ProtoMessage() {}
 
 func (x *BaleUserVotePollServiceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[903]
+	mi := &file_proto_cores_bale_proto_msgTypes[907]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41822,7 +41982,7 @@ func (x *BaleUserVotePollServiceRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserVotePollServiceRequest.ProtoReflect.Descriptor instead.
 func (*BaleUserVotePollServiceRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{903}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{907}
 }
 
 func (x *BaleUserVotePollServiceRequest) GetChatId() string {
@@ -41855,7 +42015,7 @@ type BaleUserVotePollServiceResponse struct {
 
 func (x *BaleUserVotePollServiceResponse) Reset() {
 	*x = BaleUserVotePollServiceResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[904]
+	mi := &file_proto_cores_bale_proto_msgTypes[908]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41867,7 +42027,7 @@ func (x *BaleUserVotePollServiceResponse) String() string {
 func (*BaleUserVotePollServiceResponse) ProtoMessage() {}
 
 func (x *BaleUserVotePollServiceResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[904]
+	mi := &file_proto_cores_bale_proto_msgTypes[908]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41880,7 +42040,7 @@ func (x *BaleUserVotePollServiceResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleUserVotePollServiceResponse.ProtoReflect.Descriptor instead.
 func (*BaleUserVotePollServiceResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{904}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{908}
 }
 
 func (x *BaleUserVotePollServiceResponse) GetResult_1() []byte {
@@ -41899,7 +42059,7 @@ type BaleValidateRamzOTPRequest struct {
 
 func (x *BaleValidateRamzOTPRequest) Reset() {
 	*x = BaleValidateRamzOTPRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[905]
+	mi := &file_proto_cores_bale_proto_msgTypes[909]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41911,7 +42071,7 @@ func (x *BaleValidateRamzOTPRequest) String() string {
 func (*BaleValidateRamzOTPRequest) ProtoMessage() {}
 
 func (x *BaleValidateRamzOTPRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[905]
+	mi := &file_proto_cores_bale_proto_msgTypes[909]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41924,7 +42084,7 @@ func (x *BaleValidateRamzOTPRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleValidateRamzOTPRequest.ProtoReflect.Descriptor instead.
 func (*BaleValidateRamzOTPRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{905}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{909}
 }
 
 func (x *BaleValidateRamzOTPRequest) GetOtp() string {
@@ -41943,7 +42103,7 @@ type BaleValidateRamzOTPResponse struct {
 
 func (x *BaleValidateRamzOTPResponse) Reset() {
 	*x = BaleValidateRamzOTPResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[906]
+	mi := &file_proto_cores_bale_proto_msgTypes[910]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -41955,7 +42115,7 @@ func (x *BaleValidateRamzOTPResponse) String() string {
 func (*BaleValidateRamzOTPResponse) ProtoMessage() {}
 
 func (x *BaleValidateRamzOTPResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[906]
+	mi := &file_proto_cores_bale_proto_msgTypes[910]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -41968,7 +42128,7 @@ func (x *BaleValidateRamzOTPResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleValidateRamzOTPResponse.ProtoReflect.Descriptor instead.
 func (*BaleValidateRamzOTPResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{906}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{910}
 }
 
 func (x *BaleValidateRamzOTPResponse) GetResult_1() []byte {
@@ -41988,7 +42148,7 @@ type BaleVerifyEmailRequest struct {
 
 func (x *BaleVerifyEmailRequest) Reset() {
 	*x = BaleVerifyEmailRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[907]
+	mi := &file_proto_cores_bale_proto_msgTypes[911]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42000,7 +42160,7 @@ func (x *BaleVerifyEmailRequest) String() string {
 func (*BaleVerifyEmailRequest) ProtoMessage() {}
 
 func (x *BaleVerifyEmailRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[907]
+	mi := &file_proto_cores_bale_proto_msgTypes[911]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -42013,7 +42173,7 @@ func (x *BaleVerifyEmailRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleVerifyEmailRequest.ProtoReflect.Descriptor instead.
 func (*BaleVerifyEmailRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{907}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{911}
 }
 
 func (x *BaleVerifyEmailRequest) GetEmail() string {
@@ -42039,7 +42199,7 @@ type BaleVerifyEmailResponse struct {
 
 func (x *BaleVerifyEmailResponse) Reset() {
 	*x = BaleVerifyEmailResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[908]
+	mi := &file_proto_cores_bale_proto_msgTypes[912]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42051,7 +42211,7 @@ func (x *BaleVerifyEmailResponse) String() string {
 func (*BaleVerifyEmailResponse) ProtoMessage() {}
 
 func (x *BaleVerifyEmailResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[908]
+	mi := &file_proto_cores_bale_proto_msgTypes[912]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -42064,7 +42224,7 @@ func (x *BaleVerifyEmailResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleVerifyEmailResponse.ProtoReflect.Descriptor instead.
 func (*BaleVerifyEmailResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{908}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{912}
 }
 
 func (x *BaleVerifyEmailResponse) GetResult_1() []byte {
@@ -42083,7 +42243,7 @@ type BaleVerifyPasswordRecoveryRequest struct {
 
 func (x *BaleVerifyPasswordRecoveryRequest) Reset() {
 	*x = BaleVerifyPasswordRecoveryRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[909]
+	mi := &file_proto_cores_bale_proto_msgTypes[913]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42095,7 +42255,7 @@ func (x *BaleVerifyPasswordRecoveryRequest) String() string {
 func (*BaleVerifyPasswordRecoveryRequest) ProtoMessage() {}
 
 func (x *BaleVerifyPasswordRecoveryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[909]
+	mi := &file_proto_cores_bale_proto_msgTypes[913]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -42108,7 +42268,7 @@ func (x *BaleVerifyPasswordRecoveryRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use BaleVerifyPasswordRecoveryRequest.ProtoReflect.Descriptor instead.
 func (*BaleVerifyPasswordRecoveryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{909}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{913}
 }
 
 func (x *BaleVerifyPasswordRecoveryRequest) GetCode() string {
@@ -42127,7 +42287,7 @@ type BaleVerifyPasswordRecoveryResponse struct {
 
 func (x *BaleVerifyPasswordRecoveryResponse) Reset() {
 	*x = BaleVerifyPasswordRecoveryResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[910]
+	mi := &file_proto_cores_bale_proto_msgTypes[914]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42139,7 +42299,7 @@ func (x *BaleVerifyPasswordRecoveryResponse) String() string {
 func (*BaleVerifyPasswordRecoveryResponse) ProtoMessage() {}
 
 func (x *BaleVerifyPasswordRecoveryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[910]
+	mi := &file_proto_cores_bale_proto_msgTypes[914]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -42152,7 +42312,7 @@ func (x *BaleVerifyPasswordRecoveryResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use BaleVerifyPasswordRecoveryResponse.ProtoReflect.Descriptor instead.
 func (*BaleVerifyPasswordRecoveryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{910}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{914}
 }
 
 func (x *BaleVerifyPasswordRecoveryResponse) GetResult_1() []byte {
@@ -42173,7 +42333,7 @@ type BaleVotePollRequest struct {
 
 func (x *BaleVotePollRequest) Reset() {
 	*x = BaleVotePollRequest{}
-	mi := &file_proto_cores_bale_proto_msgTypes[911]
+	mi := &file_proto_cores_bale_proto_msgTypes[915]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42185,7 +42345,7 @@ func (x *BaleVotePollRequest) String() string {
 func (*BaleVotePollRequest) ProtoMessage() {}
 
 func (x *BaleVotePollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[911]
+	mi := &file_proto_cores_bale_proto_msgTypes[915]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -42198,7 +42358,7 @@ func (x *BaleVotePollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleVotePollRequest.ProtoReflect.Descriptor instead.
 func (*BaleVotePollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{911}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{915}
 }
 
 func (x *BaleVotePollRequest) GetChatId() string {
@@ -42230,7 +42390,7 @@ type BaleVotePollResponse struct {
 
 func (x *BaleVotePollResponse) Reset() {
 	*x = BaleVotePollResponse{}
-	mi := &file_proto_cores_bale_proto_msgTypes[912]
+	mi := &file_proto_cores_bale_proto_msgTypes[916]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -42242,7 +42402,7 @@ func (x *BaleVotePollResponse) String() string {
 func (*BaleVotePollResponse) ProtoMessage() {}
 
 func (x *BaleVotePollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_bale_proto_msgTypes[912]
+	mi := &file_proto_cores_bale_proto_msgTypes[916]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -42255,7 +42415,7 @@ func (x *BaleVotePollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BaleVotePollResponse.ProtoReflect.Descriptor instead.
 func (*BaleVotePollResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_bale_proto_rawDescGZIP(), []int{912}
+	return file_proto_cores_bale_proto_rawDescGZIP(), []int{916}
 }
 
 var File_proto_cores_bale_proto protoreflect.FileDescriptor
@@ -43094,7 +43254,13 @@ const file_proto_cores_bale_proto_rawDesc = "" +
 	"\achat_id\x18\x01 \x01(\tR\x06chatId\x12\x14\n" +
 	"\x05video\x18\x02 \x01(\bR\x05video\"J\n" +
 	"\x15BaleStartCallResponse\x121\n" +
-	"\bresult_1\x18\x01 \x01(\v2\x16.uniclient.CallSessionR\aresult1\"!\n" +
+	"\bresult_1\x18\x01 \x01(\v2\x16.uniclient.CallSessionR\aresult1\"2\n" +
+	"\x14BaleSubmit2FARequest\x12\x1a\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword\"\x17\n" +
+	"\x15BaleSubmit2FAResponse\"*\n" +
+	"\x14BaleSubmitOTPRequest\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\"\x17\n" +
+	"\x15BaleSubmitOTPResponse\"!\n" +
 	"\x1fBaleTerminateAllSessionsRequest\"=\n" +
 	" BaleTerminateAllSessionsResponse\x12\x19\n" +
 	"\bresult_1\x18\x01 \x01(\fR\aresult1\"<\n" +
@@ -44426,7 +44592,7 @@ func file_proto_cores_bale_proto_rawDescGZIP() []byte {
 	return file_proto_cores_bale_proto_rawDescData
 }
 
-var file_proto_cores_bale_proto_msgTypes = make([]protoimpl.MessageInfo, 916)
+var file_proto_cores_bale_proto_msgTypes = make([]protoimpl.MessageInfo, 920)
 var file_proto_cores_bale_proto_goTypes = []any{
 	(*BaleChatInfo)(nil),                                        // 0: uniclient.bale.BaleChatInfo
 	(*BaleChatMember)(nil),                                      // 1: uniclient.bale.BaleChatMember
@@ -44775,643 +44941,647 @@ var file_proto_cores_bale_proto_goTypes = []any{
 	(*BaleSetWebhookResponse)(nil),                              // 344: uniclient.bale.BaleSetWebhookResponse
 	(*BaleStartCallRequest)(nil),                                // 345: uniclient.bale.BaleStartCallRequest
 	(*BaleStartCallResponse)(nil),                               // 346: uniclient.bale.BaleStartCallResponse
-	(*BaleTerminateAllSessionsRequest)(nil),                     // 347: uniclient.bale.BaleTerminateAllSessionsRequest
-	(*BaleTerminateAllSessionsResponse)(nil),                    // 348: uniclient.bale.BaleTerminateAllSessionsResponse
-	(*BaleTerminateSessionRequest)(nil),                         // 349: uniclient.bale.BaleTerminateSessionRequest
-	(*BaleTerminateSessionResponse)(nil),                        // 350: uniclient.bale.BaleTerminateSessionResponse
-	(*BaleUnbanMemberRequest)(nil),                              // 351: uniclient.bale.BaleUnbanMemberRequest
-	(*BaleUnbanMemberResponse)(nil),                             // 352: uniclient.bale.BaleUnbanMemberResponse
-	(*BaleUnblockUserRequest)(nil),                              // 353: uniclient.bale.BaleUnblockUserRequest
-	(*BaleUnblockUserResponse)(nil),                             // 354: uniclient.bale.BaleUnblockUserResponse
-	(*BaleUnpinAllMessagesRequest)(nil),                         // 355: uniclient.bale.BaleUnpinAllMessagesRequest
-	(*BaleUnpinAllMessagesResponse)(nil),                        // 356: uniclient.bale.BaleUnpinAllMessagesResponse
-	(*BaleUnpinMessageRequest)(nil),                             // 357: uniclient.bale.BaleUnpinMessageRequest
-	(*BaleUnpinMessageResponse)(nil),                            // 358: uniclient.bale.BaleUnpinMessageResponse
-	(*BaleUnregisterAllPushCredentialsRequest)(nil),             // 359: uniclient.bale.BaleUnregisterAllPushCredentialsRequest
-	(*BaleUnregisterAllPushCredentialsResponse)(nil),            // 360: uniclient.bale.BaleUnregisterAllPushCredentialsResponse
-	(*BaleUnregisterGooglePushRequest)(nil),                     // 361: uniclient.bale.BaleUnregisterGooglePushRequest
-	(*BaleUnregisterGooglePushResponse)(nil),                    // 362: uniclient.bale.BaleUnregisterGooglePushResponse
-	(*BaleUnregisterPushRequest)(nil),                           // 363: uniclient.bale.BaleUnregisterPushRequest
-	(*BaleUnregisterPushResponse)(nil),                          // 364: uniclient.bale.BaleUnregisterPushResponse
-	(*BaleUploadRawPUTRequest)(nil),                             // 365: uniclient.bale.BaleUploadRawPUTRequest
-	(*BaleUploadRawPUTResponse)(nil),                            // 366: uniclient.bale.BaleUploadRawPUTResponse
-	(*BaleUploadStickerFileRequest)(nil),                        // 367: uniclient.bale.BaleUploadStickerFileRequest
-	(*BaleUploadStickerFileResponse)(nil),                       // 368: uniclient.bale.BaleUploadStickerFileResponse
-	(*BaleUpvotePostRequest)(nil),                               // 369: uniclient.bale.BaleUpvotePostRequest
-	(*BaleUpvotePostResponse)(nil),                              // 370: uniclient.bale.BaleUpvotePostResponse
-	(*BaleUserAIGetTranscriptRequest)(nil),                      // 371: uniclient.bale.BaleUserAIGetTranscriptRequest
-	(*BaleUserAIGetTranscriptResponse)(nil),                     // 372: uniclient.bale.BaleUserAIGetTranscriptResponse
-	(*BaleUserAISendEventRequest)(nil),                          // 373: uniclient.bale.BaleUserAISendEventRequest
-	(*BaleUserAISendEventResponse)(nil),                         // 374: uniclient.bale.BaleUserAISendEventResponse
-	(*BaleUserAcceptCallMeetRequest)(nil),                       // 375: uniclient.bale.BaleUserAcceptCallMeetRequest
-	(*BaleUserAcceptCallMeetResponse)(nil),                      // 376: uniclient.bale.BaleUserAcceptCallMeetResponse
-	(*BaleUserAddBotStoryRequest)(nil),                          // 377: uniclient.bale.BaleUserAddBotStoryRequest
-	(*BaleUserAddBotStoryResponse)(nil),                         // 378: uniclient.bale.BaleUserAddBotStoryResponse
-	(*BaleUserAddChannelStoryRequest)(nil),                      // 379: uniclient.bale.BaleUserAddChannelStoryRequest
-	(*BaleUserAddChannelStoryResponse)(nil),                     // 380: uniclient.bale.BaleUserAddChannelStoryResponse
-	(*BaleUserAddContactRequest)(nil),                           // 381: uniclient.bale.BaleUserAddContactRequest
-	(*BaleUserAddContactResponse)(nil),                          // 382: uniclient.bale.BaleUserAddContactResponse
-	(*BaleUserAddDiscussionGroupAdminRequest)(nil),              // 383: uniclient.bale.BaleUserAddDiscussionGroupAdminRequest
-	(*BaleUserAddDiscussionGroupAdminResponse)(nil),             // 384: uniclient.bale.BaleUserAddDiscussionGroupAdminResponse
-	(*BaleUserAddGifRequest)(nil),                               // 385: uniclient.bale.BaleUserAddGifRequest
-	(*BaleUserAddGifResponse)(nil),                              // 386: uniclient.bale.BaleUserAddGifResponse
-	(*BaleUserAddStickerCollectionRequest)(nil),                 // 387: uniclient.bale.BaleUserAddStickerCollectionRequest
-	(*BaleUserAddStickerCollectionResponse)(nil),                // 388: uniclient.bale.BaleUserAddStickerCollectionResponse
-	(*BaleUserAddStickerPackRequest)(nil),                       // 389: uniclient.bale.BaleUserAddStickerPackRequest
-	(*BaleUserAddStickerPackResponse)(nil),                      // 390: uniclient.bale.BaleUserAddStickerPackResponse
-	(*BaleUserAddStoryRequest)(nil),                             // 391: uniclient.bale.BaleUserAddStoryRequest
-	(*BaleUserAddStoryResponse)(nil),                            // 392: uniclient.bale.BaleUserAddStoryResponse
-	(*BaleUserAnswerCallJoinRequestRequest)(nil),                // 393: uniclient.bale.BaleUserAnswerCallJoinRequestRequest
-	(*BaleUserAnswerCallJoinRequestResponse)(nil),               // 394: uniclient.bale.BaleUserAnswerCallJoinRequestResponse
-	(*BaleUserArchiveDialogsRequest)(nil),                       // 395: uniclient.bale.BaleUserArchiveDialogsRequest
-	(*BaleUserArchiveDialogsResponse)(nil),                      // 396: uniclient.bale.BaleUserArchiveDialogsResponse
-	(*BaleUserAskToJoinCallRequest)(nil),                        // 397: uniclient.bale.BaleUserAskToJoinCallRequest
-	(*BaleUserAskToJoinCallResponse)(nil),                       // 398: uniclient.bale.BaleUserAskToJoinCallResponse
-	(*BaleUserBlockUserRequest)(nil),                            // 399: uniclient.bale.BaleUserBlockUserRequest
-	(*BaleUserBlockUserResponse)(nil),                           // 400: uniclient.bale.BaleUserBlockUserResponse
-	(*BaleUserCanAddBotStoryRequest)(nil),                       // 401: uniclient.bale.BaleUserCanAddBotStoryRequest
-	(*BaleUserCanAddBotStoryResponse)(nil),                      // 402: uniclient.bale.BaleUserCanAddBotStoryResponse
-	(*BaleUserCancelMessageStreamRequest)(nil),                  // 403: uniclient.bale.BaleUserCancelMessageStreamRequest
-	(*BaleUserCancelMessageStreamResponse)(nil),                 // 404: uniclient.bale.BaleUserCancelMessageStreamResponse
-	(*BaleUserCheckNickNameRequest)(nil),                        // 405: uniclient.bale.BaleUserCheckNickNameRequest
-	(*BaleUserCheckNickNameResponse)(nil),                       // 406: uniclient.bale.BaleUserCheckNickNameResponse
-	(*BaleUserCheckStoryLinkValidityRequest)(nil),               // 407: uniclient.bale.BaleUserCheckStoryLinkValidityRequest
-	(*BaleUserCheckStoryLinkValidityResponse)(nil),              // 408: uniclient.bale.BaleUserCheckStoryLinkValidityResponse
-	(*BaleUserClearChatRequest)(nil),                            // 409: uniclient.bale.BaleUserClearChatRequest
-	(*BaleUserClearChatResponse)(nil),                           // 410: uniclient.bale.BaleUserClearChatResponse
-	(*BaleUserClosePollServiceRequest)(nil),                     // 411: uniclient.bale.BaleUserClosePollServiceRequest
-	(*BaleUserClosePollServiceResponse)(nil),                    // 412: uniclient.bale.BaleUserClosePollServiceResponse
-	(*BaleUserCreateFolderRequest)(nil),                         // 413: uniclient.bale.BaleUserCreateFolderRequest
-	(*BaleUserCreateFolderResponse)(nil),                        // 414: uniclient.bale.BaleUserCreateFolderResponse
-	(*BaleUserCreateGroupRequest)(nil),                          // 415: uniclient.bale.BaleUserCreateGroupRequest
-	(*BaleUserCreateGroupResponse)(nil),                         // 416: uniclient.bale.BaleUserCreateGroupResponse
-	(*BaleUserCreateGroupFullRequest)(nil),                      // 417: uniclient.bale.BaleUserCreateGroupFullRequest
-	(*BaleUserCreateGroupFullResponse)(nil),                     // 418: uniclient.bale.BaleUserCreateGroupFullResponse
-	(*BaleUserCreatePollRequest)(nil),                           // 419: uniclient.bale.BaleUserCreatePollRequest
-	(*BaleUserCreatePollResponse)(nil),                          // 420: uniclient.bale.BaleUserCreatePollResponse
-	(*BaleUserCreateReservedFolderRequest)(nil),                 // 421: uniclient.bale.BaleUserCreateReservedFolderRequest
-	(*BaleUserCreateReservedFolderResponse)(nil),                // 422: uniclient.bale.BaleUserCreateReservedFolderResponse
-	(*BaleUserCreateThreadRequest)(nil),                         // 423: uniclient.bale.BaleUserCreateThreadRequest
-	(*BaleUserCreateThreadResponse)(nil),                        // 424: uniclient.bale.BaleUserCreateThreadResponse
-	(*BaleUserCreateTopicRequest)(nil),                          // 425: uniclient.bale.BaleUserCreateTopicRequest
-	(*BaleUserCreateTopicResponse)(nil),                         // 426: uniclient.bale.BaleUserCreateTopicResponse
-	(*BaleUserDeleteCallLogsRequest)(nil),                       // 427: uniclient.bale.BaleUserDeleteCallLogsRequest
-	(*BaleUserDeleteCallLogsResponse)(nil),                      // 428: uniclient.bale.BaleUserDeleteCallLogsResponse
-	(*BaleUserDeleteChatRequest)(nil),                           // 429: uniclient.bale.BaleUserDeleteChatRequest
-	(*BaleUserDeleteChatResponse)(nil),                          // 430: uniclient.bale.BaleUserDeleteChatResponse
-	(*BaleUserDeleteMessageRequest)(nil),                        // 431: uniclient.bale.BaleUserDeleteMessageRequest
-	(*BaleUserDeleteMessageResponse)(nil),                       // 432: uniclient.bale.BaleUserDeleteMessageResponse
-	(*BaleUserDeleteMyCommandsRequest)(nil),                     // 433: uniclient.bale.BaleUserDeleteMyCommandsRequest
-	(*BaleUserDeleteMyCommandsResponse)(nil),                    // 434: uniclient.bale.BaleUserDeleteMyCommandsResponse
-	(*BaleUserDeleteStreamRequest)(nil),                         // 435: uniclient.bale.BaleUserDeleteStreamRequest
-	(*BaleUserDeleteStreamResponse)(nil),                        // 436: uniclient.bale.BaleUserDeleteStreamResponse
-	(*BaleUserEditAboutRequest)(nil),                            // 437: uniclient.bale.BaleUserEditAboutRequest
-	(*BaleUserEditAboutResponse)(nil),                           // 438: uniclient.bale.BaleUserEditAboutResponse
-	(*BaleUserEditChannelNickRequest)(nil),                      // 439: uniclient.bale.BaleUserEditChannelNickRequest
-	(*BaleUserEditChannelNickResponse)(nil),                     // 440: uniclient.bale.BaleUserEditChannelNickResponse
-	(*BaleUserEditGroupAboutRequest)(nil),                       // 441: uniclient.bale.BaleUserEditGroupAboutRequest
-	(*BaleUserEditGroupAboutResponse)(nil),                      // 442: uniclient.bale.BaleUserEditGroupAboutResponse
-	(*BaleUserEditGroupAvatarRequest)(nil),                      // 443: uniclient.bale.BaleUserEditGroupAvatarRequest
-	(*BaleUserEditGroupAvatarResponse)(nil),                     // 444: uniclient.bale.BaleUserEditGroupAvatarResponse
-	(*BaleUserEditGroupDefaultCardNumberRequest)(nil),           // 445: uniclient.bale.BaleUserEditGroupDefaultCardNumberRequest
-	(*BaleUserEditGroupDefaultCardNumberResponse)(nil),          // 446: uniclient.bale.BaleUserEditGroupDefaultCardNumberResponse
-	(*BaleUserEditGroupTitleRequest)(nil),                       // 447: uniclient.bale.BaleUserEditGroupTitleRequest
-	(*BaleUserEditGroupTitleResponse)(nil),                      // 448: uniclient.bale.BaleUserEditGroupTitleResponse
-	(*BaleUserEditLocalNameRequest)(nil),                        // 449: uniclient.bale.BaleUserEditLocalNameRequest
-	(*BaleUserEditLocalNameResponse)(nil),                       // 450: uniclient.bale.BaleUserEditLocalNameResponse
-	(*BaleUserEditNameRequest)(nil),                             // 451: uniclient.bale.BaleUserEditNameRequest
-	(*BaleUserEditNameResponse)(nil),                            // 452: uniclient.bale.BaleUserEditNameResponse
-	(*BaleUserEditNickNameRequest)(nil),                         // 453: uniclient.bale.BaleUserEditNickNameRequest
-	(*BaleUserEditNickNameResponse)(nil),                        // 454: uniclient.bale.BaleUserEditNickNameResponse
-	(*BaleUserEditParameterRequest)(nil),                        // 455: uniclient.bale.BaleUserEditParameterRequest
-	(*BaleUserEditParameterResponse)(nil),                       // 456: uniclient.bale.BaleUserEditParameterResponse
-	(*BaleUserEnableShowReactionFlagRequest)(nil),               // 457: uniclient.bale.BaleUserEnableShowReactionFlagRequest
-	(*BaleUserEnableShowReactionFlagResponse)(nil),              // 458: uniclient.bale.BaleUserEnableShowReactionFlagResponse
-	(*BaleUserExecuteTaskNowRequest)(nil),                       // 459: uniclient.bale.BaleUserExecuteTaskNowRequest
-	(*BaleUserExecuteTaskNowResponse)(nil),                      // 460: uniclient.bale.BaleUserExecuteTaskNowResponse
-	(*BaleUserFetchGroupAdminsRequest)(nil),                     // 461: uniclient.bale.BaleUserFetchGroupAdminsRequest
-	(*BaleUserFetchGroupAdminsResponse)(nil),                    // 462: uniclient.bale.BaleUserFetchGroupAdminsResponse
-	(*BaleUserFetchProtectedMessageRequest)(nil),                // 463: uniclient.bale.BaleUserFetchProtectedMessageRequest
-	(*BaleUserFetchProtectedMessageResponse)(nil),               // 464: uniclient.bale.BaleUserFetchProtectedMessageResponse
-	(*BaleUserFileUploadCancelRequest)(nil),                     // 465: uniclient.bale.BaleUserFileUploadCancelRequest
-	(*BaleUserFileUploadCancelResponse)(nil),                    // 466: uniclient.bale.BaleUserFileUploadCancelResponse
-	(*BaleUserForwardMessagesRequest)(nil),                      // 467: uniclient.bale.BaleUserForwardMessagesRequest
-	(*BaleUserForwardMessagesResponse)(nil),                     // 468: uniclient.bale.BaleUserForwardMessagesResponse
-	(*BaleUserGenerateCallLinkRequest)(nil),                     // 469: uniclient.bale.BaleUserGenerateCallLinkRequest
-	(*BaleUserGenerateCallLinkResponse)(nil),                    // 470: uniclient.bale.BaleUserGenerateCallLinkResponse
-	(*BaleUserGetActiveSharedMediaRequest)(nil),                 // 471: uniclient.bale.BaleUserGetActiveSharedMediaRequest
-	(*BaleUserGetActiveSharedMediaResponse)(nil),                // 472: uniclient.bale.BaleUserGetActiveSharedMediaResponse
-	(*BaleUserGetAnonymousContactPageRequest)(nil),              // 473: uniclient.bale.BaleUserGetAnonymousContactPageRequest
-	(*BaleUserGetAnonymousContactPageResponse)(nil),             // 474: uniclient.bale.BaleUserGetAnonymousContactPageResponse
-	(*BaleUserGetBannedUsersRequest)(nil),                       // 475: uniclient.bale.BaleUserGetBannedUsersRequest
-	(*BaleUserGetBannedUsersResponse)(nil),                      // 476: uniclient.bale.BaleUserGetBannedUsersResponse
-	(*BaleUserGetBotGroupPermissionsRequest)(nil),               // 477: uniclient.bale.BaleUserGetBotGroupPermissionsRequest
-	(*BaleUserGetBotGroupPermissionsResponse)(nil),              // 478: uniclient.bale.BaleUserGetBotGroupPermissionsResponse
-	(*BaleUserGetBotInfoRequest)(nil),                           // 479: uniclient.bale.BaleUserGetBotInfoRequest
-	(*BaleUserGetBotInfoResponse)(nil),                          // 480: uniclient.bale.BaleUserGetBotInfoResponse
-	(*BaleUserGetBotStoriesRequest)(nil),                        // 481: uniclient.bale.BaleUserGetBotStoriesRequest
-	(*BaleUserGetBotStoriesResponse)(nil),                       // 482: uniclient.bale.BaleUserGetBotStoriesResponse
-	(*BaleUserGetBotWhiteListRequest)(nil),                      // 483: uniclient.bale.BaleUserGetBotWhiteListRequest
-	(*BaleUserGetBotWhiteListResponse)(nil),                     // 484: uniclient.bale.BaleUserGetBotWhiteListResponse
-	(*BaleUserGetBotsRequest)(nil),                              // 485: uniclient.bale.BaleUserGetBotsRequest
-	(*BaleUserGetBotsResponse)(nil),                             // 486: uniclient.bale.BaleUserGetBotsResponse
-	(*BaleUserGetCallLinkDetailsRequest)(nil),                   // 487: uniclient.bale.BaleUserGetCallLinkDetailsRequest
-	(*BaleUserGetCallLinkDetailsResponse)(nil),                  // 488: uniclient.bale.BaleUserGetCallLinkDetailsResponse
-	(*BaleUserGetCallStateRequest)(nil),                         // 489: uniclient.bale.BaleUserGetCallStateRequest
-	(*BaleUserGetCallStateResponse)(nil),                        // 490: uniclient.bale.BaleUserGetCallStateResponse
-	(*BaleUserGetCanSeeMessagesRequest)(nil),                    // 491: uniclient.bale.BaleUserGetCanSeeMessagesRequest
-	(*BaleUserGetCanSeeMessagesResponse)(nil),                   // 492: uniclient.bale.BaleUserGetCanSeeMessagesResponse
-	(*BaleUserGetChannelRecommendationsRequest)(nil),            // 493: uniclient.bale.BaleUserGetChannelRecommendationsRequest
-	(*BaleUserGetChannelRecommendationsResponse)(nil),           // 494: uniclient.bale.BaleUserGetChannelRecommendationsResponse
-	(*BaleUserGetChannelStoriesRequest)(nil),                    // 495: uniclient.bale.BaleUserGetChannelStoriesRequest
-	(*BaleUserGetChannelStoriesResponse)(nil),                   // 496: uniclient.bale.BaleUserGetChannelStoriesResponse
-	(*BaleUserGetContactsRequest)(nil),                          // 497: uniclient.bale.BaleUserGetContactsRequest
-	(*BaleUserGetContactsResponse)(nil),                         // 498: uniclient.bale.BaleUserGetContactsResponse
-	(*BaleUserGetContactsPresencesRequest)(nil),                 // 499: uniclient.bale.BaleUserGetContactsPresencesRequest
-	(*BaleUserGetContactsPresencesResponse)(nil),                // 500: uniclient.bale.BaleUserGetContactsPresencesResponse
-	(*BaleUserGetDefaultStoryBackgroundsRequest)(nil),           // 501: uniclient.bale.BaleUserGetDefaultStoryBackgroundsRequest
-	(*BaleUserGetDefaultStoryBackgroundsResponse)(nil),          // 502: uniclient.bale.BaleUserGetDefaultStoryBackgroundsResponse
-	(*BaleUserGetDifferenceRequest)(nil),                        // 503: uniclient.bale.BaleUserGetDifferenceRequest
-	(*BaleUserGetDifferenceResponse)(nil),                       // 504: uniclient.bale.BaleUserGetDifferenceResponse
-	(*BaleUserGetDiscussionMessageRequest)(nil),                 // 505: uniclient.bale.BaleUserGetDiscussionMessageRequest
-	(*BaleUserGetDiscussionMessageResponse)(nil),                // 506: uniclient.bale.BaleUserGetDiscussionMessageResponse
-	(*BaleUserGetFileURLRequest)(nil),                           // 507: uniclient.bale.BaleUserGetFileURLRequest
-	(*BaleUserGetFileURLResponse)(nil),                          // 508: uniclient.bale.BaleUserGetFileURLResponse
-	(*BaleUserGetFileUploadURLRequest)(nil),                     // 509: uniclient.bale.BaleUserGetFileUploadURLRequest
-	(*BaleUserGetFileUploadURLResponse)(nil),                    // 510: uniclient.bale.BaleUserGetFileUploadURLResponse
-	(*BaleUserGetFullGroupRequest)(nil),                         // 511: uniclient.bale.BaleUserGetFullGroupRequest
-	(*BaleUserGetFullGroupResponse)(nil),                        // 512: uniclient.bale.BaleUserGetFullGroupResponse
-	(*BaleUserGetFullPollResultServiceRequest)(nil),             // 513: uniclient.bale.BaleUserGetFullPollResultServiceRequest
-	(*BaleUserGetFullPollResultServiceResponse)(nil),            // 514: uniclient.bale.BaleUserGetFullPollResultServiceResponse
-	(*BaleUserGetGroupDefaultCardNumberRequest)(nil),            // 515: uniclient.bale.BaleUserGetGroupDefaultCardNumberRequest
-	(*BaleUserGetGroupDefaultCardNumberResponse)(nil),           // 516: uniclient.bale.BaleUserGetGroupDefaultCardNumberResponse
-	(*BaleUserGetGroupInviteURLRequest)(nil),                    // 517: uniclient.bale.BaleUserGetGroupInviteURLRequest
-	(*BaleUserGetGroupInviteURLResponse)(nil),                   // 518: uniclient.bale.BaleUserGetGroupInviteURLResponse
-	(*BaleUserGetGroupMembersCountRequest)(nil),                 // 519: uniclient.bale.BaleUserGetGroupMembersCountRequest
-	(*BaleUserGetGroupMembersCountResponse)(nil),                // 520: uniclient.bale.BaleUserGetGroupMembersCountResponse
-	(*BaleUserGetGroupMembersPresencesRequest)(nil),             // 521: uniclient.bale.BaleUserGetGroupMembersPresencesRequest
-	(*BaleUserGetGroupMembersPresencesResponse)(nil),            // 522: uniclient.bale.BaleUserGetGroupMembersPresencesResponse
-	(*BaleUserGetGroupOnlineCountRequest)(nil),                  // 523: uniclient.bale.BaleUserGetGroupOnlineCountRequest
-	(*BaleUserGetGroupOnlineCountResponse)(nil),                 // 524: uniclient.bale.BaleUserGetGroupOnlineCountResponse
-	(*BaleUserGetGroupPreviewRequest)(nil),                      // 525: uniclient.bale.BaleUserGetGroupPreviewRequest
-	(*BaleUserGetGroupPreviewResponse)(nil),                     // 526: uniclient.bale.BaleUserGetGroupPreviewResponse
-	(*BaleUserGetGroupRecommendationsRequest)(nil),              // 527: uniclient.bale.BaleUserGetGroupRecommendationsRequest
-	(*BaleUserGetGroupRecommendationsResponse)(nil),             // 528: uniclient.bale.BaleUserGetGroupRecommendationsResponse
-	(*BaleUserGetGroupsRecommendationRequest)(nil),              // 529: uniclient.bale.BaleUserGetGroupsRecommendationRequest
-	(*BaleUserGetGroupsRecommendationResponse)(nil),             // 530: uniclient.bale.BaleUserGetGroupsRecommendationResponse
-	(*BaleUserGetInlineBotResultsRequest)(nil),                  // 531: uniclient.bale.BaleUserGetInlineBotResultsRequest
-	(*BaleUserGetInlineBotResultsResponse)(nil),                 // 532: uniclient.bale.BaleUserGetInlineBotResultsResponse
-	(*BaleUserGetLLMAuthTokenRequest)(nil),                      // 533: uniclient.bale.BaleUserGetLLMAuthTokenRequest
-	(*BaleUserGetLLMAuthTokenResponse)(nil),                     // 534: uniclient.bale.BaleUserGetLLMAuthTokenResponse
-	(*BaleUserGetLinkPreviewRequest)(nil),                       // 535: uniclient.bale.BaleUserGetLinkPreviewRequest
-	(*BaleUserGetLinkPreviewResponse)(nil),                      // 536: uniclient.bale.BaleUserGetLinkPreviewResponse
-	(*BaleUserGetLinkStatusRequest)(nil),                        // 537: uniclient.bale.BaleUserGetLinkStatusRequest
-	(*BaleUserGetLinkStatusResponse)(nil),                       // 538: uniclient.bale.BaleUserGetLinkStatusResponse
-	(*BaleUserGetLinkSummaryRequest)(nil),                       // 539: uniclient.bale.BaleUserGetLinkSummaryRequest
-	(*BaleUserGetLinkSummaryResponse)(nil),                      // 540: uniclient.bale.BaleUserGetLinkSummaryResponse
-	(*BaleUserGetMemberPermissionsRequest)(nil),                 // 541: uniclient.bale.BaleUserGetMemberPermissionsRequest
-	(*BaleUserGetMemberPermissionsResponse)(nil),                // 542: uniclient.bale.BaleUserGetMemberPermissionsResponse
-	(*BaleUserGetMenuButtonRequest)(nil),                        // 543: uniclient.bale.BaleUserGetMenuButtonRequest
-	(*BaleUserGetMenuButtonResponse)(nil),                       // 544: uniclient.bale.BaleUserGetMenuButtonResponse
-	(*BaleUserGetMessageSeenListRequest)(nil),                   // 545: uniclient.bale.BaleUserGetMessageSeenListRequest
-	(*BaleUserGetMessageSeenListResponse)(nil),                  // 546: uniclient.bale.BaleUserGetMessageSeenListResponse
-	(*BaleUserGetMessageViewsRequest)(nil),                      // 547: uniclient.bale.BaleUserGetMessageViewsRequest
-	(*BaleUserGetMessageViewsResponse)(nil),                     // 548: uniclient.bale.BaleUserGetMessageViewsResponse
-	(*BaleUserGetMessagesRepliesInfoRequest)(nil),               // 549: uniclient.bale.BaleUserGetMessagesRepliesInfoRequest
-	(*BaleUserGetMessagesRepliesInfoResponse)(nil),              // 550: uniclient.bale.BaleUserGetMessagesRepliesInfoResponse
-	(*BaleUserGetMiniAppUrlAppzarRequest)(nil),                  // 551: uniclient.bale.BaleUserGetMiniAppUrlAppzarRequest
-	(*BaleUserGetMiniAppUrlAppzarResponse)(nil),                 // 552: uniclient.bale.BaleUserGetMiniAppUrlAppzarResponse
-	(*BaleUserGetMostPopularStoriesRequest)(nil),                // 553: uniclient.bale.BaleUserGetMostPopularStoriesRequest
-	(*BaleUserGetMostPopularStoriesResponse)(nil),               // 554: uniclient.bale.BaleUserGetMostPopularStoriesResponse
-	(*BaleUserGetMutualGroupsRequest)(nil),                      // 555: uniclient.bale.BaleUserGetMutualGroupsRequest
-	(*BaleUserGetMutualGroupsResponse)(nil),                     // 556: uniclient.bale.BaleUserGetMutualGroupsResponse
-	(*BaleUserGetMyCommandsRequest)(nil),                        // 557: uniclient.bale.BaleUserGetMyCommandsRequest
-	(*BaleUserGetMyCommandsResponse)(nil),                       // 558: uniclient.bale.BaleUserGetMyCommandsResponse
-	(*BaleUserGetMyGroupsRequest)(nil),                          // 559: uniclient.bale.BaleUserGetMyGroupsRequest
-	(*BaleUserGetMyGroupsResponse)(nil),                         // 560: uniclient.bale.BaleUserGetMyGroupsResponse
-	(*BaleUserGetMyUpvotesRequest)(nil),                         // 561: uniclient.bale.BaleUserGetMyUpvotesRequest
-	(*BaleUserGetMyUpvotesResponse)(nil),                        // 562: uniclient.bale.BaleUserGetMyUpvotesResponse
-	(*BaleUserGetNasimFilePublicUrlRequest)(nil),                // 563: uniclient.bale.BaleUserGetNasimFilePublicUrlRequest
-	(*BaleUserGetNasimFilePublicUrlResponse)(nil),               // 564: uniclient.bale.BaleUserGetNasimFilePublicUrlResponse
-	(*BaleUserGetNasimFileUploadResumeRequest)(nil),             // 565: uniclient.bale.BaleUserGetNasimFileUploadResumeRequest
-	(*BaleUserGetNasimFileUploadResumeResponse)(nil),            // 566: uniclient.bale.BaleUserGetNasimFileUploadResumeResponse
-	(*BaleUserGetNasimFileUrlsRequest)(nil),                     // 567: uniclient.bale.BaleUserGetNasimFileUrlsRequest
-	(*BaleUserGetNasimFileUrlsResponse)(nil),                    // 568: uniclient.bale.BaleUserGetNasimFileUrlsResponse
-	(*BaleUserGetOrganizationInfoRequest)(nil),                  // 569: uniclient.bale.BaleUserGetOrganizationInfoRequest
-	(*BaleUserGetOrganizationInfoResponse)(nil),                 // 570: uniclient.bale.BaleUserGetOrganizationInfoResponse
-	(*BaleUserGetOrganizationalContactsRequest)(nil),            // 571: uniclient.bale.BaleUserGetOrganizationalContactsRequest
-	(*BaleUserGetOrganizationalContactsResponse)(nil),           // 572: uniclient.bale.BaleUserGetOrganizationalContactsResponse
-	(*BaleUserGetParametersRequest)(nil),                        // 573: uniclient.bale.BaleUserGetParametersRequest
-	(*BaleUserGetParametersResponse)(nil),                       // 574: uniclient.bale.BaleUserGetParametersResponse
-	(*BaleUserGetPaymentDetailsRequest)(nil),                    // 575: uniclient.bale.BaleUserGetPaymentDetailsRequest
-	(*BaleUserGetPaymentDetailsResponse)(nil),                   // 576: uniclient.bale.BaleUserGetPaymentDetailsResponse
-	(*BaleUserGetPinsRequest)(nil),                              // 577: uniclient.bale.BaleUserGetPinsRequest
-	(*BaleUserGetPinsResponse)(nil),                             // 578: uniclient.bale.BaleUserGetPinsResponse
-	(*BaleUserGetPollResultsServiceRequest)(nil),                // 579: uniclient.bale.BaleUserGetPollResultsServiceRequest
-	(*BaleUserGetPollResultsServiceResponse)(nil),               // 580: uniclient.bale.BaleUserGetPollResultsServiceResponse
-	(*BaleUserGetReactionsRequest)(nil),                         // 581: uniclient.bale.BaleUserGetReactionsRequest
-	(*BaleUserGetReactionsResponse)(nil),                        // 582: uniclient.bale.BaleUserGetReactionsResponse
-	(*BaleUserGetReactionsListRequest)(nil),                     // 583: uniclient.bale.BaleUserGetReactionsListRequest
-	(*BaleUserGetReactionsListResponse)(nil),                    // 584: uniclient.bale.BaleUserGetReactionsListResponse
-	(*BaleUserGetRelatedChannelsRequest)(nil),                   // 585: uniclient.bale.BaleUserGetRelatedChannelsRequest
-	(*BaleUserGetRelatedChannelsResponse)(nil),                  // 586: uniclient.bale.BaleUserGetRelatedChannelsResponse
-	(*BaleUserGetRelatedGroupsRequest)(nil),                     // 587: uniclient.bale.BaleUserGetRelatedGroupsRequest
-	(*BaleUserGetRelatedGroupsResponse)(nil),                    // 588: uniclient.bale.BaleUserGetRelatedGroupsResponse
-	(*BaleUserGetSavedGifsRequest)(nil),                         // 589: uniclient.bale.BaleUserGetSavedGifsRequest
-	(*BaleUserGetSavedGifsResponse)(nil),                        // 590: uniclient.bale.BaleUserGetSavedGifsResponse
-	(*BaleUserGetShowReactionFlagRequest)(nil),                  // 591: uniclient.bale.BaleUserGetShowReactionFlagRequest
-	(*BaleUserGetShowReactionFlagResponse)(nil),                 // 592: uniclient.bale.BaleUserGetShowReactionFlagResponse
-	(*BaleUserGetSimilarPostsRequest)(nil),                      // 593: uniclient.bale.BaleUserGetSimilarPostsRequest
-	(*BaleUserGetSimilarPostsResponse)(nil),                     // 594: uniclient.bale.BaleUserGetSimilarPostsResponse
-	(*BaleUserGetStoriesRequest)(nil),                           // 595: uniclient.bale.BaleUserGetStoriesRequest
-	(*BaleUserGetStoriesResponse)(nil),                          // 596: uniclient.bale.BaleUserGetStoriesResponse
-	(*BaleUserGetStoriesByListRequest)(nil),                     // 597: uniclient.bale.BaleUserGetStoriesByListRequest
-	(*BaleUserGetStoriesByListResponse)(nil),                    // 598: uniclient.bale.BaleUserGetStoriesByListResponse
-	(*BaleUserGetStoryByIDRequest)(nil),                         // 599: uniclient.bale.BaleUserGetStoryByIDRequest
-	(*BaleUserGetStoryByIDResponse)(nil),                        // 600: uniclient.bale.BaleUserGetStoryByIDResponse
-	(*BaleUserGetStoryPrivacyConfigRequest)(nil),                // 601: uniclient.bale.BaleUserGetStoryPrivacyConfigRequest
-	(*BaleUserGetStoryPrivacyConfigResponse)(nil),               // 602: uniclient.bale.BaleUserGetStoryPrivacyConfigResponse
-	(*BaleUserGetStoryReactionEmojisRequest)(nil),               // 603: uniclient.bale.BaleUserGetStoryReactionEmojisRequest
-	(*BaleUserGetStoryReactionEmojisResponse)(nil),              // 604: uniclient.bale.BaleUserGetStoryReactionEmojisResponse
-	(*BaleUserGetStoryTagsRequest)(nil),                         // 605: uniclient.bale.BaleUserGetStoryTagsRequest
-	(*BaleUserGetStoryTagsResponse)(nil),                        // 606: uniclient.bale.BaleUserGetStoryTagsResponse
-	(*BaleUserGetStoryViewersRequest)(nil),                      // 607: uniclient.bale.BaleUserGetStoryViewersRequest
-	(*BaleUserGetStoryViewersResponse)(nil),                     // 608: uniclient.bale.BaleUserGetStoryViewersResponse
-	(*BaleUserGetStoryViewersCountRequest)(nil),                 // 609: uniclient.bale.BaleUserGetStoryViewersCountRequest
-	(*BaleUserGetStoryViewersCountResponse)(nil),                // 610: uniclient.bale.BaleUserGetStoryViewersCountResponse
-	(*BaleUserGetStoryWidgetsRequest)(nil),                      // 611: uniclient.bale.BaleUserGetStoryWidgetsRequest
-	(*BaleUserGetStoryWidgetsResponse)(nil),                     // 612: uniclient.bale.BaleUserGetStoryWidgetsResponse
-	(*BaleUserGetTopPeerRequest)(nil),                           // 613: uniclient.bale.BaleUserGetTopPeerRequest
-	(*BaleUserGetTopPeerResponse)(nil),                          // 614: uniclient.bale.BaleUserGetTopPeerResponse
-	(*BaleUserGetTopicByIDRequest)(nil),                         // 615: uniclient.bale.BaleUserGetTopicByIDRequest
-	(*BaleUserGetTopicByIDResponse)(nil),                        // 616: uniclient.bale.BaleUserGetTopicByIDResponse
-	(*BaleUserGetTopicsRequest)(nil),                            // 617: uniclient.bale.BaleUserGetTopicsRequest
-	(*BaleUserGetTopicsResponse)(nil),                           // 618: uniclient.bale.BaleUserGetTopicsResponse
-	(*BaleUserGetUserContextRequest)(nil),                       // 619: uniclient.bale.BaleUserGetUserContextRequest
-	(*BaleUserGetUserContextResponse)(nil),                      // 620: uniclient.bale.BaleUserGetUserContextResponse
-	(*BaleUserGetUserStoryConfigRequest)(nil),                   // 621: uniclient.bale.BaleUserGetUserStoryConfigRequest
-	(*BaleUserGetUserStoryConfigResponse)(nil),                  // 622: uniclient.bale.BaleUserGetUserStoryConfigResponse
-	(*BaleUserGetUsersPresenceRequest)(nil),                     // 623: uniclient.bale.BaleUserGetUsersPresenceRequest
-	(*BaleUserGetUsersPresenceResponse)(nil),                    // 624: uniclient.bale.BaleUserGetUsersPresenceResponse
-	(*BaleUserGetWebappHashRequest)(nil),                        // 625: uniclient.bale.BaleUserGetWebappHashRequest
-	(*BaleUserGetWebappHashResponse)(nil),                       // 626: uniclient.bale.BaleUserGetWebappHashResponse
-	(*BaleUserHTTPPostRequest)(nil),                             // 627: uniclient.bale.BaleUserHTTPPostRequest
-	(*BaleUserHTTPPostResponse)(nil),                            // 628: uniclient.bale.BaleUserHTTPPostResponse
-	(*BaleUserImportContactsRequest)(nil),                       // 629: uniclient.bale.BaleUserImportContactsRequest
-	(*BaleUserImportContactsResponse)(nil),                      // 630: uniclient.bale.BaleUserImportContactsResponse
-	(*BaleUserInviteToCallRequest)(nil),                         // 631: uniclient.bale.BaleUserInviteToCallRequest
-	(*BaleUserInviteToCallResponse)(nil),                        // 632: uniclient.bale.BaleUserInviteToCallResponse
-	(*BaleUserInviteUserRequest)(nil),                           // 633: uniclient.bale.BaleUserInviteUserRequest
-	(*BaleUserInviteUserResponse)(nil),                          // 634: uniclient.bale.BaleUserInviteUserResponse
-	(*BaleUserInviteUsersRequest)(nil),                          // 635: uniclient.bale.BaleUserInviteUsersRequest
-	(*BaleUserInviteUsersResponse)(nil),                         // 636: uniclient.bale.BaleUserInviteUsersResponse
-	(*BaleUserInvokeCustomActionRequest)(nil),                   // 637: uniclient.bale.BaleUserInvokeCustomActionRequest
-	(*BaleUserInvokeCustomActionResponse)(nil),                  // 638: uniclient.bale.BaleUserInvokeCustomActionResponse
-	(*BaleUserInvokeCustomMethodAppzarRequest)(nil),             // 639: uniclient.bale.BaleUserInvokeCustomMethodAppzarRequest
-	(*BaleUserInvokeCustomMethodAppzarResponse)(nil),            // 640: uniclient.bale.BaleUserInvokeCustomMethodAppzarResponse
-	(*BaleUserJoinGroupRequest)(nil),                            // 641: uniclient.bale.BaleUserJoinGroupRequest
-	(*BaleUserJoinGroupResponse)(nil),                           // 642: uniclient.bale.BaleUserJoinGroupResponse
-	(*BaleUserJoinPublicGroupRequest)(nil),                      // 643: uniclient.bale.BaleUserJoinPublicGroupRequest
-	(*BaleUserJoinPublicGroupResponse)(nil),                     // 644: uniclient.bale.BaleUserJoinPublicGroupResponse
-	(*BaleUserKickUserRequest)(nil),                             // 645: uniclient.bale.BaleUserKickUserRequest
-	(*BaleUserKickUserResponse)(nil),                            // 646: uniclient.bale.BaleUserKickUserResponse
-	(*BaleUserLeaveGroupRequest)(nil),                           // 647: uniclient.bale.BaleUserLeaveGroupRequest
-	(*BaleUserLeaveGroupResponse)(nil),                          // 648: uniclient.bale.BaleUserLeaveGroupResponse
-	(*BaleUserListScheduledTasksRequest)(nil),                   // 649: uniclient.bale.BaleUserListScheduledTasksRequest
-	(*BaleUserListScheduledTasksResponse)(nil),                  // 650: uniclient.bale.BaleUserListScheduledTasksResponse
-	(*BaleUserLoadBlockedUsersRequest)(nil),                     // 651: uniclient.bale.BaleUserLoadBlockedUsersRequest
-	(*BaleUserLoadBlockedUsersResponse)(nil),                    // 652: uniclient.bale.BaleUserLoadBlockedUsersResponse
-	(*BaleUserLoadCategoryFeedMessagesRequest)(nil),             // 653: uniclient.bale.BaleUserLoadCategoryFeedMessagesRequest
-	(*BaleUserLoadCategoryFeedMessagesResponse)(nil),            // 654: uniclient.bale.BaleUserLoadCategoryFeedMessagesResponse
-	(*BaleUserLoadDialogsRequest)(nil),                          // 655: uniclient.bale.BaleUserLoadDialogsRequest
-	(*BaleUserLoadDialogsResponse)(nil),                         // 656: uniclient.bale.BaleUserLoadDialogsResponse
-	(*BaleUserLoadDialogsFilteredRequest)(nil),                  // 657: uniclient.bale.BaleUserLoadDialogsFilteredRequest
-	(*BaleUserLoadDialogsFilteredResponse)(nil),                 // 658: uniclient.bale.BaleUserLoadDialogsFilteredResponse
-	(*BaleUserLoadFeedMessagesRequest)(nil),                     // 659: uniclient.bale.BaleUserLoadFeedMessagesRequest
-	(*BaleUserLoadFeedMessagesResponse)(nil),                    // 660: uniclient.bale.BaleUserLoadFeedMessagesResponse
-	(*BaleUserLoadFolderDialogsRequest)(nil),                    // 661: uniclient.bale.BaleUserLoadFolderDialogsRequest
-	(*BaleUserLoadFolderDialogsResponse)(nil),                   // 662: uniclient.bale.BaleUserLoadFolderDialogsResponse
-	(*BaleUserLoadFullGroupsRequest)(nil),                       // 663: uniclient.bale.BaleUserLoadFullGroupsRequest
-	(*BaleUserLoadFullGroupsResponse)(nil),                      // 664: uniclient.bale.BaleUserLoadFullGroupsResponse
-	(*BaleUserLoadFullUsersRequest)(nil),                        // 665: uniclient.bale.BaleUserLoadFullUsersRequest
-	(*BaleUserLoadFullUsersResponse)(nil),                       // 666: uniclient.bale.BaleUserLoadFullUsersResponse
-	(*BaleUserLoadGroupAvatarsRequest)(nil),                     // 667: uniclient.bale.BaleUserLoadGroupAvatarsRequest
-	(*BaleUserLoadGroupAvatarsResponse)(nil),                    // 668: uniclient.bale.BaleUserLoadGroupAvatarsResponse
-	(*BaleUserLoadGroupedDialogsRequest)(nil),                   // 669: uniclient.bale.BaleUserLoadGroupedDialogsRequest
-	(*BaleUserLoadGroupedDialogsResponse)(nil),                  // 670: uniclient.bale.BaleUserLoadGroupedDialogsResponse
-	(*BaleUserLoadGroupsRequest)(nil),                           // 671: uniclient.bale.BaleUserLoadGroupsRequest
-	(*BaleUserLoadGroupsResponse)(nil),                          // 672: uniclient.bale.BaleUserLoadGroupsResponse
-	(*BaleUserLoadHistoryRequest)(nil),                          // 673: uniclient.bale.BaleUserLoadHistoryRequest
-	(*BaleUserLoadHistoryResponse)(nil),                         // 674: uniclient.bale.BaleUserLoadHistoryResponse
-	(*BaleUserLoadInternalFeedMessagesRequest)(nil),             // 675: uniclient.bale.BaleUserLoadInternalFeedMessagesRequest
-	(*BaleUserLoadInternalFeedMessagesResponse)(nil),            // 676: uniclient.bale.BaleUserLoadInternalFeedMessagesResponse
-	(*BaleUserLoadMagazineCategoriesRequest)(nil),               // 677: uniclient.bale.BaleUserLoadMagazineCategoriesRequest
-	(*BaleUserLoadMagazineCategoriesResponse)(nil),              // 678: uniclient.bale.BaleUserLoadMagazineCategoriesResponse
-	(*BaleUserLoadMembersRequest)(nil),                          // 679: uniclient.bale.BaleUserLoadMembersRequest
-	(*BaleUserLoadMembersResponse)(nil),                         // 680: uniclient.bale.BaleUserLoadMembersResponse
-	(*BaleUserLoadOwnStickersRequest)(nil),                      // 681: uniclient.bale.BaleUserLoadOwnStickersRequest
-	(*BaleUserLoadOwnStickersResponse)(nil),                     // 682: uniclient.bale.BaleUserLoadOwnStickersResponse
-	(*BaleUserLoadPeerDialogsRequest)(nil),                      // 683: uniclient.bale.BaleUserLoadPeerDialogsRequest
-	(*BaleUserLoadPeerDialogsResponse)(nil),                     // 684: uniclient.bale.BaleUserLoadPeerDialogsResponse
-	(*BaleUserLoadPeersRequest)(nil),                            // 685: uniclient.bale.BaleUserLoadPeersRequest
-	(*BaleUserLoadPeersResponse)(nil),                           // 686: uniclient.bale.BaleUserLoadPeersResponse
-	(*BaleUserLoadPinnedDialogsRequest)(nil),                    // 687: uniclient.bale.BaleUserLoadPinnedDialogsRequest
-	(*BaleUserLoadPinnedDialogsResponse)(nil),                   // 688: uniclient.bale.BaleUserLoadPinnedDialogsResponse
-	(*BaleUserLoadPinnedMessagesRequest)(nil),                   // 689: uniclient.bale.BaleUserLoadPinnedMessagesRequest
-	(*BaleUserLoadPinnedMessagesResponse)(nil),                  // 690: uniclient.bale.BaleUserLoadPinnedMessagesResponse
-	(*BaleUserLoadReactionsRequest)(nil),                        // 691: uniclient.bale.BaleUserLoadReactionsRequest
-	(*BaleUserLoadReactionsResponse)(nil),                       // 692: uniclient.bale.BaleUserLoadReactionsResponse
-	(*BaleUserLoadRepliesRequest)(nil),                          // 693: uniclient.bale.BaleUserLoadRepliesRequest
-	(*BaleUserLoadRepliesResponse)(nil),                         // 694: uniclient.bale.BaleUserLoadRepliesResponse
-	(*BaleUserLoadSharedMediaRequest)(nil),                      // 695: uniclient.bale.BaleUserLoadSharedMediaRequest
-	(*BaleUserLoadSharedMediaResponse)(nil),                     // 696: uniclient.bale.BaleUserLoadSharedMediaResponse
-	(*BaleUserLoadStickerCollectionRequest)(nil),                // 697: uniclient.bale.BaleUserLoadStickerCollectionRequest
-	(*BaleUserLoadStickerCollectionResponse)(nil),               // 698: uniclient.bale.BaleUserLoadStickerCollectionResponse
-	(*BaleUserLoadUsersRequest)(nil),                            // 699: uniclient.bale.BaleUserLoadUsersRequest
-	(*BaleUserLoadUsersResponse)(nil),                           // 700: uniclient.bale.BaleUserLoadUsersResponse
-	(*BaleUserMakePaymentRequest)(nil),                          // 701: uniclient.bale.BaleUserMakePaymentRequest
-	(*BaleUserMakePaymentResponse)(nil),                         // 702: uniclient.bale.BaleUserMakePaymentResponse
-	(*BaleUserMakeUserAdminRequest)(nil),                        // 703: uniclient.bale.BaleUserMakeUserAdminRequest
-	(*BaleUserMakeUserAdminResponse)(nil),                       // 704: uniclient.bale.BaleUserMakeUserAdminResponse
-	(*BaleUserMarkAsUnreadRequest)(nil),                         // 705: uniclient.bale.BaleUserMarkAsUnreadRequest
-	(*BaleUserMarkAsUnreadResponse)(nil),                        // 706: uniclient.bale.BaleUserMarkAsUnreadResponse
-	(*BaleUserMarkDialogsAsReadRequest)(nil),                    // 707: uniclient.bale.BaleUserMarkDialogsAsReadRequest
-	(*BaleUserMarkDialogsAsReadResponse)(nil),                   // 708: uniclient.bale.BaleUserMarkDialogsAsReadResponse
-	(*BaleUserMentionReadRequest)(nil),                          // 709: uniclient.bale.BaleUserMentionReadRequest
-	(*BaleUserMentionReadResponse)(nil),                         // 710: uniclient.bale.BaleUserMentionReadResponse
-	(*BaleUserMessageReactionsReadRequest)(nil),                 // 711: uniclient.bale.BaleUserMessageReactionsReadRequest
-	(*BaleUserMessageReactionsReadResponse)(nil),                // 712: uniclient.bale.BaleUserMessageReactionsReadResponse
-	(*BaleUserMessageReadRequest)(nil),                          // 713: uniclient.bale.BaleUserMessageReadRequest
-	(*BaleUserMessageReadResponse)(nil),                         // 714: uniclient.bale.BaleUserMessageReadResponse
-	(*BaleUserMessageReceivedRequest)(nil),                      // 715: uniclient.bale.BaleUserMessageReceivedRequest
-	(*BaleUserMessageReceivedResponse)(nil),                     // 716: uniclient.bale.BaleUserMessageReceivedResponse
-	(*BaleUserMuteCallParticipantRequest)(nil),                  // 717: uniclient.bale.BaleUserMuteCallParticipantRequest
-	(*BaleUserMuteCallParticipantResponse)(nil),                 // 718: uniclient.bale.BaleUserMuteCallParticipantResponse
-	(*BaleUserPeersWithScheduleTaskRequest)(nil),                // 719: uniclient.bale.BaleUserPeersWithScheduleTaskRequest
-	(*BaleUserPeersWithScheduleTaskResponse)(nil),               // 720: uniclient.bale.BaleUserPeersWithScheduleTaskResponse
-	(*BaleUserPinDialogsRequest)(nil),                           // 721: uniclient.bale.BaleUserPinDialogsRequest
-	(*BaleUserPinDialogsResponse)(nil),                          // 722: uniclient.bale.BaleUserPinDialogsResponse
-	(*BaleUserPinMessageRequest)(nil),                           // 723: uniclient.bale.BaleUserPinMessageRequest
-	(*BaleUserPinMessageResponse)(nil),                          // 724: uniclient.bale.BaleUserPinMessageResponse
-	(*BaleUserPushSetConfigRequest)(nil),                        // 725: uniclient.bale.BaleUserPushSetConfigRequest
-	(*BaleUserPushSetConfigResponse)(nil),                       // 726: uniclient.bale.BaleUserPushSetConfigResponse
-	(*BaleUserReScheduleTaskRequest)(nil),                       // 727: uniclient.bale.BaleUserReScheduleTaskRequest
-	(*BaleUserReScheduleTaskResponse)(nil),                      // 728: uniclient.bale.BaleUserReScheduleTaskResponse
-	(*BaleUserReactToStoryRequest)(nil),                         // 729: uniclient.bale.BaleUserReactToStoryRequest
-	(*BaleUserReactToStoryResponse)(nil),                        // 730: uniclient.bale.BaleUserReactToStoryResponse
-	(*BaleUserReceiveMessageStreamRequest)(nil),                 // 731: uniclient.bale.BaleUserReceiveMessageStreamRequest
-	(*BaleUserReceiveMessageStreamResponse)(nil),                // 732: uniclient.bale.BaleUserReceiveMessageStreamResponse
-	(*BaleUserRemoveAllPinsRequest)(nil),                        // 733: uniclient.bale.BaleUserRemoveAllPinsRequest
-	(*BaleUserRemoveAllPinsResponse)(nil),                       // 734: uniclient.bale.BaleUserRemoveAllPinsResponse
-	(*BaleUserRemoveCallParticipantRequest)(nil),                // 735: uniclient.bale.BaleUserRemoveCallParticipantRequest
-	(*BaleUserRemoveCallParticipantResponse)(nil),               // 736: uniclient.bale.BaleUserRemoveCallParticipantResponse
-	(*BaleUserRemoveContactRequest)(nil),                        // 737: uniclient.bale.BaleUserRemoveContactRequest
-	(*BaleUserRemoveContactResponse)(nil),                       // 738: uniclient.bale.BaleUserRemoveContactResponse
-	(*BaleUserRemoveDiscussionGroupRequest)(nil),                // 739: uniclient.bale.BaleUserRemoveDiscussionGroupRequest
-	(*BaleUserRemoveDiscussionGroupResponse)(nil),               // 740: uniclient.bale.BaleUserRemoveDiscussionGroupResponse
-	(*BaleUserRemoveGifRequest)(nil),                            // 741: uniclient.bale.BaleUserRemoveGifRequest
-	(*BaleUserRemoveGifResponse)(nil),                           // 742: uniclient.bale.BaleUserRemoveGifResponse
-	(*BaleUserRemoveGroupAvatarRequest)(nil),                    // 743: uniclient.bale.BaleUserRemoveGroupAvatarRequest
-	(*BaleUserRemoveGroupAvatarResponse)(nil),                   // 744: uniclient.bale.BaleUserRemoveGroupAvatarResponse
-	(*BaleUserRemovePinRequest)(nil),                            // 745: uniclient.bale.BaleUserRemovePinRequest
-	(*BaleUserRemovePinResponse)(nil),                           // 746: uniclient.bale.BaleUserRemovePinResponse
-	(*BaleUserRemoveReactionRequest)(nil),                       // 747: uniclient.bale.BaleUserRemoveReactionRequest
-	(*BaleUserRemoveReactionResponse)(nil),                      // 748: uniclient.bale.BaleUserRemoveReactionResponse
-	(*BaleUserRemoveStickerCollectionRequest)(nil),              // 749: uniclient.bale.BaleUserRemoveStickerCollectionRequest
-	(*BaleUserRemoveStickerCollectionResponse)(nil),             // 750: uniclient.bale.BaleUserRemoveStickerCollectionResponse
-	(*BaleUserRemoveStickerPackRequest)(nil),                    // 751: uniclient.bale.BaleUserRemoveStickerPackRequest
-	(*BaleUserRemoveStickerPackResponse)(nil),                   // 752: uniclient.bale.BaleUserRemoveStickerPackResponse
-	(*BaleUserRemoveStoryRequest)(nil),                          // 753: uniclient.bale.BaleUserRemoveStoryRequest
-	(*BaleUserRemoveStoryResponse)(nil),                         // 754: uniclient.bale.BaleUserRemoveStoryResponse
-	(*BaleUserRemoveTopPeerRequest)(nil),                        // 755: uniclient.bale.BaleUserRemoveTopPeerRequest
-	(*BaleUserRemoveTopPeerResponse)(nil),                       // 756: uniclient.bale.BaleUserRemoveTopPeerResponse
-	(*BaleUserRemoveUserAdminRequest)(nil),                      // 757: uniclient.bale.BaleUserRemoveUserAdminRequest
-	(*BaleUserRemoveUserAdminResponse)(nil),                     // 758: uniclient.bale.BaleUserRemoveUserAdminResponse
-	(*BaleUserReorderPinnedDialogsRequest)(nil),                 // 759: uniclient.bale.BaleUserReorderPinnedDialogsRequest
-	(*BaleUserReorderPinnedDialogsResponse)(nil),                // 760: uniclient.bale.BaleUserReorderPinnedDialogsResponse
-	(*BaleUserResetContactsRequest)(nil),                        // 761: uniclient.bale.BaleUserResetContactsRequest
-	(*BaleUserResetContactsResponse)(nil),                       // 762: uniclient.bale.BaleUserResetContactsResponse
-	(*BaleUserRevokeInviteURLRequest)(nil),                      // 763: uniclient.bale.BaleUserRevokeInviteURLRequest
-	(*BaleUserRevokeInviteURLResponse)(nil),                     // 764: uniclient.bale.BaleUserRevokeInviteURLResponse
-	(*BaleUserScheduleTaskRequest)(nil),                         // 765: uniclient.bale.BaleUserScheduleTaskRequest
-	(*BaleUserScheduleTaskResponse)(nil),                        // 766: uniclient.bale.BaleUserScheduleTaskResponse
-	(*BaleUserSearchContactsRequest)(nil),                       // 767: uniclient.bale.BaleUserSearchContactsRequest
-	(*BaleUserSearchContactsResponse)(nil),                      // 768: uniclient.bale.BaleUserSearchContactsResponse
-	(*BaleUserSearchContentRequest)(nil),                        // 769: uniclient.bale.BaleUserSearchContentRequest
-	(*BaleUserSearchContentResponse)(nil),                       // 770: uniclient.bale.BaleUserSearchContentResponse
-	(*BaleUserSearchDialogRequest)(nil),                         // 771: uniclient.bale.BaleUserSearchDialogRequest
-	(*BaleUserSearchDialogResponse)(nil),                        // 772: uniclient.bale.BaleUserSearchDialogResponse
-	(*BaleUserSearchMediaServiceRequest)(nil),                   // 773: uniclient.bale.BaleUserSearchMediaServiceRequest
-	(*BaleUserSearchMediaServiceResponse)(nil),                  // 774: uniclient.bale.BaleUserSearchMediaServiceResponse
-	(*BaleUserSearchMembersServiceRequest)(nil),                 // 775: uniclient.bale.BaleUserSearchMembersServiceRequest
-	(*BaleUserSearchMembersServiceResponse)(nil),                // 776: uniclient.bale.BaleUserSearchMembersServiceResponse
-	(*BaleUserSearchMessageMoreRequest)(nil),                    // 777: uniclient.bale.BaleUserSearchMessageMoreRequest
-	(*BaleUserSearchMessageMoreResponse)(nil),                   // 778: uniclient.bale.BaleUserSearchMessageMoreResponse
-	(*BaleUserSearchMessagesRequest)(nil),                       // 779: uniclient.bale.BaleUserSearchMessagesRequest
-	(*BaleUserSearchMessagesResponse)(nil),                      // 780: uniclient.bale.BaleUserSearchMessagesResponse
-	(*BaleUserSearchPeerRequest)(nil),                           // 781: uniclient.bale.BaleUserSearchPeerRequest
-	(*BaleUserSearchPeerResponse)(nil),                          // 782: uniclient.bale.BaleUserSearchPeerResponse
-	(*BaleUserSendAnimatedStickerRequest)(nil),                  // 783: uniclient.bale.BaleUserSendAnimatedStickerRequest
-	(*BaleUserSendAnimatedStickerResponse)(nil),                 // 784: uniclient.bale.BaleUserSendAnimatedStickerResponse
-	(*BaleUserSendAuthenticatedInlineCallBackDataRequest)(nil),  // 785: uniclient.bale.BaleUserSendAuthenticatedInlineCallBackDataRequest
-	(*BaleUserSendAuthenticatedInlineCallBackDataResponse)(nil), // 786: uniclient.bale.BaleUserSendAuthenticatedInlineCallBackDataResponse
-	(*BaleUserSendBankMessageRequest)(nil),                      // 787: uniclient.bale.BaleUserSendBankMessageRequest
-	(*BaleUserSendBankMessageResponse)(nil),                     // 788: uniclient.bale.BaleUserSendBankMessageResponse
-	(*BaleUserSendCallFanoosEventRequest)(nil),                  // 789: uniclient.bale.BaleUserSendCallFanoosEventRequest
-	(*BaleUserSendCallFanoosEventResponse)(nil),                 // 790: uniclient.bale.BaleUserSendCallFanoosEventResponse
-	(*BaleUserSendCallReactionRequest)(nil),                     // 791: uniclient.bale.BaleUserSendCallReactionRequest
-	(*BaleUserSendCallReactionResponse)(nil),                    // 792: uniclient.bale.BaleUserSendCallReactionResponse
-	(*BaleUserSendInlineCallBackDataRequest)(nil),               // 793: uniclient.bale.BaleUserSendInlineCallBackDataRequest
-	(*BaleUserSendInlineCallBackDataResponse)(nil),              // 794: uniclient.bale.BaleUserSendInlineCallBackDataResponse
-	(*BaleUserSendInlineCallbackRequest)(nil),                   // 795: uniclient.bale.BaleUserSendInlineCallbackRequest
-	(*BaleUserSendInlineCallbackResponse)(nil),                  // 796: uniclient.bale.BaleUserSendInlineCallbackResponse
-	(*BaleUserSendJsonMessageRequest)(nil),                      // 797: uniclient.bale.BaleUserSendJsonMessageRequest
-	(*BaleUserSendJsonMessageResponse)(nil),                     // 798: uniclient.bale.BaleUserSendJsonMessageResponse
-	(*BaleUserSendLiveMessageRequest)(nil),                      // 799: uniclient.bale.BaleUserSendLiveMessageRequest
-	(*BaleUserSendLiveMessageResponse)(nil),                     // 800: uniclient.bale.BaleUserSendLiveMessageResponse
-	(*BaleUserSendLongTextMessageRequest)(nil),                  // 801: uniclient.bale.BaleUserSendLongTextMessageRequest
-	(*BaleUserSendLongTextMessageResponse)(nil),                 // 802: uniclient.bale.BaleUserSendLongTextMessageResponse
-	(*BaleUserSendMessageRequest)(nil),                          // 803: uniclient.bale.BaleUserSendMessageRequest
-	(*BaleUserSendMessageResponse)(nil),                         // 804: uniclient.bale.BaleUserSendMessageResponse
-	(*BaleUserSendMiniAppDataRequest)(nil),                      // 805: uniclient.bale.BaleUserSendMiniAppDataRequest
-	(*BaleUserSendMiniAppDataResponse)(nil),                     // 806: uniclient.bale.BaleUserSendMiniAppDataResponse
-	(*BaleUserSendMultiMediaMessageRequest)(nil),                // 807: uniclient.bale.BaleUserSendMultiMediaMessageRequest
-	(*BaleUserSendMultiMediaMessageResponse)(nil),               // 808: uniclient.bale.BaleUserSendMultiMediaMessageResponse
-	(*BaleUserSendOrderMessageRequest)(nil),                     // 809: uniclient.bale.BaleUserSendOrderMessageRequest
-	(*BaleUserSendOrderMessageResponse)(nil),                    // 810: uniclient.bale.BaleUserSendOrderMessageResponse
-	(*BaleUserSendProtectedMessageRequest)(nil),                 // 811: uniclient.bale.BaleUserSendProtectedMessageRequest
-	(*BaleUserSendProtectedMessageResponse)(nil),                // 812: uniclient.bale.BaleUserSendProtectedMessageResponse
-	(*BaleUserSendRawRequest)(nil),                              // 813: uniclient.bale.BaleUserSendRawRequest
-	(*BaleUserSendRawResponse)(nil),                             // 814: uniclient.bale.BaleUserSendRawResponse
-	(*BaleUserSendScheduledMessageRequest)(nil),                 // 815: uniclient.bale.BaleUserSendScheduledMessageRequest
-	(*BaleUserSendScheduledMessageResponse)(nil),                // 816: uniclient.bale.BaleUserSendScheduledMessageResponse
-	(*BaleUserSetAvailableReactionsRequest)(nil),                // 817: uniclient.bale.BaleUserSetAvailableReactionsRequest
-	(*BaleUserSetAvailableReactionsResponse)(nil),               // 818: uniclient.bale.BaleUserSetAvailableReactionsResponse
-	(*BaleUserSetCallLinkTitleRequest)(nil),                     // 819: uniclient.bale.BaleUserSetCallLinkTitleRequest
-	(*BaleUserSetCallLinkTitleResponse)(nil),                    // 820: uniclient.bale.BaleUserSetCallLinkTitleResponse
-	(*BaleUserSetCanSeeHistoryRequest)(nil),                     // 821: uniclient.bale.BaleUserSetCanSeeHistoryRequest
-	(*BaleUserSetCanSeeHistoryResponse)(nil),                    // 822: uniclient.bale.BaleUserSetCanSeeHistoryResponse
-	(*BaleUserSetCanSeeMessagesRequest)(nil),                    // 823: uniclient.bale.BaleUserSetCanSeeMessagesRequest
-	(*BaleUserSetCanSeeMessagesResponse)(nil),                   // 824: uniclient.bale.BaleUserSetCanSeeMessagesResponse
-	(*BaleUserSetDiscussionGroupRequest)(nil),                   // 825: uniclient.bale.BaleUserSetDiscussionGroupRequest
-	(*BaleUserSetDiscussionGroupResponse)(nil),                  // 826: uniclient.bale.BaleUserSetDiscussionGroupResponse
-	(*BaleUserSetGroupDefaultPermissionsRequest)(nil),           // 827: uniclient.bale.BaleUserSetGroupDefaultPermissionsRequest
-	(*BaleUserSetGroupDefaultPermissionsResponse)(nil),          // 828: uniclient.bale.BaleUserSetGroupDefaultPermissionsResponse
-	(*BaleUserSetMemberCustomTitleRequest)(nil),                 // 829: uniclient.bale.BaleUserSetMemberCustomTitleRequest
-	(*BaleUserSetMemberCustomTitleResponse)(nil),                // 830: uniclient.bale.BaleUserSetMemberCustomTitleResponse
-	(*BaleUserSetMemberPermissionsRequest)(nil),                 // 831: uniclient.bale.BaleUserSetMemberPermissionsRequest
-	(*BaleUserSetMemberPermissionsResponse)(nil),                // 832: uniclient.bale.BaleUserSetMemberPermissionsResponse
-	(*BaleUserSetMyCommandsRequest)(nil),                        // 833: uniclient.bale.BaleUserSetMyCommandsRequest
-	(*BaleUserSetMyCommandsResponse)(nil),                       // 834: uniclient.bale.BaleUserSetMyCommandsResponse
-	(*BaleUserSetOnlineRequest)(nil),                            // 835: uniclient.bale.BaleUserSetOnlineRequest
-	(*BaleUserSetOnlineResponse)(nil),                           // 836: uniclient.bale.BaleUserSetOnlineResponse
-	(*BaleUserSetReactionRequest)(nil),                          // 837: uniclient.bale.BaleUserSetReactionRequest
-	(*BaleUserSetReactionResponse)(nil),                         // 838: uniclient.bale.BaleUserSetReactionResponse
-	(*BaleUserSetRestrictionRequest)(nil),                       // 839: uniclient.bale.BaleUserSetRestrictionRequest
-	(*BaleUserSetRestrictionResponse)(nil),                      // 840: uniclient.bale.BaleUserSetRestrictionResponse
-	(*BaleUserSetStoryPrivacyConfigRequest)(nil),                // 841: uniclient.bale.BaleUserSetStoryPrivacyConfigRequest
-	(*BaleUserSetStoryPrivacyConfigResponse)(nil),               // 842: uniclient.bale.BaleUserSetStoryPrivacyConfigResponse
-	(*BaleUserSetUserStoryConfigRequest)(nil),                   // 843: uniclient.bale.BaleUserSetUserStoryConfigRequest
-	(*BaleUserSetUserStoryConfigResponse)(nil),                  // 844: uniclient.bale.BaleUserSetUserStoryConfigResponse
-	(*BaleUserSignOutRequest)(nil),                              // 845: uniclient.bale.BaleUserSignOutRequest
-	(*BaleUserSignOutResponse)(nil),                             // 846: uniclient.bale.BaleUserSignOutResponse
-	(*BaleUserSignUpRequest)(nil),                               // 847: uniclient.bale.BaleUserSignUpRequest
-	(*BaleUserSignUpResponse)(nil),                              // 848: uniclient.bale.BaleUserSignUpResponse
-	(*BaleUserStartRecordingRequest)(nil),                       // 849: uniclient.bale.BaleUserStartRecordingRequest
-	(*BaleUserStartRecordingResponse)(nil),                      // 850: uniclient.bale.BaleUserStartRecordingResponse
-	(*BaleUserStartStreamRequest)(nil),                          // 851: uniclient.bale.BaleUserStartStreamRequest
-	(*BaleUserStartStreamResponse)(nil),                         // 852: uniclient.bale.BaleUserStartStreamResponse
-	(*BaleUserStopRecordingRequest)(nil),                        // 853: uniclient.bale.BaleUserStopRecordingRequest
-	(*BaleUserStopRecordingResponse)(nil),                       // 854: uniclient.bale.BaleUserStopRecordingResponse
-	(*BaleUserStopTypingRequest)(nil),                           // 855: uniclient.bale.BaleUserStopTypingRequest
-	(*BaleUserStopTypingResponse)(nil),                          // 856: uniclient.bale.BaleUserStopTypingResponse
-	(*BaleUserSubmitCallFeedbackRequest)(nil),                   // 857: uniclient.bale.BaleUserSubmitCallFeedbackRequest
-	(*BaleUserSubmitCallFeedbackResponse)(nil),                  // 858: uniclient.bale.BaleUserSubmitCallFeedbackResponse
-	(*BaleUserSubscribeFromGroupOnlineRequest)(nil),             // 859: uniclient.bale.BaleUserSubscribeFromGroupOnlineRequest
-	(*BaleUserSubscribeFromGroupOnlineResponse)(nil),            // 860: uniclient.bale.BaleUserSubscribeFromGroupOnlineResponse
-	(*BaleUserSubscribeFromOnlineRequest)(nil),                  // 861: uniclient.bale.BaleUserSubscribeFromOnlineRequest
-	(*BaleUserSubscribeFromOnlineResponse)(nil),                 // 862: uniclient.bale.BaleUserSubscribeFromOnlineResponse
-	(*BaleUserSubscribeToGroupOnlineRequest)(nil),               // 863: uniclient.bale.BaleUserSubscribeToGroupOnlineRequest
-	(*BaleUserSubscribeToGroupOnlineResponse)(nil),              // 864: uniclient.bale.BaleUserSubscribeToGroupOnlineResponse
-	(*BaleUserSubscribeToOnlineRequest)(nil),                    // 865: uniclient.bale.BaleUserSubscribeToOnlineRequest
-	(*BaleUserSubscribeToOnlineResponse)(nil),                   // 866: uniclient.bale.BaleUserSubscribeToOnlineResponse
-	(*BaleUserSubscribeToThreadUpdatesRequest)(nil),             // 867: uniclient.bale.BaleUserSubscribeToThreadUpdatesRequest
-	(*BaleUserSubscribeToThreadUpdatesResponse)(nil),            // 868: uniclient.bale.BaleUserSubscribeToThreadUpdatesResponse
-	(*BaleUserSubscribeToUpdatesRequest)(nil),                   // 869: uniclient.bale.BaleUserSubscribeToUpdatesRequest
-	(*BaleUserSubscribeToUpdatesResponse)(nil),                  // 870: uniclient.bale.BaleUserSubscribeToUpdatesResponse
-	(*BaleUserTakeCallActionRequest)(nil),                       // 871: uniclient.bale.BaleUserTakeCallActionRequest
-	(*BaleUserTakeCallActionResponse)(nil),                      // 872: uniclient.bale.BaleUserTakeCallActionResponse
-	(*BaleUserTerminateSessionRequest)(nil),                     // 873: uniclient.bale.BaleUserTerminateSessionRequest
-	(*BaleUserTerminateSessionResponse)(nil),                    // 874: uniclient.bale.BaleUserTerminateSessionResponse
-	(*BaleUserTransferOwnershipRequest)(nil),                    // 875: uniclient.bale.BaleUserTransferOwnershipRequest
-	(*BaleUserTransferOwnershipResponse)(nil),                   // 876: uniclient.bale.BaleUserTransferOwnershipResponse
-	(*BaleUserTypingRequest)(nil),                               // 877: uniclient.bale.BaleUserTypingRequest
-	(*BaleUserTypingResponse)(nil),                              // 878: uniclient.bale.BaleUserTypingResponse
-	(*BaleUserUnArchiveDialogsRequest)(nil),                     // 879: uniclient.bale.BaleUserUnArchiveDialogsRequest
-	(*BaleUserUnArchiveDialogsResponse)(nil),                    // 880: uniclient.bale.BaleUserUnArchiveDialogsResponse
-	(*BaleUserUnBanUserRequest)(nil),                            // 881: uniclient.bale.BaleUserUnBanUserRequest
-	(*BaleUserUnBanUserResponse)(nil),                           // 882: uniclient.bale.BaleUserUnBanUserResponse
-	(*BaleUserUnPinMessagesRequest)(nil),                        // 883: uniclient.bale.BaleUserUnPinMessagesRequest
-	(*BaleUserUnPinMessagesResponse)(nil),                       // 884: uniclient.bale.BaleUserUnPinMessagesResponse
-	(*BaleUserUnScheduleTaskRequest)(nil),                       // 885: uniclient.bale.BaleUserUnScheduleTaskRequest
-	(*BaleUserUnScheduleTaskResponse)(nil),                      // 886: uniclient.bale.BaleUserUnScheduleTaskResponse
-	(*BaleUserUnblockUserRequest)(nil),                          // 887: uniclient.bale.BaleUserUnblockUserRequest
-	(*BaleUserUnblockUserResponse)(nil),                         // 888: uniclient.bale.BaleUserUnblockUserResponse
-	(*BaleUserUnpinDialogsRequest)(nil),                         // 889: uniclient.bale.BaleUserUnpinDialogsRequest
-	(*BaleUserUnpinDialogsResponse)(nil),                        // 890: uniclient.bale.BaleUserUnpinDialogsResponse
-	(*BaleUserUnsubscribeFromThreadUpdatesRequest)(nil),         // 891: uniclient.bale.BaleUserUnsubscribeFromThreadUpdatesRequest
-	(*BaleUserUnsubscribeFromThreadUpdatesResponse)(nil),        // 892: uniclient.bale.BaleUserUnsubscribeFromThreadUpdatesResponse
-	(*BaleUserUpdateCallLayoutRequest)(nil),                     // 893: uniclient.bale.BaleUserUpdateCallLayoutRequest
-	(*BaleUserUpdateCallLayoutResponse)(nil),                    // 894: uniclient.bale.BaleUserUpdateCallLayoutResponse
-	(*BaleUserUpdateMessageRequest)(nil),                        // 895: uniclient.bale.BaleUserUpdateMessageRequest
-	(*BaleUserUpdateMessageResponse)(nil),                       // 896: uniclient.bale.BaleUserUpdateMessageResponse
-	(*BaleUserUpdateSearchContentClickRequest)(nil),             // 897: uniclient.bale.BaleUserUpdateSearchContentClickRequest
-	(*BaleUserUpdateSearchContentClickResponse)(nil),            // 898: uniclient.bale.BaleUserUpdateSearchContentClickResponse
-	(*BaleUserUseGifRequest)(nil),                               // 899: uniclient.bale.BaleUserUseGifRequest
-	(*BaleUserUseGifResponse)(nil),                              // 900: uniclient.bale.BaleUserUseGifResponse
-	(*BaleUserValidatePasswordRequest)(nil),                     // 901: uniclient.bale.BaleUserValidatePasswordRequest
-	(*BaleUserValidatePasswordResponse)(nil),                    // 902: uniclient.bale.BaleUserValidatePasswordResponse
-	(*BaleUserVotePollServiceRequest)(nil),                      // 903: uniclient.bale.BaleUserVotePollServiceRequest
-	(*BaleUserVotePollServiceResponse)(nil),                     // 904: uniclient.bale.BaleUserVotePollServiceResponse
-	(*BaleValidateRamzOTPRequest)(nil),                          // 905: uniclient.bale.BaleValidateRamzOTPRequest
-	(*BaleValidateRamzOTPResponse)(nil),                         // 906: uniclient.bale.BaleValidateRamzOTPResponse
-	(*BaleVerifyEmailRequest)(nil),                              // 907: uniclient.bale.BaleVerifyEmailRequest
-	(*BaleVerifyEmailResponse)(nil),                             // 908: uniclient.bale.BaleVerifyEmailResponse
-	(*BaleVerifyPasswordRecoveryRequest)(nil),                   // 909: uniclient.bale.BaleVerifyPasswordRecoveryRequest
-	(*BaleVerifyPasswordRecoveryResponse)(nil),                  // 910: uniclient.bale.BaleVerifyPasswordRecoveryResponse
-	(*BaleVotePollRequest)(nil),                                 // 911: uniclient.bale.BaleVotePollRequest
-	(*BaleVotePollResponse)(nil),                                // 912: uniclient.bale.BaleVotePollResponse
-	nil,                                                         // 913: uniclient.bale.BaleFanoosSendRequest.EventDataEntry
-	nil,                                                         // 914: uniclient.bale.BalePromoteChatMemberRequest.PermsEntry
-	nil,                                                         // 915: uniclient.bale.BaleRestrictChatMemberRequest.PermissionsEntry
-	(*proto.CallSession)(nil),                                   // 916: uniclient.CallSession
-	(*proto.AuthConfig)(nil),                                    // 917: uniclient.AuthConfig
-	(*proto.Dialog)(nil),                                        // 918: uniclient.Dialog
-	(*proto.Folder)(nil),                                        // 919: uniclient.Folder
-	(*proto.Message)(nil),                                       // 920: uniclient.Message
-	(*proto.User)(nil),                                          // 921: uniclient.User
-	(*proto.PaginationOpts)(nil),                                // 922: uniclient.PaginationOpts
-	(*proto.ReadState)(nil),                                     // 923: uniclient.ReadState
-	(*proto.Session)(nil),                                       // 924: uniclient.Session
-	(*proto.OutgoingMessage)(nil),                               // 925: uniclient.OutgoingMessage
+	(*BaleSubmit2FARequest)(nil),                                // 347: uniclient.bale.BaleSubmit2FARequest
+	(*BaleSubmit2FAResponse)(nil),                               // 348: uniclient.bale.BaleSubmit2FAResponse
+	(*BaleSubmitOTPRequest)(nil),                                // 349: uniclient.bale.BaleSubmitOTPRequest
+	(*BaleSubmitOTPResponse)(nil),                               // 350: uniclient.bale.BaleSubmitOTPResponse
+	(*BaleTerminateAllSessionsRequest)(nil),                     // 351: uniclient.bale.BaleTerminateAllSessionsRequest
+	(*BaleTerminateAllSessionsResponse)(nil),                    // 352: uniclient.bale.BaleTerminateAllSessionsResponse
+	(*BaleTerminateSessionRequest)(nil),                         // 353: uniclient.bale.BaleTerminateSessionRequest
+	(*BaleTerminateSessionResponse)(nil),                        // 354: uniclient.bale.BaleTerminateSessionResponse
+	(*BaleUnbanMemberRequest)(nil),                              // 355: uniclient.bale.BaleUnbanMemberRequest
+	(*BaleUnbanMemberResponse)(nil),                             // 356: uniclient.bale.BaleUnbanMemberResponse
+	(*BaleUnblockUserRequest)(nil),                              // 357: uniclient.bale.BaleUnblockUserRequest
+	(*BaleUnblockUserResponse)(nil),                             // 358: uniclient.bale.BaleUnblockUserResponse
+	(*BaleUnpinAllMessagesRequest)(nil),                         // 359: uniclient.bale.BaleUnpinAllMessagesRequest
+	(*BaleUnpinAllMessagesResponse)(nil),                        // 360: uniclient.bale.BaleUnpinAllMessagesResponse
+	(*BaleUnpinMessageRequest)(nil),                             // 361: uniclient.bale.BaleUnpinMessageRequest
+	(*BaleUnpinMessageResponse)(nil),                            // 362: uniclient.bale.BaleUnpinMessageResponse
+	(*BaleUnregisterAllPushCredentialsRequest)(nil),             // 363: uniclient.bale.BaleUnregisterAllPushCredentialsRequest
+	(*BaleUnregisterAllPushCredentialsResponse)(nil),            // 364: uniclient.bale.BaleUnregisterAllPushCredentialsResponse
+	(*BaleUnregisterGooglePushRequest)(nil),                     // 365: uniclient.bale.BaleUnregisterGooglePushRequest
+	(*BaleUnregisterGooglePushResponse)(nil),                    // 366: uniclient.bale.BaleUnregisterGooglePushResponse
+	(*BaleUnregisterPushRequest)(nil),                           // 367: uniclient.bale.BaleUnregisterPushRequest
+	(*BaleUnregisterPushResponse)(nil),                          // 368: uniclient.bale.BaleUnregisterPushResponse
+	(*BaleUploadRawPUTRequest)(nil),                             // 369: uniclient.bale.BaleUploadRawPUTRequest
+	(*BaleUploadRawPUTResponse)(nil),                            // 370: uniclient.bale.BaleUploadRawPUTResponse
+	(*BaleUploadStickerFileRequest)(nil),                        // 371: uniclient.bale.BaleUploadStickerFileRequest
+	(*BaleUploadStickerFileResponse)(nil),                       // 372: uniclient.bale.BaleUploadStickerFileResponse
+	(*BaleUpvotePostRequest)(nil),                               // 373: uniclient.bale.BaleUpvotePostRequest
+	(*BaleUpvotePostResponse)(nil),                              // 374: uniclient.bale.BaleUpvotePostResponse
+	(*BaleUserAIGetTranscriptRequest)(nil),                      // 375: uniclient.bale.BaleUserAIGetTranscriptRequest
+	(*BaleUserAIGetTranscriptResponse)(nil),                     // 376: uniclient.bale.BaleUserAIGetTranscriptResponse
+	(*BaleUserAISendEventRequest)(nil),                          // 377: uniclient.bale.BaleUserAISendEventRequest
+	(*BaleUserAISendEventResponse)(nil),                         // 378: uniclient.bale.BaleUserAISendEventResponse
+	(*BaleUserAcceptCallMeetRequest)(nil),                       // 379: uniclient.bale.BaleUserAcceptCallMeetRequest
+	(*BaleUserAcceptCallMeetResponse)(nil),                      // 380: uniclient.bale.BaleUserAcceptCallMeetResponse
+	(*BaleUserAddBotStoryRequest)(nil),                          // 381: uniclient.bale.BaleUserAddBotStoryRequest
+	(*BaleUserAddBotStoryResponse)(nil),                         // 382: uniclient.bale.BaleUserAddBotStoryResponse
+	(*BaleUserAddChannelStoryRequest)(nil),                      // 383: uniclient.bale.BaleUserAddChannelStoryRequest
+	(*BaleUserAddChannelStoryResponse)(nil),                     // 384: uniclient.bale.BaleUserAddChannelStoryResponse
+	(*BaleUserAddContactRequest)(nil),                           // 385: uniclient.bale.BaleUserAddContactRequest
+	(*BaleUserAddContactResponse)(nil),                          // 386: uniclient.bale.BaleUserAddContactResponse
+	(*BaleUserAddDiscussionGroupAdminRequest)(nil),              // 387: uniclient.bale.BaleUserAddDiscussionGroupAdminRequest
+	(*BaleUserAddDiscussionGroupAdminResponse)(nil),             // 388: uniclient.bale.BaleUserAddDiscussionGroupAdminResponse
+	(*BaleUserAddGifRequest)(nil),                               // 389: uniclient.bale.BaleUserAddGifRequest
+	(*BaleUserAddGifResponse)(nil),                              // 390: uniclient.bale.BaleUserAddGifResponse
+	(*BaleUserAddStickerCollectionRequest)(nil),                 // 391: uniclient.bale.BaleUserAddStickerCollectionRequest
+	(*BaleUserAddStickerCollectionResponse)(nil),                // 392: uniclient.bale.BaleUserAddStickerCollectionResponse
+	(*BaleUserAddStickerPackRequest)(nil),                       // 393: uniclient.bale.BaleUserAddStickerPackRequest
+	(*BaleUserAddStickerPackResponse)(nil),                      // 394: uniclient.bale.BaleUserAddStickerPackResponse
+	(*BaleUserAddStoryRequest)(nil),                             // 395: uniclient.bale.BaleUserAddStoryRequest
+	(*BaleUserAddStoryResponse)(nil),                            // 396: uniclient.bale.BaleUserAddStoryResponse
+	(*BaleUserAnswerCallJoinRequestRequest)(nil),                // 397: uniclient.bale.BaleUserAnswerCallJoinRequestRequest
+	(*BaleUserAnswerCallJoinRequestResponse)(nil),               // 398: uniclient.bale.BaleUserAnswerCallJoinRequestResponse
+	(*BaleUserArchiveDialogsRequest)(nil),                       // 399: uniclient.bale.BaleUserArchiveDialogsRequest
+	(*BaleUserArchiveDialogsResponse)(nil),                      // 400: uniclient.bale.BaleUserArchiveDialogsResponse
+	(*BaleUserAskToJoinCallRequest)(nil),                        // 401: uniclient.bale.BaleUserAskToJoinCallRequest
+	(*BaleUserAskToJoinCallResponse)(nil),                       // 402: uniclient.bale.BaleUserAskToJoinCallResponse
+	(*BaleUserBlockUserRequest)(nil),                            // 403: uniclient.bale.BaleUserBlockUserRequest
+	(*BaleUserBlockUserResponse)(nil),                           // 404: uniclient.bale.BaleUserBlockUserResponse
+	(*BaleUserCanAddBotStoryRequest)(nil),                       // 405: uniclient.bale.BaleUserCanAddBotStoryRequest
+	(*BaleUserCanAddBotStoryResponse)(nil),                      // 406: uniclient.bale.BaleUserCanAddBotStoryResponse
+	(*BaleUserCancelMessageStreamRequest)(nil),                  // 407: uniclient.bale.BaleUserCancelMessageStreamRequest
+	(*BaleUserCancelMessageStreamResponse)(nil),                 // 408: uniclient.bale.BaleUserCancelMessageStreamResponse
+	(*BaleUserCheckNickNameRequest)(nil),                        // 409: uniclient.bale.BaleUserCheckNickNameRequest
+	(*BaleUserCheckNickNameResponse)(nil),                       // 410: uniclient.bale.BaleUserCheckNickNameResponse
+	(*BaleUserCheckStoryLinkValidityRequest)(nil),               // 411: uniclient.bale.BaleUserCheckStoryLinkValidityRequest
+	(*BaleUserCheckStoryLinkValidityResponse)(nil),              // 412: uniclient.bale.BaleUserCheckStoryLinkValidityResponse
+	(*BaleUserClearChatRequest)(nil),                            // 413: uniclient.bale.BaleUserClearChatRequest
+	(*BaleUserClearChatResponse)(nil),                           // 414: uniclient.bale.BaleUserClearChatResponse
+	(*BaleUserClosePollServiceRequest)(nil),                     // 415: uniclient.bale.BaleUserClosePollServiceRequest
+	(*BaleUserClosePollServiceResponse)(nil),                    // 416: uniclient.bale.BaleUserClosePollServiceResponse
+	(*BaleUserCreateFolderRequest)(nil),                         // 417: uniclient.bale.BaleUserCreateFolderRequest
+	(*BaleUserCreateFolderResponse)(nil),                        // 418: uniclient.bale.BaleUserCreateFolderResponse
+	(*BaleUserCreateGroupRequest)(nil),                          // 419: uniclient.bale.BaleUserCreateGroupRequest
+	(*BaleUserCreateGroupResponse)(nil),                         // 420: uniclient.bale.BaleUserCreateGroupResponse
+	(*BaleUserCreateGroupFullRequest)(nil),                      // 421: uniclient.bale.BaleUserCreateGroupFullRequest
+	(*BaleUserCreateGroupFullResponse)(nil),                     // 422: uniclient.bale.BaleUserCreateGroupFullResponse
+	(*BaleUserCreatePollRequest)(nil),                           // 423: uniclient.bale.BaleUserCreatePollRequest
+	(*BaleUserCreatePollResponse)(nil),                          // 424: uniclient.bale.BaleUserCreatePollResponse
+	(*BaleUserCreateReservedFolderRequest)(nil),                 // 425: uniclient.bale.BaleUserCreateReservedFolderRequest
+	(*BaleUserCreateReservedFolderResponse)(nil),                // 426: uniclient.bale.BaleUserCreateReservedFolderResponse
+	(*BaleUserCreateThreadRequest)(nil),                         // 427: uniclient.bale.BaleUserCreateThreadRequest
+	(*BaleUserCreateThreadResponse)(nil),                        // 428: uniclient.bale.BaleUserCreateThreadResponse
+	(*BaleUserCreateTopicRequest)(nil),                          // 429: uniclient.bale.BaleUserCreateTopicRequest
+	(*BaleUserCreateTopicResponse)(nil),                         // 430: uniclient.bale.BaleUserCreateTopicResponse
+	(*BaleUserDeleteCallLogsRequest)(nil),                       // 431: uniclient.bale.BaleUserDeleteCallLogsRequest
+	(*BaleUserDeleteCallLogsResponse)(nil),                      // 432: uniclient.bale.BaleUserDeleteCallLogsResponse
+	(*BaleUserDeleteChatRequest)(nil),                           // 433: uniclient.bale.BaleUserDeleteChatRequest
+	(*BaleUserDeleteChatResponse)(nil),                          // 434: uniclient.bale.BaleUserDeleteChatResponse
+	(*BaleUserDeleteMessageRequest)(nil),                        // 435: uniclient.bale.BaleUserDeleteMessageRequest
+	(*BaleUserDeleteMessageResponse)(nil),                       // 436: uniclient.bale.BaleUserDeleteMessageResponse
+	(*BaleUserDeleteMyCommandsRequest)(nil),                     // 437: uniclient.bale.BaleUserDeleteMyCommandsRequest
+	(*BaleUserDeleteMyCommandsResponse)(nil),                    // 438: uniclient.bale.BaleUserDeleteMyCommandsResponse
+	(*BaleUserDeleteStreamRequest)(nil),                         // 439: uniclient.bale.BaleUserDeleteStreamRequest
+	(*BaleUserDeleteStreamResponse)(nil),                        // 440: uniclient.bale.BaleUserDeleteStreamResponse
+	(*BaleUserEditAboutRequest)(nil),                            // 441: uniclient.bale.BaleUserEditAboutRequest
+	(*BaleUserEditAboutResponse)(nil),                           // 442: uniclient.bale.BaleUserEditAboutResponse
+	(*BaleUserEditChannelNickRequest)(nil),                      // 443: uniclient.bale.BaleUserEditChannelNickRequest
+	(*BaleUserEditChannelNickResponse)(nil),                     // 444: uniclient.bale.BaleUserEditChannelNickResponse
+	(*BaleUserEditGroupAboutRequest)(nil),                       // 445: uniclient.bale.BaleUserEditGroupAboutRequest
+	(*BaleUserEditGroupAboutResponse)(nil),                      // 446: uniclient.bale.BaleUserEditGroupAboutResponse
+	(*BaleUserEditGroupAvatarRequest)(nil),                      // 447: uniclient.bale.BaleUserEditGroupAvatarRequest
+	(*BaleUserEditGroupAvatarResponse)(nil),                     // 448: uniclient.bale.BaleUserEditGroupAvatarResponse
+	(*BaleUserEditGroupDefaultCardNumberRequest)(nil),           // 449: uniclient.bale.BaleUserEditGroupDefaultCardNumberRequest
+	(*BaleUserEditGroupDefaultCardNumberResponse)(nil),          // 450: uniclient.bale.BaleUserEditGroupDefaultCardNumberResponse
+	(*BaleUserEditGroupTitleRequest)(nil),                       // 451: uniclient.bale.BaleUserEditGroupTitleRequest
+	(*BaleUserEditGroupTitleResponse)(nil),                      // 452: uniclient.bale.BaleUserEditGroupTitleResponse
+	(*BaleUserEditLocalNameRequest)(nil),                        // 453: uniclient.bale.BaleUserEditLocalNameRequest
+	(*BaleUserEditLocalNameResponse)(nil),                       // 454: uniclient.bale.BaleUserEditLocalNameResponse
+	(*BaleUserEditNameRequest)(nil),                             // 455: uniclient.bale.BaleUserEditNameRequest
+	(*BaleUserEditNameResponse)(nil),                            // 456: uniclient.bale.BaleUserEditNameResponse
+	(*BaleUserEditNickNameRequest)(nil),                         // 457: uniclient.bale.BaleUserEditNickNameRequest
+	(*BaleUserEditNickNameResponse)(nil),                        // 458: uniclient.bale.BaleUserEditNickNameResponse
+	(*BaleUserEditParameterRequest)(nil),                        // 459: uniclient.bale.BaleUserEditParameterRequest
+	(*BaleUserEditParameterResponse)(nil),                       // 460: uniclient.bale.BaleUserEditParameterResponse
+	(*BaleUserEnableShowReactionFlagRequest)(nil),               // 461: uniclient.bale.BaleUserEnableShowReactionFlagRequest
+	(*BaleUserEnableShowReactionFlagResponse)(nil),              // 462: uniclient.bale.BaleUserEnableShowReactionFlagResponse
+	(*BaleUserExecuteTaskNowRequest)(nil),                       // 463: uniclient.bale.BaleUserExecuteTaskNowRequest
+	(*BaleUserExecuteTaskNowResponse)(nil),                      // 464: uniclient.bale.BaleUserExecuteTaskNowResponse
+	(*BaleUserFetchGroupAdminsRequest)(nil),                     // 465: uniclient.bale.BaleUserFetchGroupAdminsRequest
+	(*BaleUserFetchGroupAdminsResponse)(nil),                    // 466: uniclient.bale.BaleUserFetchGroupAdminsResponse
+	(*BaleUserFetchProtectedMessageRequest)(nil),                // 467: uniclient.bale.BaleUserFetchProtectedMessageRequest
+	(*BaleUserFetchProtectedMessageResponse)(nil),               // 468: uniclient.bale.BaleUserFetchProtectedMessageResponse
+	(*BaleUserFileUploadCancelRequest)(nil),                     // 469: uniclient.bale.BaleUserFileUploadCancelRequest
+	(*BaleUserFileUploadCancelResponse)(nil),                    // 470: uniclient.bale.BaleUserFileUploadCancelResponse
+	(*BaleUserForwardMessagesRequest)(nil),                      // 471: uniclient.bale.BaleUserForwardMessagesRequest
+	(*BaleUserForwardMessagesResponse)(nil),                     // 472: uniclient.bale.BaleUserForwardMessagesResponse
+	(*BaleUserGenerateCallLinkRequest)(nil),                     // 473: uniclient.bale.BaleUserGenerateCallLinkRequest
+	(*BaleUserGenerateCallLinkResponse)(nil),                    // 474: uniclient.bale.BaleUserGenerateCallLinkResponse
+	(*BaleUserGetActiveSharedMediaRequest)(nil),                 // 475: uniclient.bale.BaleUserGetActiveSharedMediaRequest
+	(*BaleUserGetActiveSharedMediaResponse)(nil),                // 476: uniclient.bale.BaleUserGetActiveSharedMediaResponse
+	(*BaleUserGetAnonymousContactPageRequest)(nil),              // 477: uniclient.bale.BaleUserGetAnonymousContactPageRequest
+	(*BaleUserGetAnonymousContactPageResponse)(nil),             // 478: uniclient.bale.BaleUserGetAnonymousContactPageResponse
+	(*BaleUserGetBannedUsersRequest)(nil),                       // 479: uniclient.bale.BaleUserGetBannedUsersRequest
+	(*BaleUserGetBannedUsersResponse)(nil),                      // 480: uniclient.bale.BaleUserGetBannedUsersResponse
+	(*BaleUserGetBotGroupPermissionsRequest)(nil),               // 481: uniclient.bale.BaleUserGetBotGroupPermissionsRequest
+	(*BaleUserGetBotGroupPermissionsResponse)(nil),              // 482: uniclient.bale.BaleUserGetBotGroupPermissionsResponse
+	(*BaleUserGetBotInfoRequest)(nil),                           // 483: uniclient.bale.BaleUserGetBotInfoRequest
+	(*BaleUserGetBotInfoResponse)(nil),                          // 484: uniclient.bale.BaleUserGetBotInfoResponse
+	(*BaleUserGetBotStoriesRequest)(nil),                        // 485: uniclient.bale.BaleUserGetBotStoriesRequest
+	(*BaleUserGetBotStoriesResponse)(nil),                       // 486: uniclient.bale.BaleUserGetBotStoriesResponse
+	(*BaleUserGetBotWhiteListRequest)(nil),                      // 487: uniclient.bale.BaleUserGetBotWhiteListRequest
+	(*BaleUserGetBotWhiteListResponse)(nil),                     // 488: uniclient.bale.BaleUserGetBotWhiteListResponse
+	(*BaleUserGetBotsRequest)(nil),                              // 489: uniclient.bale.BaleUserGetBotsRequest
+	(*BaleUserGetBotsResponse)(nil),                             // 490: uniclient.bale.BaleUserGetBotsResponse
+	(*BaleUserGetCallLinkDetailsRequest)(nil),                   // 491: uniclient.bale.BaleUserGetCallLinkDetailsRequest
+	(*BaleUserGetCallLinkDetailsResponse)(nil),                  // 492: uniclient.bale.BaleUserGetCallLinkDetailsResponse
+	(*BaleUserGetCallStateRequest)(nil),                         // 493: uniclient.bale.BaleUserGetCallStateRequest
+	(*BaleUserGetCallStateResponse)(nil),                        // 494: uniclient.bale.BaleUserGetCallStateResponse
+	(*BaleUserGetCanSeeMessagesRequest)(nil),                    // 495: uniclient.bale.BaleUserGetCanSeeMessagesRequest
+	(*BaleUserGetCanSeeMessagesResponse)(nil),                   // 496: uniclient.bale.BaleUserGetCanSeeMessagesResponse
+	(*BaleUserGetChannelRecommendationsRequest)(nil),            // 497: uniclient.bale.BaleUserGetChannelRecommendationsRequest
+	(*BaleUserGetChannelRecommendationsResponse)(nil),           // 498: uniclient.bale.BaleUserGetChannelRecommendationsResponse
+	(*BaleUserGetChannelStoriesRequest)(nil),                    // 499: uniclient.bale.BaleUserGetChannelStoriesRequest
+	(*BaleUserGetChannelStoriesResponse)(nil),                   // 500: uniclient.bale.BaleUserGetChannelStoriesResponse
+	(*BaleUserGetContactsRequest)(nil),                          // 501: uniclient.bale.BaleUserGetContactsRequest
+	(*BaleUserGetContactsResponse)(nil),                         // 502: uniclient.bale.BaleUserGetContactsResponse
+	(*BaleUserGetContactsPresencesRequest)(nil),                 // 503: uniclient.bale.BaleUserGetContactsPresencesRequest
+	(*BaleUserGetContactsPresencesResponse)(nil),                // 504: uniclient.bale.BaleUserGetContactsPresencesResponse
+	(*BaleUserGetDefaultStoryBackgroundsRequest)(nil),           // 505: uniclient.bale.BaleUserGetDefaultStoryBackgroundsRequest
+	(*BaleUserGetDefaultStoryBackgroundsResponse)(nil),          // 506: uniclient.bale.BaleUserGetDefaultStoryBackgroundsResponse
+	(*BaleUserGetDifferenceRequest)(nil),                        // 507: uniclient.bale.BaleUserGetDifferenceRequest
+	(*BaleUserGetDifferenceResponse)(nil),                       // 508: uniclient.bale.BaleUserGetDifferenceResponse
+	(*BaleUserGetDiscussionMessageRequest)(nil),                 // 509: uniclient.bale.BaleUserGetDiscussionMessageRequest
+	(*BaleUserGetDiscussionMessageResponse)(nil),                // 510: uniclient.bale.BaleUserGetDiscussionMessageResponse
+	(*BaleUserGetFileURLRequest)(nil),                           // 511: uniclient.bale.BaleUserGetFileURLRequest
+	(*BaleUserGetFileURLResponse)(nil),                          // 512: uniclient.bale.BaleUserGetFileURLResponse
+	(*BaleUserGetFileUploadURLRequest)(nil),                     // 513: uniclient.bale.BaleUserGetFileUploadURLRequest
+	(*BaleUserGetFileUploadURLResponse)(nil),                    // 514: uniclient.bale.BaleUserGetFileUploadURLResponse
+	(*BaleUserGetFullGroupRequest)(nil),                         // 515: uniclient.bale.BaleUserGetFullGroupRequest
+	(*BaleUserGetFullGroupResponse)(nil),                        // 516: uniclient.bale.BaleUserGetFullGroupResponse
+	(*BaleUserGetFullPollResultServiceRequest)(nil),             // 517: uniclient.bale.BaleUserGetFullPollResultServiceRequest
+	(*BaleUserGetFullPollResultServiceResponse)(nil),            // 518: uniclient.bale.BaleUserGetFullPollResultServiceResponse
+	(*BaleUserGetGroupDefaultCardNumberRequest)(nil),            // 519: uniclient.bale.BaleUserGetGroupDefaultCardNumberRequest
+	(*BaleUserGetGroupDefaultCardNumberResponse)(nil),           // 520: uniclient.bale.BaleUserGetGroupDefaultCardNumberResponse
+	(*BaleUserGetGroupInviteURLRequest)(nil),                    // 521: uniclient.bale.BaleUserGetGroupInviteURLRequest
+	(*BaleUserGetGroupInviteURLResponse)(nil),                   // 522: uniclient.bale.BaleUserGetGroupInviteURLResponse
+	(*BaleUserGetGroupMembersCountRequest)(nil),                 // 523: uniclient.bale.BaleUserGetGroupMembersCountRequest
+	(*BaleUserGetGroupMembersCountResponse)(nil),                // 524: uniclient.bale.BaleUserGetGroupMembersCountResponse
+	(*BaleUserGetGroupMembersPresencesRequest)(nil),             // 525: uniclient.bale.BaleUserGetGroupMembersPresencesRequest
+	(*BaleUserGetGroupMembersPresencesResponse)(nil),            // 526: uniclient.bale.BaleUserGetGroupMembersPresencesResponse
+	(*BaleUserGetGroupOnlineCountRequest)(nil),                  // 527: uniclient.bale.BaleUserGetGroupOnlineCountRequest
+	(*BaleUserGetGroupOnlineCountResponse)(nil),                 // 528: uniclient.bale.BaleUserGetGroupOnlineCountResponse
+	(*BaleUserGetGroupPreviewRequest)(nil),                      // 529: uniclient.bale.BaleUserGetGroupPreviewRequest
+	(*BaleUserGetGroupPreviewResponse)(nil),                     // 530: uniclient.bale.BaleUserGetGroupPreviewResponse
+	(*BaleUserGetGroupRecommendationsRequest)(nil),              // 531: uniclient.bale.BaleUserGetGroupRecommendationsRequest
+	(*BaleUserGetGroupRecommendationsResponse)(nil),             // 532: uniclient.bale.BaleUserGetGroupRecommendationsResponse
+	(*BaleUserGetGroupsRecommendationRequest)(nil),              // 533: uniclient.bale.BaleUserGetGroupsRecommendationRequest
+	(*BaleUserGetGroupsRecommendationResponse)(nil),             // 534: uniclient.bale.BaleUserGetGroupsRecommendationResponse
+	(*BaleUserGetInlineBotResultsRequest)(nil),                  // 535: uniclient.bale.BaleUserGetInlineBotResultsRequest
+	(*BaleUserGetInlineBotResultsResponse)(nil),                 // 536: uniclient.bale.BaleUserGetInlineBotResultsResponse
+	(*BaleUserGetLLMAuthTokenRequest)(nil),                      // 537: uniclient.bale.BaleUserGetLLMAuthTokenRequest
+	(*BaleUserGetLLMAuthTokenResponse)(nil),                     // 538: uniclient.bale.BaleUserGetLLMAuthTokenResponse
+	(*BaleUserGetLinkPreviewRequest)(nil),                       // 539: uniclient.bale.BaleUserGetLinkPreviewRequest
+	(*BaleUserGetLinkPreviewResponse)(nil),                      // 540: uniclient.bale.BaleUserGetLinkPreviewResponse
+	(*BaleUserGetLinkStatusRequest)(nil),                        // 541: uniclient.bale.BaleUserGetLinkStatusRequest
+	(*BaleUserGetLinkStatusResponse)(nil),                       // 542: uniclient.bale.BaleUserGetLinkStatusResponse
+	(*BaleUserGetLinkSummaryRequest)(nil),                       // 543: uniclient.bale.BaleUserGetLinkSummaryRequest
+	(*BaleUserGetLinkSummaryResponse)(nil),                      // 544: uniclient.bale.BaleUserGetLinkSummaryResponse
+	(*BaleUserGetMemberPermissionsRequest)(nil),                 // 545: uniclient.bale.BaleUserGetMemberPermissionsRequest
+	(*BaleUserGetMemberPermissionsResponse)(nil),                // 546: uniclient.bale.BaleUserGetMemberPermissionsResponse
+	(*BaleUserGetMenuButtonRequest)(nil),                        // 547: uniclient.bale.BaleUserGetMenuButtonRequest
+	(*BaleUserGetMenuButtonResponse)(nil),                       // 548: uniclient.bale.BaleUserGetMenuButtonResponse
+	(*BaleUserGetMessageSeenListRequest)(nil),                   // 549: uniclient.bale.BaleUserGetMessageSeenListRequest
+	(*BaleUserGetMessageSeenListResponse)(nil),                  // 550: uniclient.bale.BaleUserGetMessageSeenListResponse
+	(*BaleUserGetMessageViewsRequest)(nil),                      // 551: uniclient.bale.BaleUserGetMessageViewsRequest
+	(*BaleUserGetMessageViewsResponse)(nil),                     // 552: uniclient.bale.BaleUserGetMessageViewsResponse
+	(*BaleUserGetMessagesRepliesInfoRequest)(nil),               // 553: uniclient.bale.BaleUserGetMessagesRepliesInfoRequest
+	(*BaleUserGetMessagesRepliesInfoResponse)(nil),              // 554: uniclient.bale.BaleUserGetMessagesRepliesInfoResponse
+	(*BaleUserGetMiniAppUrlAppzarRequest)(nil),                  // 555: uniclient.bale.BaleUserGetMiniAppUrlAppzarRequest
+	(*BaleUserGetMiniAppUrlAppzarResponse)(nil),                 // 556: uniclient.bale.BaleUserGetMiniAppUrlAppzarResponse
+	(*BaleUserGetMostPopularStoriesRequest)(nil),                // 557: uniclient.bale.BaleUserGetMostPopularStoriesRequest
+	(*BaleUserGetMostPopularStoriesResponse)(nil),               // 558: uniclient.bale.BaleUserGetMostPopularStoriesResponse
+	(*BaleUserGetMutualGroupsRequest)(nil),                      // 559: uniclient.bale.BaleUserGetMutualGroupsRequest
+	(*BaleUserGetMutualGroupsResponse)(nil),                     // 560: uniclient.bale.BaleUserGetMutualGroupsResponse
+	(*BaleUserGetMyCommandsRequest)(nil),                        // 561: uniclient.bale.BaleUserGetMyCommandsRequest
+	(*BaleUserGetMyCommandsResponse)(nil),                       // 562: uniclient.bale.BaleUserGetMyCommandsResponse
+	(*BaleUserGetMyGroupsRequest)(nil),                          // 563: uniclient.bale.BaleUserGetMyGroupsRequest
+	(*BaleUserGetMyGroupsResponse)(nil),                         // 564: uniclient.bale.BaleUserGetMyGroupsResponse
+	(*BaleUserGetMyUpvotesRequest)(nil),                         // 565: uniclient.bale.BaleUserGetMyUpvotesRequest
+	(*BaleUserGetMyUpvotesResponse)(nil),                        // 566: uniclient.bale.BaleUserGetMyUpvotesResponse
+	(*BaleUserGetNasimFilePublicUrlRequest)(nil),                // 567: uniclient.bale.BaleUserGetNasimFilePublicUrlRequest
+	(*BaleUserGetNasimFilePublicUrlResponse)(nil),               // 568: uniclient.bale.BaleUserGetNasimFilePublicUrlResponse
+	(*BaleUserGetNasimFileUploadResumeRequest)(nil),             // 569: uniclient.bale.BaleUserGetNasimFileUploadResumeRequest
+	(*BaleUserGetNasimFileUploadResumeResponse)(nil),            // 570: uniclient.bale.BaleUserGetNasimFileUploadResumeResponse
+	(*BaleUserGetNasimFileUrlsRequest)(nil),                     // 571: uniclient.bale.BaleUserGetNasimFileUrlsRequest
+	(*BaleUserGetNasimFileUrlsResponse)(nil),                    // 572: uniclient.bale.BaleUserGetNasimFileUrlsResponse
+	(*BaleUserGetOrganizationInfoRequest)(nil),                  // 573: uniclient.bale.BaleUserGetOrganizationInfoRequest
+	(*BaleUserGetOrganizationInfoResponse)(nil),                 // 574: uniclient.bale.BaleUserGetOrganizationInfoResponse
+	(*BaleUserGetOrganizationalContactsRequest)(nil),            // 575: uniclient.bale.BaleUserGetOrganizationalContactsRequest
+	(*BaleUserGetOrganizationalContactsResponse)(nil),           // 576: uniclient.bale.BaleUserGetOrganizationalContactsResponse
+	(*BaleUserGetParametersRequest)(nil),                        // 577: uniclient.bale.BaleUserGetParametersRequest
+	(*BaleUserGetParametersResponse)(nil),                       // 578: uniclient.bale.BaleUserGetParametersResponse
+	(*BaleUserGetPaymentDetailsRequest)(nil),                    // 579: uniclient.bale.BaleUserGetPaymentDetailsRequest
+	(*BaleUserGetPaymentDetailsResponse)(nil),                   // 580: uniclient.bale.BaleUserGetPaymentDetailsResponse
+	(*BaleUserGetPinsRequest)(nil),                              // 581: uniclient.bale.BaleUserGetPinsRequest
+	(*BaleUserGetPinsResponse)(nil),                             // 582: uniclient.bale.BaleUserGetPinsResponse
+	(*BaleUserGetPollResultsServiceRequest)(nil),                // 583: uniclient.bale.BaleUserGetPollResultsServiceRequest
+	(*BaleUserGetPollResultsServiceResponse)(nil),               // 584: uniclient.bale.BaleUserGetPollResultsServiceResponse
+	(*BaleUserGetReactionsRequest)(nil),                         // 585: uniclient.bale.BaleUserGetReactionsRequest
+	(*BaleUserGetReactionsResponse)(nil),                        // 586: uniclient.bale.BaleUserGetReactionsResponse
+	(*BaleUserGetReactionsListRequest)(nil),                     // 587: uniclient.bale.BaleUserGetReactionsListRequest
+	(*BaleUserGetReactionsListResponse)(nil),                    // 588: uniclient.bale.BaleUserGetReactionsListResponse
+	(*BaleUserGetRelatedChannelsRequest)(nil),                   // 589: uniclient.bale.BaleUserGetRelatedChannelsRequest
+	(*BaleUserGetRelatedChannelsResponse)(nil),                  // 590: uniclient.bale.BaleUserGetRelatedChannelsResponse
+	(*BaleUserGetRelatedGroupsRequest)(nil),                     // 591: uniclient.bale.BaleUserGetRelatedGroupsRequest
+	(*BaleUserGetRelatedGroupsResponse)(nil),                    // 592: uniclient.bale.BaleUserGetRelatedGroupsResponse
+	(*BaleUserGetSavedGifsRequest)(nil),                         // 593: uniclient.bale.BaleUserGetSavedGifsRequest
+	(*BaleUserGetSavedGifsResponse)(nil),                        // 594: uniclient.bale.BaleUserGetSavedGifsResponse
+	(*BaleUserGetShowReactionFlagRequest)(nil),                  // 595: uniclient.bale.BaleUserGetShowReactionFlagRequest
+	(*BaleUserGetShowReactionFlagResponse)(nil),                 // 596: uniclient.bale.BaleUserGetShowReactionFlagResponse
+	(*BaleUserGetSimilarPostsRequest)(nil),                      // 597: uniclient.bale.BaleUserGetSimilarPostsRequest
+	(*BaleUserGetSimilarPostsResponse)(nil),                     // 598: uniclient.bale.BaleUserGetSimilarPostsResponse
+	(*BaleUserGetStoriesRequest)(nil),                           // 599: uniclient.bale.BaleUserGetStoriesRequest
+	(*BaleUserGetStoriesResponse)(nil),                          // 600: uniclient.bale.BaleUserGetStoriesResponse
+	(*BaleUserGetStoriesByListRequest)(nil),                     // 601: uniclient.bale.BaleUserGetStoriesByListRequest
+	(*BaleUserGetStoriesByListResponse)(nil),                    // 602: uniclient.bale.BaleUserGetStoriesByListResponse
+	(*BaleUserGetStoryByIDRequest)(nil),                         // 603: uniclient.bale.BaleUserGetStoryByIDRequest
+	(*BaleUserGetStoryByIDResponse)(nil),                        // 604: uniclient.bale.BaleUserGetStoryByIDResponse
+	(*BaleUserGetStoryPrivacyConfigRequest)(nil),                // 605: uniclient.bale.BaleUserGetStoryPrivacyConfigRequest
+	(*BaleUserGetStoryPrivacyConfigResponse)(nil),               // 606: uniclient.bale.BaleUserGetStoryPrivacyConfigResponse
+	(*BaleUserGetStoryReactionEmojisRequest)(nil),               // 607: uniclient.bale.BaleUserGetStoryReactionEmojisRequest
+	(*BaleUserGetStoryReactionEmojisResponse)(nil),              // 608: uniclient.bale.BaleUserGetStoryReactionEmojisResponse
+	(*BaleUserGetStoryTagsRequest)(nil),                         // 609: uniclient.bale.BaleUserGetStoryTagsRequest
+	(*BaleUserGetStoryTagsResponse)(nil),                        // 610: uniclient.bale.BaleUserGetStoryTagsResponse
+	(*BaleUserGetStoryViewersRequest)(nil),                      // 611: uniclient.bale.BaleUserGetStoryViewersRequest
+	(*BaleUserGetStoryViewersResponse)(nil),                     // 612: uniclient.bale.BaleUserGetStoryViewersResponse
+	(*BaleUserGetStoryViewersCountRequest)(nil),                 // 613: uniclient.bale.BaleUserGetStoryViewersCountRequest
+	(*BaleUserGetStoryViewersCountResponse)(nil),                // 614: uniclient.bale.BaleUserGetStoryViewersCountResponse
+	(*BaleUserGetStoryWidgetsRequest)(nil),                      // 615: uniclient.bale.BaleUserGetStoryWidgetsRequest
+	(*BaleUserGetStoryWidgetsResponse)(nil),                     // 616: uniclient.bale.BaleUserGetStoryWidgetsResponse
+	(*BaleUserGetTopPeerRequest)(nil),                           // 617: uniclient.bale.BaleUserGetTopPeerRequest
+	(*BaleUserGetTopPeerResponse)(nil),                          // 618: uniclient.bale.BaleUserGetTopPeerResponse
+	(*BaleUserGetTopicByIDRequest)(nil),                         // 619: uniclient.bale.BaleUserGetTopicByIDRequest
+	(*BaleUserGetTopicByIDResponse)(nil),                        // 620: uniclient.bale.BaleUserGetTopicByIDResponse
+	(*BaleUserGetTopicsRequest)(nil),                            // 621: uniclient.bale.BaleUserGetTopicsRequest
+	(*BaleUserGetTopicsResponse)(nil),                           // 622: uniclient.bale.BaleUserGetTopicsResponse
+	(*BaleUserGetUserContextRequest)(nil),                       // 623: uniclient.bale.BaleUserGetUserContextRequest
+	(*BaleUserGetUserContextResponse)(nil),                      // 624: uniclient.bale.BaleUserGetUserContextResponse
+	(*BaleUserGetUserStoryConfigRequest)(nil),                   // 625: uniclient.bale.BaleUserGetUserStoryConfigRequest
+	(*BaleUserGetUserStoryConfigResponse)(nil),                  // 626: uniclient.bale.BaleUserGetUserStoryConfigResponse
+	(*BaleUserGetUsersPresenceRequest)(nil),                     // 627: uniclient.bale.BaleUserGetUsersPresenceRequest
+	(*BaleUserGetUsersPresenceResponse)(nil),                    // 628: uniclient.bale.BaleUserGetUsersPresenceResponse
+	(*BaleUserGetWebappHashRequest)(nil),                        // 629: uniclient.bale.BaleUserGetWebappHashRequest
+	(*BaleUserGetWebappHashResponse)(nil),                       // 630: uniclient.bale.BaleUserGetWebappHashResponse
+	(*BaleUserHTTPPostRequest)(nil),                             // 631: uniclient.bale.BaleUserHTTPPostRequest
+	(*BaleUserHTTPPostResponse)(nil),                            // 632: uniclient.bale.BaleUserHTTPPostResponse
+	(*BaleUserImportContactsRequest)(nil),                       // 633: uniclient.bale.BaleUserImportContactsRequest
+	(*BaleUserImportContactsResponse)(nil),                      // 634: uniclient.bale.BaleUserImportContactsResponse
+	(*BaleUserInviteToCallRequest)(nil),                         // 635: uniclient.bale.BaleUserInviteToCallRequest
+	(*BaleUserInviteToCallResponse)(nil),                        // 636: uniclient.bale.BaleUserInviteToCallResponse
+	(*BaleUserInviteUserRequest)(nil),                           // 637: uniclient.bale.BaleUserInviteUserRequest
+	(*BaleUserInviteUserResponse)(nil),                          // 638: uniclient.bale.BaleUserInviteUserResponse
+	(*BaleUserInviteUsersRequest)(nil),                          // 639: uniclient.bale.BaleUserInviteUsersRequest
+	(*BaleUserInviteUsersResponse)(nil),                         // 640: uniclient.bale.BaleUserInviteUsersResponse
+	(*BaleUserInvokeCustomActionRequest)(nil),                   // 641: uniclient.bale.BaleUserInvokeCustomActionRequest
+	(*BaleUserInvokeCustomActionResponse)(nil),                  // 642: uniclient.bale.BaleUserInvokeCustomActionResponse
+	(*BaleUserInvokeCustomMethodAppzarRequest)(nil),             // 643: uniclient.bale.BaleUserInvokeCustomMethodAppzarRequest
+	(*BaleUserInvokeCustomMethodAppzarResponse)(nil),            // 644: uniclient.bale.BaleUserInvokeCustomMethodAppzarResponse
+	(*BaleUserJoinGroupRequest)(nil),                            // 645: uniclient.bale.BaleUserJoinGroupRequest
+	(*BaleUserJoinGroupResponse)(nil),                           // 646: uniclient.bale.BaleUserJoinGroupResponse
+	(*BaleUserJoinPublicGroupRequest)(nil),                      // 647: uniclient.bale.BaleUserJoinPublicGroupRequest
+	(*BaleUserJoinPublicGroupResponse)(nil),                     // 648: uniclient.bale.BaleUserJoinPublicGroupResponse
+	(*BaleUserKickUserRequest)(nil),                             // 649: uniclient.bale.BaleUserKickUserRequest
+	(*BaleUserKickUserResponse)(nil),                            // 650: uniclient.bale.BaleUserKickUserResponse
+	(*BaleUserLeaveGroupRequest)(nil),                           // 651: uniclient.bale.BaleUserLeaveGroupRequest
+	(*BaleUserLeaveGroupResponse)(nil),                          // 652: uniclient.bale.BaleUserLeaveGroupResponse
+	(*BaleUserListScheduledTasksRequest)(nil),                   // 653: uniclient.bale.BaleUserListScheduledTasksRequest
+	(*BaleUserListScheduledTasksResponse)(nil),                  // 654: uniclient.bale.BaleUserListScheduledTasksResponse
+	(*BaleUserLoadBlockedUsersRequest)(nil),                     // 655: uniclient.bale.BaleUserLoadBlockedUsersRequest
+	(*BaleUserLoadBlockedUsersResponse)(nil),                    // 656: uniclient.bale.BaleUserLoadBlockedUsersResponse
+	(*BaleUserLoadCategoryFeedMessagesRequest)(nil),             // 657: uniclient.bale.BaleUserLoadCategoryFeedMessagesRequest
+	(*BaleUserLoadCategoryFeedMessagesResponse)(nil),            // 658: uniclient.bale.BaleUserLoadCategoryFeedMessagesResponse
+	(*BaleUserLoadDialogsRequest)(nil),                          // 659: uniclient.bale.BaleUserLoadDialogsRequest
+	(*BaleUserLoadDialogsResponse)(nil),                         // 660: uniclient.bale.BaleUserLoadDialogsResponse
+	(*BaleUserLoadDialogsFilteredRequest)(nil),                  // 661: uniclient.bale.BaleUserLoadDialogsFilteredRequest
+	(*BaleUserLoadDialogsFilteredResponse)(nil),                 // 662: uniclient.bale.BaleUserLoadDialogsFilteredResponse
+	(*BaleUserLoadFeedMessagesRequest)(nil),                     // 663: uniclient.bale.BaleUserLoadFeedMessagesRequest
+	(*BaleUserLoadFeedMessagesResponse)(nil),                    // 664: uniclient.bale.BaleUserLoadFeedMessagesResponse
+	(*BaleUserLoadFolderDialogsRequest)(nil),                    // 665: uniclient.bale.BaleUserLoadFolderDialogsRequest
+	(*BaleUserLoadFolderDialogsResponse)(nil),                   // 666: uniclient.bale.BaleUserLoadFolderDialogsResponse
+	(*BaleUserLoadFullGroupsRequest)(nil),                       // 667: uniclient.bale.BaleUserLoadFullGroupsRequest
+	(*BaleUserLoadFullGroupsResponse)(nil),                      // 668: uniclient.bale.BaleUserLoadFullGroupsResponse
+	(*BaleUserLoadFullUsersRequest)(nil),                        // 669: uniclient.bale.BaleUserLoadFullUsersRequest
+	(*BaleUserLoadFullUsersResponse)(nil),                       // 670: uniclient.bale.BaleUserLoadFullUsersResponse
+	(*BaleUserLoadGroupAvatarsRequest)(nil),                     // 671: uniclient.bale.BaleUserLoadGroupAvatarsRequest
+	(*BaleUserLoadGroupAvatarsResponse)(nil),                    // 672: uniclient.bale.BaleUserLoadGroupAvatarsResponse
+	(*BaleUserLoadGroupedDialogsRequest)(nil),                   // 673: uniclient.bale.BaleUserLoadGroupedDialogsRequest
+	(*BaleUserLoadGroupedDialogsResponse)(nil),                  // 674: uniclient.bale.BaleUserLoadGroupedDialogsResponse
+	(*BaleUserLoadGroupsRequest)(nil),                           // 675: uniclient.bale.BaleUserLoadGroupsRequest
+	(*BaleUserLoadGroupsResponse)(nil),                          // 676: uniclient.bale.BaleUserLoadGroupsResponse
+	(*BaleUserLoadHistoryRequest)(nil),                          // 677: uniclient.bale.BaleUserLoadHistoryRequest
+	(*BaleUserLoadHistoryResponse)(nil),                         // 678: uniclient.bale.BaleUserLoadHistoryResponse
+	(*BaleUserLoadInternalFeedMessagesRequest)(nil),             // 679: uniclient.bale.BaleUserLoadInternalFeedMessagesRequest
+	(*BaleUserLoadInternalFeedMessagesResponse)(nil),            // 680: uniclient.bale.BaleUserLoadInternalFeedMessagesResponse
+	(*BaleUserLoadMagazineCategoriesRequest)(nil),               // 681: uniclient.bale.BaleUserLoadMagazineCategoriesRequest
+	(*BaleUserLoadMagazineCategoriesResponse)(nil),              // 682: uniclient.bale.BaleUserLoadMagazineCategoriesResponse
+	(*BaleUserLoadMembersRequest)(nil),                          // 683: uniclient.bale.BaleUserLoadMembersRequest
+	(*BaleUserLoadMembersResponse)(nil),                         // 684: uniclient.bale.BaleUserLoadMembersResponse
+	(*BaleUserLoadOwnStickersRequest)(nil),                      // 685: uniclient.bale.BaleUserLoadOwnStickersRequest
+	(*BaleUserLoadOwnStickersResponse)(nil),                     // 686: uniclient.bale.BaleUserLoadOwnStickersResponse
+	(*BaleUserLoadPeerDialogsRequest)(nil),                      // 687: uniclient.bale.BaleUserLoadPeerDialogsRequest
+	(*BaleUserLoadPeerDialogsResponse)(nil),                     // 688: uniclient.bale.BaleUserLoadPeerDialogsResponse
+	(*BaleUserLoadPeersRequest)(nil),                            // 689: uniclient.bale.BaleUserLoadPeersRequest
+	(*BaleUserLoadPeersResponse)(nil),                           // 690: uniclient.bale.BaleUserLoadPeersResponse
+	(*BaleUserLoadPinnedDialogsRequest)(nil),                    // 691: uniclient.bale.BaleUserLoadPinnedDialogsRequest
+	(*BaleUserLoadPinnedDialogsResponse)(nil),                   // 692: uniclient.bale.BaleUserLoadPinnedDialogsResponse
+	(*BaleUserLoadPinnedMessagesRequest)(nil),                   // 693: uniclient.bale.BaleUserLoadPinnedMessagesRequest
+	(*BaleUserLoadPinnedMessagesResponse)(nil),                  // 694: uniclient.bale.BaleUserLoadPinnedMessagesResponse
+	(*BaleUserLoadReactionsRequest)(nil),                        // 695: uniclient.bale.BaleUserLoadReactionsRequest
+	(*BaleUserLoadReactionsResponse)(nil),                       // 696: uniclient.bale.BaleUserLoadReactionsResponse
+	(*BaleUserLoadRepliesRequest)(nil),                          // 697: uniclient.bale.BaleUserLoadRepliesRequest
+	(*BaleUserLoadRepliesResponse)(nil),                         // 698: uniclient.bale.BaleUserLoadRepliesResponse
+	(*BaleUserLoadSharedMediaRequest)(nil),                      // 699: uniclient.bale.BaleUserLoadSharedMediaRequest
+	(*BaleUserLoadSharedMediaResponse)(nil),                     // 700: uniclient.bale.BaleUserLoadSharedMediaResponse
+	(*BaleUserLoadStickerCollectionRequest)(nil),                // 701: uniclient.bale.BaleUserLoadStickerCollectionRequest
+	(*BaleUserLoadStickerCollectionResponse)(nil),               // 702: uniclient.bale.BaleUserLoadStickerCollectionResponse
+	(*BaleUserLoadUsersRequest)(nil),                            // 703: uniclient.bale.BaleUserLoadUsersRequest
+	(*BaleUserLoadUsersResponse)(nil),                           // 704: uniclient.bale.BaleUserLoadUsersResponse
+	(*BaleUserMakePaymentRequest)(nil),                          // 705: uniclient.bale.BaleUserMakePaymentRequest
+	(*BaleUserMakePaymentResponse)(nil),                         // 706: uniclient.bale.BaleUserMakePaymentResponse
+	(*BaleUserMakeUserAdminRequest)(nil),                        // 707: uniclient.bale.BaleUserMakeUserAdminRequest
+	(*BaleUserMakeUserAdminResponse)(nil),                       // 708: uniclient.bale.BaleUserMakeUserAdminResponse
+	(*BaleUserMarkAsUnreadRequest)(nil),                         // 709: uniclient.bale.BaleUserMarkAsUnreadRequest
+	(*BaleUserMarkAsUnreadResponse)(nil),                        // 710: uniclient.bale.BaleUserMarkAsUnreadResponse
+	(*BaleUserMarkDialogsAsReadRequest)(nil),                    // 711: uniclient.bale.BaleUserMarkDialogsAsReadRequest
+	(*BaleUserMarkDialogsAsReadResponse)(nil),                   // 712: uniclient.bale.BaleUserMarkDialogsAsReadResponse
+	(*BaleUserMentionReadRequest)(nil),                          // 713: uniclient.bale.BaleUserMentionReadRequest
+	(*BaleUserMentionReadResponse)(nil),                         // 714: uniclient.bale.BaleUserMentionReadResponse
+	(*BaleUserMessageReactionsReadRequest)(nil),                 // 715: uniclient.bale.BaleUserMessageReactionsReadRequest
+	(*BaleUserMessageReactionsReadResponse)(nil),                // 716: uniclient.bale.BaleUserMessageReactionsReadResponse
+	(*BaleUserMessageReadRequest)(nil),                          // 717: uniclient.bale.BaleUserMessageReadRequest
+	(*BaleUserMessageReadResponse)(nil),                         // 718: uniclient.bale.BaleUserMessageReadResponse
+	(*BaleUserMessageReceivedRequest)(nil),                      // 719: uniclient.bale.BaleUserMessageReceivedRequest
+	(*BaleUserMessageReceivedResponse)(nil),                     // 720: uniclient.bale.BaleUserMessageReceivedResponse
+	(*BaleUserMuteCallParticipantRequest)(nil),                  // 721: uniclient.bale.BaleUserMuteCallParticipantRequest
+	(*BaleUserMuteCallParticipantResponse)(nil),                 // 722: uniclient.bale.BaleUserMuteCallParticipantResponse
+	(*BaleUserPeersWithScheduleTaskRequest)(nil),                // 723: uniclient.bale.BaleUserPeersWithScheduleTaskRequest
+	(*BaleUserPeersWithScheduleTaskResponse)(nil),               // 724: uniclient.bale.BaleUserPeersWithScheduleTaskResponse
+	(*BaleUserPinDialogsRequest)(nil),                           // 725: uniclient.bale.BaleUserPinDialogsRequest
+	(*BaleUserPinDialogsResponse)(nil),                          // 726: uniclient.bale.BaleUserPinDialogsResponse
+	(*BaleUserPinMessageRequest)(nil),                           // 727: uniclient.bale.BaleUserPinMessageRequest
+	(*BaleUserPinMessageResponse)(nil),                          // 728: uniclient.bale.BaleUserPinMessageResponse
+	(*BaleUserPushSetConfigRequest)(nil),                        // 729: uniclient.bale.BaleUserPushSetConfigRequest
+	(*BaleUserPushSetConfigResponse)(nil),                       // 730: uniclient.bale.BaleUserPushSetConfigResponse
+	(*BaleUserReScheduleTaskRequest)(nil),                       // 731: uniclient.bale.BaleUserReScheduleTaskRequest
+	(*BaleUserReScheduleTaskResponse)(nil),                      // 732: uniclient.bale.BaleUserReScheduleTaskResponse
+	(*BaleUserReactToStoryRequest)(nil),                         // 733: uniclient.bale.BaleUserReactToStoryRequest
+	(*BaleUserReactToStoryResponse)(nil),                        // 734: uniclient.bale.BaleUserReactToStoryResponse
+	(*BaleUserReceiveMessageStreamRequest)(nil),                 // 735: uniclient.bale.BaleUserReceiveMessageStreamRequest
+	(*BaleUserReceiveMessageStreamResponse)(nil),                // 736: uniclient.bale.BaleUserReceiveMessageStreamResponse
+	(*BaleUserRemoveAllPinsRequest)(nil),                        // 737: uniclient.bale.BaleUserRemoveAllPinsRequest
+	(*BaleUserRemoveAllPinsResponse)(nil),                       // 738: uniclient.bale.BaleUserRemoveAllPinsResponse
+	(*BaleUserRemoveCallParticipantRequest)(nil),                // 739: uniclient.bale.BaleUserRemoveCallParticipantRequest
+	(*BaleUserRemoveCallParticipantResponse)(nil),               // 740: uniclient.bale.BaleUserRemoveCallParticipantResponse
+	(*BaleUserRemoveContactRequest)(nil),                        // 741: uniclient.bale.BaleUserRemoveContactRequest
+	(*BaleUserRemoveContactResponse)(nil),                       // 742: uniclient.bale.BaleUserRemoveContactResponse
+	(*BaleUserRemoveDiscussionGroupRequest)(nil),                // 743: uniclient.bale.BaleUserRemoveDiscussionGroupRequest
+	(*BaleUserRemoveDiscussionGroupResponse)(nil),               // 744: uniclient.bale.BaleUserRemoveDiscussionGroupResponse
+	(*BaleUserRemoveGifRequest)(nil),                            // 745: uniclient.bale.BaleUserRemoveGifRequest
+	(*BaleUserRemoveGifResponse)(nil),                           // 746: uniclient.bale.BaleUserRemoveGifResponse
+	(*BaleUserRemoveGroupAvatarRequest)(nil),                    // 747: uniclient.bale.BaleUserRemoveGroupAvatarRequest
+	(*BaleUserRemoveGroupAvatarResponse)(nil),                   // 748: uniclient.bale.BaleUserRemoveGroupAvatarResponse
+	(*BaleUserRemovePinRequest)(nil),                            // 749: uniclient.bale.BaleUserRemovePinRequest
+	(*BaleUserRemovePinResponse)(nil),                           // 750: uniclient.bale.BaleUserRemovePinResponse
+	(*BaleUserRemoveReactionRequest)(nil),                       // 751: uniclient.bale.BaleUserRemoveReactionRequest
+	(*BaleUserRemoveReactionResponse)(nil),                      // 752: uniclient.bale.BaleUserRemoveReactionResponse
+	(*BaleUserRemoveStickerCollectionRequest)(nil),              // 753: uniclient.bale.BaleUserRemoveStickerCollectionRequest
+	(*BaleUserRemoveStickerCollectionResponse)(nil),             // 754: uniclient.bale.BaleUserRemoveStickerCollectionResponse
+	(*BaleUserRemoveStickerPackRequest)(nil),                    // 755: uniclient.bale.BaleUserRemoveStickerPackRequest
+	(*BaleUserRemoveStickerPackResponse)(nil),                   // 756: uniclient.bale.BaleUserRemoveStickerPackResponse
+	(*BaleUserRemoveStoryRequest)(nil),                          // 757: uniclient.bale.BaleUserRemoveStoryRequest
+	(*BaleUserRemoveStoryResponse)(nil),                         // 758: uniclient.bale.BaleUserRemoveStoryResponse
+	(*BaleUserRemoveTopPeerRequest)(nil),                        // 759: uniclient.bale.BaleUserRemoveTopPeerRequest
+	(*BaleUserRemoveTopPeerResponse)(nil),                       // 760: uniclient.bale.BaleUserRemoveTopPeerResponse
+	(*BaleUserRemoveUserAdminRequest)(nil),                      // 761: uniclient.bale.BaleUserRemoveUserAdminRequest
+	(*BaleUserRemoveUserAdminResponse)(nil),                     // 762: uniclient.bale.BaleUserRemoveUserAdminResponse
+	(*BaleUserReorderPinnedDialogsRequest)(nil),                 // 763: uniclient.bale.BaleUserReorderPinnedDialogsRequest
+	(*BaleUserReorderPinnedDialogsResponse)(nil),                // 764: uniclient.bale.BaleUserReorderPinnedDialogsResponse
+	(*BaleUserResetContactsRequest)(nil),                        // 765: uniclient.bale.BaleUserResetContactsRequest
+	(*BaleUserResetContactsResponse)(nil),                       // 766: uniclient.bale.BaleUserResetContactsResponse
+	(*BaleUserRevokeInviteURLRequest)(nil),                      // 767: uniclient.bale.BaleUserRevokeInviteURLRequest
+	(*BaleUserRevokeInviteURLResponse)(nil),                     // 768: uniclient.bale.BaleUserRevokeInviteURLResponse
+	(*BaleUserScheduleTaskRequest)(nil),                         // 769: uniclient.bale.BaleUserScheduleTaskRequest
+	(*BaleUserScheduleTaskResponse)(nil),                        // 770: uniclient.bale.BaleUserScheduleTaskResponse
+	(*BaleUserSearchContactsRequest)(nil),                       // 771: uniclient.bale.BaleUserSearchContactsRequest
+	(*BaleUserSearchContactsResponse)(nil),                      // 772: uniclient.bale.BaleUserSearchContactsResponse
+	(*BaleUserSearchContentRequest)(nil),                        // 773: uniclient.bale.BaleUserSearchContentRequest
+	(*BaleUserSearchContentResponse)(nil),                       // 774: uniclient.bale.BaleUserSearchContentResponse
+	(*BaleUserSearchDialogRequest)(nil),                         // 775: uniclient.bale.BaleUserSearchDialogRequest
+	(*BaleUserSearchDialogResponse)(nil),                        // 776: uniclient.bale.BaleUserSearchDialogResponse
+	(*BaleUserSearchMediaServiceRequest)(nil),                   // 777: uniclient.bale.BaleUserSearchMediaServiceRequest
+	(*BaleUserSearchMediaServiceResponse)(nil),                  // 778: uniclient.bale.BaleUserSearchMediaServiceResponse
+	(*BaleUserSearchMembersServiceRequest)(nil),                 // 779: uniclient.bale.BaleUserSearchMembersServiceRequest
+	(*BaleUserSearchMembersServiceResponse)(nil),                // 780: uniclient.bale.BaleUserSearchMembersServiceResponse
+	(*BaleUserSearchMessageMoreRequest)(nil),                    // 781: uniclient.bale.BaleUserSearchMessageMoreRequest
+	(*BaleUserSearchMessageMoreResponse)(nil),                   // 782: uniclient.bale.BaleUserSearchMessageMoreResponse
+	(*BaleUserSearchMessagesRequest)(nil),                       // 783: uniclient.bale.BaleUserSearchMessagesRequest
+	(*BaleUserSearchMessagesResponse)(nil),                      // 784: uniclient.bale.BaleUserSearchMessagesResponse
+	(*BaleUserSearchPeerRequest)(nil),                           // 785: uniclient.bale.BaleUserSearchPeerRequest
+	(*BaleUserSearchPeerResponse)(nil),                          // 786: uniclient.bale.BaleUserSearchPeerResponse
+	(*BaleUserSendAnimatedStickerRequest)(nil),                  // 787: uniclient.bale.BaleUserSendAnimatedStickerRequest
+	(*BaleUserSendAnimatedStickerResponse)(nil),                 // 788: uniclient.bale.BaleUserSendAnimatedStickerResponse
+	(*BaleUserSendAuthenticatedInlineCallBackDataRequest)(nil),  // 789: uniclient.bale.BaleUserSendAuthenticatedInlineCallBackDataRequest
+	(*BaleUserSendAuthenticatedInlineCallBackDataResponse)(nil), // 790: uniclient.bale.BaleUserSendAuthenticatedInlineCallBackDataResponse
+	(*BaleUserSendBankMessageRequest)(nil),                      // 791: uniclient.bale.BaleUserSendBankMessageRequest
+	(*BaleUserSendBankMessageResponse)(nil),                     // 792: uniclient.bale.BaleUserSendBankMessageResponse
+	(*BaleUserSendCallFanoosEventRequest)(nil),                  // 793: uniclient.bale.BaleUserSendCallFanoosEventRequest
+	(*BaleUserSendCallFanoosEventResponse)(nil),                 // 794: uniclient.bale.BaleUserSendCallFanoosEventResponse
+	(*BaleUserSendCallReactionRequest)(nil),                     // 795: uniclient.bale.BaleUserSendCallReactionRequest
+	(*BaleUserSendCallReactionResponse)(nil),                    // 796: uniclient.bale.BaleUserSendCallReactionResponse
+	(*BaleUserSendInlineCallBackDataRequest)(nil),               // 797: uniclient.bale.BaleUserSendInlineCallBackDataRequest
+	(*BaleUserSendInlineCallBackDataResponse)(nil),              // 798: uniclient.bale.BaleUserSendInlineCallBackDataResponse
+	(*BaleUserSendInlineCallbackRequest)(nil),                   // 799: uniclient.bale.BaleUserSendInlineCallbackRequest
+	(*BaleUserSendInlineCallbackResponse)(nil),                  // 800: uniclient.bale.BaleUserSendInlineCallbackResponse
+	(*BaleUserSendJsonMessageRequest)(nil),                      // 801: uniclient.bale.BaleUserSendJsonMessageRequest
+	(*BaleUserSendJsonMessageResponse)(nil),                     // 802: uniclient.bale.BaleUserSendJsonMessageResponse
+	(*BaleUserSendLiveMessageRequest)(nil),                      // 803: uniclient.bale.BaleUserSendLiveMessageRequest
+	(*BaleUserSendLiveMessageResponse)(nil),                     // 804: uniclient.bale.BaleUserSendLiveMessageResponse
+	(*BaleUserSendLongTextMessageRequest)(nil),                  // 805: uniclient.bale.BaleUserSendLongTextMessageRequest
+	(*BaleUserSendLongTextMessageResponse)(nil),                 // 806: uniclient.bale.BaleUserSendLongTextMessageResponse
+	(*BaleUserSendMessageRequest)(nil),                          // 807: uniclient.bale.BaleUserSendMessageRequest
+	(*BaleUserSendMessageResponse)(nil),                         // 808: uniclient.bale.BaleUserSendMessageResponse
+	(*BaleUserSendMiniAppDataRequest)(nil),                      // 809: uniclient.bale.BaleUserSendMiniAppDataRequest
+	(*BaleUserSendMiniAppDataResponse)(nil),                     // 810: uniclient.bale.BaleUserSendMiniAppDataResponse
+	(*BaleUserSendMultiMediaMessageRequest)(nil),                // 811: uniclient.bale.BaleUserSendMultiMediaMessageRequest
+	(*BaleUserSendMultiMediaMessageResponse)(nil),               // 812: uniclient.bale.BaleUserSendMultiMediaMessageResponse
+	(*BaleUserSendOrderMessageRequest)(nil),                     // 813: uniclient.bale.BaleUserSendOrderMessageRequest
+	(*BaleUserSendOrderMessageResponse)(nil),                    // 814: uniclient.bale.BaleUserSendOrderMessageResponse
+	(*BaleUserSendProtectedMessageRequest)(nil),                 // 815: uniclient.bale.BaleUserSendProtectedMessageRequest
+	(*BaleUserSendProtectedMessageResponse)(nil),                // 816: uniclient.bale.BaleUserSendProtectedMessageResponse
+	(*BaleUserSendRawRequest)(nil),                              // 817: uniclient.bale.BaleUserSendRawRequest
+	(*BaleUserSendRawResponse)(nil),                             // 818: uniclient.bale.BaleUserSendRawResponse
+	(*BaleUserSendScheduledMessageRequest)(nil),                 // 819: uniclient.bale.BaleUserSendScheduledMessageRequest
+	(*BaleUserSendScheduledMessageResponse)(nil),                // 820: uniclient.bale.BaleUserSendScheduledMessageResponse
+	(*BaleUserSetAvailableReactionsRequest)(nil),                // 821: uniclient.bale.BaleUserSetAvailableReactionsRequest
+	(*BaleUserSetAvailableReactionsResponse)(nil),               // 822: uniclient.bale.BaleUserSetAvailableReactionsResponse
+	(*BaleUserSetCallLinkTitleRequest)(nil),                     // 823: uniclient.bale.BaleUserSetCallLinkTitleRequest
+	(*BaleUserSetCallLinkTitleResponse)(nil),                    // 824: uniclient.bale.BaleUserSetCallLinkTitleResponse
+	(*BaleUserSetCanSeeHistoryRequest)(nil),                     // 825: uniclient.bale.BaleUserSetCanSeeHistoryRequest
+	(*BaleUserSetCanSeeHistoryResponse)(nil),                    // 826: uniclient.bale.BaleUserSetCanSeeHistoryResponse
+	(*BaleUserSetCanSeeMessagesRequest)(nil),                    // 827: uniclient.bale.BaleUserSetCanSeeMessagesRequest
+	(*BaleUserSetCanSeeMessagesResponse)(nil),                   // 828: uniclient.bale.BaleUserSetCanSeeMessagesResponse
+	(*BaleUserSetDiscussionGroupRequest)(nil),                   // 829: uniclient.bale.BaleUserSetDiscussionGroupRequest
+	(*BaleUserSetDiscussionGroupResponse)(nil),                  // 830: uniclient.bale.BaleUserSetDiscussionGroupResponse
+	(*BaleUserSetGroupDefaultPermissionsRequest)(nil),           // 831: uniclient.bale.BaleUserSetGroupDefaultPermissionsRequest
+	(*BaleUserSetGroupDefaultPermissionsResponse)(nil),          // 832: uniclient.bale.BaleUserSetGroupDefaultPermissionsResponse
+	(*BaleUserSetMemberCustomTitleRequest)(nil),                 // 833: uniclient.bale.BaleUserSetMemberCustomTitleRequest
+	(*BaleUserSetMemberCustomTitleResponse)(nil),                // 834: uniclient.bale.BaleUserSetMemberCustomTitleResponse
+	(*BaleUserSetMemberPermissionsRequest)(nil),                 // 835: uniclient.bale.BaleUserSetMemberPermissionsRequest
+	(*BaleUserSetMemberPermissionsResponse)(nil),                // 836: uniclient.bale.BaleUserSetMemberPermissionsResponse
+	(*BaleUserSetMyCommandsRequest)(nil),                        // 837: uniclient.bale.BaleUserSetMyCommandsRequest
+	(*BaleUserSetMyCommandsResponse)(nil),                       // 838: uniclient.bale.BaleUserSetMyCommandsResponse
+	(*BaleUserSetOnlineRequest)(nil),                            // 839: uniclient.bale.BaleUserSetOnlineRequest
+	(*BaleUserSetOnlineResponse)(nil),                           // 840: uniclient.bale.BaleUserSetOnlineResponse
+	(*BaleUserSetReactionRequest)(nil),                          // 841: uniclient.bale.BaleUserSetReactionRequest
+	(*BaleUserSetReactionResponse)(nil),                         // 842: uniclient.bale.BaleUserSetReactionResponse
+	(*BaleUserSetRestrictionRequest)(nil),                       // 843: uniclient.bale.BaleUserSetRestrictionRequest
+	(*BaleUserSetRestrictionResponse)(nil),                      // 844: uniclient.bale.BaleUserSetRestrictionResponse
+	(*BaleUserSetStoryPrivacyConfigRequest)(nil),                // 845: uniclient.bale.BaleUserSetStoryPrivacyConfigRequest
+	(*BaleUserSetStoryPrivacyConfigResponse)(nil),               // 846: uniclient.bale.BaleUserSetStoryPrivacyConfigResponse
+	(*BaleUserSetUserStoryConfigRequest)(nil),                   // 847: uniclient.bale.BaleUserSetUserStoryConfigRequest
+	(*BaleUserSetUserStoryConfigResponse)(nil),                  // 848: uniclient.bale.BaleUserSetUserStoryConfigResponse
+	(*BaleUserSignOutRequest)(nil),                              // 849: uniclient.bale.BaleUserSignOutRequest
+	(*BaleUserSignOutResponse)(nil),                             // 850: uniclient.bale.BaleUserSignOutResponse
+	(*BaleUserSignUpRequest)(nil),                               // 851: uniclient.bale.BaleUserSignUpRequest
+	(*BaleUserSignUpResponse)(nil),                              // 852: uniclient.bale.BaleUserSignUpResponse
+	(*BaleUserStartRecordingRequest)(nil),                       // 853: uniclient.bale.BaleUserStartRecordingRequest
+	(*BaleUserStartRecordingResponse)(nil),                      // 854: uniclient.bale.BaleUserStartRecordingResponse
+	(*BaleUserStartStreamRequest)(nil),                          // 855: uniclient.bale.BaleUserStartStreamRequest
+	(*BaleUserStartStreamResponse)(nil),                         // 856: uniclient.bale.BaleUserStartStreamResponse
+	(*BaleUserStopRecordingRequest)(nil),                        // 857: uniclient.bale.BaleUserStopRecordingRequest
+	(*BaleUserStopRecordingResponse)(nil),                       // 858: uniclient.bale.BaleUserStopRecordingResponse
+	(*BaleUserStopTypingRequest)(nil),                           // 859: uniclient.bale.BaleUserStopTypingRequest
+	(*BaleUserStopTypingResponse)(nil),                          // 860: uniclient.bale.BaleUserStopTypingResponse
+	(*BaleUserSubmitCallFeedbackRequest)(nil),                   // 861: uniclient.bale.BaleUserSubmitCallFeedbackRequest
+	(*BaleUserSubmitCallFeedbackResponse)(nil),                  // 862: uniclient.bale.BaleUserSubmitCallFeedbackResponse
+	(*BaleUserSubscribeFromGroupOnlineRequest)(nil),             // 863: uniclient.bale.BaleUserSubscribeFromGroupOnlineRequest
+	(*BaleUserSubscribeFromGroupOnlineResponse)(nil),            // 864: uniclient.bale.BaleUserSubscribeFromGroupOnlineResponse
+	(*BaleUserSubscribeFromOnlineRequest)(nil),                  // 865: uniclient.bale.BaleUserSubscribeFromOnlineRequest
+	(*BaleUserSubscribeFromOnlineResponse)(nil),                 // 866: uniclient.bale.BaleUserSubscribeFromOnlineResponse
+	(*BaleUserSubscribeToGroupOnlineRequest)(nil),               // 867: uniclient.bale.BaleUserSubscribeToGroupOnlineRequest
+	(*BaleUserSubscribeToGroupOnlineResponse)(nil),              // 868: uniclient.bale.BaleUserSubscribeToGroupOnlineResponse
+	(*BaleUserSubscribeToOnlineRequest)(nil),                    // 869: uniclient.bale.BaleUserSubscribeToOnlineRequest
+	(*BaleUserSubscribeToOnlineResponse)(nil),                   // 870: uniclient.bale.BaleUserSubscribeToOnlineResponse
+	(*BaleUserSubscribeToThreadUpdatesRequest)(nil),             // 871: uniclient.bale.BaleUserSubscribeToThreadUpdatesRequest
+	(*BaleUserSubscribeToThreadUpdatesResponse)(nil),            // 872: uniclient.bale.BaleUserSubscribeToThreadUpdatesResponse
+	(*BaleUserSubscribeToUpdatesRequest)(nil),                   // 873: uniclient.bale.BaleUserSubscribeToUpdatesRequest
+	(*BaleUserSubscribeToUpdatesResponse)(nil),                  // 874: uniclient.bale.BaleUserSubscribeToUpdatesResponse
+	(*BaleUserTakeCallActionRequest)(nil),                       // 875: uniclient.bale.BaleUserTakeCallActionRequest
+	(*BaleUserTakeCallActionResponse)(nil),                      // 876: uniclient.bale.BaleUserTakeCallActionResponse
+	(*BaleUserTerminateSessionRequest)(nil),                     // 877: uniclient.bale.BaleUserTerminateSessionRequest
+	(*BaleUserTerminateSessionResponse)(nil),                    // 878: uniclient.bale.BaleUserTerminateSessionResponse
+	(*BaleUserTransferOwnershipRequest)(nil),                    // 879: uniclient.bale.BaleUserTransferOwnershipRequest
+	(*BaleUserTransferOwnershipResponse)(nil),                   // 880: uniclient.bale.BaleUserTransferOwnershipResponse
+	(*BaleUserTypingRequest)(nil),                               // 881: uniclient.bale.BaleUserTypingRequest
+	(*BaleUserTypingResponse)(nil),                              // 882: uniclient.bale.BaleUserTypingResponse
+	(*BaleUserUnArchiveDialogsRequest)(nil),                     // 883: uniclient.bale.BaleUserUnArchiveDialogsRequest
+	(*BaleUserUnArchiveDialogsResponse)(nil),                    // 884: uniclient.bale.BaleUserUnArchiveDialogsResponse
+	(*BaleUserUnBanUserRequest)(nil),                            // 885: uniclient.bale.BaleUserUnBanUserRequest
+	(*BaleUserUnBanUserResponse)(nil),                           // 886: uniclient.bale.BaleUserUnBanUserResponse
+	(*BaleUserUnPinMessagesRequest)(nil),                        // 887: uniclient.bale.BaleUserUnPinMessagesRequest
+	(*BaleUserUnPinMessagesResponse)(nil),                       // 888: uniclient.bale.BaleUserUnPinMessagesResponse
+	(*BaleUserUnScheduleTaskRequest)(nil),                       // 889: uniclient.bale.BaleUserUnScheduleTaskRequest
+	(*BaleUserUnScheduleTaskResponse)(nil),                      // 890: uniclient.bale.BaleUserUnScheduleTaskResponse
+	(*BaleUserUnblockUserRequest)(nil),                          // 891: uniclient.bale.BaleUserUnblockUserRequest
+	(*BaleUserUnblockUserResponse)(nil),                         // 892: uniclient.bale.BaleUserUnblockUserResponse
+	(*BaleUserUnpinDialogsRequest)(nil),                         // 893: uniclient.bale.BaleUserUnpinDialogsRequest
+	(*BaleUserUnpinDialogsResponse)(nil),                        // 894: uniclient.bale.BaleUserUnpinDialogsResponse
+	(*BaleUserUnsubscribeFromThreadUpdatesRequest)(nil),         // 895: uniclient.bale.BaleUserUnsubscribeFromThreadUpdatesRequest
+	(*BaleUserUnsubscribeFromThreadUpdatesResponse)(nil),        // 896: uniclient.bale.BaleUserUnsubscribeFromThreadUpdatesResponse
+	(*BaleUserUpdateCallLayoutRequest)(nil),                     // 897: uniclient.bale.BaleUserUpdateCallLayoutRequest
+	(*BaleUserUpdateCallLayoutResponse)(nil),                    // 898: uniclient.bale.BaleUserUpdateCallLayoutResponse
+	(*BaleUserUpdateMessageRequest)(nil),                        // 899: uniclient.bale.BaleUserUpdateMessageRequest
+	(*BaleUserUpdateMessageResponse)(nil),                       // 900: uniclient.bale.BaleUserUpdateMessageResponse
+	(*BaleUserUpdateSearchContentClickRequest)(nil),             // 901: uniclient.bale.BaleUserUpdateSearchContentClickRequest
+	(*BaleUserUpdateSearchContentClickResponse)(nil),            // 902: uniclient.bale.BaleUserUpdateSearchContentClickResponse
+	(*BaleUserUseGifRequest)(nil),                               // 903: uniclient.bale.BaleUserUseGifRequest
+	(*BaleUserUseGifResponse)(nil),                              // 904: uniclient.bale.BaleUserUseGifResponse
+	(*BaleUserValidatePasswordRequest)(nil),                     // 905: uniclient.bale.BaleUserValidatePasswordRequest
+	(*BaleUserValidatePasswordResponse)(nil),                    // 906: uniclient.bale.BaleUserValidatePasswordResponse
+	(*BaleUserVotePollServiceRequest)(nil),                      // 907: uniclient.bale.BaleUserVotePollServiceRequest
+	(*BaleUserVotePollServiceResponse)(nil),                     // 908: uniclient.bale.BaleUserVotePollServiceResponse
+	(*BaleValidateRamzOTPRequest)(nil),                          // 909: uniclient.bale.BaleValidateRamzOTPRequest
+	(*BaleValidateRamzOTPResponse)(nil),                         // 910: uniclient.bale.BaleValidateRamzOTPResponse
+	(*BaleVerifyEmailRequest)(nil),                              // 911: uniclient.bale.BaleVerifyEmailRequest
+	(*BaleVerifyEmailResponse)(nil),                             // 912: uniclient.bale.BaleVerifyEmailResponse
+	(*BaleVerifyPasswordRecoveryRequest)(nil),                   // 913: uniclient.bale.BaleVerifyPasswordRecoveryRequest
+	(*BaleVerifyPasswordRecoveryResponse)(nil),                  // 914: uniclient.bale.BaleVerifyPasswordRecoveryResponse
+	(*BaleVotePollRequest)(nil),                                 // 915: uniclient.bale.BaleVotePollRequest
+	(*BaleVotePollResponse)(nil),                                // 916: uniclient.bale.BaleVotePollResponse
+	nil,                                                         // 917: uniclient.bale.BaleFanoosSendRequest.EventDataEntry
+	nil,                                                         // 918: uniclient.bale.BalePromoteChatMemberRequest.PermsEntry
+	nil,                                                         // 919: uniclient.bale.BaleRestrictChatMemberRequest.PermissionsEntry
+	(*proto.CallSession)(nil),                                   // 920: uniclient.CallSession
+	(*proto.AuthConfig)(nil),                                    // 921: uniclient.AuthConfig
+	(*proto.Dialog)(nil),                                        // 922: uniclient.Dialog
+	(*proto.Folder)(nil),                                        // 923: uniclient.Folder
+	(*proto.Message)(nil),                                       // 924: uniclient.Message
+	(*proto.User)(nil),                                          // 925: uniclient.User
+	(*proto.PaginationOpts)(nil),                                // 926: uniclient.PaginationOpts
+	(*proto.ReadState)(nil),                                     // 927: uniclient.ReadState
+	(*proto.Session)(nil),                                       // 928: uniclient.Session
+	(*proto.OutgoingMessage)(nil),                               // 929: uniclient.OutgoingMessage
 }
 var file_proto_cores_bale_proto_depIdxs = []int32{
 	4,   // 0: uniclient.bale.BaleChatMember.user:type_name -> uniclient.bale.BaleUserInfo
-	916, // 1: uniclient.bale.BaleAcceptCallResponse.result_1:type_name -> uniclient.CallSession
-	917, // 2: uniclient.bale.BaleAuthenticateRequest.cfg:type_name -> uniclient.AuthConfig
-	918, // 3: uniclient.bale.BaleCreateChannelResponse.result_1:type_name -> uniclient.Dialog
-	919, // 4: uniclient.bale.BaleCreateFolderResponse.result_1:type_name -> uniclient.Folder
-	918, // 5: uniclient.bale.BaleCreateGroupResponse.result_1:type_name -> uniclient.Dialog
-	920, // 6: uniclient.bale.BaleCreatePollResponse.result_1:type_name -> uniclient.Message
-	918, // 7: uniclient.bale.BaleCreateTopicResponse.result_1:type_name -> uniclient.Dialog
-	920, // 8: uniclient.bale.BaleEditMessageResponse.result_1:type_name -> uniclient.Message
-	913, // 9: uniclient.bale.BaleFanoosSendRequest.event_data:type_name -> uniclient.bale.BaleFanoosSendRequest.EventDataEntry
-	920, // 10: uniclient.bale.BaleForwardMessageResponse.result_1:type_name -> uniclient.Message
-	921, // 11: uniclient.bale.BaleGetBlockedUsersResponse.result_1:type_name -> uniclient.User
+	920, // 1: uniclient.bale.BaleAcceptCallResponse.result_1:type_name -> uniclient.CallSession
+	921, // 2: uniclient.bale.BaleAuthenticateRequest.cfg:type_name -> uniclient.AuthConfig
+	922, // 3: uniclient.bale.BaleCreateChannelResponse.result_1:type_name -> uniclient.Dialog
+	923, // 4: uniclient.bale.BaleCreateFolderResponse.result_1:type_name -> uniclient.Folder
+	922, // 5: uniclient.bale.BaleCreateGroupResponse.result_1:type_name -> uniclient.Dialog
+	924, // 6: uniclient.bale.BaleCreatePollResponse.result_1:type_name -> uniclient.Message
+	922, // 7: uniclient.bale.BaleCreateTopicResponse.result_1:type_name -> uniclient.Dialog
+	924, // 8: uniclient.bale.BaleEditMessageResponse.result_1:type_name -> uniclient.Message
+	917, // 9: uniclient.bale.BaleFanoosSendRequest.event_data:type_name -> uniclient.bale.BaleFanoosSendRequest.EventDataEntry
+	924, // 10: uniclient.bale.BaleForwardMessageResponse.result_1:type_name -> uniclient.Message
+	925, // 11: uniclient.bale.BaleGetBlockedUsersResponse.result_1:type_name -> uniclient.User
 	0,   // 12: uniclient.bale.BaleGetChatResponse.result_1:type_name -> uniclient.bale.BaleChatInfo
 	1,   // 13: uniclient.bale.BaleGetChatAdministratorsResponse.result_1:type_name -> uniclient.bale.BaleChatMember
-	918, // 14: uniclient.bale.BaleGetChatInfoResponse.result_1:type_name -> uniclient.Dialog
+	922, // 14: uniclient.bale.BaleGetChatInfoResponse.result_1:type_name -> uniclient.Dialog
 	1,   // 15: uniclient.bale.BaleGetChatMemberResponse.result_1:type_name -> uniclient.bale.BaleChatMember
-	921, // 16: uniclient.bale.BaleGetContactsResponse.result_1:type_name -> uniclient.User
-	922, // 17: uniclient.bale.BaleGetDialogsRequest.opts:type_name -> uniclient.PaginationOpts
-	918, // 18: uniclient.bale.BaleGetDialogsResponse.result_1:type_name -> uniclient.Dialog
+	925, // 16: uniclient.bale.BaleGetContactsResponse.result_1:type_name -> uniclient.User
+	926, // 17: uniclient.bale.BaleGetDialogsRequest.opts:type_name -> uniclient.PaginationOpts
+	922, // 18: uniclient.bale.BaleGetDialogsResponse.result_1:type_name -> uniclient.Dialog
 	2,   // 19: uniclient.bale.BaleGetFileResponse.result_1:type_name -> uniclient.bale.BaleFileInfo
-	919, // 20: uniclient.bale.BaleGetFoldersResponse.result_1:type_name -> uniclient.Folder
-	922, // 21: uniclient.bale.BaleGetMembersRequest.opts:type_name -> uniclient.PaginationOpts
-	921, // 22: uniclient.bale.BaleGetMembersResponse.result_1:type_name -> uniclient.User
-	922, // 23: uniclient.bale.BaleGetMessagesRequest.opts:type_name -> uniclient.PaginationOpts
-	920, // 24: uniclient.bale.BaleGetMessagesResponse.result_1:type_name -> uniclient.Message
-	921, // 25: uniclient.bale.BaleGetProfileResponse.result_1:type_name -> uniclient.User
-	923, // 26: uniclient.bale.BaleGetReadStateResponse.result_1:type_name -> uniclient.ReadState
-	924, // 27: uniclient.bale.BaleGetSessionsResponse.result_1:type_name -> uniclient.Session
+	923, // 20: uniclient.bale.BaleGetFoldersResponse.result_1:type_name -> uniclient.Folder
+	926, // 21: uniclient.bale.BaleGetMembersRequest.opts:type_name -> uniclient.PaginationOpts
+	925, // 22: uniclient.bale.BaleGetMembersResponse.result_1:type_name -> uniclient.User
+	926, // 23: uniclient.bale.BaleGetMessagesRequest.opts:type_name -> uniclient.PaginationOpts
+	924, // 24: uniclient.bale.BaleGetMessagesResponse.result_1:type_name -> uniclient.Message
+	925, // 25: uniclient.bale.BaleGetProfileResponse.result_1:type_name -> uniclient.User
+	927, // 26: uniclient.bale.BaleGetReadStateResponse.result_1:type_name -> uniclient.ReadState
+	928, // 27: uniclient.bale.BaleGetSessionsResponse.result_1:type_name -> uniclient.Session
 	3,   // 28: uniclient.bale.BaleGetStickerSetResponse.result_1:type_name -> uniclient.bale.BaleStickerSet
 	5,   // 29: uniclient.bale.BaleGetUserProfilePhotosResponse.result_1:type_name -> uniclient.bale.BaleUserProfilePhotos
 	6,   // 30: uniclient.bale.BaleGetWebhookInfoResponse.result_1:type_name -> uniclient.bale.BaleWebhookInfo
-	916, // 31: uniclient.bale.BaleJoinGroupCallResponse.result_1:type_name -> uniclient.CallSession
-	914, // 32: uniclient.bale.BalePromoteChatMemberRequest.perms:type_name -> uniclient.bale.BalePromoteChatMemberRequest.PermsEntry
-	925, // 33: uniclient.bale.BaleReplyToMessageRequest.msg:type_name -> uniclient.OutgoingMessage
-	920, // 34: uniclient.bale.BaleReplyToMessageResponse.result_1:type_name -> uniclient.Message
-	915, // 35: uniclient.bale.BaleRestrictChatMemberRequest.permissions:type_name -> uniclient.bale.BaleRestrictChatMemberRequest.PermissionsEntry
-	922, // 36: uniclient.bale.BaleSearchGlobalRequest.opts:type_name -> uniclient.PaginationOpts
-	918, // 37: uniclient.bale.BaleSearchGlobalResponse.result_1:type_name -> uniclient.Dialog
-	922, // 38: uniclient.bale.BaleSearchMessagesRequest.opts:type_name -> uniclient.PaginationOpts
-	920, // 39: uniclient.bale.BaleSearchMessagesResponse.result_1:type_name -> uniclient.Message
-	920, // 40: uniclient.bale.BaleSendAnimationResponse.result_1:type_name -> uniclient.Message
-	920, // 41: uniclient.bale.BaleSendAudioResponse.result_1:type_name -> uniclient.Message
-	920, // 42: uniclient.bale.BaleSendContactResponse.result_1:type_name -> uniclient.Message
-	920, // 43: uniclient.bale.BaleSendDocumentResponse.result_1:type_name -> uniclient.Message
-	920, // 44: uniclient.bale.BaleSendImageBase64Response.result_1:type_name -> uniclient.Message
-	920, // 45: uniclient.bale.BaleSendLocationResponse.result_1:type_name -> uniclient.Message
-	925, // 46: uniclient.bale.BaleSendMessageRequest.msg:type_name -> uniclient.OutgoingMessage
-	920, // 47: uniclient.bale.BaleSendMessageResponse.result_1:type_name -> uniclient.Message
-	920, // 48: uniclient.bale.BaleSendMessageWithKeyboardResponse.result_1:type_name -> uniclient.Message
-	920, // 49: uniclient.bale.BaleSendPhotoResponse.result_1:type_name -> uniclient.Message
-	920, // 50: uniclient.bale.BaleSendStickerResponse.result_1:type_name -> uniclient.Message
-	920, // 51: uniclient.bale.BaleSendVenueResponse.result_1:type_name -> uniclient.Message
-	920, // 52: uniclient.bale.BaleSendVideoResponse.result_1:type_name -> uniclient.Message
-	920, // 53: uniclient.bale.BaleSendVideoNoteResponse.result_1:type_name -> uniclient.Message
-	920, // 54: uniclient.bale.BaleSendVoiceResponse.result_1:type_name -> uniclient.Message
-	916, // 55: uniclient.bale.BaleStartCallResponse.result_1:type_name -> uniclient.CallSession
+	920, // 31: uniclient.bale.BaleJoinGroupCallResponse.result_1:type_name -> uniclient.CallSession
+	918, // 32: uniclient.bale.BalePromoteChatMemberRequest.perms:type_name -> uniclient.bale.BalePromoteChatMemberRequest.PermsEntry
+	929, // 33: uniclient.bale.BaleReplyToMessageRequest.msg:type_name -> uniclient.OutgoingMessage
+	924, // 34: uniclient.bale.BaleReplyToMessageResponse.result_1:type_name -> uniclient.Message
+	919, // 35: uniclient.bale.BaleRestrictChatMemberRequest.permissions:type_name -> uniclient.bale.BaleRestrictChatMemberRequest.PermissionsEntry
+	926, // 36: uniclient.bale.BaleSearchGlobalRequest.opts:type_name -> uniclient.PaginationOpts
+	922, // 37: uniclient.bale.BaleSearchGlobalResponse.result_1:type_name -> uniclient.Dialog
+	926, // 38: uniclient.bale.BaleSearchMessagesRequest.opts:type_name -> uniclient.PaginationOpts
+	924, // 39: uniclient.bale.BaleSearchMessagesResponse.result_1:type_name -> uniclient.Message
+	924, // 40: uniclient.bale.BaleSendAnimationResponse.result_1:type_name -> uniclient.Message
+	924, // 41: uniclient.bale.BaleSendAudioResponse.result_1:type_name -> uniclient.Message
+	924, // 42: uniclient.bale.BaleSendContactResponse.result_1:type_name -> uniclient.Message
+	924, // 43: uniclient.bale.BaleSendDocumentResponse.result_1:type_name -> uniclient.Message
+	924, // 44: uniclient.bale.BaleSendImageBase64Response.result_1:type_name -> uniclient.Message
+	924, // 45: uniclient.bale.BaleSendLocationResponse.result_1:type_name -> uniclient.Message
+	929, // 46: uniclient.bale.BaleSendMessageRequest.msg:type_name -> uniclient.OutgoingMessage
+	924, // 47: uniclient.bale.BaleSendMessageResponse.result_1:type_name -> uniclient.Message
+	924, // 48: uniclient.bale.BaleSendMessageWithKeyboardResponse.result_1:type_name -> uniclient.Message
+	924, // 49: uniclient.bale.BaleSendPhotoResponse.result_1:type_name -> uniclient.Message
+	924, // 50: uniclient.bale.BaleSendStickerResponse.result_1:type_name -> uniclient.Message
+	924, // 51: uniclient.bale.BaleSendVenueResponse.result_1:type_name -> uniclient.Message
+	924, // 52: uniclient.bale.BaleSendVideoResponse.result_1:type_name -> uniclient.Message
+	924, // 53: uniclient.bale.BaleSendVideoNoteResponse.result_1:type_name -> uniclient.Message
+	924, // 54: uniclient.bale.BaleSendVoiceResponse.result_1:type_name -> uniclient.Message
+	920, // 55: uniclient.bale.BaleStartCallResponse.result_1:type_name -> uniclient.CallSession
 	56,  // [56:56] is the sub-list for method output_type
 	56,  // [56:56] is the sub-list for method input_type
 	56,  // [56:56] is the sub-list for extension type_name
@@ -45430,7 +45600,7 @@ func file_proto_cores_bale_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_cores_bale_proto_rawDesc), len(file_proto_cores_bale_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   916,
+			NumMessages:   920,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

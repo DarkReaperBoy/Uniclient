@@ -53474,6 +53474,102 @@ func (*TelegramReadReactionsResponse) Descriptor() ([]byte, []int) {
 	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1218}
 }
 
+type TelegramRefreshQRTokenRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramRefreshQRTokenRequest) Reset() {
+	*x = TelegramRefreshQRTokenRequest{}
+	mi := &file_proto_cores_telegram_proto_msgTypes[1219]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramRefreshQRTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramRefreshQRTokenRequest) ProtoMessage() {}
+
+func (x *TelegramRefreshQRTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_telegram_proto_msgTypes[1219]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramRefreshQRTokenRequest.ProtoReflect.Descriptor instead.
+func (*TelegramRefreshQRTokenRequest) Descriptor() ([]byte, []int) {
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1219}
+}
+
+type TelegramRefreshQRTokenResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TokenUrl      string                 `protobuf:"bytes,1,opt,name=token_url,json=tokenUrl,proto3" json:"token_url,omitempty"`
+	ExpiresSecs   int64                  `protobuf:"varint,2,opt,name=expires_secs,json=expiresSecs,proto3" json:"expires_secs,omitempty"`
+	Accepted      bool                   `protobuf:"varint,3,opt,name=accepted,proto3" json:"accepted,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramRefreshQRTokenResponse) Reset() {
+	*x = TelegramRefreshQRTokenResponse{}
+	mi := &file_proto_cores_telegram_proto_msgTypes[1220]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramRefreshQRTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramRefreshQRTokenResponse) ProtoMessage() {}
+
+func (x *TelegramRefreshQRTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_telegram_proto_msgTypes[1220]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramRefreshQRTokenResponse.ProtoReflect.Descriptor instead.
+func (*TelegramRefreshQRTokenResponse) Descriptor() ([]byte, []int) {
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1220}
+}
+
+func (x *TelegramRefreshQRTokenResponse) GetTokenUrl() string {
+	if x != nil {
+		return x.TokenUrl
+	}
+	return ""
+}
+
+func (x *TelegramRefreshQRTokenResponse) GetExpiresSecs() int64 {
+	if x != nil {
+		return x.ExpiresSecs
+	}
+	return 0
+}
+
+func (x *TelegramRefreshQRTokenResponse) GetAccepted() bool {
+	if x != nil {
+		return x.Accepted
+	}
+	return false
+}
+
 type TelegramRemoveMemberRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ChatId        string                 `protobuf:"bytes,1,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
@@ -53484,7 +53580,7 @@ type TelegramRemoveMemberRequest struct {
 
 func (x *TelegramRemoveMemberRequest) Reset() {
 	*x = TelegramRemoveMemberRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1219]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1221]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53496,7 +53592,7 @@ func (x *TelegramRemoveMemberRequest) String() string {
 func (*TelegramRemoveMemberRequest) ProtoMessage() {}
 
 func (x *TelegramRemoveMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1219]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1221]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53509,7 +53605,7 @@ func (x *TelegramRemoveMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramRemoveMemberRequest.ProtoReflect.Descriptor instead.
 func (*TelegramRemoveMemberRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1219}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1221}
 }
 
 func (x *TelegramRemoveMemberRequest) GetChatId() string {
@@ -53534,7 +53630,7 @@ type TelegramRemoveMemberResponse struct {
 
 func (x *TelegramRemoveMemberResponse) Reset() {
 	*x = TelegramRemoveMemberResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1220]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1222]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53546,7 +53642,7 @@ func (x *TelegramRemoveMemberResponse) String() string {
 func (*TelegramRemoveMemberResponse) ProtoMessage() {}
 
 func (x *TelegramRemoveMemberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1220]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1222]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53559,7 +53655,7 @@ func (x *TelegramRemoveMemberResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramRemoveMemberResponse.ProtoReflect.Descriptor instead.
 func (*TelegramRemoveMemberResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1220}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1222}
 }
 
 type TelegramReorderDialogFiltersRequest struct {
@@ -53571,7 +53667,7 @@ type TelegramReorderDialogFiltersRequest struct {
 
 func (x *TelegramReorderDialogFiltersRequest) Reset() {
 	*x = TelegramReorderDialogFiltersRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1221]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1223]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53583,7 +53679,7 @@ func (x *TelegramReorderDialogFiltersRequest) String() string {
 func (*TelegramReorderDialogFiltersRequest) ProtoMessage() {}
 
 func (x *TelegramReorderDialogFiltersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1221]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1223]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53596,7 +53692,7 @@ func (x *TelegramReorderDialogFiltersRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramReorderDialogFiltersRequest.ProtoReflect.Descriptor instead.
 func (*TelegramReorderDialogFiltersRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1221}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1223}
 }
 
 func (x *TelegramReorderDialogFiltersRequest) GetIds() []int64 {
@@ -53614,7 +53710,7 @@ type TelegramReorderDialogFiltersResponse struct {
 
 func (x *TelegramReorderDialogFiltersResponse) Reset() {
 	*x = TelegramReorderDialogFiltersResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1222]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1224]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53626,7 +53722,7 @@ func (x *TelegramReorderDialogFiltersResponse) String() string {
 func (*TelegramReorderDialogFiltersResponse) ProtoMessage() {}
 
 func (x *TelegramReorderDialogFiltersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1222]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1224]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53639,7 +53735,7 @@ func (x *TelegramReorderDialogFiltersResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramReorderDialogFiltersResponse.ProtoReflect.Descriptor instead.
 func (*TelegramReorderDialogFiltersResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1222}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1224}
 }
 
 type TelegramReorderPinnedDialogsRequest struct {
@@ -53651,7 +53747,7 @@ type TelegramReorderPinnedDialogsRequest struct {
 
 func (x *TelegramReorderPinnedDialogsRequest) Reset() {
 	*x = TelegramReorderPinnedDialogsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1223]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1225]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53663,7 +53759,7 @@ func (x *TelegramReorderPinnedDialogsRequest) String() string {
 func (*TelegramReorderPinnedDialogsRequest) ProtoMessage() {}
 
 func (x *TelegramReorderPinnedDialogsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1223]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1225]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53676,7 +53772,7 @@ func (x *TelegramReorderPinnedDialogsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramReorderPinnedDialogsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramReorderPinnedDialogsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1223}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1225}
 }
 
 func (x *TelegramReorderPinnedDialogsRequest) GetChatIds() []string {
@@ -53694,7 +53790,7 @@ type TelegramReorderPinnedDialogsResponse struct {
 
 func (x *TelegramReorderPinnedDialogsResponse) Reset() {
 	*x = TelegramReorderPinnedDialogsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1224]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1226]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53706,7 +53802,7 @@ func (x *TelegramReorderPinnedDialogsResponse) String() string {
 func (*TelegramReorderPinnedDialogsResponse) ProtoMessage() {}
 
 func (x *TelegramReorderPinnedDialogsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1224]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1226]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53719,7 +53815,7 @@ func (x *TelegramReorderPinnedDialogsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramReorderPinnedDialogsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramReorderPinnedDialogsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1224}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1226}
 }
 
 type TelegramReorderPinnedForumTopicsRequest struct {
@@ -53732,7 +53828,7 @@ type TelegramReorderPinnedForumTopicsRequest struct {
 
 func (x *TelegramReorderPinnedForumTopicsRequest) Reset() {
 	*x = TelegramReorderPinnedForumTopicsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1225]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1227]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53744,7 +53840,7 @@ func (x *TelegramReorderPinnedForumTopicsRequest) String() string {
 func (*TelegramReorderPinnedForumTopicsRequest) ProtoMessage() {}
 
 func (x *TelegramReorderPinnedForumTopicsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1225]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1227]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53757,7 +53853,7 @@ func (x *TelegramReorderPinnedForumTopicsRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramReorderPinnedForumTopicsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramReorderPinnedForumTopicsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1225}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1227}
 }
 
 func (x *TelegramReorderPinnedForumTopicsRequest) GetChatId() string {
@@ -53782,7 +53878,7 @@ type TelegramReorderPinnedForumTopicsResponse struct {
 
 func (x *TelegramReorderPinnedForumTopicsResponse) Reset() {
 	*x = TelegramReorderPinnedForumTopicsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1226]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1228]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53794,7 +53890,7 @@ func (x *TelegramReorderPinnedForumTopicsResponse) String() string {
 func (*TelegramReorderPinnedForumTopicsResponse) ProtoMessage() {}
 
 func (x *TelegramReorderPinnedForumTopicsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1226]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1228]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53807,7 +53903,7 @@ func (x *TelegramReorderPinnedForumTopicsResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramReorderPinnedForumTopicsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramReorderPinnedForumTopicsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1226}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1228}
 }
 
 type TelegramReplyToMessageRequest struct {
@@ -53821,7 +53917,7 @@ type TelegramReplyToMessageRequest struct {
 
 func (x *TelegramReplyToMessageRequest) Reset() {
 	*x = TelegramReplyToMessageRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1227]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1229]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53833,7 +53929,7 @@ func (x *TelegramReplyToMessageRequest) String() string {
 func (*TelegramReplyToMessageRequest) ProtoMessage() {}
 
 func (x *TelegramReplyToMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1227]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1229]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53846,7 +53942,7 @@ func (x *TelegramReplyToMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramReplyToMessageRequest.ProtoReflect.Descriptor instead.
 func (*TelegramReplyToMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1227}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1229}
 }
 
 func (x *TelegramReplyToMessageRequest) GetChatId() string {
@@ -53879,7 +53975,7 @@ type TelegramReplyToMessageResponse struct {
 
 func (x *TelegramReplyToMessageResponse) Reset() {
 	*x = TelegramReplyToMessageResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1228]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1230]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53891,7 +53987,7 @@ func (x *TelegramReplyToMessageResponse) String() string {
 func (*TelegramReplyToMessageResponse) ProtoMessage() {}
 
 func (x *TelegramReplyToMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1228]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1230]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53904,7 +54000,7 @@ func (x *TelegramReplyToMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramReplyToMessageResponse.ProtoReflect.Descriptor instead.
 func (*TelegramReplyToMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1228}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1230}
 }
 
 func (x *TelegramReplyToMessageResponse) GetResult_1() *proto.Message {
@@ -53923,7 +54019,7 @@ type TelegramResolvePhoneRequest struct {
 
 func (x *TelegramResolvePhoneRequest) Reset() {
 	*x = TelegramResolvePhoneRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1229]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1231]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53935,7 +54031,7 @@ func (x *TelegramResolvePhoneRequest) String() string {
 func (*TelegramResolvePhoneRequest) ProtoMessage() {}
 
 func (x *TelegramResolvePhoneRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1229]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1231]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53948,7 +54044,7 @@ func (x *TelegramResolvePhoneRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramResolvePhoneRequest.ProtoReflect.Descriptor instead.
 func (*TelegramResolvePhoneRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1229}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1231}
 }
 
 func (x *TelegramResolvePhoneRequest) GetPhone() string {
@@ -53967,7 +54063,7 @@ type TelegramResolvePhoneResponse struct {
 
 func (x *TelegramResolvePhoneResponse) Reset() {
 	*x = TelegramResolvePhoneResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1230]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1232]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -53979,7 +54075,7 @@ func (x *TelegramResolvePhoneResponse) String() string {
 func (*TelegramResolvePhoneResponse) ProtoMessage() {}
 
 func (x *TelegramResolvePhoneResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1230]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1232]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -53992,7 +54088,7 @@ func (x *TelegramResolvePhoneResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramResolvePhoneResponse.ProtoReflect.Descriptor instead.
 func (*TelegramResolvePhoneResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1230}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1232}
 }
 
 func (x *TelegramResolvePhoneResponse) GetResult_1() string {
@@ -54011,7 +54107,7 @@ type TelegramResolveUsernameRequest struct {
 
 func (x *TelegramResolveUsernameRequest) Reset() {
 	*x = TelegramResolveUsernameRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1231]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1233]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54023,7 +54119,7 @@ func (x *TelegramResolveUsernameRequest) String() string {
 func (*TelegramResolveUsernameRequest) ProtoMessage() {}
 
 func (x *TelegramResolveUsernameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1231]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1233]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54036,7 +54132,7 @@ func (x *TelegramResolveUsernameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramResolveUsernameRequest.ProtoReflect.Descriptor instead.
 func (*TelegramResolveUsernameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1231}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1233}
 }
 
 func (x *TelegramResolveUsernameRequest) GetUsername() string {
@@ -54055,7 +54151,7 @@ type TelegramResolveUsernameResponse struct {
 
 func (x *TelegramResolveUsernameResponse) Reset() {
 	*x = TelegramResolveUsernameResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1232]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1234]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54067,7 +54163,7 @@ func (x *TelegramResolveUsernameResponse) String() string {
 func (*TelegramResolveUsernameResponse) ProtoMessage() {}
 
 func (x *TelegramResolveUsernameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1232]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1234]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54080,7 +54176,7 @@ func (x *TelegramResolveUsernameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramResolveUsernameResponse.ProtoReflect.Descriptor instead.
 func (*TelegramResolveUsernameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1232}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1234}
 }
 
 func (x *TelegramResolveUsernameResponse) GetResult_1() string {
@@ -54101,7 +54197,7 @@ type TelegramRestrictUserRequest struct {
 
 func (x *TelegramRestrictUserRequest) Reset() {
 	*x = TelegramRestrictUserRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1233]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1235]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54113,7 +54209,7 @@ func (x *TelegramRestrictUserRequest) String() string {
 func (*TelegramRestrictUserRequest) ProtoMessage() {}
 
 func (x *TelegramRestrictUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1233]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1235]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54126,7 +54222,7 @@ func (x *TelegramRestrictUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramRestrictUserRequest.ProtoReflect.Descriptor instead.
 func (*TelegramRestrictUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1233}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1235}
 }
 
 func (x *TelegramRestrictUserRequest) GetChatId() string {
@@ -54158,7 +54254,7 @@ type TelegramRestrictUserResponse struct {
 
 func (x *TelegramRestrictUserResponse) Reset() {
 	*x = TelegramRestrictUserResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1234]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1236]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54170,7 +54266,7 @@ func (x *TelegramRestrictUserResponse) String() string {
 func (*TelegramRestrictUserResponse) ProtoMessage() {}
 
 func (x *TelegramRestrictUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1234]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1236]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54183,7 +54279,7 @@ func (x *TelegramRestrictUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramRestrictUserResponse.ProtoReflect.Descriptor instead.
 func (*TelegramRestrictUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1234}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1236}
 }
 
 type TelegramSaveDraftRequest struct {
@@ -54196,7 +54292,7 @@ type TelegramSaveDraftRequest struct {
 
 func (x *TelegramSaveDraftRequest) Reset() {
 	*x = TelegramSaveDraftRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1235]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1237]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54208,7 +54304,7 @@ func (x *TelegramSaveDraftRequest) String() string {
 func (*TelegramSaveDraftRequest) ProtoMessage() {}
 
 func (x *TelegramSaveDraftRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1235]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1237]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54221,7 +54317,7 @@ func (x *TelegramSaveDraftRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSaveDraftRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSaveDraftRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1235}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1237}
 }
 
 func (x *TelegramSaveDraftRequest) GetChatId() string {
@@ -54246,7 +54342,7 @@ type TelegramSaveDraftResponse struct {
 
 func (x *TelegramSaveDraftResponse) Reset() {
 	*x = TelegramSaveDraftResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1236]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1238]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54258,7 +54354,7 @@ func (x *TelegramSaveDraftResponse) String() string {
 func (*TelegramSaveDraftResponse) ProtoMessage() {}
 
 func (x *TelegramSaveDraftResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1236]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1238]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54271,7 +54367,7 @@ func (x *TelegramSaveDraftResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSaveDraftResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSaveDraftResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1236}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1238}
 }
 
 type TelegramSearchContactsCountRequest struct {
@@ -54283,7 +54379,7 @@ type TelegramSearchContactsCountRequest struct {
 
 func (x *TelegramSearchContactsCountRequest) Reset() {
 	*x = TelegramSearchContactsCountRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1237]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1239]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54295,7 +54391,7 @@ func (x *TelegramSearchContactsCountRequest) String() string {
 func (*TelegramSearchContactsCountRequest) ProtoMessage() {}
 
 func (x *TelegramSearchContactsCountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1237]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1239]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54308,7 +54404,7 @@ func (x *TelegramSearchContactsCountRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramSearchContactsCountRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSearchContactsCountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1237}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1239}
 }
 
 func (x *TelegramSearchContactsCountRequest) GetQuery() string {
@@ -54327,7 +54423,7 @@ type TelegramSearchContactsCountResponse struct {
 
 func (x *TelegramSearchContactsCountResponse) Reset() {
 	*x = TelegramSearchContactsCountResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1238]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1240]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54339,7 +54435,7 @@ func (x *TelegramSearchContactsCountResponse) String() string {
 func (*TelegramSearchContactsCountResponse) ProtoMessage() {}
 
 func (x *TelegramSearchContactsCountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1238]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1240]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54352,7 +54448,7 @@ func (x *TelegramSearchContactsCountResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramSearchContactsCountResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSearchContactsCountResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1238}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1240}
 }
 
 func (x *TelegramSearchContactsCountResponse) GetResult_1() int64 {
@@ -54372,7 +54468,7 @@ type TelegramSearchGlobalRequest struct {
 
 func (x *TelegramSearchGlobalRequest) Reset() {
 	*x = TelegramSearchGlobalRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1239]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1241]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54384,7 +54480,7 @@ func (x *TelegramSearchGlobalRequest) String() string {
 func (*TelegramSearchGlobalRequest) ProtoMessage() {}
 
 func (x *TelegramSearchGlobalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1239]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1241]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54397,7 +54493,7 @@ func (x *TelegramSearchGlobalRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSearchGlobalRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSearchGlobalRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1239}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1241}
 }
 
 func (x *TelegramSearchGlobalRequest) GetQuery() string {
@@ -54423,7 +54519,7 @@ type TelegramSearchGlobalResponse struct {
 
 func (x *TelegramSearchGlobalResponse) Reset() {
 	*x = TelegramSearchGlobalResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1240]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1242]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54435,7 +54531,7 @@ func (x *TelegramSearchGlobalResponse) String() string {
 func (*TelegramSearchGlobalResponse) ProtoMessage() {}
 
 func (x *TelegramSearchGlobalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1240]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1242]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54448,7 +54544,7 @@ func (x *TelegramSearchGlobalResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSearchGlobalResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSearchGlobalResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1240}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1242}
 }
 
 func (x *TelegramSearchGlobalResponse) GetResult_1() []*proto.Dialog {
@@ -54469,7 +54565,7 @@ type TelegramSearchMessagesRequest struct {
 
 func (x *TelegramSearchMessagesRequest) Reset() {
 	*x = TelegramSearchMessagesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1241]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1243]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54481,7 +54577,7 @@ func (x *TelegramSearchMessagesRequest) String() string {
 func (*TelegramSearchMessagesRequest) ProtoMessage() {}
 
 func (x *TelegramSearchMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1241]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1243]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54494,7 +54590,7 @@ func (x *TelegramSearchMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSearchMessagesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSearchMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1241}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1243}
 }
 
 func (x *TelegramSearchMessagesRequest) GetChatId() string {
@@ -54527,7 +54623,7 @@ type TelegramSearchMessagesResponse struct {
 
 func (x *TelegramSearchMessagesResponse) Reset() {
 	*x = TelegramSearchMessagesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1242]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1244]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54539,7 +54635,7 @@ func (x *TelegramSearchMessagesResponse) String() string {
 func (*TelegramSearchMessagesResponse) ProtoMessage() {}
 
 func (x *TelegramSearchMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1242]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1244]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54552,7 +54648,7 @@ func (x *TelegramSearchMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSearchMessagesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSearchMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1242}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1244}
 }
 
 func (x *TelegramSearchMessagesResponse) GetResult_1() []*proto.Message {
@@ -54572,7 +54668,7 @@ type TelegramSearchMessagesGlobalRequest struct {
 
 func (x *TelegramSearchMessagesGlobalRequest) Reset() {
 	*x = TelegramSearchMessagesGlobalRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1243]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1245]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54584,7 +54680,7 @@ func (x *TelegramSearchMessagesGlobalRequest) String() string {
 func (*TelegramSearchMessagesGlobalRequest) ProtoMessage() {}
 
 func (x *TelegramSearchMessagesGlobalRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1243]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1245]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54597,7 +54693,7 @@ func (x *TelegramSearchMessagesGlobalRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramSearchMessagesGlobalRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSearchMessagesGlobalRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1243}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1245}
 }
 
 func (x *TelegramSearchMessagesGlobalRequest) GetQuery() string {
@@ -54623,7 +54719,7 @@ type TelegramSearchMessagesGlobalResponse struct {
 
 func (x *TelegramSearchMessagesGlobalResponse) Reset() {
 	*x = TelegramSearchMessagesGlobalResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1244]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1246]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54635,7 +54731,7 @@ func (x *TelegramSearchMessagesGlobalResponse) String() string {
 func (*TelegramSearchMessagesGlobalResponse) ProtoMessage() {}
 
 func (x *TelegramSearchMessagesGlobalResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1244]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1246]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54648,7 +54744,7 @@ func (x *TelegramSearchMessagesGlobalResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramSearchMessagesGlobalResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSearchMessagesGlobalResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1244}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1246}
 }
 
 func (x *TelegramSearchMessagesGlobalResponse) GetResult_1() []*proto.Message {
@@ -54667,7 +54763,7 @@ type TelegramSearchStickerSetsCountRequest struct {
 
 func (x *TelegramSearchStickerSetsCountRequest) Reset() {
 	*x = TelegramSearchStickerSetsCountRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1245]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1247]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54679,7 +54775,7 @@ func (x *TelegramSearchStickerSetsCountRequest) String() string {
 func (*TelegramSearchStickerSetsCountRequest) ProtoMessage() {}
 
 func (x *TelegramSearchStickerSetsCountRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1245]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1247]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54692,7 +54788,7 @@ func (x *TelegramSearchStickerSetsCountRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramSearchStickerSetsCountRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSearchStickerSetsCountRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1245}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1247}
 }
 
 func (x *TelegramSearchStickerSetsCountRequest) GetQuery() string {
@@ -54711,7 +54807,7 @@ type TelegramSearchStickerSetsCountResponse struct {
 
 func (x *TelegramSearchStickerSetsCountResponse) Reset() {
 	*x = TelegramSearchStickerSetsCountResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1246]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1248]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54723,7 +54819,7 @@ func (x *TelegramSearchStickerSetsCountResponse) String() string {
 func (*TelegramSearchStickerSetsCountResponse) ProtoMessage() {}
 
 func (x *TelegramSearchStickerSetsCountResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1246]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1248]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54736,7 +54832,7 @@ func (x *TelegramSearchStickerSetsCountResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramSearchStickerSetsCountResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSearchStickerSetsCountResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1246}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1248}
 }
 
 func (x *TelegramSearchStickerSetsCountResponse) GetResult_1() int64 {
@@ -54756,7 +54852,7 @@ type TelegramSendAudioFrameRequest struct {
 
 func (x *TelegramSendAudioFrameRequest) Reset() {
 	*x = TelegramSendAudioFrameRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1247]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1249]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54768,7 +54864,7 @@ func (x *TelegramSendAudioFrameRequest) String() string {
 func (*TelegramSendAudioFrameRequest) ProtoMessage() {}
 
 func (x *TelegramSendAudioFrameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1247]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1249]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54781,7 +54877,7 @@ func (x *TelegramSendAudioFrameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendAudioFrameRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendAudioFrameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1247}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1249}
 }
 
 func (x *TelegramSendAudioFrameRequest) GetCallId() string {
@@ -54806,7 +54902,7 @@ type TelegramSendAudioFrameResponse struct {
 
 func (x *TelegramSendAudioFrameResponse) Reset() {
 	*x = TelegramSendAudioFrameResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1248]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1250]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54818,7 +54914,7 @@ func (x *TelegramSendAudioFrameResponse) String() string {
 func (*TelegramSendAudioFrameResponse) ProtoMessage() {}
 
 func (x *TelegramSendAudioFrameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1248]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1250]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54831,7 +54927,7 @@ func (x *TelegramSendAudioFrameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendAudioFrameResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendAudioFrameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1248}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1250}
 }
 
 type TelegramSendCallRatingRequest struct {
@@ -54845,7 +54941,7 @@ type TelegramSendCallRatingRequest struct {
 
 func (x *TelegramSendCallRatingRequest) Reset() {
 	*x = TelegramSendCallRatingRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1249]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1251]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54857,7 +54953,7 @@ func (x *TelegramSendCallRatingRequest) String() string {
 func (*TelegramSendCallRatingRequest) ProtoMessage() {}
 
 func (x *TelegramSendCallRatingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1249]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1251]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54870,7 +54966,7 @@ func (x *TelegramSendCallRatingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendCallRatingRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendCallRatingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1249}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1251}
 }
 
 func (x *TelegramSendCallRatingRequest) GetCallId() string {
@@ -54902,7 +54998,7 @@ type TelegramSendCallRatingResponse struct {
 
 func (x *TelegramSendCallRatingResponse) Reset() {
 	*x = TelegramSendCallRatingResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1250]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1252]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54914,7 +55010,7 @@ func (x *TelegramSendCallRatingResponse) String() string {
 func (*TelegramSendCallRatingResponse) ProtoMessage() {}
 
 func (x *TelegramSendCallRatingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1250]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1252]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54927,7 +55023,7 @@ func (x *TelegramSendCallRatingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendCallRatingResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendCallRatingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1250}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1252}
 }
 
 type TelegramSendImageBase64Request struct {
@@ -54941,7 +55037,7 @@ type TelegramSendImageBase64Request struct {
 
 func (x *TelegramSendImageBase64Request) Reset() {
 	*x = TelegramSendImageBase64Request{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1251]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1253]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -54953,7 +55049,7 @@ func (x *TelegramSendImageBase64Request) String() string {
 func (*TelegramSendImageBase64Request) ProtoMessage() {}
 
 func (x *TelegramSendImageBase64Request) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1251]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1253]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -54966,7 +55062,7 @@ func (x *TelegramSendImageBase64Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendImageBase64Request.ProtoReflect.Descriptor instead.
 func (*TelegramSendImageBase64Request) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1251}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1253}
 }
 
 func (x *TelegramSendImageBase64Request) GetChatId() string {
@@ -54999,7 +55095,7 @@ type TelegramSendImageBase64Response struct {
 
 func (x *TelegramSendImageBase64Response) Reset() {
 	*x = TelegramSendImageBase64Response{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1252]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1254]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55011,7 +55107,7 @@ func (x *TelegramSendImageBase64Response) String() string {
 func (*TelegramSendImageBase64Response) ProtoMessage() {}
 
 func (x *TelegramSendImageBase64Response) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1252]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1254]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55024,7 +55120,7 @@ func (x *TelegramSendImageBase64Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendImageBase64Response.ProtoReflect.Descriptor instead.
 func (*TelegramSendImageBase64Response) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1252}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1254}
 }
 
 func (x *TelegramSendImageBase64Response) GetResult_1() *proto.Message {
@@ -55045,7 +55141,7 @@ type TelegramSendInlineBotResultRequest struct {
 
 func (x *TelegramSendInlineBotResultRequest) Reset() {
 	*x = TelegramSendInlineBotResultRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1253]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1255]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55057,7 +55153,7 @@ func (x *TelegramSendInlineBotResultRequest) String() string {
 func (*TelegramSendInlineBotResultRequest) ProtoMessage() {}
 
 func (x *TelegramSendInlineBotResultRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1253]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1255]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55070,7 +55166,7 @@ func (x *TelegramSendInlineBotResultRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramSendInlineBotResultRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendInlineBotResultRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1253}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1255}
 }
 
 func (x *TelegramSendInlineBotResultRequest) GetChatId() string {
@@ -55103,7 +55199,7 @@ type TelegramSendInlineBotResultResponse struct {
 
 func (x *TelegramSendInlineBotResultResponse) Reset() {
 	*x = TelegramSendInlineBotResultResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1254]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1256]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55115,7 +55211,7 @@ func (x *TelegramSendInlineBotResultResponse) String() string {
 func (*TelegramSendInlineBotResultResponse) ProtoMessage() {}
 
 func (x *TelegramSendInlineBotResultResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1254]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1256]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55128,7 +55224,7 @@ func (x *TelegramSendInlineBotResultResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramSendInlineBotResultResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendInlineBotResultResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1254}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1256}
 }
 
 func (x *TelegramSendInlineBotResultResponse) GetResult_1() int64 {
@@ -55149,7 +55245,7 @@ type TelegramSendLocationRequest struct {
 
 func (x *TelegramSendLocationRequest) Reset() {
 	*x = TelegramSendLocationRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1255]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1257]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55161,7 +55257,7 @@ func (x *TelegramSendLocationRequest) String() string {
 func (*TelegramSendLocationRequest) ProtoMessage() {}
 
 func (x *TelegramSendLocationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1255]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1257]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55174,7 +55270,7 @@ func (x *TelegramSendLocationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendLocationRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendLocationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1255}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1257}
 }
 
 func (x *TelegramSendLocationRequest) GetChatId() string {
@@ -55207,7 +55303,7 @@ type TelegramSendLocationResponse struct {
 
 func (x *TelegramSendLocationResponse) Reset() {
 	*x = TelegramSendLocationResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1256]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1258]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55219,7 +55315,7 @@ func (x *TelegramSendLocationResponse) String() string {
 func (*TelegramSendLocationResponse) ProtoMessage() {}
 
 func (x *TelegramSendLocationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1256]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1258]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55232,7 +55328,7 @@ func (x *TelegramSendLocationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendLocationResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendLocationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1256}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1258}
 }
 
 func (x *TelegramSendLocationResponse) GetResult_1() *proto.Message {
@@ -55252,7 +55348,7 @@ type TelegramSendMessageRequest struct {
 
 func (x *TelegramSendMessageRequest) Reset() {
 	*x = TelegramSendMessageRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1257]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1259]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55264,7 +55360,7 @@ func (x *TelegramSendMessageRequest) String() string {
 func (*TelegramSendMessageRequest) ProtoMessage() {}
 
 func (x *TelegramSendMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1257]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1259]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55277,7 +55373,7 @@ func (x *TelegramSendMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendMessageRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1257}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1259}
 }
 
 func (x *TelegramSendMessageRequest) GetChatId() string {
@@ -55303,7 +55399,7 @@ type TelegramSendMessageResponse struct {
 
 func (x *TelegramSendMessageResponse) Reset() {
 	*x = TelegramSendMessageResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1258]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1260]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55315,7 +55411,7 @@ func (x *TelegramSendMessageResponse) String() string {
 func (*TelegramSendMessageResponse) ProtoMessage() {}
 
 func (x *TelegramSendMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1258]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1260]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55328,7 +55424,7 @@ func (x *TelegramSendMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendMessageResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1258}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1260}
 }
 
 func (x *TelegramSendMessageResponse) GetResult_1() *proto.Message {
@@ -55348,7 +55444,7 @@ type TelegramSendMultiMediaRequest struct {
 
 func (x *TelegramSendMultiMediaRequest) Reset() {
 	*x = TelegramSendMultiMediaRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1259]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1261]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55360,7 +55456,7 @@ func (x *TelegramSendMultiMediaRequest) String() string {
 func (*TelegramSendMultiMediaRequest) ProtoMessage() {}
 
 func (x *TelegramSendMultiMediaRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1259]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1261]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55373,7 +55469,7 @@ func (x *TelegramSendMultiMediaRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendMultiMediaRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendMultiMediaRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1259}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1261}
 }
 
 func (x *TelegramSendMultiMediaRequest) GetChatId() string {
@@ -55399,7 +55495,7 @@ type TelegramSendMultiMediaResponse struct {
 
 func (x *TelegramSendMultiMediaResponse) Reset() {
 	*x = TelegramSendMultiMediaResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1260]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1262]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55411,7 +55507,7 @@ func (x *TelegramSendMultiMediaResponse) String() string {
 func (*TelegramSendMultiMediaResponse) ProtoMessage() {}
 
 func (x *TelegramSendMultiMediaResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1260]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1262]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55424,7 +55520,7 @@ func (x *TelegramSendMultiMediaResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendMultiMediaResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendMultiMediaResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1260}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1262}
 }
 
 func (x *TelegramSendMultiMediaResponse) GetResult_1() int64 {
@@ -55445,7 +55541,7 @@ type TelegramSendPollRequest struct {
 
 func (x *TelegramSendPollRequest) Reset() {
 	*x = TelegramSendPollRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1261]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1263]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55457,7 +55553,7 @@ func (x *TelegramSendPollRequest) String() string {
 func (*TelegramSendPollRequest) ProtoMessage() {}
 
 func (x *TelegramSendPollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1261]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1263]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55470,7 +55566,7 @@ func (x *TelegramSendPollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendPollRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendPollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1261}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1263}
 }
 
 func (x *TelegramSendPollRequest) GetChatId() string {
@@ -55503,7 +55599,7 @@ type TelegramSendPollResponse struct {
 
 func (x *TelegramSendPollResponse) Reset() {
 	*x = TelegramSendPollResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1262]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1264]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55515,7 +55611,7 @@ func (x *TelegramSendPollResponse) String() string {
 func (*TelegramSendPollResponse) ProtoMessage() {}
 
 func (x *TelegramSendPollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1262]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1264]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55528,7 +55624,7 @@ func (x *TelegramSendPollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendPollResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendPollResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1262}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1264}
 }
 
 func (x *TelegramSendPollResponse) GetResult_1() *proto.Message {
@@ -55549,7 +55645,7 @@ type TelegramSendScheduledRequest struct {
 
 func (x *TelegramSendScheduledRequest) Reset() {
 	*x = TelegramSendScheduledRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1263]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1265]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55561,7 +55657,7 @@ func (x *TelegramSendScheduledRequest) String() string {
 func (*TelegramSendScheduledRequest) ProtoMessage() {}
 
 func (x *TelegramSendScheduledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1263]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1265]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55574,7 +55670,7 @@ func (x *TelegramSendScheduledRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendScheduledRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendScheduledRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1263}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1265}
 }
 
 func (x *TelegramSendScheduledRequest) GetChatId() string {
@@ -55607,7 +55703,7 @@ type TelegramSendScheduledResponse struct {
 
 func (x *TelegramSendScheduledResponse) Reset() {
 	*x = TelegramSendScheduledResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1264]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1266]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55619,7 +55715,7 @@ func (x *TelegramSendScheduledResponse) String() string {
 func (*TelegramSendScheduledResponse) ProtoMessage() {}
 
 func (x *TelegramSendScheduledResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1264]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1266]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55632,7 +55728,7 @@ func (x *TelegramSendScheduledResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendScheduledResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendScheduledResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1264}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1266}
 }
 
 func (x *TelegramSendScheduledResponse) GetResult_1() *proto.Message {
@@ -55652,7 +55748,7 @@ type TelegramSendScheduledNowRequest struct {
 
 func (x *TelegramSendScheduledNowRequest) Reset() {
 	*x = TelegramSendScheduledNowRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1265]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1267]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55664,7 +55760,7 @@ func (x *TelegramSendScheduledNowRequest) String() string {
 func (*TelegramSendScheduledNowRequest) ProtoMessage() {}
 
 func (x *TelegramSendScheduledNowRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1265]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1267]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55677,7 +55773,7 @@ func (x *TelegramSendScheduledNowRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendScheduledNowRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendScheduledNowRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1265}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1267}
 }
 
 func (x *TelegramSendScheduledNowRequest) GetChatId() string {
@@ -55702,7 +55798,7 @@ type TelegramSendScheduledNowResponse struct {
 
 func (x *TelegramSendScheduledNowResponse) Reset() {
 	*x = TelegramSendScheduledNowResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1266]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1268]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55714,7 +55810,7 @@ func (x *TelegramSendScheduledNowResponse) String() string {
 func (*TelegramSendScheduledNowResponse) ProtoMessage() {}
 
 func (x *TelegramSendScheduledNowResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1266]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1268]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55727,7 +55823,7 @@ func (x *TelegramSendScheduledNowResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendScheduledNowResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendScheduledNowResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1266}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1268}
 }
 
 type TelegramSendScreenFrameRequest struct {
@@ -55740,7 +55836,7 @@ type TelegramSendScreenFrameRequest struct {
 
 func (x *TelegramSendScreenFrameRequest) Reset() {
 	*x = TelegramSendScreenFrameRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1267]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1269]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55752,7 +55848,7 @@ func (x *TelegramSendScreenFrameRequest) String() string {
 func (*TelegramSendScreenFrameRequest) ProtoMessage() {}
 
 func (x *TelegramSendScreenFrameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1267]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1269]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55765,7 +55861,7 @@ func (x *TelegramSendScreenFrameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendScreenFrameRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendScreenFrameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1267}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1269}
 }
 
 func (x *TelegramSendScreenFrameRequest) GetCallId() string {
@@ -55790,7 +55886,7 @@ type TelegramSendScreenFrameResponse struct {
 
 func (x *TelegramSendScreenFrameResponse) Reset() {
 	*x = TelegramSendScreenFrameResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1268]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1270]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55802,7 +55898,7 @@ func (x *TelegramSendScreenFrameResponse) String() string {
 func (*TelegramSendScreenFrameResponse) ProtoMessage() {}
 
 func (x *TelegramSendScreenFrameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1268]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1270]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55815,7 +55911,7 @@ func (x *TelegramSendScreenFrameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendScreenFrameResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendScreenFrameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1268}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1270}
 }
 
 type TelegramSendScreenFrameYUVRequest struct {
@@ -55830,7 +55926,7 @@ type TelegramSendScreenFrameYUVRequest struct {
 
 func (x *TelegramSendScreenFrameYUVRequest) Reset() {
 	*x = TelegramSendScreenFrameYUVRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1269]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1271]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55842,7 +55938,7 @@ func (x *TelegramSendScreenFrameYUVRequest) String() string {
 func (*TelegramSendScreenFrameYUVRequest) ProtoMessage() {}
 
 func (x *TelegramSendScreenFrameYUVRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1269]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1271]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55855,7 +55951,7 @@ func (x *TelegramSendScreenFrameYUVRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramSendScreenFrameYUVRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendScreenFrameYUVRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1269}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1271}
 }
 
 func (x *TelegramSendScreenFrameYUVRequest) GetCallId() string {
@@ -55894,7 +55990,7 @@ type TelegramSendScreenFrameYUVResponse struct {
 
 func (x *TelegramSendScreenFrameYUVResponse) Reset() {
 	*x = TelegramSendScreenFrameYUVResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1270]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1272]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55906,7 +56002,7 @@ func (x *TelegramSendScreenFrameYUVResponse) String() string {
 func (*TelegramSendScreenFrameYUVResponse) ProtoMessage() {}
 
 func (x *TelegramSendScreenFrameYUVResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1270]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1272]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55919,7 +56015,7 @@ func (x *TelegramSendScreenFrameYUVResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramSendScreenFrameYUVResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendScreenFrameYUVResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1270}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1272}
 }
 
 type TelegramSendStickerRequest struct {
@@ -55932,7 +56028,7 @@ type TelegramSendStickerRequest struct {
 
 func (x *TelegramSendStickerRequest) Reset() {
 	*x = TelegramSendStickerRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1271]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1273]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55944,7 +56040,7 @@ func (x *TelegramSendStickerRequest) String() string {
 func (*TelegramSendStickerRequest) ProtoMessage() {}
 
 func (x *TelegramSendStickerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1271]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1273]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -55957,7 +56053,7 @@ func (x *TelegramSendStickerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendStickerRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendStickerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1271}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1273}
 }
 
 func (x *TelegramSendStickerRequest) GetChatId() string {
@@ -55983,7 +56079,7 @@ type TelegramSendStickerResponse struct {
 
 func (x *TelegramSendStickerResponse) Reset() {
 	*x = TelegramSendStickerResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1272]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1274]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -55995,7 +56091,7 @@ func (x *TelegramSendStickerResponse) String() string {
 func (*TelegramSendStickerResponse) ProtoMessage() {}
 
 func (x *TelegramSendStickerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1272]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1274]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56008,7 +56104,7 @@ func (x *TelegramSendStickerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendStickerResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendStickerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1272}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1274}
 }
 
 func (x *TelegramSendStickerResponse) GetResult_1() *proto.Message {
@@ -56027,7 +56123,7 @@ type TelegramSendStoryRequest struct {
 
 func (x *TelegramSendStoryRequest) Reset() {
 	*x = TelegramSendStoryRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1273]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1275]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56039,7 +56135,7 @@ func (x *TelegramSendStoryRequest) String() string {
 func (*TelegramSendStoryRequest) ProtoMessage() {}
 
 func (x *TelegramSendStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1273]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1275]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56052,7 +56148,7 @@ func (x *TelegramSendStoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendStoryRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1273}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1275}
 }
 
 func (x *TelegramSendStoryRequest) GetText() string {
@@ -56071,7 +56167,7 @@ type TelegramSendStoryResponse struct {
 
 func (x *TelegramSendStoryResponse) Reset() {
 	*x = TelegramSendStoryResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1274]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1276]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56083,7 +56179,7 @@ func (x *TelegramSendStoryResponse) String() string {
 func (*TelegramSendStoryResponse) ProtoMessage() {}
 
 func (x *TelegramSendStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1274]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1276]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56096,7 +56192,7 @@ func (x *TelegramSendStoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendStoryResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1274}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1276}
 }
 
 func (x *TelegramSendStoryResponse) GetResult_1() int64 {
@@ -56116,7 +56212,7 @@ type TelegramSendStoryWithPhotoRequest struct {
 
 func (x *TelegramSendStoryWithPhotoRequest) Reset() {
 	*x = TelegramSendStoryWithPhotoRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1275]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1277]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56128,7 +56224,7 @@ func (x *TelegramSendStoryWithPhotoRequest) String() string {
 func (*TelegramSendStoryWithPhotoRequest) ProtoMessage() {}
 
 func (x *TelegramSendStoryWithPhotoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1275]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1277]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56141,7 +56237,7 @@ func (x *TelegramSendStoryWithPhotoRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramSendStoryWithPhotoRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendStoryWithPhotoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1275}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1277}
 }
 
 func (x *TelegramSendStoryWithPhotoRequest) GetText() string {
@@ -56167,7 +56263,7 @@ type TelegramSendStoryWithPhotoResponse struct {
 
 func (x *TelegramSendStoryWithPhotoResponse) Reset() {
 	*x = TelegramSendStoryWithPhotoResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1276]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1278]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56179,7 +56275,7 @@ func (x *TelegramSendStoryWithPhotoResponse) String() string {
 func (*TelegramSendStoryWithPhotoResponse) ProtoMessage() {}
 
 func (x *TelegramSendStoryWithPhotoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1276]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1278]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56192,7 +56288,7 @@ func (x *TelegramSendStoryWithPhotoResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramSendStoryWithPhotoResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendStoryWithPhotoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1276}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1278}
 }
 
 func (x *TelegramSendStoryWithPhotoResponse) GetResult_1() int64 {
@@ -56211,7 +56307,7 @@ type TelegramSendTypingRequest struct {
 
 func (x *TelegramSendTypingRequest) Reset() {
 	*x = TelegramSendTypingRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1277]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1279]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56223,7 +56319,7 @@ func (x *TelegramSendTypingRequest) String() string {
 func (*TelegramSendTypingRequest) ProtoMessage() {}
 
 func (x *TelegramSendTypingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1277]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1279]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56236,7 +56332,7 @@ func (x *TelegramSendTypingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendTypingRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendTypingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1277}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1279}
 }
 
 func (x *TelegramSendTypingRequest) GetChatId() string {
@@ -56254,7 +56350,7 @@ type TelegramSendTypingResponse struct {
 
 func (x *TelegramSendTypingResponse) Reset() {
 	*x = TelegramSendTypingResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1278]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1280]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56266,7 +56362,7 @@ func (x *TelegramSendTypingResponse) String() string {
 func (*TelegramSendTypingResponse) ProtoMessage() {}
 
 func (x *TelegramSendTypingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1278]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1280]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56279,7 +56375,7 @@ func (x *TelegramSendTypingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendTypingResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendTypingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1278}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1280}
 }
 
 type TelegramSendVideoFrameRequest struct {
@@ -56292,7 +56388,7 @@ type TelegramSendVideoFrameRequest struct {
 
 func (x *TelegramSendVideoFrameRequest) Reset() {
 	*x = TelegramSendVideoFrameRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1279]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1281]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56304,7 +56400,7 @@ func (x *TelegramSendVideoFrameRequest) String() string {
 func (*TelegramSendVideoFrameRequest) ProtoMessage() {}
 
 func (x *TelegramSendVideoFrameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1279]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1281]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56317,7 +56413,7 @@ func (x *TelegramSendVideoFrameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendVideoFrameRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendVideoFrameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1279}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1281}
 }
 
 func (x *TelegramSendVideoFrameRequest) GetCallId() string {
@@ -56342,7 +56438,7 @@ type TelegramSendVideoFrameResponse struct {
 
 func (x *TelegramSendVideoFrameResponse) Reset() {
 	*x = TelegramSendVideoFrameResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1280]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1282]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56354,7 +56450,7 @@ func (x *TelegramSendVideoFrameResponse) String() string {
 func (*TelegramSendVideoFrameResponse) ProtoMessage() {}
 
 func (x *TelegramSendVideoFrameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1280]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1282]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56367,7 +56463,7 @@ func (x *TelegramSendVideoFrameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendVideoFrameResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendVideoFrameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1280}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1282}
 }
 
 type TelegramSendVideoFrameYUVRequest struct {
@@ -56382,7 +56478,7 @@ type TelegramSendVideoFrameYUVRequest struct {
 
 func (x *TelegramSendVideoFrameYUVRequest) Reset() {
 	*x = TelegramSendVideoFrameYUVRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1281]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1283]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56394,7 +56490,7 @@ func (x *TelegramSendVideoFrameYUVRequest) String() string {
 func (*TelegramSendVideoFrameYUVRequest) ProtoMessage() {}
 
 func (x *TelegramSendVideoFrameYUVRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1281]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1283]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56407,7 +56503,7 @@ func (x *TelegramSendVideoFrameYUVRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSendVideoFrameYUVRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSendVideoFrameYUVRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1281}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1283}
 }
 
 func (x *TelegramSendVideoFrameYUVRequest) GetCallId() string {
@@ -56446,7 +56542,7 @@ type TelegramSendVideoFrameYUVResponse struct {
 
 func (x *TelegramSendVideoFrameYUVResponse) Reset() {
 	*x = TelegramSendVideoFrameYUVResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1282]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1284]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56458,7 +56554,7 @@ func (x *TelegramSendVideoFrameYUVResponse) String() string {
 func (*TelegramSendVideoFrameYUVResponse) ProtoMessage() {}
 
 func (x *TelegramSendVideoFrameYUVResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1282]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1284]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56471,7 +56567,7 @@ func (x *TelegramSendVideoFrameYUVResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramSendVideoFrameYUVResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSendVideoFrameYUVResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1282}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1284}
 }
 
 type TelegramSetAccountTTLRequest struct {
@@ -56483,7 +56579,7 @@ type TelegramSetAccountTTLRequest struct {
 
 func (x *TelegramSetAccountTTLRequest) Reset() {
 	*x = TelegramSetAccountTTLRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1283]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1285]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56495,7 +56591,7 @@ func (x *TelegramSetAccountTTLRequest) String() string {
 func (*TelegramSetAccountTTLRequest) ProtoMessage() {}
 
 func (x *TelegramSetAccountTTLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1283]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1285]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56508,7 +56604,7 @@ func (x *TelegramSetAccountTTLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetAccountTTLRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetAccountTTLRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1283}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1285}
 }
 
 func (x *TelegramSetAccountTTLRequest) GetDays() int64 {
@@ -56526,7 +56622,7 @@ type TelegramSetAccountTTLResponse struct {
 
 func (x *TelegramSetAccountTTLResponse) Reset() {
 	*x = TelegramSetAccountTTLResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1284]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1286]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56538,7 +56634,7 @@ func (x *TelegramSetAccountTTLResponse) String() string {
 func (*TelegramSetAccountTTLResponse) ProtoMessage() {}
 
 func (x *TelegramSetAccountTTLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1284]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1286]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56551,7 +56647,7 @@ func (x *TelegramSetAccountTTLResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetAccountTTLResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetAccountTTLResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1284}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1286}
 }
 
 type TelegramSetAdminRequest struct {
@@ -56565,7 +56661,7 @@ type TelegramSetAdminRequest struct {
 
 func (x *TelegramSetAdminRequest) Reset() {
 	*x = TelegramSetAdminRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1285]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1287]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56577,7 +56673,7 @@ func (x *TelegramSetAdminRequest) String() string {
 func (*TelegramSetAdminRequest) ProtoMessage() {}
 
 func (x *TelegramSetAdminRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1285]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1287]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56590,7 +56686,7 @@ func (x *TelegramSetAdminRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetAdminRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetAdminRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1285}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1287}
 }
 
 func (x *TelegramSetAdminRequest) GetChatId() string {
@@ -56622,7 +56718,7 @@ type TelegramSetAdminResponse struct {
 
 func (x *TelegramSetAdminResponse) Reset() {
 	*x = TelegramSetAdminResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1286]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1288]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56634,7 +56730,7 @@ func (x *TelegramSetAdminResponse) String() string {
 func (*TelegramSetAdminResponse) ProtoMessage() {}
 
 func (x *TelegramSetAdminResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1286]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1288]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56647,7 +56743,7 @@ func (x *TelegramSetAdminResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetAdminResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetAdminResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1286}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1288}
 }
 
 type TelegramSetAudioFrameDurationRequest struct {
@@ -56660,7 +56756,7 @@ type TelegramSetAudioFrameDurationRequest struct {
 
 func (x *TelegramSetAudioFrameDurationRequest) Reset() {
 	*x = TelegramSetAudioFrameDurationRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1287]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1289]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56672,7 +56768,7 @@ func (x *TelegramSetAudioFrameDurationRequest) String() string {
 func (*TelegramSetAudioFrameDurationRequest) ProtoMessage() {}
 
 func (x *TelegramSetAudioFrameDurationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1287]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1289]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56685,7 +56781,7 @@ func (x *TelegramSetAudioFrameDurationRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramSetAudioFrameDurationRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetAudioFrameDurationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1287}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1289}
 }
 
 func (x *TelegramSetAudioFrameDurationRequest) GetCallId() string {
@@ -56710,7 +56806,7 @@ type TelegramSetAudioFrameDurationResponse struct {
 
 func (x *TelegramSetAudioFrameDurationResponse) Reset() {
 	*x = TelegramSetAudioFrameDurationResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1288]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1290]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56722,7 +56818,7 @@ func (x *TelegramSetAudioFrameDurationResponse) String() string {
 func (*TelegramSetAudioFrameDurationResponse) ProtoMessage() {}
 
 func (x *TelegramSetAudioFrameDurationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1288]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1290]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56735,7 +56831,7 @@ func (x *TelegramSetAudioFrameDurationResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramSetAudioFrameDurationResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetAudioFrameDurationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1288}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1290}
 }
 
 type TelegramSetCallMutedRequest struct {
@@ -56748,7 +56844,7 @@ type TelegramSetCallMutedRequest struct {
 
 func (x *TelegramSetCallMutedRequest) Reset() {
 	*x = TelegramSetCallMutedRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1289]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1291]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56760,7 +56856,7 @@ func (x *TelegramSetCallMutedRequest) String() string {
 func (*TelegramSetCallMutedRequest) ProtoMessage() {}
 
 func (x *TelegramSetCallMutedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1289]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1291]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56773,7 +56869,7 @@ func (x *TelegramSetCallMutedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetCallMutedRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetCallMutedRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1289}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1291}
 }
 
 func (x *TelegramSetCallMutedRequest) GetCallId() string {
@@ -56798,7 +56894,7 @@ type TelegramSetCallMutedResponse struct {
 
 func (x *TelegramSetCallMutedResponse) Reset() {
 	*x = TelegramSetCallMutedResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1290]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1292]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56810,7 +56906,7 @@ func (x *TelegramSetCallMutedResponse) String() string {
 func (*TelegramSetCallMutedResponse) ProtoMessage() {}
 
 func (x *TelegramSetCallMutedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1290]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1292]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56823,7 +56919,7 @@ func (x *TelegramSetCallMutedResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetCallMutedResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetCallMutedResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1290}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1292}
 }
 
 type TelegramSetCallVideoRequest struct {
@@ -56836,7 +56932,7 @@ type TelegramSetCallVideoRequest struct {
 
 func (x *TelegramSetCallVideoRequest) Reset() {
 	*x = TelegramSetCallVideoRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1291]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1293]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56848,7 +56944,7 @@ func (x *TelegramSetCallVideoRequest) String() string {
 func (*TelegramSetCallVideoRequest) ProtoMessage() {}
 
 func (x *TelegramSetCallVideoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1291]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1293]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56861,7 +56957,7 @@ func (x *TelegramSetCallVideoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetCallVideoRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetCallVideoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1291}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1293}
 }
 
 func (x *TelegramSetCallVideoRequest) GetCallId() string {
@@ -56886,7 +56982,7 @@ type TelegramSetCallVideoResponse struct {
 
 func (x *TelegramSetCallVideoResponse) Reset() {
 	*x = TelegramSetCallVideoResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1292]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1294]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56898,7 +56994,7 @@ func (x *TelegramSetCallVideoResponse) String() string {
 func (*TelegramSetCallVideoResponse) ProtoMessage() {}
 
 func (x *TelegramSetCallVideoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1292]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1294]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56911,7 +57007,7 @@ func (x *TelegramSetCallVideoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetCallVideoResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetCallVideoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1292}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1294}
 }
 
 type TelegramSetChatReactionsRequest struct {
@@ -56924,7 +57020,7 @@ type TelegramSetChatReactionsRequest struct {
 
 func (x *TelegramSetChatReactionsRequest) Reset() {
 	*x = TelegramSetChatReactionsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1293]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1295]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56936,7 +57032,7 @@ func (x *TelegramSetChatReactionsRequest) String() string {
 func (*TelegramSetChatReactionsRequest) ProtoMessage() {}
 
 func (x *TelegramSetChatReactionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1293]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1295]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56949,7 +57045,7 @@ func (x *TelegramSetChatReactionsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetChatReactionsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetChatReactionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1293}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1295}
 }
 
 func (x *TelegramSetChatReactionsRequest) GetChatId() string {
@@ -56974,7 +57070,7 @@ type TelegramSetChatReactionsResponse struct {
 
 func (x *TelegramSetChatReactionsResponse) Reset() {
 	*x = TelegramSetChatReactionsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1294]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1296]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -56986,7 +57082,7 @@ func (x *TelegramSetChatReactionsResponse) String() string {
 func (*TelegramSetChatReactionsResponse) ProtoMessage() {}
 
 func (x *TelegramSetChatReactionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1294]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1296]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -56999,7 +57095,7 @@ func (x *TelegramSetChatReactionsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetChatReactionsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetChatReactionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1294}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1296}
 }
 
 type TelegramSetChatThemeRequest struct {
@@ -57012,7 +57108,7 @@ type TelegramSetChatThemeRequest struct {
 
 func (x *TelegramSetChatThemeRequest) Reset() {
 	*x = TelegramSetChatThemeRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1295]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1297]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57024,7 +57120,7 @@ func (x *TelegramSetChatThemeRequest) String() string {
 func (*TelegramSetChatThemeRequest) ProtoMessage() {}
 
 func (x *TelegramSetChatThemeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1295]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1297]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57037,7 +57133,7 @@ func (x *TelegramSetChatThemeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetChatThemeRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetChatThemeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1295}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1297}
 }
 
 func (x *TelegramSetChatThemeRequest) GetChatId() string {
@@ -57062,7 +57158,7 @@ type TelegramSetChatThemeResponse struct {
 
 func (x *TelegramSetChatThemeResponse) Reset() {
 	*x = TelegramSetChatThemeResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1296]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1298]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57074,7 +57170,7 @@ func (x *TelegramSetChatThemeResponse) String() string {
 func (*TelegramSetChatThemeResponse) ProtoMessage() {}
 
 func (x *TelegramSetChatThemeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1296]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1298]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57087,7 +57183,7 @@ func (x *TelegramSetChatThemeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetChatThemeResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetChatThemeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1296}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1298}
 }
 
 type TelegramSetChatWallpaperRequest struct {
@@ -57099,7 +57195,7 @@ type TelegramSetChatWallpaperRequest struct {
 
 func (x *TelegramSetChatWallpaperRequest) Reset() {
 	*x = TelegramSetChatWallpaperRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1297]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1299]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57111,7 +57207,7 @@ func (x *TelegramSetChatWallpaperRequest) String() string {
 func (*TelegramSetChatWallpaperRequest) ProtoMessage() {}
 
 func (x *TelegramSetChatWallpaperRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1297]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1299]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57124,7 +57220,7 @@ func (x *TelegramSetChatWallpaperRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetChatWallpaperRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetChatWallpaperRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1297}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1299}
 }
 
 func (x *TelegramSetChatWallpaperRequest) GetChatId() string {
@@ -57142,7 +57238,7 @@ type TelegramSetChatWallpaperResponse struct {
 
 func (x *TelegramSetChatWallpaperResponse) Reset() {
 	*x = TelegramSetChatWallpaperResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1298]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1300]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57154,7 +57250,7 @@ func (x *TelegramSetChatWallpaperResponse) String() string {
 func (*TelegramSetChatWallpaperResponse) ProtoMessage() {}
 
 func (x *TelegramSetChatWallpaperResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1298]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1300]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57167,7 +57263,7 @@ func (x *TelegramSetChatWallpaperResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetChatWallpaperResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetChatWallpaperResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1298}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1300}
 }
 
 type TelegramSetDefaultReactionRequest struct {
@@ -57179,7 +57275,7 @@ type TelegramSetDefaultReactionRequest struct {
 
 func (x *TelegramSetDefaultReactionRequest) Reset() {
 	*x = TelegramSetDefaultReactionRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1299]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1301]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57191,7 +57287,7 @@ func (x *TelegramSetDefaultReactionRequest) String() string {
 func (*TelegramSetDefaultReactionRequest) ProtoMessage() {}
 
 func (x *TelegramSetDefaultReactionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1299]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1301]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57204,7 +57300,7 @@ func (x *TelegramSetDefaultReactionRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramSetDefaultReactionRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetDefaultReactionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1299}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1301}
 }
 
 func (x *TelegramSetDefaultReactionRequest) GetEmoji() string {
@@ -57222,7 +57318,7 @@ type TelegramSetDefaultReactionResponse struct {
 
 func (x *TelegramSetDefaultReactionResponse) Reset() {
 	*x = TelegramSetDefaultReactionResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1300]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1302]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57234,7 +57330,7 @@ func (x *TelegramSetDefaultReactionResponse) String() string {
 func (*TelegramSetDefaultReactionResponse) ProtoMessage() {}
 
 func (x *TelegramSetDefaultReactionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1300]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1302]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57247,7 +57343,7 @@ func (x *TelegramSetDefaultReactionResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramSetDefaultReactionResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetDefaultReactionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1300}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1302}
 }
 
 type TelegramSetEchoModeRequest struct {
@@ -57260,7 +57356,7 @@ type TelegramSetEchoModeRequest struct {
 
 func (x *TelegramSetEchoModeRequest) Reset() {
 	*x = TelegramSetEchoModeRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1301]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1303]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57272,7 +57368,7 @@ func (x *TelegramSetEchoModeRequest) String() string {
 func (*TelegramSetEchoModeRequest) ProtoMessage() {}
 
 func (x *TelegramSetEchoModeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1301]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1303]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57285,7 +57381,7 @@ func (x *TelegramSetEchoModeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetEchoModeRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetEchoModeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1301}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1303}
 }
 
 func (x *TelegramSetEchoModeRequest) GetCallId() string {
@@ -57310,7 +57406,7 @@ type TelegramSetEchoModeResponse struct {
 
 func (x *TelegramSetEchoModeResponse) Reset() {
 	*x = TelegramSetEchoModeResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1302]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1304]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57322,7 +57418,7 @@ func (x *TelegramSetEchoModeResponse) String() string {
 func (*TelegramSetEchoModeResponse) ProtoMessage() {}
 
 func (x *TelegramSetEchoModeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1302]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1304]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57335,7 +57431,7 @@ func (x *TelegramSetEchoModeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetEchoModeResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetEchoModeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1302}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1304}
 }
 
 type TelegramSetGlobalPrivacyRequest struct {
@@ -57347,7 +57443,7 @@ type TelegramSetGlobalPrivacyRequest struct {
 
 func (x *TelegramSetGlobalPrivacyRequest) Reset() {
 	*x = TelegramSetGlobalPrivacyRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1303]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1305]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57359,7 +57455,7 @@ func (x *TelegramSetGlobalPrivacyRequest) String() string {
 func (*TelegramSetGlobalPrivacyRequest) ProtoMessage() {}
 
 func (x *TelegramSetGlobalPrivacyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1303]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1305]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57372,7 +57468,7 @@ func (x *TelegramSetGlobalPrivacyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetGlobalPrivacyRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetGlobalPrivacyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1303}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1305}
 }
 
 func (x *TelegramSetGlobalPrivacyRequest) GetSettings() []byte {
@@ -57390,7 +57486,7 @@ type TelegramSetGlobalPrivacyResponse struct {
 
 func (x *TelegramSetGlobalPrivacyResponse) Reset() {
 	*x = TelegramSetGlobalPrivacyResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1304]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1306]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57402,7 +57498,7 @@ func (x *TelegramSetGlobalPrivacyResponse) String() string {
 func (*TelegramSetGlobalPrivacyResponse) ProtoMessage() {}
 
 func (x *TelegramSetGlobalPrivacyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1304]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1306]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57415,7 +57511,7 @@ func (x *TelegramSetGlobalPrivacyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetGlobalPrivacyResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetGlobalPrivacyResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1304}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1306}
 }
 
 type TelegramSetGroupCallMutedRequest struct {
@@ -57428,7 +57524,7 @@ type TelegramSetGroupCallMutedRequest struct {
 
 func (x *TelegramSetGroupCallMutedRequest) Reset() {
 	*x = TelegramSetGroupCallMutedRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1305]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1307]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57440,7 +57536,7 @@ func (x *TelegramSetGroupCallMutedRequest) String() string {
 func (*TelegramSetGroupCallMutedRequest) ProtoMessage() {}
 
 func (x *TelegramSetGroupCallMutedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1305]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1307]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57453,7 +57549,7 @@ func (x *TelegramSetGroupCallMutedRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetGroupCallMutedRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetGroupCallMutedRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1305}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1307}
 }
 
 func (x *TelegramSetGroupCallMutedRequest) GetCallId() string {
@@ -57478,7 +57574,7 @@ type TelegramSetGroupCallMutedResponse struct {
 
 func (x *TelegramSetGroupCallMutedResponse) Reset() {
 	*x = TelegramSetGroupCallMutedResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1306]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1308]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57490,7 +57586,7 @@ func (x *TelegramSetGroupCallMutedResponse) String() string {
 func (*TelegramSetGroupCallMutedResponse) ProtoMessage() {}
 
 func (x *TelegramSetGroupCallMutedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1306]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1308]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57503,7 +57599,7 @@ func (x *TelegramSetGroupCallMutedResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramSetGroupCallMutedResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetGroupCallMutedResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1306}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1308}
 }
 
 type TelegramSetGroupCallParticipantVolumeRequest struct {
@@ -57517,7 +57613,7 @@ type TelegramSetGroupCallParticipantVolumeRequest struct {
 
 func (x *TelegramSetGroupCallParticipantVolumeRequest) Reset() {
 	*x = TelegramSetGroupCallParticipantVolumeRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1307]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1309]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57529,7 +57625,7 @@ func (x *TelegramSetGroupCallParticipantVolumeRequest) String() string {
 func (*TelegramSetGroupCallParticipantVolumeRequest) ProtoMessage() {}
 
 func (x *TelegramSetGroupCallParticipantVolumeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1307]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1309]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57542,7 +57638,7 @@ func (x *TelegramSetGroupCallParticipantVolumeRequest) ProtoReflect() protorefle
 
 // Deprecated: Use TelegramSetGroupCallParticipantVolumeRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetGroupCallParticipantVolumeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1307}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1309}
 }
 
 func (x *TelegramSetGroupCallParticipantVolumeRequest) GetCallId() string {
@@ -57574,7 +57670,7 @@ type TelegramSetGroupCallParticipantVolumeResponse struct {
 
 func (x *TelegramSetGroupCallParticipantVolumeResponse) Reset() {
 	*x = TelegramSetGroupCallParticipantVolumeResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1308]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1310]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57586,7 +57682,7 @@ func (x *TelegramSetGroupCallParticipantVolumeResponse) String() string {
 func (*TelegramSetGroupCallParticipantVolumeResponse) ProtoMessage() {}
 
 func (x *TelegramSetGroupCallParticipantVolumeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1308]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1310]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57599,7 +57695,7 @@ func (x *TelegramSetGroupCallParticipantVolumeResponse) ProtoReflect() protorefl
 
 // Deprecated: Use TelegramSetGroupCallParticipantVolumeResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetGroupCallParticipantVolumeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1308}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1310}
 }
 
 type TelegramSetGroupPermissionsRequest struct {
@@ -57612,7 +57708,7 @@ type TelegramSetGroupPermissionsRequest struct {
 
 func (x *TelegramSetGroupPermissionsRequest) Reset() {
 	*x = TelegramSetGroupPermissionsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1309]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1311]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57624,7 +57720,7 @@ func (x *TelegramSetGroupPermissionsRequest) String() string {
 func (*TelegramSetGroupPermissionsRequest) ProtoMessage() {}
 
 func (x *TelegramSetGroupPermissionsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1309]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1311]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57637,7 +57733,7 @@ func (x *TelegramSetGroupPermissionsRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramSetGroupPermissionsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetGroupPermissionsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1309}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1311}
 }
 
 func (x *TelegramSetGroupPermissionsRequest) GetChatId() string {
@@ -57662,7 +57758,7 @@ type TelegramSetGroupPermissionsResponse struct {
 
 func (x *TelegramSetGroupPermissionsResponse) Reset() {
 	*x = TelegramSetGroupPermissionsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1310]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1312]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57674,7 +57770,7 @@ func (x *TelegramSetGroupPermissionsResponse) String() string {
 func (*TelegramSetGroupPermissionsResponse) ProtoMessage() {}
 
 func (x *TelegramSetGroupPermissionsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1310]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1312]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57687,7 +57783,7 @@ func (x *TelegramSetGroupPermissionsResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramSetGroupPermissionsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetGroupPermissionsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1310}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1312}
 }
 
 type TelegramSetHistoryTTLRequest struct {
@@ -57700,7 +57796,7 @@ type TelegramSetHistoryTTLRequest struct {
 
 func (x *TelegramSetHistoryTTLRequest) Reset() {
 	*x = TelegramSetHistoryTTLRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1311]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1313]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57712,7 +57808,7 @@ func (x *TelegramSetHistoryTTLRequest) String() string {
 func (*TelegramSetHistoryTTLRequest) ProtoMessage() {}
 
 func (x *TelegramSetHistoryTTLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1311]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1313]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57725,7 +57821,7 @@ func (x *TelegramSetHistoryTTLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetHistoryTTLRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetHistoryTTLRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1311}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1313}
 }
 
 func (x *TelegramSetHistoryTTLRequest) GetChatId() string {
@@ -57750,7 +57846,7 @@ type TelegramSetHistoryTTLResponse struct {
 
 func (x *TelegramSetHistoryTTLResponse) Reset() {
 	*x = TelegramSetHistoryTTLResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1312]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1314]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57762,7 +57858,7 @@ func (x *TelegramSetHistoryTTLResponse) String() string {
 func (*TelegramSetHistoryTTLResponse) ProtoMessage() {}
 
 func (x *TelegramSetHistoryTTLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1312]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1314]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57775,7 +57871,7 @@ func (x *TelegramSetHistoryTTLResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetHistoryTTLResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetHistoryTTLResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1312}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1314}
 }
 
 type TelegramSetPrivacyRequest struct {
@@ -57788,7 +57884,7 @@ type TelegramSetPrivacyRequest struct {
 
 func (x *TelegramSetPrivacyRequest) Reset() {
 	*x = TelegramSetPrivacyRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1313]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1315]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57800,7 +57896,7 @@ func (x *TelegramSetPrivacyRequest) String() string {
 func (*TelegramSetPrivacyRequest) ProtoMessage() {}
 
 func (x *TelegramSetPrivacyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1313]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1315]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57813,7 +57909,7 @@ func (x *TelegramSetPrivacyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetPrivacyRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetPrivacyRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1313}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1315}
 }
 
 func (x *TelegramSetPrivacyRequest) GetKey() []byte {
@@ -57838,7 +57934,7 @@ type TelegramSetPrivacyResponse struct {
 
 func (x *TelegramSetPrivacyResponse) Reset() {
 	*x = TelegramSetPrivacyResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1314]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1316]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57850,7 +57946,7 @@ func (x *TelegramSetPrivacyResponse) String() string {
 func (*TelegramSetPrivacyResponse) ProtoMessage() {}
 
 func (x *TelegramSetPrivacyResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1314]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1316]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57863,7 +57959,7 @@ func (x *TelegramSetPrivacyResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetPrivacyResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetPrivacyResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1314}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1316}
 }
 
 type TelegramSetSlowModeRequest struct {
@@ -57876,7 +57972,7 @@ type TelegramSetSlowModeRequest struct {
 
 func (x *TelegramSetSlowModeRequest) Reset() {
 	*x = TelegramSetSlowModeRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1315]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1317]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57888,7 +57984,7 @@ func (x *TelegramSetSlowModeRequest) String() string {
 func (*TelegramSetSlowModeRequest) ProtoMessage() {}
 
 func (x *TelegramSetSlowModeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1315]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1317]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57901,7 +57997,7 @@ func (x *TelegramSetSlowModeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetSlowModeRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetSlowModeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1315}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1317}
 }
 
 func (x *TelegramSetSlowModeRequest) GetChatId() string {
@@ -57926,7 +58022,7 @@ type TelegramSetSlowModeResponse struct {
 
 func (x *TelegramSetSlowModeResponse) Reset() {
 	*x = TelegramSetSlowModeResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1316]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1318]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57938,7 +58034,7 @@ func (x *TelegramSetSlowModeResponse) String() string {
 func (*TelegramSetSlowModeResponse) ProtoMessage() {}
 
 func (x *TelegramSetSlowModeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1316]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1318]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57951,7 +58047,7 @@ func (x *TelegramSetSlowModeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetSlowModeResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetSlowModeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1316}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1318}
 }
 
 type TelegramSetTypingRequest struct {
@@ -57964,7 +58060,7 @@ type TelegramSetTypingRequest struct {
 
 func (x *TelegramSetTypingRequest) Reset() {
 	*x = TelegramSetTypingRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1317]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1319]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -57976,7 +58072,7 @@ func (x *TelegramSetTypingRequest) String() string {
 func (*TelegramSetTypingRequest) ProtoMessage() {}
 
 func (x *TelegramSetTypingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1317]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1319]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -57989,7 +58085,7 @@ func (x *TelegramSetTypingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetTypingRequest.ProtoReflect.Descriptor instead.
 func (*TelegramSetTypingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1317}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1319}
 }
 
 func (x *TelegramSetTypingRequest) GetChatId() string {
@@ -58014,7 +58110,7 @@ type TelegramSetTypingResponse struct {
 
 func (x *TelegramSetTypingResponse) Reset() {
 	*x = TelegramSetTypingResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1318]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1320]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58026,7 +58122,7 @@ func (x *TelegramSetTypingResponse) String() string {
 func (*TelegramSetTypingResponse) ProtoMessage() {}
 
 func (x *TelegramSetTypingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1318]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1320]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58039,7 +58135,7 @@ func (x *TelegramSetTypingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramSetTypingResponse.ProtoReflect.Descriptor instead.
 func (*TelegramSetTypingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1318}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1320}
 }
 
 type TelegramStartBotRequest struct {
@@ -58053,7 +58149,7 @@ type TelegramStartBotRequest struct {
 
 func (x *TelegramStartBotRequest) Reset() {
 	*x = TelegramStartBotRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1319]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1321]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58065,7 +58161,7 @@ func (x *TelegramStartBotRequest) String() string {
 func (*TelegramStartBotRequest) ProtoMessage() {}
 
 func (x *TelegramStartBotRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1319]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1321]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58078,7 +58174,7 @@ func (x *TelegramStartBotRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStartBotRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStartBotRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1319}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1321}
 }
 
 func (x *TelegramStartBotRequest) GetBotId() string {
@@ -58110,7 +58206,7 @@ type TelegramStartBotResponse struct {
 
 func (x *TelegramStartBotResponse) Reset() {
 	*x = TelegramStartBotResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1320]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1322]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58122,7 +58218,7 @@ func (x *TelegramStartBotResponse) String() string {
 func (*TelegramStartBotResponse) ProtoMessage() {}
 
 func (x *TelegramStartBotResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1320]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1322]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58135,7 +58231,7 @@ func (x *TelegramStartBotResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStartBotResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStartBotResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1320}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1322}
 }
 
 type TelegramStartCallRequest struct {
@@ -58148,7 +58244,7 @@ type TelegramStartCallRequest struct {
 
 func (x *TelegramStartCallRequest) Reset() {
 	*x = TelegramStartCallRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1321]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1323]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58160,7 +58256,7 @@ func (x *TelegramStartCallRequest) String() string {
 func (*TelegramStartCallRequest) ProtoMessage() {}
 
 func (x *TelegramStartCallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1321]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1323]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58173,7 +58269,7 @@ func (x *TelegramStartCallRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStartCallRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStartCallRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1321}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1323}
 }
 
 func (x *TelegramStartCallRequest) GetChatId() string {
@@ -58199,7 +58295,7 @@ type TelegramStartCallResponse struct {
 
 func (x *TelegramStartCallResponse) Reset() {
 	*x = TelegramStartCallResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1322]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1324]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58211,7 +58307,7 @@ func (x *TelegramStartCallResponse) String() string {
 func (*TelegramStartCallResponse) ProtoMessage() {}
 
 func (x *TelegramStartCallResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1322]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1324]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58224,7 +58320,7 @@ func (x *TelegramStartCallResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStartCallResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStartCallResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1322}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1324}
 }
 
 func (x *TelegramStartCallResponse) GetResult_1() *proto.CallSession {
@@ -58244,7 +58340,7 @@ type TelegramStartCallRecordingRequest struct {
 
 func (x *TelegramStartCallRecordingRequest) Reset() {
 	*x = TelegramStartCallRecordingRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1323]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1325]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58256,7 +58352,7 @@ func (x *TelegramStartCallRecordingRequest) String() string {
 func (*TelegramStartCallRecordingRequest) ProtoMessage() {}
 
 func (x *TelegramStartCallRecordingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1323]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1325]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58269,7 +58365,7 @@ func (x *TelegramStartCallRecordingRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramStartCallRecordingRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStartCallRecordingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1323}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1325}
 }
 
 func (x *TelegramStartCallRecordingRequest) GetCallId() string {
@@ -58294,7 +58390,7 @@ type TelegramStartCallRecordingResponse struct {
 
 func (x *TelegramStartCallRecordingResponse) Reset() {
 	*x = TelegramStartCallRecordingResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1324]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1326]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58306,7 +58402,7 @@ func (x *TelegramStartCallRecordingResponse) String() string {
 func (*TelegramStartCallRecordingResponse) ProtoMessage() {}
 
 func (x *TelegramStartCallRecordingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1324]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1326]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58319,7 +58415,7 @@ func (x *TelegramStartCallRecordingResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStartCallRecordingResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStartCallRecordingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1324}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1326}
 }
 
 type TelegramStartGroupCallScreenShareRequest struct {
@@ -58331,7 +58427,7 @@ type TelegramStartGroupCallScreenShareRequest struct {
 
 func (x *TelegramStartGroupCallScreenShareRequest) Reset() {
 	*x = TelegramStartGroupCallScreenShareRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1325]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1327]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58343,7 +58439,7 @@ func (x *TelegramStartGroupCallScreenShareRequest) String() string {
 func (*TelegramStartGroupCallScreenShareRequest) ProtoMessage() {}
 
 func (x *TelegramStartGroupCallScreenShareRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1325]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1327]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58356,7 +58452,7 @@ func (x *TelegramStartGroupCallScreenShareRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStartGroupCallScreenShareRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStartGroupCallScreenShareRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1325}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1327}
 }
 
 func (x *TelegramStartGroupCallScreenShareRequest) GetCallId() string {
@@ -58374,7 +58470,7 @@ type TelegramStartGroupCallScreenShareResponse struct {
 
 func (x *TelegramStartGroupCallScreenShareResponse) Reset() {
 	*x = TelegramStartGroupCallScreenShareResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1326]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1328]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58386,7 +58482,7 @@ func (x *TelegramStartGroupCallScreenShareResponse) String() string {
 func (*TelegramStartGroupCallScreenShareResponse) ProtoMessage() {}
 
 func (x *TelegramStartGroupCallScreenShareResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1326]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1328]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58399,7 +58495,95 @@ func (x *TelegramStartGroupCallScreenShareResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use TelegramStartGroupCallScreenShareResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStartGroupCallScreenShareResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1326}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1328}
+}
+
+type TelegramStartQRAuthRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramStartQRAuthRequest) Reset() {
+	*x = TelegramStartQRAuthRequest{}
+	mi := &file_proto_cores_telegram_proto_msgTypes[1329]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramStartQRAuthRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramStartQRAuthRequest) ProtoMessage() {}
+
+func (x *TelegramStartQRAuthRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_telegram_proto_msgTypes[1329]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramStartQRAuthRequest.ProtoReflect.Descriptor instead.
+func (*TelegramStartQRAuthRequest) Descriptor() ([]byte, []int) {
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1329}
+}
+
+type TelegramStartQRAuthResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TokenUrl      string                 `protobuf:"bytes,1,opt,name=token_url,json=tokenUrl,proto3" json:"token_url,omitempty"`
+	ExpiresSecs   int64                  `protobuf:"varint,2,opt,name=expires_secs,json=expiresSecs,proto3" json:"expires_secs,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramStartQRAuthResponse) Reset() {
+	*x = TelegramStartQRAuthResponse{}
+	mi := &file_proto_cores_telegram_proto_msgTypes[1330]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramStartQRAuthResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramStartQRAuthResponse) ProtoMessage() {}
+
+func (x *TelegramStartQRAuthResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_telegram_proto_msgTypes[1330]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramStartQRAuthResponse.ProtoReflect.Descriptor instead.
+func (*TelegramStartQRAuthResponse) Descriptor() ([]byte, []int) {
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1330}
+}
+
+func (x *TelegramStartQRAuthResponse) GetTokenUrl() string {
+	if x != nil {
+		return x.TokenUrl
+	}
+	return ""
+}
+
+func (x *TelegramStartQRAuthResponse) GetExpiresSecs() int64 {
+	if x != nil {
+		return x.ExpiresSecs
+	}
+	return 0
 }
 
 type TelegramStartScheduledGroupCallRequest struct {
@@ -58411,7 +58595,7 @@ type TelegramStartScheduledGroupCallRequest struct {
 
 func (x *TelegramStartScheduledGroupCallRequest) Reset() {
 	*x = TelegramStartScheduledGroupCallRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1327]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1331]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58423,7 +58607,7 @@ func (x *TelegramStartScheduledGroupCallRequest) String() string {
 func (*TelegramStartScheduledGroupCallRequest) ProtoMessage() {}
 
 func (x *TelegramStartScheduledGroupCallRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1327]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1331]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58436,7 +58620,7 @@ func (x *TelegramStartScheduledGroupCallRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramStartScheduledGroupCallRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStartScheduledGroupCallRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1327}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1331}
 }
 
 func (x *TelegramStartScheduledGroupCallRequest) GetCallId() string {
@@ -58454,7 +58638,7 @@ type TelegramStartScheduledGroupCallResponse struct {
 
 func (x *TelegramStartScheduledGroupCallResponse) Reset() {
 	*x = TelegramStartScheduledGroupCallResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1328]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1332]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58466,7 +58650,7 @@ func (x *TelegramStartScheduledGroupCallResponse) String() string {
 func (*TelegramStartScheduledGroupCallResponse) ProtoMessage() {}
 
 func (x *TelegramStartScheduledGroupCallResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1328]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1332]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58479,7 +58663,7 @@ func (x *TelegramStartScheduledGroupCallResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStartScheduledGroupCallResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStartScheduledGroupCallResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1328}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1332}
 }
 
 type TelegramStartScreenShareRequest struct {
@@ -58491,7 +58675,7 @@ type TelegramStartScreenShareRequest struct {
 
 func (x *TelegramStartScreenShareRequest) Reset() {
 	*x = TelegramStartScreenShareRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1329]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1333]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58503,7 +58687,7 @@ func (x *TelegramStartScreenShareRequest) String() string {
 func (*TelegramStartScreenShareRequest) ProtoMessage() {}
 
 func (x *TelegramStartScreenShareRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1329]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1333]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58516,7 +58700,7 @@ func (x *TelegramStartScreenShareRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStartScreenShareRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStartScreenShareRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1329}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1333}
 }
 
 func (x *TelegramStartScreenShareRequest) GetCallId() string {
@@ -58534,7 +58718,7 @@ type TelegramStartScreenShareResponse struct {
 
 func (x *TelegramStartScreenShareResponse) Reset() {
 	*x = TelegramStartScreenShareResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1330]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1334]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58546,7 +58730,7 @@ func (x *TelegramStartScreenShareResponse) String() string {
 func (*TelegramStartScreenShareResponse) ProtoMessage() {}
 
 func (x *TelegramStartScreenShareResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1330]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1334]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58559,7 +58743,7 @@ func (x *TelegramStartScreenShareResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStartScreenShareResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStartScreenShareResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1330}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1334}
 }
 
 type TelegramStatsGetMessagePublicForwardsRequest struct {
@@ -58571,7 +58755,7 @@ type TelegramStatsGetMessagePublicForwardsRequest struct {
 
 func (x *TelegramStatsGetMessagePublicForwardsRequest) Reset() {
 	*x = TelegramStatsGetMessagePublicForwardsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1331]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1335]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58583,7 +58767,7 @@ func (x *TelegramStatsGetMessagePublicForwardsRequest) String() string {
 func (*TelegramStatsGetMessagePublicForwardsRequest) ProtoMessage() {}
 
 func (x *TelegramStatsGetMessagePublicForwardsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1331]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1335]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58596,7 +58780,7 @@ func (x *TelegramStatsGetMessagePublicForwardsRequest) ProtoReflect() protorefle
 
 // Deprecated: Use TelegramStatsGetMessagePublicForwardsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStatsGetMessagePublicForwardsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1331}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1335}
 }
 
 func (x *TelegramStatsGetMessagePublicForwardsRequest) GetRequest() []byte {
@@ -58615,7 +58799,7 @@ type TelegramStatsGetMessagePublicForwardsResponse struct {
 
 func (x *TelegramStatsGetMessagePublicForwardsResponse) Reset() {
 	*x = TelegramStatsGetMessagePublicForwardsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1332]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1336]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58627,7 +58811,7 @@ func (x *TelegramStatsGetMessagePublicForwardsResponse) String() string {
 func (*TelegramStatsGetMessagePublicForwardsResponse) ProtoMessage() {}
 
 func (x *TelegramStatsGetMessagePublicForwardsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1332]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1336]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58640,7 +58824,7 @@ func (x *TelegramStatsGetMessagePublicForwardsResponse) ProtoReflect() protorefl
 
 // Deprecated: Use TelegramStatsGetMessagePublicForwardsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStatsGetMessagePublicForwardsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1332}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1336}
 }
 
 func (x *TelegramStatsGetMessagePublicForwardsResponse) GetResult_1() []byte {
@@ -58659,7 +58843,7 @@ type TelegramStatsGetMessageStatsRequest struct {
 
 func (x *TelegramStatsGetMessageStatsRequest) Reset() {
 	*x = TelegramStatsGetMessageStatsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1333]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1337]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58671,7 +58855,7 @@ func (x *TelegramStatsGetMessageStatsRequest) String() string {
 func (*TelegramStatsGetMessageStatsRequest) ProtoMessage() {}
 
 func (x *TelegramStatsGetMessageStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1333]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1337]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58684,7 +58868,7 @@ func (x *TelegramStatsGetMessageStatsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramStatsGetMessageStatsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStatsGetMessageStatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1333}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1337}
 }
 
 func (x *TelegramStatsGetMessageStatsRequest) GetRequest() []byte {
@@ -58703,7 +58887,7 @@ type TelegramStatsGetMessageStatsResponse struct {
 
 func (x *TelegramStatsGetMessageStatsResponse) Reset() {
 	*x = TelegramStatsGetMessageStatsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1334]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1338]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58715,7 +58899,7 @@ func (x *TelegramStatsGetMessageStatsResponse) String() string {
 func (*TelegramStatsGetMessageStatsResponse) ProtoMessage() {}
 
 func (x *TelegramStatsGetMessageStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1334]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1338]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58728,7 +58912,7 @@ func (x *TelegramStatsGetMessageStatsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramStatsGetMessageStatsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStatsGetMessageStatsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1334}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1338}
 }
 
 func (x *TelegramStatsGetMessageStatsResponse) GetResult_1() []byte {
@@ -58747,7 +58931,7 @@ type TelegramStatsGetStoryPublicForwardsRequest struct {
 
 func (x *TelegramStatsGetStoryPublicForwardsRequest) Reset() {
 	*x = TelegramStatsGetStoryPublicForwardsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1335]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1339]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58759,7 +58943,7 @@ func (x *TelegramStatsGetStoryPublicForwardsRequest) String() string {
 func (*TelegramStatsGetStoryPublicForwardsRequest) ProtoMessage() {}
 
 func (x *TelegramStatsGetStoryPublicForwardsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1335]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1339]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58772,7 +58956,7 @@ func (x *TelegramStatsGetStoryPublicForwardsRequest) ProtoReflect() protoreflect
 
 // Deprecated: Use TelegramStatsGetStoryPublicForwardsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStatsGetStoryPublicForwardsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1335}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1339}
 }
 
 func (x *TelegramStatsGetStoryPublicForwardsRequest) GetRequest() []byte {
@@ -58791,7 +58975,7 @@ type TelegramStatsGetStoryPublicForwardsResponse struct {
 
 func (x *TelegramStatsGetStoryPublicForwardsResponse) Reset() {
 	*x = TelegramStatsGetStoryPublicForwardsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1336]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1340]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58803,7 +58987,7 @@ func (x *TelegramStatsGetStoryPublicForwardsResponse) String() string {
 func (*TelegramStatsGetStoryPublicForwardsResponse) ProtoMessage() {}
 
 func (x *TelegramStatsGetStoryPublicForwardsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1336]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1340]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58816,7 +59000,7 @@ func (x *TelegramStatsGetStoryPublicForwardsResponse) ProtoReflect() protoreflec
 
 // Deprecated: Use TelegramStatsGetStoryPublicForwardsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStatsGetStoryPublicForwardsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1336}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1340}
 }
 
 func (x *TelegramStatsGetStoryPublicForwardsResponse) GetResult_1() []byte {
@@ -58835,7 +59019,7 @@ type TelegramStatsGetStoryStatsRequest struct {
 
 func (x *TelegramStatsGetStoryStatsRequest) Reset() {
 	*x = TelegramStatsGetStoryStatsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1337]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1341]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58847,7 +59031,7 @@ func (x *TelegramStatsGetStoryStatsRequest) String() string {
 func (*TelegramStatsGetStoryStatsRequest) ProtoMessage() {}
 
 func (x *TelegramStatsGetStoryStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1337]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1341]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58860,7 +59044,7 @@ func (x *TelegramStatsGetStoryStatsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramStatsGetStoryStatsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStatsGetStoryStatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1337}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1341}
 }
 
 func (x *TelegramStatsGetStoryStatsRequest) GetRequest() []byte {
@@ -58879,7 +59063,7 @@ type TelegramStatsGetStoryStatsResponse struct {
 
 func (x *TelegramStatsGetStoryStatsResponse) Reset() {
 	*x = TelegramStatsGetStoryStatsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1338]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1342]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58891,7 +59075,7 @@ func (x *TelegramStatsGetStoryStatsResponse) String() string {
 func (*TelegramStatsGetStoryStatsResponse) ProtoMessage() {}
 
 func (x *TelegramStatsGetStoryStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1338]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1342]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58904,7 +59088,7 @@ func (x *TelegramStatsGetStoryStatsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStatsGetStoryStatsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStatsGetStoryStatsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1338}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1342}
 }
 
 func (x *TelegramStatsGetStoryStatsResponse) GetResult_1() []byte {
@@ -58923,7 +59107,7 @@ type TelegramStatsLoadAsyncGraphRequest struct {
 
 func (x *TelegramStatsLoadAsyncGraphRequest) Reset() {
 	*x = TelegramStatsLoadAsyncGraphRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1339]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1343]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58935,7 +59119,7 @@ func (x *TelegramStatsLoadAsyncGraphRequest) String() string {
 func (*TelegramStatsLoadAsyncGraphRequest) ProtoMessage() {}
 
 func (x *TelegramStatsLoadAsyncGraphRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1339]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1343]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58948,7 +59132,7 @@ func (x *TelegramStatsLoadAsyncGraphRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStatsLoadAsyncGraphRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStatsLoadAsyncGraphRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1339}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1343}
 }
 
 func (x *TelegramStatsLoadAsyncGraphRequest) GetRequest() []byte {
@@ -58967,7 +59151,7 @@ type TelegramStatsLoadAsyncGraphResponse struct {
 
 func (x *TelegramStatsLoadAsyncGraphResponse) Reset() {
 	*x = TelegramStatsLoadAsyncGraphResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1340]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1344]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -58979,7 +59163,7 @@ func (x *TelegramStatsLoadAsyncGraphResponse) String() string {
 func (*TelegramStatsLoadAsyncGraphResponse) ProtoMessage() {}
 
 func (x *TelegramStatsLoadAsyncGraphResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1340]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1344]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -58992,7 +59176,7 @@ func (x *TelegramStatsLoadAsyncGraphResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramStatsLoadAsyncGraphResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStatsLoadAsyncGraphResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1340}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1344}
 }
 
 func (x *TelegramStatsLoadAsyncGraphResponse) GetResult_1() []byte {
@@ -59011,7 +59195,7 @@ type TelegramStickersAddStickerToSetRequest struct {
 
 func (x *TelegramStickersAddStickerToSetRequest) Reset() {
 	*x = TelegramStickersAddStickerToSetRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1341]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1345]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59023,7 +59207,7 @@ func (x *TelegramStickersAddStickerToSetRequest) String() string {
 func (*TelegramStickersAddStickerToSetRequest) ProtoMessage() {}
 
 func (x *TelegramStickersAddStickerToSetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1341]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1345]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59036,7 +59220,7 @@ func (x *TelegramStickersAddStickerToSetRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramStickersAddStickerToSetRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersAddStickerToSetRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1341}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1345}
 }
 
 func (x *TelegramStickersAddStickerToSetRequest) GetRequest() []byte {
@@ -59055,7 +59239,7 @@ type TelegramStickersAddStickerToSetResponse struct {
 
 func (x *TelegramStickersAddStickerToSetResponse) Reset() {
 	*x = TelegramStickersAddStickerToSetResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1342]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1346]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59067,7 +59251,7 @@ func (x *TelegramStickersAddStickerToSetResponse) String() string {
 func (*TelegramStickersAddStickerToSetResponse) ProtoMessage() {}
 
 func (x *TelegramStickersAddStickerToSetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1342]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1346]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59080,7 +59264,7 @@ func (x *TelegramStickersAddStickerToSetResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStickersAddStickerToSetResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersAddStickerToSetResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1342}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1346}
 }
 
 func (x *TelegramStickersAddStickerToSetResponse) GetResult_1() []byte {
@@ -59099,7 +59283,7 @@ type TelegramStickersChangeStickerRequest struct {
 
 func (x *TelegramStickersChangeStickerRequest) Reset() {
 	*x = TelegramStickersChangeStickerRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1343]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1347]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59111,7 +59295,7 @@ func (x *TelegramStickersChangeStickerRequest) String() string {
 func (*TelegramStickersChangeStickerRequest) ProtoMessage() {}
 
 func (x *TelegramStickersChangeStickerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1343]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1347]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59124,7 +59308,7 @@ func (x *TelegramStickersChangeStickerRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramStickersChangeStickerRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersChangeStickerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1343}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1347}
 }
 
 func (x *TelegramStickersChangeStickerRequest) GetRequest() []byte {
@@ -59143,7 +59327,7 @@ type TelegramStickersChangeStickerResponse struct {
 
 func (x *TelegramStickersChangeStickerResponse) Reset() {
 	*x = TelegramStickersChangeStickerResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1344]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1348]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59155,7 +59339,7 @@ func (x *TelegramStickersChangeStickerResponse) String() string {
 func (*TelegramStickersChangeStickerResponse) ProtoMessage() {}
 
 func (x *TelegramStickersChangeStickerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1344]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1348]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59168,7 +59352,7 @@ func (x *TelegramStickersChangeStickerResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramStickersChangeStickerResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersChangeStickerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1344}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1348}
 }
 
 func (x *TelegramStickersChangeStickerResponse) GetResult_1() []byte {
@@ -59187,7 +59371,7 @@ type TelegramStickersChangeStickerPositionRequest struct {
 
 func (x *TelegramStickersChangeStickerPositionRequest) Reset() {
 	*x = TelegramStickersChangeStickerPositionRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1345]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1349]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59199,7 +59383,7 @@ func (x *TelegramStickersChangeStickerPositionRequest) String() string {
 func (*TelegramStickersChangeStickerPositionRequest) ProtoMessage() {}
 
 func (x *TelegramStickersChangeStickerPositionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1345]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1349]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59212,7 +59396,7 @@ func (x *TelegramStickersChangeStickerPositionRequest) ProtoReflect() protorefle
 
 // Deprecated: Use TelegramStickersChangeStickerPositionRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersChangeStickerPositionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1345}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1349}
 }
 
 func (x *TelegramStickersChangeStickerPositionRequest) GetRequest() []byte {
@@ -59231,7 +59415,7 @@ type TelegramStickersChangeStickerPositionResponse struct {
 
 func (x *TelegramStickersChangeStickerPositionResponse) Reset() {
 	*x = TelegramStickersChangeStickerPositionResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1346]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1350]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59243,7 +59427,7 @@ func (x *TelegramStickersChangeStickerPositionResponse) String() string {
 func (*TelegramStickersChangeStickerPositionResponse) ProtoMessage() {}
 
 func (x *TelegramStickersChangeStickerPositionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1346]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1350]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59256,7 +59440,7 @@ func (x *TelegramStickersChangeStickerPositionResponse) ProtoReflect() protorefl
 
 // Deprecated: Use TelegramStickersChangeStickerPositionResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersChangeStickerPositionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1346}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1350}
 }
 
 func (x *TelegramStickersChangeStickerPositionResponse) GetResult_1() []byte {
@@ -59275,7 +59459,7 @@ type TelegramStickersCheckShortNameRequest struct {
 
 func (x *TelegramStickersCheckShortNameRequest) Reset() {
 	*x = TelegramStickersCheckShortNameRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1347]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1351]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59287,7 +59471,7 @@ func (x *TelegramStickersCheckShortNameRequest) String() string {
 func (*TelegramStickersCheckShortNameRequest) ProtoMessage() {}
 
 func (x *TelegramStickersCheckShortNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1347]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1351]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59300,7 +59484,7 @@ func (x *TelegramStickersCheckShortNameRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramStickersCheckShortNameRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersCheckShortNameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1347}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1351}
 }
 
 func (x *TelegramStickersCheckShortNameRequest) GetShortname() string {
@@ -59319,7 +59503,7 @@ type TelegramStickersCheckShortNameResponse struct {
 
 func (x *TelegramStickersCheckShortNameResponse) Reset() {
 	*x = TelegramStickersCheckShortNameResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1348]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1352]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59331,7 +59515,7 @@ func (x *TelegramStickersCheckShortNameResponse) String() string {
 func (*TelegramStickersCheckShortNameResponse) ProtoMessage() {}
 
 func (x *TelegramStickersCheckShortNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1348]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1352]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59344,7 +59528,7 @@ func (x *TelegramStickersCheckShortNameResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramStickersCheckShortNameResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersCheckShortNameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1348}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1352}
 }
 
 func (x *TelegramStickersCheckShortNameResponse) GetResult_1() bool {
@@ -59363,7 +59547,7 @@ type TelegramStickersCreateStickerSetRequest struct {
 
 func (x *TelegramStickersCreateStickerSetRequest) Reset() {
 	*x = TelegramStickersCreateStickerSetRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1349]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1353]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59375,7 +59559,7 @@ func (x *TelegramStickersCreateStickerSetRequest) String() string {
 func (*TelegramStickersCreateStickerSetRequest) ProtoMessage() {}
 
 func (x *TelegramStickersCreateStickerSetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1349]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1353]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59388,7 +59572,7 @@ func (x *TelegramStickersCreateStickerSetRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStickersCreateStickerSetRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersCreateStickerSetRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1349}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1353}
 }
 
 func (x *TelegramStickersCreateStickerSetRequest) GetRequest() []byte {
@@ -59407,7 +59591,7 @@ type TelegramStickersCreateStickerSetResponse struct {
 
 func (x *TelegramStickersCreateStickerSetResponse) Reset() {
 	*x = TelegramStickersCreateStickerSetResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1350]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1354]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59419,7 +59603,7 @@ func (x *TelegramStickersCreateStickerSetResponse) String() string {
 func (*TelegramStickersCreateStickerSetResponse) ProtoMessage() {}
 
 func (x *TelegramStickersCreateStickerSetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1350]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1354]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59432,7 +59616,7 @@ func (x *TelegramStickersCreateStickerSetResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStickersCreateStickerSetResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersCreateStickerSetResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1350}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1354}
 }
 
 func (x *TelegramStickersCreateStickerSetResponse) GetResult_1() []byte {
@@ -59451,7 +59635,7 @@ type TelegramStickersDeleteStickerSetRequest struct {
 
 func (x *TelegramStickersDeleteStickerSetRequest) Reset() {
 	*x = TelegramStickersDeleteStickerSetRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1351]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1355]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59463,7 +59647,7 @@ func (x *TelegramStickersDeleteStickerSetRequest) String() string {
 func (*TelegramStickersDeleteStickerSetRequest) ProtoMessage() {}
 
 func (x *TelegramStickersDeleteStickerSetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1351]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1355]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59476,7 +59660,7 @@ func (x *TelegramStickersDeleteStickerSetRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStickersDeleteStickerSetRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersDeleteStickerSetRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1351}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1355}
 }
 
 func (x *TelegramStickersDeleteStickerSetRequest) GetStickerset() []byte {
@@ -59495,7 +59679,7 @@ type TelegramStickersDeleteStickerSetResponse struct {
 
 func (x *TelegramStickersDeleteStickerSetResponse) Reset() {
 	*x = TelegramStickersDeleteStickerSetResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1352]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1356]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59507,7 +59691,7 @@ func (x *TelegramStickersDeleteStickerSetResponse) String() string {
 func (*TelegramStickersDeleteStickerSetResponse) ProtoMessage() {}
 
 func (x *TelegramStickersDeleteStickerSetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1352]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1356]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59520,7 +59704,7 @@ func (x *TelegramStickersDeleteStickerSetResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStickersDeleteStickerSetResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersDeleteStickerSetResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1352}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1356}
 }
 
 func (x *TelegramStickersDeleteStickerSetResponse) GetResult_1() bool {
@@ -59539,7 +59723,7 @@ type TelegramStickersRemoveStickerFromSetRequest struct {
 
 func (x *TelegramStickersRemoveStickerFromSetRequest) Reset() {
 	*x = TelegramStickersRemoveStickerFromSetRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1353]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1357]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59551,7 +59735,7 @@ func (x *TelegramStickersRemoveStickerFromSetRequest) String() string {
 func (*TelegramStickersRemoveStickerFromSetRequest) ProtoMessage() {}
 
 func (x *TelegramStickersRemoveStickerFromSetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1353]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1357]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59564,7 +59748,7 @@ func (x *TelegramStickersRemoveStickerFromSetRequest) ProtoReflect() protoreflec
 
 // Deprecated: Use TelegramStickersRemoveStickerFromSetRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersRemoveStickerFromSetRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1353}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1357}
 }
 
 func (x *TelegramStickersRemoveStickerFromSetRequest) GetSticker() []byte {
@@ -59583,7 +59767,7 @@ type TelegramStickersRemoveStickerFromSetResponse struct {
 
 func (x *TelegramStickersRemoveStickerFromSetResponse) Reset() {
 	*x = TelegramStickersRemoveStickerFromSetResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1354]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1358]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59595,7 +59779,7 @@ func (x *TelegramStickersRemoveStickerFromSetResponse) String() string {
 func (*TelegramStickersRemoveStickerFromSetResponse) ProtoMessage() {}
 
 func (x *TelegramStickersRemoveStickerFromSetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1354]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1358]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59608,7 +59792,7 @@ func (x *TelegramStickersRemoveStickerFromSetResponse) ProtoReflect() protorefle
 
 // Deprecated: Use TelegramStickersRemoveStickerFromSetResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersRemoveStickerFromSetResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1354}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1358}
 }
 
 func (x *TelegramStickersRemoveStickerFromSetResponse) GetResult_1() []byte {
@@ -59627,7 +59811,7 @@ type TelegramStickersRenameStickerSetRequest struct {
 
 func (x *TelegramStickersRenameStickerSetRequest) Reset() {
 	*x = TelegramStickersRenameStickerSetRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1355]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1359]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59639,7 +59823,7 @@ func (x *TelegramStickersRenameStickerSetRequest) String() string {
 func (*TelegramStickersRenameStickerSetRequest) ProtoMessage() {}
 
 func (x *TelegramStickersRenameStickerSetRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1355]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1359]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59652,7 +59836,7 @@ func (x *TelegramStickersRenameStickerSetRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStickersRenameStickerSetRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersRenameStickerSetRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1355}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1359}
 }
 
 func (x *TelegramStickersRenameStickerSetRequest) GetRequest() []byte {
@@ -59671,7 +59855,7 @@ type TelegramStickersRenameStickerSetResponse struct {
 
 func (x *TelegramStickersRenameStickerSetResponse) Reset() {
 	*x = TelegramStickersRenameStickerSetResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1356]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1360]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59683,7 +59867,7 @@ func (x *TelegramStickersRenameStickerSetResponse) String() string {
 func (*TelegramStickersRenameStickerSetResponse) ProtoMessage() {}
 
 func (x *TelegramStickersRenameStickerSetResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1356]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1360]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59696,7 +59880,7 @@ func (x *TelegramStickersRenameStickerSetResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStickersRenameStickerSetResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersRenameStickerSetResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1356}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1360}
 }
 
 func (x *TelegramStickersRenameStickerSetResponse) GetResult_1() []byte {
@@ -59715,7 +59899,7 @@ type TelegramStickersReplaceStickerRequest struct {
 
 func (x *TelegramStickersReplaceStickerRequest) Reset() {
 	*x = TelegramStickersReplaceStickerRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1357]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1361]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59727,7 +59911,7 @@ func (x *TelegramStickersReplaceStickerRequest) String() string {
 func (*TelegramStickersReplaceStickerRequest) ProtoMessage() {}
 
 func (x *TelegramStickersReplaceStickerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1357]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1361]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59740,7 +59924,7 @@ func (x *TelegramStickersReplaceStickerRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramStickersReplaceStickerRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersReplaceStickerRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1357}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1361}
 }
 
 func (x *TelegramStickersReplaceStickerRequest) GetRequest() []byte {
@@ -59759,7 +59943,7 @@ type TelegramStickersReplaceStickerResponse struct {
 
 func (x *TelegramStickersReplaceStickerResponse) Reset() {
 	*x = TelegramStickersReplaceStickerResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1358]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1362]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59771,7 +59955,7 @@ func (x *TelegramStickersReplaceStickerResponse) String() string {
 func (*TelegramStickersReplaceStickerResponse) ProtoMessage() {}
 
 func (x *TelegramStickersReplaceStickerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1358]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1362]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59784,7 +59968,7 @@ func (x *TelegramStickersReplaceStickerResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramStickersReplaceStickerResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersReplaceStickerResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1358}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1362}
 }
 
 func (x *TelegramStickersReplaceStickerResponse) GetResult_1() []byte {
@@ -59803,7 +59987,7 @@ type TelegramStickersSetStickerSetThumbRequest struct {
 
 func (x *TelegramStickersSetStickerSetThumbRequest) Reset() {
 	*x = TelegramStickersSetStickerSetThumbRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1359]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1363]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59815,7 +59999,7 @@ func (x *TelegramStickersSetStickerSetThumbRequest) String() string {
 func (*TelegramStickersSetStickerSetThumbRequest) ProtoMessage() {}
 
 func (x *TelegramStickersSetStickerSetThumbRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1359]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1363]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59828,7 +60012,7 @@ func (x *TelegramStickersSetStickerSetThumbRequest) ProtoReflect() protoreflect.
 
 // Deprecated: Use TelegramStickersSetStickerSetThumbRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersSetStickerSetThumbRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1359}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1363}
 }
 
 func (x *TelegramStickersSetStickerSetThumbRequest) GetRequest() []byte {
@@ -59847,7 +60031,7 @@ type TelegramStickersSetStickerSetThumbResponse struct {
 
 func (x *TelegramStickersSetStickerSetThumbResponse) Reset() {
 	*x = TelegramStickersSetStickerSetThumbResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1360]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1364]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59859,7 +60043,7 @@ func (x *TelegramStickersSetStickerSetThumbResponse) String() string {
 func (*TelegramStickersSetStickerSetThumbResponse) ProtoMessage() {}
 
 func (x *TelegramStickersSetStickerSetThumbResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1360]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1364]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59872,7 +60056,7 @@ func (x *TelegramStickersSetStickerSetThumbResponse) ProtoReflect() protoreflect
 
 // Deprecated: Use TelegramStickersSetStickerSetThumbResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersSetStickerSetThumbResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1360}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1364}
 }
 
 func (x *TelegramStickersSetStickerSetThumbResponse) GetResult_1() []byte {
@@ -59891,7 +60075,7 @@ type TelegramStickersSuggestShortNameRequest struct {
 
 func (x *TelegramStickersSuggestShortNameRequest) Reset() {
 	*x = TelegramStickersSuggestShortNameRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1361]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1365]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59903,7 +60087,7 @@ func (x *TelegramStickersSuggestShortNameRequest) String() string {
 func (*TelegramStickersSuggestShortNameRequest) ProtoMessage() {}
 
 func (x *TelegramStickersSuggestShortNameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1361]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1365]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59916,7 +60100,7 @@ func (x *TelegramStickersSuggestShortNameRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStickersSuggestShortNameRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStickersSuggestShortNameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1361}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1365}
 }
 
 func (x *TelegramStickersSuggestShortNameRequest) GetTitle() string {
@@ -59935,7 +60119,7 @@ type TelegramStickersSuggestShortNameResponse struct {
 
 func (x *TelegramStickersSuggestShortNameResponse) Reset() {
 	*x = TelegramStickersSuggestShortNameResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1362]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1366]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59947,7 +60131,7 @@ func (x *TelegramStickersSuggestShortNameResponse) String() string {
 func (*TelegramStickersSuggestShortNameResponse) ProtoMessage() {}
 
 func (x *TelegramStickersSuggestShortNameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1362]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1366]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59960,7 +60144,7 @@ func (x *TelegramStickersSuggestShortNameResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStickersSuggestShortNameResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStickersSuggestShortNameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1362}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1366}
 }
 
 func (x *TelegramStickersSuggestShortNameResponse) GetResult_1() []byte {
@@ -59979,7 +60163,7 @@ type TelegramStopCallRecordingRequest struct {
 
 func (x *TelegramStopCallRecordingRequest) Reset() {
 	*x = TelegramStopCallRecordingRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1363]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1367]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -59991,7 +60175,7 @@ func (x *TelegramStopCallRecordingRequest) String() string {
 func (*TelegramStopCallRecordingRequest) ProtoMessage() {}
 
 func (x *TelegramStopCallRecordingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1363]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1367]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60004,7 +60188,7 @@ func (x *TelegramStopCallRecordingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStopCallRecordingRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStopCallRecordingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1363}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1367}
 }
 
 func (x *TelegramStopCallRecordingRequest) GetCallId() string {
@@ -60023,7 +60207,7 @@ type TelegramStopCallRecordingResponse struct {
 
 func (x *TelegramStopCallRecordingResponse) Reset() {
 	*x = TelegramStopCallRecordingResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1364]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1368]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60035,7 +60219,7 @@ func (x *TelegramStopCallRecordingResponse) String() string {
 func (*TelegramStopCallRecordingResponse) ProtoMessage() {}
 
 func (x *TelegramStopCallRecordingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1364]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1368]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60048,7 +60232,7 @@ func (x *TelegramStopCallRecordingResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramStopCallRecordingResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStopCallRecordingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1364}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1368}
 }
 
 func (x *TelegramStopCallRecordingResponse) GetResult_1() int64 {
@@ -60067,7 +60251,7 @@ type TelegramStopGroupCallScreenShareRequest struct {
 
 func (x *TelegramStopGroupCallScreenShareRequest) Reset() {
 	*x = TelegramStopGroupCallScreenShareRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1365]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1369]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60079,7 +60263,7 @@ func (x *TelegramStopGroupCallScreenShareRequest) String() string {
 func (*TelegramStopGroupCallScreenShareRequest) ProtoMessage() {}
 
 func (x *TelegramStopGroupCallScreenShareRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1365]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1369]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60092,7 +60276,7 @@ func (x *TelegramStopGroupCallScreenShareRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStopGroupCallScreenShareRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStopGroupCallScreenShareRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1365}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1369}
 }
 
 func (x *TelegramStopGroupCallScreenShareRequest) GetCallId() string {
@@ -60110,7 +60294,7 @@ type TelegramStopGroupCallScreenShareResponse struct {
 
 func (x *TelegramStopGroupCallScreenShareResponse) Reset() {
 	*x = TelegramStopGroupCallScreenShareResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1366]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1370]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60122,7 +60306,7 @@ func (x *TelegramStopGroupCallScreenShareResponse) String() string {
 func (*TelegramStopGroupCallScreenShareResponse) ProtoMessage() {}
 
 func (x *TelegramStopGroupCallScreenShareResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1366]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1370]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60135,7 +60319,7 @@ func (x *TelegramStopGroupCallScreenShareResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStopGroupCallScreenShareResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStopGroupCallScreenShareResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1366}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1370}
 }
 
 type TelegramStopScreenShareRequest struct {
@@ -60147,7 +60331,7 @@ type TelegramStopScreenShareRequest struct {
 
 func (x *TelegramStopScreenShareRequest) Reset() {
 	*x = TelegramStopScreenShareRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1367]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1371]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60159,7 +60343,7 @@ func (x *TelegramStopScreenShareRequest) String() string {
 func (*TelegramStopScreenShareRequest) ProtoMessage() {}
 
 func (x *TelegramStopScreenShareRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1367]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1371]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60172,7 +60356,7 @@ func (x *TelegramStopScreenShareRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStopScreenShareRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStopScreenShareRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1367}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1371}
 }
 
 func (x *TelegramStopScreenShareRequest) GetCallId() string {
@@ -60190,7 +60374,7 @@ type TelegramStopScreenShareResponse struct {
 
 func (x *TelegramStopScreenShareResponse) Reset() {
 	*x = TelegramStopScreenShareResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1368]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1372]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60202,7 +60386,7 @@ func (x *TelegramStopScreenShareResponse) String() string {
 func (*TelegramStopScreenShareResponse) ProtoMessage() {}
 
 func (x *TelegramStopScreenShareResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1368]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1372]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60215,7 +60399,7 @@ func (x *TelegramStopScreenShareResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStopScreenShareResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStopScreenShareResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1368}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1372}
 }
 
 type TelegramStoriesActivateStealthModeRequest struct {
@@ -60227,7 +60411,7 @@ type TelegramStoriesActivateStealthModeRequest struct {
 
 func (x *TelegramStoriesActivateStealthModeRequest) Reset() {
 	*x = TelegramStoriesActivateStealthModeRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1369]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1373]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60239,7 +60423,7 @@ func (x *TelegramStoriesActivateStealthModeRequest) String() string {
 func (*TelegramStoriesActivateStealthModeRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesActivateStealthModeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1369]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1373]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60252,7 +60436,7 @@ func (x *TelegramStoriesActivateStealthModeRequest) ProtoReflect() protoreflect.
 
 // Deprecated: Use TelegramStoriesActivateStealthModeRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesActivateStealthModeRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1369}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1373}
 }
 
 func (x *TelegramStoriesActivateStealthModeRequest) GetRequest() []byte {
@@ -60271,7 +60455,7 @@ type TelegramStoriesActivateStealthModeResponse struct {
 
 func (x *TelegramStoriesActivateStealthModeResponse) Reset() {
 	*x = TelegramStoriesActivateStealthModeResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1370]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1374]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60283,7 +60467,7 @@ func (x *TelegramStoriesActivateStealthModeResponse) String() string {
 func (*TelegramStoriesActivateStealthModeResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesActivateStealthModeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1370]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1374]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60296,7 +60480,7 @@ func (x *TelegramStoriesActivateStealthModeResponse) ProtoReflect() protoreflect
 
 // Deprecated: Use TelegramStoriesActivateStealthModeResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesActivateStealthModeResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1370}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1374}
 }
 
 func (x *TelegramStoriesActivateStealthModeResponse) GetResult_1() []byte {
@@ -60315,7 +60499,7 @@ type TelegramStoriesCanSendStoryRequest struct {
 
 func (x *TelegramStoriesCanSendStoryRequest) Reset() {
 	*x = TelegramStoriesCanSendStoryRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1371]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1375]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60327,7 +60511,7 @@ func (x *TelegramStoriesCanSendStoryRequest) String() string {
 func (*TelegramStoriesCanSendStoryRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesCanSendStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1371]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1375]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60340,7 +60524,7 @@ func (x *TelegramStoriesCanSendStoryRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStoriesCanSendStoryRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesCanSendStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1371}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1375}
 }
 
 func (x *TelegramStoriesCanSendStoryRequest) GetPeer() []byte {
@@ -60359,7 +60543,7 @@ type TelegramStoriesCanSendStoryResponse struct {
 
 func (x *TelegramStoriesCanSendStoryResponse) Reset() {
 	*x = TelegramStoriesCanSendStoryResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1372]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1376]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60371,7 +60555,7 @@ func (x *TelegramStoriesCanSendStoryResponse) String() string {
 func (*TelegramStoriesCanSendStoryResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesCanSendStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1372]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1376]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60384,7 +60568,7 @@ func (x *TelegramStoriesCanSendStoryResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramStoriesCanSendStoryResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesCanSendStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1372}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1376}
 }
 
 func (x *TelegramStoriesCanSendStoryResponse) GetResult_1() []byte {
@@ -60403,7 +60587,7 @@ type TelegramStoriesCreateAlbumRequest struct {
 
 func (x *TelegramStoriesCreateAlbumRequest) Reset() {
 	*x = TelegramStoriesCreateAlbumRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1373]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1377]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60415,7 +60599,7 @@ func (x *TelegramStoriesCreateAlbumRequest) String() string {
 func (*TelegramStoriesCreateAlbumRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesCreateAlbumRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1373]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1377]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60428,7 +60612,7 @@ func (x *TelegramStoriesCreateAlbumRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramStoriesCreateAlbumRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesCreateAlbumRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1373}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1377}
 }
 
 func (x *TelegramStoriesCreateAlbumRequest) GetRequest() []byte {
@@ -60447,7 +60631,7 @@ type TelegramStoriesCreateAlbumResponse struct {
 
 func (x *TelegramStoriesCreateAlbumResponse) Reset() {
 	*x = TelegramStoriesCreateAlbumResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1374]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1378]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60459,7 +60643,7 @@ func (x *TelegramStoriesCreateAlbumResponse) String() string {
 func (*TelegramStoriesCreateAlbumResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesCreateAlbumResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1374]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1378]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60472,7 +60656,7 @@ func (x *TelegramStoriesCreateAlbumResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStoriesCreateAlbumResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesCreateAlbumResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1374}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1378}
 }
 
 func (x *TelegramStoriesCreateAlbumResponse) GetResult_1() []byte {
@@ -60491,7 +60675,7 @@ type TelegramStoriesDeleteAlbumRequest struct {
 
 func (x *TelegramStoriesDeleteAlbumRequest) Reset() {
 	*x = TelegramStoriesDeleteAlbumRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1375]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1379]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60503,7 +60687,7 @@ func (x *TelegramStoriesDeleteAlbumRequest) String() string {
 func (*TelegramStoriesDeleteAlbumRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesDeleteAlbumRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1375]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1379]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60516,7 +60700,7 @@ func (x *TelegramStoriesDeleteAlbumRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramStoriesDeleteAlbumRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesDeleteAlbumRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1375}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1379}
 }
 
 func (x *TelegramStoriesDeleteAlbumRequest) GetRequest() []byte {
@@ -60535,7 +60719,7 @@ type TelegramStoriesDeleteAlbumResponse struct {
 
 func (x *TelegramStoriesDeleteAlbumResponse) Reset() {
 	*x = TelegramStoriesDeleteAlbumResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1376]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1380]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60547,7 +60731,7 @@ func (x *TelegramStoriesDeleteAlbumResponse) String() string {
 func (*TelegramStoriesDeleteAlbumResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesDeleteAlbumResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1376]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1380]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60560,7 +60744,7 @@ func (x *TelegramStoriesDeleteAlbumResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStoriesDeleteAlbumResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesDeleteAlbumResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1376}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1380}
 }
 
 func (x *TelegramStoriesDeleteAlbumResponse) GetResult_1() bool {
@@ -60579,7 +60763,7 @@ type TelegramStoriesEditStoryRequest struct {
 
 func (x *TelegramStoriesEditStoryRequest) Reset() {
 	*x = TelegramStoriesEditStoryRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1377]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1381]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60591,7 +60775,7 @@ func (x *TelegramStoriesEditStoryRequest) String() string {
 func (*TelegramStoriesEditStoryRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesEditStoryRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1377]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1381]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60604,7 +60788,7 @@ func (x *TelegramStoriesEditStoryRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStoriesEditStoryRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesEditStoryRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1377}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1381}
 }
 
 func (x *TelegramStoriesEditStoryRequest) GetRequest() []byte {
@@ -60623,7 +60807,7 @@ type TelegramStoriesEditStoryResponse struct {
 
 func (x *TelegramStoriesEditStoryResponse) Reset() {
 	*x = TelegramStoriesEditStoryResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1378]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1382]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60635,7 +60819,7 @@ func (x *TelegramStoriesEditStoryResponse) String() string {
 func (*TelegramStoriesEditStoryResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesEditStoryResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1378]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1382]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60648,7 +60832,7 @@ func (x *TelegramStoriesEditStoryResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStoriesEditStoryResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesEditStoryResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1378}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1382}
 }
 
 func (x *TelegramStoriesEditStoryResponse) GetResult_1() []byte {
@@ -60667,7 +60851,7 @@ type TelegramStoriesExportStoryLinkRequest struct {
 
 func (x *TelegramStoriesExportStoryLinkRequest) Reset() {
 	*x = TelegramStoriesExportStoryLinkRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1379]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1383]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60679,7 +60863,7 @@ func (x *TelegramStoriesExportStoryLinkRequest) String() string {
 func (*TelegramStoriesExportStoryLinkRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesExportStoryLinkRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1379]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1383]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60692,7 +60876,7 @@ func (x *TelegramStoriesExportStoryLinkRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramStoriesExportStoryLinkRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesExportStoryLinkRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1379}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1383}
 }
 
 func (x *TelegramStoriesExportStoryLinkRequest) GetRequest() []byte {
@@ -60711,7 +60895,7 @@ type TelegramStoriesExportStoryLinkResponse struct {
 
 func (x *TelegramStoriesExportStoryLinkResponse) Reset() {
 	*x = TelegramStoriesExportStoryLinkResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1380]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1384]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60723,7 +60907,7 @@ func (x *TelegramStoriesExportStoryLinkResponse) String() string {
 func (*TelegramStoriesExportStoryLinkResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesExportStoryLinkResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1380]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1384]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60736,7 +60920,7 @@ func (x *TelegramStoriesExportStoryLinkResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramStoriesExportStoryLinkResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesExportStoryLinkResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1380}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1384}
 }
 
 func (x *TelegramStoriesExportStoryLinkResponse) GetResult_1() []byte {
@@ -60755,7 +60939,7 @@ type TelegramStoriesGetAlbumStoriesRequest struct {
 
 func (x *TelegramStoriesGetAlbumStoriesRequest) Reset() {
 	*x = TelegramStoriesGetAlbumStoriesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1381]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1385]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60767,7 +60951,7 @@ func (x *TelegramStoriesGetAlbumStoriesRequest) String() string {
 func (*TelegramStoriesGetAlbumStoriesRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetAlbumStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1381]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1385]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60780,7 +60964,7 @@ func (x *TelegramStoriesGetAlbumStoriesRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramStoriesGetAlbumStoriesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetAlbumStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1381}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1385}
 }
 
 func (x *TelegramStoriesGetAlbumStoriesRequest) GetRequest() []byte {
@@ -60799,7 +60983,7 @@ type TelegramStoriesGetAlbumStoriesResponse struct {
 
 func (x *TelegramStoriesGetAlbumStoriesResponse) Reset() {
 	*x = TelegramStoriesGetAlbumStoriesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1382]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1386]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60811,7 +60995,7 @@ func (x *TelegramStoriesGetAlbumStoriesResponse) String() string {
 func (*TelegramStoriesGetAlbumStoriesResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetAlbumStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1382]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1386]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60824,7 +61008,7 @@ func (x *TelegramStoriesGetAlbumStoriesResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramStoriesGetAlbumStoriesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetAlbumStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1382}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1386}
 }
 
 func (x *TelegramStoriesGetAlbumStoriesResponse) GetResult_1() []byte {
@@ -60843,7 +61027,7 @@ type TelegramStoriesGetAlbumsRequest struct {
 
 func (x *TelegramStoriesGetAlbumsRequest) Reset() {
 	*x = TelegramStoriesGetAlbumsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1383]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1387]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60855,7 +61039,7 @@ func (x *TelegramStoriesGetAlbumsRequest) String() string {
 func (*TelegramStoriesGetAlbumsRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetAlbumsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1383]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1387]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60868,7 +61052,7 @@ func (x *TelegramStoriesGetAlbumsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStoriesGetAlbumsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetAlbumsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1383}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1387}
 }
 
 func (x *TelegramStoriesGetAlbumsRequest) GetRequest() []byte {
@@ -60887,7 +61071,7 @@ type TelegramStoriesGetAlbumsResponse struct {
 
 func (x *TelegramStoriesGetAlbumsResponse) Reset() {
 	*x = TelegramStoriesGetAlbumsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1384]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1388]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60899,7 +61083,7 @@ func (x *TelegramStoriesGetAlbumsResponse) String() string {
 func (*TelegramStoriesGetAlbumsResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetAlbumsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1384]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1388]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60912,7 +61096,7 @@ func (x *TelegramStoriesGetAlbumsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStoriesGetAlbumsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetAlbumsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1384}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1388}
 }
 
 func (x *TelegramStoriesGetAlbumsResponse) GetResult_1() []byte {
@@ -60930,7 +61114,7 @@ type TelegramStoriesGetAllReadPeerStoriesRequest struct {
 
 func (x *TelegramStoriesGetAllReadPeerStoriesRequest) Reset() {
 	*x = TelegramStoriesGetAllReadPeerStoriesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1385]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1389]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60942,7 +61126,7 @@ func (x *TelegramStoriesGetAllReadPeerStoriesRequest) String() string {
 func (*TelegramStoriesGetAllReadPeerStoriesRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetAllReadPeerStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1385]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1389]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60955,7 +61139,7 @@ func (x *TelegramStoriesGetAllReadPeerStoriesRequest) ProtoReflect() protoreflec
 
 // Deprecated: Use TelegramStoriesGetAllReadPeerStoriesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetAllReadPeerStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1385}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1389}
 }
 
 type TelegramStoriesGetAllReadPeerStoriesResponse struct {
@@ -60967,7 +61151,7 @@ type TelegramStoriesGetAllReadPeerStoriesResponse struct {
 
 func (x *TelegramStoriesGetAllReadPeerStoriesResponse) Reset() {
 	*x = TelegramStoriesGetAllReadPeerStoriesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1386]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1390]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -60979,7 +61163,7 @@ func (x *TelegramStoriesGetAllReadPeerStoriesResponse) String() string {
 func (*TelegramStoriesGetAllReadPeerStoriesResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetAllReadPeerStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1386]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1390]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -60992,7 +61176,7 @@ func (x *TelegramStoriesGetAllReadPeerStoriesResponse) ProtoReflect() protorefle
 
 // Deprecated: Use TelegramStoriesGetAllReadPeerStoriesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetAllReadPeerStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1386}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1390}
 }
 
 func (x *TelegramStoriesGetAllReadPeerStoriesResponse) GetResult_1() []byte {
@@ -61010,7 +61194,7 @@ type TelegramStoriesGetChatsToSendRequest struct {
 
 func (x *TelegramStoriesGetChatsToSendRequest) Reset() {
 	*x = TelegramStoriesGetChatsToSendRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1387]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1391]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61022,7 +61206,7 @@ func (x *TelegramStoriesGetChatsToSendRequest) String() string {
 func (*TelegramStoriesGetChatsToSendRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetChatsToSendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1387]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1391]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61035,7 +61219,7 @@ func (x *TelegramStoriesGetChatsToSendRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramStoriesGetChatsToSendRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetChatsToSendRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1387}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1391}
 }
 
 type TelegramStoriesGetChatsToSendResponse struct {
@@ -61047,7 +61231,7 @@ type TelegramStoriesGetChatsToSendResponse struct {
 
 func (x *TelegramStoriesGetChatsToSendResponse) Reset() {
 	*x = TelegramStoriesGetChatsToSendResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1388]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1392]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61059,7 +61243,7 @@ func (x *TelegramStoriesGetChatsToSendResponse) String() string {
 func (*TelegramStoriesGetChatsToSendResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetChatsToSendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1388]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1392]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61072,7 +61256,7 @@ func (x *TelegramStoriesGetChatsToSendResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramStoriesGetChatsToSendResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetChatsToSendResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1388}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1392}
 }
 
 func (x *TelegramStoriesGetChatsToSendResponse) GetResult_1() []byte {
@@ -61091,7 +61275,7 @@ type TelegramStoriesGetPeerMaxIDsRequest struct {
 
 func (x *TelegramStoriesGetPeerMaxIDsRequest) Reset() {
 	*x = TelegramStoriesGetPeerMaxIDsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1389]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1393]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61103,7 +61287,7 @@ func (x *TelegramStoriesGetPeerMaxIDsRequest) String() string {
 func (*TelegramStoriesGetPeerMaxIDsRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetPeerMaxIDsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1389]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1393]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61116,7 +61300,7 @@ func (x *TelegramStoriesGetPeerMaxIDsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramStoriesGetPeerMaxIDsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetPeerMaxIDsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1389}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1393}
 }
 
 func (x *TelegramStoriesGetPeerMaxIDsRequest) GetId() []byte {
@@ -61135,7 +61319,7 @@ type TelegramStoriesGetPeerMaxIDsResponse struct {
 
 func (x *TelegramStoriesGetPeerMaxIDsResponse) Reset() {
 	*x = TelegramStoriesGetPeerMaxIDsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1390]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1394]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61147,7 +61331,7 @@ func (x *TelegramStoriesGetPeerMaxIDsResponse) String() string {
 func (*TelegramStoriesGetPeerMaxIDsResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetPeerMaxIDsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1390]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1394]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61160,7 +61344,7 @@ func (x *TelegramStoriesGetPeerMaxIDsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramStoriesGetPeerMaxIDsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetPeerMaxIDsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1390}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1394}
 }
 
 func (x *TelegramStoriesGetPeerMaxIDsResponse) GetResult_1() []byte {
@@ -61179,7 +61363,7 @@ type TelegramStoriesGetStoriesArchiveRequest struct {
 
 func (x *TelegramStoriesGetStoriesArchiveRequest) Reset() {
 	*x = TelegramStoriesGetStoriesArchiveRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1391]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1395]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61191,7 +61375,7 @@ func (x *TelegramStoriesGetStoriesArchiveRequest) String() string {
 func (*TelegramStoriesGetStoriesArchiveRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetStoriesArchiveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1391]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1395]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61204,7 +61388,7 @@ func (x *TelegramStoriesGetStoriesArchiveRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStoriesGetStoriesArchiveRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetStoriesArchiveRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1391}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1395}
 }
 
 func (x *TelegramStoriesGetStoriesArchiveRequest) GetRequest() []byte {
@@ -61223,7 +61407,7 @@ type TelegramStoriesGetStoriesArchiveResponse struct {
 
 func (x *TelegramStoriesGetStoriesArchiveResponse) Reset() {
 	*x = TelegramStoriesGetStoriesArchiveResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1392]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1396]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61235,7 +61419,7 @@ func (x *TelegramStoriesGetStoriesArchiveResponse) String() string {
 func (*TelegramStoriesGetStoriesArchiveResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetStoriesArchiveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1392]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1396]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61248,7 +61432,7 @@ func (x *TelegramStoriesGetStoriesArchiveResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStoriesGetStoriesArchiveResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetStoriesArchiveResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1392}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1396}
 }
 
 func (x *TelegramStoriesGetStoriesArchiveResponse) GetResult_1() []byte {
@@ -61267,7 +61451,7 @@ type TelegramStoriesGetStoriesByIDRequest struct {
 
 func (x *TelegramStoriesGetStoriesByIDRequest) Reset() {
 	*x = TelegramStoriesGetStoriesByIDRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1393]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1397]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61279,7 +61463,7 @@ func (x *TelegramStoriesGetStoriesByIDRequest) String() string {
 func (*TelegramStoriesGetStoriesByIDRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetStoriesByIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1393]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1397]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61292,7 +61476,7 @@ func (x *TelegramStoriesGetStoriesByIDRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramStoriesGetStoriesByIDRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetStoriesByIDRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1393}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1397}
 }
 
 func (x *TelegramStoriesGetStoriesByIDRequest) GetRequest() []byte {
@@ -61311,7 +61495,7 @@ type TelegramStoriesGetStoriesByIDResponse struct {
 
 func (x *TelegramStoriesGetStoriesByIDResponse) Reset() {
 	*x = TelegramStoriesGetStoriesByIDResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1394]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1398]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61323,7 +61507,7 @@ func (x *TelegramStoriesGetStoriesByIDResponse) String() string {
 func (*TelegramStoriesGetStoriesByIDResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetStoriesByIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1394]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1398]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61336,7 +61520,7 @@ func (x *TelegramStoriesGetStoriesByIDResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramStoriesGetStoriesByIDResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetStoriesByIDResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1394}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1398}
 }
 
 func (x *TelegramStoriesGetStoriesByIDResponse) GetResult_1() []byte {
@@ -61355,7 +61539,7 @@ type TelegramStoriesGetStoryReactionsListRequest struct {
 
 func (x *TelegramStoriesGetStoryReactionsListRequest) Reset() {
 	*x = TelegramStoriesGetStoryReactionsListRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1395]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1399]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61367,7 +61551,7 @@ func (x *TelegramStoriesGetStoryReactionsListRequest) String() string {
 func (*TelegramStoriesGetStoryReactionsListRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetStoryReactionsListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1395]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1399]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61380,7 +61564,7 @@ func (x *TelegramStoriesGetStoryReactionsListRequest) ProtoReflect() protoreflec
 
 // Deprecated: Use TelegramStoriesGetStoryReactionsListRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetStoryReactionsListRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1395}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1399}
 }
 
 func (x *TelegramStoriesGetStoryReactionsListRequest) GetRequest() []byte {
@@ -61399,7 +61583,7 @@ type TelegramStoriesGetStoryReactionsListResponse struct {
 
 func (x *TelegramStoriesGetStoryReactionsListResponse) Reset() {
 	*x = TelegramStoriesGetStoryReactionsListResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1396]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1400]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61411,7 +61595,7 @@ func (x *TelegramStoriesGetStoryReactionsListResponse) String() string {
 func (*TelegramStoriesGetStoryReactionsListResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetStoryReactionsListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1396]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1400]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61424,7 +61608,7 @@ func (x *TelegramStoriesGetStoryReactionsListResponse) ProtoReflect() protorefle
 
 // Deprecated: Use TelegramStoriesGetStoryReactionsListResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetStoryReactionsListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1396}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1400}
 }
 
 func (x *TelegramStoriesGetStoryReactionsListResponse) GetResult_1() []byte {
@@ -61443,7 +61627,7 @@ type TelegramStoriesGetStoryViewsListRequest struct {
 
 func (x *TelegramStoriesGetStoryViewsListRequest) Reset() {
 	*x = TelegramStoriesGetStoryViewsListRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1397]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1401]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61455,7 +61639,7 @@ func (x *TelegramStoriesGetStoryViewsListRequest) String() string {
 func (*TelegramStoriesGetStoryViewsListRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesGetStoryViewsListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1397]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1401]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61468,7 +61652,7 @@ func (x *TelegramStoriesGetStoryViewsListRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStoriesGetStoryViewsListRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetStoryViewsListRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1397}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1401}
 }
 
 func (x *TelegramStoriesGetStoryViewsListRequest) GetRequest() []byte {
@@ -61487,7 +61671,7 @@ type TelegramStoriesGetStoryViewsListResponse struct {
 
 func (x *TelegramStoriesGetStoryViewsListResponse) Reset() {
 	*x = TelegramStoriesGetStoryViewsListResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1398]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1402]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61499,7 +61683,7 @@ func (x *TelegramStoriesGetStoryViewsListResponse) String() string {
 func (*TelegramStoriesGetStoryViewsListResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesGetStoryViewsListResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1398]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1402]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61512,7 +61696,7 @@ func (x *TelegramStoriesGetStoryViewsListResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStoriesGetStoryViewsListResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesGetStoryViewsListResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1398}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1402}
 }
 
 func (x *TelegramStoriesGetStoryViewsListResponse) GetResult_1() []byte {
@@ -61531,7 +61715,7 @@ type TelegramStoriesIncrementStoryViewsRequest struct {
 
 func (x *TelegramStoriesIncrementStoryViewsRequest) Reset() {
 	*x = TelegramStoriesIncrementStoryViewsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1399]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1403]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61543,7 +61727,7 @@ func (x *TelegramStoriesIncrementStoryViewsRequest) String() string {
 func (*TelegramStoriesIncrementStoryViewsRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesIncrementStoryViewsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1399]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1403]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61556,7 +61740,7 @@ func (x *TelegramStoriesIncrementStoryViewsRequest) ProtoReflect() protoreflect.
 
 // Deprecated: Use TelegramStoriesIncrementStoryViewsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesIncrementStoryViewsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1399}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1403}
 }
 
 func (x *TelegramStoriesIncrementStoryViewsRequest) GetRequest() []byte {
@@ -61575,7 +61759,7 @@ type TelegramStoriesIncrementStoryViewsResponse struct {
 
 func (x *TelegramStoriesIncrementStoryViewsResponse) Reset() {
 	*x = TelegramStoriesIncrementStoryViewsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1400]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1404]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61587,7 +61771,7 @@ func (x *TelegramStoriesIncrementStoryViewsResponse) String() string {
 func (*TelegramStoriesIncrementStoryViewsResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesIncrementStoryViewsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1400]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1404]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61600,7 +61784,7 @@ func (x *TelegramStoriesIncrementStoryViewsResponse) ProtoReflect() protoreflect
 
 // Deprecated: Use TelegramStoriesIncrementStoryViewsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesIncrementStoryViewsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1400}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1404}
 }
 
 func (x *TelegramStoriesIncrementStoryViewsResponse) GetResult_1() bool {
@@ -61619,7 +61803,7 @@ type TelegramStoriesReadStoriesRequest struct {
 
 func (x *TelegramStoriesReadStoriesRequest) Reset() {
 	*x = TelegramStoriesReadStoriesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1401]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1405]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61631,7 +61815,7 @@ func (x *TelegramStoriesReadStoriesRequest) String() string {
 func (*TelegramStoriesReadStoriesRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesReadStoriesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1401]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1405]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61644,7 +61828,7 @@ func (x *TelegramStoriesReadStoriesRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramStoriesReadStoriesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesReadStoriesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1401}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1405}
 }
 
 func (x *TelegramStoriesReadStoriesRequest) GetRequest() []byte {
@@ -61663,7 +61847,7 @@ type TelegramStoriesReadStoriesResponse struct {
 
 func (x *TelegramStoriesReadStoriesResponse) Reset() {
 	*x = TelegramStoriesReadStoriesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1402]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1406]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61675,7 +61859,7 @@ func (x *TelegramStoriesReadStoriesResponse) String() string {
 func (*TelegramStoriesReadStoriesResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesReadStoriesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1402]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1406]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61688,7 +61872,7 @@ func (x *TelegramStoriesReadStoriesResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStoriesReadStoriesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesReadStoriesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1402}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1406}
 }
 
 func (x *TelegramStoriesReadStoriesResponse) GetResult_1() []int64 {
@@ -61707,7 +61891,7 @@ type TelegramStoriesReorderAlbumsRequest struct {
 
 func (x *TelegramStoriesReorderAlbumsRequest) Reset() {
 	*x = TelegramStoriesReorderAlbumsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1403]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1407]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61719,7 +61903,7 @@ func (x *TelegramStoriesReorderAlbumsRequest) String() string {
 func (*TelegramStoriesReorderAlbumsRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesReorderAlbumsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1403]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1407]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61732,7 +61916,7 @@ func (x *TelegramStoriesReorderAlbumsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramStoriesReorderAlbumsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesReorderAlbumsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1403}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1407}
 }
 
 func (x *TelegramStoriesReorderAlbumsRequest) GetRequest() []byte {
@@ -61751,7 +61935,7 @@ type TelegramStoriesReorderAlbumsResponse struct {
 
 func (x *TelegramStoriesReorderAlbumsResponse) Reset() {
 	*x = TelegramStoriesReorderAlbumsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1404]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1408]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61763,7 +61947,7 @@ func (x *TelegramStoriesReorderAlbumsResponse) String() string {
 func (*TelegramStoriesReorderAlbumsResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesReorderAlbumsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1404]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1408]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61776,7 +61960,7 @@ func (x *TelegramStoriesReorderAlbumsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramStoriesReorderAlbumsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesReorderAlbumsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1404}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1408}
 }
 
 func (x *TelegramStoriesReorderAlbumsResponse) GetResult_1() bool {
@@ -61795,7 +61979,7 @@ type TelegramStoriesReportRequest struct {
 
 func (x *TelegramStoriesReportRequest) Reset() {
 	*x = TelegramStoriesReportRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1405]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1409]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61807,7 +61991,7 @@ func (x *TelegramStoriesReportRequest) String() string {
 func (*TelegramStoriesReportRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesReportRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1405]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1409]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61820,7 +62004,7 @@ func (x *TelegramStoriesReportRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStoriesReportRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesReportRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1405}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1409}
 }
 
 func (x *TelegramStoriesReportRequest) GetRequest() []byte {
@@ -61839,7 +62023,7 @@ type TelegramStoriesReportResponse struct {
 
 func (x *TelegramStoriesReportResponse) Reset() {
 	*x = TelegramStoriesReportResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1406]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1410]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61851,7 +62035,7 @@ func (x *TelegramStoriesReportResponse) String() string {
 func (*TelegramStoriesReportResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesReportResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1406]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1410]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61864,7 +62048,7 @@ func (x *TelegramStoriesReportResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStoriesReportResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesReportResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1406}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1410}
 }
 
 func (x *TelegramStoriesReportResponse) GetResult_1() []byte {
@@ -61883,7 +62067,7 @@ type TelegramStoriesSearchPostsRequest struct {
 
 func (x *TelegramStoriesSearchPostsRequest) Reset() {
 	*x = TelegramStoriesSearchPostsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1407]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1411]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61895,7 +62079,7 @@ func (x *TelegramStoriesSearchPostsRequest) String() string {
 func (*TelegramStoriesSearchPostsRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesSearchPostsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1407]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1411]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61908,7 +62092,7 @@ func (x *TelegramStoriesSearchPostsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramStoriesSearchPostsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesSearchPostsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1407}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1411}
 }
 
 func (x *TelegramStoriesSearchPostsRequest) GetRequest() []byte {
@@ -61927,7 +62111,7 @@ type TelegramStoriesSearchPostsResponse struct {
 
 func (x *TelegramStoriesSearchPostsResponse) Reset() {
 	*x = TelegramStoriesSearchPostsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1408]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1412]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61939,7 +62123,7 @@ func (x *TelegramStoriesSearchPostsResponse) String() string {
 func (*TelegramStoriesSearchPostsResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesSearchPostsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1408]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1412]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61952,7 +62136,7 @@ func (x *TelegramStoriesSearchPostsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStoriesSearchPostsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesSearchPostsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1408}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1412}
 }
 
 func (x *TelegramStoriesSearchPostsResponse) GetResult_1() []byte {
@@ -61971,7 +62155,7 @@ type TelegramStoriesStartLiveRequest struct {
 
 func (x *TelegramStoriesStartLiveRequest) Reset() {
 	*x = TelegramStoriesStartLiveRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1409]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1413]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -61983,7 +62167,7 @@ func (x *TelegramStoriesStartLiveRequest) String() string {
 func (*TelegramStoriesStartLiveRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesStartLiveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1409]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1413]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -61996,7 +62180,7 @@ func (x *TelegramStoriesStartLiveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStoriesStartLiveRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesStartLiveRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1409}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1413}
 }
 
 func (x *TelegramStoriesStartLiveRequest) GetRequest() []byte {
@@ -62015,7 +62199,7 @@ type TelegramStoriesStartLiveResponse struct {
 
 func (x *TelegramStoriesStartLiveResponse) Reset() {
 	*x = TelegramStoriesStartLiveResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1410]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1414]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62027,7 +62211,7 @@ func (x *TelegramStoriesStartLiveResponse) String() string {
 func (*TelegramStoriesStartLiveResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesStartLiveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1410]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1414]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62040,7 +62224,7 @@ func (x *TelegramStoriesStartLiveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramStoriesStartLiveResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesStartLiveResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1410}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1414}
 }
 
 func (x *TelegramStoriesStartLiveResponse) GetResult_1() []byte {
@@ -62059,7 +62243,7 @@ type TelegramStoriesToggleAllStoriesHiddenRequest struct {
 
 func (x *TelegramStoriesToggleAllStoriesHiddenRequest) Reset() {
 	*x = TelegramStoriesToggleAllStoriesHiddenRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1411]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1415]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62071,7 +62255,7 @@ func (x *TelegramStoriesToggleAllStoriesHiddenRequest) String() string {
 func (*TelegramStoriesToggleAllStoriesHiddenRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesToggleAllStoriesHiddenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1411]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1415]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62084,7 +62268,7 @@ func (x *TelegramStoriesToggleAllStoriesHiddenRequest) ProtoReflect() protorefle
 
 // Deprecated: Use TelegramStoriesToggleAllStoriesHiddenRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesToggleAllStoriesHiddenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1411}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1415}
 }
 
 func (x *TelegramStoriesToggleAllStoriesHiddenRequest) GetHidden() bool {
@@ -62103,7 +62287,7 @@ type TelegramStoriesToggleAllStoriesHiddenResponse struct {
 
 func (x *TelegramStoriesToggleAllStoriesHiddenResponse) Reset() {
 	*x = TelegramStoriesToggleAllStoriesHiddenResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1412]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1416]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62115,7 +62299,7 @@ func (x *TelegramStoriesToggleAllStoriesHiddenResponse) String() string {
 func (*TelegramStoriesToggleAllStoriesHiddenResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesToggleAllStoriesHiddenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1412]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1416]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62128,7 +62312,7 @@ func (x *TelegramStoriesToggleAllStoriesHiddenResponse) ProtoReflect() protorefl
 
 // Deprecated: Use TelegramStoriesToggleAllStoriesHiddenResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesToggleAllStoriesHiddenResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1412}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1416}
 }
 
 func (x *TelegramStoriesToggleAllStoriesHiddenResponse) GetResult_1() bool {
@@ -62147,7 +62331,7 @@ type TelegramStoriesTogglePeerStoriesHiddenRequest struct {
 
 func (x *TelegramStoriesTogglePeerStoriesHiddenRequest) Reset() {
 	*x = TelegramStoriesTogglePeerStoriesHiddenRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1413]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1417]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62159,7 +62343,7 @@ func (x *TelegramStoriesTogglePeerStoriesHiddenRequest) String() string {
 func (*TelegramStoriesTogglePeerStoriesHiddenRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesTogglePeerStoriesHiddenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1413]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1417]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62172,7 +62356,7 @@ func (x *TelegramStoriesTogglePeerStoriesHiddenRequest) ProtoReflect() protorefl
 
 // Deprecated: Use TelegramStoriesTogglePeerStoriesHiddenRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesTogglePeerStoriesHiddenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1413}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1417}
 }
 
 func (x *TelegramStoriesTogglePeerStoriesHiddenRequest) GetRequest() []byte {
@@ -62191,7 +62375,7 @@ type TelegramStoriesTogglePeerStoriesHiddenResponse struct {
 
 func (x *TelegramStoriesTogglePeerStoriesHiddenResponse) Reset() {
 	*x = TelegramStoriesTogglePeerStoriesHiddenResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1414]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1418]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62203,7 +62387,7 @@ func (x *TelegramStoriesTogglePeerStoriesHiddenResponse) String() string {
 func (*TelegramStoriesTogglePeerStoriesHiddenResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesTogglePeerStoriesHiddenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1414]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1418]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62216,7 +62400,7 @@ func (x *TelegramStoriesTogglePeerStoriesHiddenResponse) ProtoReflect() protoref
 
 // Deprecated: Use TelegramStoriesTogglePeerStoriesHiddenResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesTogglePeerStoriesHiddenResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1414}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1418}
 }
 
 func (x *TelegramStoriesTogglePeerStoriesHiddenResponse) GetResult_1() bool {
@@ -62235,7 +62419,7 @@ type TelegramStoriesTogglePinnedRequest struct {
 
 func (x *TelegramStoriesTogglePinnedRequest) Reset() {
 	*x = TelegramStoriesTogglePinnedRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1415]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1419]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62247,7 +62431,7 @@ func (x *TelegramStoriesTogglePinnedRequest) String() string {
 func (*TelegramStoriesTogglePinnedRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesTogglePinnedRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1415]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1419]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62260,7 +62444,7 @@ func (x *TelegramStoriesTogglePinnedRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStoriesTogglePinnedRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesTogglePinnedRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1415}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1419}
 }
 
 func (x *TelegramStoriesTogglePinnedRequest) GetRequest() []byte {
@@ -62279,7 +62463,7 @@ type TelegramStoriesTogglePinnedResponse struct {
 
 func (x *TelegramStoriesTogglePinnedResponse) Reset() {
 	*x = TelegramStoriesTogglePinnedResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1416]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1420]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62291,7 +62475,7 @@ func (x *TelegramStoriesTogglePinnedResponse) String() string {
 func (*TelegramStoriesTogglePinnedResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesTogglePinnedResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1416]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1420]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62304,7 +62488,7 @@ func (x *TelegramStoriesTogglePinnedResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramStoriesTogglePinnedResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesTogglePinnedResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1416}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1420}
 }
 
 func (x *TelegramStoriesTogglePinnedResponse) GetResult_1() []int64 {
@@ -62323,7 +62507,7 @@ type TelegramStoriesTogglePinnedToTopRequest struct {
 
 func (x *TelegramStoriesTogglePinnedToTopRequest) Reset() {
 	*x = TelegramStoriesTogglePinnedToTopRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1417]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1421]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62335,7 +62519,7 @@ func (x *TelegramStoriesTogglePinnedToTopRequest) String() string {
 func (*TelegramStoriesTogglePinnedToTopRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesTogglePinnedToTopRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1417]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1421]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62348,7 +62532,7 @@ func (x *TelegramStoriesTogglePinnedToTopRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramStoriesTogglePinnedToTopRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesTogglePinnedToTopRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1417}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1421}
 }
 
 func (x *TelegramStoriesTogglePinnedToTopRequest) GetRequest() []byte {
@@ -62367,7 +62551,7 @@ type TelegramStoriesTogglePinnedToTopResponse struct {
 
 func (x *TelegramStoriesTogglePinnedToTopResponse) Reset() {
 	*x = TelegramStoriesTogglePinnedToTopResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1418]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1422]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62379,7 +62563,7 @@ func (x *TelegramStoriesTogglePinnedToTopResponse) String() string {
 func (*TelegramStoriesTogglePinnedToTopResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesTogglePinnedToTopResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1418]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1422]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62392,7 +62576,7 @@ func (x *TelegramStoriesTogglePinnedToTopResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramStoriesTogglePinnedToTopResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesTogglePinnedToTopResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1418}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1422}
 }
 
 func (x *TelegramStoriesTogglePinnedToTopResponse) GetResult_1() bool {
@@ -62411,7 +62595,7 @@ type TelegramStoriesUpdateAlbumRequest struct {
 
 func (x *TelegramStoriesUpdateAlbumRequest) Reset() {
 	*x = TelegramStoriesUpdateAlbumRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1419]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1423]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62423,7 +62607,7 @@ func (x *TelegramStoriesUpdateAlbumRequest) String() string {
 func (*TelegramStoriesUpdateAlbumRequest) ProtoMessage() {}
 
 func (x *TelegramStoriesUpdateAlbumRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1419]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1423]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62436,7 +62620,7 @@ func (x *TelegramStoriesUpdateAlbumRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramStoriesUpdateAlbumRequest.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesUpdateAlbumRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1419}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1423}
 }
 
 func (x *TelegramStoriesUpdateAlbumRequest) GetRequest() []byte {
@@ -62455,7 +62639,7 @@ type TelegramStoriesUpdateAlbumResponse struct {
 
 func (x *TelegramStoriesUpdateAlbumResponse) Reset() {
 	*x = TelegramStoriesUpdateAlbumResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1420]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1424]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62467,7 +62651,7 @@ func (x *TelegramStoriesUpdateAlbumResponse) String() string {
 func (*TelegramStoriesUpdateAlbumResponse) ProtoMessage() {}
 
 func (x *TelegramStoriesUpdateAlbumResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1420]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1424]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62480,7 +62664,7 @@ func (x *TelegramStoriesUpdateAlbumResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramStoriesUpdateAlbumResponse.ProtoReflect.Descriptor instead.
 func (*TelegramStoriesUpdateAlbumResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1420}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1424}
 }
 
 func (x *TelegramStoriesUpdateAlbumResponse) GetResult_1() []byte {
@@ -62488,6 +62672,166 @@ func (x *TelegramStoriesUpdateAlbumResponse) GetResult_1() []byte {
 		return x.Result_1
 	}
 	return nil
+}
+
+type TelegramSubmit2FARequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Password      string                 `protobuf:"bytes,1,opt,name=password,proto3" json:"password,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramSubmit2FARequest) Reset() {
+	*x = TelegramSubmit2FARequest{}
+	mi := &file_proto_cores_telegram_proto_msgTypes[1425]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramSubmit2FARequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramSubmit2FARequest) ProtoMessage() {}
+
+func (x *TelegramSubmit2FARequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_telegram_proto_msgTypes[1425]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramSubmit2FARequest.ProtoReflect.Descriptor instead.
+func (*TelegramSubmit2FARequest) Descriptor() ([]byte, []int) {
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1425}
+}
+
+func (x *TelegramSubmit2FARequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+type TelegramSubmit2FAResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramSubmit2FAResponse) Reset() {
+	*x = TelegramSubmit2FAResponse{}
+	mi := &file_proto_cores_telegram_proto_msgTypes[1426]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramSubmit2FAResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramSubmit2FAResponse) ProtoMessage() {}
+
+func (x *TelegramSubmit2FAResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_telegram_proto_msgTypes[1426]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramSubmit2FAResponse.ProtoReflect.Descriptor instead.
+func (*TelegramSubmit2FAResponse) Descriptor() ([]byte, []int) {
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1426}
+}
+
+type TelegramSubmitOTPRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramSubmitOTPRequest) Reset() {
+	*x = TelegramSubmitOTPRequest{}
+	mi := &file_proto_cores_telegram_proto_msgTypes[1427]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramSubmitOTPRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramSubmitOTPRequest) ProtoMessage() {}
+
+func (x *TelegramSubmitOTPRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_telegram_proto_msgTypes[1427]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramSubmitOTPRequest.ProtoReflect.Descriptor instead.
+func (*TelegramSubmitOTPRequest) Descriptor() ([]byte, []int) {
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1427}
+}
+
+func (x *TelegramSubmitOTPRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+type TelegramSubmitOTPResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TelegramSubmitOTPResponse) Reset() {
+	*x = TelegramSubmitOTPResponse{}
+	mi := &file_proto_cores_telegram_proto_msgTypes[1428]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TelegramSubmitOTPResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TelegramSubmitOTPResponse) ProtoMessage() {}
+
+func (x *TelegramSubmitOTPResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_cores_telegram_proto_msgTypes[1428]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TelegramSubmitOTPResponse.ProtoReflect.Descriptor instead.
+func (*TelegramSubmitOTPResponse) Descriptor() ([]byte, []int) {
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1428}
 }
 
 type TelegramTerminateSessionRequest struct {
@@ -62499,7 +62843,7 @@ type TelegramTerminateSessionRequest struct {
 
 func (x *TelegramTerminateSessionRequest) Reset() {
 	*x = TelegramTerminateSessionRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1421]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1429]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62511,7 +62855,7 @@ func (x *TelegramTerminateSessionRequest) String() string {
 func (*TelegramTerminateSessionRequest) ProtoMessage() {}
 
 func (x *TelegramTerminateSessionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1421]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1429]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62524,7 +62868,7 @@ func (x *TelegramTerminateSessionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTerminateSessionRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTerminateSessionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1421}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1429}
 }
 
 func (x *TelegramTerminateSessionRequest) GetSessionId() string {
@@ -62542,7 +62886,7 @@ type TelegramTerminateSessionResponse struct {
 
 func (x *TelegramTerminateSessionResponse) Reset() {
 	*x = TelegramTerminateSessionResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1422]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1430]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62554,7 +62898,7 @@ func (x *TelegramTerminateSessionResponse) String() string {
 func (*TelegramTerminateSessionResponse) ProtoMessage() {}
 
 func (x *TelegramTerminateSessionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1422]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1430]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62567,7 +62911,7 @@ func (x *TelegramTerminateSessionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTerminateSessionResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTerminateSessionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1422}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1430}
 }
 
 type TelegramTestAcceptCallRawRequest struct {
@@ -62579,7 +62923,7 @@ type TelegramTestAcceptCallRawRequest struct {
 
 func (x *TelegramTestAcceptCallRawRequest) Reset() {
 	*x = TelegramTestAcceptCallRawRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1423]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1431]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62591,7 +62935,7 @@ func (x *TelegramTestAcceptCallRawRequest) String() string {
 func (*TelegramTestAcceptCallRawRequest) ProtoMessage() {}
 
 func (x *TelegramTestAcceptCallRawRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1423]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1431]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62604,7 +62948,7 @@ func (x *TelegramTestAcceptCallRawRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTestAcceptCallRawRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestAcceptCallRawRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1423}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1431}
 }
 
 func (x *TelegramTestAcceptCallRawRequest) GetCallIdStr() string {
@@ -62622,7 +62966,7 @@ type TelegramTestAcceptCallRawResponse struct {
 
 func (x *TelegramTestAcceptCallRawResponse) Reset() {
 	*x = TelegramTestAcceptCallRawResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1424]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1432]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62634,7 +62978,7 @@ func (x *TelegramTestAcceptCallRawResponse) String() string {
 func (*TelegramTestAcceptCallRawResponse) ProtoMessage() {}
 
 func (x *TelegramTestAcceptCallRawResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1424]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1432]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62647,7 +62991,7 @@ func (x *TelegramTestAcceptCallRawResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramTestAcceptCallRawResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestAcceptCallRawResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1424}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1432}
 }
 
 type TelegramTestGetCallAudioSSRCRequest struct {
@@ -62659,7 +63003,7 @@ type TelegramTestGetCallAudioSSRCRequest struct {
 
 func (x *TelegramTestGetCallAudioSSRCRequest) Reset() {
 	*x = TelegramTestGetCallAudioSSRCRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1425]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1433]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62671,7 +63015,7 @@ func (x *TelegramTestGetCallAudioSSRCRequest) String() string {
 func (*TelegramTestGetCallAudioSSRCRequest) ProtoMessage() {}
 
 func (x *TelegramTestGetCallAudioSSRCRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1425]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1433]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62684,7 +63028,7 @@ func (x *TelegramTestGetCallAudioSSRCRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramTestGetCallAudioSSRCRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetCallAudioSSRCRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1425}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1433}
 }
 
 func (x *TelegramTestGetCallAudioSSRCRequest) GetCallId() string {
@@ -62703,7 +63047,7 @@ type TelegramTestGetCallAudioSSRCResponse struct {
 
 func (x *TelegramTestGetCallAudioSSRCResponse) Reset() {
 	*x = TelegramTestGetCallAudioSSRCResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1426]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1434]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62715,7 +63059,7 @@ func (x *TelegramTestGetCallAudioSSRCResponse) String() string {
 func (*TelegramTestGetCallAudioSSRCResponse) ProtoMessage() {}
 
 func (x *TelegramTestGetCallAudioSSRCResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1426]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1434]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62728,7 +63072,7 @@ func (x *TelegramTestGetCallAudioSSRCResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramTestGetCallAudioSSRCResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetCallAudioSSRCResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1426}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1434}
 }
 
 func (x *TelegramTestGetCallAudioSSRCResponse) GetResult_1() uint32 {
@@ -62747,7 +63091,7 @@ type TelegramTestGetCallInfoRequest struct {
 
 func (x *TelegramTestGetCallInfoRequest) Reset() {
 	*x = TelegramTestGetCallInfoRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1427]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1435]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62759,7 +63103,7 @@ func (x *TelegramTestGetCallInfoRequest) String() string {
 func (*TelegramTestGetCallInfoRequest) ProtoMessage() {}
 
 func (x *TelegramTestGetCallInfoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1427]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1435]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62772,7 +63116,7 @@ func (x *TelegramTestGetCallInfoRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTestGetCallInfoRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetCallInfoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1427}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1435}
 }
 
 func (x *TelegramTestGetCallInfoRequest) GetCallIdStr() string {
@@ -62791,7 +63135,7 @@ type TelegramTestGetCallInfoResponse struct {
 
 func (x *TelegramTestGetCallInfoResponse) Reset() {
 	*x = TelegramTestGetCallInfoResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1428]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1436]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62803,7 +63147,7 @@ func (x *TelegramTestGetCallInfoResponse) String() string {
 func (*TelegramTestGetCallInfoResponse) ProtoMessage() {}
 
 func (x *TelegramTestGetCallInfoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1428]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1436]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62816,7 +63160,7 @@ func (x *TelegramTestGetCallInfoResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTestGetCallInfoResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetCallInfoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1428}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1436}
 }
 
 func (x *TelegramTestGetCallInfoResponse) GetResult_1() *CallInfo {
@@ -62835,7 +63179,7 @@ type TelegramTestGetCallPCStateRequest struct {
 
 func (x *TelegramTestGetCallPCStateRequest) Reset() {
 	*x = TelegramTestGetCallPCStateRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1429]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1437]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62847,7 +63191,7 @@ func (x *TelegramTestGetCallPCStateRequest) String() string {
 func (*TelegramTestGetCallPCStateRequest) ProtoMessage() {}
 
 func (x *TelegramTestGetCallPCStateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1429]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1437]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62860,7 +63204,7 @@ func (x *TelegramTestGetCallPCStateRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramTestGetCallPCStateRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetCallPCStateRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1429}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1437}
 }
 
 func (x *TelegramTestGetCallPCStateRequest) GetCallId() string {
@@ -62879,7 +63223,7 @@ type TelegramTestGetCallPCStateResponse struct {
 
 func (x *TelegramTestGetCallPCStateResponse) Reset() {
 	*x = TelegramTestGetCallPCStateResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1430]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1438]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62891,7 +63235,7 @@ func (x *TelegramTestGetCallPCStateResponse) String() string {
 func (*TelegramTestGetCallPCStateResponse) ProtoMessage() {}
 
 func (x *TelegramTestGetCallPCStateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1430]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1438]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62904,7 +63248,7 @@ func (x *TelegramTestGetCallPCStateResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramTestGetCallPCStateResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetCallPCStateResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1430}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1438}
 }
 
 func (x *TelegramTestGetCallPCStateResponse) GetResult_1() string {
@@ -62923,7 +63267,7 @@ type TelegramTestGetCallStatsRequest struct {
 
 func (x *TelegramTestGetCallStatsRequest) Reset() {
 	*x = TelegramTestGetCallStatsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1431]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1439]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62935,7 +63279,7 @@ func (x *TelegramTestGetCallStatsRequest) String() string {
 func (*TelegramTestGetCallStatsRequest) ProtoMessage() {}
 
 func (x *TelegramTestGetCallStatsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1431]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1439]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62948,7 +63292,7 @@ func (x *TelegramTestGetCallStatsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTestGetCallStatsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetCallStatsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1431}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1439}
 }
 
 func (x *TelegramTestGetCallStatsRequest) GetCallId() string {
@@ -62967,7 +63311,7 @@ type TelegramTestGetCallStatsResponse struct {
 
 func (x *TelegramTestGetCallStatsResponse) Reset() {
 	*x = TelegramTestGetCallStatsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1432]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1440]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -62979,7 +63323,7 @@ func (x *TelegramTestGetCallStatsResponse) String() string {
 func (*TelegramTestGetCallStatsResponse) ProtoMessage() {}
 
 func (x *TelegramTestGetCallStatsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1432]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1440]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62992,7 +63336,7 @@ func (x *TelegramTestGetCallStatsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTestGetCallStatsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetCallStatsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1432}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1440}
 }
 
 func (x *TelegramTestGetCallStatsResponse) GetResult_1() string {
@@ -63011,7 +63355,7 @@ type TelegramTestGetGroupCallAccessHashRequest struct {
 
 func (x *TelegramTestGetGroupCallAccessHashRequest) Reset() {
 	*x = TelegramTestGetGroupCallAccessHashRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1433]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1441]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63023,7 +63367,7 @@ func (x *TelegramTestGetGroupCallAccessHashRequest) String() string {
 func (*TelegramTestGetGroupCallAccessHashRequest) ProtoMessage() {}
 
 func (x *TelegramTestGetGroupCallAccessHashRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1433]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1441]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63036,7 +63380,7 @@ func (x *TelegramTestGetGroupCallAccessHashRequest) ProtoReflect() protoreflect.
 
 // Deprecated: Use TelegramTestGetGroupCallAccessHashRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetGroupCallAccessHashRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1433}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1441}
 }
 
 func (x *TelegramTestGetGroupCallAccessHashRequest) GetGcId() int64 {
@@ -63055,7 +63399,7 @@ type TelegramTestGetGroupCallAccessHashResponse struct {
 
 func (x *TelegramTestGetGroupCallAccessHashResponse) Reset() {
 	*x = TelegramTestGetGroupCallAccessHashResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1434]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1442]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63067,7 +63411,7 @@ func (x *TelegramTestGetGroupCallAccessHashResponse) String() string {
 func (*TelegramTestGetGroupCallAccessHashResponse) ProtoMessage() {}
 
 func (x *TelegramTestGetGroupCallAccessHashResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1434]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1442]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63080,7 +63424,7 @@ func (x *TelegramTestGetGroupCallAccessHashResponse) ProtoReflect() protoreflect
 
 // Deprecated: Use TelegramTestGetGroupCallAccessHashResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetGroupCallAccessHashResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1434}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1442}
 }
 
 func (x *TelegramTestGetGroupCallAccessHashResponse) GetResult_1() int64 {
@@ -63099,7 +63443,7 @@ type TelegramTestGetSenderSSRCsRequest struct {
 
 func (x *TelegramTestGetSenderSSRCsRequest) Reset() {
 	*x = TelegramTestGetSenderSSRCsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1435]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1443]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63111,7 +63455,7 @@ func (x *TelegramTestGetSenderSSRCsRequest) String() string {
 func (*TelegramTestGetSenderSSRCsRequest) ProtoMessage() {}
 
 func (x *TelegramTestGetSenderSSRCsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1435]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1443]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63124,7 +63468,7 @@ func (x *TelegramTestGetSenderSSRCsRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramTestGetSenderSSRCsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetSenderSSRCsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1435}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1443}
 }
 
 func (x *TelegramTestGetSenderSSRCsRequest) GetCallId() string {
@@ -63143,7 +63487,7 @@ type TelegramTestGetSenderSSRCsResponse struct {
 
 func (x *TelegramTestGetSenderSSRCsResponse) Reset() {
 	*x = TelegramTestGetSenderSSRCsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1436]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1444]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63155,7 +63499,7 @@ func (x *TelegramTestGetSenderSSRCsResponse) String() string {
 func (*TelegramTestGetSenderSSRCsResponse) ProtoMessage() {}
 
 func (x *TelegramTestGetSenderSSRCsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1436]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1444]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63168,7 +63512,7 @@ func (x *TelegramTestGetSenderSSRCsResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramTestGetSenderSSRCsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestGetSenderSSRCsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1436}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1444}
 }
 
 func (x *TelegramTestGetSenderSSRCsResponse) GetResult_1() string {
@@ -63188,7 +63532,7 @@ type TelegramTestHandleSignalingDataRequest struct {
 
 func (x *TelegramTestHandleSignalingDataRequest) Reset() {
 	*x = TelegramTestHandleSignalingDataRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1437]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1445]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63200,7 +63544,7 @@ func (x *TelegramTestHandleSignalingDataRequest) String() string {
 func (*TelegramTestHandleSignalingDataRequest) ProtoMessage() {}
 
 func (x *TelegramTestHandleSignalingDataRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1437]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1445]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63213,7 +63557,7 @@ func (x *TelegramTestHandleSignalingDataRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramTestHandleSignalingDataRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestHandleSignalingDataRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1437}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1445}
 }
 
 func (x *TelegramTestHandleSignalingDataRequest) GetCallId() int64 {
@@ -63238,7 +63582,7 @@ type TelegramTestHandleSignalingDataResponse struct {
 
 func (x *TelegramTestHandleSignalingDataResponse) Reset() {
 	*x = TelegramTestHandleSignalingDataResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1438]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1446]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63250,7 +63594,7 @@ func (x *TelegramTestHandleSignalingDataResponse) String() string {
 func (*TelegramTestHandleSignalingDataResponse) ProtoMessage() {}
 
 func (x *TelegramTestHandleSignalingDataResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1438]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1446]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63263,7 +63607,7 @@ func (x *TelegramTestHandleSignalingDataResponse) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramTestHandleSignalingDataResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestHandleSignalingDataResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1438}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1446}
 }
 
 type TelegramTestSendRawSignalingRequest struct {
@@ -63277,7 +63621,7 @@ type TelegramTestSendRawSignalingRequest struct {
 
 func (x *TelegramTestSendRawSignalingRequest) Reset() {
 	*x = TelegramTestSendRawSignalingRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1439]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1447]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63289,7 +63633,7 @@ func (x *TelegramTestSendRawSignalingRequest) String() string {
 func (*TelegramTestSendRawSignalingRequest) ProtoMessage() {}
 
 func (x *TelegramTestSendRawSignalingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1439]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1447]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63302,7 +63646,7 @@ func (x *TelegramTestSendRawSignalingRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramTestSendRawSignalingRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestSendRawSignalingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1439}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1447}
 }
 
 func (x *TelegramTestSendRawSignalingRequest) GetCallId() int64 {
@@ -63334,7 +63678,7 @@ type TelegramTestSendRawSignalingResponse struct {
 
 func (x *TelegramTestSendRawSignalingResponse) Reset() {
 	*x = TelegramTestSendRawSignalingResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1440]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1448]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63346,7 +63690,7 @@ func (x *TelegramTestSendRawSignalingResponse) String() string {
 func (*TelegramTestSendRawSignalingResponse) ProtoMessage() {}
 
 func (x *TelegramTestSendRawSignalingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1440]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1448]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63359,7 +63703,7 @@ func (x *TelegramTestSendRawSignalingResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramTestSendRawSignalingResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestSendRawSignalingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1440}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1448}
 }
 
 type TelegramTestStartCallRawRequest struct {
@@ -63372,7 +63716,7 @@ type TelegramTestStartCallRawRequest struct {
 
 func (x *TelegramTestStartCallRawRequest) Reset() {
 	*x = TelegramTestStartCallRawRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1441]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1449]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63384,7 +63728,7 @@ func (x *TelegramTestStartCallRawRequest) String() string {
 func (*TelegramTestStartCallRawRequest) ProtoMessage() {}
 
 func (x *TelegramTestStartCallRawRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1441]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1449]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63397,7 +63741,7 @@ func (x *TelegramTestStartCallRawRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTestStartCallRawRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTestStartCallRawRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1441}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1449}
 }
 
 func (x *TelegramTestStartCallRawRequest) GetChatId() string {
@@ -63423,7 +63767,7 @@ type TelegramTestStartCallRawResponse struct {
 
 func (x *TelegramTestStartCallRawResponse) Reset() {
 	*x = TelegramTestStartCallRawResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1442]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1450]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63435,7 +63779,7 @@ func (x *TelegramTestStartCallRawResponse) String() string {
 func (*TelegramTestStartCallRawResponse) ProtoMessage() {}
 
 func (x *TelegramTestStartCallRawResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1442]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1450]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63448,7 +63792,7 @@ func (x *TelegramTestStartCallRawResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTestStartCallRawResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTestStartCallRawResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1442}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1450}
 }
 
 func (x *TelegramTestStartCallRawResponse) GetResult_1() *proto.CallSession {
@@ -63468,7 +63812,7 @@ type TelegramToggleAntiSpamRequest struct {
 
 func (x *TelegramToggleAntiSpamRequest) Reset() {
 	*x = TelegramToggleAntiSpamRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1443]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1451]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63480,7 +63824,7 @@ func (x *TelegramToggleAntiSpamRequest) String() string {
 func (*TelegramToggleAntiSpamRequest) ProtoMessage() {}
 
 func (x *TelegramToggleAntiSpamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1443]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1451]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63493,7 +63837,7 @@ func (x *TelegramToggleAntiSpamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleAntiSpamRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleAntiSpamRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1443}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1451}
 }
 
 func (x *TelegramToggleAntiSpamRequest) GetChatId() string {
@@ -63518,7 +63862,7 @@ type TelegramToggleAntiSpamResponse struct {
 
 func (x *TelegramToggleAntiSpamResponse) Reset() {
 	*x = TelegramToggleAntiSpamResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1444]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1452]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63530,7 +63874,7 @@ func (x *TelegramToggleAntiSpamResponse) String() string {
 func (*TelegramToggleAntiSpamResponse) ProtoMessage() {}
 
 func (x *TelegramToggleAntiSpamResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1444]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1452]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63543,7 +63887,7 @@ func (x *TelegramToggleAntiSpamResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleAntiSpamResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleAntiSpamResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1444}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1452}
 }
 
 type TelegramToggleAutotranslationRequest struct {
@@ -63556,7 +63900,7 @@ type TelegramToggleAutotranslationRequest struct {
 
 func (x *TelegramToggleAutotranslationRequest) Reset() {
 	*x = TelegramToggleAutotranslationRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1445]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1453]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63568,7 +63912,7 @@ func (x *TelegramToggleAutotranslationRequest) String() string {
 func (*TelegramToggleAutotranslationRequest) ProtoMessage() {}
 
 func (x *TelegramToggleAutotranslationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1445]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1453]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63581,7 +63925,7 @@ func (x *TelegramToggleAutotranslationRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramToggleAutotranslationRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleAutotranslationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1445}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1453}
 }
 
 func (x *TelegramToggleAutotranslationRequest) GetChatId() string {
@@ -63606,7 +63950,7 @@ type TelegramToggleAutotranslationResponse struct {
 
 func (x *TelegramToggleAutotranslationResponse) Reset() {
 	*x = TelegramToggleAutotranslationResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1446]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1454]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63618,7 +63962,7 @@ func (x *TelegramToggleAutotranslationResponse) String() string {
 func (*TelegramToggleAutotranslationResponse) ProtoMessage() {}
 
 func (x *TelegramToggleAutotranslationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1446]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1454]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63631,7 +63975,7 @@ func (x *TelegramToggleAutotranslationResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramToggleAutotranslationResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleAutotranslationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1446}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1454}
 }
 
 type TelegramToggleForumRequest struct {
@@ -63644,7 +63988,7 @@ type TelegramToggleForumRequest struct {
 
 func (x *TelegramToggleForumRequest) Reset() {
 	*x = TelegramToggleForumRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1447]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1455]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63656,7 +64000,7 @@ func (x *TelegramToggleForumRequest) String() string {
 func (*TelegramToggleForumRequest) ProtoMessage() {}
 
 func (x *TelegramToggleForumRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1447]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1455]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63669,7 +64013,7 @@ func (x *TelegramToggleForumRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleForumRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleForumRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1447}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1455}
 }
 
 func (x *TelegramToggleForumRequest) GetChatId() string {
@@ -63694,7 +64038,7 @@ type TelegramToggleForumResponse struct {
 
 func (x *TelegramToggleForumResponse) Reset() {
 	*x = TelegramToggleForumResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1448]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1456]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63706,7 +64050,7 @@ func (x *TelegramToggleForumResponse) String() string {
 func (*TelegramToggleForumResponse) ProtoMessage() {}
 
 func (x *TelegramToggleForumResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1448]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1456]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63719,7 +64063,7 @@ func (x *TelegramToggleForumResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleForumResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleForumResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1448}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1456}
 }
 
 type TelegramToggleGroupCallVideoRequest struct {
@@ -63732,7 +64076,7 @@ type TelegramToggleGroupCallVideoRequest struct {
 
 func (x *TelegramToggleGroupCallVideoRequest) Reset() {
 	*x = TelegramToggleGroupCallVideoRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1449]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1457]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63744,7 +64088,7 @@ func (x *TelegramToggleGroupCallVideoRequest) String() string {
 func (*TelegramToggleGroupCallVideoRequest) ProtoMessage() {}
 
 func (x *TelegramToggleGroupCallVideoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1449]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1457]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63757,7 +64101,7 @@ func (x *TelegramToggleGroupCallVideoRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramToggleGroupCallVideoRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleGroupCallVideoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1449}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1457}
 }
 
 func (x *TelegramToggleGroupCallVideoRequest) GetCallId() string {
@@ -63782,7 +64126,7 @@ type TelegramToggleGroupCallVideoResponse struct {
 
 func (x *TelegramToggleGroupCallVideoResponse) Reset() {
 	*x = TelegramToggleGroupCallVideoResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1450]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1458]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63794,7 +64138,7 @@ func (x *TelegramToggleGroupCallVideoResponse) String() string {
 func (*TelegramToggleGroupCallVideoResponse) ProtoMessage() {}
 
 func (x *TelegramToggleGroupCallVideoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1450]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1458]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63807,7 +64151,7 @@ func (x *TelegramToggleGroupCallVideoResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramToggleGroupCallVideoResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleGroupCallVideoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1450}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1458}
 }
 
 type TelegramToggleJoinRequestRequest struct {
@@ -63820,7 +64164,7 @@ type TelegramToggleJoinRequestRequest struct {
 
 func (x *TelegramToggleJoinRequestRequest) Reset() {
 	*x = TelegramToggleJoinRequestRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1451]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1459]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63832,7 +64176,7 @@ func (x *TelegramToggleJoinRequestRequest) String() string {
 func (*TelegramToggleJoinRequestRequest) ProtoMessage() {}
 
 func (x *TelegramToggleJoinRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1451]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1459]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63845,7 +64189,7 @@ func (x *TelegramToggleJoinRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleJoinRequestRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleJoinRequestRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1451}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1459}
 }
 
 func (x *TelegramToggleJoinRequestRequest) GetChatId() string {
@@ -63870,7 +64214,7 @@ type TelegramToggleJoinRequestResponse struct {
 
 func (x *TelegramToggleJoinRequestResponse) Reset() {
 	*x = TelegramToggleJoinRequestResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1452]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1460]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63882,7 +64226,7 @@ func (x *TelegramToggleJoinRequestResponse) String() string {
 func (*TelegramToggleJoinRequestResponse) ProtoMessage() {}
 
 func (x *TelegramToggleJoinRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1452]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1460]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63895,7 +64239,7 @@ func (x *TelegramToggleJoinRequestResponse) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramToggleJoinRequestResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleJoinRequestResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1452}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1460}
 }
 
 type TelegramToggleJoinToSendRequest struct {
@@ -63908,7 +64252,7 @@ type TelegramToggleJoinToSendRequest struct {
 
 func (x *TelegramToggleJoinToSendRequest) Reset() {
 	*x = TelegramToggleJoinToSendRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1453]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1461]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63920,7 +64264,7 @@ func (x *TelegramToggleJoinToSendRequest) String() string {
 func (*TelegramToggleJoinToSendRequest) ProtoMessage() {}
 
 func (x *TelegramToggleJoinToSendRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1453]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1461]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63933,7 +64277,7 @@ func (x *TelegramToggleJoinToSendRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleJoinToSendRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleJoinToSendRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1453}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1461}
 }
 
 func (x *TelegramToggleJoinToSendRequest) GetChatId() string {
@@ -63958,7 +64302,7 @@ type TelegramToggleJoinToSendResponse struct {
 
 func (x *TelegramToggleJoinToSendResponse) Reset() {
 	*x = TelegramToggleJoinToSendResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1454]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1462]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -63970,7 +64314,7 @@ func (x *TelegramToggleJoinToSendResponse) String() string {
 func (*TelegramToggleJoinToSendResponse) ProtoMessage() {}
 
 func (x *TelegramToggleJoinToSendResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1454]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1462]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63983,7 +64327,7 @@ func (x *TelegramToggleJoinToSendResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleJoinToSendResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleJoinToSendResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1454}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1462}
 }
 
 type TelegramToggleNoForwardsRequest struct {
@@ -63996,7 +64340,7 @@ type TelegramToggleNoForwardsRequest struct {
 
 func (x *TelegramToggleNoForwardsRequest) Reset() {
 	*x = TelegramToggleNoForwardsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1455]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1463]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64008,7 +64352,7 @@ func (x *TelegramToggleNoForwardsRequest) String() string {
 func (*TelegramToggleNoForwardsRequest) ProtoMessage() {}
 
 func (x *TelegramToggleNoForwardsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1455]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1463]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64021,7 +64365,7 @@ func (x *TelegramToggleNoForwardsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleNoForwardsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleNoForwardsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1455}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1463}
 }
 
 func (x *TelegramToggleNoForwardsRequest) GetChatId() string {
@@ -64046,7 +64390,7 @@ type TelegramToggleNoForwardsResponse struct {
 
 func (x *TelegramToggleNoForwardsResponse) Reset() {
 	*x = TelegramToggleNoForwardsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1456]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1464]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64058,7 +64402,7 @@ func (x *TelegramToggleNoForwardsResponse) String() string {
 func (*TelegramToggleNoForwardsResponse) ProtoMessage() {}
 
 func (x *TelegramToggleNoForwardsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1456]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1464]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64071,7 +64415,7 @@ func (x *TelegramToggleNoForwardsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleNoForwardsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleNoForwardsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1456}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1464}
 }
 
 type TelegramToggleParticipantsHiddenRequest struct {
@@ -64084,7 +64428,7 @@ type TelegramToggleParticipantsHiddenRequest struct {
 
 func (x *TelegramToggleParticipantsHiddenRequest) Reset() {
 	*x = TelegramToggleParticipantsHiddenRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1457]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1465]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64096,7 +64440,7 @@ func (x *TelegramToggleParticipantsHiddenRequest) String() string {
 func (*TelegramToggleParticipantsHiddenRequest) ProtoMessage() {}
 
 func (x *TelegramToggleParticipantsHiddenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1457]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1465]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64109,7 +64453,7 @@ func (x *TelegramToggleParticipantsHiddenRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use TelegramToggleParticipantsHiddenRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleParticipantsHiddenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1457}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1465}
 }
 
 func (x *TelegramToggleParticipantsHiddenRequest) GetChatId() string {
@@ -64134,7 +64478,7 @@ type TelegramToggleParticipantsHiddenResponse struct {
 
 func (x *TelegramToggleParticipantsHiddenResponse) Reset() {
 	*x = TelegramToggleParticipantsHiddenResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1458]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1466]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64146,7 +64490,7 @@ func (x *TelegramToggleParticipantsHiddenResponse) String() string {
 func (*TelegramToggleParticipantsHiddenResponse) ProtoMessage() {}
 
 func (x *TelegramToggleParticipantsHiddenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1458]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1466]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64159,7 +64503,7 @@ func (x *TelegramToggleParticipantsHiddenResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramToggleParticipantsHiddenResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleParticipantsHiddenResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1458}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1466}
 }
 
 type TelegramTogglePreHistoryHiddenRequest struct {
@@ -64172,7 +64516,7 @@ type TelegramTogglePreHistoryHiddenRequest struct {
 
 func (x *TelegramTogglePreHistoryHiddenRequest) Reset() {
 	*x = TelegramTogglePreHistoryHiddenRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1459]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1467]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64184,7 +64528,7 @@ func (x *TelegramTogglePreHistoryHiddenRequest) String() string {
 func (*TelegramTogglePreHistoryHiddenRequest) ProtoMessage() {}
 
 func (x *TelegramTogglePreHistoryHiddenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1459]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1467]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64197,7 +64541,7 @@ func (x *TelegramTogglePreHistoryHiddenRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramTogglePreHistoryHiddenRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTogglePreHistoryHiddenRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1459}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1467}
 }
 
 func (x *TelegramTogglePreHistoryHiddenRequest) GetChatId() string {
@@ -64222,7 +64566,7 @@ type TelegramTogglePreHistoryHiddenResponse struct {
 
 func (x *TelegramTogglePreHistoryHiddenResponse) Reset() {
 	*x = TelegramTogglePreHistoryHiddenResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1460]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1468]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64234,7 +64578,7 @@ func (x *TelegramTogglePreHistoryHiddenResponse) String() string {
 func (*TelegramTogglePreHistoryHiddenResponse) ProtoMessage() {}
 
 func (x *TelegramTogglePreHistoryHiddenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1460]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1468]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64247,7 +64591,7 @@ func (x *TelegramTogglePreHistoryHiddenResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramTogglePreHistoryHiddenResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTogglePreHistoryHiddenResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1460}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1468}
 }
 
 type TelegramToggleSignaturesRequest struct {
@@ -64260,7 +64604,7 @@ type TelegramToggleSignaturesRequest struct {
 
 func (x *TelegramToggleSignaturesRequest) Reset() {
 	*x = TelegramToggleSignaturesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1461]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1469]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64272,7 +64616,7 @@ func (x *TelegramToggleSignaturesRequest) String() string {
 func (*TelegramToggleSignaturesRequest) ProtoMessage() {}
 
 func (x *TelegramToggleSignaturesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1461]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1469]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64285,7 +64629,7 @@ func (x *TelegramToggleSignaturesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleSignaturesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleSignaturesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1461}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1469}
 }
 
 func (x *TelegramToggleSignaturesRequest) GetChatId() string {
@@ -64310,7 +64654,7 @@ type TelegramToggleSignaturesResponse struct {
 
 func (x *TelegramToggleSignaturesResponse) Reset() {
 	*x = TelegramToggleSignaturesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1462]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1470]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64322,7 +64666,7 @@ func (x *TelegramToggleSignaturesResponse) String() string {
 func (*TelegramToggleSignaturesResponse) ProtoMessage() {}
 
 func (x *TelegramToggleSignaturesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1462]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1470]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64335,7 +64679,7 @@ func (x *TelegramToggleSignaturesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramToggleSignaturesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleSignaturesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1462}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1470}
 }
 
 type TelegramToggleViewForumAsMessagesRequest struct {
@@ -64348,7 +64692,7 @@ type TelegramToggleViewForumAsMessagesRequest struct {
 
 func (x *TelegramToggleViewForumAsMessagesRequest) Reset() {
 	*x = TelegramToggleViewForumAsMessagesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1463]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1471]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64360,7 +64704,7 @@ func (x *TelegramToggleViewForumAsMessagesRequest) String() string {
 func (*TelegramToggleViewForumAsMessagesRequest) ProtoMessage() {}
 
 func (x *TelegramToggleViewForumAsMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1463]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1471]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64373,7 +64717,7 @@ func (x *TelegramToggleViewForumAsMessagesRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramToggleViewForumAsMessagesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramToggleViewForumAsMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1463}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1471}
 }
 
 func (x *TelegramToggleViewForumAsMessagesRequest) GetChatId() string {
@@ -64398,7 +64742,7 @@ type TelegramToggleViewForumAsMessagesResponse struct {
 
 func (x *TelegramToggleViewForumAsMessagesResponse) Reset() {
 	*x = TelegramToggleViewForumAsMessagesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1464]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1472]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64410,7 +64754,7 @@ func (x *TelegramToggleViewForumAsMessagesResponse) String() string {
 func (*TelegramToggleViewForumAsMessagesResponse) ProtoMessage() {}
 
 func (x *TelegramToggleViewForumAsMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1464]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1472]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64423,7 +64767,7 @@ func (x *TelegramToggleViewForumAsMessagesResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use TelegramToggleViewForumAsMessagesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramToggleViewForumAsMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1464}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1472}
 }
 
 type TelegramTranslateTextRequest struct {
@@ -64437,7 +64781,7 @@ type TelegramTranslateTextRequest struct {
 
 func (x *TelegramTranslateTextRequest) Reset() {
 	*x = TelegramTranslateTextRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1465]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1473]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64449,7 +64793,7 @@ func (x *TelegramTranslateTextRequest) String() string {
 func (*TelegramTranslateTextRequest) ProtoMessage() {}
 
 func (x *TelegramTranslateTextRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1465]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1473]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64462,7 +64806,7 @@ func (x *TelegramTranslateTextRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTranslateTextRequest.ProtoReflect.Descriptor instead.
 func (*TelegramTranslateTextRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1465}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1473}
 }
 
 func (x *TelegramTranslateTextRequest) GetChatId() string {
@@ -64495,7 +64839,7 @@ type TelegramTranslateTextResponse struct {
 
 func (x *TelegramTranslateTextResponse) Reset() {
 	*x = TelegramTranslateTextResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1466]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1474]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64507,7 +64851,7 @@ func (x *TelegramTranslateTextResponse) String() string {
 func (*TelegramTranslateTextResponse) ProtoMessage() {}
 
 func (x *TelegramTranslateTextResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1466]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1474]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64520,7 +64864,7 @@ func (x *TelegramTranslateTextResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramTranslateTextResponse.ProtoReflect.Descriptor instead.
 func (*TelegramTranslateTextResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1466}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1474}
 }
 
 func (x *TelegramTranslateTextResponse) GetResult_1() string {
@@ -64540,7 +64884,7 @@ type TelegramUnbanMemberRequest struct {
 
 func (x *TelegramUnbanMemberRequest) Reset() {
 	*x = TelegramUnbanMemberRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1467]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1475]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64552,7 +64896,7 @@ func (x *TelegramUnbanMemberRequest) String() string {
 func (*TelegramUnbanMemberRequest) ProtoMessage() {}
 
 func (x *TelegramUnbanMemberRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1467]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1475]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64565,7 +64909,7 @@ func (x *TelegramUnbanMemberRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnbanMemberRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUnbanMemberRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1467}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1475}
 }
 
 func (x *TelegramUnbanMemberRequest) GetChatId() string {
@@ -64590,7 +64934,7 @@ type TelegramUnbanMemberResponse struct {
 
 func (x *TelegramUnbanMemberResponse) Reset() {
 	*x = TelegramUnbanMemberResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1468]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1476]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64602,7 +64946,7 @@ func (x *TelegramUnbanMemberResponse) String() string {
 func (*TelegramUnbanMemberResponse) ProtoMessage() {}
 
 func (x *TelegramUnbanMemberResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1468]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1476]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64615,7 +64959,7 @@ func (x *TelegramUnbanMemberResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnbanMemberResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUnbanMemberResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1468}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1476}
 }
 
 type TelegramUnblockUserRequest struct {
@@ -64627,7 +64971,7 @@ type TelegramUnblockUserRequest struct {
 
 func (x *TelegramUnblockUserRequest) Reset() {
 	*x = TelegramUnblockUserRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1469]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1477]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64639,7 +64983,7 @@ func (x *TelegramUnblockUserRequest) String() string {
 func (*TelegramUnblockUserRequest) ProtoMessage() {}
 
 func (x *TelegramUnblockUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1469]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1477]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64652,7 +64996,7 @@ func (x *TelegramUnblockUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnblockUserRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUnblockUserRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1469}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1477}
 }
 
 func (x *TelegramUnblockUserRequest) GetUserId() string {
@@ -64670,7 +65014,7 @@ type TelegramUnblockUserResponse struct {
 
 func (x *TelegramUnblockUserResponse) Reset() {
 	*x = TelegramUnblockUserResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1470]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1478]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64682,7 +65026,7 @@ func (x *TelegramUnblockUserResponse) String() string {
 func (*TelegramUnblockUserResponse) ProtoMessage() {}
 
 func (x *TelegramUnblockUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1470]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1478]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64695,7 +65039,7 @@ func (x *TelegramUnblockUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnblockUserResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUnblockUserResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1470}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1478}
 }
 
 type TelegramUnpinAllMessagesRequest struct {
@@ -64707,7 +65051,7 @@ type TelegramUnpinAllMessagesRequest struct {
 
 func (x *TelegramUnpinAllMessagesRequest) Reset() {
 	*x = TelegramUnpinAllMessagesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1471]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1479]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64719,7 +65063,7 @@ func (x *TelegramUnpinAllMessagesRequest) String() string {
 func (*TelegramUnpinAllMessagesRequest) ProtoMessage() {}
 
 func (x *TelegramUnpinAllMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1471]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1479]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64732,7 +65076,7 @@ func (x *TelegramUnpinAllMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnpinAllMessagesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUnpinAllMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1471}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1479}
 }
 
 func (x *TelegramUnpinAllMessagesRequest) GetChatId() string {
@@ -64750,7 +65094,7 @@ type TelegramUnpinAllMessagesResponse struct {
 
 func (x *TelegramUnpinAllMessagesResponse) Reset() {
 	*x = TelegramUnpinAllMessagesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1472]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1480]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64762,7 +65106,7 @@ func (x *TelegramUnpinAllMessagesResponse) String() string {
 func (*TelegramUnpinAllMessagesResponse) ProtoMessage() {}
 
 func (x *TelegramUnpinAllMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1472]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1480]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64775,7 +65119,7 @@ func (x *TelegramUnpinAllMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnpinAllMessagesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUnpinAllMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1472}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1480}
 }
 
 type TelegramUnpinDialogRequest struct {
@@ -64787,7 +65131,7 @@ type TelegramUnpinDialogRequest struct {
 
 func (x *TelegramUnpinDialogRequest) Reset() {
 	*x = TelegramUnpinDialogRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1473]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1481]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64799,7 +65143,7 @@ func (x *TelegramUnpinDialogRequest) String() string {
 func (*TelegramUnpinDialogRequest) ProtoMessage() {}
 
 func (x *TelegramUnpinDialogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1473]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1481]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64812,7 +65156,7 @@ func (x *TelegramUnpinDialogRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnpinDialogRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUnpinDialogRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1473}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1481}
 }
 
 func (x *TelegramUnpinDialogRequest) GetChatId() string {
@@ -64830,7 +65174,7 @@ type TelegramUnpinDialogResponse struct {
 
 func (x *TelegramUnpinDialogResponse) Reset() {
 	*x = TelegramUnpinDialogResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1474]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1482]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64842,7 +65186,7 @@ func (x *TelegramUnpinDialogResponse) String() string {
 func (*TelegramUnpinDialogResponse) ProtoMessage() {}
 
 func (x *TelegramUnpinDialogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1474]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1482]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64855,7 +65199,7 @@ func (x *TelegramUnpinDialogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnpinDialogResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUnpinDialogResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1474}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1482}
 }
 
 type TelegramUnpinMessageRequest struct {
@@ -64868,7 +65212,7 @@ type TelegramUnpinMessageRequest struct {
 
 func (x *TelegramUnpinMessageRequest) Reset() {
 	*x = TelegramUnpinMessageRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1475]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1483]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64880,7 +65224,7 @@ func (x *TelegramUnpinMessageRequest) String() string {
 func (*TelegramUnpinMessageRequest) ProtoMessage() {}
 
 func (x *TelegramUnpinMessageRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1475]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1483]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64893,7 +65237,7 @@ func (x *TelegramUnpinMessageRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnpinMessageRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUnpinMessageRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1475}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1483}
 }
 
 func (x *TelegramUnpinMessageRequest) GetChatId() string {
@@ -64918,7 +65262,7 @@ type TelegramUnpinMessageResponse struct {
 
 func (x *TelegramUnpinMessageResponse) Reset() {
 	*x = TelegramUnpinMessageResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1476]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1484]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64930,7 +65274,7 @@ func (x *TelegramUnpinMessageResponse) String() string {
 func (*TelegramUnpinMessageResponse) ProtoMessage() {}
 
 func (x *TelegramUnpinMessageResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1476]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1484]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64943,7 +65287,7 @@ func (x *TelegramUnpinMessageResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUnpinMessageResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUnpinMessageResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1476}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1484}
 }
 
 type TelegramUpdateBirthdayRequest struct {
@@ -64957,7 +65301,7 @@ type TelegramUpdateBirthdayRequest struct {
 
 func (x *TelegramUpdateBirthdayRequest) Reset() {
 	*x = TelegramUpdateBirthdayRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1477]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1485]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64969,7 +65313,7 @@ func (x *TelegramUpdateBirthdayRequest) String() string {
 func (*TelegramUpdateBirthdayRequest) ProtoMessage() {}
 
 func (x *TelegramUpdateBirthdayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1477]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1485]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -64982,7 +65326,7 @@ func (x *TelegramUpdateBirthdayRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUpdateBirthdayRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateBirthdayRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1477}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1485}
 }
 
 func (x *TelegramUpdateBirthdayRequest) GetDay() int64 {
@@ -65014,7 +65358,7 @@ type TelegramUpdateBirthdayResponse struct {
 
 func (x *TelegramUpdateBirthdayResponse) Reset() {
 	*x = TelegramUpdateBirthdayResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1478]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1486]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65026,7 +65370,7 @@ func (x *TelegramUpdateBirthdayResponse) String() string {
 func (*TelegramUpdateBirthdayResponse) ProtoMessage() {}
 
 func (x *TelegramUpdateBirthdayResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1478]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1486]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65039,7 +65383,7 @@ func (x *TelegramUpdateBirthdayResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUpdateBirthdayResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateBirthdayResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1478}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1486}
 }
 
 type TelegramUpdateChannelColorRequest struct {
@@ -65052,7 +65396,7 @@ type TelegramUpdateChannelColorRequest struct {
 
 func (x *TelegramUpdateChannelColorRequest) Reset() {
 	*x = TelegramUpdateChannelColorRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1479]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1487]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65064,7 +65408,7 @@ func (x *TelegramUpdateChannelColorRequest) String() string {
 func (*TelegramUpdateChannelColorRequest) ProtoMessage() {}
 
 func (x *TelegramUpdateChannelColorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1479]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1487]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65077,7 +65421,7 @@ func (x *TelegramUpdateChannelColorRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramUpdateChannelColorRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateChannelColorRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1479}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1487}
 }
 
 func (x *TelegramUpdateChannelColorRequest) GetChatId() string {
@@ -65102,7 +65446,7 @@ type TelegramUpdateChannelColorResponse struct {
 
 func (x *TelegramUpdateChannelColorResponse) Reset() {
 	*x = TelegramUpdateChannelColorResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1480]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1488]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65114,7 +65458,7 @@ func (x *TelegramUpdateChannelColorResponse) String() string {
 func (*TelegramUpdateChannelColorResponse) ProtoMessage() {}
 
 func (x *TelegramUpdateChannelColorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1480]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1488]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65127,7 +65471,7 @@ func (x *TelegramUpdateChannelColorResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramUpdateChannelColorResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateChannelColorResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1480}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1488}
 }
 
 type TelegramUpdateChannelUsernameRequest struct {
@@ -65140,7 +65484,7 @@ type TelegramUpdateChannelUsernameRequest struct {
 
 func (x *TelegramUpdateChannelUsernameRequest) Reset() {
 	*x = TelegramUpdateChannelUsernameRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1481]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1489]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65152,7 +65496,7 @@ func (x *TelegramUpdateChannelUsernameRequest) String() string {
 func (*TelegramUpdateChannelUsernameRequest) ProtoMessage() {}
 
 func (x *TelegramUpdateChannelUsernameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1481]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1489]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65165,7 +65509,7 @@ func (x *TelegramUpdateChannelUsernameRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramUpdateChannelUsernameRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateChannelUsernameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1481}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1489}
 }
 
 func (x *TelegramUpdateChannelUsernameRequest) GetChatId() string {
@@ -65190,7 +65534,7 @@ type TelegramUpdateChannelUsernameResponse struct {
 
 func (x *TelegramUpdateChannelUsernameResponse) Reset() {
 	*x = TelegramUpdateChannelUsernameResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1482]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1490]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65202,7 +65546,7 @@ func (x *TelegramUpdateChannelUsernameResponse) String() string {
 func (*TelegramUpdateChannelUsernameResponse) ProtoMessage() {}
 
 func (x *TelegramUpdateChannelUsernameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1482]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1490]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65215,7 +65559,7 @@ func (x *TelegramUpdateChannelUsernameResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramUpdateChannelUsernameResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateChannelUsernameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1482}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1490}
 }
 
 type TelegramUpdateProfileRequest struct {
@@ -65229,7 +65573,7 @@ type TelegramUpdateProfileRequest struct {
 
 func (x *TelegramUpdateProfileRequest) Reset() {
 	*x = TelegramUpdateProfileRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1483]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1491]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65241,7 +65585,7 @@ func (x *TelegramUpdateProfileRequest) String() string {
 func (*TelegramUpdateProfileRequest) ProtoMessage() {}
 
 func (x *TelegramUpdateProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1483]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1491]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65254,7 +65598,7 @@ func (x *TelegramUpdateProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUpdateProfileRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateProfileRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1483}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1491}
 }
 
 func (x *TelegramUpdateProfileRequest) GetFirstName() string {
@@ -65286,7 +65630,7 @@ type TelegramUpdateProfileResponse struct {
 
 func (x *TelegramUpdateProfileResponse) Reset() {
 	*x = TelegramUpdateProfileResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1484]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1492]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65298,7 +65642,7 @@ func (x *TelegramUpdateProfileResponse) String() string {
 func (*TelegramUpdateProfileResponse) ProtoMessage() {}
 
 func (x *TelegramUpdateProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1484]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1492]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65311,7 +65655,7 @@ func (x *TelegramUpdateProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUpdateProfileResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateProfileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1484}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1492}
 }
 
 type TelegramUpdateStatusRequest struct {
@@ -65323,7 +65667,7 @@ type TelegramUpdateStatusRequest struct {
 
 func (x *TelegramUpdateStatusRequest) Reset() {
 	*x = TelegramUpdateStatusRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1485]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1493]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65335,7 +65679,7 @@ func (x *TelegramUpdateStatusRequest) String() string {
 func (*TelegramUpdateStatusRequest) ProtoMessage() {}
 
 func (x *TelegramUpdateStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1485]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1493]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65348,7 +65692,7 @@ func (x *TelegramUpdateStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUpdateStatusRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateStatusRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1485}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1493}
 }
 
 func (x *TelegramUpdateStatusRequest) GetOnline() bool {
@@ -65366,7 +65710,7 @@ type TelegramUpdateStatusResponse struct {
 
 func (x *TelegramUpdateStatusResponse) Reset() {
 	*x = TelegramUpdateStatusResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1486]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1494]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65378,7 +65722,7 @@ func (x *TelegramUpdateStatusResponse) String() string {
 func (*TelegramUpdateStatusResponse) ProtoMessage() {}
 
 func (x *TelegramUpdateStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1486]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1494]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65391,7 +65735,7 @@ func (x *TelegramUpdateStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUpdateStatusResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateStatusResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1486}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1494}
 }
 
 type TelegramUpdateUsernameRequest struct {
@@ -65403,7 +65747,7 @@ type TelegramUpdateUsernameRequest struct {
 
 func (x *TelegramUpdateUsernameRequest) Reset() {
 	*x = TelegramUpdateUsernameRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1487]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1495]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65415,7 +65759,7 @@ func (x *TelegramUpdateUsernameRequest) String() string {
 func (*TelegramUpdateUsernameRequest) ProtoMessage() {}
 
 func (x *TelegramUpdateUsernameRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1487]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1495]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65428,7 +65772,7 @@ func (x *TelegramUpdateUsernameRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUpdateUsernameRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateUsernameRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1487}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1495}
 }
 
 func (x *TelegramUpdateUsernameRequest) GetUsername() string {
@@ -65446,7 +65790,7 @@ type TelegramUpdateUsernameResponse struct {
 
 func (x *TelegramUpdateUsernameResponse) Reset() {
 	*x = TelegramUpdateUsernameResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1488]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1496]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65458,7 +65802,7 @@ func (x *TelegramUpdateUsernameResponse) String() string {
 func (*TelegramUpdateUsernameResponse) ProtoMessage() {}
 
 func (x *TelegramUpdateUsernameResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1488]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1496]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65471,7 +65815,7 @@ func (x *TelegramUpdateUsernameResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUpdateUsernameResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUpdateUsernameResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1488}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1496}
 }
 
 type TelegramUploadGetCDNFileRequest struct {
@@ -65483,7 +65827,7 @@ type TelegramUploadGetCDNFileRequest struct {
 
 func (x *TelegramUploadGetCDNFileRequest) Reset() {
 	*x = TelegramUploadGetCDNFileRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1489]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1497]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65495,7 +65839,7 @@ func (x *TelegramUploadGetCDNFileRequest) String() string {
 func (*TelegramUploadGetCDNFileRequest) ProtoMessage() {}
 
 func (x *TelegramUploadGetCDNFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1489]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1497]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65508,7 +65852,7 @@ func (x *TelegramUploadGetCDNFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUploadGetCDNFileRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetCDNFileRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1489}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1497}
 }
 
 func (x *TelegramUploadGetCDNFileRequest) GetRequest() []byte {
@@ -65527,7 +65871,7 @@ type TelegramUploadGetCDNFileResponse struct {
 
 func (x *TelegramUploadGetCDNFileResponse) Reset() {
 	*x = TelegramUploadGetCDNFileResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1490]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1498]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65539,7 +65883,7 @@ func (x *TelegramUploadGetCDNFileResponse) String() string {
 func (*TelegramUploadGetCDNFileResponse) ProtoMessage() {}
 
 func (x *TelegramUploadGetCDNFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1490]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1498]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65552,7 +65896,7 @@ func (x *TelegramUploadGetCDNFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUploadGetCDNFileResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetCDNFileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1490}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1498}
 }
 
 func (x *TelegramUploadGetCDNFileResponse) GetResult_1() []byte {
@@ -65571,7 +65915,7 @@ type TelegramUploadGetCDNFileHashesRequest struct {
 
 func (x *TelegramUploadGetCDNFileHashesRequest) Reset() {
 	*x = TelegramUploadGetCDNFileHashesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1491]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1499]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65583,7 +65927,7 @@ func (x *TelegramUploadGetCDNFileHashesRequest) String() string {
 func (*TelegramUploadGetCDNFileHashesRequest) ProtoMessage() {}
 
 func (x *TelegramUploadGetCDNFileHashesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1491]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1499]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65596,7 +65940,7 @@ func (x *TelegramUploadGetCDNFileHashesRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramUploadGetCDNFileHashesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetCDNFileHashesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1491}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1499}
 }
 
 func (x *TelegramUploadGetCDNFileHashesRequest) GetRequest() []byte {
@@ -65615,7 +65959,7 @@ type TelegramUploadGetCDNFileHashesResponse struct {
 
 func (x *TelegramUploadGetCDNFileHashesResponse) Reset() {
 	*x = TelegramUploadGetCDNFileHashesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1492]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1500]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65627,7 +65971,7 @@ func (x *TelegramUploadGetCDNFileHashesResponse) String() string {
 func (*TelegramUploadGetCDNFileHashesResponse) ProtoMessage() {}
 
 func (x *TelegramUploadGetCDNFileHashesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1492]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1500]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65640,7 +65984,7 @@ func (x *TelegramUploadGetCDNFileHashesResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramUploadGetCDNFileHashesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetCDNFileHashesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1492}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1500}
 }
 
 func (x *TelegramUploadGetCDNFileHashesResponse) GetResult_1() []byte {
@@ -65659,7 +66003,7 @@ type TelegramUploadGetFileRequest struct {
 
 func (x *TelegramUploadGetFileRequest) Reset() {
 	*x = TelegramUploadGetFileRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1493]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1501]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65671,7 +66015,7 @@ func (x *TelegramUploadGetFileRequest) String() string {
 func (*TelegramUploadGetFileRequest) ProtoMessage() {}
 
 func (x *TelegramUploadGetFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1493]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1501]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65684,7 +66028,7 @@ func (x *TelegramUploadGetFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUploadGetFileRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetFileRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1493}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1501}
 }
 
 func (x *TelegramUploadGetFileRequest) GetRequest() []byte {
@@ -65703,7 +66047,7 @@ type TelegramUploadGetFileResponse struct {
 
 func (x *TelegramUploadGetFileResponse) Reset() {
 	*x = TelegramUploadGetFileResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1494]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1502]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65715,7 +66059,7 @@ func (x *TelegramUploadGetFileResponse) String() string {
 func (*TelegramUploadGetFileResponse) ProtoMessage() {}
 
 func (x *TelegramUploadGetFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1494]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1502]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65728,7 +66072,7 @@ func (x *TelegramUploadGetFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUploadGetFileResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetFileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1494}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1502}
 }
 
 func (x *TelegramUploadGetFileResponse) GetResult_1() []byte {
@@ -65747,7 +66091,7 @@ type TelegramUploadGetFileHashesRequest struct {
 
 func (x *TelegramUploadGetFileHashesRequest) Reset() {
 	*x = TelegramUploadGetFileHashesRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1495]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1503]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65759,7 +66103,7 @@ func (x *TelegramUploadGetFileHashesRequest) String() string {
 func (*TelegramUploadGetFileHashesRequest) ProtoMessage() {}
 
 func (x *TelegramUploadGetFileHashesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1495]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1503]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65772,7 +66116,7 @@ func (x *TelegramUploadGetFileHashesRequest) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramUploadGetFileHashesRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetFileHashesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1495}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1503}
 }
 
 func (x *TelegramUploadGetFileHashesRequest) GetRequest() []byte {
@@ -65791,7 +66135,7 @@ type TelegramUploadGetFileHashesResponse struct {
 
 func (x *TelegramUploadGetFileHashesResponse) Reset() {
 	*x = TelegramUploadGetFileHashesResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1496]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1504]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65803,7 +66147,7 @@ func (x *TelegramUploadGetFileHashesResponse) String() string {
 func (*TelegramUploadGetFileHashesResponse) ProtoMessage() {}
 
 func (x *TelegramUploadGetFileHashesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1496]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1504]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65816,7 +66160,7 @@ func (x *TelegramUploadGetFileHashesResponse) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramUploadGetFileHashesResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetFileHashesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1496}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1504}
 }
 
 func (x *TelegramUploadGetFileHashesResponse) GetResult_1() []byte {
@@ -65835,7 +66179,7 @@ type TelegramUploadGetWebFileRequest struct {
 
 func (x *TelegramUploadGetWebFileRequest) Reset() {
 	*x = TelegramUploadGetWebFileRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1497]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1505]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65847,7 +66191,7 @@ func (x *TelegramUploadGetWebFileRequest) String() string {
 func (*TelegramUploadGetWebFileRequest) ProtoMessage() {}
 
 func (x *TelegramUploadGetWebFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1497]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1505]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65860,7 +66204,7 @@ func (x *TelegramUploadGetWebFileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUploadGetWebFileRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetWebFileRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1497}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1505}
 }
 
 func (x *TelegramUploadGetWebFileRequest) GetRequest() []byte {
@@ -65879,7 +66223,7 @@ type TelegramUploadGetWebFileResponse struct {
 
 func (x *TelegramUploadGetWebFileResponse) Reset() {
 	*x = TelegramUploadGetWebFileResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1498]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1506]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65891,7 +66235,7 @@ func (x *TelegramUploadGetWebFileResponse) String() string {
 func (*TelegramUploadGetWebFileResponse) ProtoMessage() {}
 
 func (x *TelegramUploadGetWebFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1498]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1506]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65904,7 +66248,7 @@ func (x *TelegramUploadGetWebFileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramUploadGetWebFileResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadGetWebFileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1498}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1506}
 }
 
 func (x *TelegramUploadGetWebFileResponse) GetResult_1() []byte {
@@ -65923,7 +66267,7 @@ type TelegramUploadProfilePhotoRequest struct {
 
 func (x *TelegramUploadProfilePhotoRequest) Reset() {
 	*x = TelegramUploadProfilePhotoRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1499]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1507]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65935,7 +66279,7 @@ func (x *TelegramUploadProfilePhotoRequest) String() string {
 func (*TelegramUploadProfilePhotoRequest) ProtoMessage() {}
 
 func (x *TelegramUploadProfilePhotoRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1499]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1507]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65948,7 +66292,7 @@ func (x *TelegramUploadProfilePhotoRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramUploadProfilePhotoRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadProfilePhotoRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1499}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1507}
 }
 
 func (x *TelegramUploadProfilePhotoRequest) GetPngData() []byte {
@@ -65966,7 +66310,7 @@ type TelegramUploadProfilePhotoResponse struct {
 
 func (x *TelegramUploadProfilePhotoResponse) Reset() {
 	*x = TelegramUploadProfilePhotoResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1500]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1508]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -65978,7 +66322,7 @@ func (x *TelegramUploadProfilePhotoResponse) String() string {
 func (*TelegramUploadProfilePhotoResponse) ProtoMessage() {}
 
 func (x *TelegramUploadProfilePhotoResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1500]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1508]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -65991,7 +66335,7 @@ func (x *TelegramUploadProfilePhotoResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramUploadProfilePhotoResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadProfilePhotoResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1500}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1508}
 }
 
 type TelegramUploadReuploadCDNFileRequest struct {
@@ -66003,7 +66347,7 @@ type TelegramUploadReuploadCDNFileRequest struct {
 
 func (x *TelegramUploadReuploadCDNFileRequest) Reset() {
 	*x = TelegramUploadReuploadCDNFileRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1501]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1509]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66015,7 +66359,7 @@ func (x *TelegramUploadReuploadCDNFileRequest) String() string {
 func (*TelegramUploadReuploadCDNFileRequest) ProtoMessage() {}
 
 func (x *TelegramUploadReuploadCDNFileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1501]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1509]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66028,7 +66372,7 @@ func (x *TelegramUploadReuploadCDNFileRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramUploadReuploadCDNFileRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadReuploadCDNFileRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1501}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1509}
 }
 
 func (x *TelegramUploadReuploadCDNFileRequest) GetRequest() []byte {
@@ -66047,7 +66391,7 @@ type TelegramUploadReuploadCDNFileResponse struct {
 
 func (x *TelegramUploadReuploadCDNFileResponse) Reset() {
 	*x = TelegramUploadReuploadCDNFileResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1502]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1510]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66059,7 +66403,7 @@ func (x *TelegramUploadReuploadCDNFileResponse) String() string {
 func (*TelegramUploadReuploadCDNFileResponse) ProtoMessage() {}
 
 func (x *TelegramUploadReuploadCDNFileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1502]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1510]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66072,7 +66416,7 @@ func (x *TelegramUploadReuploadCDNFileResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramUploadReuploadCDNFileResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadReuploadCDNFileResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1502}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1510}
 }
 
 func (x *TelegramUploadReuploadCDNFileResponse) GetResult_1() []byte {
@@ -66091,7 +66435,7 @@ type TelegramUploadSaveBigFilePartRequest struct {
 
 func (x *TelegramUploadSaveBigFilePartRequest) Reset() {
 	*x = TelegramUploadSaveBigFilePartRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1503]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1511]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66103,7 +66447,7 @@ func (x *TelegramUploadSaveBigFilePartRequest) String() string {
 func (*TelegramUploadSaveBigFilePartRequest) ProtoMessage() {}
 
 func (x *TelegramUploadSaveBigFilePartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1503]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1511]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66116,7 +66460,7 @@ func (x *TelegramUploadSaveBigFilePartRequest) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramUploadSaveBigFilePartRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadSaveBigFilePartRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1503}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1511}
 }
 
 func (x *TelegramUploadSaveBigFilePartRequest) GetRequest() []byte {
@@ -66135,7 +66479,7 @@ type TelegramUploadSaveBigFilePartResponse struct {
 
 func (x *TelegramUploadSaveBigFilePartResponse) Reset() {
 	*x = TelegramUploadSaveBigFilePartResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1504]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1512]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66147,7 +66491,7 @@ func (x *TelegramUploadSaveBigFilePartResponse) String() string {
 func (*TelegramUploadSaveBigFilePartResponse) ProtoMessage() {}
 
 func (x *TelegramUploadSaveBigFilePartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1504]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1512]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66160,7 +66504,7 @@ func (x *TelegramUploadSaveBigFilePartResponse) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramUploadSaveBigFilePartResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadSaveBigFilePartResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1504}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1512}
 }
 
 func (x *TelegramUploadSaveBigFilePartResponse) GetResult_1() bool {
@@ -66179,7 +66523,7 @@ type TelegramUploadSaveFilePartRequest struct {
 
 func (x *TelegramUploadSaveFilePartRequest) Reset() {
 	*x = TelegramUploadSaveFilePartRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1505]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1513]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66191,7 +66535,7 @@ func (x *TelegramUploadSaveFilePartRequest) String() string {
 func (*TelegramUploadSaveFilePartRequest) ProtoMessage() {}
 
 func (x *TelegramUploadSaveFilePartRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1505]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1513]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66204,7 +66548,7 @@ func (x *TelegramUploadSaveFilePartRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramUploadSaveFilePartRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUploadSaveFilePartRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1505}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1513}
 }
 
 func (x *TelegramUploadSaveFilePartRequest) GetRequest() []byte {
@@ -66223,7 +66567,7 @@ type TelegramUploadSaveFilePartResponse struct {
 
 func (x *TelegramUploadSaveFilePartResponse) Reset() {
 	*x = TelegramUploadSaveFilePartResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1506]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1514]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66235,7 +66579,7 @@ func (x *TelegramUploadSaveFilePartResponse) String() string {
 func (*TelegramUploadSaveFilePartResponse) ProtoMessage() {}
 
 func (x *TelegramUploadSaveFilePartResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1506]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1514]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66248,7 +66592,7 @@ func (x *TelegramUploadSaveFilePartResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramUploadSaveFilePartResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUploadSaveFilePartResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1506}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1514}
 }
 
 func (x *TelegramUploadSaveFilePartResponse) GetResult_1() bool {
@@ -66267,7 +66611,7 @@ type TelegramUsersGetRequirementsToContactRequest struct {
 
 func (x *TelegramUsersGetRequirementsToContactRequest) Reset() {
 	*x = TelegramUsersGetRequirementsToContactRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1507]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1515]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66279,7 +66623,7 @@ func (x *TelegramUsersGetRequirementsToContactRequest) String() string {
 func (*TelegramUsersGetRequirementsToContactRequest) ProtoMessage() {}
 
 func (x *TelegramUsersGetRequirementsToContactRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1507]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1515]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66292,7 +66636,7 @@ func (x *TelegramUsersGetRequirementsToContactRequest) ProtoReflect() protorefle
 
 // Deprecated: Use TelegramUsersGetRequirementsToContactRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUsersGetRequirementsToContactRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1507}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1515}
 }
 
 func (x *TelegramUsersGetRequirementsToContactRequest) GetId() []byte {
@@ -66311,7 +66655,7 @@ type TelegramUsersGetRequirementsToContactResponse struct {
 
 func (x *TelegramUsersGetRequirementsToContactResponse) Reset() {
 	*x = TelegramUsersGetRequirementsToContactResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1508]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1516]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66323,7 +66667,7 @@ func (x *TelegramUsersGetRequirementsToContactResponse) String() string {
 func (*TelegramUsersGetRequirementsToContactResponse) ProtoMessage() {}
 
 func (x *TelegramUsersGetRequirementsToContactResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1508]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1516]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66336,7 +66680,7 @@ func (x *TelegramUsersGetRequirementsToContactResponse) ProtoReflect() protorefl
 
 // Deprecated: Use TelegramUsersGetRequirementsToContactResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUsersGetRequirementsToContactResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1508}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1516}
 }
 
 func (x *TelegramUsersGetRequirementsToContactResponse) GetResult_1() []byte {
@@ -66355,7 +66699,7 @@ type TelegramUsersGetSavedMusicRequest struct {
 
 func (x *TelegramUsersGetSavedMusicRequest) Reset() {
 	*x = TelegramUsersGetSavedMusicRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1509]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1517]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66367,7 +66711,7 @@ func (x *TelegramUsersGetSavedMusicRequest) String() string {
 func (*TelegramUsersGetSavedMusicRequest) ProtoMessage() {}
 
 func (x *TelegramUsersGetSavedMusicRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1509]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1517]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66380,7 +66724,7 @@ func (x *TelegramUsersGetSavedMusicRequest) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TelegramUsersGetSavedMusicRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUsersGetSavedMusicRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1509}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1517}
 }
 
 func (x *TelegramUsersGetSavedMusicRequest) GetRequest() []byte {
@@ -66399,7 +66743,7 @@ type TelegramUsersGetSavedMusicResponse struct {
 
 func (x *TelegramUsersGetSavedMusicResponse) Reset() {
 	*x = TelegramUsersGetSavedMusicResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1510]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1518]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66411,7 +66755,7 @@ func (x *TelegramUsersGetSavedMusicResponse) String() string {
 func (*TelegramUsersGetSavedMusicResponse) ProtoMessage() {}
 
 func (x *TelegramUsersGetSavedMusicResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1510]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1518]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66424,7 +66768,7 @@ func (x *TelegramUsersGetSavedMusicResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TelegramUsersGetSavedMusicResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUsersGetSavedMusicResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1510}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1518}
 }
 
 func (x *TelegramUsersGetSavedMusicResponse) GetResult_1() []byte {
@@ -66443,7 +66787,7 @@ type TelegramUsersGetSavedMusicByIDRequest struct {
 
 func (x *TelegramUsersGetSavedMusicByIDRequest) Reset() {
 	*x = TelegramUsersGetSavedMusicByIDRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1511]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1519]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66455,7 +66799,7 @@ func (x *TelegramUsersGetSavedMusicByIDRequest) String() string {
 func (*TelegramUsersGetSavedMusicByIDRequest) ProtoMessage() {}
 
 func (x *TelegramUsersGetSavedMusicByIDRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1511]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1519]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66468,7 +66812,7 @@ func (x *TelegramUsersGetSavedMusicByIDRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TelegramUsersGetSavedMusicByIDRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUsersGetSavedMusicByIDRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1511}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1519}
 }
 
 func (x *TelegramUsersGetSavedMusicByIDRequest) GetRequest() []byte {
@@ -66487,7 +66831,7 @@ type TelegramUsersGetSavedMusicByIDResponse struct {
 
 func (x *TelegramUsersGetSavedMusicByIDResponse) Reset() {
 	*x = TelegramUsersGetSavedMusicByIDResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1512]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1520]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66499,7 +66843,7 @@ func (x *TelegramUsersGetSavedMusicByIDResponse) String() string {
 func (*TelegramUsersGetSavedMusicByIDResponse) ProtoMessage() {}
 
 func (x *TelegramUsersGetSavedMusicByIDResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1512]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1520]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66512,7 +66856,7 @@ func (x *TelegramUsersGetSavedMusicByIDResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use TelegramUsersGetSavedMusicByIDResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUsersGetSavedMusicByIDResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1512}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1520}
 }
 
 func (x *TelegramUsersGetSavedMusicByIDResponse) GetResult_1() []byte {
@@ -66531,7 +66875,7 @@ type TelegramUsersSetSecureValueErrorsRequest struct {
 
 func (x *TelegramUsersSetSecureValueErrorsRequest) Reset() {
 	*x = TelegramUsersSetSecureValueErrorsRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1513]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1521]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66543,7 +66887,7 @@ func (x *TelegramUsersSetSecureValueErrorsRequest) String() string {
 func (*TelegramUsersSetSecureValueErrorsRequest) ProtoMessage() {}
 
 func (x *TelegramUsersSetSecureValueErrorsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1513]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1521]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66556,7 +66900,7 @@ func (x *TelegramUsersSetSecureValueErrorsRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use TelegramUsersSetSecureValueErrorsRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUsersSetSecureValueErrorsRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1513}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1521}
 }
 
 func (x *TelegramUsersSetSecureValueErrorsRequest) GetRequest() []byte {
@@ -66575,7 +66919,7 @@ type TelegramUsersSetSecureValueErrorsResponse struct {
 
 func (x *TelegramUsersSetSecureValueErrorsResponse) Reset() {
 	*x = TelegramUsersSetSecureValueErrorsResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1514]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1522]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66587,7 +66931,7 @@ func (x *TelegramUsersSetSecureValueErrorsResponse) String() string {
 func (*TelegramUsersSetSecureValueErrorsResponse) ProtoMessage() {}
 
 func (x *TelegramUsersSetSecureValueErrorsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1514]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1522]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66600,7 +66944,7 @@ func (x *TelegramUsersSetSecureValueErrorsResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use TelegramUsersSetSecureValueErrorsResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUsersSetSecureValueErrorsResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1514}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1522}
 }
 
 func (x *TelegramUsersSetSecureValueErrorsResponse) GetResult_1() bool {
@@ -66619,7 +66963,7 @@ type TelegramUsersSuggestBirthdayRequest struct {
 
 func (x *TelegramUsersSuggestBirthdayRequest) Reset() {
 	*x = TelegramUsersSuggestBirthdayRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1515]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1523]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66631,7 +66975,7 @@ func (x *TelegramUsersSuggestBirthdayRequest) String() string {
 func (*TelegramUsersSuggestBirthdayRequest) ProtoMessage() {}
 
 func (x *TelegramUsersSuggestBirthdayRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1515]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1523]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66644,7 +66988,7 @@ func (x *TelegramUsersSuggestBirthdayRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TelegramUsersSuggestBirthdayRequest.ProtoReflect.Descriptor instead.
 func (*TelegramUsersSuggestBirthdayRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1515}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1523}
 }
 
 func (x *TelegramUsersSuggestBirthdayRequest) GetRequest() []byte {
@@ -66663,7 +67007,7 @@ type TelegramUsersSuggestBirthdayResponse struct {
 
 func (x *TelegramUsersSuggestBirthdayResponse) Reset() {
 	*x = TelegramUsersSuggestBirthdayResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1516]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1524]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66675,7 +67019,7 @@ func (x *TelegramUsersSuggestBirthdayResponse) String() string {
 func (*TelegramUsersSuggestBirthdayResponse) ProtoMessage() {}
 
 func (x *TelegramUsersSuggestBirthdayResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1516]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1524]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66688,7 +67032,7 @@ func (x *TelegramUsersSuggestBirthdayResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TelegramUsersSuggestBirthdayResponse.ProtoReflect.Descriptor instead.
 func (*TelegramUsersSuggestBirthdayResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1516}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1524}
 }
 
 func (x *TelegramUsersSuggestBirthdayResponse) GetResult_1() []byte {
@@ -66709,7 +67053,7 @@ type TelegramVoteInPollRequest struct {
 
 func (x *TelegramVoteInPollRequest) Reset() {
 	*x = TelegramVoteInPollRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1517]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1525]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66721,7 +67065,7 @@ func (x *TelegramVoteInPollRequest) String() string {
 func (*TelegramVoteInPollRequest) ProtoMessage() {}
 
 func (x *TelegramVoteInPollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1517]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1525]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66734,7 +67078,7 @@ func (x *TelegramVoteInPollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramVoteInPollRequest.ProtoReflect.Descriptor instead.
 func (*TelegramVoteInPollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1517}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1525}
 }
 
 func (x *TelegramVoteInPollRequest) GetChatId() string {
@@ -66766,7 +67110,7 @@ type TelegramVoteInPollResponse struct {
 
 func (x *TelegramVoteInPollResponse) Reset() {
 	*x = TelegramVoteInPollResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1518]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1526]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66778,7 +67122,7 @@ func (x *TelegramVoteInPollResponse) String() string {
 func (*TelegramVoteInPollResponse) ProtoMessage() {}
 
 func (x *TelegramVoteInPollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1518]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1526]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66791,7 +67135,7 @@ func (x *TelegramVoteInPollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramVoteInPollResponse.ProtoReflect.Descriptor instead.
 func (*TelegramVoteInPollResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1518}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1526}
 }
 
 type TelegramVotePollRequest struct {
@@ -66805,7 +67149,7 @@ type TelegramVotePollRequest struct {
 
 func (x *TelegramVotePollRequest) Reset() {
 	*x = TelegramVotePollRequest{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1519]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1527]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66817,7 +67161,7 @@ func (x *TelegramVotePollRequest) String() string {
 func (*TelegramVotePollRequest) ProtoMessage() {}
 
 func (x *TelegramVotePollRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1519]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1527]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66830,7 +67174,7 @@ func (x *TelegramVotePollRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramVotePollRequest.ProtoReflect.Descriptor instead.
 func (*TelegramVotePollRequest) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1519}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1527}
 }
 
 func (x *TelegramVotePollRequest) GetChatId() string {
@@ -66862,7 +67206,7 @@ type TelegramVotePollResponse struct {
 
 func (x *TelegramVotePollResponse) Reset() {
 	*x = TelegramVotePollResponse{}
-	mi := &file_proto_cores_telegram_proto_msgTypes[1520]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1528]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -66874,7 +67218,7 @@ func (x *TelegramVotePollResponse) String() string {
 func (*TelegramVotePollResponse) ProtoMessage() {}
 
 func (x *TelegramVotePollResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_cores_telegram_proto_msgTypes[1520]
+	mi := &file_proto_cores_telegram_proto_msgTypes[1528]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -66887,7 +67231,7 @@ func (x *TelegramVotePollResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TelegramVotePollResponse.ProtoReflect.Descriptor instead.
 func (*TelegramVotePollResponse) Descriptor() ([]byte, []int) {
-	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1520}
+	return file_proto_cores_telegram_proto_rawDescGZIP(), []int{1528}
 }
 
 var File_proto_cores_telegram_proto protoreflect.FileDescriptor
@@ -69339,7 +69683,12 @@ const file_proto_cores_telegram_proto_rawDesc = "" +
 	"\x1cTelegramReadMentionsResponse\"7\n" +
 	"\x1cTelegramReadReactionsRequest\x12\x17\n" +
 	"\achat_id\x18\x01 \x01(\tR\x06chatId\"\x1f\n" +
-	"\x1dTelegramReadReactionsResponse\"O\n" +
+	"\x1dTelegramReadReactionsResponse\"\x1f\n" +
+	"\x1dTelegramRefreshQRTokenRequest\"|\n" +
+	"\x1eTelegramRefreshQRTokenResponse\x12\x1b\n" +
+	"\ttoken_url\x18\x01 \x01(\tR\btokenUrl\x12!\n" +
+	"\fexpires_secs\x18\x02 \x01(\x03R\vexpiresSecs\x12\x1a\n" +
+	"\baccepted\x18\x03 \x01(\bR\baccepted\"O\n" +
 	"\x1bTelegramRemoveMemberRequest\x12\x17\n" +
 	"\achat_id\x18\x01 \x01(\tR\x06chatId\x12\x17\n" +
 	"\auser_id\x18\x02 \x01(\tR\x06userId\"\x1e\n" +
@@ -69581,7 +69930,11 @@ const file_proto_cores_telegram_proto_rawDesc = "" +
 	"\"TelegramStartCallRecordingResponse\"C\n" +
 	"(TelegramStartGroupCallScreenShareRequest\x12\x17\n" +
 	"\acall_id\x18\x01 \x01(\tR\x06callId\"+\n" +
-	")TelegramStartGroupCallScreenShareResponse\"A\n" +
+	")TelegramStartGroupCallScreenShareResponse\"\x1c\n" +
+	"\x1aTelegramStartQRAuthRequest\"]\n" +
+	"\x1bTelegramStartQRAuthResponse\x12\x1b\n" +
+	"\ttoken_url\x18\x01 \x01(\tR\btokenUrl\x12!\n" +
+	"\fexpires_secs\x18\x02 \x01(\x03R\vexpiresSecs\"A\n" +
 	"&TelegramStartScheduledGroupCallRequest\x12\x17\n" +
 	"\acall_id\x18\x01 \x01(\tR\x06callId\")\n" +
 	"'TelegramStartScheduledGroupCallResponse\":\n" +
@@ -69765,7 +70118,13 @@ const file_proto_cores_telegram_proto_rawDesc = "" +
 	"!TelegramStoriesUpdateAlbumRequest\x12\x18\n" +
 	"\arequest\x18\x01 \x01(\fR\arequest\"?\n" +
 	"\"TelegramStoriesUpdateAlbumResponse\x12\x19\n" +
-	"\bresult_1\x18\x01 \x01(\fR\aresult1\"@\n" +
+	"\bresult_1\x18\x01 \x01(\fR\aresult1\"6\n" +
+	"\x18TelegramSubmit2FARequest\x12\x1a\n" +
+	"\bpassword\x18\x01 \x01(\tR\bpassword\"\x1b\n" +
+	"\x19TelegramSubmit2FAResponse\".\n" +
+	"\x18TelegramSubmitOTPRequest\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\"\x1b\n" +
+	"\x19TelegramSubmitOTPResponse\"@\n" +
 	"\x1fTelegramTerminateSessionRequest\x12\x1d\n" +
 	"\n" +
 	"session_id\x18\x01 \x01(\tR\tsessionId\"\"\n" +
@@ -69984,7 +70343,7 @@ func file_proto_cores_telegram_proto_rawDescGZIP() []byte {
 	return file_proto_cores_telegram_proto_rawDescData
 }
 
-var file_proto_cores_telegram_proto_msgTypes = make([]protoimpl.MessageInfo, 1521)
+var file_proto_cores_telegram_proto_msgTypes = make([]protoimpl.MessageInfo, 1529)
 var file_proto_cores_telegram_proto_goTypes = []any{
 	(*ActiveSession)(nil),                                            // 0: uniclient.telegram.ActiveSession
 	(*CallInfo)(nil),                                                 // 1: uniclient.telegram.CallInfo
@@ -71205,379 +71564,387 @@ var file_proto_cores_telegram_proto_goTypes = []any{
 	(*TelegramReadMentionsResponse)(nil),                             // 1216: uniclient.telegram.TelegramReadMentionsResponse
 	(*TelegramReadReactionsRequest)(nil),                             // 1217: uniclient.telegram.TelegramReadReactionsRequest
 	(*TelegramReadReactionsResponse)(nil),                            // 1218: uniclient.telegram.TelegramReadReactionsResponse
-	(*TelegramRemoveMemberRequest)(nil),                              // 1219: uniclient.telegram.TelegramRemoveMemberRequest
-	(*TelegramRemoveMemberResponse)(nil),                             // 1220: uniclient.telegram.TelegramRemoveMemberResponse
-	(*TelegramReorderDialogFiltersRequest)(nil),                      // 1221: uniclient.telegram.TelegramReorderDialogFiltersRequest
-	(*TelegramReorderDialogFiltersResponse)(nil),                     // 1222: uniclient.telegram.TelegramReorderDialogFiltersResponse
-	(*TelegramReorderPinnedDialogsRequest)(nil),                      // 1223: uniclient.telegram.TelegramReorderPinnedDialogsRequest
-	(*TelegramReorderPinnedDialogsResponse)(nil),                     // 1224: uniclient.telegram.TelegramReorderPinnedDialogsResponse
-	(*TelegramReorderPinnedForumTopicsRequest)(nil),                  // 1225: uniclient.telegram.TelegramReorderPinnedForumTopicsRequest
-	(*TelegramReorderPinnedForumTopicsResponse)(nil),                 // 1226: uniclient.telegram.TelegramReorderPinnedForumTopicsResponse
-	(*TelegramReplyToMessageRequest)(nil),                            // 1227: uniclient.telegram.TelegramReplyToMessageRequest
-	(*TelegramReplyToMessageResponse)(nil),                           // 1228: uniclient.telegram.TelegramReplyToMessageResponse
-	(*TelegramResolvePhoneRequest)(nil),                              // 1229: uniclient.telegram.TelegramResolvePhoneRequest
-	(*TelegramResolvePhoneResponse)(nil),                             // 1230: uniclient.telegram.TelegramResolvePhoneResponse
-	(*TelegramResolveUsernameRequest)(nil),                           // 1231: uniclient.telegram.TelegramResolveUsernameRequest
-	(*TelegramResolveUsernameResponse)(nil),                          // 1232: uniclient.telegram.TelegramResolveUsernameResponse
-	(*TelegramRestrictUserRequest)(nil),                              // 1233: uniclient.telegram.TelegramRestrictUserRequest
-	(*TelegramRestrictUserResponse)(nil),                             // 1234: uniclient.telegram.TelegramRestrictUserResponse
-	(*TelegramSaveDraftRequest)(nil),                                 // 1235: uniclient.telegram.TelegramSaveDraftRequest
-	(*TelegramSaveDraftResponse)(nil),                                // 1236: uniclient.telegram.TelegramSaveDraftResponse
-	(*TelegramSearchContactsCountRequest)(nil),                       // 1237: uniclient.telegram.TelegramSearchContactsCountRequest
-	(*TelegramSearchContactsCountResponse)(nil),                      // 1238: uniclient.telegram.TelegramSearchContactsCountResponse
-	(*TelegramSearchGlobalRequest)(nil),                              // 1239: uniclient.telegram.TelegramSearchGlobalRequest
-	(*TelegramSearchGlobalResponse)(nil),                             // 1240: uniclient.telegram.TelegramSearchGlobalResponse
-	(*TelegramSearchMessagesRequest)(nil),                            // 1241: uniclient.telegram.TelegramSearchMessagesRequest
-	(*TelegramSearchMessagesResponse)(nil),                           // 1242: uniclient.telegram.TelegramSearchMessagesResponse
-	(*TelegramSearchMessagesGlobalRequest)(nil),                      // 1243: uniclient.telegram.TelegramSearchMessagesGlobalRequest
-	(*TelegramSearchMessagesGlobalResponse)(nil),                     // 1244: uniclient.telegram.TelegramSearchMessagesGlobalResponse
-	(*TelegramSearchStickerSetsCountRequest)(nil),                    // 1245: uniclient.telegram.TelegramSearchStickerSetsCountRequest
-	(*TelegramSearchStickerSetsCountResponse)(nil),                   // 1246: uniclient.telegram.TelegramSearchStickerSetsCountResponse
-	(*TelegramSendAudioFrameRequest)(nil),                            // 1247: uniclient.telegram.TelegramSendAudioFrameRequest
-	(*TelegramSendAudioFrameResponse)(nil),                           // 1248: uniclient.telegram.TelegramSendAudioFrameResponse
-	(*TelegramSendCallRatingRequest)(nil),                            // 1249: uniclient.telegram.TelegramSendCallRatingRequest
-	(*TelegramSendCallRatingResponse)(nil),                           // 1250: uniclient.telegram.TelegramSendCallRatingResponse
-	(*TelegramSendImageBase64Request)(nil),                           // 1251: uniclient.telegram.TelegramSendImageBase64Request
-	(*TelegramSendImageBase64Response)(nil),                          // 1252: uniclient.telegram.TelegramSendImageBase64Response
-	(*TelegramSendInlineBotResultRequest)(nil),                       // 1253: uniclient.telegram.TelegramSendInlineBotResultRequest
-	(*TelegramSendInlineBotResultResponse)(nil),                      // 1254: uniclient.telegram.TelegramSendInlineBotResultResponse
-	(*TelegramSendLocationRequest)(nil),                              // 1255: uniclient.telegram.TelegramSendLocationRequest
-	(*TelegramSendLocationResponse)(nil),                             // 1256: uniclient.telegram.TelegramSendLocationResponse
-	(*TelegramSendMessageRequest)(nil),                               // 1257: uniclient.telegram.TelegramSendMessageRequest
-	(*TelegramSendMessageResponse)(nil),                              // 1258: uniclient.telegram.TelegramSendMessageResponse
-	(*TelegramSendMultiMediaRequest)(nil),                            // 1259: uniclient.telegram.TelegramSendMultiMediaRequest
-	(*TelegramSendMultiMediaResponse)(nil),                           // 1260: uniclient.telegram.TelegramSendMultiMediaResponse
-	(*TelegramSendPollRequest)(nil),                                  // 1261: uniclient.telegram.TelegramSendPollRequest
-	(*TelegramSendPollResponse)(nil),                                 // 1262: uniclient.telegram.TelegramSendPollResponse
-	(*TelegramSendScheduledRequest)(nil),                             // 1263: uniclient.telegram.TelegramSendScheduledRequest
-	(*TelegramSendScheduledResponse)(nil),                            // 1264: uniclient.telegram.TelegramSendScheduledResponse
-	(*TelegramSendScheduledNowRequest)(nil),                          // 1265: uniclient.telegram.TelegramSendScheduledNowRequest
-	(*TelegramSendScheduledNowResponse)(nil),                         // 1266: uniclient.telegram.TelegramSendScheduledNowResponse
-	(*TelegramSendScreenFrameRequest)(nil),                           // 1267: uniclient.telegram.TelegramSendScreenFrameRequest
-	(*TelegramSendScreenFrameResponse)(nil),                          // 1268: uniclient.telegram.TelegramSendScreenFrameResponse
-	(*TelegramSendScreenFrameYUVRequest)(nil),                        // 1269: uniclient.telegram.TelegramSendScreenFrameYUVRequest
-	(*TelegramSendScreenFrameYUVResponse)(nil),                       // 1270: uniclient.telegram.TelegramSendScreenFrameYUVResponse
-	(*TelegramSendStickerRequest)(nil),                               // 1271: uniclient.telegram.TelegramSendStickerRequest
-	(*TelegramSendStickerResponse)(nil),                              // 1272: uniclient.telegram.TelegramSendStickerResponse
-	(*TelegramSendStoryRequest)(nil),                                 // 1273: uniclient.telegram.TelegramSendStoryRequest
-	(*TelegramSendStoryResponse)(nil),                                // 1274: uniclient.telegram.TelegramSendStoryResponse
-	(*TelegramSendStoryWithPhotoRequest)(nil),                        // 1275: uniclient.telegram.TelegramSendStoryWithPhotoRequest
-	(*TelegramSendStoryWithPhotoResponse)(nil),                       // 1276: uniclient.telegram.TelegramSendStoryWithPhotoResponse
-	(*TelegramSendTypingRequest)(nil),                                // 1277: uniclient.telegram.TelegramSendTypingRequest
-	(*TelegramSendTypingResponse)(nil),                               // 1278: uniclient.telegram.TelegramSendTypingResponse
-	(*TelegramSendVideoFrameRequest)(nil),                            // 1279: uniclient.telegram.TelegramSendVideoFrameRequest
-	(*TelegramSendVideoFrameResponse)(nil),                           // 1280: uniclient.telegram.TelegramSendVideoFrameResponse
-	(*TelegramSendVideoFrameYUVRequest)(nil),                         // 1281: uniclient.telegram.TelegramSendVideoFrameYUVRequest
-	(*TelegramSendVideoFrameYUVResponse)(nil),                        // 1282: uniclient.telegram.TelegramSendVideoFrameYUVResponse
-	(*TelegramSetAccountTTLRequest)(nil),                             // 1283: uniclient.telegram.TelegramSetAccountTTLRequest
-	(*TelegramSetAccountTTLResponse)(nil),                            // 1284: uniclient.telegram.TelegramSetAccountTTLResponse
-	(*TelegramSetAdminRequest)(nil),                                  // 1285: uniclient.telegram.TelegramSetAdminRequest
-	(*TelegramSetAdminResponse)(nil),                                 // 1286: uniclient.telegram.TelegramSetAdminResponse
-	(*TelegramSetAudioFrameDurationRequest)(nil),                     // 1287: uniclient.telegram.TelegramSetAudioFrameDurationRequest
-	(*TelegramSetAudioFrameDurationResponse)(nil),                    // 1288: uniclient.telegram.TelegramSetAudioFrameDurationResponse
-	(*TelegramSetCallMutedRequest)(nil),                              // 1289: uniclient.telegram.TelegramSetCallMutedRequest
-	(*TelegramSetCallMutedResponse)(nil),                             // 1290: uniclient.telegram.TelegramSetCallMutedResponse
-	(*TelegramSetCallVideoRequest)(nil),                              // 1291: uniclient.telegram.TelegramSetCallVideoRequest
-	(*TelegramSetCallVideoResponse)(nil),                             // 1292: uniclient.telegram.TelegramSetCallVideoResponse
-	(*TelegramSetChatReactionsRequest)(nil),                          // 1293: uniclient.telegram.TelegramSetChatReactionsRequest
-	(*TelegramSetChatReactionsResponse)(nil),                         // 1294: uniclient.telegram.TelegramSetChatReactionsResponse
-	(*TelegramSetChatThemeRequest)(nil),                              // 1295: uniclient.telegram.TelegramSetChatThemeRequest
-	(*TelegramSetChatThemeResponse)(nil),                             // 1296: uniclient.telegram.TelegramSetChatThemeResponse
-	(*TelegramSetChatWallpaperRequest)(nil),                          // 1297: uniclient.telegram.TelegramSetChatWallpaperRequest
-	(*TelegramSetChatWallpaperResponse)(nil),                         // 1298: uniclient.telegram.TelegramSetChatWallpaperResponse
-	(*TelegramSetDefaultReactionRequest)(nil),                        // 1299: uniclient.telegram.TelegramSetDefaultReactionRequest
-	(*TelegramSetDefaultReactionResponse)(nil),                       // 1300: uniclient.telegram.TelegramSetDefaultReactionResponse
-	(*TelegramSetEchoModeRequest)(nil),                               // 1301: uniclient.telegram.TelegramSetEchoModeRequest
-	(*TelegramSetEchoModeResponse)(nil),                              // 1302: uniclient.telegram.TelegramSetEchoModeResponse
-	(*TelegramSetGlobalPrivacyRequest)(nil),                          // 1303: uniclient.telegram.TelegramSetGlobalPrivacyRequest
-	(*TelegramSetGlobalPrivacyResponse)(nil),                         // 1304: uniclient.telegram.TelegramSetGlobalPrivacyResponse
-	(*TelegramSetGroupCallMutedRequest)(nil),                         // 1305: uniclient.telegram.TelegramSetGroupCallMutedRequest
-	(*TelegramSetGroupCallMutedResponse)(nil),                        // 1306: uniclient.telegram.TelegramSetGroupCallMutedResponse
-	(*TelegramSetGroupCallParticipantVolumeRequest)(nil),             // 1307: uniclient.telegram.TelegramSetGroupCallParticipantVolumeRequest
-	(*TelegramSetGroupCallParticipantVolumeResponse)(nil),            // 1308: uniclient.telegram.TelegramSetGroupCallParticipantVolumeResponse
-	(*TelegramSetGroupPermissionsRequest)(nil),                       // 1309: uniclient.telegram.TelegramSetGroupPermissionsRequest
-	(*TelegramSetGroupPermissionsResponse)(nil),                      // 1310: uniclient.telegram.TelegramSetGroupPermissionsResponse
-	(*TelegramSetHistoryTTLRequest)(nil),                             // 1311: uniclient.telegram.TelegramSetHistoryTTLRequest
-	(*TelegramSetHistoryTTLResponse)(nil),                            // 1312: uniclient.telegram.TelegramSetHistoryTTLResponse
-	(*TelegramSetPrivacyRequest)(nil),                                // 1313: uniclient.telegram.TelegramSetPrivacyRequest
-	(*TelegramSetPrivacyResponse)(nil),                               // 1314: uniclient.telegram.TelegramSetPrivacyResponse
-	(*TelegramSetSlowModeRequest)(nil),                               // 1315: uniclient.telegram.TelegramSetSlowModeRequest
-	(*TelegramSetSlowModeResponse)(nil),                              // 1316: uniclient.telegram.TelegramSetSlowModeResponse
-	(*TelegramSetTypingRequest)(nil),                                 // 1317: uniclient.telegram.TelegramSetTypingRequest
-	(*TelegramSetTypingResponse)(nil),                                // 1318: uniclient.telegram.TelegramSetTypingResponse
-	(*TelegramStartBotRequest)(nil),                                  // 1319: uniclient.telegram.TelegramStartBotRequest
-	(*TelegramStartBotResponse)(nil),                                 // 1320: uniclient.telegram.TelegramStartBotResponse
-	(*TelegramStartCallRequest)(nil),                                 // 1321: uniclient.telegram.TelegramStartCallRequest
-	(*TelegramStartCallResponse)(nil),                                // 1322: uniclient.telegram.TelegramStartCallResponse
-	(*TelegramStartCallRecordingRequest)(nil),                        // 1323: uniclient.telegram.TelegramStartCallRecordingRequest
-	(*TelegramStartCallRecordingResponse)(nil),                       // 1324: uniclient.telegram.TelegramStartCallRecordingResponse
-	(*TelegramStartGroupCallScreenShareRequest)(nil),                 // 1325: uniclient.telegram.TelegramStartGroupCallScreenShareRequest
-	(*TelegramStartGroupCallScreenShareResponse)(nil),                // 1326: uniclient.telegram.TelegramStartGroupCallScreenShareResponse
-	(*TelegramStartScheduledGroupCallRequest)(nil),                   // 1327: uniclient.telegram.TelegramStartScheduledGroupCallRequest
-	(*TelegramStartScheduledGroupCallResponse)(nil),                  // 1328: uniclient.telegram.TelegramStartScheduledGroupCallResponse
-	(*TelegramStartScreenShareRequest)(nil),                          // 1329: uniclient.telegram.TelegramStartScreenShareRequest
-	(*TelegramStartScreenShareResponse)(nil),                         // 1330: uniclient.telegram.TelegramStartScreenShareResponse
-	(*TelegramStatsGetMessagePublicForwardsRequest)(nil),             // 1331: uniclient.telegram.TelegramStatsGetMessagePublicForwardsRequest
-	(*TelegramStatsGetMessagePublicForwardsResponse)(nil),            // 1332: uniclient.telegram.TelegramStatsGetMessagePublicForwardsResponse
-	(*TelegramStatsGetMessageStatsRequest)(nil),                      // 1333: uniclient.telegram.TelegramStatsGetMessageStatsRequest
-	(*TelegramStatsGetMessageStatsResponse)(nil),                     // 1334: uniclient.telegram.TelegramStatsGetMessageStatsResponse
-	(*TelegramStatsGetStoryPublicForwardsRequest)(nil),               // 1335: uniclient.telegram.TelegramStatsGetStoryPublicForwardsRequest
-	(*TelegramStatsGetStoryPublicForwardsResponse)(nil),              // 1336: uniclient.telegram.TelegramStatsGetStoryPublicForwardsResponse
-	(*TelegramStatsGetStoryStatsRequest)(nil),                        // 1337: uniclient.telegram.TelegramStatsGetStoryStatsRequest
-	(*TelegramStatsGetStoryStatsResponse)(nil),                       // 1338: uniclient.telegram.TelegramStatsGetStoryStatsResponse
-	(*TelegramStatsLoadAsyncGraphRequest)(nil),                       // 1339: uniclient.telegram.TelegramStatsLoadAsyncGraphRequest
-	(*TelegramStatsLoadAsyncGraphResponse)(nil),                      // 1340: uniclient.telegram.TelegramStatsLoadAsyncGraphResponse
-	(*TelegramStickersAddStickerToSetRequest)(nil),                   // 1341: uniclient.telegram.TelegramStickersAddStickerToSetRequest
-	(*TelegramStickersAddStickerToSetResponse)(nil),                  // 1342: uniclient.telegram.TelegramStickersAddStickerToSetResponse
-	(*TelegramStickersChangeStickerRequest)(nil),                     // 1343: uniclient.telegram.TelegramStickersChangeStickerRequest
-	(*TelegramStickersChangeStickerResponse)(nil),                    // 1344: uniclient.telegram.TelegramStickersChangeStickerResponse
-	(*TelegramStickersChangeStickerPositionRequest)(nil),             // 1345: uniclient.telegram.TelegramStickersChangeStickerPositionRequest
-	(*TelegramStickersChangeStickerPositionResponse)(nil),            // 1346: uniclient.telegram.TelegramStickersChangeStickerPositionResponse
-	(*TelegramStickersCheckShortNameRequest)(nil),                    // 1347: uniclient.telegram.TelegramStickersCheckShortNameRequest
-	(*TelegramStickersCheckShortNameResponse)(nil),                   // 1348: uniclient.telegram.TelegramStickersCheckShortNameResponse
-	(*TelegramStickersCreateStickerSetRequest)(nil),                  // 1349: uniclient.telegram.TelegramStickersCreateStickerSetRequest
-	(*TelegramStickersCreateStickerSetResponse)(nil),                 // 1350: uniclient.telegram.TelegramStickersCreateStickerSetResponse
-	(*TelegramStickersDeleteStickerSetRequest)(nil),                  // 1351: uniclient.telegram.TelegramStickersDeleteStickerSetRequest
-	(*TelegramStickersDeleteStickerSetResponse)(nil),                 // 1352: uniclient.telegram.TelegramStickersDeleteStickerSetResponse
-	(*TelegramStickersRemoveStickerFromSetRequest)(nil),              // 1353: uniclient.telegram.TelegramStickersRemoveStickerFromSetRequest
-	(*TelegramStickersRemoveStickerFromSetResponse)(nil),             // 1354: uniclient.telegram.TelegramStickersRemoveStickerFromSetResponse
-	(*TelegramStickersRenameStickerSetRequest)(nil),                  // 1355: uniclient.telegram.TelegramStickersRenameStickerSetRequest
-	(*TelegramStickersRenameStickerSetResponse)(nil),                 // 1356: uniclient.telegram.TelegramStickersRenameStickerSetResponse
-	(*TelegramStickersReplaceStickerRequest)(nil),                    // 1357: uniclient.telegram.TelegramStickersReplaceStickerRequest
-	(*TelegramStickersReplaceStickerResponse)(nil),                   // 1358: uniclient.telegram.TelegramStickersReplaceStickerResponse
-	(*TelegramStickersSetStickerSetThumbRequest)(nil),                // 1359: uniclient.telegram.TelegramStickersSetStickerSetThumbRequest
-	(*TelegramStickersSetStickerSetThumbResponse)(nil),               // 1360: uniclient.telegram.TelegramStickersSetStickerSetThumbResponse
-	(*TelegramStickersSuggestShortNameRequest)(nil),                  // 1361: uniclient.telegram.TelegramStickersSuggestShortNameRequest
-	(*TelegramStickersSuggestShortNameResponse)(nil),                 // 1362: uniclient.telegram.TelegramStickersSuggestShortNameResponse
-	(*TelegramStopCallRecordingRequest)(nil),                         // 1363: uniclient.telegram.TelegramStopCallRecordingRequest
-	(*TelegramStopCallRecordingResponse)(nil),                        // 1364: uniclient.telegram.TelegramStopCallRecordingResponse
-	(*TelegramStopGroupCallScreenShareRequest)(nil),                  // 1365: uniclient.telegram.TelegramStopGroupCallScreenShareRequest
-	(*TelegramStopGroupCallScreenShareResponse)(nil),                 // 1366: uniclient.telegram.TelegramStopGroupCallScreenShareResponse
-	(*TelegramStopScreenShareRequest)(nil),                           // 1367: uniclient.telegram.TelegramStopScreenShareRequest
-	(*TelegramStopScreenShareResponse)(nil),                          // 1368: uniclient.telegram.TelegramStopScreenShareResponse
-	(*TelegramStoriesActivateStealthModeRequest)(nil),                // 1369: uniclient.telegram.TelegramStoriesActivateStealthModeRequest
-	(*TelegramStoriesActivateStealthModeResponse)(nil),               // 1370: uniclient.telegram.TelegramStoriesActivateStealthModeResponse
-	(*TelegramStoriesCanSendStoryRequest)(nil),                       // 1371: uniclient.telegram.TelegramStoriesCanSendStoryRequest
-	(*TelegramStoriesCanSendStoryResponse)(nil),                      // 1372: uniclient.telegram.TelegramStoriesCanSendStoryResponse
-	(*TelegramStoriesCreateAlbumRequest)(nil),                        // 1373: uniclient.telegram.TelegramStoriesCreateAlbumRequest
-	(*TelegramStoriesCreateAlbumResponse)(nil),                       // 1374: uniclient.telegram.TelegramStoriesCreateAlbumResponse
-	(*TelegramStoriesDeleteAlbumRequest)(nil),                        // 1375: uniclient.telegram.TelegramStoriesDeleteAlbumRequest
-	(*TelegramStoriesDeleteAlbumResponse)(nil),                       // 1376: uniclient.telegram.TelegramStoriesDeleteAlbumResponse
-	(*TelegramStoriesEditStoryRequest)(nil),                          // 1377: uniclient.telegram.TelegramStoriesEditStoryRequest
-	(*TelegramStoriesEditStoryResponse)(nil),                         // 1378: uniclient.telegram.TelegramStoriesEditStoryResponse
-	(*TelegramStoriesExportStoryLinkRequest)(nil),                    // 1379: uniclient.telegram.TelegramStoriesExportStoryLinkRequest
-	(*TelegramStoriesExportStoryLinkResponse)(nil),                   // 1380: uniclient.telegram.TelegramStoriesExportStoryLinkResponse
-	(*TelegramStoriesGetAlbumStoriesRequest)(nil),                    // 1381: uniclient.telegram.TelegramStoriesGetAlbumStoriesRequest
-	(*TelegramStoriesGetAlbumStoriesResponse)(nil),                   // 1382: uniclient.telegram.TelegramStoriesGetAlbumStoriesResponse
-	(*TelegramStoriesGetAlbumsRequest)(nil),                          // 1383: uniclient.telegram.TelegramStoriesGetAlbumsRequest
-	(*TelegramStoriesGetAlbumsResponse)(nil),                         // 1384: uniclient.telegram.TelegramStoriesGetAlbumsResponse
-	(*TelegramStoriesGetAllReadPeerStoriesRequest)(nil),              // 1385: uniclient.telegram.TelegramStoriesGetAllReadPeerStoriesRequest
-	(*TelegramStoriesGetAllReadPeerStoriesResponse)(nil),             // 1386: uniclient.telegram.TelegramStoriesGetAllReadPeerStoriesResponse
-	(*TelegramStoriesGetChatsToSendRequest)(nil),                     // 1387: uniclient.telegram.TelegramStoriesGetChatsToSendRequest
-	(*TelegramStoriesGetChatsToSendResponse)(nil),                    // 1388: uniclient.telegram.TelegramStoriesGetChatsToSendResponse
-	(*TelegramStoriesGetPeerMaxIDsRequest)(nil),                      // 1389: uniclient.telegram.TelegramStoriesGetPeerMaxIDsRequest
-	(*TelegramStoriesGetPeerMaxIDsResponse)(nil),                     // 1390: uniclient.telegram.TelegramStoriesGetPeerMaxIDsResponse
-	(*TelegramStoriesGetStoriesArchiveRequest)(nil),                  // 1391: uniclient.telegram.TelegramStoriesGetStoriesArchiveRequest
-	(*TelegramStoriesGetStoriesArchiveResponse)(nil),                 // 1392: uniclient.telegram.TelegramStoriesGetStoriesArchiveResponse
-	(*TelegramStoriesGetStoriesByIDRequest)(nil),                     // 1393: uniclient.telegram.TelegramStoriesGetStoriesByIDRequest
-	(*TelegramStoriesGetStoriesByIDResponse)(nil),                    // 1394: uniclient.telegram.TelegramStoriesGetStoriesByIDResponse
-	(*TelegramStoriesGetStoryReactionsListRequest)(nil),              // 1395: uniclient.telegram.TelegramStoriesGetStoryReactionsListRequest
-	(*TelegramStoriesGetStoryReactionsListResponse)(nil),             // 1396: uniclient.telegram.TelegramStoriesGetStoryReactionsListResponse
-	(*TelegramStoriesGetStoryViewsListRequest)(nil),                  // 1397: uniclient.telegram.TelegramStoriesGetStoryViewsListRequest
-	(*TelegramStoriesGetStoryViewsListResponse)(nil),                 // 1398: uniclient.telegram.TelegramStoriesGetStoryViewsListResponse
-	(*TelegramStoriesIncrementStoryViewsRequest)(nil),                // 1399: uniclient.telegram.TelegramStoriesIncrementStoryViewsRequest
-	(*TelegramStoriesIncrementStoryViewsResponse)(nil),               // 1400: uniclient.telegram.TelegramStoriesIncrementStoryViewsResponse
-	(*TelegramStoriesReadStoriesRequest)(nil),                        // 1401: uniclient.telegram.TelegramStoriesReadStoriesRequest
-	(*TelegramStoriesReadStoriesResponse)(nil),                       // 1402: uniclient.telegram.TelegramStoriesReadStoriesResponse
-	(*TelegramStoriesReorderAlbumsRequest)(nil),                      // 1403: uniclient.telegram.TelegramStoriesReorderAlbumsRequest
-	(*TelegramStoriesReorderAlbumsResponse)(nil),                     // 1404: uniclient.telegram.TelegramStoriesReorderAlbumsResponse
-	(*TelegramStoriesReportRequest)(nil),                             // 1405: uniclient.telegram.TelegramStoriesReportRequest
-	(*TelegramStoriesReportResponse)(nil),                            // 1406: uniclient.telegram.TelegramStoriesReportResponse
-	(*TelegramStoriesSearchPostsRequest)(nil),                        // 1407: uniclient.telegram.TelegramStoriesSearchPostsRequest
-	(*TelegramStoriesSearchPostsResponse)(nil),                       // 1408: uniclient.telegram.TelegramStoriesSearchPostsResponse
-	(*TelegramStoriesStartLiveRequest)(nil),                          // 1409: uniclient.telegram.TelegramStoriesStartLiveRequest
-	(*TelegramStoriesStartLiveResponse)(nil),                         // 1410: uniclient.telegram.TelegramStoriesStartLiveResponse
-	(*TelegramStoriesToggleAllStoriesHiddenRequest)(nil),             // 1411: uniclient.telegram.TelegramStoriesToggleAllStoriesHiddenRequest
-	(*TelegramStoriesToggleAllStoriesHiddenResponse)(nil),            // 1412: uniclient.telegram.TelegramStoriesToggleAllStoriesHiddenResponse
-	(*TelegramStoriesTogglePeerStoriesHiddenRequest)(nil),            // 1413: uniclient.telegram.TelegramStoriesTogglePeerStoriesHiddenRequest
-	(*TelegramStoriesTogglePeerStoriesHiddenResponse)(nil),           // 1414: uniclient.telegram.TelegramStoriesTogglePeerStoriesHiddenResponse
-	(*TelegramStoriesTogglePinnedRequest)(nil),                       // 1415: uniclient.telegram.TelegramStoriesTogglePinnedRequest
-	(*TelegramStoriesTogglePinnedResponse)(nil),                      // 1416: uniclient.telegram.TelegramStoriesTogglePinnedResponse
-	(*TelegramStoriesTogglePinnedToTopRequest)(nil),                  // 1417: uniclient.telegram.TelegramStoriesTogglePinnedToTopRequest
-	(*TelegramStoriesTogglePinnedToTopResponse)(nil),                 // 1418: uniclient.telegram.TelegramStoriesTogglePinnedToTopResponse
-	(*TelegramStoriesUpdateAlbumRequest)(nil),                        // 1419: uniclient.telegram.TelegramStoriesUpdateAlbumRequest
-	(*TelegramStoriesUpdateAlbumResponse)(nil),                       // 1420: uniclient.telegram.TelegramStoriesUpdateAlbumResponse
-	(*TelegramTerminateSessionRequest)(nil),                          // 1421: uniclient.telegram.TelegramTerminateSessionRequest
-	(*TelegramTerminateSessionResponse)(nil),                         // 1422: uniclient.telegram.TelegramTerminateSessionResponse
-	(*TelegramTestAcceptCallRawRequest)(nil),                         // 1423: uniclient.telegram.TelegramTestAcceptCallRawRequest
-	(*TelegramTestAcceptCallRawResponse)(nil),                        // 1424: uniclient.telegram.TelegramTestAcceptCallRawResponse
-	(*TelegramTestGetCallAudioSSRCRequest)(nil),                      // 1425: uniclient.telegram.TelegramTestGetCallAudioSSRCRequest
-	(*TelegramTestGetCallAudioSSRCResponse)(nil),                     // 1426: uniclient.telegram.TelegramTestGetCallAudioSSRCResponse
-	(*TelegramTestGetCallInfoRequest)(nil),                           // 1427: uniclient.telegram.TelegramTestGetCallInfoRequest
-	(*TelegramTestGetCallInfoResponse)(nil),                          // 1428: uniclient.telegram.TelegramTestGetCallInfoResponse
-	(*TelegramTestGetCallPCStateRequest)(nil),                        // 1429: uniclient.telegram.TelegramTestGetCallPCStateRequest
-	(*TelegramTestGetCallPCStateResponse)(nil),                       // 1430: uniclient.telegram.TelegramTestGetCallPCStateResponse
-	(*TelegramTestGetCallStatsRequest)(nil),                          // 1431: uniclient.telegram.TelegramTestGetCallStatsRequest
-	(*TelegramTestGetCallStatsResponse)(nil),                         // 1432: uniclient.telegram.TelegramTestGetCallStatsResponse
-	(*TelegramTestGetGroupCallAccessHashRequest)(nil),                // 1433: uniclient.telegram.TelegramTestGetGroupCallAccessHashRequest
-	(*TelegramTestGetGroupCallAccessHashResponse)(nil),               // 1434: uniclient.telegram.TelegramTestGetGroupCallAccessHashResponse
-	(*TelegramTestGetSenderSSRCsRequest)(nil),                        // 1435: uniclient.telegram.TelegramTestGetSenderSSRCsRequest
-	(*TelegramTestGetSenderSSRCsResponse)(nil),                       // 1436: uniclient.telegram.TelegramTestGetSenderSSRCsResponse
-	(*TelegramTestHandleSignalingDataRequest)(nil),                   // 1437: uniclient.telegram.TelegramTestHandleSignalingDataRequest
-	(*TelegramTestHandleSignalingDataResponse)(nil),                  // 1438: uniclient.telegram.TelegramTestHandleSignalingDataResponse
-	(*TelegramTestSendRawSignalingRequest)(nil),                      // 1439: uniclient.telegram.TelegramTestSendRawSignalingRequest
-	(*TelegramTestSendRawSignalingResponse)(nil),                     // 1440: uniclient.telegram.TelegramTestSendRawSignalingResponse
-	(*TelegramTestStartCallRawRequest)(nil),                          // 1441: uniclient.telegram.TelegramTestStartCallRawRequest
-	(*TelegramTestStartCallRawResponse)(nil),                         // 1442: uniclient.telegram.TelegramTestStartCallRawResponse
-	(*TelegramToggleAntiSpamRequest)(nil),                            // 1443: uniclient.telegram.TelegramToggleAntiSpamRequest
-	(*TelegramToggleAntiSpamResponse)(nil),                           // 1444: uniclient.telegram.TelegramToggleAntiSpamResponse
-	(*TelegramToggleAutotranslationRequest)(nil),                     // 1445: uniclient.telegram.TelegramToggleAutotranslationRequest
-	(*TelegramToggleAutotranslationResponse)(nil),                    // 1446: uniclient.telegram.TelegramToggleAutotranslationResponse
-	(*TelegramToggleForumRequest)(nil),                               // 1447: uniclient.telegram.TelegramToggleForumRequest
-	(*TelegramToggleForumResponse)(nil),                              // 1448: uniclient.telegram.TelegramToggleForumResponse
-	(*TelegramToggleGroupCallVideoRequest)(nil),                      // 1449: uniclient.telegram.TelegramToggleGroupCallVideoRequest
-	(*TelegramToggleGroupCallVideoResponse)(nil),                     // 1450: uniclient.telegram.TelegramToggleGroupCallVideoResponse
-	(*TelegramToggleJoinRequestRequest)(nil),                         // 1451: uniclient.telegram.TelegramToggleJoinRequestRequest
-	(*TelegramToggleJoinRequestResponse)(nil),                        // 1452: uniclient.telegram.TelegramToggleJoinRequestResponse
-	(*TelegramToggleJoinToSendRequest)(nil),                          // 1453: uniclient.telegram.TelegramToggleJoinToSendRequest
-	(*TelegramToggleJoinToSendResponse)(nil),                         // 1454: uniclient.telegram.TelegramToggleJoinToSendResponse
-	(*TelegramToggleNoForwardsRequest)(nil),                          // 1455: uniclient.telegram.TelegramToggleNoForwardsRequest
-	(*TelegramToggleNoForwardsResponse)(nil),                         // 1456: uniclient.telegram.TelegramToggleNoForwardsResponse
-	(*TelegramToggleParticipantsHiddenRequest)(nil),                  // 1457: uniclient.telegram.TelegramToggleParticipantsHiddenRequest
-	(*TelegramToggleParticipantsHiddenResponse)(nil),                 // 1458: uniclient.telegram.TelegramToggleParticipantsHiddenResponse
-	(*TelegramTogglePreHistoryHiddenRequest)(nil),                    // 1459: uniclient.telegram.TelegramTogglePreHistoryHiddenRequest
-	(*TelegramTogglePreHistoryHiddenResponse)(nil),                   // 1460: uniclient.telegram.TelegramTogglePreHistoryHiddenResponse
-	(*TelegramToggleSignaturesRequest)(nil),                          // 1461: uniclient.telegram.TelegramToggleSignaturesRequest
-	(*TelegramToggleSignaturesResponse)(nil),                         // 1462: uniclient.telegram.TelegramToggleSignaturesResponse
-	(*TelegramToggleViewForumAsMessagesRequest)(nil),                 // 1463: uniclient.telegram.TelegramToggleViewForumAsMessagesRequest
-	(*TelegramToggleViewForumAsMessagesResponse)(nil),                // 1464: uniclient.telegram.TelegramToggleViewForumAsMessagesResponse
-	(*TelegramTranslateTextRequest)(nil),                             // 1465: uniclient.telegram.TelegramTranslateTextRequest
-	(*TelegramTranslateTextResponse)(nil),                            // 1466: uniclient.telegram.TelegramTranslateTextResponse
-	(*TelegramUnbanMemberRequest)(nil),                               // 1467: uniclient.telegram.TelegramUnbanMemberRequest
-	(*TelegramUnbanMemberResponse)(nil),                              // 1468: uniclient.telegram.TelegramUnbanMemberResponse
-	(*TelegramUnblockUserRequest)(nil),                               // 1469: uniclient.telegram.TelegramUnblockUserRequest
-	(*TelegramUnblockUserResponse)(nil),                              // 1470: uniclient.telegram.TelegramUnblockUserResponse
-	(*TelegramUnpinAllMessagesRequest)(nil),                          // 1471: uniclient.telegram.TelegramUnpinAllMessagesRequest
-	(*TelegramUnpinAllMessagesResponse)(nil),                         // 1472: uniclient.telegram.TelegramUnpinAllMessagesResponse
-	(*TelegramUnpinDialogRequest)(nil),                               // 1473: uniclient.telegram.TelegramUnpinDialogRequest
-	(*TelegramUnpinDialogResponse)(nil),                              // 1474: uniclient.telegram.TelegramUnpinDialogResponse
-	(*TelegramUnpinMessageRequest)(nil),                              // 1475: uniclient.telegram.TelegramUnpinMessageRequest
-	(*TelegramUnpinMessageResponse)(nil),                             // 1476: uniclient.telegram.TelegramUnpinMessageResponse
-	(*TelegramUpdateBirthdayRequest)(nil),                            // 1477: uniclient.telegram.TelegramUpdateBirthdayRequest
-	(*TelegramUpdateBirthdayResponse)(nil),                           // 1478: uniclient.telegram.TelegramUpdateBirthdayResponse
-	(*TelegramUpdateChannelColorRequest)(nil),                        // 1479: uniclient.telegram.TelegramUpdateChannelColorRequest
-	(*TelegramUpdateChannelColorResponse)(nil),                       // 1480: uniclient.telegram.TelegramUpdateChannelColorResponse
-	(*TelegramUpdateChannelUsernameRequest)(nil),                     // 1481: uniclient.telegram.TelegramUpdateChannelUsernameRequest
-	(*TelegramUpdateChannelUsernameResponse)(nil),                    // 1482: uniclient.telegram.TelegramUpdateChannelUsernameResponse
-	(*TelegramUpdateProfileRequest)(nil),                             // 1483: uniclient.telegram.TelegramUpdateProfileRequest
-	(*TelegramUpdateProfileResponse)(nil),                            // 1484: uniclient.telegram.TelegramUpdateProfileResponse
-	(*TelegramUpdateStatusRequest)(nil),                              // 1485: uniclient.telegram.TelegramUpdateStatusRequest
-	(*TelegramUpdateStatusResponse)(nil),                             // 1486: uniclient.telegram.TelegramUpdateStatusResponse
-	(*TelegramUpdateUsernameRequest)(nil),                            // 1487: uniclient.telegram.TelegramUpdateUsernameRequest
-	(*TelegramUpdateUsernameResponse)(nil),                           // 1488: uniclient.telegram.TelegramUpdateUsernameResponse
-	(*TelegramUploadGetCDNFileRequest)(nil),                          // 1489: uniclient.telegram.TelegramUploadGetCDNFileRequest
-	(*TelegramUploadGetCDNFileResponse)(nil),                         // 1490: uniclient.telegram.TelegramUploadGetCDNFileResponse
-	(*TelegramUploadGetCDNFileHashesRequest)(nil),                    // 1491: uniclient.telegram.TelegramUploadGetCDNFileHashesRequest
-	(*TelegramUploadGetCDNFileHashesResponse)(nil),                   // 1492: uniclient.telegram.TelegramUploadGetCDNFileHashesResponse
-	(*TelegramUploadGetFileRequest)(nil),                             // 1493: uniclient.telegram.TelegramUploadGetFileRequest
-	(*TelegramUploadGetFileResponse)(nil),                            // 1494: uniclient.telegram.TelegramUploadGetFileResponse
-	(*TelegramUploadGetFileHashesRequest)(nil),                       // 1495: uniclient.telegram.TelegramUploadGetFileHashesRequest
-	(*TelegramUploadGetFileHashesResponse)(nil),                      // 1496: uniclient.telegram.TelegramUploadGetFileHashesResponse
-	(*TelegramUploadGetWebFileRequest)(nil),                          // 1497: uniclient.telegram.TelegramUploadGetWebFileRequest
-	(*TelegramUploadGetWebFileResponse)(nil),                         // 1498: uniclient.telegram.TelegramUploadGetWebFileResponse
-	(*TelegramUploadProfilePhotoRequest)(nil),                        // 1499: uniclient.telegram.TelegramUploadProfilePhotoRequest
-	(*TelegramUploadProfilePhotoResponse)(nil),                       // 1500: uniclient.telegram.TelegramUploadProfilePhotoResponse
-	(*TelegramUploadReuploadCDNFileRequest)(nil),                     // 1501: uniclient.telegram.TelegramUploadReuploadCDNFileRequest
-	(*TelegramUploadReuploadCDNFileResponse)(nil),                    // 1502: uniclient.telegram.TelegramUploadReuploadCDNFileResponse
-	(*TelegramUploadSaveBigFilePartRequest)(nil),                     // 1503: uniclient.telegram.TelegramUploadSaveBigFilePartRequest
-	(*TelegramUploadSaveBigFilePartResponse)(nil),                    // 1504: uniclient.telegram.TelegramUploadSaveBigFilePartResponse
-	(*TelegramUploadSaveFilePartRequest)(nil),                        // 1505: uniclient.telegram.TelegramUploadSaveFilePartRequest
-	(*TelegramUploadSaveFilePartResponse)(nil),                       // 1506: uniclient.telegram.TelegramUploadSaveFilePartResponse
-	(*TelegramUsersGetRequirementsToContactRequest)(nil),             // 1507: uniclient.telegram.TelegramUsersGetRequirementsToContactRequest
-	(*TelegramUsersGetRequirementsToContactResponse)(nil),            // 1508: uniclient.telegram.TelegramUsersGetRequirementsToContactResponse
-	(*TelegramUsersGetSavedMusicRequest)(nil),                        // 1509: uniclient.telegram.TelegramUsersGetSavedMusicRequest
-	(*TelegramUsersGetSavedMusicResponse)(nil),                       // 1510: uniclient.telegram.TelegramUsersGetSavedMusicResponse
-	(*TelegramUsersGetSavedMusicByIDRequest)(nil),                    // 1511: uniclient.telegram.TelegramUsersGetSavedMusicByIDRequest
-	(*TelegramUsersGetSavedMusicByIDResponse)(nil),                   // 1512: uniclient.telegram.TelegramUsersGetSavedMusicByIDResponse
-	(*TelegramUsersSetSecureValueErrorsRequest)(nil),                 // 1513: uniclient.telegram.TelegramUsersSetSecureValueErrorsRequest
-	(*TelegramUsersSetSecureValueErrorsResponse)(nil),                // 1514: uniclient.telegram.TelegramUsersSetSecureValueErrorsResponse
-	(*TelegramUsersSuggestBirthdayRequest)(nil),                      // 1515: uniclient.telegram.TelegramUsersSuggestBirthdayRequest
-	(*TelegramUsersSuggestBirthdayResponse)(nil),                     // 1516: uniclient.telegram.TelegramUsersSuggestBirthdayResponse
-	(*TelegramVoteInPollRequest)(nil),                                // 1517: uniclient.telegram.TelegramVoteInPollRequest
-	(*TelegramVoteInPollResponse)(nil),                               // 1518: uniclient.telegram.TelegramVoteInPollResponse
-	(*TelegramVotePollRequest)(nil),                                  // 1519: uniclient.telegram.TelegramVotePollRequest
-	(*TelegramVotePollResponse)(nil),                                 // 1520: uniclient.telegram.TelegramVotePollResponse
-	(*proto.CallSession)(nil),                                        // 1521: uniclient.CallSession
-	(*proto.AuthConfig)(nil),                                         // 1522: uniclient.AuthConfig
-	(*proto.Dialog)(nil),                                             // 1523: uniclient.Dialog
-	(*proto.Folder)(nil),                                             // 1524: uniclient.Folder
-	(*proto.Message)(nil),                                            // 1525: uniclient.Message
-	(*proto.User)(nil),                                               // 1526: uniclient.User
-	(*proto.PaginationOpts)(nil),                                     // 1527: uniclient.PaginationOpts
-	(*proto.Reaction)(nil),                                           // 1528: uniclient.Reaction
-	(*proto.ReadState)(nil),                                          // 1529: uniclient.ReadState
-	(*proto.Session)(nil),                                            // 1530: uniclient.Session
-	(*proto.OutgoingMessage)(nil),                                    // 1531: uniclient.OutgoingMessage
+	(*TelegramRefreshQRTokenRequest)(nil),                            // 1219: uniclient.telegram.TelegramRefreshQRTokenRequest
+	(*TelegramRefreshQRTokenResponse)(nil),                           // 1220: uniclient.telegram.TelegramRefreshQRTokenResponse
+	(*TelegramRemoveMemberRequest)(nil),                              // 1221: uniclient.telegram.TelegramRemoveMemberRequest
+	(*TelegramRemoveMemberResponse)(nil),                             // 1222: uniclient.telegram.TelegramRemoveMemberResponse
+	(*TelegramReorderDialogFiltersRequest)(nil),                      // 1223: uniclient.telegram.TelegramReorderDialogFiltersRequest
+	(*TelegramReorderDialogFiltersResponse)(nil),                     // 1224: uniclient.telegram.TelegramReorderDialogFiltersResponse
+	(*TelegramReorderPinnedDialogsRequest)(nil),                      // 1225: uniclient.telegram.TelegramReorderPinnedDialogsRequest
+	(*TelegramReorderPinnedDialogsResponse)(nil),                     // 1226: uniclient.telegram.TelegramReorderPinnedDialogsResponse
+	(*TelegramReorderPinnedForumTopicsRequest)(nil),                  // 1227: uniclient.telegram.TelegramReorderPinnedForumTopicsRequest
+	(*TelegramReorderPinnedForumTopicsResponse)(nil),                 // 1228: uniclient.telegram.TelegramReorderPinnedForumTopicsResponse
+	(*TelegramReplyToMessageRequest)(nil),                            // 1229: uniclient.telegram.TelegramReplyToMessageRequest
+	(*TelegramReplyToMessageResponse)(nil),                           // 1230: uniclient.telegram.TelegramReplyToMessageResponse
+	(*TelegramResolvePhoneRequest)(nil),                              // 1231: uniclient.telegram.TelegramResolvePhoneRequest
+	(*TelegramResolvePhoneResponse)(nil),                             // 1232: uniclient.telegram.TelegramResolvePhoneResponse
+	(*TelegramResolveUsernameRequest)(nil),                           // 1233: uniclient.telegram.TelegramResolveUsernameRequest
+	(*TelegramResolveUsernameResponse)(nil),                          // 1234: uniclient.telegram.TelegramResolveUsernameResponse
+	(*TelegramRestrictUserRequest)(nil),                              // 1235: uniclient.telegram.TelegramRestrictUserRequest
+	(*TelegramRestrictUserResponse)(nil),                             // 1236: uniclient.telegram.TelegramRestrictUserResponse
+	(*TelegramSaveDraftRequest)(nil),                                 // 1237: uniclient.telegram.TelegramSaveDraftRequest
+	(*TelegramSaveDraftResponse)(nil),                                // 1238: uniclient.telegram.TelegramSaveDraftResponse
+	(*TelegramSearchContactsCountRequest)(nil),                       // 1239: uniclient.telegram.TelegramSearchContactsCountRequest
+	(*TelegramSearchContactsCountResponse)(nil),                      // 1240: uniclient.telegram.TelegramSearchContactsCountResponse
+	(*TelegramSearchGlobalRequest)(nil),                              // 1241: uniclient.telegram.TelegramSearchGlobalRequest
+	(*TelegramSearchGlobalResponse)(nil),                             // 1242: uniclient.telegram.TelegramSearchGlobalResponse
+	(*TelegramSearchMessagesRequest)(nil),                            // 1243: uniclient.telegram.TelegramSearchMessagesRequest
+	(*TelegramSearchMessagesResponse)(nil),                           // 1244: uniclient.telegram.TelegramSearchMessagesResponse
+	(*TelegramSearchMessagesGlobalRequest)(nil),                      // 1245: uniclient.telegram.TelegramSearchMessagesGlobalRequest
+	(*TelegramSearchMessagesGlobalResponse)(nil),                     // 1246: uniclient.telegram.TelegramSearchMessagesGlobalResponse
+	(*TelegramSearchStickerSetsCountRequest)(nil),                    // 1247: uniclient.telegram.TelegramSearchStickerSetsCountRequest
+	(*TelegramSearchStickerSetsCountResponse)(nil),                   // 1248: uniclient.telegram.TelegramSearchStickerSetsCountResponse
+	(*TelegramSendAudioFrameRequest)(nil),                            // 1249: uniclient.telegram.TelegramSendAudioFrameRequest
+	(*TelegramSendAudioFrameResponse)(nil),                           // 1250: uniclient.telegram.TelegramSendAudioFrameResponse
+	(*TelegramSendCallRatingRequest)(nil),                            // 1251: uniclient.telegram.TelegramSendCallRatingRequest
+	(*TelegramSendCallRatingResponse)(nil),                           // 1252: uniclient.telegram.TelegramSendCallRatingResponse
+	(*TelegramSendImageBase64Request)(nil),                           // 1253: uniclient.telegram.TelegramSendImageBase64Request
+	(*TelegramSendImageBase64Response)(nil),                          // 1254: uniclient.telegram.TelegramSendImageBase64Response
+	(*TelegramSendInlineBotResultRequest)(nil),                       // 1255: uniclient.telegram.TelegramSendInlineBotResultRequest
+	(*TelegramSendInlineBotResultResponse)(nil),                      // 1256: uniclient.telegram.TelegramSendInlineBotResultResponse
+	(*TelegramSendLocationRequest)(nil),                              // 1257: uniclient.telegram.TelegramSendLocationRequest
+	(*TelegramSendLocationResponse)(nil),                             // 1258: uniclient.telegram.TelegramSendLocationResponse
+	(*TelegramSendMessageRequest)(nil),                               // 1259: uniclient.telegram.TelegramSendMessageRequest
+	(*TelegramSendMessageResponse)(nil),                              // 1260: uniclient.telegram.TelegramSendMessageResponse
+	(*TelegramSendMultiMediaRequest)(nil),                            // 1261: uniclient.telegram.TelegramSendMultiMediaRequest
+	(*TelegramSendMultiMediaResponse)(nil),                           // 1262: uniclient.telegram.TelegramSendMultiMediaResponse
+	(*TelegramSendPollRequest)(nil),                                  // 1263: uniclient.telegram.TelegramSendPollRequest
+	(*TelegramSendPollResponse)(nil),                                 // 1264: uniclient.telegram.TelegramSendPollResponse
+	(*TelegramSendScheduledRequest)(nil),                             // 1265: uniclient.telegram.TelegramSendScheduledRequest
+	(*TelegramSendScheduledResponse)(nil),                            // 1266: uniclient.telegram.TelegramSendScheduledResponse
+	(*TelegramSendScheduledNowRequest)(nil),                          // 1267: uniclient.telegram.TelegramSendScheduledNowRequest
+	(*TelegramSendScheduledNowResponse)(nil),                         // 1268: uniclient.telegram.TelegramSendScheduledNowResponse
+	(*TelegramSendScreenFrameRequest)(nil),                           // 1269: uniclient.telegram.TelegramSendScreenFrameRequest
+	(*TelegramSendScreenFrameResponse)(nil),                          // 1270: uniclient.telegram.TelegramSendScreenFrameResponse
+	(*TelegramSendScreenFrameYUVRequest)(nil),                        // 1271: uniclient.telegram.TelegramSendScreenFrameYUVRequest
+	(*TelegramSendScreenFrameYUVResponse)(nil),                       // 1272: uniclient.telegram.TelegramSendScreenFrameYUVResponse
+	(*TelegramSendStickerRequest)(nil),                               // 1273: uniclient.telegram.TelegramSendStickerRequest
+	(*TelegramSendStickerResponse)(nil),                              // 1274: uniclient.telegram.TelegramSendStickerResponse
+	(*TelegramSendStoryRequest)(nil),                                 // 1275: uniclient.telegram.TelegramSendStoryRequest
+	(*TelegramSendStoryResponse)(nil),                                // 1276: uniclient.telegram.TelegramSendStoryResponse
+	(*TelegramSendStoryWithPhotoRequest)(nil),                        // 1277: uniclient.telegram.TelegramSendStoryWithPhotoRequest
+	(*TelegramSendStoryWithPhotoResponse)(nil),                       // 1278: uniclient.telegram.TelegramSendStoryWithPhotoResponse
+	(*TelegramSendTypingRequest)(nil),                                // 1279: uniclient.telegram.TelegramSendTypingRequest
+	(*TelegramSendTypingResponse)(nil),                               // 1280: uniclient.telegram.TelegramSendTypingResponse
+	(*TelegramSendVideoFrameRequest)(nil),                            // 1281: uniclient.telegram.TelegramSendVideoFrameRequest
+	(*TelegramSendVideoFrameResponse)(nil),                           // 1282: uniclient.telegram.TelegramSendVideoFrameResponse
+	(*TelegramSendVideoFrameYUVRequest)(nil),                         // 1283: uniclient.telegram.TelegramSendVideoFrameYUVRequest
+	(*TelegramSendVideoFrameYUVResponse)(nil),                        // 1284: uniclient.telegram.TelegramSendVideoFrameYUVResponse
+	(*TelegramSetAccountTTLRequest)(nil),                             // 1285: uniclient.telegram.TelegramSetAccountTTLRequest
+	(*TelegramSetAccountTTLResponse)(nil),                            // 1286: uniclient.telegram.TelegramSetAccountTTLResponse
+	(*TelegramSetAdminRequest)(nil),                                  // 1287: uniclient.telegram.TelegramSetAdminRequest
+	(*TelegramSetAdminResponse)(nil),                                 // 1288: uniclient.telegram.TelegramSetAdminResponse
+	(*TelegramSetAudioFrameDurationRequest)(nil),                     // 1289: uniclient.telegram.TelegramSetAudioFrameDurationRequest
+	(*TelegramSetAudioFrameDurationResponse)(nil),                    // 1290: uniclient.telegram.TelegramSetAudioFrameDurationResponse
+	(*TelegramSetCallMutedRequest)(nil),                              // 1291: uniclient.telegram.TelegramSetCallMutedRequest
+	(*TelegramSetCallMutedResponse)(nil),                             // 1292: uniclient.telegram.TelegramSetCallMutedResponse
+	(*TelegramSetCallVideoRequest)(nil),                              // 1293: uniclient.telegram.TelegramSetCallVideoRequest
+	(*TelegramSetCallVideoResponse)(nil),                             // 1294: uniclient.telegram.TelegramSetCallVideoResponse
+	(*TelegramSetChatReactionsRequest)(nil),                          // 1295: uniclient.telegram.TelegramSetChatReactionsRequest
+	(*TelegramSetChatReactionsResponse)(nil),                         // 1296: uniclient.telegram.TelegramSetChatReactionsResponse
+	(*TelegramSetChatThemeRequest)(nil),                              // 1297: uniclient.telegram.TelegramSetChatThemeRequest
+	(*TelegramSetChatThemeResponse)(nil),                             // 1298: uniclient.telegram.TelegramSetChatThemeResponse
+	(*TelegramSetChatWallpaperRequest)(nil),                          // 1299: uniclient.telegram.TelegramSetChatWallpaperRequest
+	(*TelegramSetChatWallpaperResponse)(nil),                         // 1300: uniclient.telegram.TelegramSetChatWallpaperResponse
+	(*TelegramSetDefaultReactionRequest)(nil),                        // 1301: uniclient.telegram.TelegramSetDefaultReactionRequest
+	(*TelegramSetDefaultReactionResponse)(nil),                       // 1302: uniclient.telegram.TelegramSetDefaultReactionResponse
+	(*TelegramSetEchoModeRequest)(nil),                               // 1303: uniclient.telegram.TelegramSetEchoModeRequest
+	(*TelegramSetEchoModeResponse)(nil),                              // 1304: uniclient.telegram.TelegramSetEchoModeResponse
+	(*TelegramSetGlobalPrivacyRequest)(nil),                          // 1305: uniclient.telegram.TelegramSetGlobalPrivacyRequest
+	(*TelegramSetGlobalPrivacyResponse)(nil),                         // 1306: uniclient.telegram.TelegramSetGlobalPrivacyResponse
+	(*TelegramSetGroupCallMutedRequest)(nil),                         // 1307: uniclient.telegram.TelegramSetGroupCallMutedRequest
+	(*TelegramSetGroupCallMutedResponse)(nil),                        // 1308: uniclient.telegram.TelegramSetGroupCallMutedResponse
+	(*TelegramSetGroupCallParticipantVolumeRequest)(nil),             // 1309: uniclient.telegram.TelegramSetGroupCallParticipantVolumeRequest
+	(*TelegramSetGroupCallParticipantVolumeResponse)(nil),            // 1310: uniclient.telegram.TelegramSetGroupCallParticipantVolumeResponse
+	(*TelegramSetGroupPermissionsRequest)(nil),                       // 1311: uniclient.telegram.TelegramSetGroupPermissionsRequest
+	(*TelegramSetGroupPermissionsResponse)(nil),                      // 1312: uniclient.telegram.TelegramSetGroupPermissionsResponse
+	(*TelegramSetHistoryTTLRequest)(nil),                             // 1313: uniclient.telegram.TelegramSetHistoryTTLRequest
+	(*TelegramSetHistoryTTLResponse)(nil),                            // 1314: uniclient.telegram.TelegramSetHistoryTTLResponse
+	(*TelegramSetPrivacyRequest)(nil),                                // 1315: uniclient.telegram.TelegramSetPrivacyRequest
+	(*TelegramSetPrivacyResponse)(nil),                               // 1316: uniclient.telegram.TelegramSetPrivacyResponse
+	(*TelegramSetSlowModeRequest)(nil),                               // 1317: uniclient.telegram.TelegramSetSlowModeRequest
+	(*TelegramSetSlowModeResponse)(nil),                              // 1318: uniclient.telegram.TelegramSetSlowModeResponse
+	(*TelegramSetTypingRequest)(nil),                                 // 1319: uniclient.telegram.TelegramSetTypingRequest
+	(*TelegramSetTypingResponse)(nil),                                // 1320: uniclient.telegram.TelegramSetTypingResponse
+	(*TelegramStartBotRequest)(nil),                                  // 1321: uniclient.telegram.TelegramStartBotRequest
+	(*TelegramStartBotResponse)(nil),                                 // 1322: uniclient.telegram.TelegramStartBotResponse
+	(*TelegramStartCallRequest)(nil),                                 // 1323: uniclient.telegram.TelegramStartCallRequest
+	(*TelegramStartCallResponse)(nil),                                // 1324: uniclient.telegram.TelegramStartCallResponse
+	(*TelegramStartCallRecordingRequest)(nil),                        // 1325: uniclient.telegram.TelegramStartCallRecordingRequest
+	(*TelegramStartCallRecordingResponse)(nil),                       // 1326: uniclient.telegram.TelegramStartCallRecordingResponse
+	(*TelegramStartGroupCallScreenShareRequest)(nil),                 // 1327: uniclient.telegram.TelegramStartGroupCallScreenShareRequest
+	(*TelegramStartGroupCallScreenShareResponse)(nil),                // 1328: uniclient.telegram.TelegramStartGroupCallScreenShareResponse
+	(*TelegramStartQRAuthRequest)(nil),                               // 1329: uniclient.telegram.TelegramStartQRAuthRequest
+	(*TelegramStartQRAuthResponse)(nil),                              // 1330: uniclient.telegram.TelegramStartQRAuthResponse
+	(*TelegramStartScheduledGroupCallRequest)(nil),                   // 1331: uniclient.telegram.TelegramStartScheduledGroupCallRequest
+	(*TelegramStartScheduledGroupCallResponse)(nil),                  // 1332: uniclient.telegram.TelegramStartScheduledGroupCallResponse
+	(*TelegramStartScreenShareRequest)(nil),                          // 1333: uniclient.telegram.TelegramStartScreenShareRequest
+	(*TelegramStartScreenShareResponse)(nil),                         // 1334: uniclient.telegram.TelegramStartScreenShareResponse
+	(*TelegramStatsGetMessagePublicForwardsRequest)(nil),             // 1335: uniclient.telegram.TelegramStatsGetMessagePublicForwardsRequest
+	(*TelegramStatsGetMessagePublicForwardsResponse)(nil),            // 1336: uniclient.telegram.TelegramStatsGetMessagePublicForwardsResponse
+	(*TelegramStatsGetMessageStatsRequest)(nil),                      // 1337: uniclient.telegram.TelegramStatsGetMessageStatsRequest
+	(*TelegramStatsGetMessageStatsResponse)(nil),                     // 1338: uniclient.telegram.TelegramStatsGetMessageStatsResponse
+	(*TelegramStatsGetStoryPublicForwardsRequest)(nil),               // 1339: uniclient.telegram.TelegramStatsGetStoryPublicForwardsRequest
+	(*TelegramStatsGetStoryPublicForwardsResponse)(nil),              // 1340: uniclient.telegram.TelegramStatsGetStoryPublicForwardsResponse
+	(*TelegramStatsGetStoryStatsRequest)(nil),                        // 1341: uniclient.telegram.TelegramStatsGetStoryStatsRequest
+	(*TelegramStatsGetStoryStatsResponse)(nil),                       // 1342: uniclient.telegram.TelegramStatsGetStoryStatsResponse
+	(*TelegramStatsLoadAsyncGraphRequest)(nil),                       // 1343: uniclient.telegram.TelegramStatsLoadAsyncGraphRequest
+	(*TelegramStatsLoadAsyncGraphResponse)(nil),                      // 1344: uniclient.telegram.TelegramStatsLoadAsyncGraphResponse
+	(*TelegramStickersAddStickerToSetRequest)(nil),                   // 1345: uniclient.telegram.TelegramStickersAddStickerToSetRequest
+	(*TelegramStickersAddStickerToSetResponse)(nil),                  // 1346: uniclient.telegram.TelegramStickersAddStickerToSetResponse
+	(*TelegramStickersChangeStickerRequest)(nil),                     // 1347: uniclient.telegram.TelegramStickersChangeStickerRequest
+	(*TelegramStickersChangeStickerResponse)(nil),                    // 1348: uniclient.telegram.TelegramStickersChangeStickerResponse
+	(*TelegramStickersChangeStickerPositionRequest)(nil),             // 1349: uniclient.telegram.TelegramStickersChangeStickerPositionRequest
+	(*TelegramStickersChangeStickerPositionResponse)(nil),            // 1350: uniclient.telegram.TelegramStickersChangeStickerPositionResponse
+	(*TelegramStickersCheckShortNameRequest)(nil),                    // 1351: uniclient.telegram.TelegramStickersCheckShortNameRequest
+	(*TelegramStickersCheckShortNameResponse)(nil),                   // 1352: uniclient.telegram.TelegramStickersCheckShortNameResponse
+	(*TelegramStickersCreateStickerSetRequest)(nil),                  // 1353: uniclient.telegram.TelegramStickersCreateStickerSetRequest
+	(*TelegramStickersCreateStickerSetResponse)(nil),                 // 1354: uniclient.telegram.TelegramStickersCreateStickerSetResponse
+	(*TelegramStickersDeleteStickerSetRequest)(nil),                  // 1355: uniclient.telegram.TelegramStickersDeleteStickerSetRequest
+	(*TelegramStickersDeleteStickerSetResponse)(nil),                 // 1356: uniclient.telegram.TelegramStickersDeleteStickerSetResponse
+	(*TelegramStickersRemoveStickerFromSetRequest)(nil),              // 1357: uniclient.telegram.TelegramStickersRemoveStickerFromSetRequest
+	(*TelegramStickersRemoveStickerFromSetResponse)(nil),             // 1358: uniclient.telegram.TelegramStickersRemoveStickerFromSetResponse
+	(*TelegramStickersRenameStickerSetRequest)(nil),                  // 1359: uniclient.telegram.TelegramStickersRenameStickerSetRequest
+	(*TelegramStickersRenameStickerSetResponse)(nil),                 // 1360: uniclient.telegram.TelegramStickersRenameStickerSetResponse
+	(*TelegramStickersReplaceStickerRequest)(nil),                    // 1361: uniclient.telegram.TelegramStickersReplaceStickerRequest
+	(*TelegramStickersReplaceStickerResponse)(nil),                   // 1362: uniclient.telegram.TelegramStickersReplaceStickerResponse
+	(*TelegramStickersSetStickerSetThumbRequest)(nil),                // 1363: uniclient.telegram.TelegramStickersSetStickerSetThumbRequest
+	(*TelegramStickersSetStickerSetThumbResponse)(nil),               // 1364: uniclient.telegram.TelegramStickersSetStickerSetThumbResponse
+	(*TelegramStickersSuggestShortNameRequest)(nil),                  // 1365: uniclient.telegram.TelegramStickersSuggestShortNameRequest
+	(*TelegramStickersSuggestShortNameResponse)(nil),                 // 1366: uniclient.telegram.TelegramStickersSuggestShortNameResponse
+	(*TelegramStopCallRecordingRequest)(nil),                         // 1367: uniclient.telegram.TelegramStopCallRecordingRequest
+	(*TelegramStopCallRecordingResponse)(nil),                        // 1368: uniclient.telegram.TelegramStopCallRecordingResponse
+	(*TelegramStopGroupCallScreenShareRequest)(nil),                  // 1369: uniclient.telegram.TelegramStopGroupCallScreenShareRequest
+	(*TelegramStopGroupCallScreenShareResponse)(nil),                 // 1370: uniclient.telegram.TelegramStopGroupCallScreenShareResponse
+	(*TelegramStopScreenShareRequest)(nil),                           // 1371: uniclient.telegram.TelegramStopScreenShareRequest
+	(*TelegramStopScreenShareResponse)(nil),                          // 1372: uniclient.telegram.TelegramStopScreenShareResponse
+	(*TelegramStoriesActivateStealthModeRequest)(nil),                // 1373: uniclient.telegram.TelegramStoriesActivateStealthModeRequest
+	(*TelegramStoriesActivateStealthModeResponse)(nil),               // 1374: uniclient.telegram.TelegramStoriesActivateStealthModeResponse
+	(*TelegramStoriesCanSendStoryRequest)(nil),                       // 1375: uniclient.telegram.TelegramStoriesCanSendStoryRequest
+	(*TelegramStoriesCanSendStoryResponse)(nil),                      // 1376: uniclient.telegram.TelegramStoriesCanSendStoryResponse
+	(*TelegramStoriesCreateAlbumRequest)(nil),                        // 1377: uniclient.telegram.TelegramStoriesCreateAlbumRequest
+	(*TelegramStoriesCreateAlbumResponse)(nil),                       // 1378: uniclient.telegram.TelegramStoriesCreateAlbumResponse
+	(*TelegramStoriesDeleteAlbumRequest)(nil),                        // 1379: uniclient.telegram.TelegramStoriesDeleteAlbumRequest
+	(*TelegramStoriesDeleteAlbumResponse)(nil),                       // 1380: uniclient.telegram.TelegramStoriesDeleteAlbumResponse
+	(*TelegramStoriesEditStoryRequest)(nil),                          // 1381: uniclient.telegram.TelegramStoriesEditStoryRequest
+	(*TelegramStoriesEditStoryResponse)(nil),                         // 1382: uniclient.telegram.TelegramStoriesEditStoryResponse
+	(*TelegramStoriesExportStoryLinkRequest)(nil),                    // 1383: uniclient.telegram.TelegramStoriesExportStoryLinkRequest
+	(*TelegramStoriesExportStoryLinkResponse)(nil),                   // 1384: uniclient.telegram.TelegramStoriesExportStoryLinkResponse
+	(*TelegramStoriesGetAlbumStoriesRequest)(nil),                    // 1385: uniclient.telegram.TelegramStoriesGetAlbumStoriesRequest
+	(*TelegramStoriesGetAlbumStoriesResponse)(nil),                   // 1386: uniclient.telegram.TelegramStoriesGetAlbumStoriesResponse
+	(*TelegramStoriesGetAlbumsRequest)(nil),                          // 1387: uniclient.telegram.TelegramStoriesGetAlbumsRequest
+	(*TelegramStoriesGetAlbumsResponse)(nil),                         // 1388: uniclient.telegram.TelegramStoriesGetAlbumsResponse
+	(*TelegramStoriesGetAllReadPeerStoriesRequest)(nil),              // 1389: uniclient.telegram.TelegramStoriesGetAllReadPeerStoriesRequest
+	(*TelegramStoriesGetAllReadPeerStoriesResponse)(nil),             // 1390: uniclient.telegram.TelegramStoriesGetAllReadPeerStoriesResponse
+	(*TelegramStoriesGetChatsToSendRequest)(nil),                     // 1391: uniclient.telegram.TelegramStoriesGetChatsToSendRequest
+	(*TelegramStoriesGetChatsToSendResponse)(nil),                    // 1392: uniclient.telegram.TelegramStoriesGetChatsToSendResponse
+	(*TelegramStoriesGetPeerMaxIDsRequest)(nil),                      // 1393: uniclient.telegram.TelegramStoriesGetPeerMaxIDsRequest
+	(*TelegramStoriesGetPeerMaxIDsResponse)(nil),                     // 1394: uniclient.telegram.TelegramStoriesGetPeerMaxIDsResponse
+	(*TelegramStoriesGetStoriesArchiveRequest)(nil),                  // 1395: uniclient.telegram.TelegramStoriesGetStoriesArchiveRequest
+	(*TelegramStoriesGetStoriesArchiveResponse)(nil),                 // 1396: uniclient.telegram.TelegramStoriesGetStoriesArchiveResponse
+	(*TelegramStoriesGetStoriesByIDRequest)(nil),                     // 1397: uniclient.telegram.TelegramStoriesGetStoriesByIDRequest
+	(*TelegramStoriesGetStoriesByIDResponse)(nil),                    // 1398: uniclient.telegram.TelegramStoriesGetStoriesByIDResponse
+	(*TelegramStoriesGetStoryReactionsListRequest)(nil),              // 1399: uniclient.telegram.TelegramStoriesGetStoryReactionsListRequest
+	(*TelegramStoriesGetStoryReactionsListResponse)(nil),             // 1400: uniclient.telegram.TelegramStoriesGetStoryReactionsListResponse
+	(*TelegramStoriesGetStoryViewsListRequest)(nil),                  // 1401: uniclient.telegram.TelegramStoriesGetStoryViewsListRequest
+	(*TelegramStoriesGetStoryViewsListResponse)(nil),                 // 1402: uniclient.telegram.TelegramStoriesGetStoryViewsListResponse
+	(*TelegramStoriesIncrementStoryViewsRequest)(nil),                // 1403: uniclient.telegram.TelegramStoriesIncrementStoryViewsRequest
+	(*TelegramStoriesIncrementStoryViewsResponse)(nil),               // 1404: uniclient.telegram.TelegramStoriesIncrementStoryViewsResponse
+	(*TelegramStoriesReadStoriesRequest)(nil),                        // 1405: uniclient.telegram.TelegramStoriesReadStoriesRequest
+	(*TelegramStoriesReadStoriesResponse)(nil),                       // 1406: uniclient.telegram.TelegramStoriesReadStoriesResponse
+	(*TelegramStoriesReorderAlbumsRequest)(nil),                      // 1407: uniclient.telegram.TelegramStoriesReorderAlbumsRequest
+	(*TelegramStoriesReorderAlbumsResponse)(nil),                     // 1408: uniclient.telegram.TelegramStoriesReorderAlbumsResponse
+	(*TelegramStoriesReportRequest)(nil),                             // 1409: uniclient.telegram.TelegramStoriesReportRequest
+	(*TelegramStoriesReportResponse)(nil),                            // 1410: uniclient.telegram.TelegramStoriesReportResponse
+	(*TelegramStoriesSearchPostsRequest)(nil),                        // 1411: uniclient.telegram.TelegramStoriesSearchPostsRequest
+	(*TelegramStoriesSearchPostsResponse)(nil),                       // 1412: uniclient.telegram.TelegramStoriesSearchPostsResponse
+	(*TelegramStoriesStartLiveRequest)(nil),                          // 1413: uniclient.telegram.TelegramStoriesStartLiveRequest
+	(*TelegramStoriesStartLiveResponse)(nil),                         // 1414: uniclient.telegram.TelegramStoriesStartLiveResponse
+	(*TelegramStoriesToggleAllStoriesHiddenRequest)(nil),             // 1415: uniclient.telegram.TelegramStoriesToggleAllStoriesHiddenRequest
+	(*TelegramStoriesToggleAllStoriesHiddenResponse)(nil),            // 1416: uniclient.telegram.TelegramStoriesToggleAllStoriesHiddenResponse
+	(*TelegramStoriesTogglePeerStoriesHiddenRequest)(nil),            // 1417: uniclient.telegram.TelegramStoriesTogglePeerStoriesHiddenRequest
+	(*TelegramStoriesTogglePeerStoriesHiddenResponse)(nil),           // 1418: uniclient.telegram.TelegramStoriesTogglePeerStoriesHiddenResponse
+	(*TelegramStoriesTogglePinnedRequest)(nil),                       // 1419: uniclient.telegram.TelegramStoriesTogglePinnedRequest
+	(*TelegramStoriesTogglePinnedResponse)(nil),                      // 1420: uniclient.telegram.TelegramStoriesTogglePinnedResponse
+	(*TelegramStoriesTogglePinnedToTopRequest)(nil),                  // 1421: uniclient.telegram.TelegramStoriesTogglePinnedToTopRequest
+	(*TelegramStoriesTogglePinnedToTopResponse)(nil),                 // 1422: uniclient.telegram.TelegramStoriesTogglePinnedToTopResponse
+	(*TelegramStoriesUpdateAlbumRequest)(nil),                        // 1423: uniclient.telegram.TelegramStoriesUpdateAlbumRequest
+	(*TelegramStoriesUpdateAlbumResponse)(nil),                       // 1424: uniclient.telegram.TelegramStoriesUpdateAlbumResponse
+	(*TelegramSubmit2FARequest)(nil),                                 // 1425: uniclient.telegram.TelegramSubmit2FARequest
+	(*TelegramSubmit2FAResponse)(nil),                                // 1426: uniclient.telegram.TelegramSubmit2FAResponse
+	(*TelegramSubmitOTPRequest)(nil),                                 // 1427: uniclient.telegram.TelegramSubmitOTPRequest
+	(*TelegramSubmitOTPResponse)(nil),                                // 1428: uniclient.telegram.TelegramSubmitOTPResponse
+	(*TelegramTerminateSessionRequest)(nil),                          // 1429: uniclient.telegram.TelegramTerminateSessionRequest
+	(*TelegramTerminateSessionResponse)(nil),                         // 1430: uniclient.telegram.TelegramTerminateSessionResponse
+	(*TelegramTestAcceptCallRawRequest)(nil),                         // 1431: uniclient.telegram.TelegramTestAcceptCallRawRequest
+	(*TelegramTestAcceptCallRawResponse)(nil),                        // 1432: uniclient.telegram.TelegramTestAcceptCallRawResponse
+	(*TelegramTestGetCallAudioSSRCRequest)(nil),                      // 1433: uniclient.telegram.TelegramTestGetCallAudioSSRCRequest
+	(*TelegramTestGetCallAudioSSRCResponse)(nil),                     // 1434: uniclient.telegram.TelegramTestGetCallAudioSSRCResponse
+	(*TelegramTestGetCallInfoRequest)(nil),                           // 1435: uniclient.telegram.TelegramTestGetCallInfoRequest
+	(*TelegramTestGetCallInfoResponse)(nil),                          // 1436: uniclient.telegram.TelegramTestGetCallInfoResponse
+	(*TelegramTestGetCallPCStateRequest)(nil),                        // 1437: uniclient.telegram.TelegramTestGetCallPCStateRequest
+	(*TelegramTestGetCallPCStateResponse)(nil),                       // 1438: uniclient.telegram.TelegramTestGetCallPCStateResponse
+	(*TelegramTestGetCallStatsRequest)(nil),                          // 1439: uniclient.telegram.TelegramTestGetCallStatsRequest
+	(*TelegramTestGetCallStatsResponse)(nil),                         // 1440: uniclient.telegram.TelegramTestGetCallStatsResponse
+	(*TelegramTestGetGroupCallAccessHashRequest)(nil),                // 1441: uniclient.telegram.TelegramTestGetGroupCallAccessHashRequest
+	(*TelegramTestGetGroupCallAccessHashResponse)(nil),               // 1442: uniclient.telegram.TelegramTestGetGroupCallAccessHashResponse
+	(*TelegramTestGetSenderSSRCsRequest)(nil),                        // 1443: uniclient.telegram.TelegramTestGetSenderSSRCsRequest
+	(*TelegramTestGetSenderSSRCsResponse)(nil),                       // 1444: uniclient.telegram.TelegramTestGetSenderSSRCsResponse
+	(*TelegramTestHandleSignalingDataRequest)(nil),                   // 1445: uniclient.telegram.TelegramTestHandleSignalingDataRequest
+	(*TelegramTestHandleSignalingDataResponse)(nil),                  // 1446: uniclient.telegram.TelegramTestHandleSignalingDataResponse
+	(*TelegramTestSendRawSignalingRequest)(nil),                      // 1447: uniclient.telegram.TelegramTestSendRawSignalingRequest
+	(*TelegramTestSendRawSignalingResponse)(nil),                     // 1448: uniclient.telegram.TelegramTestSendRawSignalingResponse
+	(*TelegramTestStartCallRawRequest)(nil),                          // 1449: uniclient.telegram.TelegramTestStartCallRawRequest
+	(*TelegramTestStartCallRawResponse)(nil),                         // 1450: uniclient.telegram.TelegramTestStartCallRawResponse
+	(*TelegramToggleAntiSpamRequest)(nil),                            // 1451: uniclient.telegram.TelegramToggleAntiSpamRequest
+	(*TelegramToggleAntiSpamResponse)(nil),                           // 1452: uniclient.telegram.TelegramToggleAntiSpamResponse
+	(*TelegramToggleAutotranslationRequest)(nil),                     // 1453: uniclient.telegram.TelegramToggleAutotranslationRequest
+	(*TelegramToggleAutotranslationResponse)(nil),                    // 1454: uniclient.telegram.TelegramToggleAutotranslationResponse
+	(*TelegramToggleForumRequest)(nil),                               // 1455: uniclient.telegram.TelegramToggleForumRequest
+	(*TelegramToggleForumResponse)(nil),                              // 1456: uniclient.telegram.TelegramToggleForumResponse
+	(*TelegramToggleGroupCallVideoRequest)(nil),                      // 1457: uniclient.telegram.TelegramToggleGroupCallVideoRequest
+	(*TelegramToggleGroupCallVideoResponse)(nil),                     // 1458: uniclient.telegram.TelegramToggleGroupCallVideoResponse
+	(*TelegramToggleJoinRequestRequest)(nil),                         // 1459: uniclient.telegram.TelegramToggleJoinRequestRequest
+	(*TelegramToggleJoinRequestResponse)(nil),                        // 1460: uniclient.telegram.TelegramToggleJoinRequestResponse
+	(*TelegramToggleJoinToSendRequest)(nil),                          // 1461: uniclient.telegram.TelegramToggleJoinToSendRequest
+	(*TelegramToggleJoinToSendResponse)(nil),                         // 1462: uniclient.telegram.TelegramToggleJoinToSendResponse
+	(*TelegramToggleNoForwardsRequest)(nil),                          // 1463: uniclient.telegram.TelegramToggleNoForwardsRequest
+	(*TelegramToggleNoForwardsResponse)(nil),                         // 1464: uniclient.telegram.TelegramToggleNoForwardsResponse
+	(*TelegramToggleParticipantsHiddenRequest)(nil),                  // 1465: uniclient.telegram.TelegramToggleParticipantsHiddenRequest
+	(*TelegramToggleParticipantsHiddenResponse)(nil),                 // 1466: uniclient.telegram.TelegramToggleParticipantsHiddenResponse
+	(*TelegramTogglePreHistoryHiddenRequest)(nil),                    // 1467: uniclient.telegram.TelegramTogglePreHistoryHiddenRequest
+	(*TelegramTogglePreHistoryHiddenResponse)(nil),                   // 1468: uniclient.telegram.TelegramTogglePreHistoryHiddenResponse
+	(*TelegramToggleSignaturesRequest)(nil),                          // 1469: uniclient.telegram.TelegramToggleSignaturesRequest
+	(*TelegramToggleSignaturesResponse)(nil),                         // 1470: uniclient.telegram.TelegramToggleSignaturesResponse
+	(*TelegramToggleViewForumAsMessagesRequest)(nil),                 // 1471: uniclient.telegram.TelegramToggleViewForumAsMessagesRequest
+	(*TelegramToggleViewForumAsMessagesResponse)(nil),                // 1472: uniclient.telegram.TelegramToggleViewForumAsMessagesResponse
+	(*TelegramTranslateTextRequest)(nil),                             // 1473: uniclient.telegram.TelegramTranslateTextRequest
+	(*TelegramTranslateTextResponse)(nil),                            // 1474: uniclient.telegram.TelegramTranslateTextResponse
+	(*TelegramUnbanMemberRequest)(nil),                               // 1475: uniclient.telegram.TelegramUnbanMemberRequest
+	(*TelegramUnbanMemberResponse)(nil),                              // 1476: uniclient.telegram.TelegramUnbanMemberResponse
+	(*TelegramUnblockUserRequest)(nil),                               // 1477: uniclient.telegram.TelegramUnblockUserRequest
+	(*TelegramUnblockUserResponse)(nil),                              // 1478: uniclient.telegram.TelegramUnblockUserResponse
+	(*TelegramUnpinAllMessagesRequest)(nil),                          // 1479: uniclient.telegram.TelegramUnpinAllMessagesRequest
+	(*TelegramUnpinAllMessagesResponse)(nil),                         // 1480: uniclient.telegram.TelegramUnpinAllMessagesResponse
+	(*TelegramUnpinDialogRequest)(nil),                               // 1481: uniclient.telegram.TelegramUnpinDialogRequest
+	(*TelegramUnpinDialogResponse)(nil),                              // 1482: uniclient.telegram.TelegramUnpinDialogResponse
+	(*TelegramUnpinMessageRequest)(nil),                              // 1483: uniclient.telegram.TelegramUnpinMessageRequest
+	(*TelegramUnpinMessageResponse)(nil),                             // 1484: uniclient.telegram.TelegramUnpinMessageResponse
+	(*TelegramUpdateBirthdayRequest)(nil),                            // 1485: uniclient.telegram.TelegramUpdateBirthdayRequest
+	(*TelegramUpdateBirthdayResponse)(nil),                           // 1486: uniclient.telegram.TelegramUpdateBirthdayResponse
+	(*TelegramUpdateChannelColorRequest)(nil),                        // 1487: uniclient.telegram.TelegramUpdateChannelColorRequest
+	(*TelegramUpdateChannelColorResponse)(nil),                       // 1488: uniclient.telegram.TelegramUpdateChannelColorResponse
+	(*TelegramUpdateChannelUsernameRequest)(nil),                     // 1489: uniclient.telegram.TelegramUpdateChannelUsernameRequest
+	(*TelegramUpdateChannelUsernameResponse)(nil),                    // 1490: uniclient.telegram.TelegramUpdateChannelUsernameResponse
+	(*TelegramUpdateProfileRequest)(nil),                             // 1491: uniclient.telegram.TelegramUpdateProfileRequest
+	(*TelegramUpdateProfileResponse)(nil),                            // 1492: uniclient.telegram.TelegramUpdateProfileResponse
+	(*TelegramUpdateStatusRequest)(nil),                              // 1493: uniclient.telegram.TelegramUpdateStatusRequest
+	(*TelegramUpdateStatusResponse)(nil),                             // 1494: uniclient.telegram.TelegramUpdateStatusResponse
+	(*TelegramUpdateUsernameRequest)(nil),                            // 1495: uniclient.telegram.TelegramUpdateUsernameRequest
+	(*TelegramUpdateUsernameResponse)(nil),                           // 1496: uniclient.telegram.TelegramUpdateUsernameResponse
+	(*TelegramUploadGetCDNFileRequest)(nil),                          // 1497: uniclient.telegram.TelegramUploadGetCDNFileRequest
+	(*TelegramUploadGetCDNFileResponse)(nil),                         // 1498: uniclient.telegram.TelegramUploadGetCDNFileResponse
+	(*TelegramUploadGetCDNFileHashesRequest)(nil),                    // 1499: uniclient.telegram.TelegramUploadGetCDNFileHashesRequest
+	(*TelegramUploadGetCDNFileHashesResponse)(nil),                   // 1500: uniclient.telegram.TelegramUploadGetCDNFileHashesResponse
+	(*TelegramUploadGetFileRequest)(nil),                             // 1501: uniclient.telegram.TelegramUploadGetFileRequest
+	(*TelegramUploadGetFileResponse)(nil),                            // 1502: uniclient.telegram.TelegramUploadGetFileResponse
+	(*TelegramUploadGetFileHashesRequest)(nil),                       // 1503: uniclient.telegram.TelegramUploadGetFileHashesRequest
+	(*TelegramUploadGetFileHashesResponse)(nil),                      // 1504: uniclient.telegram.TelegramUploadGetFileHashesResponse
+	(*TelegramUploadGetWebFileRequest)(nil),                          // 1505: uniclient.telegram.TelegramUploadGetWebFileRequest
+	(*TelegramUploadGetWebFileResponse)(nil),                         // 1506: uniclient.telegram.TelegramUploadGetWebFileResponse
+	(*TelegramUploadProfilePhotoRequest)(nil),                        // 1507: uniclient.telegram.TelegramUploadProfilePhotoRequest
+	(*TelegramUploadProfilePhotoResponse)(nil),                       // 1508: uniclient.telegram.TelegramUploadProfilePhotoResponse
+	(*TelegramUploadReuploadCDNFileRequest)(nil),                     // 1509: uniclient.telegram.TelegramUploadReuploadCDNFileRequest
+	(*TelegramUploadReuploadCDNFileResponse)(nil),                    // 1510: uniclient.telegram.TelegramUploadReuploadCDNFileResponse
+	(*TelegramUploadSaveBigFilePartRequest)(nil),                     // 1511: uniclient.telegram.TelegramUploadSaveBigFilePartRequest
+	(*TelegramUploadSaveBigFilePartResponse)(nil),                    // 1512: uniclient.telegram.TelegramUploadSaveBigFilePartResponse
+	(*TelegramUploadSaveFilePartRequest)(nil),                        // 1513: uniclient.telegram.TelegramUploadSaveFilePartRequest
+	(*TelegramUploadSaveFilePartResponse)(nil),                       // 1514: uniclient.telegram.TelegramUploadSaveFilePartResponse
+	(*TelegramUsersGetRequirementsToContactRequest)(nil),             // 1515: uniclient.telegram.TelegramUsersGetRequirementsToContactRequest
+	(*TelegramUsersGetRequirementsToContactResponse)(nil),            // 1516: uniclient.telegram.TelegramUsersGetRequirementsToContactResponse
+	(*TelegramUsersGetSavedMusicRequest)(nil),                        // 1517: uniclient.telegram.TelegramUsersGetSavedMusicRequest
+	(*TelegramUsersGetSavedMusicResponse)(nil),                       // 1518: uniclient.telegram.TelegramUsersGetSavedMusicResponse
+	(*TelegramUsersGetSavedMusicByIDRequest)(nil),                    // 1519: uniclient.telegram.TelegramUsersGetSavedMusicByIDRequest
+	(*TelegramUsersGetSavedMusicByIDResponse)(nil),                   // 1520: uniclient.telegram.TelegramUsersGetSavedMusicByIDResponse
+	(*TelegramUsersSetSecureValueErrorsRequest)(nil),                 // 1521: uniclient.telegram.TelegramUsersSetSecureValueErrorsRequest
+	(*TelegramUsersSetSecureValueErrorsResponse)(nil),                // 1522: uniclient.telegram.TelegramUsersSetSecureValueErrorsResponse
+	(*TelegramUsersSuggestBirthdayRequest)(nil),                      // 1523: uniclient.telegram.TelegramUsersSuggestBirthdayRequest
+	(*TelegramUsersSuggestBirthdayResponse)(nil),                     // 1524: uniclient.telegram.TelegramUsersSuggestBirthdayResponse
+	(*TelegramVoteInPollRequest)(nil),                                // 1525: uniclient.telegram.TelegramVoteInPollRequest
+	(*TelegramVoteInPollResponse)(nil),                               // 1526: uniclient.telegram.TelegramVoteInPollResponse
+	(*TelegramVotePollRequest)(nil),                                  // 1527: uniclient.telegram.TelegramVotePollRequest
+	(*TelegramVotePollResponse)(nil),                                 // 1528: uniclient.telegram.TelegramVotePollResponse
+	(*proto.CallSession)(nil),                                        // 1529: uniclient.CallSession
+	(*proto.AuthConfig)(nil),                                         // 1530: uniclient.AuthConfig
+	(*proto.Dialog)(nil),                                             // 1531: uniclient.Dialog
+	(*proto.Folder)(nil),                                             // 1532: uniclient.Folder
+	(*proto.Message)(nil),                                            // 1533: uniclient.Message
+	(*proto.User)(nil),                                               // 1534: uniclient.User
+	(*proto.PaginationOpts)(nil),                                     // 1535: uniclient.PaginationOpts
+	(*proto.Reaction)(nil),                                           // 1536: uniclient.Reaction
+	(*proto.ReadState)(nil),                                          // 1537: uniclient.ReadState
+	(*proto.Session)(nil),                                            // 1538: uniclient.Session
+	(*proto.OutgoingMessage)(nil),                                    // 1539: uniclient.OutgoingMessage
 }
 var file_proto_cores_telegram_proto_depIdxs = []int32{
-	1521, // 0: uniclient.telegram.TelegramAcceptCallResponse.result_1:type_name -> uniclient.CallSession
-	1522, // 1: uniclient.telegram.TelegramAuthenticateRequest.cfg:type_name -> uniclient.AuthConfig
-	1523, // 2: uniclient.telegram.TelegramCreateChannelResponse.result_1:type_name -> uniclient.Dialog
-	1524, // 3: uniclient.telegram.TelegramCreateFolderResponse.result_1:type_name -> uniclient.Folder
-	1523, // 4: uniclient.telegram.TelegramCreateGroupResponse.result_1:type_name -> uniclient.Dialog
-	1521, // 5: uniclient.telegram.TelegramCreateGroupCallResponse.result_1:type_name -> uniclient.CallSession
-	1525, // 6: uniclient.telegram.TelegramCreatePollResponse.result_1:type_name -> uniclient.Message
-	1521, // 7: uniclient.telegram.TelegramCreateScheduledGroupCallResponse.result_1:type_name -> uniclient.CallSession
-	1523, // 8: uniclient.telegram.TelegramCreateTopicResponse.result_1:type_name -> uniclient.Dialog
-	1525, // 9: uniclient.telegram.TelegramEditMessageResponse.result_1:type_name -> uniclient.Message
-	1525, // 10: uniclient.telegram.TelegramForwardMessageResponse.result_1:type_name -> uniclient.Message
+	1529, // 0: uniclient.telegram.TelegramAcceptCallResponse.result_1:type_name -> uniclient.CallSession
+	1530, // 1: uniclient.telegram.TelegramAuthenticateRequest.cfg:type_name -> uniclient.AuthConfig
+	1531, // 2: uniclient.telegram.TelegramCreateChannelResponse.result_1:type_name -> uniclient.Dialog
+	1532, // 3: uniclient.telegram.TelegramCreateFolderResponse.result_1:type_name -> uniclient.Folder
+	1531, // 4: uniclient.telegram.TelegramCreateGroupResponse.result_1:type_name -> uniclient.Dialog
+	1529, // 5: uniclient.telegram.TelegramCreateGroupCallResponse.result_1:type_name -> uniclient.CallSession
+	1533, // 6: uniclient.telegram.TelegramCreatePollResponse.result_1:type_name -> uniclient.Message
+	1529, // 7: uniclient.telegram.TelegramCreateScheduledGroupCallResponse.result_1:type_name -> uniclient.CallSession
+	1531, // 8: uniclient.telegram.TelegramCreateTopicResponse.result_1:type_name -> uniclient.Dialog
+	1533, // 9: uniclient.telegram.TelegramEditMessageResponse.result_1:type_name -> uniclient.Message
+	1533, // 10: uniclient.telegram.TelegramForwardMessageResponse.result_1:type_name -> uniclient.Message
 	0,    // 11: uniclient.telegram.TelegramGetActiveSessionsResponse.result_1:type_name -> uniclient.telegram.ActiveSession
-	1526, // 12: uniclient.telegram.TelegramGetBlockedUsersResponse.result_1:type_name -> uniclient.User
-	1523, // 13: uniclient.telegram.TelegramGetChatInfoResponse.result_1:type_name -> uniclient.Dialog
-	1523, // 14: uniclient.telegram.TelegramGetCommonChatsResponse.result_1:type_name -> uniclient.Dialog
-	1526, // 15: uniclient.telegram.TelegramGetContactsResponse.result_1:type_name -> uniclient.User
-	1527, // 16: uniclient.telegram.TelegramGetDialogsRequest.opts:type_name -> uniclient.PaginationOpts
-	1523, // 17: uniclient.telegram.TelegramGetDialogsResponse.result_1:type_name -> uniclient.Dialog
-	1524, // 18: uniclient.telegram.TelegramGetFoldersResponse.result_1:type_name -> uniclient.Folder
-	1523, // 19: uniclient.telegram.TelegramGetForumTopicsResponse.result_1:type_name -> uniclient.Dialog
-	1523, // 20: uniclient.telegram.TelegramGetFullChannelResponse.result_1:type_name -> uniclient.Dialog
-	1523, // 21: uniclient.telegram.TelegramGetFullChatResponse.result_1:type_name -> uniclient.Dialog
-	1526, // 22: uniclient.telegram.TelegramGetFullUserResponse.result_1:type_name -> uniclient.User
-	1521, // 23: uniclient.telegram.TelegramGetGroupCallResponse.result_1:type_name -> uniclient.CallSession
-	1527, // 24: uniclient.telegram.TelegramGetMembersRequest.opts:type_name -> uniclient.PaginationOpts
-	1526, // 25: uniclient.telegram.TelegramGetMembersResponse.result_1:type_name -> uniclient.User
-	1528, // 26: uniclient.telegram.TelegramGetMessageReactionsListResponse.result_1:type_name -> uniclient.Reaction
-	1527, // 27: uniclient.telegram.TelegramGetMessagesRequest.opts:type_name -> uniclient.PaginationOpts
-	1525, // 28: uniclient.telegram.TelegramGetMessagesResponse.result_1:type_name -> uniclient.Message
-	1526, // 29: uniclient.telegram.TelegramGetParticipantInfoResponse.result_1:type_name -> uniclient.User
-	1526, // 30: uniclient.telegram.TelegramGetParticipantsResponse.result_1:type_name -> uniclient.User
-	1523, // 31: uniclient.telegram.TelegramGetPinnedDialogsResponse.result_1:type_name -> uniclient.Dialog
-	1526, // 32: uniclient.telegram.TelegramGetProfileResponse.result_1:type_name -> uniclient.User
-	1529, // 33: uniclient.telegram.TelegramGetReadStateResponse.result_1:type_name -> uniclient.ReadState
-	1525, // 34: uniclient.telegram.TelegramGetScheduledMessagesResponse.result_1:type_name -> uniclient.Message
-	1530, // 35: uniclient.telegram.TelegramGetSessionsResponse.result_1:type_name -> uniclient.Session
-	1525, // 36: uniclient.telegram.TelegramGetUnreadMentionsResponse.result_1:type_name -> uniclient.Message
-	1525, // 37: uniclient.telegram.TelegramGetUnreadReactionsResponse.result_1:type_name -> uniclient.Message
-	1521, // 38: uniclient.telegram.TelegramJoinGroupCallResponse.result_1:type_name -> uniclient.CallSession
-	1521, // 39: uniclient.telegram.TelegramJoinGroupCallWithVideoResponse.result_1:type_name -> uniclient.CallSession
-	1523, // 40: uniclient.telegram.TelegramRawCreateChannelResponse.result_1:type_name -> uniclient.Dialog
-	1531, // 41: uniclient.telegram.TelegramReplyToMessageRequest.msg:type_name -> uniclient.OutgoingMessage
-	1525, // 42: uniclient.telegram.TelegramReplyToMessageResponse.result_1:type_name -> uniclient.Message
-	1527, // 43: uniclient.telegram.TelegramSearchGlobalRequest.opts:type_name -> uniclient.PaginationOpts
-	1523, // 44: uniclient.telegram.TelegramSearchGlobalResponse.result_1:type_name -> uniclient.Dialog
-	1527, // 45: uniclient.telegram.TelegramSearchMessagesRequest.opts:type_name -> uniclient.PaginationOpts
-	1525, // 46: uniclient.telegram.TelegramSearchMessagesResponse.result_1:type_name -> uniclient.Message
-	1525, // 47: uniclient.telegram.TelegramSearchMessagesGlobalResponse.result_1:type_name -> uniclient.Message
-	1525, // 48: uniclient.telegram.TelegramSendImageBase64Response.result_1:type_name -> uniclient.Message
-	1525, // 49: uniclient.telegram.TelegramSendLocationResponse.result_1:type_name -> uniclient.Message
-	1531, // 50: uniclient.telegram.TelegramSendMessageRequest.msg:type_name -> uniclient.OutgoingMessage
-	1525, // 51: uniclient.telegram.TelegramSendMessageResponse.result_1:type_name -> uniclient.Message
-	1525, // 52: uniclient.telegram.TelegramSendPollResponse.result_1:type_name -> uniclient.Message
-	1525, // 53: uniclient.telegram.TelegramSendScheduledResponse.result_1:type_name -> uniclient.Message
-	1525, // 54: uniclient.telegram.TelegramSendStickerResponse.result_1:type_name -> uniclient.Message
-	1521, // 55: uniclient.telegram.TelegramStartCallResponse.result_1:type_name -> uniclient.CallSession
+	1534, // 12: uniclient.telegram.TelegramGetBlockedUsersResponse.result_1:type_name -> uniclient.User
+	1531, // 13: uniclient.telegram.TelegramGetChatInfoResponse.result_1:type_name -> uniclient.Dialog
+	1531, // 14: uniclient.telegram.TelegramGetCommonChatsResponse.result_1:type_name -> uniclient.Dialog
+	1534, // 15: uniclient.telegram.TelegramGetContactsResponse.result_1:type_name -> uniclient.User
+	1535, // 16: uniclient.telegram.TelegramGetDialogsRequest.opts:type_name -> uniclient.PaginationOpts
+	1531, // 17: uniclient.telegram.TelegramGetDialogsResponse.result_1:type_name -> uniclient.Dialog
+	1532, // 18: uniclient.telegram.TelegramGetFoldersResponse.result_1:type_name -> uniclient.Folder
+	1531, // 19: uniclient.telegram.TelegramGetForumTopicsResponse.result_1:type_name -> uniclient.Dialog
+	1531, // 20: uniclient.telegram.TelegramGetFullChannelResponse.result_1:type_name -> uniclient.Dialog
+	1531, // 21: uniclient.telegram.TelegramGetFullChatResponse.result_1:type_name -> uniclient.Dialog
+	1534, // 22: uniclient.telegram.TelegramGetFullUserResponse.result_1:type_name -> uniclient.User
+	1529, // 23: uniclient.telegram.TelegramGetGroupCallResponse.result_1:type_name -> uniclient.CallSession
+	1535, // 24: uniclient.telegram.TelegramGetMembersRequest.opts:type_name -> uniclient.PaginationOpts
+	1534, // 25: uniclient.telegram.TelegramGetMembersResponse.result_1:type_name -> uniclient.User
+	1536, // 26: uniclient.telegram.TelegramGetMessageReactionsListResponse.result_1:type_name -> uniclient.Reaction
+	1535, // 27: uniclient.telegram.TelegramGetMessagesRequest.opts:type_name -> uniclient.PaginationOpts
+	1533, // 28: uniclient.telegram.TelegramGetMessagesResponse.result_1:type_name -> uniclient.Message
+	1534, // 29: uniclient.telegram.TelegramGetParticipantInfoResponse.result_1:type_name -> uniclient.User
+	1534, // 30: uniclient.telegram.TelegramGetParticipantsResponse.result_1:type_name -> uniclient.User
+	1531, // 31: uniclient.telegram.TelegramGetPinnedDialogsResponse.result_1:type_name -> uniclient.Dialog
+	1534, // 32: uniclient.telegram.TelegramGetProfileResponse.result_1:type_name -> uniclient.User
+	1537, // 33: uniclient.telegram.TelegramGetReadStateResponse.result_1:type_name -> uniclient.ReadState
+	1533, // 34: uniclient.telegram.TelegramGetScheduledMessagesResponse.result_1:type_name -> uniclient.Message
+	1538, // 35: uniclient.telegram.TelegramGetSessionsResponse.result_1:type_name -> uniclient.Session
+	1533, // 36: uniclient.telegram.TelegramGetUnreadMentionsResponse.result_1:type_name -> uniclient.Message
+	1533, // 37: uniclient.telegram.TelegramGetUnreadReactionsResponse.result_1:type_name -> uniclient.Message
+	1529, // 38: uniclient.telegram.TelegramJoinGroupCallResponse.result_1:type_name -> uniclient.CallSession
+	1529, // 39: uniclient.telegram.TelegramJoinGroupCallWithVideoResponse.result_1:type_name -> uniclient.CallSession
+	1531, // 40: uniclient.telegram.TelegramRawCreateChannelResponse.result_1:type_name -> uniclient.Dialog
+	1539, // 41: uniclient.telegram.TelegramReplyToMessageRequest.msg:type_name -> uniclient.OutgoingMessage
+	1533, // 42: uniclient.telegram.TelegramReplyToMessageResponse.result_1:type_name -> uniclient.Message
+	1535, // 43: uniclient.telegram.TelegramSearchGlobalRequest.opts:type_name -> uniclient.PaginationOpts
+	1531, // 44: uniclient.telegram.TelegramSearchGlobalResponse.result_1:type_name -> uniclient.Dialog
+	1535, // 45: uniclient.telegram.TelegramSearchMessagesRequest.opts:type_name -> uniclient.PaginationOpts
+	1533, // 46: uniclient.telegram.TelegramSearchMessagesResponse.result_1:type_name -> uniclient.Message
+	1533, // 47: uniclient.telegram.TelegramSearchMessagesGlobalResponse.result_1:type_name -> uniclient.Message
+	1533, // 48: uniclient.telegram.TelegramSendImageBase64Response.result_1:type_name -> uniclient.Message
+	1533, // 49: uniclient.telegram.TelegramSendLocationResponse.result_1:type_name -> uniclient.Message
+	1539, // 50: uniclient.telegram.TelegramSendMessageRequest.msg:type_name -> uniclient.OutgoingMessage
+	1533, // 51: uniclient.telegram.TelegramSendMessageResponse.result_1:type_name -> uniclient.Message
+	1533, // 52: uniclient.telegram.TelegramSendPollResponse.result_1:type_name -> uniclient.Message
+	1533, // 53: uniclient.telegram.TelegramSendScheduledResponse.result_1:type_name -> uniclient.Message
+	1533, // 54: uniclient.telegram.TelegramSendStickerResponse.result_1:type_name -> uniclient.Message
+	1529, // 55: uniclient.telegram.TelegramStartCallResponse.result_1:type_name -> uniclient.CallSession
 	1,    // 56: uniclient.telegram.TelegramTestGetCallInfoResponse.result_1:type_name -> uniclient.telegram.CallInfo
-	1521, // 57: uniclient.telegram.TelegramTestStartCallRawResponse.result_1:type_name -> uniclient.CallSession
+	1529, // 57: uniclient.telegram.TelegramTestStartCallRawResponse.result_1:type_name -> uniclient.CallSession
 	58,   // [58:58] is the sub-list for method output_type
 	58,   // [58:58] is the sub-list for method input_type
 	58,   // [58:58] is the sub-list for extension type_name
@@ -71596,7 +71963,7 @@ func file_proto_cores_telegram_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_cores_telegram_proto_rawDesc), len(file_proto_cores_telegram_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1521,
+			NumMessages:   1529,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

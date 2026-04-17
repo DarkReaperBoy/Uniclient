@@ -3527,6 +3527,18 @@ func dispatchBale(c *cores.BaleCore, method string, payload []byte) ([]byte, err
 			Result_1: CallSessionToProto(r1),
 		}
 		return proto.Marshal(resp)
+	case "Submit2FA":
+		var req pbcores.BaleSubmit2FARequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		err := c.Submit2FA(req.Password)
+		if err != nil { return nil, err }
+		return nil, nil
+	case "SubmitOTP":
+		var req pbcores.BaleSubmitOTPRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		err := c.SubmitOTP(req.Code)
+		if err != nil { return nil, err }
+		return nil, nil
 	case "TerminateAllSessions":
 		r1, err := c.TerminateAllSessions()
 		if err != nil { return nil, err }
@@ -9329,18 +9341,16 @@ func dispatchGithub(c *cores.GitHubCore, method string, payload []byte) ([]byte,
 		err := c.SendTyping(req.Param_1)
 		if err != nil { return nil, err }
 		return nil, nil
+	case "SetActiveChat":
+		var req pbcores.GithubSetActiveChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		c.SetActiveChat(req.ChatId)
+		return nil, nil
 	case "SetAdmin":
 		var req pbcores.GithubSetAdminRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
 		err := c.SetAdmin(req.ChatId, req.UserId, req.Admin)
 		if err != nil { return nil, err }
-		return nil, nil
-	case "SetActiveChat":
-		// SetActiveChat takes a single chat_id string. Reuse UnpinAllMessagesRequest
-		// (same wire format: string chat_id = 1) until next proto regen.
-		var req pbcores.GithubUnpinAllMessagesRequest
-		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		c.SetActiveChat(req.ChatId)
 		return nil, nil
 	case "SetCallMuted":
 		var req pbcores.GithubSetCallMutedRequest
@@ -21031,6 +21041,15 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		err := c.ReadReactions(req.ChatId)
 		if err != nil { return nil, err }
 		return nil, nil
+	case "RefreshQRToken":
+		r1, r2, r3, err := c.RefreshQRToken()
+		if err != nil { return nil, err }
+		resp := &pbcores.TelegramRefreshQRTokenResponse{
+			TokenUrl: r1,
+			ExpiresSecs: int64(r2),
+			Accepted: r3,
+		}
+		return proto.Marshal(resp)
 	case "RemoveMember":
 		var req pbcores.TelegramRemoveMemberRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -21374,6 +21393,14 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		err := c.StartGroupCallScreenShare(req.CallId)
 		if err != nil { return nil, err }
 		return nil, nil
+	case "StartQRAuth":
+		r1, r2, err := c.StartQRAuth()
+		if err != nil { return nil, err }
+		resp := &pbcores.TelegramStartQRAuthResponse{
+			TokenUrl: r1,
+			ExpiresSecs: int64(r2),
+		}
+		return proto.Marshal(resp)
 	case "StartScheduledGroupCall":
 		var req pbcores.TelegramStartScheduledGroupCallRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -21485,6 +21512,18 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 	// Skipped: StoriesTogglePinned (complex external types)
 	// Skipped: StoriesTogglePinnedToTop (complex external types)
 	// Skipped: StoriesUpdateAlbum (complex external types)
+	case "Submit2FA":
+		var req pbcores.TelegramSubmit2FARequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		err := c.Submit2FA(req.Password)
+		if err != nil { return nil, err }
+		return nil, nil
+	case "SubmitOTP":
+		var req pbcores.TelegramSubmitOTPRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		err := c.SubmitOTP(req.Code)
+		if err != nil { return nil, err }
+		return nil, nil
 	case "TerminateSession":
 		var req pbcores.TelegramTerminateSessionRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }

@@ -179,6 +179,7 @@ type Message struct {
 	Attachments   []FileRef     `json:"attachments,omitempty"`
 	Reactions     []Reaction    `json:"reactions,omitempty"`
 	IsPinned      bool                   `json:"is_pinned"`
+	IsOutgoing    bool                   `json:"is_outgoing"`
 	Platform      string                 `json:"platform"`
 	Extra         map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
 }

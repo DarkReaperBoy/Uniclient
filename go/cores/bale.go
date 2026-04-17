@@ -999,6 +999,7 @@ func (b *BaleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 				lastMsg.Text = truncateText(lastMsg.Text, 100)
 			}
 			lastMsg.SenderID = strconv.FormatInt(pbGetInt64(pd, "4"), 10) // field 4 = senderUid
+				lastMsg.IsOutgoing = pbGetInt64(pd, "4") == b.userID
 			dateMs := pbGetInt64(pd, "6")
 			if dateMs > 1e12 {
 				lastMsg.Timestamp = time.UnixMilli(dateMs)
@@ -1114,6 +1115,7 @@ func (b *BaleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 			SenderID:   strconv.FormatInt(b.userID, 10),
 			SenderName: b.userPhone,
 			Platform:   balePlatform,
+			IsOutgoing: true,
 		}, nil
 	}
 
@@ -1192,7 +1194,7 @@ func (b *BaleCore) EditMessage(chatID string, msgID string, text string) (*Messa
 		if err != nil {
 			return nil, err
 		}
-		return &Message{ID: msgID, ChatID: chatID, Text: text, Platform: balePlatform}, nil
+		return &Message{ID: msgID, ChatID: chatID, Text: text, Platform: balePlatform, IsOutgoing: true}, nil
 	}
 
 	messageID, err := strconv.ParseInt(msgID, 10, 64)
@@ -1213,7 +1215,7 @@ func (b *BaleCore) EditMessage(chatID string, msgID string, text string) (*Messa
 
 	result, ok := resp["result"].(map[string]interface{})
 	if !ok {
-		return &Message{ID: msgID, ChatID: chatID, Text: text, Platform: balePlatform}, nil
+		return &Message{ID: msgID, ChatID: chatID, Text: text, Platform: balePlatform, IsOutgoing: true}, nil
 	}
 
 	parsed := b.mapMessage(result)
@@ -1272,7 +1274,7 @@ func (b *BaleCore) ForwardMessage(fromChatID string, msgID string, toChatID stri
 		if err != nil {
 			return nil, err
 		}
-		return &Message{ChatID: toChatID, Platform: balePlatform, Status: MessageStatusSent}, nil
+		return &Message{ChatID: toChatID, Platform: balePlatform, Status: MessageStatusSent, IsOutgoing: true}, nil
 	}
 
 	messageID, err := strconv.ParseInt(msgID, 10, 64)
@@ -1514,10 +1516,11 @@ func (b *BaleCore) userUploadFile(chatID string, file FileUpload, progress func(
 	msgID := int64Triple(rid, dateMs, mid, ':')
 
 	return &Message{
-		ID:       msgID,
-		ChatID:   chatID,
-		Platform: balePlatform,
-		Status:   MessageStatusSent,
+		ID:         msgID,
+		ChatID:     chatID,
+		Platform:   balePlatform,
+		Status:     MessageStatusSent,
+		IsOutgoing: true,
 	}, nil
 }
 
@@ -2521,8 +2524,10 @@ func (b *BaleCore) mapMessage(m map[string]interface{}) Message {
 
 	// Sender
 	if from, ok := m["from"].(map[string]interface{}); ok {
-		msg.SenderID = strconv.FormatInt(jsonInt64(from, "id"), 10)
+		senderUID := jsonInt64(from, "id")
+		msg.SenderID = strconv.FormatInt(senderUID, 10)
 		msg.SenderName = b.buildDisplayName(from)
+		msg.IsOutgoing = senderUID == b.userID
 	}
 
 	// Text (could be in text or caption)
@@ -2585,8 +2590,10 @@ func (b *BaleCore) mapCallbackQuery(cb map[string]interface{}) Message {
 
 	// Sender is from the callback query, not the original message
 	if from, ok := cb["from"].(map[string]interface{}); ok {
-		msg.SenderID = strconv.FormatInt(jsonInt64(from, "id"), 10)
+		senderUID := jsonInt64(from, "id")
+		msg.SenderID = strconv.FormatInt(senderUID, 10)
 		msg.SenderName = b.buildDisplayName(from)
+		msg.IsOutgoing = senderUID == b.userID
 	}
 
 	return msg
@@ -4737,6 +4744,7 @@ func (b *BaleCore) mapUserMessage(um map[string]interface{}) Message {
 	// Sender
 	senderUID := pbGetInt64(um, "2")
 	msg.SenderID = strconv.FormatInt(senderUID, 10)
+	msg.IsOutgoing = senderUID == b.userID
 
 	// Date — ALL Bale timestamps are in MILLISECONDS
 	if dateMs > 1e12 {
@@ -4788,7 +4796,9 @@ func (b *BaleCore) mapUpdatedMessage(um map[string]interface{}) Message {
 		msg.ChatID = int64Pair(peerID, peerType, '|')
 	}
 	if senderVal := pbGetMsg(um, "5"); senderVal != nil {
-		msg.SenderID = strconv.FormatInt(pbGetInt64(senderVal, "1"), 10)
+		senderUID := pbGetInt64(senderVal, "1")
+		msg.SenderID = strconv.FormatInt(senderUID, 10)
+		msg.IsOutgoing = senderUID == b.userID
 	}
 	b.mapUserMessageContent(um, "3", &msg)
 	return msg
@@ -4918,7 +4928,9 @@ func (b *BaleCore) mapHistoryMessage(mc map[string]interface{}) Message {
 		Status:   MessageStatusSent,
 	}
 
-	msg.SenderID = strconv.FormatInt(pbGetInt64(mc, "1"), 10)
+	senderUID := pbGetInt64(mc, "1")
+	msg.SenderID = strconv.FormatInt(senderUID, 10)
+	msg.IsOutgoing = senderUID == b.userID
 	rid := pbGetInt64(mc, "2")
 	dateMs := pbGetInt64(mc, "3")
 	// Message ID format: "rid:dateMs" so Core methods can parse both values
