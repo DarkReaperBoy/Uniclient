@@ -79,6 +79,14 @@ Skip premium/money/payments/stars/boosts/gifts — no monetary features, not rel
 
 Study AyuGram Desktop (https://github.com/AyuGram/AyuGramDesktop). Build new UI from scratch matching Telegram Desktop 1:1. Mobile-responsive. **READ THE ENTIRE CORE FILE before implementing UI for each platform.**
 
+**IMPORTANT: No separate "AyuGram Preferences" section.** All AyuGram-specific settings get folded into standard UniClient settings categories:
+- Ghost Mode (§51: 5 core toggles + 3 extras, per-account, lock mechanism) → **Privacy** settings
+- Anti-Recall / Message History (§52) → **Privacy** settings
+- Forward enhancements (§53) → **Chat** settings
+- Appearance customization (§54: avatar corners, bubble radius, wide multiplier, tail, MD3 switches, quotes) → **Appearance** settings
+- Context menu & field button toggles (§54.7-54.9) → **Chat** settings
+- Drawer/sidebar toggles (§54.8) → **Layout** settings
+
 Every component smoke-tested: build, launch, `flutter_inspect.sh screenshot`, verify engine logs. Not done until visually confirmed working.
 
 ### 2a. Telegram (reference implementation)
