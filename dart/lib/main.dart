@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, File, Platform, exit;
+import 'dart:ui' show PointerChange, PointerDeviceKind, PointerData, PointerSignalKind;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -224,9 +226,132 @@ class _UniClientAppState extends State<UniClientApp> {
           File('/tmp/uniclient_debug_out.json').writeAsStringSync(
             const JsonEncoder.withIndent('  ').convert(out),
           );
+
+        // ── Gesture dispatch ──
+
+        case 'tap':
+          // Tap at screen coordinates: {"action":"tap","x":500,"y":300}
+          final x = (cmd['x'] as num).toDouble();
+          final y = (cmd['y'] as num).toDouble();
+          _dispatchTap(x, y);
+
+        case 'rightClick':
+          // Right-click at coordinates: {"action":"rightClick","x":500,"y":300}
+          final x = (cmd['x'] as num).toDouble();
+          final y = (cmd['y'] as num).toDouble();
+          _dispatchTap(x, y, buttons: kSecondaryMouseButton);
+
+        case 'longPress':
+          // Long-press at coordinates: {"action":"longPress","x":500,"y":300}
+          final x = (cmd['x'] as num).toDouble();
+          final y = (cmd['y'] as num).toDouble();
+          _dispatchLongPress(x, y);
+
+        case 'scroll':
+          // Scroll at coordinates: {"action":"scroll","x":500,"y":400,"dx":0,"dy":-200}
+          final x = (cmd['x'] as num).toDouble();
+          final y = (cmd['y'] as num).toDouble();
+          final dx = (cmd['dx'] as num?)?.toDouble() ?? 0;
+          final dy = (cmd['dy'] as num?)?.toDouble() ?? 0;
+          _dispatchScroll(x, y, dx, dy);
+
+        case 'type':
+          // Type text into focused field: {"action":"type","text":"hello"}
+          final text = cmd['text'] as String? ?? '';
+          _dispatchTextInput(text);
+
+        case 'key':
+          // Send a key event: {"action":"key","key":"enter"} or {"action":"key","key":"backspace"}
+          final key = cmd['key'] as String? ?? '';
+          _dispatchKey(key);
       }
     } catch (e) {
       Debug.error('DEBUG_CMD', 'Error processing command', e, null);
+    }
+  }
+
+  // ── Gesture dispatch helpers ──
+
+  int _pointerCounter = 0;
+
+  void _dispatchTap(double x, double y, {int buttons = kPrimaryButton}) {
+    final pointer = _pointerCounter++;
+    final binding = GestureBinding.instance;
+    // Pointer down.
+    binding.handlePointerEvent(PointerDownEvent(
+      pointer: pointer,
+      position: Offset(x, y),
+      buttons: buttons,
+      kind: PointerDeviceKind.mouse,
+    ));
+    // Pointer up (slight delay via microtask to simulate real tap).
+    Future.microtask(() {
+      binding.handlePointerEvent(PointerUpEvent(
+        pointer: pointer,
+        position: Offset(x, y),
+        kind: PointerDeviceKind.mouse,
+      ));
+    });
+  }
+
+  void _dispatchLongPress(double x, double y) {
+    final pointer = _pointerCounter++;
+    final binding = GestureBinding.instance;
+    binding.handlePointerEvent(PointerDownEvent(
+      pointer: pointer,
+      position: Offset(x, y),
+      buttons: kPrimaryButton,
+      kind: PointerDeviceKind.mouse,
+    ));
+    // Hold for 600ms then release.
+    Future.delayed(const Duration(milliseconds: 600), () {
+      binding.handlePointerEvent(PointerUpEvent(
+        pointer: pointer,
+        position: Offset(x, y),
+        kind: PointerDeviceKind.mouse,
+      ));
+    });
+  }
+
+  void _dispatchScroll(double x, double y, double dx, double dy) {
+    GestureBinding.instance.handlePointerEvent(PointerScrollEvent(
+      position: Offset(x, y),
+      scrollDelta: Offset(dx, dy),
+      kind: PointerDeviceKind.mouse,
+    ));
+  }
+
+  void _dispatchTextInput(String text) {
+    // Find the focused text field's controller and insert text.
+    final focusNode = FocusManager.instance.primaryFocus;
+    if (focusNode == null) return;
+    // Walk up from focus node to find EditableText.
+    final ctx = focusNode.context;
+    if (ctx == null) return;
+    final editableState = ctx.findAncestorStateOfType<EditableTextState>();
+    if (editableState != null) {
+      final controller = editableState.textEditingValue;
+      final newText = controller.text + text;
+      editableState.updateEditingValue(TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newText.length),
+      ));
+    }
+  }
+
+  void _dispatchKey(String key) {
+    // Map common key names to actions.
+    switch (key) {
+      case 'enter':
+        // Simulate Enter key press for sending messages.
+        final focusNode = FocusManager.instance.primaryFocus;
+        if (focusNode == null) return;
+        final ctx = focusNode.context;
+        if (ctx == null) return;
+        final editableState = ctx.findAncestorStateOfType<EditableTextState>();
+        if (editableState != null) {
+          editableState.performAction(TextInputAction.newline);
+        }
     }
   }
 

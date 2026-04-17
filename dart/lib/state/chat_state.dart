@@ -16,8 +16,10 @@ class ChatState extends ChangeNotifier {
   List<CachedMessage> _pinnedMessages = [];
   bool _loadingMessages = false;
   bool _hasMoreMessages = true;
+  DateTime? _jumpedUntil; // suppress polling refresh until this time
   final Map<String, String> _typingUsers = {}; // chatId → userName
   final Map<String, bool> _onlineUsers = {}; // "accountId:chatId" → isOnline (DMs only)
+  final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
 
   // ── Folder state ──
   List<FolderInfo> _folders = [];
@@ -83,6 +85,9 @@ class ChatState extends ChangeNotifier {
   String? get activeChannelId => _activeChannelId;
 
   String? typingUserFor(String chatId) => _typingUsers[chatId];
+
+  /// Get sender avatar base64 data by sender ID.
+  String? senderAvatar(String senderId) => _senderAvatars[senderId];
 
   /// All loaded folders across accounts.
   List<FolderInfo> get folders => _folders;
@@ -234,10 +239,17 @@ class ChatState extends ChangeNotifier {
     _messages = [];
     _pinnedMessages = [];
     _hasMoreMessages = true;
+    _jumpedUntil = null; // clear jump lock on chat change
     _activeChannelId = null; // reset channel selection on chat change
     _engine.setActiveChat(chat.accountId, chat.chatId);
     _loadMessages();
     _loadPinnedMessages(chat.accountId, chat.chatId);
+    // Fetch member avatars for group chats.
+    if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
+      _loadMemberAvatars(chat.accountId, chat.chatId);
+    } else {
+      _senderAvatars.clear();
+    }
     _startPolling();
     notifyListeners();
   }
@@ -297,20 +309,23 @@ class ChatState extends ChangeNotifier {
   }
 
   /// Jump to messages around a specific timestamp (for pinned message navigation).
-  /// Loads a window of messages centered around the target time.
+  /// Loads a window of messages where the target is the newest (index 0 in reversed list).
+  /// Suppresses polling refresh for 10 seconds so the user can read the jumped-to area.
   void jumpToMessage(int timestampMs) {
     final chat = _activeChat;
     if (chat == null) return;
 
-    // Load messages starting just after the target timestamp so the target
-    // message itself is included (getMessages uses "timestamp < beforeMs").
+    // getMessages returns messages with timestamp < beforeMs, newest first.
+    // +1 ensures the target message itself is included as the first item.
     final around = _engine.getMessages(
       chat.accountId, chat.chatId,
-      beforeMs: timestampMs + 60000, // 1 minute buffer to ensure target is included
+      beforeMs: timestampMs + 1,
     );
     if (around.isNotEmpty) {
       _messages = around;
       _hasMoreMessages = true;
+      // Suppress polling refresh so it doesn't immediately snap back to latest.
+      _jumpedUntil = DateTime.now().add(const Duration(seconds: 10));
       notifyListeners();
     }
   }
@@ -321,10 +336,13 @@ class ChatState extends ChangeNotifier {
     for (final id in msgIds) {
       await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId);
     }
-    // If forwarding to the active chat, refresh messages.
+    // If forwarding to the active chat, refresh messages immediately.
     if (toChatId == chat.chatId) {
       _refreshMessages();
     }
+    // Always refresh chat list so the destination chat's preview updates
+    // and the forwarded message gets cached for when the user opens that chat.
+    _debouncedLoadChats();
   }
 
   Future<void> deleteMessage(String msgId) async {
@@ -418,6 +436,21 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Fetch chat members and cache their avatar thumbnails for sender display.
+  Future<void> _loadMemberAvatars(String accountId, String chatId) async {
+    try {
+      final members = await _engine.getChatMembers(accountId, chatId, limit: 200);
+      for (final m in members) {
+        if (m.avatarB64.isNotEmpty) {
+          _senderAvatars[m.userId] = m.avatarB64;
+        }
+      }
+      if (_senderAvatars.isNotEmpty) notifyListeners();
+    } catch (_) {
+      // Non-critical — avatars fall back to initials.
+    }
+  }
+
   void _loadPinnedMessages(String accountId, String chatId) {
     try {
       _pinnedMessages = _engine.getPinnedMessages(accountId, chatId);
@@ -432,6 +465,9 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     final chat = _activeChat;
     if (chat == null) return;
+
+    // Don't overwrite jumped-to messages while the user is reading them.
+    if (_jumpedUntil != null && DateTime.now().isBefore(_jumpedUntil!)) return;
 
     final fresh = _engine.getMessages(chat.accountId, chat.chatId, beforeMs: 0);
     if (fresh.isEmpty) return;

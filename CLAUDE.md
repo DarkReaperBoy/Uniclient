@@ -115,7 +115,29 @@ When the user says "add X", follow these steps in order:
   ```
   **How it works:** `AuthState` in `dart/lib/state/auth_state.dart` has a file-polling timer. When auth needs input (`choose`/`input`/`otp`/`2fa` states), it checks `/tmp/uniclient_auth_cmd.json` every second. File format: `{"action":"submit","value":"12345"}`. File is deleted after reading. Same OTP-file pattern as Go tests (`auth/otp_code.txt`).
 
-  #### 3. App logs — Verify engine calls
+  #### 3. `scripts/flutter_interact.sh` — Simulate user interaction
+  Dispatches real pointer/gesture events into the running Flutter app via `/tmp/uniclient_debug_cmd.json`. The app's debug command handler in `main.dart` uses `GestureBinding.handlePointerEvent()` to inject taps, right-clicks, scrolls, etc.
+  ```bash
+  scripts/flutter_interact.sh tap 500 300           # left-click at (500, 300)
+  scripts/flutter_interact.sh rightclick 500 300    # right-click (opens context menu)
+  scripts/flutter_interact.sh longpress 500 300     # long-press (enters selection mode)
+  scripts/flutter_interact.sh scroll 500 400 0 -200 # scroll down at (500, 400)
+  scripts/flutter_interact.sh scroll 500 400 0 200  # scroll up
+  scripts/flutter_interact.sh type "hello world"    # type into focused TextField
+  scripts/flutter_interact.sh key enter             # send Enter key
+  scripts/flutter_interact.sh open 5                # open chat at index 5
+  scripts/flutter_interact.sh open -id "chatId123"  # open chat by ID
+  scripts/flutter_interact.sh send "hello"          # send message in active chat
+  scripts/flutter_interact.sh chats                 # list chats (JSON to stdout)
+  scripts/flutter_interact.sh messages              # list current messages
+  scripts/flutter_interact.sh state                 # get app state
+  scripts/flutter_interact.sh accounts              # list accounts
+  ```
+  **How it works:** Writes JSON commands to `/tmp/uniclient_debug_cmd.json` which the app polls every 1s in debug mode. Gesture commands use `GestureBinding.instance.handlePointerEvent()` to dispatch real `PointerDownEvent`/`PointerUpEvent`/`PointerScrollEvent` at screen coordinates. Text input finds the focused `EditableTextState` and updates its value. Output commands write results to `/tmp/uniclient_debug_out.json`.
+
+  **Testing workflow:** Screenshot → identify element coordinates → interact → screenshot → verify result. This is the PRIMARY way to self-test UI features. Always use this before presenting work to the user.
+
+  #### 4. App logs — Verify engine calls
   ```bash
   cat /tmp/uniclient_log.txt                           # full log
   grep "ENGINE:" /tmp/uniclient_log.txt                # FFI bridge calls
@@ -146,7 +168,7 @@ When the user says "add X", follow these steps in order:
   - Are events delivered? (logs: `EVENT:`)
   - If something is broken, fix it before saying you're done.
 - **Build in batches, user reviews between batches** — Implement a cluster of related features, build, smoke-test with screenshots, then present the user with a specific list of things to manually verify (e.g. "open chat X, long-press a message, check the selection bar appears"). Wait for user feedback before moving to the next batch. Bugs found go into `checklist/gui.md` immediately. Don't ask "what should I do next" — just fix reported bugs first, then continue from `todolist.md`.
-- **Self-test BEFORE handing to user — MANDATORY** — After implementing a batch, you MUST launch the app and thoroughly test every feature yourself using `flutter_inspect.sh`, `flutter_auth.sh`, and app logs BEFORE presenting the verification list to the user. Click through flows, open chats, trigger the new features, take screenshots, and confirm they actually work. The user should never be the first person to discover that something is broken. If you can't test a specific interaction (e.g. requires mouse input you can't simulate), say so explicitly in the verification list.
+- **Self-test BEFORE handing to user — MANDATORY** — After implementing a batch, you MUST launch the app and thoroughly test every feature yourself using `flutter_inspect.sh` (screenshots), `flutter_interact.sh` (tap/right-click/scroll/type at coordinates), `flutter_auth.sh` (auth flow), and app logs BEFORE presenting the verification list to the user. Use the gesture dispatch system to click through flows: open chats, tap buttons, right-click messages, scroll lists, and confirm features actually work visually via screenshots. The user should never be the first person to discover that something is broken.
 - **Log every bug found in checklists** — Any bug or issue discovered during testing, auditing, or smoke-testing MUST be added to the relevant checklist file in `checklist/` immediately. Don't just fix it silently — document it so there's a paper trail. If it's a GUI bug, add it to `checklist/gui.md`. If it's a core/engine bug, add it to the relevant platform checklist.
 - **Keep docs in sync at ALL times — THIS IS NON-NEGOTIABLE** — Every session, before committing code, you MUST update: `checklist/` (status, TODOs, priorities — one file per platform), `SPEC.md` (architecture, specs), and `research/` (findings, quirks, protocol details). If you discovered something weird, it goes in `research/` IMMEDIATELY — not later, not "I'll do it at the end", NOW. If a test passed or failed, `checklist/` gets updated IMMEDIATELY. If architecture changed, `SPEC.md` gets updated IMMEDIATELY. Failing to update docs is equivalent to not doing the work. `CLAUDE.md` is ONLY for operational rules and build commands — no findings, no status details, no TODOs.
 - ALL tests are real (hit live APIs with real credentials from `auth/auth.md`)

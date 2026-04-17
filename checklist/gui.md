@@ -2,11 +2,43 @@
 
 **BEFORE STARTING ANY WORK: Read `CLAUDE.md` and obey ALL its rules.**
 
-## Bugs (user-reported, fix first)
+## MANDATORY: Research-first, AyuGram Desktop 1:1
 
-- [ ] **Forward display broken** — Forward works server-side (message appears in AyuGram) but forwarded message doesn't show in UniClient's destination chat. Cache refresh issue.
-- [ ] **Pinned bar jump inaccurate** — Clicking pinned bar jumps to wrong messages instead of the pinned message. The jumpToMessage timestamp math needs fixing.
-- [ ] **No sender avatars in group bubbles** — AyuGram shows sender profile pics next to messages in groups. UniClient doesn't.
+**Every UI feature MUST match AyuGram Desktop exactly.** Before implementing anything:
+1. Check `research/telegram_desktop_ui.md` for the relevant section
+2. If info is missing or insufficient, research AyuGram Desktop source (https://github.com/AyuGram/AyuGramDesktop) and ADD findings to `research/telegram_desktop_ui.md` BEFORE writing any code
+3. Never guess how a feature should look or behave — find the real implementation
+
+## MANDATORY: Self-test with automated interaction
+
+**After implementing any change, you MUST test it yourself using the gesture dispatch system before presenting to the user.** Use these scripts:
+
+```bash
+# Screenshot the app
+UNICLIENT_LOG=/tmp/uniclient_log.txt scripts/flutter_inspect.sh screenshot /tmp/ss.png
+
+# Interact with the app (tap, right-click, scroll, type)
+scripts/flutter_interact.sh tap <x> <y>           # left-click at coordinates
+scripts/flutter_interact.sh rightclick <x> <y>     # right-click (context menu)
+scripts/flutter_interact.sh longpress <x> <y>      # long-press (selection mode)
+scripts/flutter_interact.sh scroll <x> <y> 0 -200  # scroll down
+scripts/flutter_interact.sh scroll <x> <y> 0 200   # scroll up
+scripts/flutter_interact.sh type "hello"           # type into focused field
+scripts/flutter_interact.sh open <index>           # open chat by index
+scripts/flutter_interact.sh chats                  # list chats (JSON)
+scripts/flutter_interact.sh messages               # list current messages
+scripts/flutter_interact.sh state                  # get app state
+```
+
+**Workflow:** screenshot → identify coordinates → interact → screenshot → verify result. Repeat for each feature. Do NOT mark anything as done until you have visually confirmed it works via screenshots.
+
+## Bugs (fix first, verify with automated interaction)
+
+- [ ] **Forward display not verified** — Code fix applied (`_debouncedLoadChats()` after forward) but NOT tested end-to-end. Need to: open chat → right-click message → Forward → pick destination → open destination → verify message appears.
+- [ ] **Pinned bar jump not verified** — Code fix applied (timestamp +1, scroll to 0, 10s poll suppression) but user reports history below pinned message doesn't load. Need to: tap pinned bar → verify jump stays → verify older messages load when scrolling up.
+- [ ] **Sender avatars not matching AyuGram** — Basic implementation done (stripped JPEG thumb reconstruction, 30px circles) but user says "not like AyuGram Desktop". Need to: research AyuGram's exact avatar rendering in group bubbles (size, position, spacing, shape) and match 1:1.
+- [ ] **Sender profile popup not matching AyuGram** — Basic popup implemented but not matching AyuGram's user popup style. Research AyuGram's popup (§38 in spec) and reimplement.
+- [ ] **Sender avatars incomplete** — Senders not in the recent 50 participants show "?" fallback. Need per-sender avatar fetch or larger member fetch.
 
 ## TODO (features not yet implemented)
 
@@ -85,3 +117,4 @@
 - [x] Reply display — sent replies show reply_to_id + reply_preview in bubbles
 - [x] New chat auto-creation — ensureChatExists when message arrives for uncached chat
 - [x] DB corruption fix — ensureChatExists type integer fix + cleanup on startup
+- [x] Gesture dispatch system — debug command handler supports tap/rightClick/longPress/scroll/type/key via `/tmp/uniclient_debug_cmd.json` for automated UI testing

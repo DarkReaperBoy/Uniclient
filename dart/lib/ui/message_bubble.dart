@@ -11,16 +11,22 @@ class MessageBubble extends StatelessWidget {
   final CachedMessage message;
   final bool isFirstInGroup;
   final bool isLastInGroup;
+  final bool isGroupChat;
+  final String? senderAvatarB64;
   final VoidCallback? onReply;
   final void Function(Offset position)? onContextMenu;
+  final ValueChanged<String>? onSenderTap;
 
   const MessageBubble({
     super.key,
     required this.message,
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
+    this.isGroupChat = false,
+    this.senderAvatarB64,
     this.onReply,
     this.onContextMenu,
+    this.onSenderTap,
   });
 
   // Spec: max bubble width 430px.
@@ -53,12 +59,28 @@ class MessageBubble extends StatelessWidget {
 
     final verticalPad = isLastInGroup ? 2.0 : 1.0;
 
+    // Show sender avatar for incoming messages in group chats.
+    final showAvatar = isGroupChat && !isOutgoing;
+
     return Padding(
       padding: EdgeInsets.only(top: isFirstInGroup ? 4.0 : verticalPad, bottom: verticalPad),
       child: Column(
         crossAxisAlignment: alignment,
         children: [
-          GestureDetector(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: isOutgoing ? MainAxisAlignment.end : MainAxisAlignment.start,
+            children: [
+              // Sender avatar: show on last message of group, invisible spacer otherwise.
+              if (showAvatar) ...[
+                if (isLastInGroup)
+                  _buildSenderAvatar()
+                else
+                  const SizedBox(width: 30), // spacer to align with avatar above
+                const SizedBox(width: 6),
+              ],
+          Flexible(
+            child: GestureDetector(
             onLongPressStart: onContextMenu != null
                 ? (details) => onContextMenu!(details.globalPosition)
                 : null,
@@ -66,7 +88,7 @@ class MessageBubble extends StatelessWidget {
                 ? (details) => onContextMenu!(details.globalPosition)
                 : null,
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _maxWidth),
+              constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 36 : _maxWidth),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                 decoration: BoxDecoration(
@@ -85,12 +107,15 @@ class MessageBubble extends StatelessWidget {
                     if (!isOutgoing && message.senderName.isNotEmpty && isFirstInGroup)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
-                        child: Text(
-                          message.senderName,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: _senderColor(message.senderId),
+                        child: GestureDetector(
+                          onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+                          child: Text(
+                            message.senderName,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _senderColor(message.senderId),
+                            ),
                           ),
                         ),
                       ),
@@ -162,9 +187,41 @@ class MessageBubble extends StatelessWidget {
               ),
             ),
           ),
+          ),
+            ], // Row children
+          ),
         ],
       ),
     );
+  }
+
+  Widget _buildSenderAvatar() {
+    final fallback = CircleAvatar(
+      radius: 15,
+      backgroundColor: _senderColor(message.senderId),
+      child: Text(
+        message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
+        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+    );
+
+    if (senderAvatarB64 != null && senderAvatarB64!.isNotEmpty) {
+      try {
+        final bytes = base64Decode(senderAvatarB64!);
+        return ClipOval(
+          child: Image.memory(
+            bytes,
+            width: 30,
+            height: 30,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => fallback,
+          ),
+        );
+      } catch (_) {
+        return fallback;
+      }
+    }
+    return fallback;
   }
 
   /// 7 sender colors from spec (id % 7).

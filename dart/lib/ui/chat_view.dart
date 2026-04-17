@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -120,6 +122,90 @@ class _ChatViewState extends State<ChatView> {
     });
   }
 
+  void _showSenderProfile(BuildContext context, ChatState chatState, String senderId) {
+    // Find sender info from messages.
+    final msg = chatState.messages.where((m) => m.senderId == senderId).firstOrNull;
+    final avatarB64 = chatState.senderAvatar(senderId);
+    final senderName = msg?.senderName ?? senderId;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final theme = Theme.of(ctx);
+        Widget avatar;
+        if (avatarB64 != null && avatarB64.isNotEmpty) {
+          try {
+            final bytes = base64Decode(avatarB64);
+            avatar = ClipOval(
+              child: Image.memory(bytes, width: 64, height: 64, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _senderFallbackAvatar(senderId, senderName, 32)),
+            );
+          } catch (_) {
+            avatar = _senderFallbackAvatar(senderId, senderName, 32);
+          }
+        } else {
+          avatar = _senderFallbackAvatar(senderId, senderName, 32);
+        }
+
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  avatar,
+                  const SizedBox(height: 12),
+                  Text(senderName, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text('ID: $senderId', style: theme.textTheme.bodySmall),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.message, size: 18),
+                        label: const Text('Message'),
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          // Try to open DM with this user.
+                          final dmChat = chatState.chats.where((c) =>
+                            c.chatId == senderId && c.accountId == chatState.activeChat?.accountId).firstOrNull;
+                          if (dmChat != null) chatState.openChat(dmChat);
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      TextButton(
+                        child: const Text('Close'),
+                        onPressed: () => Navigator.of(ctx).pop(),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _senderFallbackAvatar(String senderId, String name, double radius) {
+    const colors = [
+      Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
+      Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb),
+    ];
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: colors[senderId.hashCode.abs() % 7],
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: TextStyle(color: Colors.white, fontSize: radius * 0.6, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
   void _deleteSelected(ChatState chatState) {
     for (final id in _selectedMsgIds) {
       chatState.deleteMessage(id);
@@ -213,15 +299,12 @@ class _ChatViewState extends State<ChatView> {
               pinned: chatState.pinnedMessages.first,
               onTap: () {
                 final pinned = chatState.pinnedMessages.first;
-                // Load messages around pinned timestamp, then scroll to it.
+                // Load messages with pinned message as the newest (index 0).
                 chatState.jumpToMessage(pinned.timestamp);
-                // After state updates, find and scroll to the pinned message.
+                // Scroll to bottom (offset 0 in reversed list = newest = pinned message).
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  final idx = chatState.messages.indexWhere((m) => m.msgId == pinned.msgId);
-                  if (idx >= 0 && _scrollController.hasClients) {
-                    // ListView is reversed, so index 0 is at bottom.
-                    // Approximate position based on average message height.
-                    _scrollController.jumpTo(idx * 70.0);
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(0);
                   }
                 });
               },
@@ -233,6 +316,8 @@ class _ChatViewState extends State<ChatView> {
                 _MessageList(
                   messages: chatState.messages,
                   loading: chatState.loadingMessages,
+                  isGroupChat: chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic,
+                  senderAvatars: chatState,
                   scrollController: _scrollController,
                   onReply: (msgId) => setState(() => _replyToId = msgId),
                   selectedIds: _selectedMsgIds,
@@ -247,6 +332,7 @@ class _ChatViewState extends State<ChatView> {
                     _selectedMsgIds.add(msgId);
                   }),
                   onContextMenu: _showMessageContextMenu,
+                  onSenderTap: (senderId) => _showSenderProfile(context, chatState, senderId),
                 ),
                 // Scroll-to-bottom FAB (spec §5: JumpDownButton).
                 if (_showScrollToBottom)
@@ -387,22 +473,28 @@ class _ChatTopBar extends StatelessWidget {
 class _MessageList extends StatelessWidget {
   final List<CachedMessage> messages;
   final bool loading;
+  final bool isGroupChat;
+  final ChatState? senderAvatars; // for looking up sender avatar b64 by ID
   final ScrollController scrollController;
   final ValueChanged<String> onReply;
   final Set<String> selectedIds;
   final ValueChanged<String> onToggleSelect;
   final ValueChanged<String> onLongPress;
   final void Function(String msgId, Offset position) onContextMenu;
+  final ValueChanged<String>? onSenderTap;
 
   const _MessageList({
     required this.messages,
     required this.loading,
+    this.isGroupChat = false,
+    this.senderAvatars,
     required this.scrollController,
     required this.onReply,
     required this.selectedIds,
     required this.onToggleSelect,
     required this.onLongPress,
     required this.onContextMenu,
+    this.onSenderTap,
   });
 
   @override
@@ -479,8 +571,11 @@ class _MessageList extends StatelessWidget {
                           message: msg,
                           isFirstInGroup: isFirstInGroup,
                           isLastInGroup: isLastInGroup,
+                          isGroupChat: isGroupChat,
+                          senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
                           onReply: () => onReply(msg.msgId),
                           onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
+                          onSenderTap: onSenderTap,
                         ),
                       ),
                     ),
