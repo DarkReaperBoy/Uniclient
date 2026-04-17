@@ -17,7 +17,7 @@
 
 ## Bugs (fix first, verify with automated interaction)
 
-- [ ] **Forward display not verified** — Code fix applied (`_debouncedLoadChats()` after forward) but NOT tested end-to-end. Need to: open chat → right-click message → Forward → pick destination → open destination → verify message appears.
+- [x] **Forward display fixed** — Forwarded messages now show "Forwarded from {name}" header. Fixed: Go `convertMessage` resolves `FwdFrom` to display name (FromName > cached user/channel name > PostAuthor > fallback). Added `channelNames` cache. Migration made idempotent.
 - [ ] **Pinned bar jump not verified** — Code fix applied (timestamp +1, scroll to 0, 10s poll suppression) but user reports history below pinned message doesn't load. Need to: tap pinned bar → verify jump stays → verify older messages load when scrolling up.
 - [ ] **Sender avatars not matching AyuGram** — Basic implementation done (stripped JPEG thumb reconstruction, 30px circles) but user says "not like AyuGram Desktop". Need to: research AyuGram's exact avatar rendering in group bubbles (size, position, spacing, shape) and match 1:1.
 - [ ] **Sender profile popup not matching AyuGram** — Basic popup implemented but not matching AyuGram's user popup style. Research AyuGram's popup (§38 in spec) and reimplement.

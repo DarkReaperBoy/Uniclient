@@ -333,20 +333,35 @@ const (
 	MediaFile      = 8
 )
 
+func columnExists(tx *sql.Tx, table, column string) bool {
+	var count int
+	tx.QueryRow(`SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?`, table, column).Scan(&count)
+	return count > 0
+}
+
 // migrateV2 adds is_outgoing column to messages table.
 func migrateV2(tx *sql.Tx) error {
+	if columnExists(tx, "messages", "is_outgoing") {
+		return nil
+	}
 	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN is_outgoing INTEGER NOT NULL DEFAULT 0`)
 	return err
 }
 
 // migrateV3 adds last_msg_is_outgoing column to chats table.
 func migrateV3(tx *sql.Tx) error {
+	if columnExists(tx, "chats", "last_msg_is_outgoing") {
+		return nil
+	}
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_is_outgoing INTEGER NOT NULL DEFAULT 0`)
 	return err
 }
 
 // migrateV4 adds extra column to media table (stores access hash + file reference for downloads).
 func migrateV4(tx *sql.Tx) error {
+	if columnExists(tx, "media", "extra") {
+		return nil
+	}
 	_, err := tx.Exec(`ALTER TABLE media ADD COLUMN extra TEXT`)
 	return err
 }

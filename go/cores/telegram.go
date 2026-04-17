@@ -95,6 +95,7 @@ type TelegramCore struct {
 	fileAccessHash    map[int64]int64  // fileID → accessHash
 	fileReference     map[int64][]byte // fileID → fileReference
 	userNames         map[int64]string // userID → display name (first + last)
+	channelNames      map[int64]string // channelID → channel/chat title
 	peerPhotoID       map[int64]int64  // peerID → profile photo ID (for avatar downloads)
 	peerMu            sync.RWMutex
 
@@ -185,6 +186,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		fileAccessHash:    make(map[int64]int64),
 		fileReference:     make(map[int64][]byte),
 		userNames:         make(map[int64]string),
+		channelNames:      make(map[int64]string),
 		peerPhotoID:       make(map[int64]int64),
 		activeCalls:        make(map[int64]*tgCall),
 		pendingDH:          make(map[int64]*pendingDHState),
@@ -9352,6 +9354,13 @@ func (t *TelegramCore) cacheChannelHash(channelID, accessHash int64) {
 	t.peerMu.Unlock()
 }
 
+func (t *TelegramCore) getCachedChannelName(channelID int64) string {
+	t.peerMu.RLock()
+	name := t.channelNames[channelID]
+	t.peerMu.RUnlock()
+	return name
+}
+
 func (t *TelegramCore) getCachedChannelHash(channelID int64) (int64, bool) {
 	t.peerMu.RLock()
 	hash, ok := t.channelAccessHash[channelID]
@@ -9421,10 +9430,12 @@ func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass)
 		switch ch := c.(type) {
 		case *tg.Channel:
 			t.channelAccessHash[ch.ID] = ch.AccessHash
+			t.channelNames[ch.ID] = ch.Title
 			if photo, ok := ch.Photo.(*tg.ChatPhoto); ok {
 				t.peerPhotoID[ch.ID] = photo.PhotoID
 			}
 		case *tg.Chat:
+			t.channelNames[ch.ID] = ch.Title
 			if photo, ok := ch.Photo.(*tg.ChatPhoto); ok {
 				t.peerPhotoID[ch.ID] = photo.PhotoID
 			}
@@ -9490,8 +9501,35 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	}
 
 	if fwd, ok := msg.GetFwdFrom(); ok {
-		if from, ok := fwd.GetFromID(); ok {
-			m.ForwardFrom = peerToID(from)
+		// Resolve forward origin to a display name.
+		// Priority: FromName (privacy-set) > cached user/channel name > PostAuthor > peer ID fallback.
+		if name, ok := fwd.GetFromName(); ok && name != "" {
+			m.ForwardFrom = name
+		} else if from, ok := fwd.GetFromID(); ok {
+			switch p := from.(type) {
+			case *tg.PeerUser:
+				if name := t.getCachedUserName(p.UserID); name != "" {
+					m.ForwardFrom = name
+				} else {
+					m.ForwardFrom = "User " + strconv.FormatInt(p.UserID, 10)
+				}
+			case *tg.PeerChannel:
+				if name := t.getCachedChannelName(p.ChannelID); name != "" {
+					m.ForwardFrom = name
+				} else if author, ok := fwd.GetPostAuthor(); ok && author != "" {
+					m.ForwardFrom = author
+				} else {
+					m.ForwardFrom = "Channel " + strconv.FormatInt(p.ChannelID, 10)
+				}
+			case *tg.PeerChat:
+				if name := t.getCachedChannelName(p.ChatID); name != "" {
+					m.ForwardFrom = name
+				} else {
+					m.ForwardFrom = "Chat " + strconv.FormatInt(p.ChatID, 10)
+				}
+			}
+		} else if author, ok := fwd.GetPostAuthor(); ok && author != "" {
+			m.ForwardFrom = author
 		}
 	}
 
