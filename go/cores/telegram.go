@@ -9029,30 +9029,47 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 
 	var folders []Folder
 	for _, f := range result.GetFilters() {
-		filter, ok := f.(*tg.DialogFilter)
-		if !ok {
-			continue
-		}
-		folder := Folder{
-			ID:              strconv.Itoa(filter.ID),
-			Name:            filter.Title.Text,
-			Contacts:        filter.Contacts,
-			NonContacts:     filter.NonContacts,
-			Groups:          filter.Groups,
-			Channels:        filter.Broadcasts,
-			Bots:            filter.Bots,
-			ExcludeMuted:    filter.ExcludeMuted,
-			ExcludeRead:     filter.ExcludeRead,
-			ExcludeArchived: filter.ExcludeArchived,
-		}
-		for _, p := range filter.IncludePeers {
-			folder.ChatIDs = append(folder.ChatIDs, inputPeerToID(p))
-		}
-		for _, p := range filter.ExcludePeers {
-			folder.ExcludeChatIDs = append(folder.ExcludeChatIDs, inputPeerToID(p))
-		}
-		for _, p := range filter.PinnedPeers {
-			folder.PinnedChatIDs = append(folder.PinnedChatIDs, inputPeerToID(p))
+		var folder Folder
+
+		switch filter := f.(type) {
+		case *tg.DialogFilter:
+			folder = Folder{
+				ID:              strconv.Itoa(filter.ID),
+				Name:            filter.Title.Text,
+				Contacts:        filter.Contacts,
+				NonContacts:     filter.NonContacts,
+				Groups:          filter.Groups,
+				Channels:        filter.Broadcasts,
+				Bots:            filter.Bots,
+				ExcludeMuted:    filter.ExcludeMuted,
+				ExcludeRead:     filter.ExcludeRead,
+				ExcludeArchived: filter.ExcludeArchived,
+			}
+			for _, p := range filter.IncludePeers {
+				folder.ChatIDs = append(folder.ChatIDs, inputPeerToID(p))
+			}
+			for _, p := range filter.ExcludePeers {
+				folder.ExcludeChatIDs = append(folder.ExcludeChatIDs, inputPeerToID(p))
+			}
+			for _, p := range filter.PinnedPeers {
+				folder.PinnedChatIDs = append(folder.PinnedChatIDs, inputPeerToID(p))
+			}
+
+		case *tg.DialogFilterChatlist:
+			// Shared/public folders — explicit include list only, no type filters.
+			folder = Folder{
+				ID:   strconv.Itoa(filter.ID),
+				Name: filter.Title.Text,
+			}
+			for _, p := range filter.IncludePeers {
+				folder.ChatIDs = append(folder.ChatIDs, inputPeerToID(p))
+			}
+			for _, p := range filter.PinnedPeers {
+				folder.PinnedChatIDs = append(folder.PinnedChatIDs, inputPeerToID(p))
+			}
+
+		default:
+			continue // Skip DialogFilterDefault and unknown types
 		}
 		log.Printf("[tg-folders] Folder %q (id=%s): contacts=%v nonContacts=%v groups=%v channels=%v bots=%v excludeMuted=%v excludeRead=%v excludeArchived=%v includes=%d excludes=%d pinned=%d includeIDs=%v",
 			folder.Name, folder.ID, folder.Contacts, folder.NonContacts, folder.Groups, folder.Channels, folder.Bots,
