@@ -2,16 +2,48 @@
 
 **BEFORE STARTING ANY WORK: Read `CLAUDE.md` and obey ALL its rules.**
 
-## Bugs
+## Bugs (user-reported, fix ASAP)
 
-- [ ] **Online dot not verified** — Telegram OnUserStatus handler added, Dart tracking wired, green dot renders on avatar. But no user_status events observed in logs yet (contacts need to change status). Needs user verification over time.
-- [ ] **Folder contents may still miss chats beyond 500 dialogs** — Pagination added (was capped at 100, now fetches up to 500). Improved from 100→163 dialogs. Users with 500+ chats may still miss some.
+- [ ] **Reply from context menu doesn't work** — Pressing reply sets the reply bar but sending the message doesn't include the reply_to_id. The reply-to context is lost on send.
+- [ ] **Edit from context menu doesn't work** — Populates compose field but doesn't enter edit mode (sends as new message instead of editing).
+- [ ] **Forward from context menu does nothing** — Forward action in context menu not working.
+- [ ] **New messages don't appear in real-time** — User messaged themselves and DM didn't appear. Event stream for new messages may be broken or chat list not refreshing.
+- [ ] **Chat opening is slow** — Opening a DM takes very long to load, not instantaneous. Investigate GetMessages performance or cache warmup.
+- [ ] **Pinned bar not clickable** — Pinned message bar exists but clicking it doesn't scroll to the pinned message.
+- [ ] **Online dot not showing** — Telegram OnUserStatus handler added but no events observed. May need to verify event dispatching or wait longer.
+- [ ] **Folder contents may miss chats beyond 500 dialogs** — Pagination added (100→500 cap), synced 163 now. Users with many chats may still miss some.
 
-## TODO
+## TODO (features not yet implemented)
 
-- [ ] Chat row: stories ring
-- [ ] Chat row: mini media previews in message preview
+### Folder management
+- [ ] Right-click folder tab → edit folder (include/exclude chats, sync to Telegram)
+- [ ] Right-click chat → "Add to folder" submenu (choose folders to add/remove)
+
+### Chat row enhancements
+- [ ] Stories ring on avatars
+- [ ] Mini media previews in message preview
+- [ ] Auto-delete indicator ("1d", "1w" etc.) on DMs with auto-delete enabled
+
+### Chat view / DM
+- [ ] Last seen / online status text in top bar ("last seen recently", "online", etc.)
+- [ ] Sender profile picture in message bubbles (group chats)
+- [ ] Sticker rendering (static + animated + video stickers)
+- [ ] GIF rendering and playback
+- [ ] Video playback in messages
+- [ ] Animated/video profile pictures
+
+### Profile/Info panel
+- [ ] Full profile view on clicking top bar: pfp, name, status, action buttons (message/mute/call/more)
+- [ ] More menu: auto-delete, edit contact, export chat history, add to folder, block, delete contact
+- [ ] Profile music/channel links
+- [ ] Phone number, bio, username, birthday, notes, number ID display
+- [ ] Media tabs (photos, videos, files, links, voice, GIFs)
+- [ ] Edit contact / delete contact / block user actions
+
+### Search
 - [ ] Search results (top peers, recent contacts, search tabs)
+
+### Other features
 - [ ] Contact status/action bar (add contact, block, report)
 - [ ] Group call bar
 - [ ] Voice/video message players
@@ -47,8 +79,10 @@
 - [x] Media download pipeline — engine MediaManager, auto-download, Telegram access hash persistence, DB schema V4
 - [x] Chat list column width — default ratio 0.17 (~300px on 1920)
 - [x] Avatar/profile picture download — Telegram DownloadChatAvatar, cached to disk, DB avatar_path, Image.file rendering
-- [x] Folder filtering fix — full Telegram filter flag support (contacts, non_contacts, groups, channels, bots, exclude_muted/read/archived, exclude_peers, pinned_peers) across Go→proto→Dart pipeline
+- [x] Folder filtering fix — full Telegram filter flag support across Go→proto→Dart pipeline
 - [x] Chat row: online dot indicator — green dot on DM avatars via UserStatusEvent stream
 - [x] Pinned message bar — engine GetPinnedMessages query, ChatState integration, _PinnedBar widget
 - [x] Selection mode (multi-select messages) — long-press to enter, checkboxes, selection bar with copy/delete/forward
 - [x] Forward dialog — searchable chat picker, integrated with selection mode
+- [x] Message context menu — right-click/long-press popup (reply, copy, forward, select, edit, delete)
+- [x] Dialog pagination — GetDialogs paginates up to 500 dialogs (was capped at 100)

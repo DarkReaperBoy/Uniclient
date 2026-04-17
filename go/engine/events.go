@@ -253,11 +253,12 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 	// Cache message.
 	cached := e.cacheMessage(accountID, chatID, msg)
 
-	// Update chat list.
+	// Update chat list — create chat entry if it doesn't exist yet (new conversation).
 	preview := msg.Text
 	if len(preview) > 100 {
 		preview = preview[:100]
 	}
+	e.ensureChatExists(accountID, chatID, msg)
 	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli(), msg.IsOutgoing)
 
 	// Increment unread if not active chat.

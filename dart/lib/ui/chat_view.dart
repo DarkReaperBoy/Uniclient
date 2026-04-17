@@ -108,8 +108,7 @@ class _ChatViewState extends State<ChatView> {
         case 'copy':
           Clipboard.setData(ClipboardData(text: msg.contentText));
         case 'forward':
-          _selectedMsgIds.add(msgId);
-          _forwardSelected(context, chatState);
+          _forwardSingle(context, chatState, msgId);
         case 'select':
           setState(() => _selectedMsgIds.add(msgId));
         case 'edit':
@@ -126,6 +125,19 @@ class _ChatViewState extends State<ChatView> {
       chatState.deleteMessage(id);
     }
     setState(() => _selectedMsgIds.clear());
+  }
+
+  void _forwardSingle(BuildContext context, ChatState chatState, String msgId) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _ForwardDialog(
+        chats: chatState.chats,
+        onSelect: (toChatId) async {
+          Navigator.of(ctx).pop();
+          await chatState.forwardMessages([msgId], toChatId);
+        },
+      ),
+    );
   }
 
   void _forwardSelected(BuildContext context, ChatState chatState) {
@@ -197,7 +209,21 @@ class _ChatViewState extends State<ChatView> {
             ),
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty)
-            _PinnedBar(pinned: chatState.pinnedMessages.first),
+            _PinnedBar(
+              pinned: chatState.pinnedMessages.first,
+              onTap: () {
+                // Scroll to pinned message if it's loaded.
+                final pinnedId = chatState.pinnedMessages.first.msgId;
+                final idx = chatState.messages.indexWhere((m) => m.msgId == pinnedId);
+                if (idx >= 0) {
+                  _scrollController.animateTo(
+                    idx * 60.0, // approximate
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOutCirc,
+                  );
+                }
+              },
+            ),
           // Message list with scroll-to-bottom FAB.
           Expanded(
             child: Stack(
@@ -648,13 +674,16 @@ class _SelectionBar extends StatelessWidget {
 /// Shows the most recent pinned message with a pin icon.
 class _PinnedBar extends StatelessWidget {
   final CachedMessage pinned;
+  final VoidCallback? onTap;
 
-  const _PinnedBar({required this.pinned});
+  const _PinnedBar({required this.pinned, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
       height: 44,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
@@ -698,6 +727,7 @@ class _PinnedBar extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

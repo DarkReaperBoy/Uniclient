@@ -213,6 +213,55 @@ func (e *Engine) SyncChats(accountID string, dialogs []cores.Dialog) error {
 	return nil
 }
 
+// ensureChatExists creates a minimal chat entry if it doesn't exist yet.
+// Called when a message arrives for a chat not in the initial sync.
+func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) {
+	var exists int
+	e.db.QueryRow("SELECT 1 FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID).Scan(&exists)
+	if exists == 1 {
+		return
+	}
+
+	// Create minimal chat entry — title will be the sender name for DMs.
+	chatType := "dm"
+	title := msg.SenderName
+	if title == "" {
+		title = chatID
+	}
+	now := time.Now().UnixMilli()
+	e.db.Exec(
+		`INSERT OR IGNORE INTO chats
+		 (account_id, chat_id, type, title, avatar_path,
+		  last_msg_id, last_msg_text, last_msg_sender, last_msg_time, last_msg_is_outgoing,
+		  unread_count, is_muted, is_pinned, is_archived,
+		  draft_text, member_count, parent_id, updated_at)
+		 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, 0, 0, 0, 0, '', 0, '', ?)`,
+		accountID, chatID, chatType, title,
+		msg.ID, msg.Text, msg.SenderName, msg.Timestamp.UnixMilli(), boolToInt(msg.IsOutgoing), now)
+
+	// Try to get proper chat info from core in background.
+	go func() {
+		acc, ok := e.getAccount(accountID)
+		if !ok || acc.Core == nil {
+			return
+		}
+		info, err := acc.Core.GetChatInfo(chatID)
+		if err != nil || info == nil {
+			return
+		}
+		cType := string(info.Type)
+		if cType == "" {
+			cType = "dm"
+		}
+		e.db.Exec(
+			`UPDATE chats SET type = ?, title = ?, member_count = ? WHERE account_id = ? AND chat_id = ?`,
+			cType, info.Title, info.MemberCount, accountID, chatID)
+		e.emitChatUpdate(accountID, chatID)
+	}()
+
+	log.Printf("[engine] ensureChatExists(%s, %s): created new chat entry for %q", accountID, chatID, title)
+}
+
 // updateChatLastMessage updates the preview fields for a chat.
 func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender string, timeMs int64, isOutgoing bool) {
 	outgoing := 0
