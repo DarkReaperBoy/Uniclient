@@ -71,9 +71,9 @@ Sections 1-49 written (12,251 lines). The remaining sections need to be research
 
 Skip premium/money/payments/stars/boosts/gifts — no monetary features, not relevant to UniClient.
 
-## 1. Delete Old UI
+## ~~1. Delete Old UI~~ DONE
 
-Delete `dart/lib/screens/` and `dart/lib/widgets/`. Keep bridge/, state/, models/, proto/, utils/, theme/.
+~~Delete `dart/lib/screens/` and `dart/lib/widgets/`. Keep bridge/, state/, models/, proto/, utils/, theme/.~~
 
 ## 2. Chat Mode — AyuGram-style UI (Telegram first)
 
