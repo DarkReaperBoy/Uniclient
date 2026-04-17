@@ -28,6 +28,8 @@ class _ChatViewState extends State<ChatView> {
   final _composeController = TextEditingController();
   final _scrollController = ScrollController();
   String? _replyToId;
+  bool _showScrollToBottom = false;
+  String? _lastChatId;
 
   @override
   void initState() {
@@ -42,12 +44,38 @@ class _ChatViewState extends State<ChatView> {
     super.dispose();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Mark as read when opening a new chat.
+    final chatState = context.read<ChatState>();
+    final chatId = chatState.activeChat?.chatId;
+    if (chatId != null && chatId != _lastChatId) {
+      _lastChatId = chatId;
+      // Delay slightly to ensure messages are loaded.
+      Future.microtask(() => chatState.markRead());
+    }
+  }
+
   void _onScroll() {
     // Load more messages when near the top (oldest messages).
     if (_scrollController.position.pixels >=
         _scrollController.position.maxScrollExtent - 200) {
       context.read<ChatState>().loadMoreMessages();
     }
+    // Show/hide scroll-to-bottom FAB.
+    final showFab = _scrollController.offset > 200;
+    if (showFab != _showScrollToBottom) {
+      setState(() => _showScrollToBottom = showFab);
+    }
+  }
+
+  void _scrollToBottom() {
+    _scrollController.animateTo(
+      0, // reverse: true means 0 is the bottom
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCirc,
+    );
   }
 
   void _sendMessage() {
@@ -57,6 +85,8 @@ class _ChatViewState extends State<ChatView> {
     chatState.sendMessage(text, replyToId: _replyToId ?? '');
     _composeController.clear();
     setState(() => _replyToId = null);
+    // Scroll to bottom after sending.
+    _scrollToBottom();
   }
 
   @override
@@ -81,13 +111,27 @@ class _ChatViewState extends State<ChatView> {
             onBack: widget.onBack,
             onToggleInfo: widget.onToggleInfo,
           ),
-          // Message list.
+          // Message list with scroll-to-bottom FAB.
           Expanded(
-            child: _MessageList(
-              messages: chatState.messages,
-              loading: chatState.loadingMessages,
-              scrollController: _scrollController,
-              onReply: (msgId) => setState(() => _replyToId = msgId),
+            child: Stack(
+              children: [
+                _MessageList(
+                  messages: chatState.messages,
+                  loading: chatState.loadingMessages,
+                  scrollController: _scrollController,
+                  onReply: (msgId) => setState(() => _replyToId = msgId),
+                ),
+                // Scroll-to-bottom FAB (spec §5: JumpDownButton).
+                if (_showScrollToBottom)
+                  Positioned(
+                    right: 16,
+                    bottom: 16,
+                    child: _ScrollToBottomFab(
+                      unreadCount: chatState.openedUnreadCount,
+                      onTap: _scrollToBottom,
+                    ),
+                  ),
+              ],
             ),
           ),
           // Reply bar.
@@ -391,6 +435,43 @@ class _ReplyBar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Scroll-to-bottom FAB (spec §5: JumpDownButton).
+class _ScrollToBottomFab extends StatelessWidget {
+  final int unreadCount;
+  final VoidCallback onTap;
+
+  const _ScrollToBottomFab({required this.unreadCount, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (unreadCount > 0)
+          Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              unreadCount > 99 ? '99+' : unreadCount.toString(),
+              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+            ),
+          ),
+        FloatingActionButton.small(
+          onPressed: onTap,
+          backgroundColor: theme.colorScheme.surface,
+          elevation: 4,
+          child: Icon(Icons.keyboard_arrow_down, color: theme.textTheme.bodyMedium?.color),
+        ),
+      ],
     );
   }
 }
