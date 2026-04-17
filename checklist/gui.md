@@ -82,39 +82,39 @@ scripts/flutter_interact.sh state                  # get app state
 
 ## Done
 
-- [x] Responsive shell layout (UniClientShell) — OneColumn/TwoColumn/ThreeColumn modes
-- [x] Chat list sidebar (ChatListPanel) — search, sorted chat rows
-- [x] Chat list row (ChatListRow) — 62px, avatars, titles, timestamps, badges, previews
-- [x] Hamburger drawer (HamburgerDrawer) — profile cover (134px), collapsible account switcher, menu items, night mode
-- [x] Chat view (ChatView) — top bar, message list, compose area
-- [x] Message bubbles (MessageBubble) — incoming/outgoing, sender colors, replies, reactions
-- [x] Auth screen (AuthScreen) — method choice, phone/OTP/2FA input, QR code
-- [x] Column resize handles — drag to resize dialogs column
-- [x] Context menu on chat rows — pin, mute, archive, read, leave
-- [x] Empty states — no chats, no messages, no account
-- [x] IsOutgoing propagation — Go Core → Engine cache → Protobuf → Dart → UI
-- [x] Message loading fix — fetch live from core when cache has fewer than `limit` messages
-- [x] SQLite schema migration V2 — `is_outgoing` column
-- [x] Cross-platform outgoing detection — Telegram (msg.Out), Bale (sender == self), all other cores
-- [x] Folder tabs (FilterColumn, 72px sidebar) — when active account has folders
-- [x] Horizontal folder tab strip (when sidebar hidden)
-- [x] Chat row: send state icons (check for outgoing messages)
-- [x] Info panel (third column) — user/group/channel info, members list, shared media links
-- [x] Per-account isolation — one active account at a time, chosen via hamburger drawer
-- [x] Folder scoping — folders only shown for the active account
-- [x] Account switcher — profile cover + expand arrow, platform icons, connection dots, checkmark on active
-- [x] Media rendering in messages — auto-download photos, video placeholders, voice waveform, audio/file indicators
-- [x] Media download pipeline — engine MediaManager, auto-download, Telegram access hash persistence, DB schema V4
-- [x] Chat list column width — default ratio 0.17 (~300px on 1920)
-- [x] Avatar/profile picture download — Telegram DownloadChatAvatar, cached to disk, DB avatar_path, Image.file rendering
-- [x] Folder filtering fix — full Telegram filter flag support (contacts, non_contacts, groups, channels, bots, exclude_muted/read/archived) + DialogFilterChatlist support
-- [x] Chat row: online dot indicator — green dot on DM avatars via UserStatusEvent stream + Telegram OnUserStatus handler
-- [x] Pinned message bar — engine GetPinnedMessages with InputMessagesFilterPinned, ChatState integration, _PinnedBar widget
-- [x] Selection mode (multi-select messages) — long-press to enter, checkboxes, selection bar with copy/delete/forward
-- [x] Forward dialog — searchable chat picker, forwardSingle from context menu
-- [x] Message context menu — right-click/long-press popup (reply, copy, forward, select, edit, delete)
-- [x] Dialog pagination — GetDialogs paginates up to 500, first 100 fast + background rest
-- [x] Reply display — sent replies show reply_to_id + reply_preview in bubbles
-- [x] New chat auto-creation — ensureChatExists when message arrives for uncached chat
-- [x] DB corruption fix — ensureChatExists type integer fix + cleanup on startup
-- [x] Gesture dispatch system — debug command handler supports tap/rightClick/longPress/scroll/type/key via `/tmp/uniclient_debug_cmd.json` for automated UI testing
+- [ ] Responsive shell layout (UniClientShell) — OneColumn/TwoColumn/ThreeColumn modes
+- [ ] Chat list sidebar (ChatListPanel) — search, sorted chat rows
+- [ ] Chat list row (ChatListRow) — 62px, avatars, titles, timestamps, badges, previews
+- [ ] Hamburger drawer (HamburgerDrawer) — profile cover (134px), collapsible account switcher, menu items, night mode
+- [ ] Chat view (ChatView) — top bar, message list, compose area
+- [ ] Message bubbles (MessageBubble) — incoming/outgoing, sender colors, replies, reactions
+- [ ] Auth screen (AuthScreen) — method choice, phone/OTP/2FA input, QR code
+- [ ] Column resize handles — drag to resize dialogs column
+- [ ] Context menu on chat rows — pin, mute, archive, read, leave
+- [ ] Empty states — no chats, no messages, no account
+- [ ] IsOutgoing propagation — Go Core → Engine cache → Protobuf → Dart → UI
+- [ ] Message loading fix — fetch live from core when cache has fewer than `limit` messages
+- [ ] SQLite schema migration V2 — `is_outgoing` column
+- [ ] Cross-platform outgoing detection — Telegram (msg.Out), Bale (sender == self), all other cores
+- [ ] Folder tabs (FilterColumn, 72px sidebar) — when active account has folders
+- [ ] Horizontal folder tab strip (when sidebar hidden)
+- [ ] Chat row: send state icons (check for outgoing messages)
+- [ ] Info panel (third column) — user/group/channel info, members list, shared media links
+- [ ] Per-account isolation — one active account at a time, chosen via hamburger drawer
+- [ ] Folder scoping — folders only shown for the active account
+- [ ] Account switcher — profile cover + expand arrow, platform icons, connection dots, checkmark on active
+- [ ] Media rendering in messages — auto-download photos, video placeholders, voice waveform, audio/file indicators
+- [ ] Media download pipeline — engine MediaManager, auto-download, Telegram access hash persistence, DB schema V4
+- [ ] Chat list column width — default ratio 0.17 (~300px on 1920)
+- [ ] Avatar/profile picture download — Telegram DownloadChatAvatar, cached to disk, DB avatar_path, Image.file rendering
+- [ ] Folder filtering fix — full Telegram filter flag support (contacts, non_contacts, groups, channels, bots, exclude_muted/read/archived) + DialogFilterChatlist support
+- [ ] Chat row: online dot indicator — green dot on DM avatars via UserStatusEvent stream + Telegram OnUserStatus handler
+- [ ] Pinned message bar — engine GetPinnedMessages with InputMessagesFilterPinned, ChatState integration, _PinnedBar widget
+- [ ] Selection mode (multi-select messages) — long-press to enter, checkboxes, selection bar with copy/delete/forward
+- [ ] Forward dialog — searchable chat picker, forwardSingle from context menu
+- [ ] Message context menu — right-click/long-press popup (reply, copy, forward, select, edit, delete)
+- [ ] Dialog pagination — GetDialogs paginates up to 500, first 100 fast + background rest
+- [ ] Reply display — sent replies show reply_to_id + reply_preview in bubbles
+- [ ] New chat auto-creation — ensureChatExists when message arrives for uncached chat
+- [ ] DB corruption fix — ensureChatExists type integer fix + cleanup on startup
+- [ ] Gesture dispatch system — debug command handler supports tap/rightClick/longPress/scroll/type/key via `/tmp/uniclient_debug_cmd.json` for automated UI testing

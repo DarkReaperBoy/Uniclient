@@ -264,6 +264,72 @@ class _UniClientAppState extends State<UniClientApp> {
           // Send a key event: {"action":"key","key":"enter"} or {"action":"key","key":"backspace"}
           final key = cmd['key'] as String? ?? '';
           _dispatchKey(key);
+
+        case 'doubleClick':
+          // Double-click at coordinates: {"action":"doubleClick","x":500,"y":300}
+          final x = (cmd['x'] as num).toDouble();
+          final y = (cmd['y'] as num).toDouble();
+          _dispatchDoubleTap(x, y);
+
+        case 'drag':
+          // Drag from (x1,y1) to (x2,y2): {"action":"drag","x1":100,"y1":300,"x2":200,"y2":300}
+          final x1 = (cmd['x1'] as num).toDouble();
+          final y1 = (cmd['y1'] as num).toDouble();
+          final x2 = (cmd['x2'] as num).toDouble();
+          final y2 = (cmd['y2'] as num).toDouble();
+          final steps = (cmd['steps'] as int?) ?? 10;
+          _dispatchDrag(x1, y1, x2, y2, steps);
+
+        case 'hover':
+          // Hover at coordinates: {"action":"hover","x":500,"y":300}
+          final x = (cmd['x'] as num).toDouble();
+          final y = (cmd['y'] as num).toDouble();
+          _dispatchHover(x, y);
+
+        // ── UI query commands ──
+
+        case 'findText':
+          // Find text on screen and return its bounds: {"action":"findText","text":"Send"}
+          final query = cmd['text'] as String? ?? '';
+          final results = _findTextOnScreen(query);
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            const JsonEncoder.withIndent('  ').convert(results),
+          );
+
+        case 'getAllText':
+          // Dump all visible text with positions: {"action":"getAllText"}
+          final results = _getAllVisibleText();
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            const JsonEncoder.withIndent('  ').convert(results),
+          );
+
+        case 'getWindowSize':
+          // Get window dimensions: {"action":"getWindowSize"}
+          final window = WidgetsBinding.instance.renderViews.first;
+          final size = window.size;
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            jsonEncode({'width': size.width, 'height': size.height,
+              'pixelRatio': window.flutterView.devicePixelRatio}),
+          );
+
+        case 'hitTest':
+          // Find what widget is at coordinates: {"action":"hitTest","x":500,"y":300}
+          final x = (cmd['x'] as num).toDouble();
+          final y = (cmd['y'] as num).toDouble();
+          final result = _hitTestAt(x, y);
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            const JsonEncoder.withIndent('  ').convert(result),
+          );
+
+        case 'waitForText':
+          // Wait for text to appear, poll every 200ms up to timeout: {"action":"waitForText","text":"SamNet","timeout":5}
+          final query = cmd['text'] as String? ?? '';
+          final timeoutSec = (cmd['timeout'] as num?)?.toInt() ?? 5;
+          _waitForText(query, timeoutSec);
+
+        case 'dismissPopup':
+          // Tap at (0,0) to dismiss any popup/dialog/menu
+          _dispatchTap(1, 1);
       }
     } catch (e) {
       Debug.error('DEBUG_CMD', 'Error processing command', e, null);
@@ -339,11 +405,62 @@ class _UniClientAppState extends State<UniClientApp> {
     }
   }
 
+  void _dispatchDoubleTap(double x, double y) {
+    final binding = GestureBinding.instance;
+    // First tap.
+    final p1 = _pointerCounter++;
+    binding.handlePointerEvent(PointerDownEvent(
+      pointer: p1, position: Offset(x, y), buttons: kPrimaryButton, kind: PointerDeviceKind.mouse,
+    ));
+    binding.handlePointerEvent(PointerUpEvent(
+      pointer: p1, position: Offset(x, y), kind: PointerDeviceKind.mouse,
+    ));
+    // Second tap after minimal delay.
+    Future.delayed(const Duration(milliseconds: 50), () {
+      final p2 = _pointerCounter++;
+      binding.handlePointerEvent(PointerDownEvent(
+        pointer: p2, position: Offset(x, y), buttons: kPrimaryButton, kind: PointerDeviceKind.mouse,
+      ));
+      binding.handlePointerEvent(PointerUpEvent(
+        pointer: p2, position: Offset(x, y), kind: PointerDeviceKind.mouse,
+      ));
+    });
+  }
+
+  void _dispatchDrag(double x1, double y1, double x2, double y2, int steps) {
+    final pointer = _pointerCounter++;
+    final binding = GestureBinding.instance;
+    binding.handlePointerEvent(PointerDownEvent(
+      pointer: pointer, position: Offset(x1, y1), buttons: kPrimaryButton, kind: PointerDeviceKind.mouse,
+    ));
+    // Interpolate move events.
+    for (var i = 1; i <= steps; i++) {
+      final t = i / steps;
+      final x = x1 + (x2 - x1) * t;
+      final y = y1 + (y2 - y1) * t;
+      Future.delayed(Duration(milliseconds: i * 16), () {
+        binding.handlePointerEvent(PointerMoveEvent(
+          pointer: pointer, position: Offset(x, y), buttons: kPrimaryButton, kind: PointerDeviceKind.mouse,
+        ));
+        if (i == steps) {
+          binding.handlePointerEvent(PointerUpEvent(
+            pointer: pointer, position: Offset(x2, y2), kind: PointerDeviceKind.mouse,
+          ));
+        }
+      });
+    }
+  }
+
+  void _dispatchHover(double x, double y) {
+    final pointer = _pointerCounter++;
+    GestureBinding.instance.handlePointerEvent(PointerHoverEvent(
+      pointer: pointer, position: Offset(x, y), kind: PointerDeviceKind.mouse,
+    ));
+  }
+
   void _dispatchKey(String key) {
-    // Map common key names to actions.
     switch (key) {
       case 'enter':
-        // Simulate Enter key press for sending messages.
         final focusNode = FocusManager.instance.primaryFocus;
         if (focusNode == null) return;
         final ctx = focusNode.context;
@@ -352,7 +469,92 @@ class _UniClientAppState extends State<UniClientApp> {
         if (editableState != null) {
           editableState.performAction(TextInputAction.newline);
         }
+      case 'escape':
+        // Dismiss any popup by popping the top route.
+        final element = WidgetsBinding.instance.rootElement;
+        if (element != null) {
+          // Find a navigator context by walking the tree.
+          BuildContext? navCtx;
+          void findNavigator(Element el) {
+            if (navCtx != null) return;
+            if (el.widget is Navigator) { navCtx = el; return; }
+            el.visitChildren(findNavigator);
+          }
+          element.visitChildren(findNavigator);
+          if (navCtx != null) Navigator.of(navCtx!, rootNavigator: true).maybePop();
+        }
     }
+  }
+
+  // ── UI query helpers ──
+
+  /// Walk the render tree and find all Text widgets, returning their text + screen bounds.
+  List<Map<String, dynamic>> _getAllVisibleText() {
+    final results = <Map<String, dynamic>>[];
+    void visit(Element element) {
+      if (element.widget is Text) {
+        final text = (element.widget as Text).data ?? (element.widget as Text).textSpan?.toPlainText() ?? '';
+        if (text.isNotEmpty) {
+          final renderObj = element.findRenderObject();
+          if (renderObj is RenderBox && renderObj.hasSize) {
+            final topLeft = renderObj.localToGlobal(Offset.zero);
+            final size = renderObj.size;
+            results.add({
+              'text': text.length > 80 ? '${text.substring(0, 80)}...' : text,
+              'x': topLeft.dx.round(),
+              'y': topLeft.dy.round(),
+              'w': size.width.round(),
+              'h': size.height.round(),
+              'cx': (topLeft.dx + size.width / 2).round(),
+              'cy': (topLeft.dy + size.height / 2).round(),
+            });
+          }
+        }
+      }
+      element.visitChildren(visit);
+    }
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return results;
+  }
+
+  /// Find text matching a query (case-insensitive substring) and return matches with coordinates.
+  List<Map<String, dynamic>> _findTextOnScreen(String query) {
+    final all = _getAllVisibleText();
+    final q = query.toLowerCase();
+    return all.where((e) => (e['text'] as String).toLowerCase().contains(q)).toList();
+  }
+
+  /// Hit-test at coordinates and return the widget chain.
+  Map<String, dynamic> _hitTestAt(double x, double y) {
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(result, Offset(x, y),
+      WidgetsBinding.instance.renderViews.first.flutterView.viewId);
+    final entries = <String>[];
+    for (final entry in result.path) {
+      final target = entry.target;
+      entries.add(target.runtimeType.toString());
+      if (entries.length >= 10) break; // limit depth
+    }
+    return {'x': x, 'y': y, 'widgets': entries};
+  }
+
+  /// Poll for text to appear on screen, write result when found or timed out.
+  void _waitForText(String query, int timeoutSec) {
+    final deadline = DateTime.now().add(Duration(seconds: timeoutSec));
+    Timer.periodic(const Duration(milliseconds: 200), (timer) {
+      final found = _findTextOnScreen(query);
+      if (found.isNotEmpty) {
+        timer.cancel();
+        File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+          const JsonEncoder.withIndent('  ').convert({'found': true, 'matches': found}),
+        );
+      } else if (DateTime.now().isAfter(deadline)) {
+        timer.cancel();
+        File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+          jsonEncode({'found': false, 'query': query}),
+        );
+      }
+    });
   }
 
   @override
