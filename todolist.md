@@ -2,7 +2,18 @@
 
 Top-to-bottom execution order. Remove items when done.
 
-## 0. Finish Telegram Desktop UI Spec (`research/telegram_desktop_ui.md`)
+## 0a. Docs audit — merge/update/remove/add
+
+Scan ALL `.md` files across the repo: `research/`, `checklist/`, `CLAUDE.md`, `SPEC.md`, `todolist.md`. For each file:
+- **Merge** duplicated info (e.g. same protocol notes in two places)
+- **Update** stale/outdated content with current state
+- **Remove** dead info (completed items still listed, wrong assumptions, obsolete notes)
+- **Add** anything missing that was learned but never written down
+- **Resolve contradictions** between files
+
+Do this BEFORE any feature work. Clean docs = clean sessions.
+
+## 0b. Finish Telegram Desktop UI Spec (`research/telegram_desktop_ui.md`)
 
 Sections 1-49 written (12,251 lines). The remaining sections need to be researched from scratch by sending agents to study the AyuGram Desktop source code (https://github.com/AyuGram/AyuGramDesktop) and appending results to `research/telegram_desktop_ui.md`. Do 3 agents at a time, wait for results, append, repeat.
 
