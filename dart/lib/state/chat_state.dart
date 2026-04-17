@@ -330,6 +330,19 @@ class ChatState extends ChangeNotifier {
     }
   }
 
+  /// Whether the message list is in a "jumped" state (not showing latest messages).
+  bool get isJumped => _jumpedUntil != null && DateTime.now().isBefore(_jumpedUntil!);
+
+  /// Return to the latest messages (undo jumpToMessage).
+  void returnToLatest() {
+    final chat = _activeChat;
+    if (chat == null) return;
+    _jumpedUntil = null;
+    _messages = [];
+    _hasMoreMessages = true;
+    _loadMessages();
+  }
+
   Future<void> forwardMessages(List<String> msgIds, String toChatId) async {
     final chat = _activeChat;
     if (chat == null) return;
@@ -437,14 +450,24 @@ class ChatState extends ChangeNotifier {
   }
 
   /// Fetch chat members and cache their avatar thumbnails for sender display.
+  /// Paginates through all members to cover large groups.
   Future<void> _loadMemberAvatars(String accountId, String chatId) async {
     try {
-      final members = await _engine.getChatMembers(accountId, chatId, limit: 200);
-      for (final m in members) {
-        if (m.avatarB64.isNotEmpty) {
-          _senderAvatars[m.userId] = m.avatarB64;
+      const batchSize = 200;
+      var offset = 0;
+      var fetched = 0;
+      do {
+        final members = await _engine.getChatMembers(accountId, chatId, limit: batchSize, offset: offset);
+        fetched = members.length;
+        for (final m in members) {
+          if (m.avatarB64.isNotEmpty) {
+            _senderAvatars[m.userId] = m.avatarB64;
+          }
         }
-      }
+        offset += fetched;
+        // Stop after first batch if we got fewer than requested (no more pages).
+        // Also cap at 1000 to avoid hammering huge channels.
+      } while (fetched >= batchSize && offset < 1000);
       if (_senderAvatars.isNotEmpty) notifyListeners();
     } catch (_) {
       // Non-critical — avatars fall back to initials.

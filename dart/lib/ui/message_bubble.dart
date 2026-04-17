@@ -76,8 +76,8 @@ class MessageBubble extends StatelessWidget {
                 if (isLastInGroup)
                   _buildSenderAvatar()
                 else
-                  const SizedBox(width: 30), // spacer to align with avatar above
-                const SizedBox(width: 6),
+                  const SizedBox(width: 33), // spacer to align with avatar below
+                const SizedBox(width: 7),
               ],
           Flexible(
             child: GestureDetector(
@@ -88,7 +88,7 @@ class MessageBubble extends StatelessWidget {
                 ? (details) => onContextMenu!(details.globalPosition)
                 : null,
             child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 36 : _maxWidth),
+              constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 40 : _maxWidth),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                 decoration: BoxDecoration(
@@ -196,32 +196,43 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildSenderAvatar() {
+    // Spec §5: sender avatar 33px diameter, bottom-left of last message in group.
+    const double avatarSize = 33;
     final fallback = CircleAvatar(
-      radius: 15,
+      radius: avatarSize / 2,
       backgroundColor: _senderColor(message.senderId),
       child: Text(
         message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
       ),
     );
 
     if (senderAvatarB64 != null && senderAvatarB64!.isNotEmpty) {
       try {
         final bytes = base64Decode(senderAvatarB64!);
-        return ClipOval(
-          child: Image.memory(
-            bytes,
-            width: 30,
-            height: 30,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => fallback,
+        return GestureDetector(
+          onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+          child: ClipOval(
+            child: Image.memory(
+              bytes,
+              width: avatarSize,
+              height: avatarSize,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => fallback,
+            ),
           ),
         );
       } catch (_) {
-        return fallback;
+        return GestureDetector(
+          onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+          child: fallback,
+        );
       }
     }
-    return fallback;
+    return GestureDetector(
+      onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
+      child: fallback,
+    );
   }
 
   /// 7 sender colors from spec (id % 7).

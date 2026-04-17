@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -75,6 +76,11 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _scrollToBottom() {
+    final chatState = context.read<ChatState>();
+    if (chatState.isJumped) {
+      // If we jumped to a pinned message, reload latest messages first.
+      chatState.returnToLatest();
+    }
     _scrollController.animateTo(
       0, // reverse: true means 0 is the bottom
       duration: const Duration(milliseconds: 300),
@@ -130,60 +136,83 @@ class _ChatViewState extends State<ChatView> {
 
     showDialog(
       context: context,
+      barrierColor: Colors.black26,
       builder: (ctx) {
         final theme = Theme.of(ctx);
+        const avatarRadius = 36.0;
         Widget avatar;
         if (avatarB64 != null && avatarB64.isNotEmpty) {
           try {
             final bytes = base64Decode(avatarB64);
             avatar = ClipOval(
-              child: Image.memory(bytes, width: 64, height: 64, fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _senderFallbackAvatar(senderId, senderName, 32)),
+              child: Image.memory(bytes, width: avatarRadius * 2, height: avatarRadius * 2, fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => _senderFallbackAvatar(senderId, senderName, avatarRadius)),
             );
           } catch (_) {
-            avatar = _senderFallbackAvatar(senderId, senderName, 32);
+            avatar = _senderFallbackAvatar(senderId, senderName, avatarRadius);
           }
         } else {
-          avatar = _senderFallbackAvatar(senderId, senderName, 32);
+          avatar = _senderFallbackAvatar(senderId, senderName, avatarRadius);
         }
 
         return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 320),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  avatar,
-                  const SizedBox(height: 12),
-                  Text(senderName, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text('ID: $senderId', style: theme.textTheme.bodySmall),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+            constraints: const BoxConstraints(maxWidth: 280),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Profile header with avatar + name.
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+                  child: Row(
                     children: [
-                      TextButton.icon(
-                        icon: const Icon(Icons.message, size: 18),
-                        label: const Text('Message'),
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          // Try to open DM with this user.
-                          final dmChat = chatState.chats.where((c) =>
-                            c.chatId == senderId && c.accountId == chatState.activeChat?.accountId).firstOrNull;
-                          if (dmChat != null) chatState.openChat(dmChat);
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                      TextButton(
-                        child: const Text('Close'),
-                        onPressed: () => Navigator.of(ctx).pop(),
+                      avatar,
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              senderName,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'ID: $senderId',
+                              style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ],
-              ),
+                ),
+                const Divider(height: 1),
+                // Actions.
+                InkWell(
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    final dmChat = chatState.chats.where((c) =>
+                      c.chatId == senderId && c.accountId == chatState.activeChat?.accountId).firstOrNull;
+                    if (dmChat != null) chatState.openChat(dmChat);
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.message_outlined, size: 20, color: theme.colorScheme.primary),
+                        const SizedBox(width: 14),
+                        Text('Send Message', style: theme.textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
             ),
           ),
         );
@@ -382,6 +411,37 @@ class _ChatTopBar extends StatelessWidget {
     this.onToggleInfo,
   });
 
+  static Widget _chatAvatar(ChatInfo chat, ThemeData theme, double radius) {
+    if (chat.avatarPath.isNotEmpty) {
+      final file = File(chat.avatarPath);
+      return ClipOval(
+        child: Image.file(
+          file,
+          width: radius * 2,
+          height: radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackAvatar(chat, theme, radius),
+        ),
+      );
+    }
+    return _fallbackAvatar(chat, theme, radius);
+  }
+
+  static Widget _fallbackAvatar(ChatInfo chat, ThemeData theme, double radius) {
+    const colors = [
+      Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
+      Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb),
+    ];
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: colors[chat.chatId.hashCode.abs() % 7],
+      child: Text(
+        chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
+        style: TextStyle(color: Colors.white, fontSize: radius * 0.7, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -415,15 +475,8 @@ class _ChatTopBar extends StatelessWidget {
               onPressed: onBack,
             ),
           ],
-          // Avatar.
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.3),
-            child: Text(
-              chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-          ),
+          // Avatar — use real photo when available.
+          _chatAvatar(chat, theme, 18),
           const SizedBox(width: 10),
           // Title + subtitle.
           Expanded(

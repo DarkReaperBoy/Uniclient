@@ -16441,12 +16441,43 @@ func (t *TelegramCore) UnbanMember(chatID string, userID string) error {
 }
 
 // GetMembers returns the list of members in a group, supergroup, or channel.
+// Handles both basic groups (via MessagesGetFullChat) and supergroups/channels (via ChannelsGetParticipants).
 func (t *TelegramCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 50
 	}
-	return t.GetParticipants(chatID, limit)
+	// Try channel participants first (supergroups/channels).
+	users, err := t.GetParticipants(chatID, limit)
+	if err == nil {
+		return users, nil
+	}
+	// Fallback: basic group — use MessagesGetFullChat which includes participants.
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+	peer, peerErr := t.resolvePeer(chatID)
+	if peerErr != nil {
+		return nil, peerErr
+	}
+	chat, ok := peer.(*tg.PeerChat)
+	if !ok {
+		return nil, err // return original error if not a basic chat either
+	}
+	result, fullErr := t.api.MessagesGetFullChat(t.ctx, chat.ChatID)
+	if fullErr != nil {
+		return nil, fullErr
+	}
+	t.cacheEntities(result.Users, result.Chats)
+	var members []User
+	for _, u := range result.Users {
+		if user, ok := u.(*tg.User); ok {
+			members = append(members, *t.convertUser(user))
+		}
+	}
+	return members, nil
 }
 
 // SetAdmin grants or modifies admin rights for a user in a chat.

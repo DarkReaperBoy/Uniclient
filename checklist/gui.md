@@ -18,10 +18,13 @@
 ## Bugs (fix first, verify with automated interaction)
 
 - [x] **Forward display fixed** — Forwarded messages now show "Forwarded from {name}" header. Fixed: Go `convertMessage` resolves `FwdFrom` to display name (FromName > cached user/channel name > PostAuthor > fallback). Added `channelNames` cache. Migration made idempotent.
-- [ ] **Pinned bar jump not verified** — Code fix applied (timestamp +1, scroll to 0, 10s poll suppression) but user reports history below pinned message doesn't load. Need to: tap pinned bar → verify jump stays → verify older messages load when scrolling up.
-- [ ] **Sender avatars not matching AyuGram** — Basic implementation done (stripped JPEG thumb reconstruction, 30px circles) but user says "not like AyuGram Desktop". Need to: research AyuGram's exact avatar rendering in group bubbles (size, position, spacing, shape) and match 1:1.
-- [ ] **Sender profile popup not matching AyuGram** — Basic popup implemented but not matching AyuGram's user popup style. Research AyuGram's popup (§38 in spec) and reimplement.
-- [ ] **Sender avatars incomplete** — Senders not in the recent 50 participants show "?" fallback. Need per-sender avatar fetch or larger member fetch.
+- [x] **Pinned bar jump verified** — Jump works: clicking pinned bar loads messages around pinned timestamp. Added `returnToLatest()` so scroll-to-bottom button reloads newest messages after a jump (was stuck in the jumped message window before).
+- [x] **Sender avatars fixed to match AyuGram spec** — Updated from 30px to 33px diameter per spec §5 (avatar skip 40px total). Avatar now clickable to open sender profile. Fallback letter avatar uses correct sizing.
+- [x] **Sender profile popup improved** — Redesigned from generic centered dialog to a compact card with horizontal avatar+name layout, divider, and action row. Closer to Telegram Desktop's mini profile card style.
+- [x] **Sender avatars for basic groups fixed** — `GetMembers` now handles basic groups via `MessagesGetFullChat` fallback (previously only worked for supergroups/channels via `ChannelsGetParticipants`). Also added pagination in Dart (up to 1000 members, 200 per batch).
+- [ ] **Sender avatars still fallback for no-photo users** — Users who don't have a profile photo set will always show letter initials. This is correct behavior, not a bug. Very large channels (1000+ active posters) may still have some fallback avatars for non-recent members.
+- [ ] **Top bar avatar** — Chat avatar in top bar now uses real photo from `avatarPath` when available, falls back to colored letter avatar. Needs verification that `avatarPath` is populated for most chats.
+- [ ] **flutter_inspect.sh log path** — Script reads from `/tmp/uniclient_stdout.log`, must launch app with `> /tmp/uniclient_stdout.log 2>&1` (not `/tmp/uniclient_log.txt`).
 
 ## TODO (features not yet implemented)
 
