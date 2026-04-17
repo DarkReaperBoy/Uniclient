@@ -89,13 +89,13 @@ class ChatListRow extends StatelessWidget {
                               children: [
                                 Flexible(
                                   child: Text(
-                                    chat.title,
+                                    chat.title.isNotEmpty ? chat.title : chat.chatId,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: nameColor,
+                                      color: chat.title.isEmpty ? mutedColor : nameColor,
                                     ),
                                   ),
                                 ),
@@ -302,12 +302,13 @@ class _ChatAvatar extends StatelessWidget {
   }
 
   static String _initials(String title) {
-    if (title.isEmpty) return '?';
-    final words = title.trim().split(RegExp(r'\s+'));
-    if (words.length >= 2) {
+    final t = title.trim();
+    if (t.isEmpty) return '?';
+    final words = t.split(RegExp(r'\s+'));
+    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
       return '${words[0][0]}${words[1][0]}'.toUpperCase();
     }
-    return title[0].toUpperCase();
+    return t[0].toUpperCase();
   }
 
   // 7 colors matching Telegram's peer color scheme.

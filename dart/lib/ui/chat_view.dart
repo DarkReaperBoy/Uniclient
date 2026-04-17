@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
@@ -174,7 +175,7 @@ class _ChatTopBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  chat.title,
+                  chat.title.isNotEmpty ? chat.title : chat.chatId,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium,
@@ -253,11 +254,26 @@ class _MessageList extends StatelessWidget {
         final showDate = index == messages.length - 1 ||
             _differentDay(msg.timestamp, messages[index + 1].timestamp);
 
+        // Consecutive message grouping (spec §5):
+        // Same sender within 3 minutes → group together.
+        final prevMsg = index > 0 ? messages[index - 1] : null;
+        final nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
+        final isFirstInGroup = nextMsg == null ||
+            nextMsg.senderId != msg.senderId ||
+            showDate ||
+            (msg.timestamp - nextMsg.timestamp).abs() > 180000;
+        final isLastInGroup = prevMsg == null ||
+            prevMsg.senderId != msg.senderId ||
+            _differentDay(msg.timestamp, prevMsg.timestamp) ||
+            (prevMsg.timestamp - msg.timestamp).abs() > 180000;
+
         return Column(
           children: [
             if (showDate) _DateSeparator(timestamp: msg.timestamp),
             MessageBubble(
               message: msg,
+              isFirstInGroup: isFirstInGroup,
+              isLastInGroup: isLastInGroup,
               onReply: () => onReply(msg.msgId),
             ),
           ],
@@ -380,6 +396,7 @@ class _ReplyBar extends StatelessWidget {
 }
 
 /// Compose area at bottom. Spec §7.
+/// Enter sends, Shift+Enter for newline (matching Telegram Desktop).
 class _ComposeArea extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -411,29 +428,39 @@ class _ComposeArea extends StatelessWidget {
             icon: const Icon(Icons.attach_file, size: 22),
             onPressed: () {}, // TODO: attachment menu
           ),
-          // Text input.
+          // Text input with Enter-to-send.
           Expanded(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 160),
-              child: TextField(
-                controller: controller,
-                onChanged: onDraftChanged,
-                maxLines: null,
-                textInputAction: TextInputAction.newline,
-                onSubmitted: (_) => onSend(),
-                style: theme.textTheme.bodyMedium,
-                decoration: InputDecoration(
-                  hintText: 'Write a message...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
+              child: KeyboardListener(
+                focusNode: FocusNode(),
+                onKeyEvent: (event) {
+                  if (event is KeyDownEvent &&
+                      event.logicalKey == LogicalKeyboardKey.enter &&
+                      !HardwareKeyboard.instance.isShiftPressed) {
+                    // Prevent the newline from being inserted.
+                    onSend();
+                  }
+                },
+                child: TextField(
+                  controller: controller,
+                  onChanged: onDraftChanged,
+                  maxLines: null,
+                  textInputAction: TextInputAction.newline,
+                  style: theme.textTheme.bodyMedium,
+                  decoration: InputDecoration(
+                    hintText: 'Write a message...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: theme.brightness == Brightness.dark
+                        ? const Color(0xFF1e2430)
+                        : const Color(0xFFF0F0F0),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   ),
-                  filled: true,
-                  fillColor: theme.brightness == Brightness.dark
-                      ? const Color(0xFF1e2430)
-                      : const Color(0xFFF0F0F0),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
               ),
             ),

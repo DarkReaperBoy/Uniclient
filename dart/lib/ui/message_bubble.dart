@@ -6,11 +6,15 @@ import '../theme/theme.dart';
 /// Single message bubble. Spec §5: max 430px, 16/6px radius, sender colors.
 class MessageBubble extends StatelessWidget {
   final CachedMessage message;
+  final bool isFirstInGroup;
+  final bool isLastInGroup;
   final VoidCallback? onReply;
 
   const MessageBubble({
     super.key,
     required this.message,
+    this.isFirstInGroup = true,
+    this.isLastInGroup = true,
     this.onReply,
   });
 
@@ -39,8 +43,18 @@ class MessageBubble extends StatelessWidget {
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start;
 
+    // Spec §5: Consecutive grouping affects spacing and corner rounding.
+    // Top corners: attached-to-previous on sender's side → Small (6px), else Large (16px).
+    // Bottom corners: attached-to-next → Small; last in group → tail/Small; else Large.
+    final topSenderSide = isFirstInGroup ? _radiusLarge : _radiusSmall;
+    final topOtherSide = _radiusLarge;
+    final bottomSenderSide = isLastInGroup ? _radiusSmall : _radiusSmall;
+    final bottomOtherSide = isLastInGroup ? _radiusLarge : _radiusSmall;
+
+    final verticalPad = isLastInGroup ? 2.0 : 1.0;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
+      padding: EdgeInsets.only(top: isFirstInGroup ? 4.0 : verticalPad, bottom: verticalPad),
       child: Column(
         crossAxisAlignment: alignment,
         children: [
@@ -54,17 +68,17 @@ class MessageBubble extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: bubbleColor,
                   borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(_radiusLarge),
-                    topRight: const Radius.circular(_radiusLarge),
-                    bottomLeft: Radius.circular(isOutgoing ? _radiusLarge : _radiusSmall),
-                    bottomRight: Radius.circular(isOutgoing ? _radiusSmall : _radiusLarge),
+                    topLeft: Radius.circular(isOutgoing ? topOtherSide : topSenderSide),
+                    topRight: Radius.circular(isOutgoing ? topSenderSide : topOtherSide),
+                    bottomLeft: Radius.circular(isOutgoing ? bottomOtherSide : bottomSenderSide),
+                    bottomRight: Radius.circular(isOutgoing ? bottomSenderSide : bottomOtherSide),
                   ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Sender name (in groups, for incoming).
-                    if (!isOutgoing && message.senderName.isNotEmpty)
+                    // Sender name: only on first message of group (in groups, for incoming).
+                    if (!isOutgoing && message.senderName.isNotEmpty && isFirstInGroup)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
                         child: Text(
