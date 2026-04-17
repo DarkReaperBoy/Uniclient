@@ -13,7 +13,7 @@ Scan ALL `.md` files across the repo: `research/`, `checklist/`, `CLAUDE.md`, `S
 
 Every doc should **cross-reference** related files (e.g. `telegram_notes.md` links to `tgcalls_protocol.md` where calls are relevant, `gui.md` links to `telegram_desktop_ui.md` sections, `CLAUDE.md` harness table links to research files). When you use a doc in a future session and find it lacking, **update it right then** — don't defer. Docs are living tools, not archives.
 
-While auditing, **aggressively reduce line count** — delete fluff, merge redundant sections, rewrite wordy paragraphs as single lines, kill anything that says the same thing twice. Fewer lines = faster context loading = better sessions. Only preserve: actual research findings, operational rules, and harness instructions. Everything else is fair game for deletion.
+While auditing, **trim line count where possible** — merge redundant sections, shorten wordy explanations, remove duplicated info. Fewer lines = faster context loading = better sessions. Keep research findings, rules, and harness instructions intact — just say them in fewer words.
 
 Do this BEFORE any feature work. Clean docs = clean sessions.
 
