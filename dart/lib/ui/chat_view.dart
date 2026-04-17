@@ -212,27 +212,18 @@ class _ChatViewState extends State<ChatView> {
             _PinnedBar(
               pinned: chatState.pinnedMessages.first,
               onTap: () {
-                // Jump to pinned message: check if loaded, otherwise
-                // load messages around the pinned timestamp.
                 final pinned = chatState.pinnedMessages.first;
-                final idx = chatState.messages.indexWhere((m) => m.msgId == pinned.msgId);
-                if (idx >= 0) {
-                  // Already loaded — scroll to it.
-                  _scrollController.animateTo(
-                    idx * 60.0,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCirc,
-                  );
-                } else {
-                  // Not loaded — load messages around pinned timestamp.
-                  chatState.jumpToMessage(pinned.timestamp);
-                  // Scroll to top after loading (newest = bottom in reverse list).
-                  Future.delayed(const Duration(milliseconds: 100), () {
-                    if (_scrollController.hasClients) {
-                      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-                    }
-                  });
-                }
+                // Load messages around pinned timestamp, then scroll to it.
+                chatState.jumpToMessage(pinned.timestamp);
+                // After state updates, find and scroll to the pinned message.
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  final idx = chatState.messages.indexWhere((m) => m.msgId == pinned.msgId);
+                  if (idx >= 0 && _scrollController.hasClients) {
+                    // ListView is reversed, so index 0 is at bottom.
+                    // Approximate position based on average message height.
+                    _scrollController.jumpTo(idx * 70.0);
+                  }
+                });
               },
             ),
           // Message list with scroll-to-bottom FAB.

@@ -297,12 +297,17 @@ class ChatState extends ChangeNotifier {
   }
 
   /// Jump to messages around a specific timestamp (for pinned message navigation).
+  /// Loads a window of messages centered around the target time.
   void jumpToMessage(int timestampMs) {
     final chat = _activeChat;
     if (chat == null) return;
 
-    // Load messages before and after the target timestamp.
-    final around = _engine.getMessages(chat.accountId, chat.chatId, beforeMs: timestampMs + 1);
+    // Load messages starting just after the target timestamp so the target
+    // message itself is included (getMessages uses "timestamp < beforeMs").
+    final around = _engine.getMessages(
+      chat.accountId, chat.chatId,
+      beforeMs: timestampMs + 60000, // 1 minute buffer to ensure target is included
+    );
     if (around.isNotEmpty) {
       _messages = around;
       _hasMoreMessages = true;
@@ -315,6 +320,10 @@ class ChatState extends ChangeNotifier {
     if (chat == null) return;
     for (final id in msgIds) {
       await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId);
+    }
+    // If forwarding to the active chat, refresh messages.
+    if (toChatId == chat.chatId) {
+      _refreshMessages();
     }
   }
 
