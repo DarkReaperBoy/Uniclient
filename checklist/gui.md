@@ -2,16 +2,11 @@
 
 **BEFORE STARTING ANY WORK: Read `CLAUDE.md` and obey ALL its rules.**
 
-## Bugs (user-reported, fix ASAP)
+## Bugs (user-reported, fix first)
 
-- [ ] **Reply from context menu doesn't work** — Pressing reply sets the reply bar but sending the message doesn't include the reply_to_id. The reply-to context is lost on send.
-- [ ] **Edit from context menu doesn't work** — Populates compose field but doesn't enter edit mode (sends as new message instead of editing).
-- [ ] **Forward from context menu does nothing** — Forward action in context menu not working.
-- [ ] **New messages don't appear in real-time** — User messaged themselves and DM didn't appear. Event stream for new messages may be broken or chat list not refreshing.
-- [ ] **Chat opening is slow** — Opening a DM takes very long to load, not instantaneous. Investigate GetMessages performance or cache warmup.
-- [ ] **Pinned bar not clickable** — Pinned message bar exists but clicking it doesn't scroll to the pinned message.
-- [ ] **Online dot not showing** — Telegram OnUserStatus handler added but no events observed. May need to verify event dispatching or wait longer.
-- [ ] **Folder contents may miss chats beyond 500 dialogs** — Pagination added (100→500 cap), synced 163 now. Users with many chats may still miss some.
+- [ ] **Forward display broken** — Forward works server-side (message appears in AyuGram) but forwarded message doesn't show in UniClient's destination chat. Cache refresh issue.
+- [ ] **Pinned bar jump inaccurate** — Clicking pinned bar jumps to wrong messages instead of the pinned message. The jumpToMessage timestamp math needs fixing.
+- [ ] **No sender avatars in group bubbles** — AyuGram shows sender profile pics next to messages in groups. UniClient doesn't.
 
 ## TODO (features not yet implemented)
 
@@ -26,11 +21,12 @@
 
 ### Chat view / DM
 - [ ] Last seen / online status text in top bar ("last seen recently", "online", etc.)
-- [ ] Sender profile picture in message bubbles (group chats)
 - [ ] Sticker rendering (static + animated + video stickers)
 - [ ] GIF rendering and playback
-- [ ] Video playback in messages
+- [ ] Video playback in messages (currently shows placeholder)
 - [ ] Animated/video profile pictures
+- [ ] Translate to English button (like AyuGram)
+- [ ] Reactions display on messages
 
 ### Profile/Info panel
 - [ ] Full profile view on clicking top bar: pfp, name, status, action buttons (message/mute/call/more)
@@ -79,10 +75,13 @@
 - [x] Media download pipeline — engine MediaManager, auto-download, Telegram access hash persistence, DB schema V4
 - [x] Chat list column width — default ratio 0.17 (~300px on 1920)
 - [x] Avatar/profile picture download — Telegram DownloadChatAvatar, cached to disk, DB avatar_path, Image.file rendering
-- [x] Folder filtering fix — full Telegram filter flag support across Go→proto→Dart pipeline
-- [x] Chat row: online dot indicator — green dot on DM avatars via UserStatusEvent stream
-- [x] Pinned message bar — engine GetPinnedMessages query, ChatState integration, _PinnedBar widget
+- [x] Folder filtering fix — full Telegram filter flag support (contacts, non_contacts, groups, channels, bots, exclude_muted/read/archived) + DialogFilterChatlist support
+- [x] Chat row: online dot indicator — green dot on DM avatars via UserStatusEvent stream + Telegram OnUserStatus handler
+- [x] Pinned message bar — engine GetPinnedMessages with InputMessagesFilterPinned, ChatState integration, _PinnedBar widget
 - [x] Selection mode (multi-select messages) — long-press to enter, checkboxes, selection bar with copy/delete/forward
-- [x] Forward dialog — searchable chat picker, integrated with selection mode
+- [x] Forward dialog — searchable chat picker, forwardSingle from context menu
 - [x] Message context menu — right-click/long-press popup (reply, copy, forward, select, edit, delete)
-- [x] Dialog pagination — GetDialogs paginates up to 500 dialogs (was capped at 100)
+- [x] Dialog pagination — GetDialogs paginates up to 500, first 100 fast + background rest
+- [x] Reply display — sent replies show reply_to_id + reply_preview in bubbles
+- [x] New chat auto-creation — ensureChatExists when message arrives for uncached chat
+- [x] DB corruption fix — ensureChatExists type integer fix + cleanup on startup
