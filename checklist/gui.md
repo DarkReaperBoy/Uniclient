@@ -22,9 +22,9 @@
 - [x] **Pinned bar jump verified** — Clicking pinned bar scrolls to pinned message; scroll-to-bottom button (with unread badge) returns to newest via `returnToLatest()`. Screenshot-verified in group chat "انجمن اینترنت و فیلترشکن".
 - [x] **Sender avatars verified** — 33px circles with letter initials render next to each sender's first message in group chats. Screenshot-verified.
 - [x] **Sender profile popup verified** — Tapping sender avatar opens compact horizontal card (avatar + name + ID + "Send Message" action). Screenshot-verified.
-- [ ] **Sender avatars for basic groups (not verified)** — Go `GetMembers` now falls back to `MessagesGetFullChat` for basic groups. Dart paginates up to 1000 members. Compiles but NOT verified that avatars actually appear.
-- [ ] **Sender avatars still fallback for no-photo users** — Users who don't have a profile photo set will always show letter initials. This is correct behavior, not a bug. Very large channels (1000+ active posters) may still have some fallback avatars for non-recent members.
-- [ ] **Top bar avatar** — Chat avatar in top bar now uses real photo from `avatarPath` when available, falls back to colored letter avatar. Needs verification that `avatarPath` is populated for most chats.
+- [ ] **Sender avatars for basic groups (cannot verify — no basic groups in account)** — Go `GetMembers` falls back to `MessagesGetFullChat` for basic groups. Dart paginates up to 1000 members. Code path compiles but cannot be visually verified because the active Telegram account has no basic groups (all tele chats in cache are supergroups/channels with `-100...` ID prefix). Verification deferred until a basic group is available.
+- [x] **Sender avatars fallback for no-photo users** — Users with no profile photo show colored letter initials. Correct behavior, not a bug (closes item).
+- [x] **Top bar avatar verified** — Chat avatar in top bar uses real photo from `avatarPath` when available and falls back to colored letter avatar. Screenshot-verified in "انجمن اینترنت و فیلترشکن" (colorful logo matches sidebar) and "Nakoshi's Diary" (real photo). Top bar avatar stays consistent with sidebar avatar across chats.
 
 ## TODO (features not yet implemented)
 
