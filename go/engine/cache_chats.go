@@ -19,8 +19,9 @@ type ChatInfo struct {
 	LastMsgID    string `json:"last_msg_id,omitempty"`
 	LastMsgText  string `json:"last_msg_text,omitempty"`
 	LastMsgTime  int64  `json:"last_msg_time,omitempty"`
-	LastMsgSender string `json:"last_msg_sender,omitempty"`
-	UnreadCount  int    `json:"unread_count"`
+	LastMsgSender     string `json:"last_msg_sender,omitempty"`
+	LastMsgIsOutgoing bool   `json:"last_msg_is_outgoing,omitempty"`
+	UnreadCount       int    `json:"unread_count"`
 	IsMuted      bool   `json:"is_muted"`
 	IsPinned     bool   `json:"is_pinned"`
 	IsArchived   bool   `json:"is_archived"`
@@ -53,6 +54,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, type, title, avatar_path,
 		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
+		        last_msg_is_outgoing,
 		        unread_count, is_muted, is_pinned, is_archived,
 		        draft_text, member_count, parent_id
 		 FROM chats
@@ -78,6 +80,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, type, title, avatar_path,
 		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
+		        last_msg_is_outgoing,
 		        unread_count, is_muted, is_pinned, is_archived,
 		        draft_text, member_count, parent_id
 		 FROM chats
@@ -98,11 +101,12 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		var avatarPath, lastMsgID, lastMsgText, lastMsgSender, draftText, parentID sql.NullString
 		var lastMsgTime sql.NullInt64
 		var memberCount sql.NullInt64
-		var isMuted, isPinned, isArchived int
+		var isMuted, isPinned, isArchived, lastMsgIsOutgoing int
 
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
+			&lastMsgIsOutgoing,
 			&c.UnreadCount, &isMuted, &isPinned, &isArchived,
 			&draftText, &memberCount, &parentID,
 		); err != nil {
@@ -116,6 +120,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			c.LastMsgTime = lastMsgTime.Int64
 		}
 		c.LastMsgSender = lastMsgSender.String
+		c.LastMsgIsOutgoing = lastMsgIsOutgoing == 1
 		c.IsMuted = isMuted == 1
 		c.IsPinned = isPinned == 1
 		c.IsArchived = isArchived == 1
@@ -138,6 +143,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 	var lastMsgText, lastMsgSender string
 	var lastMsgTime int64
 	var lastMsgID string
+	var lastMsgIsOutgoing int
 	if d.LastMessage != nil {
 		lastMsgID = d.LastMessage.ID
 		lastMsgText = d.LastMessage.Text
@@ -146,13 +152,17 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		}
 		lastMsgSender = d.LastMessage.SenderName
 		lastMsgTime = d.LastMessage.Timestamp.UnixMilli()
+		if d.LastMessage.IsOutgoing {
+			lastMsgIsOutgoing = 1
+		}
 	}
 
 	_, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, last_msg_id, last_msg_text,
-		                     last_msg_time, last_msg_sender, unread_count, is_muted, is_pinned,
+		                     last_msg_time, last_msg_sender, last_msg_is_outgoing,
+		                     unread_count, is_muted, is_pinned,
 		                     is_archived, member_count, parent_id, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
 		     type = excluded.type,
 		     title = excluded.title,
@@ -160,6 +170,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     last_msg_text = COALESCE(excluded.last_msg_text, chats.last_msg_text),
 		     last_msg_time = MAX(COALESCE(excluded.last_msg_time, 0), COALESCE(chats.last_msg_time, 0)),
 		     last_msg_sender = COALESCE(excluded.last_msg_sender, chats.last_msg_sender),
+		     last_msg_is_outgoing = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_is_outgoing ELSE chats.last_msg_is_outgoing END,
 		     unread_count = excluded.unread_count,
 		     is_muted = excluded.is_muted,
 		     is_pinned = excluded.is_pinned,
@@ -168,7 +179,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     parent_id = excluded.parent_id,
 		     updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
-		lastMsgTime, lastMsgSender, d.UnreadCount, boolToInt(d.IsMuted), boolToInt(d.IsPinned),
+		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, d.UnreadCount, boolToInt(d.IsMuted), boolToInt(d.IsPinned),
 		boolToInt(d.IsArchived), d.MemberCount, d.ParentID, now)
 	return err
 }
@@ -190,12 +201,16 @@ func (e *Engine) SyncChats(accountID string, dialogs []cores.Dialog) error {
 }
 
 // updateChatLastMessage updates the preview fields for a chat.
-func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender string, timeMs int64) {
+func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender string, timeMs int64, isOutgoing bool) {
+	outgoing := 0
+	if isOutgoing {
+		outgoing = 1
+	}
 	e.db.Exec(
 		`UPDATE chats SET last_msg_id = ?, last_msg_text = ?, last_msg_sender = ?,
-		                  last_msg_time = ?, updated_at = ?
+		                  last_msg_time = ?, last_msg_is_outgoing = ?, updated_at = ?
 		 WHERE account_id = ? AND chat_id = ? AND (last_msg_time IS NULL OR last_msg_time <= ?)`,
-		msgID, text, sender, timeMs, time.Now().UnixMilli(), accountID, chatID, timeMs)
+		msgID, text, sender, timeMs, outgoing, time.Now().UnixMilli(), accountID, chatID, timeMs)
 	e.emitChatUpdate(accountID, chatID)
 }
 
@@ -316,6 +331,7 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, type, title, avatar_path,
 		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
+		        last_msg_is_outgoing,
 		        unread_count, is_muted, is_pinned, is_archived,
 		        draft_text, member_count, parent_id
 		 FROM chats
@@ -374,6 +390,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	row := e.db.QueryRow(
 		`SELECT account_id, chat_id, type, title, avatar_path,
 		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
+		        last_msg_is_outgoing,
 		        unread_count, is_muted, is_pinned, is_archived,
 		        draft_text, member_count, parent_id
 		 FROM chats WHERE account_id = ? AND chat_id = ?`, accountID, chatID)
@@ -381,11 +398,12 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	var c ChatInfo
 	var avatarPath, lastMsgID, lastMsgText, lastMsgSender, draftText, parentID sql.NullString
 	var lastMsgTime, memberCount sql.NullInt64
-	var isMuted, isPinned, isArchived int
+	var isMuted, isPinned, isArchived, lastMsgIsOutgoing int
 
 	err := row.Scan(
 		&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 		&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
+		&lastMsgIsOutgoing,
 		&c.UnreadCount, &isMuted, &isPinned, &isArchived,
 		&draftText, &memberCount, &parentID,
 	)
@@ -400,6 +418,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		c.LastMsgTime = lastMsgTime.Int64
 	}
 	c.LastMsgSender = lastMsgSender.String
+	c.LastMsgIsOutgoing = lastMsgIsOutgoing == 1
 	c.IsMuted = isMuted == 1
 	c.IsPinned = isPinned == 1
 	c.IsArchived = isArchived == 1

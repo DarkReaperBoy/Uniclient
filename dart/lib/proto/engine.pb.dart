@@ -1366,6 +1366,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.String? draftText,
     $core.int? memberCount,
     $core.String? parentId,
+    $core.bool? lastMsgIsOutgoing,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1416,6 +1417,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (parentId != null) {
       $result.parentId = parentId;
     }
+    if (lastMsgIsOutgoing != null) {
+      $result.lastMsgIsOutgoing = lastMsgIsOutgoing;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1439,6 +1443,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aOS(14, _omitFieldNames ? '' : 'draftText')
     ..a<$core.int>(15, _omitFieldNames ? '' : 'memberCount', $pb.PbFieldType.O3)
     ..aOS(16, _omitFieldNames ? '' : 'parentId')
+    ..aOB(17, _omitFieldNames ? '' : 'lastMsgIsOutgoing')
     ..hasRequiredFields = false
   ;
 
@@ -1606,6 +1611,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasParentId() => $_has(15);
   @$pb.TagNumber(16)
   void clearParentId() => clearField(16);
+
+  @$pb.TagNumber(17)
+  $core.bool get lastMsgIsOutgoing => $_getBF(16);
+  @$pb.TagNumber(17)
+  set lastMsgIsOutgoing($core.bool v) { $_setBool(16, v); }
+  @$pb.TagNumber(17)
+  $core.bool hasLastMsgIsOutgoing() => $_has(16);
+  @$pb.TagNumber(17)
+  void clearLastMsgIsOutgoing() => clearField(17);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {

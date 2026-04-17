@@ -103,6 +103,7 @@ func checkIntegrity(db *sql.DB) error {
 var migrations = []func(*sql.Tx) error{
 	migrateV1,
 	migrateV2,
+	migrateV3,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -154,6 +155,7 @@ func migrateV1(tx *sql.Tx) error {
 			last_msg_text TEXT,
 			last_msg_time INTEGER,
 			last_msg_sender TEXT,
+			last_msg_is_outgoing INTEGER NOT NULL DEFAULT 0,
 			unread_count  INTEGER NOT NULL DEFAULT 0,
 			is_muted      INTEGER NOT NULL DEFAULT 0,
 			is_pinned     INTEGER NOT NULL DEFAULT 0,
@@ -328,5 +330,11 @@ const (
 // migrateV2 adds is_outgoing column to messages table.
 func migrateV2(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN is_outgoing INTEGER NOT NULL DEFAULT 0`)
+	return err
+}
+
+// migrateV3 adds last_msg_is_outgoing column to chats table.
+func migrateV3(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_is_outgoing INTEGER NOT NULL DEFAULT 0`)
 	return err
 }

@@ -734,6 +734,7 @@ class EngineService {
     lastMsgText: _safeStr(p.lastMsgText),
     lastMsgTime: p.lastMsgTime.toInt(),
     lastMsgSender: _safeStr(p.lastMsgSender),
+    lastMsgIsOutgoing: p.lastMsgIsOutgoing,
     unreadCount: p.unreadCount,
     isMuted: p.isMuted,
     isPinned: p.isPinned,

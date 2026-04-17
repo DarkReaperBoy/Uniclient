@@ -172,6 +172,7 @@ class ChatInfo {
   final String lastMsgText;
   final int lastMsgTime;
   final String lastMsgSender;
+  final bool lastMsgIsOutgoing;
   final int unreadCount;
   final bool isMuted;
   final bool isPinned;
@@ -191,6 +192,7 @@ class ChatInfo {
     this.lastMsgText = '',
     this.lastMsgTime = 0,
     this.lastMsgSender = '',
+    this.lastMsgIsOutgoing = false,
     this.unreadCount = 0,
     this.isMuted = false,
     this.isPinned = false,
@@ -211,6 +213,7 @@ class ChatInfo {
     lastMsgText: safeStr(j['last_msg_text'] as String? ?? ''),
     lastMsgTime: j['last_msg_time'] as int? ?? 0,
     lastMsgSender: safeStr(j['last_msg_sender'] as String? ?? ''),
+    lastMsgIsOutgoing: j['last_msg_is_outgoing'] as bool? ?? false,
     unreadCount: j['unread_count'] as int? ?? 0,
     isMuted: j['is_muted'] as bool? ?? false,
     isPinned: j['is_pinned'] as bool? ?? false,

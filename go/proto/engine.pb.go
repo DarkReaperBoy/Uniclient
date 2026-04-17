@@ -1073,25 +1073,26 @@ func (x *EngineCancelAuthRequest) GetAccountId() string {
 }
 
 type EngineChatInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
-	Type          int32                  `protobuf:"varint,3,opt,name=type,proto3" json:"type,omitempty"`
-	Title         string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
-	AvatarPath    string                 `protobuf:"bytes,5,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
-	LastMsgId     string                 `protobuf:"bytes,6,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"`
-	LastMsgText   string                 `protobuf:"bytes,7,opt,name=last_msg_text,json=lastMsgText,proto3" json:"last_msg_text,omitempty"`
-	LastMsgTime   int64                  `protobuf:"varint,8,opt,name=last_msg_time,json=lastMsgTime,proto3" json:"last_msg_time,omitempty"`
-	LastMsgSender string                 `protobuf:"bytes,9,opt,name=last_msg_sender,json=lastMsgSender,proto3" json:"last_msg_sender,omitempty"`
-	UnreadCount   int32                  `protobuf:"varint,10,opt,name=unread_count,json=unreadCount,proto3" json:"unread_count,omitempty"`
-	IsMuted       bool                   `protobuf:"varint,11,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
-	IsPinned      bool                   `protobuf:"varint,12,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
-	IsArchived    bool                   `protobuf:"varint,13,opt,name=is_archived,json=isArchived,proto3" json:"is_archived,omitempty"`
-	DraftText     string                 `protobuf:"bytes,14,opt,name=draft_text,json=draftText,proto3" json:"draft_text,omitempty"`
-	MemberCount   int32                  `protobuf:"varint,15,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
-	ParentId      string                 `protobuf:"bytes,16,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	AccountId         string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId            string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	Type              int32                  `protobuf:"varint,3,opt,name=type,proto3" json:"type,omitempty"`
+	Title             string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
+	AvatarPath        string                 `protobuf:"bytes,5,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
+	LastMsgId         string                 `protobuf:"bytes,6,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"`
+	LastMsgText       string                 `protobuf:"bytes,7,opt,name=last_msg_text,json=lastMsgText,proto3" json:"last_msg_text,omitempty"`
+	LastMsgTime       int64                  `protobuf:"varint,8,opt,name=last_msg_time,json=lastMsgTime,proto3" json:"last_msg_time,omitempty"`
+	LastMsgSender     string                 `protobuf:"bytes,9,opt,name=last_msg_sender,json=lastMsgSender,proto3" json:"last_msg_sender,omitempty"`
+	LastMsgIsOutgoing bool                   `protobuf:"varint,17,opt,name=last_msg_is_outgoing,json=lastMsgIsOutgoing,proto3" json:"last_msg_is_outgoing,omitempty"`
+	UnreadCount       int32                  `protobuf:"varint,10,opt,name=unread_count,json=unreadCount,proto3" json:"unread_count,omitempty"`
+	IsMuted           bool                   `protobuf:"varint,11,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
+	IsPinned          bool                   `protobuf:"varint,12,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
+	IsArchived        bool                   `protobuf:"varint,13,opt,name=is_archived,json=isArchived,proto3" json:"is_archived,omitempty"`
+	DraftText         string                 `protobuf:"bytes,14,opt,name=draft_text,json=draftText,proto3" json:"draft_text,omitempty"`
+	MemberCount       int32                  `protobuf:"varint,15,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
+	ParentId          string                 `protobuf:"bytes,16,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *EngineChatInfo) Reset() {
@@ -1185,6 +1186,13 @@ func (x *EngineChatInfo) GetLastMsgSender() string {
 		return x.LastMsgSender
 	}
 	return ""
+}
+
+func (x *EngineChatInfo) GetLastMsgIsOutgoing() bool {
+	if x != nil {
+		return x.LastMsgIsOutgoing
+	}
+	return false
 }
 
 func (x *EngineChatInfo) GetUnreadCount() int32 {
@@ -4471,7 +4479,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xfe\x03\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xaf\x04\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -4483,7 +4491,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\vlast_msg_id\x18\x06 \x01(\tR\tlastMsgId\x12\"\n" +
 	"\rlast_msg_text\x18\a \x01(\tR\vlastMsgText\x12\"\n" +
 	"\rlast_msg_time\x18\b \x01(\x03R\vlastMsgTime\x12&\n" +
-	"\x0flast_msg_sender\x18\t \x01(\tR\rlastMsgSender\x12!\n" +
+	"\x0flast_msg_sender\x18\t \x01(\tR\rlastMsgSender\x12/\n" +
+	"\x14last_msg_is_outgoing\x18\x11 \x01(\bR\x11lastMsgIsOutgoing\x12!\n" +
 	"\funread_count\x18\n" +
 	" \x01(\x05R\vunreadCount\x12\x19\n" +
 	"\bis_muted\x18\v \x01(\bR\aisMuted\x12\x1b\n" +

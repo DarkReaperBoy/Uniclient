@@ -258,7 +258,7 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 	if len(preview) > 100 {
 		preview = preview[:100]
 	}
-	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli())
+	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli(), msg.IsOutgoing)
 
 	// Increment unread if not active chat.
 	if !e.isActiveChat(accountID, chatID) {

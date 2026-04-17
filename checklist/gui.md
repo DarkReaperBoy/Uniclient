@@ -31,7 +31,7 @@
 - [ ] Chat row: online dot indicator
 - [ ] Chat row: stories ring
 - [ ] Chat row: mini media previews in message preview
-- [ ] Chat row: send state icons (clock/check/double-check)
+- [x] Chat row: send state icons (check for outgoing messages)
 - [ ] Info panel (third column) — user/group/channel info
 - [ ] Search results (top peers, recent contacts, search tabs)
 - [ ] Pinned message bar

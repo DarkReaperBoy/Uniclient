@@ -219,9 +219,10 @@ class ChatListRow extends StatelessWidget {
   };
 
   IconData? get _sendStateIcon {
-    // Only show for the user's own messages (detected by empty sender
-    // or matching the user — we don't have that info here, so skip for now).
-    return null;
+    if (!chat.lastMsgIsOutgoing) return null;
+    // Spec: clock for sending, single check for sent, double check for delivered/read.
+    // We don't have per-chat last message status yet, so show single check for all outgoing.
+    return Icons.check;
   }
 
   static String _formatTime(int timestampMs) {

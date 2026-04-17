@@ -129,7 +129,7 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string) (string,
 	if len(preview) > 100 {
 		preview = preview[:100]
 	}
-	e.updateChatLastMessage(accountID, chatID, localID, preview, senderName, now)
+	e.updateChatLastMessage(accountID, chatID, localID, preview, senderName, now, true)
 
 	// Emit message event.
 	e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{

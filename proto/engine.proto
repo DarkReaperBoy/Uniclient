@@ -153,8 +153,9 @@ message EngineChatInfo {
   string last_msg_id     = 6;
   string last_msg_text   = 7;
   int64  last_msg_time   = 8;
-  string last_msg_sender = 9;
-  int32  unread_count    = 10;
+  string last_msg_sender       = 9;
+  bool   last_msg_is_outgoing = 17;
+  int32  unread_count         = 10;
   bool   is_muted        = 11;
   bool   is_pinned       = 12;
   bool   is_archived     = 13;
