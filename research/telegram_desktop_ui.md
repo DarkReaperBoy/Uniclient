@@ -13353,10 +13353,86 @@ Settings > AyuGram (AyuMain)
   |     +-- Message Field Popups (2 toggles)
   |
   +-- General (AyuGeneral) -- translation provider, QoL toggles, webview, confirmations
-  +-- Other (AyuOther) -- ghost mode, anti-recall, filters, etc.
+  +-- Filters (AyuFilters) -- regex filters, shadow ban, per-dialog filters
+  +-- Other (AyuOther) -- donations, crash reporting, URL scheme, reset settings
 ```
 
 Each settings page uses `SectionBuilder` (Telegram's standard) extended with `AyuSectionBuilder` which provides helpers: `addSettingToggle` (reactive bool toggle), `addSlider` (stepped slider with label), `addChooseButton` (opens single-choice box), `addCollapsibleToggle` (parent toggle with nested checkboxes), `addBetaBadge` (adds a "BETA" indicator), and `addSectionDivider`.
+
+### 54.14 AyuGram General Settings (AyuGeneral)
+
+Accessed from **AyuGram Settings > General** (icon: `menuIconShowAll`). Contains translation provider selection, QoL toggles, webview tweaks, and send confirmations.
+
+Source: `ayu/ui/settings/settings_general.h`, `settings_general.cpp`.
+
+#### Translation Provider
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **Translation Provider** | Dropdown (single-choice box) | `Telegram` | Choose the translation engine used for inline message translation. Options: **Telegram** (server-side), **Google**, **Yandex**, **macOS/Windows/Linux** (native OS provider, only shown if available on current platform). Marked with a beta badge. On macOS with Native selected, shows a 6-second toast about platform-specific behavior. |
+
+#### General
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **Disable Stories** | Toggle | OFF (`false`) | Hides the Stories row entirely from the chat list. No story circles, no story bar. |
+| **Disable Open Link Warning** | Toggle | OFF (`false`) | Skips the "Are you sure you want to open this link?" confirmation dialog when clicking external URLs. Links open directly in the browser. |
+| **Disable Similar Channels** | Collapsible toggle group | (see sub-options) | Parent toggle that controls two nested checkboxes. Shown as toggled ON when ALL sub-options are enabled (`toggledWhenAll = true`). |
+| -- Collapse Similar Channels | Checkbox (nested) | ON (`true`) | Collapses the "Similar Channels" section in channel profiles so it doesn't take up space by default. |
+| -- Hide Similar Channels Tab | Checkbox (nested) | OFF (`false`) | Completely removes the "Similar Channels" tab from channel info panels. |
+| **Disable Notify Delay** | Toggle | OFF (`false`) | Disables Telegram's built-in notification delay (Telegram normally delays notifications briefly to allow the sender to delete/edit). Notifications arrive instantly. |
+
+#### (divider)
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **Filter Zalgo** | Toggle | ON (`true`) | Filters out Zalgo text (stacked combining diacritical marks that make text overflow vertically). Marked with a beta badge. **Requires app restart** -- toggling shows a restart prompt. |
+| **Improve Link Previews** | Toggle | OFF (`false`) | Enhances link preview generation with better metadata extraction. |
+| **Show Message Seconds** | Toggle | OFF (`false`) | Displays seconds in message timestamps (e.g. "14:32:07" instead of "14:32"). |
+| **Show Peer ID** | Dropdown (single-choice box) | `Bot API` | Controls whether and how peer IDs are displayed in profiles/headers. Options: **Hide** (no ID shown), **Telegram API** (raw internal IDs), **Bot API** (positive for users, negative for groups/channels -- the format bots use). |
+
+#### Webview
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **Spoof Client as Android** | Toggle | OFF (`false`) | Makes the embedded webview (used for bots, payments, login widgets) report itself as an Android client instead of desktop. Useful for bot mini-apps that only support mobile layouts. |
+| **Bigger Window** | Collapsible toggle group | (see sub-options) | Parent toggle for webview size adjustments. Shown as toggled ON when ANY sub-option is enabled (`toggledWhenAll = false`). |
+| -- Increase Content Height | Checkbox (nested) | OFF (`false`) | Increases the height of webview/bot mini-app windows. |
+| -- Increase Content Width | Checkbox (nested) | OFF (`false`) | Increases the width of webview/bot mini-app windows. |
+
+#### Confirmations
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **For Stickers** | Toggle | OFF (`false`) | Shows a confirmation dialog before sending a sticker. Prevents accidental sticker sends. |
+| **For GIFs** | Toggle | OFF (`false`) | Shows a confirmation dialog before sending a GIF. Prevents accidental GIF sends. |
+| **For Voice Messages** | Toggle | OFF (`false`) | Shows a confirmation dialog before sending a voice message. Prevents accidental voice sends. |
+
+#### Page Layout (top to bottom)
+
+1. *skip*
+2. **Translation Provider** subsection (title from `lng_translate_settings_subtitle`)
+3. *divider*
+4. **General** subsection title
+5. Disable Stories toggle
+6. Disable Open Link Warning toggle
+7. Disable Similar Channels collapsible (2 nested checkboxes)
+8. Disable Notify Delay toggle
+9. *divider*
+10. Filter Zalgo toggle (beta badge, restart prompt)
+11. Improve Link Previews toggle
+12. Show Message Seconds toggle
+13. Show Peer ID dropdown
+14. *divider*
+15. **Webview** subsection title
+16. Spoof Client as Android toggle
+17. Bigger Window collapsible (2 nested checkboxes)
+18. *divider*
+19. **Confirmations** subsection title
+20. For Stickers toggle
+21. For GIFs toggle
+22. For Voice Messages toggle
+23. *skip*
 
 ### 54.13 Source Files Index
 
@@ -13383,6 +13459,208 @@ Each settings page uses `SectionBuilder` (Telegram's standard) extended with `Ay
 | Mono font override | `lib_ui/ui/style/style_core_font.cpp` |
 | Context menu actions | `ayu/ui/context_menu/context_menu.h`, `.cpp` |
 | Style definitions | `ayu/ui/ayu_icons.style`, `ayu/ui/ayu_styles.style`, `ayu/ui/settings/ayu_settings.style` |
+| Other settings page | `ayu/ui/settings/settings_other.h`, `.cpp` |
+| Filters settings page | `ayu/ui/settings/settings_filters.h`, `.cpp` |
+| Filters list/edit UI | `ayu/ui/settings/filters/settings_filters_list.h`, `.cpp`, `edit_filter.h`, `.cpp` |
+| Per-dialog filters UI | `ayu/ui/settings/filters/per_dialog_filter.h`, `.cpp` |
+| Donate QR box | `ayu/ui/boxes/donate_qr_box.h`, `.cpp` |
+| Import filters box | `ayu/ui/boxes/import_filters_box.h`, `.cpp` |
+| Ghost settings page (AyuGram subsection) | `ayu/ui/settings/settings_ayu.h`, `.cpp` |
+
+### 54.15 AyuGram Other Settings (AyuOther)
+
+Accessed from **AyuGram Settings > Other** (icon: `menuIconFave`). This is a lightweight page containing donation links, crash reporting, and utility actions.
+
+Source: `ayu/ui/settings/settings_other.h`, `settings_other.cpp`.
+
+#### Support / Donations
+
+The donations section (header: `ayu_SupportHeader`) displays contribution links with custom SVG icons rendered over a rounded-rectangle background. Each crypto button opens a `DonateQrBox` showing the wallet address as a QR code. The Boosty button opens the URL in the default browser.
+
+| Item | Type | Action |
+|------|------|--------|
+| **Boosty** | Button with SVG icon | Opens `https://boosty.to/alexeyzavar` in browser |
+| **TON** | Button with SVG icon | Shows QR box with address `UQA4i8U3...` |
+| **Bitcoin** | Button with SVG icon | Shows QR box with address `bc1qdk6qq...` |
+| **Ethereum** | Button with SVG icon | Shows QR box with address `0x405589...` |
+| **Solana** | Button with SVG icon | Shows QR box with address `8ZHQpPxp...` |
+| **Tron** | Button with SVG icon | Shows QR box with address `TRpbajq3...` |
+
+Footer divider text: `ayu_SupportDescription2` with a clickable "contact support" link (`tg://support`).
+
+**Icon rendering:** Each donate button uses a custom icon painted at runtime. The icon SVG is loaded from `:/gui/icons/ayu/donates/{name}.svg`. The background color adapts to theme: `#EEEEEE` in night mode, `#242B2C` in light mode. The icon is rendered into a `QImage` at `menuIconLink` size with rounded corners (radius = size/4).
+
+#### Other
+
+This subsection (header: `ayu_CategoryOther`) is **conditionally compiled** -- only present when `TDESKTOP_DISABLE_AUTOUPDATE` is NOT defined (i.e., when auto-update is enabled).
+
+| Setting | ID | Type | Default | Description |
+|---------|----|------|---------|-------------|
+| **Crash Reporting** | `ayu/crashReporting` | Toggle | ON (`true`) | Enables/disables crash report submission to AyuGram developers. Icon: `menuIconReport`. Alt search ID: `ayu/crashlytics`. |
+
+Divider text: `ayu_CrashReportingDescription`.
+
+#### Utility Actions
+
+| Action | ID | Icon | Behavior |
+|--------|----|------|----------|
+| **Register URL Scheme** | `ayu/registerUrlScheme` | `menuIconLink` | Calls `Core::Application::RegisterUrlScheme()` to register the app as the handler for `tg://` URLs. Shows "Done" toast on completion. |
+| **Reset Settings** | `ayu/resetSettings` | `menuIconRestore` | Shows a confirmation dialog (`ayu_ResetSettingsConfirmation`). On confirm, calls `AyuSettings::reset()` which resets ALL AyuGram settings to defaults (ghost mode, appearance, filters, everything). Shows "Done" toast. |
+
+#### Page Layout (top to bottom)
+
+1. *skip*
+2. **Support** subsection title (`ayu_SupportHeader`)
+3. Boosty button
+4. TON donate button
+5. Bitcoin donate button
+6. Ethereum donate button
+7. Solana donate button
+8. Tron donate button
+9. *skip*
+10. *divider text* (support description with contact link)
+11. *skip*
+12. **Other** subsection title (`ayu_CategoryOther`) -- *only if auto-update enabled*
+13. Crash Reporting toggle (icon: `menuIconReport`) -- *only if auto-update enabled*
+14. *skip* -- *only if auto-update enabled*
+15. *divider text* (crash reporting description) -- *only if auto-update enabled*
+16. *skip*
+17. Register URL Scheme button (icon: `menuIconLink`)
+18. Reset Settings button (icon: `menuIconRestore`)
+19. *skip*
+
+### 54.16 AyuGram Filters Settings (AyuFilters)
+
+Accessed from **AyuGram Settings > Filters** (icon: `menuIconTagFilter`). Manages regex-based message filtering, shadow banning, and per-dialog filter overrides.
+
+Source: `ayu/ui/settings/settings_filters.h`, `settings_filters.cpp`, `ayu/ui/settings/filters/`.
+
+#### Top-bar menu
+
+The Filters page has a custom top-bar menu (hamburger/overflow) with these actions:
+
+| Action | Icon | Description |
+|--------|------|-------------|
+| **Select Chat** | `menuIconSearch` | Opens a peer chooser (users, bots, groups, channels) to configure per-dialog filters. Navigates to `AyuFiltersList` with the selected dialog. |
+| *(separator)* | | |
+| **Import** | `menuIconArchive` | Opens `ImportFiltersBox` to import filter rules from a file/clipboard. |
+| **Export** | `menuIconUnarchive` | Opens `ImportFiltersBox` in export mode. Only shown if `AyuDatabase::hasFilters()` returns true. |
+| *(separator)* | | |
+| **Clear All** | `menuIconClear` | Shows a confirmation dialog. On confirm, deletes all filters and exclusions from the database, rebuilds and fires the filter cache. |
+
+#### Regex Filters Settings
+
+| Setting | ID | Type | Default | Description |
+|---------|----|------|---------|-------------|
+| **Enable Regex Filters** | `ayu/filtersEnabled` | Toggle | OFF (`false`) | Master switch for the regex filtering system. Toggling rebuilds and fires the filter cache. |
+| **Enable Shared in Chats** | `ayu/filtersEnabledInChats` | Toggle | OFF (`false`) | When enabled, shared (global) regex filters also apply inside individual chat views, not just the chat list. Alt search ID: `ayu/filtersInChats`. |
+| **Hide from Blocked** | `ayu/hideFromBlocked` | Toggle | OFF (`false`) | Automatically hides messages from blocked users/peers. |
+
+#### Navigation Buttons
+
+| Button | ID | Description |
+|--------|----|-------------|
+| **Shared Filters** | `ayu/sharedFilters` | Navigates to `AyuFiltersList` showing the global (shared) filter list. |
+| **Shadow Ban** | `ayu/shadowBanIds` | Navigates to `AyuFiltersList` in shadow-ban mode, showing the list of shadow-banned user/channel IDs. Alt search ID: `ayu/shadowBanList`. Shadow-banned users' messages are silently hidden without them knowing (unlike blocking, which they can detect). |
+
+#### Per-Dialog Filters
+
+Below the navigation buttons, if `AyuDatabase::hasPerDialogFilters()` returns true, a `PeerListContent` widget displays all peers that have per-dialog filter overrides configured. Each row shows the peer's avatar and name. This section uses `PerDialogFiltersListController` to populate the list.
+
+#### Page Layout (top to bottom)
+
+1. *skip*
+2. **Regex Filters** subsection title (`ayu_RegexFilters`)
+3. Enable Regex Filters toggle
+4. Enable Shared in Chats toggle
+5. Hide from Blocked toggle
+6. *skip*
+7. *divider*
+8. *skip*
+9. Shared Filters navigation button
+10. Shadow Ban navigation button
+11. *(conditional)* Per-dialog filters peer list (divider + `PeerListContent`)
+
+### 54.17 AyuMain Landing Page
+
+The AyuMain page is the top-level entry point for all AyuGram settings. It is reached by tapping "AyuGram Preferences" in the main Telegram Settings list (registered under `AyuMain::Id()` with parent `MainId()`, icon `menuIconPremium`). The page title bar is intentionally blank (returns empty string) -- the branding is handled by the logo and label widgets inside the scrollable content area.
+
+**Source:** `ayu/ui/settings/settings_main.cpp` / `settings_main.h`
+
+#### Logo Widget
+
+A custom `Ui::RpWidget` sized to `st::settingsCloudPasswordIconSize` x `st::settingsCloudPasswordIconSize` (the same square size used for the cloud-password padlock icon, typically 96-120px). It is center-aligned (`style::al_top`) within the `VerticalLayout`.
+
+On each paint, it calls `AyuAssets::currentAppLogoPad()` which returns a `QImage` of the currently selected app icon with padding. The icon set is configurable (see `ayu_logo.h` -- 12 icon variants: `default`, `alt`, `discord`, `spotify`, `extera`, `nothing`, `bard`, `yaplus`, `win95`, `chibi`, `chibi2`, `extera2`). Each icon set provides either a PNG (`app.png`) or SVG (`app.svg`) bundled as Qt resources at `:/gui/art/ayu/{name}/app.png` (or `.svg`). SVG icons are rendered into a rounded-rect clip path (corner radius = half the icon size, producing a circle/squircle). The image is scaled to fill the widget at device-pixel-ratio quality using `Qt::SmoothTransformation`.
+
+A vertical skip follows the logo.
+
+#### Version Info
+
+Two centered `Ui::FlatLabel` widgets stacked vertically:
+
+1. **Version string** -- styled with `st::boxTitle` (bold, larger font). Text: `"AyuGram Desktop v" + AppVersionStr` where `AppVersionStr` comes from `core/version.h` (e.g. `"5.12.3"`). This is a static `rpl::single` string, not a reactive producer.
+
+2. **Tagline** -- styled with `st::centeredBoxLabel` (normal weight, centered, smaller than title). Text from `tr::ayu_SettingsDescription`: *"Telegram Desktop fork focused on customization and ToS-breaking features."*
+
+Both labels are center-aligned (`style::al_top`).
+
+#### Category Buttons
+
+After four vertical skips and a full-width divider line, followed by one more skip, a subsection title `"Categories"` (`tr::ayu_CategoriesHeader`) introduces six navigation buttons. Each button uses `addSectionButton` from the `SectionBuilder` framework -- rendered as a standard settings row with an icon on the left and a right-arrow chevron. Tapping a button pushes the corresponding section onto the settings navigation stack.
+
+| # | Label | Icon | Target Section |
+|---|-------|------|----------------|
+| 1 | "AyuGram" | `menuIconGroupReactions` (emoji-reactions group icon) | `AyuGhost` -- Ghost Mode, Spy, and Other settings (§54.12) |
+| 2 | "Filters" (`tr::ayu_CategoryFilters`) | `menuIconTagFilter` (filter/funnel icon) | `AyuFilters` -- message filtering rules (§54.16) |
+| 3 | "General" (`tr::ayu_CategoryGeneral`) | `menuIconShowAll` (eye/show-all icon) | `AyuGeneral` -- general preferences (§54.14) |
+| 4 | "Appearance" (`tr::ayu_CategoryAppearance`) | `menuIconPalette` (paint palette icon) | `AyuAppearance` -- visual customization (§54.1-54.10) |
+| 5 | "Chats" (`tr::ayu_CategoryChats`) | `menuIconChatBubble` (chat bubble icon) | `AyuChats` -- chat behavior settings (§54.11) |
+| 6 | "Other" (`tr::ayu_CategoryOther`) | `menuIconFave` (star/favorite icon) | `AyuOther` -- miscellaneous settings (§54.15) |
+
+Note: the first button ("AyuGram") uses a hardcoded `rpl::single(QString("AyuGram"))` rather than a lang-string producer, while all others use translatable `tr::ayu_Category*` producers.
+
+#### Links Section
+
+After a skip and another full-width divider, a subsection title `"Links"` (`tr::ayu_LinksHeader`) introduces four link buttons. These are standard settings buttons with icons, right-side labels showing the destination, and click handlers that either open a Telegram peer or launch an external URL.
+
+| # | Label | Icon | Right Label | Action |
+|---|-------|------|-------------|--------|
+| 1 | "Channel" (`tr::ayu_LinksChannel`) | `menuIconChannel` | `@ayugram` | Opens `@ayugram` in-app via `showPeerByLink` |
+| 2 | "Chats" (`tr::ayu_LinksChats`) | `menuIconChats` | `@ayugramchat` | Opens `@ayugramchat` in-app via `showPeerByLink` |
+| 3 | "Translate" (`tr::ayu_LinksTranslate`) | `menuIconTranslate` | `Crowdin` | Opens `https://translate.ayugram.one` in default browser |
+| 4 | "Documentation" (`tr::ayu_LinksDocumentation`) | `menuIconIpAddress` | `docs.ayugram.one` | Opens `https://docs.ayugram.one` in default browser |
+
+Each link button has a string `id` for the settings-search index (e.g. `"ayu/channel"`, `"ayu/chat"`, `"ayu/crowdin"`, `"ayu/website"`).
+
+A trailing skip follows the links section.
+
+#### Full Widget Order (top to bottom)
+
+1. App logo (centered, configurable icon)
+2. Skip
+3. Version title label (`"AyuGram Desktop v{version}"`)
+4. Skip
+5. Tagline label (centered description)
+6. Skip x4
+7. Divider (full-width line)
+8. Skip
+9. Subsection title: "Categories"
+10. "AyuGram" button -> AyuGhost
+11. "Filters" button -> AyuFilters
+12. "General" button -> AyuGeneral
+13. "Appearance" button -> AyuAppearance
+14. "Chats" button -> AyuChats
+15. "Other" button -> AyuOther
+16. Skip
+17. Divider (full-width line)
+18. Skip
+19. Subsection title: "Links"
+20. "Channel" button (`@ayugram`)
+21. "Chats" button (`@ayugramchat`)
+22. "Translate" button (Crowdin)
+23. "Documentation" button (docs.ayugram.one)
+24. Skip
 
 ---
 
