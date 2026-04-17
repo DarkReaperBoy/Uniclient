@@ -1,53 +1,52 @@
 # GUI Checklist
 
-## Shell Layout & Left Panel (Step 2a — Telegram reference)
+**BEFORE STARTING ANY WORK: Read `CLAUDE.md` and obey ALL its rules.**
 
-### Done
-- [x] Responsive shell layout (UniClientShell) — OneColumn/TwoColumn/ThreeColumn modes
-- [x] Chat list sidebar (ChatListPanel) — search, platform filters, sorted chat rows
-- [x] Chat list row (ChatListRow) — 62px, avatars, titles, timestamps, badges, previews
-- [x] Hamburger drawer (HamburgerDrawer) — profile, accounts, menu items, night mode
-- [x] Chat view (ChatView) — top bar, message list, compose area
-- [x] Message bubbles (MessageBubble) — incoming/outgoing, sender colors, replies, reactions
-- [x] Auth screen (AuthScreen) — method choice, phone/OTP/2FA input, QR code
-- [x] Platform filter chips — All + per-platform filtering
-- [x] Column resize handles — drag to resize dialogs column
-- [x] Context menu on chat rows — pin, mute, archive, read, leave
-- [x] Empty states — no chats, no messages, no account
-- [x] Smoke tested: builds, launches, renders chat list with real data (28 accounts)
-- [x] IsOutgoing propagation (Go Core → Engine cache → Protobuf → Dart → UI) — messages now correctly left/right aligned
-- [x] Message loading fix: fetch live from core when cache has fewer than `limit` messages (not just when empty)
-- [x] SQLite schema migration V2: added `is_outgoing` column
-- [x] Cross-platform outgoing detection: Telegram (msg.Out), Bale (sender == self), all other cores
+## Bugs
 
-### Bugs Found & Fixed
-- **All messages right-aligned**: `message_bubble.dart` was using `message.status` to detect outgoing — always true for cached messages. Fixed by adding `IsOutgoing` bool through entire stack.
-- **Bale messages all left-aligned**: `isSent` getter used `senderId.isEmpty` which only works for some platforms. Fixed with proper `IsOutgoing` field per-platform.
-- **Large groups loading only partial messages**: Engine only fetched from core when cache was completely empty (`len(msgs) == 0`), but event-stream messages trickled into cache first. Fixed: `len(msgs) < limit`.
+- [ ] **Folder contents not displaying properly** — some chats are missing from folder views. Folder filtering doesn't match how original messengers (Telegram Desktop) populate folders. Investigate how Telegram's folder chat IDs map to our cached chat IDs and fix the mismatch.
 
-### TODO
-- [x] Folder tabs (FilterColumn, 72px sidebar) — when folders exist
-- [x] Horizontal folder tab strip (when sidebar hidden)
+## TODO
+
 - [ ] Chat row: online dot indicator
 - [ ] Chat row: stories ring
 - [ ] Chat row: mini media previews in message preview
-- [x] Chat row: send state icons (check for outgoing messages)
-- [x] Info panel (third column) — user/group/channel info, members list, shared media links
-- [x] Per-account isolation — one active account at a time, chosen via hamburger drawer. No "All" amalgamation.
-- [x] Folder scoping — folders only shown for the active account (Telegram shows folders, Bale/IRC/etc. don't)
-- [x] Account switcher — hamburger drawer profile cover (134px) with expand arrow, account list with platform icons + connection dots + checkmark on active
 - [ ] Search results (top peers, recent contacts, search tabs)
 - [ ] Pinned message bar
 - [ ] Contact status/action bar (add contact, block, report)
 - [ ] Group call bar
 - [ ] Selection mode (multi-select messages)
 - [ ] Forward dialog
-- [x] Media rendering in messages (auto-download photos, video placeholders with play/duration, voice waveform, audio/file indicators)
-- [x] Media download pipeline (engine MediaManager init, auto-download photos/stickers/GIFs, Telegram access hash persistence via Extra field, DB schema V4)
-- [x] Chat list column width — lowered default ratio from 0.35 to 0.17 (~300px on 1920, clamped 260-540)
-- [x] Avatar/profile picture download — engine avatar pipeline: Telegram DownloadChatAvatar via InputPeerPhotoFileLocation, cached to {mediaDir}/{accountID}/avatars/{chatID}.jpg, DB avatar_path updated + chat_updated events, Dart Image.file rendering
 - [ ] Voice/video message players
 - [ ] Emoji/sticker/GIF panel
 - [ ] Calls UI
 - [ ] Settings screens
 - [ ] Mobile (OneColumn) slide navigation
+
+## Done
+
+- [x] Responsive shell layout (UniClientShell) — OneColumn/TwoColumn/ThreeColumn modes
+- [x] Chat list sidebar (ChatListPanel) — search, sorted chat rows
+- [x] Chat list row (ChatListRow) — 62px, avatars, titles, timestamps, badges, previews
+- [x] Hamburger drawer (HamburgerDrawer) — profile cover (134px), collapsible account switcher, menu items, night mode
+- [x] Chat view (ChatView) — top bar, message list, compose area
+- [x] Message bubbles (MessageBubble) — incoming/outgoing, sender colors, replies, reactions
+- [x] Auth screen (AuthScreen) — method choice, phone/OTP/2FA input, QR code
+- [x] Column resize handles — drag to resize dialogs column
+- [x] Context menu on chat rows — pin, mute, archive, read, leave
+- [x] Empty states — no chats, no messages, no account
+- [x] IsOutgoing propagation — Go Core → Engine cache → Protobuf → Dart → UI
+- [x] Message loading fix — fetch live from core when cache has fewer than `limit` messages
+- [x] SQLite schema migration V2 — `is_outgoing` column
+- [x] Cross-platform outgoing detection — Telegram (msg.Out), Bale (sender == self), all other cores
+- [x] Folder tabs (FilterColumn, 72px sidebar) — when active account has folders
+- [x] Horizontal folder tab strip (when sidebar hidden)
+- [x] Chat row: send state icons (check for outgoing messages)
+- [x] Info panel (third column) — user/group/channel info, members list, shared media links
+- [x] Per-account isolation — one active account at a time, chosen via hamburger drawer
+- [x] Folder scoping — folders only shown for the active account
+- [x] Account switcher — profile cover + expand arrow, platform icons, connection dots, checkmark on active
+- [x] Media rendering in messages — auto-download photos, video placeholders, voice waveform, audio/file indicators
+- [x] Media download pipeline — engine MediaManager, auto-download, Telegram access hash persistence, DB schema V4
+- [x] Chat list column width — default ratio 0.17 (~300px on 1920)
+- [x] Avatar/profile picture download — Telegram DownloadChatAvatar, cached to disk, DB avatar_path, Image.file rendering
