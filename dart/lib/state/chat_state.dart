@@ -17,6 +17,10 @@ class ChatState extends ChangeNotifier {
   bool _hasMoreMessages = true;
   final Map<String, String> _typingUsers = {}; // chatId → userName
 
+  // ── Folder state ──
+  List<FolderInfo> _folders = [];
+  String? _activeFolderId; // null = "All Chats"
+
   /// Callback for showing in-app notifications (set by UI layer).
   void Function(String senderName, String text, String chatTitle)? onNotification;
 
@@ -46,6 +50,15 @@ class ChatState extends ChangeNotifier {
     _subs.add(_engine.onConnState.listen((event) {
       if (event.state == 'connected') {
         _debouncedLoadChats();
+        // Reload folders when an account connects.
+        _engine.getFolders(event.accountId).then((folders) {
+          if (folders.isNotEmpty) {
+            // Merge into folder list (replace existing for this account).
+            _folders.removeWhere((f) => folders.any((nf) => nf.id == f.id));
+            _folders.addAll(folders);
+            notifyListeners();
+          }
+        }).catchError((_) {});
       }
     }));
     // Also reload when auth finishes (finalizeAuth emits account_list).
@@ -70,6 +83,15 @@ class ChatState extends ChangeNotifier {
 
   String? typingUserFor(String chatId) => _typingUsers[chatId];
 
+  /// All loaded folders across accounts.
+  List<FolderInfo> get folders => _folders;
+
+  /// Active folder ID (null = "All Chats").
+  String? get activeFolderId => _activeFolderId;
+
+  /// Whether any folders exist (controls folder sidebar visibility).
+  bool get hasFolders => _folders.isNotEmpty;
+
   /// Chats filtered by platform (empty = all).
   /// Account IDs use a 4-char prefix of the platform name (e.g. "tele_abc123"
   /// for "telegram"), so we match by that prefix.
@@ -88,7 +110,42 @@ class ChatState extends ChangeNotifier {
   /// Total unread count across all visible chats.
   int get totalUnread => _chats.fold(0, (sum, c) => sum + c.unreadCount);
 
+  /// Chats filtered by active folder. Returns all chats if no folder active.
+  List<ChatInfo> chatsForFolder(String? folderId) {
+    if (folderId == null) return _chats;
+    final folder = _folders.where((f) => f.id == folderId).firstOrNull;
+    if (folder == null) return _chats;
+    final chatIdSet = folder.chatIds.toSet();
+    return _chats.where((c) => chatIdSet.contains(c.chatId)).toList();
+  }
+
+  /// Unread count for a specific folder.
+  int unreadCountForFolder(String? folderId) {
+    return chatsForFolder(folderId).fold(0, (sum, c) => sum + c.unreadCount);
+  }
+
   // ── Actions ──
+
+  /// Set the active folder filter.
+  void setActiveFolder(String? folderId) {
+    _activeFolderId = folderId;
+    notifyListeners();
+  }
+
+  /// Load folders from all connected accounts.
+  Future<void> loadFolders(List<String> accountIds) async {
+    final allFolders = <FolderInfo>[];
+    for (final id in accountIds) {
+      try {
+        final folders = await _engine.getFolders(id);
+        allFolders.addAll(folders);
+      } catch (_) {
+        // Core doesn't support folders — skip silently.
+      }
+    }
+    _folders = allFolders;
+    notifyListeners();
+  }
 
   /// Merge a chat into the in-memory list (upsert). Used when forum topics
   /// are fetched on demand and need to appear in the chat list.

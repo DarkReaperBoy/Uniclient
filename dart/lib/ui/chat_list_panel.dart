@@ -10,11 +10,13 @@ import 'chat_list_row.dart';
 class ChatListPanel extends StatefulWidget {
   final bool showHamburger;
   final VoidCallback? onOpenDrawer;
+  final bool filterSidebarVisible;
 
   const ChatListPanel({
     super.key,
     this.showHamburger = false,
     this.onOpenDrawer,
+    this.filterSidebarVisible = false,
   });
 
   @override
@@ -60,9 +62,11 @@ class _ChatListPanelState extends State<ChatListPanel> {
     final chatState = context.watch<ChatState>();
     final appState = context.watch<AppState>();
 
-    // Filter chats by active platform/account.
+    // Filter chats by active folder, then by platform/account.
     List<ChatInfo> chats;
-    if (appState.activeAccountId.isNotEmpty) {
+    if (chatState.activeFolderId != null) {
+      chats = chatState.chatsForFolder(chatState.activeFolderId);
+    } else if (appState.activeAccountId.isNotEmpty) {
       chats = chatState.chatsForAccount(appState.activeAccountId);
     } else if (appState.activePlatform.isNotEmpty) {
       chats = chatState.chatsForPlatform(appState.activePlatform);
@@ -111,6 +115,9 @@ class _ChatListPanelState extends State<ChatListPanel> {
               onSelect: (p) => appState.setActivePlatform(
                   p == appState.activePlatform ? '' : p),
             ),
+          // Horizontal folder tabs (when folders exist but vertical sidebar is hidden).
+          if (chatState.hasFolders && !widget.filterSidebarVisible && !_searching)
+            _HorizontalFolderTabs(chatState: chatState),
           // Chat list.
           Expanded(
             child: nonArchived.isEmpty
@@ -339,6 +346,114 @@ class _PlatformFilter extends StatelessWidget {
     'teamspeak' => 'TeamSpeak',
     _ => p,
   };
+}
+
+/// Horizontal folder tabs shown below platform chips when vertical sidebar is hidden.
+/// Spec §2: scrollable row, active tab with sliding underline.
+class _HorizontalFolderTabs extends StatelessWidget {
+  final ChatState chatState;
+
+  const _HorizontalFolderTabs({required this.chatState});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final folders = chatState.folders;
+    final activeFolderId = chatState.activeFolderId;
+
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 7),
+        children: [
+          // "All Chats" tab.
+          _FolderChip(
+            label: 'All Chats',
+            isActive: activeFolderId == null,
+            unreadCount: chatState.totalUnread,
+            onTap: () => chatState.setActiveFolder(null),
+            theme: theme,
+          ),
+          ...folders.map((f) => _FolderChip(
+            label: f.name,
+            isActive: activeFolderId == f.id,
+            unreadCount: chatState.unreadCountForFolder(f.id),
+            onTap: () => chatState.setActiveFolder(
+              activeFolderId == f.id ? null : f.id,
+            ),
+            theme: theme,
+          )),
+        ],
+      ),
+    );
+  }
+}
+
+class _FolderChip extends StatelessWidget {
+  final String label;
+  final bool isActive;
+  final int unreadCount;
+  final VoidCallback onTap;
+  final ThemeData theme;
+
+  const _FolderChip({
+    required this.label,
+    required this.isActive,
+    required this.unreadCount,
+    required this.onTap,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: isActive ? theme.colorScheme.primary : Colors.transparent,
+                width: 2,
+              ),
+            ),
+          ),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                  color: isActive ? theme.colorScheme.primary : theme.textTheme.bodySmall?.color,
+                ),
+              ),
+              if (unreadCount > 0) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    unreadCount > 999 ? '999+' : '$unreadCount',
+                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Empty state for chat list.

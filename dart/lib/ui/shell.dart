@@ -7,6 +7,7 @@ import '../state/chat_state.dart';
 import 'auth_screen.dart';
 import 'chat_list_panel.dart';
 import 'chat_view.dart';
+import 'filter_column.dart';
 import 'hamburger_drawer.dart';
 
 /// Layout modes matching Telegram Desktop's responsive breakpoints.
@@ -88,9 +89,8 @@ class _UniClientShellState extends State<UniClientShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final windowWidth = constraints.maxWidth;
-        // Body width = window minus optional filters sidebar.
-        // For now, filters sidebar shown when there are folders (TODO: wire up folder check).
-        const showFilters = false; // Placeholder — enable when folders are loaded.
+        // Show filters sidebar when folders exist and window is wide enough.
+        final showFilters = chatState.hasFolders && windowWidth > _oneColumnBreak + _filtersWidth;
         final bodyWidth = windowWidth - (showFilters ? _filtersWidth : 0.0);
         final mode = _layoutMode(bodyWidth);
 
@@ -137,12 +137,18 @@ class _UniClientShellState extends State<UniClientShell> {
 
     return Row(
       children: [
+        // Filters sidebar (when folders exist).
+        if (showFilters)
+          FilterColumn(
+            onOpenDrawer: () => _openDrawer(context),
+          ),
         // Dialogs column.
         SizedBox(
           width: dialogsWidth,
           child: ChatListPanel(
-            showHamburger: true,
-            onOpenDrawer: () => _openDrawer(context),
+            showHamburger: !showFilters,
+            onOpenDrawer: showFilters ? null : () => _openDrawer(context),
+            filterSidebarVisible: showFilters,
           ),
         ),
         // Resize handle.
@@ -177,12 +183,18 @@ class _UniClientShellState extends State<UniClientShell> {
 
     return Row(
       children: [
+        // Filters sidebar (when folders exist).
+        if (showFilters)
+          FilterColumn(
+            onOpenDrawer: () => _openDrawer(context),
+          ),
         // Dialogs column.
         SizedBox(
           width: dialogsWidth,
           child: ChatListPanel(
-            showHamburger: true,
-            onOpenDrawer: () => _openDrawer(context),
+            showHamburger: !showFilters,
+            onOpenDrawer: showFilters ? null : () => _openDrawer(context),
+            filterSidebarVisible: showFilters,
           ),
         ),
         _ResizeHandle(

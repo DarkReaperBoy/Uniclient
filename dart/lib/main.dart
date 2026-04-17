@@ -190,6 +190,13 @@ class _UniClientAppState extends State<UniClientApp> {
             'messageCount': chatState.messages.length,
             'chatCount': chatState.chats.length,
             'loadingMessages': chatState.loadingMessages,
+            'folderCount': chatState.folders.length,
+            'activeFolderId': chatState.activeFolderId,
+            'folders': chatState.folders.map((f) => {
+              'id': f.id,
+              'name': f.name,
+              'chatCount': f.chatIds.length,
+            }).toList(),
           };
           File('/tmp/uniclient_debug_out.json').writeAsStringSync(
             const JsonEncoder.withIndent('  ').convert(out),

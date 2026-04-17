@@ -26,8 +26,8 @@
 - **Large groups loading only partial messages**: Engine only fetched from core when cache was completely empty (`len(msgs) == 0`), but event-stream messages trickled into cache first. Fixed: `len(msgs) < limit`.
 
 ### TODO
-- [ ] Folder tabs (FilterColumn, 72px sidebar) — when folders exist
-- [ ] Horizontal folder tab strip (when sidebar hidden)
+- [x] Folder tabs (FilterColumn, 72px sidebar) — when folders exist
+- [x] Horizontal folder tab strip (when sidebar hidden)
 - [ ] Chat row: online dot indicator
 - [ ] Chat row: stories ring
 - [ ] Chat row: mini media previews in message preview
