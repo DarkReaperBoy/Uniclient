@@ -329,7 +329,7 @@ func TestPendingMessage(t *testing.T) {
 	eng.UpsertChat(accID, cores.Dialog{ID: "chat1", Title: "Test"})
 
 	// Insert pending message.
-	cached := eng.InsertPendingMessage(accID, "chat1", "local_abc", "hi there", "me", "Me")
+	cached := eng.InsertPendingMessage(accID, "chat1", "local_abc", "hi there", "me", "Me", "")
 	if cached.Status != MsgStatusSending {
 		t.Errorf("expected SENDING status, got %d", cached.Status)
 	}

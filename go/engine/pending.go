@@ -2,10 +2,12 @@ package engine
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -95,6 +97,7 @@ func getChatLock(accountID, chatID string) *sync.Mutex {
 // SendMessage queues a message for sending through the pending queue.
 // Returns the local_id for optimistic UI display.
 func (e *Engine) SendMessage(accountID, chatID, text, replyToID string) (string, error) {
+	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q", accountID, chatID, text, replyToID)
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account %q not found", accountID)
@@ -122,7 +125,26 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string) (string,
 	if acc.DisplayName != "" {
 		senderName = acc.DisplayName
 	}
-	cached := e.InsertPendingMessage(accountID, chatID, localID, text, "", senderName)
+
+	// Look up reply preview if replying.
+	var replyPreview string
+	if replyToID != "" {
+		var sn, ct sql.NullString
+		e.db.QueryRow(
+			"SELECT sender_name, content_text FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
+			accountID, chatID, replyToID).Scan(&sn, &ct)
+		if sn.Valid && sn.String != "" {
+			replyPreview = sn.String + ": " + ct.String
+		} else if ct.Valid {
+			replyPreview = ct.String
+		}
+	}
+	cached := e.InsertPendingMessage(accountID, chatID, localID, text, "", senderName, replyToID)
+	if replyPreview != "" {
+		cached.ReplyPreview = replyPreview
+		e.db.Exec("UPDATE messages SET reply_preview = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
+			replyPreview, accountID, chatID, localID)
+	}
 
 	// Update chat preview.
 	preview := text
@@ -399,10 +421,12 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		json.Unmarshal(payload, &p)
 
 		msg := cores.OutgoingMessage{Text: p.Text, ReplyToID: p.ReplyToID}
+		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q", chatID, p.ReplyToID, p.Text)
 
 		var result *cores.Message
 		var err error
 		if p.ReplyToID != "" {
+			log.Printf("[engine] executePending: calling ReplyToMessage(chatID=%s, replyTo=%s)", chatID, p.ReplyToID)
 			result, err = acc.Core.ReplyToMessage(chatID, p.ReplyToID, msg)
 		} else {
 			result, err = acc.Core.SendMessage(chatID, msg)

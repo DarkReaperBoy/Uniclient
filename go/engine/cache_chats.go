@@ -223,7 +223,7 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 	}
 
 	// Create minimal chat entry — title will be the sender name for DMs.
-	chatType := "dm"
+	chatType := ChatTypeDMVal
 	title := msg.SenderName
 	if title == "" {
 		title = chatID
@@ -249,10 +249,7 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 		if err != nil || info == nil {
 			return
 		}
-		cType := string(info.Type)
-		if cType == "" {
-			cType = "dm"
-		}
+		cType := chatTypeToInt(info.Type)
 		e.db.Exec(
 			`UPDATE chats SET type = ?, title = ?, member_count = ? WHERE account_id = ? AND chat_id = ?`,
 			cType, info.Title, info.MemberCount, accountID, chatID)

@@ -128,6 +128,10 @@ func migrateDB(db *sql.DB) error {
 			return fmt.Errorf("commit v%d: %w", i+1, err)
 		}
 	}
+
+	// Cleanup: remove any chats with non-integer type values (bug fix).
+	db.Exec("DELETE FROM chats WHERE typeof(type) != 'integer'")
+
 	return nil
 }
 

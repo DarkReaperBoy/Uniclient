@@ -322,16 +322,16 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 }
 
 // InsertPendingMessage inserts a locally-created message (before server confirms).
-func (e *Engine) InsertPendingMessage(accountID, chatID, localID, text, senderID, senderName string) CachedMessage {
+func (e *Engine) InsertPendingMessage(accountID, chatID, localID, text, senderID, senderName, replyToID string) CachedMessage {
 	now := time.Now().UnixMilli()
 
 	e.db.Exec(
 		`INSERT INTO messages
 		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name,
-		  content_text, timestamp, status, is_outgoing, has_media)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  content_text, timestamp, status, reply_to_id, is_outgoing, has_media)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, localID, localID, senderID, senderName,
-		text, now, MsgStatusSending, 1, 0)
+		text, now, MsgStatusSending, replyToID, 1, 0)
 
 	return CachedMessage{
 		AccountID:   accountID,
@@ -342,6 +342,7 @@ func (e *Engine) InsertPendingMessage(accountID, chatID, localID, text, senderID
 		SenderName:  senderName,
 		ContentText: text,
 		Timestamp:   now,
+		ReplyToID:   replyToID,
 		Status:      MsgStatusSending,
 		IsOutgoing:  true,
 	}

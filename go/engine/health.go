@@ -157,9 +157,9 @@ func (e *Engine) syncAccount(ctx context.Context, accountID string) {
 		return
 	}
 
-	// Sync chat list.
+	// Sync chat list — first page fast, then paginate in background.
 	log.Printf("[engine] syncAccount(%s): fetching dialogs...", accountID)
-	dialogs, err := acc.Core.GetDialogs(cores.PaginationOpts{Limit: 200})
+	dialogs, err := acc.Core.GetDialogs(cores.PaginationOpts{Limit: 100})
 	if err != nil {
 		log.Printf("[engine] syncAccount(%s): GetDialogs failed: %v", accountID, err)
 		return
@@ -167,6 +167,18 @@ func (e *Engine) syncAccount(ctx context.Context, accountID string) {
 	log.Printf("[engine] syncAccount(%s): got %d dialogs, syncing to cache...", accountID, len(dialogs))
 	e.SyncChats(accountID, dialogs)
 	log.Printf("[engine] syncAccount(%s): sync complete, emitted chat snapshot", accountID)
+
+	// Fetch remaining dialogs in background for folder completeness.
+	if len(dialogs) >= 100 {
+		go func() {
+			more, err := acc.Core.GetDialogs(cores.PaginationOpts{Limit: 500})
+			if err != nil || len(more) <= len(dialogs) {
+				return
+			}
+			log.Printf("[engine] syncAccount(%s): background pagination got %d total dialogs", accountID, len(more))
+			e.SyncChats(accountID, more)
+		}()
+	}
 
 	// Cache contacts as users.
 	contacts, err := acc.Core.GetContacts()

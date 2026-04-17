@@ -212,15 +212,26 @@ class _ChatViewState extends State<ChatView> {
             _PinnedBar(
               pinned: chatState.pinnedMessages.first,
               onTap: () {
-                // Scroll to pinned message if it's loaded.
-                final pinnedId = chatState.pinnedMessages.first.msgId;
-                final idx = chatState.messages.indexWhere((m) => m.msgId == pinnedId);
+                // Jump to pinned message: check if loaded, otherwise
+                // load messages around the pinned timestamp.
+                final pinned = chatState.pinnedMessages.first;
+                final idx = chatState.messages.indexWhere((m) => m.msgId == pinned.msgId);
                 if (idx >= 0) {
+                  // Already loaded — scroll to it.
                   _scrollController.animateTo(
-                    idx * 60.0, // approximate
+                    idx * 60.0,
                     duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutCirc,
                   );
+                } else {
+                  // Not loaded — load messages around pinned timestamp.
+                  chatState.jumpToMessage(pinned.timestamp);
+                  // Scroll to top after loading (newest = bottom in reverse list).
+                  Future.delayed(const Duration(milliseconds: 100), () {
+                    if (_scrollController.hasClients) {
+                      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+                    }
+                  });
                 }
               },
             ),
