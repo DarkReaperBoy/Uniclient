@@ -106,6 +106,11 @@ class _UniClientAppState extends State<UniClientApp> {
       downloadDir: downloadDir,
     );
 
+    // Initialize folder state for the active account.
+    if (appState.activeAccountId.isNotEmpty) {
+      chatState.switchAccount(appState.activeAccountId);
+    }
+
     // Initialize system tray after engine is ready.
     await _tray.init();
     _tray.onQuit = () => exit(0);
@@ -198,6 +203,24 @@ class _UniClientAppState extends State<UniClientApp> {
               'chatCount': f.chatIds.length,
             }).toList(),
           };
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            const JsonEncoder.withIndent('  ').convert(out),
+          );
+        case 'switchAccount':
+          final accountId = cmd['accountId'] as String? ?? '';
+          if (accountId.isNotEmpty) {
+            final appState = context.read<AppState>();
+            appState.setActiveAccountId(accountId);
+            chatState.switchAccount(accountId);
+          }
+        case 'listAccounts':
+          final appState = context.read<AppState>();
+          final out = appState.accounts.map((a) => {
+            'id': a.id,
+            'platform': a.platform,
+            'displayName': a.displayName,
+            'active': a.id == appState.activeAccountId,
+          }).toList();
           File('/tmp/uniclient_debug_out.json').writeAsStringSync(
             const JsonEncoder.withIndent('  ').convert(out),
           );

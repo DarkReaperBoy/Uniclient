@@ -1,11 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
+import '../state/chat_state.dart';
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
+/// Shows active account profile at top, collapsible account switcher,
+/// then menu items.
 class HamburgerDrawer extends StatefulWidget {
   const HamburgerDrawer({super.key});
 
@@ -29,9 +34,10 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Profile cover area (134px).
+            // Profile cover area (134px) — shows active account.
             _ProfileCover(
-              accounts: appState.accounts,
+              account: appState.activeAccount,
+              connState: appState.connStateFor(appState.activeAccountId),
               expanded: _accountsExpanded,
               onToggle: () => setState(() => _accountsExpanded = !_accountsExpanded),
             ),
@@ -39,6 +45,13 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
             if (_accountsExpanded)
               _AccountList(
                 accounts: appState.accounts,
+                activeAccountId: appState.activeAccountId,
+                connStates: appState.connStates,
+                onSelect: (id) {
+                  appState.setActiveAccountId(id);
+                  context.read<ChatState>().switchAccount(id);
+                  setState(() => _accountsExpanded = false);
+                },
                 onAddAccount: () => _showAddAccountDialog(context, appState),
               ),
             const Divider(height: 1),
@@ -111,14 +124,16 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
   }
 }
 
-/// Profile area at top of drawer (134px).
+/// Profile area at top of drawer (134px). Shows the active account.
 class _ProfileCover extends StatelessWidget {
-  final List<AccountInfo> accounts;
+  final AccountInfo? account;
+  final ConnState connState;
   final bool expanded;
   final VoidCallback onToggle;
 
   const _ProfileCover({
-    required this.accounts,
+    required this.account,
+    required this.connState,
     required this.expanded,
     required this.onToggle,
   });
@@ -126,7 +141,12 @@ class _ProfileCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final primary = accounts.isNotEmpty ? accounts.first : null;
+    final connColor = switch (connState) {
+      ConnState.connected => const Color(0xFF3BA55C),
+      ConnState.connecting => const Color(0xFFFAA61A),
+      ConnState.unstable => const Color(0xFFFAA61A),
+      ConnState.disconnected => Colors.grey,
+    };
 
     return Container(
       height: 134,
@@ -140,35 +160,56 @@ class _ProfileCover extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar.
-              CircleAvatar(
-                radius: 28,
-                backgroundColor: theme.colorScheme.primary,
-                child: primary?.avatarPath.isNotEmpty == true
-                    ? ClipOval(
-                        child: Image.network(primary!.avatarPath,
-                            width: 56, height: 56, fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _initials(primary.displayName, theme)),
-                      )
-                    : _initials(primary?.displayName ?? '?', theme),
+              // Avatar with connection state dot.
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: theme.colorScheme.primary,
+                    backgroundImage: account?.avatarPath.isNotEmpty == true
+                        ? FileImage(File(account!.avatarPath))
+                        : null,
+                    child: account?.avatarPath.isNotEmpty != true
+                        ? _initials(account?.displayName ?? '?', theme)
+                        : null,
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: connColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const Spacer(),
-              // Toggle arrow (when 2+ accounts).
-              if (accounts.length > 1)
-                IconButton(
-                  icon: AnimatedRotation(
-                    turns: expanded ? 0.5 : 0.0,
-                    duration: const Duration(milliseconds: 200),
-                    child: const Icon(Icons.expand_more, size: 22),
-                  ),
-                  onPressed: onToggle,
+              // Toggle arrow.
+              IconButton(
+                icon: AnimatedRotation(
+                  turns: expanded ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 200),
+                  child: const Icon(Icons.expand_more, size: 22),
                 ),
+                onPressed: onToggle,
+              ),
             ],
           ),
           const Spacer(),
           // Name.
           Text(
-            primary?.displayName ?? 'No Account',
+            account?.displayName.isNotEmpty == true
+                ? account!.displayName
+                : _platformLabel(account?.platform ?? ''),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: theme.textTheme.titleMedium,
@@ -176,7 +217,7 @@ class _ProfileCover extends StatelessWidget {
           const SizedBox(height: 2),
           // Platform.
           Text(
-            primary?.platform ?? '',
+            _platformLabel(account?.platform ?? ''),
             style: theme.textTheme.bodySmall,
           ),
         ],
@@ -189,50 +230,126 @@ class _ProfileCover extends StatelessWidget {
     return Text(init, style: const TextStyle(
         color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600));
   }
+
+  static String _platformLabel(String platform) => switch (platform) {
+    'telegram' => 'Telegram',
+    'matrix' => 'Matrix',
+    'xmpp' => 'XMPP',
+    'irc' => 'IRC',
+    'bale' => 'Bale',
+    'rubika' => 'Rubika',
+    'deltachat' => 'Delta Chat',
+    'mumble' => 'Mumble',
+    'teamspeak' => 'TeamSpeak',
+    'github' => 'GitHub',
+    _ => platform,
+  };
 }
 
-/// Expandable account list.
+/// Expandable account list for switching accounts.
 class _AccountList extends StatelessWidget {
   final List<AccountInfo> accounts;
+  final String activeAccountId;
+  final Map<String, ConnState> connStates;
+  final void Function(String id) onSelect;
   final VoidCallback onAddAccount;
 
-  const _AccountList({required this.accounts, required this.onAddAccount});
+  const _AccountList({
+    required this.accounts,
+    required this.activeAccountId,
+    required this.connStates,
+    required this.onSelect,
+    required this.onAddAccount,
+  });
+
+  static const _platformIcons = <String, IconData>{
+    'telegram': Icons.send,
+    'matrix': Icons.grid_view,
+    'xmpp': Icons.message,
+    'irc': Icons.tag,
+    'bale': Icons.chat,
+    'rubika': Icons.radio_button_checked,
+    'deltachat': Icons.email,
+    'mumble': Icons.headset_mic,
+    'teamspeak': Icons.headset,
+    'github': Icons.code,
+  };
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (final account in accounts)
-          ListTile(
-            dense: true,
-            leading: CircleAvatar(
-              radius: 16,
-              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.3),
-              child: Text(
-                account.displayName.isNotEmpty ? account.displayName[0].toUpperCase() : '?',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    final connColor = (ConnState s) => switch (s) {
+      ConnState.connected => const Color(0xFF3BA55C),
+      ConnState.connecting => const Color(0xFFFAA61A),
+      ConnState.unstable => const Color(0xFFFAA61A),
+      ConnState.disconnected => Colors.grey,
+    };
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 320),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final account in accounts)
+              ListTile(
+                dense: true,
+                selected: account.id == activeAccountId,
+                selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
+                leading: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.3),
+                      child: Icon(
+                        _platformIcons[account.platform] ?? Icons.chat,
+                        size: 16,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: connColor(connStates[account.id] ?? ConnState.disconnected),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: theme.colorScheme.surface, width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                title: Text(
+                  account.displayName.isNotEmpty ? account.displayName : account.id,
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  _ProfileCover._platformLabel(account.platform),
+                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                ),
+                trailing: account.id == activeAccountId
+                    ? Icon(Icons.check, size: 16, color: theme.colorScheme.primary)
+                    : null,
+                onTap: () => onSelect(account.id),
               ),
+            ListTile(
+              dense: true,
+              leading: Icon(Icons.add, color: theme.colorScheme.primary),
+              title: Text('Add Account',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.primary,
+                  )),
+              onTap: onAddAccount,
             ),
-            title: Text(account.displayName, style: theme.textTheme.bodyMedium),
-            subtitle: Text(account.platform, style: theme.textTheme.bodySmall),
-            onTap: () {
-              // Switch to this account.
-              context.read<AppState>().setActiveAccountId(account.id);
-              Navigator.of(context).pop();
-            },
-          ),
-        ListTile(
-          dense: true,
-          leading: Icon(Icons.add, color: theme.colorScheme.primary),
-          title: Text('Add Account',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.primary,
-              )),
-          onTap: onAddAccount,
+          ],
         ),
-      ],
+      ),
     );
   }
 }

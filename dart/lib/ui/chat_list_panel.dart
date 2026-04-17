@@ -62,16 +62,20 @@ class _ChatListPanelState extends State<ChatListPanel> {
     final chatState = context.watch<ChatState>();
     final appState = context.watch<AppState>();
 
-    // Filter chats by active folder, then by platform/account.
+    // Filter chats: always scoped to active account, then by folder.
     List<ChatInfo> chats;
+    final accountChats = chatState.chatsForAccount(appState.activeAccountId);
     if (chatState.activeFolderId != null) {
-      chats = chatState.chatsForFolder(chatState.activeFolderId);
-    } else if (appState.activeAccountId.isNotEmpty) {
-      chats = chatState.chatsForAccount(appState.activeAccountId);
-    } else if (appState.activePlatform.isNotEmpty) {
-      chats = chatState.chatsForPlatform(appState.activePlatform);
+      // Folder filtering within the active account's chats.
+      final folder = chatState.folders.where((f) => f.id == chatState.activeFolderId).firstOrNull;
+      if (folder != null) {
+        final chatIdSet = folder.chatIds.toSet();
+        chats = accountChats.where((c) => chatIdSet.contains(c.chatId)).toList();
+      } else {
+        chats = accountChats;
+      }
     } else {
-      chats = chatState.chats;
+      chats = accountChats;
     }
 
     // Use search results if searching.
@@ -107,15 +111,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
             onChanged: _onSearchChanged,
             onCancel: _cancelSearch,
           ),
-          // Platform filter chips (when multiple platforms).
-          if (appState.platforms.length > 1 && !_searching)
-            _PlatformFilter(
-              platforms: appState.platforms,
-              active: appState.activePlatform,
-              onSelect: (p) => appState.setActivePlatform(
-                  p == appState.activePlatform ? '' : p),
-            ),
-          // Horizontal folder tabs (when folders exist but vertical sidebar is hidden).
+          // Horizontal folder tabs (when active account has folders and vertical sidebar is hidden).
           if (chatState.hasFolders && !widget.filterSidebarVisible && !_searching)
             _HorizontalFolderTabs(chatState: chatState),
           // Chat list.
@@ -270,85 +266,7 @@ class _SearchBar extends StatelessWidget {
   }
 }
 
-/// Horizontal platform filter chips.
-class _PlatformFilter extends StatelessWidget {
-  final List<String> platforms;
-  final String active;
-  final ValueChanged<String> onSelect;
-
-  const _PlatformFilter({
-    required this.platforms,
-    required this.active,
-    required this.onSelect,
-  });
-
-  static const _platformIcons = <String, IconData>{
-    'telegram': Icons.send,
-    'matrix': Icons.grid_view,
-    'xmpp': Icons.message,
-    'irc': Icons.tag,
-    'bale': Icons.chat,
-    'rubika': Icons.radio_button_checked,
-    'deltachat': Icons.email,
-    'mumble': Icons.headset_mic,
-    'teamspeak': Icons.headset,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 7),
-        children: [
-          // "All" chip.
-          Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: FilterChip(
-              label: const Text('All'),
-              selected: active.isEmpty,
-              onSelected: (_) => onSelect(''),
-              visualDensity: VisualDensity.compact,
-              labelStyle: TextStyle(fontSize: 12, color: active.isEmpty ? Colors.white : null),
-              selectedColor: theme.colorScheme.primary,
-              showCheckmark: false,
-            ),
-          ),
-          ...platforms.map((p) => Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: FilterChip(
-              avatar: Icon(_platformIcons[p] ?? Icons.chat, size: 14),
-              label: Text(_platformLabel(p)),
-              selected: active == p,
-              onSelected: (_) => onSelect(p),
-              visualDensity: VisualDensity.compact,
-              labelStyle: TextStyle(fontSize: 12, color: active == p ? Colors.white : null),
-              selectedColor: theme.colorScheme.primary,
-              showCheckmark: false,
-            ),
-          )),
-        ],
-      ),
-    );
-  }
-
-  static String _platformLabel(String p) => switch (p) {
-    'telegram' => 'Telegram',
-    'matrix' => 'Matrix',
-    'xmpp' => 'XMPP',
-    'irc' => 'IRC',
-    'bale' => 'Bale',
-    'rubika' => 'Rubika',
-    'deltachat' => 'Delta Chat',
-    'mumble' => 'Mumble',
-    'teamspeak' => 'TeamSpeak',
-    _ => p,
-  };
-}
-
-/// Horizontal folder tabs shown below platform chips when vertical sidebar is hidden.
+/// Horizontal folder tabs shown when vertical sidebar is hidden.
 /// Spec §2: scrollable row, active tab with sliding underline.
 class _HorizontalFolderTabs extends StatelessWidget {
   final ChatState chatState;
@@ -367,11 +285,11 @@ class _HorizontalFolderTabs extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 7),
         children: [
-          // "All Chats" tab.
+          // "All" tab (no folder filter — show all chats for this account).
           _FolderChip(
-            label: 'All Chats',
+            label: 'All',
             isActive: activeFolderId == null,
-            unreadCount: chatState.totalUnread,
+            unreadCount: 0,
             onTap: () => chatState.setActiveFolder(null),
             theme: theme,
           ),

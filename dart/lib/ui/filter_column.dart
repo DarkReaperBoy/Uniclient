@@ -39,12 +39,12 @@ class FilterColumn extends StatelessWidget {
             tooltip: 'Menu',
           ),
           const SizedBox(height: 8),
-          // "All Chats" tab (always first).
+          // "All Chats" tab (shows all chats for this account, no folder filter).
           _FolderTab(
             icon: Icons.chat,
             label: 'All',
             isActive: activeFolderId == null,
-            unreadCount: chatState.totalUnread,
+            unreadCount: 0, // no badge on "All" — it's the default
             onTap: () => chatState.setActiveFolder(null),
           ),
           const SizedBox(height: 4),

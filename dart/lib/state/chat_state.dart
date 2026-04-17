@@ -19,6 +19,7 @@ class ChatState extends ChangeNotifier {
 
   // ── Folder state ──
   List<FolderInfo> _folders = [];
+  String _foldersForAccount = ''; // which account the current _folders belong to
   String? _activeFolderId; // null = "All Chats"
 
   /// Callback for showing in-app notifications (set by UI layer).
@@ -50,15 +51,10 @@ class ChatState extends ChangeNotifier {
     _subs.add(_engine.onConnState.listen((event) {
       if (event.state == 'connected') {
         _debouncedLoadChats();
-        // Reload folders when an account connects.
-        _engine.getFolders(event.accountId).then((folders) {
-          if (folders.isNotEmpty) {
-            // Merge into folder list (replace existing for this account).
-            _folders.removeWhere((f) => folders.any((nf) => nf.id == f.id));
-            _folders.addAll(folders);
-            notifyListeners();
-          }
-        }).catchError((_) {});
+        // Reload folders if this is the currently viewed account.
+        if (event.accountId == _foldersForAccount) {
+          loadFoldersForAccount(event.accountId);
+        }
       }
     }));
     // Also reload when auth finishes (finalizeAuth emits account_list).
@@ -132,18 +128,29 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Load folders from all connected accounts.
-  Future<void> loadFolders(List<String> accountIds) async {
-    final allFolders = <FolderInfo>[];
-    for (final id in accountIds) {
-      try {
-        final folders = await _engine.getFolders(id);
-        allFolders.addAll(folders);
-      } catch (_) {
-        // Core doesn't support folders — skip silently.
-      }
+  /// Load folders for a specific account.
+  Future<void> loadFoldersForAccount(String accountId) async {
+    _foldersForAccount = accountId;
+    _activeFolderId = null; // reset folder selection on account switch
+    try {
+      _folders = await _engine.getFolders(accountId);
+    } catch (_) {
+      _folders = [];
     }
-    _folders = allFolders;
+    notifyListeners();
+  }
+
+  /// Called when the user switches active account.
+  /// Clears active chat, resets folders, reloads folder list.
+  void switchAccount(String accountId) {
+    if (_foldersForAccount == accountId) return;
+    _activeChat = null;
+    _messages = [];
+    _activeFolderId = null;
+    _activeChannelId = null;
+    _stopPolling();
+    _engine.clearActiveChat();
+    loadFoldersForAccount(accountId);
     notifyListeners();
   }
 

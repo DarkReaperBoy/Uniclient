@@ -14,8 +14,7 @@ class AppState extends ChangeNotifier {
 
   List<AccountInfo> _accounts = [];
   final Map<String, ConnState> _connStates = {};
-  String _activePlatform = ''; // platform filter for chat list (empty = all)
-  String _activeAccountId = ''; // account filter within a platform (empty = all accounts for platform)
+  String _activeAccountId = ''; // currently viewed account (always set when accounts exist)
   AppConfig _config = AppConfig.defaults();
   bool _initialized = false;
   String? _initError;
@@ -41,31 +40,20 @@ class AppState extends ChangeNotifier {
 
   List<AccountInfo> get accounts => _accounts;
   Map<String, ConnState> get connStates => _connStates;
-  String get activePlatform => _activePlatform;
   String get activeAccountId => _activeAccountId;
   AppConfig get config => _config;
   bool get initialized => _initialized;
   String? get initError => _initError;
+
+  /// The currently active account (null if no accounts exist).
+  AccountInfo? get activeAccount =>
+      _accounts.where((a) => a.id == _activeAccountId).firstOrNull;
 
   ThemeMode get themeMode => switch (_config.theme) {
     'light' => ThemeMode.light,
     'system' => ThemeMode.system,
     _ => ThemeMode.dark,
   };
-
-  /// Distinct platforms from connected accounts, sorted by sort order.
-  List<String> get platforms {
-    final seen = <String>{};
-    final result = <String>[];
-    for (final a in _accounts) {
-      if (seen.add(a.platform)) result.add(a.platform);
-    }
-    return result;
-  }
-
-  /// Accounts for a given platform.
-  List<AccountInfo> accountsForPlatform(String platform) =>
-      _accounts.where((a) => a.platform == platform).toList();
 
   ConnState connStateFor(String accountId) =>
       _connStates[accountId] ?? ConnState.disconnected;
@@ -89,6 +77,7 @@ class AppState extends ChangeNotifier {
       // Subscribe to events.
       _subs.add(_engine.onAccountList.listen((accounts) {
         _accounts = accounts;
+        _ensureActiveAccount();
         notifyListeners();
       }));
       _subs.add(_engine.onConnState.listen((event) {
@@ -129,6 +118,7 @@ class AppState extends ChangeNotifier {
       // Load initial state.
       _accounts = _engine.listAccounts();
       _config = _engine.getConfig();
+      _ensureActiveAccount();
       _initialized = true;
       Debug.log('APP', 'Engine initialized, ${_accounts.length} accounts');
       notifyListeners();
@@ -155,15 +145,27 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setActivePlatform(String platform) {
-    _activePlatform = platform;
-    _activeAccountId = ''; // reset account filter when switching platforms
+  /// Switch to a different account. Notifies listeners so the UI rebuilds
+  /// with the new account's chats and folders.
+  void setActiveAccountId(String accountId) {
+    if (_activeAccountId == accountId) return;
+    _activeAccountId = accountId;
     notifyListeners();
   }
 
-  void setActiveAccountId(String accountId) {
-    _activeAccountId = accountId;
-    notifyListeners();
+  /// Ensure activeAccountId points to a valid account.
+  void _ensureActiveAccount() {
+    if (_accounts.isEmpty) {
+      _activeAccountId = '';
+      return;
+    }
+    // If current selection is still valid, keep it.
+    if (_activeAccountId.isNotEmpty &&
+        _accounts.any((a) => a.id == _activeAccountId)) {
+      return;
+    }
+    // Default to first account.
+    _activeAccountId = _accounts.first.id;
   }
 
   String addAccount(String platform) {
@@ -171,6 +173,7 @@ class AppState extends ChangeNotifier {
     try {
       final id = _engine.addAccount(platform);
       _accounts = _engine.listAccounts();
+      _ensureActiveAccount();
       Debug.log('APP', 'Account added: $platform → $id (${_accounts.length} total)');
       notifyListeners();
       return id;

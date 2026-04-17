@@ -33,6 +33,9 @@
 - [ ] Chat row: mini media previews in message preview
 - [x] Chat row: send state icons (check for outgoing messages)
 - [x] Info panel (third column) — user/group/channel info, members list, shared media links
+- [x] Per-account isolation — one active account at a time, chosen via hamburger drawer. No "All" amalgamation.
+- [x] Folder scoping — folders only shown for the active account (Telegram shows folders, Bale/IRC/etc. don't)
+- [x] Account switcher — hamburger drawer profile cover (134px) with expand arrow, account list with platform icons + connection dots + checkmark on active
 - [ ] Search results (top peers, recent contacts, search tabs)
 - [ ] Pinned message bar
 - [ ] Contact status/action bar (add contact, block, report)
