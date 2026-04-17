@@ -11,6 +11,8 @@ Scan ALL `.md` files across the repo: `research/`, `checklist/`, `CLAUDE.md`, `S
 - **Add** anything missing that was learned but never written down
 - **Resolve contradictions** between files
 
+Every doc should **cross-reference** related files (e.g. `telegram_notes.md` links to `tgcalls_protocol.md` where calls are relevant, `gui.md` links to `telegram_desktop_ui.md` sections, `CLAUDE.md` harness table links to research files). When you use a doc in a future session and find it lacking, **update it right then** — don't defer. Docs are living tools, not archives.
+
 Do this BEFORE any feature work. Clean docs = clean sessions.
 
 ## 0b. Finish Telegram Desktop UI Spec (`research/telegram_desktop_ui.md`)
