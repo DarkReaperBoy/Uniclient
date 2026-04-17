@@ -13,9 +13,11 @@ class ChatState extends ChangeNotifier {
   ChatInfo? _activeChat;
   int _openedUnreadCount = 0; // unread count at time chat was opened
   List<CachedMessage> _messages = [];
+  List<CachedMessage> _pinnedMessages = [];
   bool _loadingMessages = false;
   bool _hasMoreMessages = true;
   final Map<String, String> _typingUsers = {}; // chatId → userName
+  final Map<String, bool> _onlineUsers = {}; // "accountId:chatId" → isOnline (DMs only)
 
   // ── Folder state ──
   List<FolderInfo> _folders = [];
@@ -63,6 +65,8 @@ class ChatState extends ChangeNotifier {
     }));
     // Download complete → update message's local path in-memory.
     _subs.add(_engine.onDownloadComplete.listen(_handleDownloadComplete));
+    // User status → track online/offline for DM avatar dots.
+    _subs.add(_engine.onUserStatus.listen(_handleUserStatus));
   }
 
   // ── Getters ──
@@ -71,6 +75,7 @@ class ChatState extends ChangeNotifier {
   ChatInfo? get activeChat => _activeChat;
   int get openedUnreadCount => _openedUnreadCount;
   List<CachedMessage> get messages => _messages;
+  List<CachedMessage> get pinnedMessages => _pinnedMessages;
   bool get loadingMessages => _loadingMessages;
   bool get hasMoreMessages => _hasMoreMessages;
 
@@ -107,12 +112,49 @@ class ChatState extends ChangeNotifier {
   int get totalUnread => _chats.fold(0, (sum, c) => sum + c.unreadCount);
 
   /// Chats filtered by active folder. Returns all chats if no folder active.
+  /// Applies Telegram-style folder filtering: a chat is included if it's in
+  /// the explicit include list OR matches any type filter flag, minus excludes.
+  /// Scoped to the account the folders belong to.
   List<ChatInfo> chatsForFolder(String? folderId) {
     if (folderId == null) return _chats;
     final folder = _folders.where((f) => f.id == folderId).firstOrNull;
     if (folder == null) return _chats;
-    final chatIdSet = folder.chatIds.toSet();
-    return _chats.where((c) => chatIdSet.contains(c.chatId)).toList();
+
+    final includeSet = folder.chatIds.toSet();
+    final excludeSet = folder.excludeChatIds.toSet();
+    final accountId = _foldersForAccount;
+
+    return _chats.where((c) {
+      // Scope to the folder's account.
+      if (accountId.isNotEmpty && c.accountId != accountId) return false;
+
+      // Always exclude explicitly excluded chats.
+      if (excludeSet.contains(c.chatId)) return false;
+
+      // Exclusion filters.
+      if (folder.excludeMuted && c.isMuted) return false;
+      if (folder.excludeRead && c.unreadCount == 0) return false;
+      if (folder.excludeArchived && c.isArchived) return false;
+
+      // Explicitly included chats always pass.
+      if (includeSet.contains(c.chatId)) return true;
+
+      // Type-based filters: include if chat matches any active flag.
+      if (folder.hasTypeFilters) {
+        if (folder.groups && c.type == ChatType.group) return true;
+        if (folder.channels && c.type == ChatType.channel) return true;
+        // For DMs: contacts, non_contacts, and bots all map to DM type.
+        // We can't distinguish contact/non-contact/bot yet, so include
+        // all DMs if any of these flags are set.
+        if (c.type == ChatType.dm &&
+            (folder.contacts || folder.nonContacts || folder.bots)) {
+          return true;
+        }
+      }
+
+      // If no type filters are set, only explicit includes match.
+      return false;
+    }).toList();
   }
 
   /// Unread count for a specific folder.
@@ -190,10 +232,12 @@ class ChatState extends ChangeNotifier {
     _activeChat = chat;
     _openedUnreadCount = chat.unreadCount;
     _messages = [];
+    _pinnedMessages = [];
     _hasMoreMessages = true;
     _activeChannelId = null; // reset channel selection on chat change
     _engine.setActiveChat(chat.accountId, chat.chatId);
     _loadMessages();
+    _loadPinnedMessages(chat.accountId, chat.chatId);
     _startPolling();
     notifyListeners();
   }
@@ -211,6 +255,7 @@ class ChatState extends ChangeNotifier {
     _activeChat = null;
     _openedUnreadCount = 0;
     _messages = [];
+    _pinnedMessages = [];
     _engine.clearActiveChat();
     notifyListeners();
   }
@@ -248,6 +293,14 @@ class ChatState extends ChangeNotifier {
         editedAt: DateTime.now().millisecondsSinceEpoch,
       );
       notifyListeners();
+    }
+  }
+
+  Future<void> forwardMessages(List<String> msgIds, String toChatId) async {
+    final chat = _activeChat;
+    if (chat == null) return;
+    for (final id in msgIds) {
+      await _engine.forwardMessage(chat.accountId, chat.chatId, id, toChatId);
     }
   }
 
@@ -340,6 +393,14 @@ class ChatState extends ChangeNotifier {
     _loadingMessages = false;
     _autoDownloadMedia(newMsgs);
     notifyListeners();
+  }
+
+  void _loadPinnedMessages(String accountId, String chatId) {
+    try {
+      _pinnedMessages = _engine.getPinnedMessages(accountId, chatId);
+    } catch (_) {
+      _pinnedMessages = [];
+    }
   }
 
   /// Re-fetch the latest messages for the active chat and merge.
@@ -518,6 +579,23 @@ class ChatState extends ChangeNotifier {
       );
       notifyListeners();
     }
+  }
+
+  void _handleUserStatus(UserStatusEvent event) {
+    if (_disposed) return;
+    // For DMs, the user ID typically maps to the chat ID.
+    final key = '${event.accountId}:${event.userId}';
+    final prev = _onlineUsers[key];
+    if (prev != event.isOnline) {
+      _onlineUsers[key] = event.isOnline;
+      notifyListeners();
+    }
+  }
+
+  /// Whether a DM chat's peer is currently online.
+  bool isChatOnline(ChatInfo chat) {
+    if (chat.type != ChatType.dm) return false;
+    return _onlineUsers['${chat.accountId}:${chat.chatId}'] ?? false;
   }
 
   @override

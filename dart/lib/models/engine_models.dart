@@ -483,8 +483,35 @@ class FolderInfo {
   final String id;
   final String name;
   final List<String> chatIds;
+  final List<String> excludeChatIds;
+  final List<String> pinnedChatIds;
+  final bool contacts;
+  final bool nonContacts;
+  final bool groups;
+  final bool channels;
+  final bool bots;
+  final bool excludeMuted;
+  final bool excludeRead;
+  final bool excludeArchived;
 
-  const FolderInfo({this.id = '', this.name = '', this.chatIds = const []});
+  /// Whether this folder uses type-based filter flags (not just explicit IDs).
+  bool get hasTypeFilters => contacts || nonContacts || groups || channels || bots;
+
+  const FolderInfo({
+    this.id = '',
+    this.name = '',
+    this.chatIds = const [],
+    this.excludeChatIds = const [],
+    this.pinnedChatIds = const [],
+    this.contacts = false,
+    this.nonContacts = false,
+    this.groups = false,
+    this.channels = false,
+    this.bots = false,
+    this.excludeMuted = false,
+    this.excludeRead = false,
+    this.excludeArchived = false,
+  });
 }
 
 // ── Search result ──
@@ -732,11 +759,13 @@ class DownloadCompleteEvent {
 }
 
 class UserStatusEvent {
+  final String accountId;
   final String userId;
   final bool isOnline;
-  const UserStatusEvent({this.userId = '', this.isOnline = false});
+  const UserStatusEvent({this.accountId = '', this.userId = '', this.isOnline = false});
 
-  factory UserStatusEvent.fromJson(Map<String, dynamic> j) => UserStatusEvent(
+  factory UserStatusEvent.fromJson(Map<String, dynamic> j, {String accountId = ''}) => UserStatusEvent(
+    accountId: accountId,
     userId: j['user_id'] as String? ?? '',
     isOnline: j['is_online'] as bool? ?? false,
   );

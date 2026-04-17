@@ -359,9 +359,19 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
 
 // FolderInfo represents a synced folder from the platform (e.g. Telegram folders).
 type FolderInfo struct {
-	ID      string
-	Name    string
-	ChatIDs []string
+	ID              string
+	Name            string
+	ChatIDs         []string
+	ExcludeChatIDs  []string
+	PinnedChatIDs   []string
+	Contacts        bool
+	NonContacts     bool
+	Groups          bool
+	Channels        bool
+	Bots            bool
+	ExcludeMuted    bool
+	ExcludeRead     bool
+	ExcludeArchived bool
 }
 
 // GetFolders returns synced folders from the core, if the core supports them.
@@ -390,9 +400,19 @@ func (e *Engine) GetFolders(accountID string) ([]FolderInfo, error) {
 	result := make([]FolderInfo, len(folders))
 	for i, f := range folders {
 		result[i] = FolderInfo{
-			ID:      f.ID,
-			Name:    f.Name,
-			ChatIDs: f.ChatIDs,
+			ID:              f.ID,
+			Name:            f.Name,
+			ChatIDs:         f.ChatIDs,
+			ExcludeChatIDs:  f.ExcludeChatIDs,
+			PinnedChatIDs:   f.PinnedChatIDs,
+			Contacts:        f.Contacts,
+			NonContacts:     f.NonContacts,
+			Groups:          f.Groups,
+			Channels:        f.Channels,
+			Bots:            f.Bots,
+			ExcludeMuted:    f.ExcludeMuted,
+			ExcludeRead:     f.ExcludeRead,
+			ExcludeArchived: f.ExcludeArchived,
 		}
 	}
 	return result, nil

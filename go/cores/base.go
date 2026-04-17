@@ -248,10 +248,23 @@ type CallParticipant struct {
 }
 
 // Folder represents a named collection of chats for organizing the dialog list.
+// Filter flags (Contacts, Groups, etc.) define type-based inclusion rules;
+// a chat matches the folder if it's in ChatIDs OR matches any active flag.
+// ExcludeChatIDs are always excluded. PinnedChatIDs are shown first.
 type Folder struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	ChatIDs []string `json:"chat_ids"`
+	ID             string   `json:"id"`
+	Name           string   `json:"name"`
+	ChatIDs        []string `json:"chat_ids"`
+	ExcludeChatIDs []string `json:"exclude_chat_ids,omitempty"`
+	PinnedChatIDs  []string `json:"pinned_chat_ids,omitempty"`
+	Contacts       bool     `json:"contacts,omitempty"`
+	NonContacts    bool     `json:"non_contacts,omitempty"`
+	Groups         bool     `json:"groups,omitempty"`
+	Channels       bool     `json:"channels,omitempty"`
+	Bots           bool     `json:"bots,omitempty"`
+	ExcludeMuted   bool     `json:"exclude_muted,omitempty"`
+	ExcludeRead    bool     `json:"exclude_read,omitempty"`
+	ExcludeArchived bool    `json:"exclude_archived,omitempty"`
 }
 
 // Session represents an active login session on a device.

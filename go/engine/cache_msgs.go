@@ -112,6 +112,22 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	return msgs, nil
 }
 
+// GetPinnedMessages returns all pinned messages for a chat, ordered by timestamp descending.
+func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, error) {
+	rows, err := e.db.Query(
+		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name,
+		        content_text, content_raw, content_rich, timestamp, edited_at,
+		        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
+		 FROM messages
+		 WHERE account_id = ? AND chat_id = ? AND is_pinned = 1
+		 ORDER BY timestamp DESC`, accountID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanMessages(rows)
+}
+
 func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 	var msgs []CachedMessage
 	for rows.Next() {

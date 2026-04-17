@@ -9,6 +9,7 @@ import '../models/engine_models.dart';
 class ChatListRow extends StatelessWidget {
   final ChatInfo chat;
   final bool isActive;
+  final bool isOnline;
   final String? typingUser;
   final VoidCallback onTap;
   final VoidCallback? onSecondaryTap;
@@ -17,6 +18,7 @@ class ChatListRow extends StatelessWidget {
     super.key,
     required this.chat,
     required this.isActive,
+    this.isOnline = false,
     this.typingUser,
     required this.onTap,
     this.onSecondaryTap,
@@ -65,10 +67,11 @@ class ChatListRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: _avatarLeft, right: _paddingRight),
             child: Row(
               children: [
-                // Avatar.
+                // Avatar with online dot.
                 _ChatAvatar(
                   chat: chat,
                   size: _avatarSize,
+                  isOnline: isOnline,
                 ),
                 const SizedBox(width: _contentLeft - _avatarLeft - _avatarSize),
                 // Content.
@@ -252,12 +255,13 @@ class ChatListRow extends StatelessWidget {
   ];
 }
 
-/// Circular avatar with fallback color + initials.
+/// Circular avatar with fallback color + initials + online dot.
 class _ChatAvatar extends StatelessWidget {
   final ChatInfo chat;
   final double size;
+  final bool isOnline;
 
-  const _ChatAvatar({required this.chat, required this.size});
+  const _ChatAvatar({required this.chat, required this.size, this.isOnline = false});
 
   @override
   Widget build(BuildContext context) {
@@ -267,20 +271,46 @@ class _ChatAvatar extends StatelessWidget {
 
     final initials = _initials(chat.title);
 
+    final avatar = chat.avatarPath.isNotEmpty
+        ? ClipOval(
+            child: Image.file(
+              File(chat.avatarPath),
+              width: size,
+              height: size,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _fallback(color, initials),
+            ),
+          )
+        : _fallback(color, initials);
+
+    if (!isOnline) {
+      return SizedBox(width: size, height: size, child: avatar);
+    }
+
+    // Online: overlay green dot at bottom-right.
+    const dotSize = 12.0;
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
     return SizedBox(
       width: size,
       height: size,
-      child: chat.avatarPath.isNotEmpty
-          ? ClipOval(
-              child: Image.file(
-                File(chat.avatarPath),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _fallback(color, initials),
+      child: Stack(
+        children: [
+          avatar,
+          Positioned(
+            right: 0,
+            bottom: 0,
+            child: Container(
+              width: dotSize,
+              height: dotSize,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4dcd5e),
+                shape: BoxShape.circle,
+                border: Border.all(color: bgColor, width: 2),
               ),
-            )
-          : _fallback(color, initials),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

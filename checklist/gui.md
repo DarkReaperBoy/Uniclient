@@ -4,19 +4,15 @@
 
 ## Bugs
 
-- [ ] **Folder contents not displaying properly** — some chats are missing from folder views. Folder filtering doesn't match how original messengers (Telegram Desktop) populate folders. Investigate how Telegram's folder chat IDs map to our cached chat IDs and fix the mismatch.
+(none currently)
 
 ## TODO
 
-- [ ] Chat row: online dot indicator
 - [ ] Chat row: stories ring
 - [ ] Chat row: mini media previews in message preview
 - [ ] Search results (top peers, recent contacts, search tabs)
-- [ ] Pinned message bar
 - [ ] Contact status/action bar (add contact, block, report)
 - [ ] Group call bar
-- [ ] Selection mode (multi-select messages)
-- [ ] Forward dialog
 - [ ] Voice/video message players
 - [ ] Emoji/sticker/GIF panel
 - [ ] Calls UI
@@ -50,3 +46,8 @@
 - [x] Media download pipeline — engine MediaManager, auto-download, Telegram access hash persistence, DB schema V4
 - [x] Chat list column width — default ratio 0.17 (~300px on 1920)
 - [x] Avatar/profile picture download — Telegram DownloadChatAvatar, cached to disk, DB avatar_path, Image.file rendering
+- [x] Folder filtering fix — full Telegram filter flag support (contacts, non_contacts, groups, channels, bots, exclude_muted/read/archived, exclude_peers, pinned_peers) across Go→proto→Dart pipeline
+- [x] Chat row: online dot indicator — green dot on DM avatars via UserStatusEvent stream
+- [x] Pinned message bar — engine GetPinnedMessages query, ChatState integration, _PinnedBar widget
+- [x] Selection mode (multi-select messages) — long-press to enter, checkboxes, selection bar with copy/delete/forward
+- [x] Forward dialog — searchable chat picker, integrated with selection mode

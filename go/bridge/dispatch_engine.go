@@ -246,6 +246,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetPinnedMessages":
+		var req pb.EngineGetPinnedMessagesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msgs, err := e.GetPinnedMessages(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetPinnedMessagesResponse{}
+		for _, m := range msgs {
+			resp.Messages = append(resp.Messages, cachedMsgToProto(&m))
+		}
+		return proto.Marshal(resp)
+
 	case "FetchLiveMessages":
 		var req pb.EngineGetMessagesRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
@@ -501,9 +516,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		resp := &pb.EngineGetFoldersResponse{}
 		for _, f := range folders {
 			resp.Folders = append(resp.Folders, &pb.EngineFolderInfo{
-				Id:      f.ID,
-				Name:    f.Name,
-				ChatIds: f.ChatIDs,
+				Id:              f.ID,
+				Name:            f.Name,
+				ChatIds:         f.ChatIDs,
+				ExcludeChatIds:  f.ExcludeChatIDs,
+				PinnedChatIds:   f.PinnedChatIDs,
+				Contacts:        f.Contacts,
+				NonContacts:     f.NonContacts,
+				Groups:          f.Groups,
+				Channels:        f.Channels,
+				Bots:            f.Bots,
+				ExcludeMuted:    f.ExcludeMuted,
+				ExcludeRead:     f.ExcludeRead,
+				ExcludeArchived: f.ExcludeArchived,
 			})
 		}
 		return proto.Marshal(resp)

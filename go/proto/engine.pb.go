@@ -4240,12 +4240,22 @@ func (x *EngineUpdateConfigRequest) GetHasNotifyMentionsOnly() bool {
 }
 
 type EngineFolderInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	ChatIds       []string               `protobuf:"bytes,3,rep,name=chat_ids,json=chatIds,proto3" json:"chat_ids,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Id              string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name            string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	ChatIds         []string               `protobuf:"bytes,3,rep,name=chat_ids,json=chatIds,proto3" json:"chat_ids,omitempty"`
+	ExcludeChatIds  []string               `protobuf:"bytes,4,rep,name=exclude_chat_ids,json=excludeChatIds,proto3" json:"exclude_chat_ids,omitempty"`
+	PinnedChatIds   []string               `protobuf:"bytes,5,rep,name=pinned_chat_ids,json=pinnedChatIds,proto3" json:"pinned_chat_ids,omitempty"`
+	Contacts        bool                   `protobuf:"varint,6,opt,name=contacts,proto3" json:"contacts,omitempty"`
+	NonContacts     bool                   `protobuf:"varint,7,opt,name=non_contacts,json=nonContacts,proto3" json:"non_contacts,omitempty"`
+	Groups          bool                   `protobuf:"varint,8,opt,name=groups,proto3" json:"groups,omitempty"`
+	Channels        bool                   `protobuf:"varint,9,opt,name=channels,proto3" json:"channels,omitempty"`
+	Bots            bool                   `protobuf:"varint,10,opt,name=bots,proto3" json:"bots,omitempty"`
+	ExcludeMuted    bool                   `protobuf:"varint,11,opt,name=exclude_muted,json=excludeMuted,proto3" json:"exclude_muted,omitempty"`
+	ExcludeRead     bool                   `protobuf:"varint,12,opt,name=exclude_read,json=excludeRead,proto3" json:"exclude_read,omitempty"`
+	ExcludeArchived bool                   `protobuf:"varint,13,opt,name=exclude_archived,json=excludeArchived,proto3" json:"exclude_archived,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *EngineFolderInfo) Reset() {
@@ -4297,6 +4307,76 @@ func (x *EngineFolderInfo) GetChatIds() []string {
 		return x.ChatIds
 	}
 	return nil
+}
+
+func (x *EngineFolderInfo) GetExcludeChatIds() []string {
+	if x != nil {
+		return x.ExcludeChatIds
+	}
+	return nil
+}
+
+func (x *EngineFolderInfo) GetPinnedChatIds() []string {
+	if x != nil {
+		return x.PinnedChatIds
+	}
+	return nil
+}
+
+func (x *EngineFolderInfo) GetContacts() bool {
+	if x != nil {
+		return x.Contacts
+	}
+	return false
+}
+
+func (x *EngineFolderInfo) GetNonContacts() bool {
+	if x != nil {
+		return x.NonContacts
+	}
+	return false
+}
+
+func (x *EngineFolderInfo) GetGroups() bool {
+	if x != nil {
+		return x.Groups
+	}
+	return false
+}
+
+func (x *EngineFolderInfo) GetChannels() bool {
+	if x != nil {
+		return x.Channels
+	}
+	return false
+}
+
+func (x *EngineFolderInfo) GetBots() bool {
+	if x != nil {
+		return x.Bots
+	}
+	return false
+}
+
+func (x *EngineFolderInfo) GetExcludeMuted() bool {
+	if x != nil {
+		return x.ExcludeMuted
+	}
+	return false
+}
+
+func (x *EngineFolderInfo) GetExcludeRead() bool {
+	if x != nil {
+		return x.ExcludeRead
+	}
+	return false
+}
+
+func (x *EngineFolderInfo) GetExcludeArchived() bool {
+	if x != nil {
+		return x.ExcludeArchived
+	}
+	return false
 }
 
 type EngineGetFoldersRequest struct {
@@ -4383,6 +4463,102 @@ func (*EngineGetFoldersResponse) Descriptor() ([]byte, []int) {
 func (x *EngineGetFoldersResponse) GetFolders() []*EngineFolderInfo {
 	if x != nil {
 		return x.Folders
+	}
+	return nil
+}
+
+type EngineGetPinnedMessagesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetPinnedMessagesRequest) Reset() {
+	*x = EngineGetPinnedMessagesRequest{}
+	mi := &file_proto_engine_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetPinnedMessagesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetPinnedMessagesRequest) ProtoMessage() {}
+
+func (x *EngineGetPinnedMessagesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetPinnedMessagesRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetPinnedMessagesRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *EngineGetPinnedMessagesRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetPinnedMessagesRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+type EngineGetPinnedMessagesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Messages      []*EngineCachedMessage `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetPinnedMessagesResponse) Reset() {
+	*x = EngineGetPinnedMessagesResponse{}
+	mi := &file_proto_engine_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetPinnedMessagesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetPinnedMessagesResponse) ProtoMessage() {}
+
+func (x *EngineGetPinnedMessagesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetPinnedMessagesResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetPinnedMessagesResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *EngineGetPinnedMessagesResponse) GetMessages() []*EngineCachedMessage {
+	if x != nil {
+		return x.Messages
 	}
 	return nil
 }
@@ -4773,16 +4949,33 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\rnotify_groups\x18\f \x01(\bR\fnotifyGroups\x12*\n" +
 	"\x11has_notify_groups\x18\r \x01(\bR\x0fhasNotifyGroups\x120\n" +
 	"\x14notify_mentions_only\x18\x0e \x01(\bR\x12notifyMentionsOnly\x127\n" +
-	"\x18has_notify_mentions_only\x18\x0f \x01(\bR\x15hasNotifyMentionsOnly\"Q\n" +
+	"\x18has_notify_mentions_only\x18\x0f \x01(\bR\x15hasNotifyMentionsOnly\"\x9d\x03\n" +
 	"\x10EngineFolderInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
-	"\bchat_ids\x18\x03 \x03(\tR\achatIds\"8\n" +
+	"\bchat_ids\x18\x03 \x03(\tR\achatIds\x12(\n" +
+	"\x10exclude_chat_ids\x18\x04 \x03(\tR\x0eexcludeChatIds\x12&\n" +
+	"\x0fpinned_chat_ids\x18\x05 \x03(\tR\rpinnedChatIds\x12\x1a\n" +
+	"\bcontacts\x18\x06 \x01(\bR\bcontacts\x12!\n" +
+	"\fnon_contacts\x18\a \x01(\bR\vnonContacts\x12\x16\n" +
+	"\x06groups\x18\b \x01(\bR\x06groups\x12\x1a\n" +
+	"\bchannels\x18\t \x01(\bR\bchannels\x12\x12\n" +
+	"\x04bots\x18\n" +
+	" \x01(\bR\x04bots\x12#\n" +
+	"\rexclude_muted\x18\v \x01(\bR\fexcludeMuted\x12!\n" +
+	"\fexclude_read\x18\f \x01(\bR\vexcludeRead\x12)\n" +
+	"\x10exclude_archived\x18\r \x01(\bR\x0fexcludeArchived\"8\n" +
 	"\x17EngineGetFoldersRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"Q\n" +
 	"\x18EngineGetFoldersResponse\x125\n" +
-	"\afolders\x18\x01 \x03(\v2\x1b.uniclient.EngineFolderInfoR\afoldersB\x11Z\x0funiclient/protob\x06proto3"
+	"\afolders\x18\x01 \x03(\v2\x1b.uniclient.EngineFolderInfoR\afolders\"X\n" +
+	"\x1eEngineGetPinnedMessagesRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"]\n" +
+	"\x1fEngineGetPinnedMessagesResponse\x12:\n" +
+	"\bmessages\x18\x01 \x03(\v2\x1e.uniclient.EngineCachedMessageR\bmessagesB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -4796,74 +4989,76 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 66)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
 var file_proto_engine_proto_goTypes = []any{
-	(*EngineEvent)(nil),                    // 0: uniclient.EngineEvent
-	(*AccountInfo)(nil),                    // 1: uniclient.AccountInfo
-	(*EngineInitRequest)(nil),              // 2: uniclient.EngineInitRequest
-	(*EngineInitResponse)(nil),             // 3: uniclient.EngineInitResponse
-	(*EngineListAccountsResponse)(nil),     // 4: uniclient.EngineListAccountsResponse
-	(*EngineAddAccountRequest)(nil),        // 5: uniclient.EngineAddAccountRequest
-	(*EngineAddAccountResponse)(nil),       // 6: uniclient.EngineAddAccountResponse
-	(*EngineRemoveAccountRequest)(nil),     // 7: uniclient.EngineRemoveAccountRequest
-	(*EngineReorderAccountsRequest)(nil),   // 8: uniclient.EngineReorderAccountsRequest
-	(*EngineConnectAccountRequest)(nil),    // 9: uniclient.EngineConnectAccountRequest
-	(*EngineDisconnectAccountRequest)(nil), // 10: uniclient.EngineDisconnectAccountRequest
-	(*AuthOption)(nil),                     // 11: uniclient.AuthOption
-	(*EngineAuthState)(nil),                // 12: uniclient.EngineAuthState
-	(*EngineStartAuthRequest)(nil),         // 13: uniclient.EngineStartAuthRequest
-	(*EngineStartAuthResponse)(nil),        // 14: uniclient.EngineStartAuthResponse
-	(*EngineSubmitAuthInputRequest)(nil),   // 15: uniclient.EngineSubmitAuthInputRequest
-	(*EngineSubmitAuthInputResponse)(nil),  // 16: uniclient.EngineSubmitAuthInputResponse
-	(*EngineCancelAuthRequest)(nil),        // 17: uniclient.EngineCancelAuthRequest
-	(*EngineChatInfo)(nil),                 // 18: uniclient.EngineChatInfo
-	(*EngineGetChatListRequest)(nil),       // 19: uniclient.EngineGetChatListRequest
-	(*EngineGetChatListResponse)(nil),      // 20: uniclient.EngineGetChatListResponse
-	(*EngineSaveDraftRequest)(nil),         // 21: uniclient.EngineSaveDraftRequest
-	(*EngineMuteChatRequest)(nil),          // 22: uniclient.EngineMuteChatRequest
-	(*EnginePinChatRequest)(nil),           // 23: uniclient.EnginePinChatRequest
-	(*EngineArchiveChatRequest)(nil),       // 24: uniclient.EngineArchiveChatRequest
-	(*EngineMarkChatReadRequest)(nil),      // 25: uniclient.EngineMarkChatReadRequest
-	(*EngineGetForumTopicsRequest)(nil),    // 26: uniclient.EngineGetForumTopicsRequest
-	(*EngineGetForumTopicsResponse)(nil),   // 27: uniclient.EngineGetForumTopicsResponse
-	(*EngineCachedMessage)(nil),            // 28: uniclient.EngineCachedMessage
-	(*EngineGetMessagesRequest)(nil),       // 29: uniclient.EngineGetMessagesRequest
-	(*EngineGetMessagesResponse)(nil),      // 30: uniclient.EngineGetMessagesResponse
-	(*EngineSendMessageRequest)(nil),       // 31: uniclient.EngineSendMessageRequest
-	(*EngineSendMessageResponse)(nil),      // 32: uniclient.EngineSendMessageResponse
-	(*EngineEditMessageRequest)(nil),       // 33: uniclient.EngineEditMessageRequest
-	(*EngineDeleteMessageRequest)(nil),     // 34: uniclient.EngineDeleteMessageRequest
-	(*EngineJoinChatRequest)(nil),          // 35: uniclient.EngineJoinChatRequest
-	(*EngineLeaveChatRequest)(nil),         // 36: uniclient.EngineLeaveChatRequest
-	(*EngineForwardMessageRequest)(nil),    // 37: uniclient.EngineForwardMessageRequest
-	(*EngineReactToMessageRequest)(nil),    // 38: uniclient.EngineReactToMessageRequest
-	(*EnginePinMessageRequest)(nil),        // 39: uniclient.EnginePinMessageRequest
-	(*EngineUploadFileRequest)(nil),        // 40: uniclient.EngineUploadFileRequest
-	(*EngineUploadFileResponse)(nil),       // 41: uniclient.EngineUploadFileResponse
-	(*EngineRetryPendingRequest)(nil),      // 42: uniclient.EngineRetryPendingRequest
-	(*EngineGetMessageRawRequest)(nil),     // 43: uniclient.EngineGetMessageRawRequest
-	(*EngineGetMessageRawResponse)(nil),    // 44: uniclient.EngineGetMessageRawResponse
-	(*EngineMemberInfo)(nil),               // 45: uniclient.EngineMemberInfo
-	(*EngineGetChatMembersRequest)(nil),    // 46: uniclient.EngineGetChatMembersRequest
-	(*EngineGetChatMembersResponse)(nil),   // 47: uniclient.EngineGetChatMembersResponse
-	(*EngineSetActiveChatRequest)(nil),     // 48: uniclient.EngineSetActiveChatRequest
-	(*EngineSearchResult)(nil),             // 49: uniclient.EngineSearchResult
-	(*EngineSearchMessagesRequest)(nil),    // 50: uniclient.EngineSearchMessagesRequest
-	(*EngineSearchMessagesResponse)(nil),   // 51: uniclient.EngineSearchMessagesResponse
-	(*EngineSearchChatsRequest)(nil),       // 52: uniclient.EngineSearchChatsRequest
-	(*EngineSearchChatsResponse)(nil),      // 53: uniclient.EngineSearchChatsResponse
-	(*EngineRequestDownloadRequest)(nil),   // 54: uniclient.EngineRequestDownloadRequest
-	(*EngineCancelDownloadRequest)(nil),    // 55: uniclient.EngineCancelDownloadRequest
-	(*EngineGetCacheSizeResponse)(nil),     // 56: uniclient.EngineGetCacheSizeResponse
-	(*EngineClearCacheRequest)(nil),        // 57: uniclient.EngineClearCacheRequest
-	(*EngineGetSharedMediaRequest)(nil),    // 58: uniclient.EngineGetSharedMediaRequest
-	(*EngineSharedMediaItem)(nil),          // 59: uniclient.EngineSharedMediaItem
-	(*EngineGetSharedMediaResponse)(nil),   // 60: uniclient.EngineGetSharedMediaResponse
-	(*EngineGetConfigResponse)(nil),        // 61: uniclient.EngineGetConfigResponse
-	(*EngineUpdateConfigRequest)(nil),      // 62: uniclient.EngineUpdateConfigRequest
-	(*EngineFolderInfo)(nil),               // 63: uniclient.EngineFolderInfo
-	(*EngineGetFoldersRequest)(nil),        // 64: uniclient.EngineGetFoldersRequest
-	(*EngineGetFoldersResponse)(nil),       // 65: uniclient.EngineGetFoldersResponse
+	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
+	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
+	(*EngineInitRequest)(nil),               // 2: uniclient.EngineInitRequest
+	(*EngineInitResponse)(nil),              // 3: uniclient.EngineInitResponse
+	(*EngineListAccountsResponse)(nil),      // 4: uniclient.EngineListAccountsResponse
+	(*EngineAddAccountRequest)(nil),         // 5: uniclient.EngineAddAccountRequest
+	(*EngineAddAccountResponse)(nil),        // 6: uniclient.EngineAddAccountResponse
+	(*EngineRemoveAccountRequest)(nil),      // 7: uniclient.EngineRemoveAccountRequest
+	(*EngineReorderAccountsRequest)(nil),    // 8: uniclient.EngineReorderAccountsRequest
+	(*EngineConnectAccountRequest)(nil),     // 9: uniclient.EngineConnectAccountRequest
+	(*EngineDisconnectAccountRequest)(nil),  // 10: uniclient.EngineDisconnectAccountRequest
+	(*AuthOption)(nil),                      // 11: uniclient.AuthOption
+	(*EngineAuthState)(nil),                 // 12: uniclient.EngineAuthState
+	(*EngineStartAuthRequest)(nil),          // 13: uniclient.EngineStartAuthRequest
+	(*EngineStartAuthResponse)(nil),         // 14: uniclient.EngineStartAuthResponse
+	(*EngineSubmitAuthInputRequest)(nil),    // 15: uniclient.EngineSubmitAuthInputRequest
+	(*EngineSubmitAuthInputResponse)(nil),   // 16: uniclient.EngineSubmitAuthInputResponse
+	(*EngineCancelAuthRequest)(nil),         // 17: uniclient.EngineCancelAuthRequest
+	(*EngineChatInfo)(nil),                  // 18: uniclient.EngineChatInfo
+	(*EngineGetChatListRequest)(nil),        // 19: uniclient.EngineGetChatListRequest
+	(*EngineGetChatListResponse)(nil),       // 20: uniclient.EngineGetChatListResponse
+	(*EngineSaveDraftRequest)(nil),          // 21: uniclient.EngineSaveDraftRequest
+	(*EngineMuteChatRequest)(nil),           // 22: uniclient.EngineMuteChatRequest
+	(*EnginePinChatRequest)(nil),            // 23: uniclient.EnginePinChatRequest
+	(*EngineArchiveChatRequest)(nil),        // 24: uniclient.EngineArchiveChatRequest
+	(*EngineMarkChatReadRequest)(nil),       // 25: uniclient.EngineMarkChatReadRequest
+	(*EngineGetForumTopicsRequest)(nil),     // 26: uniclient.EngineGetForumTopicsRequest
+	(*EngineGetForumTopicsResponse)(nil),    // 27: uniclient.EngineGetForumTopicsResponse
+	(*EngineCachedMessage)(nil),             // 28: uniclient.EngineCachedMessage
+	(*EngineGetMessagesRequest)(nil),        // 29: uniclient.EngineGetMessagesRequest
+	(*EngineGetMessagesResponse)(nil),       // 30: uniclient.EngineGetMessagesResponse
+	(*EngineSendMessageRequest)(nil),        // 31: uniclient.EngineSendMessageRequest
+	(*EngineSendMessageResponse)(nil),       // 32: uniclient.EngineSendMessageResponse
+	(*EngineEditMessageRequest)(nil),        // 33: uniclient.EngineEditMessageRequest
+	(*EngineDeleteMessageRequest)(nil),      // 34: uniclient.EngineDeleteMessageRequest
+	(*EngineJoinChatRequest)(nil),           // 35: uniclient.EngineJoinChatRequest
+	(*EngineLeaveChatRequest)(nil),          // 36: uniclient.EngineLeaveChatRequest
+	(*EngineForwardMessageRequest)(nil),     // 37: uniclient.EngineForwardMessageRequest
+	(*EngineReactToMessageRequest)(nil),     // 38: uniclient.EngineReactToMessageRequest
+	(*EnginePinMessageRequest)(nil),         // 39: uniclient.EnginePinMessageRequest
+	(*EngineUploadFileRequest)(nil),         // 40: uniclient.EngineUploadFileRequest
+	(*EngineUploadFileResponse)(nil),        // 41: uniclient.EngineUploadFileResponse
+	(*EngineRetryPendingRequest)(nil),       // 42: uniclient.EngineRetryPendingRequest
+	(*EngineGetMessageRawRequest)(nil),      // 43: uniclient.EngineGetMessageRawRequest
+	(*EngineGetMessageRawResponse)(nil),     // 44: uniclient.EngineGetMessageRawResponse
+	(*EngineMemberInfo)(nil),                // 45: uniclient.EngineMemberInfo
+	(*EngineGetChatMembersRequest)(nil),     // 46: uniclient.EngineGetChatMembersRequest
+	(*EngineGetChatMembersResponse)(nil),    // 47: uniclient.EngineGetChatMembersResponse
+	(*EngineSetActiveChatRequest)(nil),      // 48: uniclient.EngineSetActiveChatRequest
+	(*EngineSearchResult)(nil),              // 49: uniclient.EngineSearchResult
+	(*EngineSearchMessagesRequest)(nil),     // 50: uniclient.EngineSearchMessagesRequest
+	(*EngineSearchMessagesResponse)(nil),    // 51: uniclient.EngineSearchMessagesResponse
+	(*EngineSearchChatsRequest)(nil),        // 52: uniclient.EngineSearchChatsRequest
+	(*EngineSearchChatsResponse)(nil),       // 53: uniclient.EngineSearchChatsResponse
+	(*EngineRequestDownloadRequest)(nil),    // 54: uniclient.EngineRequestDownloadRequest
+	(*EngineCancelDownloadRequest)(nil),     // 55: uniclient.EngineCancelDownloadRequest
+	(*EngineGetCacheSizeResponse)(nil),      // 56: uniclient.EngineGetCacheSizeResponse
+	(*EngineClearCacheRequest)(nil),         // 57: uniclient.EngineClearCacheRequest
+	(*EngineGetSharedMediaRequest)(nil),     // 58: uniclient.EngineGetSharedMediaRequest
+	(*EngineSharedMediaItem)(nil),           // 59: uniclient.EngineSharedMediaItem
+	(*EngineGetSharedMediaResponse)(nil),    // 60: uniclient.EngineGetSharedMediaResponse
+	(*EngineGetConfigResponse)(nil),         // 61: uniclient.EngineGetConfigResponse
+	(*EngineUpdateConfigRequest)(nil),       // 62: uniclient.EngineUpdateConfigRequest
+	(*EngineFolderInfo)(nil),                // 63: uniclient.EngineFolderInfo
+	(*EngineGetFoldersRequest)(nil),         // 64: uniclient.EngineGetFoldersRequest
+	(*EngineGetFoldersResponse)(nil),        // 65: uniclient.EngineGetFoldersResponse
+	(*EngineGetPinnedMessagesRequest)(nil),  // 66: uniclient.EngineGetPinnedMessagesRequest
+	(*EngineGetPinnedMessagesResponse)(nil), // 67: uniclient.EngineGetPinnedMessagesResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -4878,11 +5073,12 @@ var file_proto_engine_proto_depIdxs = []int32{
 	18, // 9: uniclient.EngineSearchChatsResponse.chats:type_name -> uniclient.EngineChatInfo
 	59, // 10: uniclient.EngineGetSharedMediaResponse.items:type_name -> uniclient.EngineSharedMediaItem
 	63, // 11: uniclient.EngineGetFoldersResponse.folders:type_name -> uniclient.EngineFolderInfo
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	28, // 12: uniclient.EngineGetPinnedMessagesResponse.messages:type_name -> uniclient.EngineCachedMessage
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -4896,7 +5092,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   66,
+			NumMessages:   68,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

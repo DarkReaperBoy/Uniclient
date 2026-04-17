@@ -8926,11 +8926,25 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 			continue
 		}
 		folder := Folder{
-			ID:   strconv.Itoa(filter.ID),
-			Name: filter.Title.Text,
+			ID:              strconv.Itoa(filter.ID),
+			Name:            filter.Title.Text,
+			Contacts:        filter.Contacts,
+			NonContacts:     filter.NonContacts,
+			Groups:          filter.Groups,
+			Channels:        filter.Broadcasts,
+			Bots:            filter.Bots,
+			ExcludeMuted:    filter.ExcludeMuted,
+			ExcludeRead:     filter.ExcludeRead,
+			ExcludeArchived: filter.ExcludeArchived,
 		}
 		for _, p := range filter.IncludePeers {
 			folder.ChatIDs = append(folder.ChatIDs, inputPeerToID(p))
+		}
+		for _, p := range filter.ExcludePeers {
+			folder.ExcludeChatIDs = append(folder.ExcludeChatIDs, inputPeerToID(p))
+		}
+		for _, p := range filter.PinnedPeers {
+			folder.PinnedChatIDs = append(folder.PinnedChatIDs, inputPeerToID(p))
 		}
 		folders = append(folders, folder)
 	}

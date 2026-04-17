@@ -261,6 +261,16 @@ class EngineService {
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
+  /// Get all pinned messages for a chat from the cache.
+  List<CachedMessage> getPinnedMessages(String accountId, String chatId) {
+    final req = epb.EngineGetPinnedMessagesRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    final respBytes = _callRaw('__engine', 'GetPinnedMessages', req.writeToBuffer());
+    final resp = epb.EngineGetPinnedMessagesResponse.fromBuffer(respBytes);
+    return resp.messages.map(_cachedMsgFromProto).toList();
+  }
+
   Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = ''}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId
@@ -686,7 +696,8 @@ class EngineService {
 
       case 'user_status':
         if (data is Map<String, dynamic>) {
-          _userStatusController.add(UserStatusEvent.fromJson(data));
+          _userStatusController.add(UserStatusEvent.fromJson(data,
+            accountId: event['account_id'] as String? ?? ''));
         }
     }
   }
@@ -799,6 +810,16 @@ class EngineService {
     id: p.id,
     name: _safeStr(p.name),
     chatIds: p.chatIds.toList(),
+    excludeChatIds: p.excludeChatIds.toList(),
+    pinnedChatIds: p.pinnedChatIds.toList(),
+    contacts: p.contacts,
+    nonContacts: p.nonContacts,
+    groups: p.groups,
+    channels: p.channels,
+    bots: p.bots,
+    excludeMuted: p.excludeMuted,
+    excludeRead: p.excludeRead,
+    excludeArchived: p.excludeArchived,
   );
 
   static SharedMediaItem _sharedMediaItemFromProto(epb.EngineSharedMediaItem p) => SharedMediaItem(

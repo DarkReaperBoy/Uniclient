@@ -512,6 +512,16 @@ message EngineFolderInfo {
   string id   = 1;
   string name = 2;
   repeated string chat_ids = 3;
+  repeated string exclude_chat_ids = 4;
+  repeated string pinned_chat_ids  = 5;
+  bool contacts        = 6;
+  bool non_contacts    = 7;
+  bool groups          = 8;
+  bool channels        = 9;
+  bool bots            = 10;
+  bool exclude_muted   = 11;
+  bool exclude_read    = 12;
+  bool exclude_archived = 13;
 }
 
 message EngineGetFoldersRequest {
@@ -520,4 +530,17 @@ message EngineGetFoldersRequest {
 
 message EngineGetFoldersResponse {
   repeated EngineFolderInfo folders = 1;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Pinned Messages
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetPinnedMessagesRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineGetPinnedMessagesResponse {
+  repeated EngineCachedMessage messages = 1;
 }

@@ -63,20 +63,10 @@ class _ChatListPanelState extends State<ChatListPanel> {
     final appState = context.watch<AppState>();
 
     // Filter chats: always scoped to active account, then by folder.
-    List<ChatInfo> chats;
     final accountChats = chatState.chatsForAccount(appState.activeAccountId);
-    if (chatState.activeFolderId != null) {
-      // Folder filtering within the active account's chats.
-      final folder = chatState.folders.where((f) => f.id == chatState.activeFolderId).firstOrNull;
-      if (folder != null) {
-        final chatIdSet = folder.chatIds.toSet();
-        chats = accountChats.where((c) => chatIdSet.contains(c.chatId)).toList();
-      } else {
-        chats = accountChats;
-      }
-    } else {
-      chats = accountChats;
-    }
+    final chats = chatState.activeFolderId != null
+        ? chatState.chatsForFolder(chatState.activeFolderId)
+        : accountChats;
 
     // Use search results if searching.
     final displayChats = _searchResults ?? chats;
@@ -128,6 +118,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
                       return ChatListRow(
                         chat: chat,
                         isActive: isActive,
+                        isOnline: chatState.isChatOnline(chat),
                         typingUser: chatState.typingUserFor(chat.chatId),
                         onTap: () => chatState.openChat(chat),
                         onSecondaryTap: () => _showChatContextMenu(context, chat),

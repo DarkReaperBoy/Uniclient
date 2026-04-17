@@ -30,6 +30,8 @@ class _ChatViewState extends State<ChatView> {
   String? _replyToId;
   bool _showScrollToBottom = false;
   String? _lastChatId;
+  final Set<String> _selectedMsgIds = {};
+  bool get _selectionMode => _selectedMsgIds.isNotEmpty;
 
   @override
   void initState() {
@@ -78,6 +80,38 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
+  void _deleteSelected(ChatState chatState) {
+    for (final id in _selectedMsgIds) {
+      chatState.deleteMessage(id);
+    }
+    setState(() => _selectedMsgIds.clear());
+  }
+
+  void _forwardSelected(BuildContext context, ChatState chatState) {
+    final msgIds = _selectedMsgIds.toList();
+    showDialog(
+      context: context,
+      builder: (ctx) => _ForwardDialog(
+        chats: chatState.chats,
+        onSelect: (toChatId) async {
+          Navigator.of(ctx).pop();
+          await chatState.forwardMessages(msgIds, toChatId);
+          setState(() => _selectedMsgIds.clear());
+        },
+      ),
+    );
+  }
+
+  void _copySelected(ChatState chatState) {
+    final msgs = chatState.messages
+        .where((m) => _selectedMsgIds.contains(m.msgId))
+        .toList()
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    final text = msgs.map((m) => m.contentText).join('\n');
+    Clipboard.setData(ClipboardData(text: text));
+    setState(() => _selectedMsgIds.clear());
+  }
+
   void _sendMessage() {
     final text = _composeController.text.trim();
     if (text.isEmpty) return;
@@ -103,14 +137,26 @@ class _ChatViewState extends State<ChatView> {
       color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
-          // Top bar (54px per spec).
-          _ChatTopBar(
-            chat: chat,
-            typingUser: chatState.typingUserFor(chat.chatId),
-            showBackButton: widget.showBackButton,
-            onBack: widget.onBack,
-            onToggleInfo: widget.onToggleInfo,
-          ),
+          // Top bar (54px per spec) or selection action bar.
+          if (_selectionMode)
+            _SelectionBar(
+              count: _selectedMsgIds.length,
+              onCancel: () => setState(() => _selectedMsgIds.clear()),
+              onDelete: () => _deleteSelected(chatState),
+              onCopy: () => _copySelected(chatState),
+              onForward: () => _forwardSelected(context, chatState),
+            )
+          else
+            _ChatTopBar(
+              chat: chat,
+              typingUser: chatState.typingUserFor(chat.chatId),
+              showBackButton: widget.showBackButton,
+              onBack: widget.onBack,
+              onToggleInfo: widget.onToggleInfo,
+            ),
+          // Pinned message bar (if any pinned messages).
+          if (chatState.pinnedMessages.isNotEmpty)
+            _PinnedBar(pinned: chatState.pinnedMessages.first),
           // Message list with scroll-to-bottom FAB.
           Expanded(
             child: Stack(
@@ -120,6 +166,17 @@ class _ChatViewState extends State<ChatView> {
                   loading: chatState.loadingMessages,
                   scrollController: _scrollController,
                   onReply: (msgId) => setState(() => _replyToId = msgId),
+                  selectedIds: _selectedMsgIds,
+                  onToggleSelect: (msgId) => setState(() {
+                    if (_selectedMsgIds.contains(msgId)) {
+                      _selectedMsgIds.remove(msgId);
+                    } else {
+                      _selectedMsgIds.add(msgId);
+                    }
+                  }),
+                  onLongPress: (msgId) => setState(() {
+                    _selectedMsgIds.add(msgId);
+                  }),
                 ),
                 // Scroll-to-bottom FAB (spec §5: JumpDownButton).
                 if (_showScrollToBottom)
@@ -262,12 +319,18 @@ class _MessageList extends StatelessWidget {
   final bool loading;
   final ScrollController scrollController;
   final ValueChanged<String> onReply;
+  final Set<String> selectedIds;
+  final ValueChanged<String> onToggleSelect;
+  final ValueChanged<String> onLongPress;
 
   const _MessageList({
     required this.messages,
     required this.loading,
     required this.scrollController,
     required this.onReply,
+    required this.selectedIds,
+    required this.onToggleSelect,
+    required this.onLongPress,
   });
 
   @override
@@ -311,14 +374,46 @@ class _MessageList extends StatelessWidget {
             _differentDay(msg.timestamp, prevMsg.timestamp) ||
             (prevMsg.timestamp - msg.timestamp).abs() > 180000;
 
+        final isSelected = selectedIds.contains(msg.msgId);
+        final inSelectionMode = selectedIds.isNotEmpty;
+
         return Column(
           children: [
             if (showDate) _DateSeparator(timestamp: msg.timestamp),
-            MessageBubble(
-              message: msg,
-              isFirstInGroup: isFirstInGroup,
-              isLastInGroup: isLastInGroup,
-              onReply: () => onReply(msg.msgId),
+            GestureDetector(
+              onLongPress: () => onLongPress(msg.msgId),
+              onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
+              child: Container(
+                color: isSelected
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                    : null,
+                child: Row(
+                  children: [
+                    if (inSelectionMode) ...[
+                      const SizedBox(width: 8),
+                      Icon(
+                        isSelected ? Icons.check_circle : Icons.circle_outlined,
+                        size: 22,
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).hintColor,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Expanded(
+                      child: IgnorePointer(
+                        ignoring: inSelectionMode,
+                        child: MessageBubble(
+                          message: msg,
+                          isFirstInGroup: isFirstInGroup,
+                          isLastInGroup: isLastInGroup,
+                          onReply: () => onReply(msg.msgId),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         );
@@ -432,6 +527,129 @@ class _ReplyBar extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.close, size: 18),
             onPressed: onCancel,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Selection action bar replacing the top bar during multi-select mode.
+class _SelectionBar extends StatelessWidget {
+  final int count;
+  final VoidCallback onCancel;
+  final VoidCallback onDelete;
+  final VoidCallback onCopy;
+  final VoidCallback onForward;
+
+  const _SelectionBar({
+    required this.count,
+    required this.onCancel,
+    required this.onDelete,
+    required this.onCopy,
+    required this.onForward,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      height: 54,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(color: theme.dividerColor, width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: onCancel,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$count selected',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: theme.colorScheme.onSurface,
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            icon: const Icon(Icons.forward),
+            tooltip: 'Forward',
+            onPressed: onForward,
+          ),
+          IconButton(
+            icon: const Icon(Icons.copy),
+            tooltip: 'Copy',
+            onPressed: onCopy,
+          ),
+          IconButton(
+            icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
+            tooltip: 'Delete',
+            onPressed: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pinned message bar below the top bar.
+/// Shows the most recent pinned message with a pin icon.
+class _PinnedBar extends StatelessWidget {
+  final CachedMessage pinned;
+
+  const _PinnedBar({required this.pinned});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          bottom: BorderSide(color: theme.dividerColor, width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Icon(Icons.push_pin, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Container(width: 2, height: 28, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pinned Message',
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  pinned.contentText.isNotEmpty
+                      ? pinned.contentText
+                      : (pinned.senderName.isNotEmpty
+                          ? '${pinned.senderName}: [media]'
+                          : '[media]'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -559,5 +777,91 @@ class _ComposeArea extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Forward dialog — shows a searchable chat list to pick a destination.
+class _ForwardDialog extends StatefulWidget {
+  final List<ChatInfo> chats;
+  final ValueChanged<String> onSelect;
+
+  const _ForwardDialog({required this.chats, required this.onSelect});
+
+  @override
+  State<_ForwardDialog> createState() => _ForwardDialogState();
+}
+
+class _ForwardDialogState extends State<_ForwardDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final filtered = _query.isEmpty
+        ? widget.chats
+        : widget.chats
+            .where((c) => c.title.toLowerCase().contains(_query.toLowerCase()))
+            .toList();
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 500),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Forward to...',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Search chats...',
+                  prefixIcon: Icon(Icons.search, size: 20),
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                onChanged: (v) => setState(() => _query = v),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final chat = filtered[index];
+                  return ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: _avatarColor(chat.chatId),
+                      child: Text(
+                        chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                    ),
+                    title: Text(chat.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    onTap: () => widget.onSelect(chat.chatId),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Color _avatarColor(String id) {
+    const colors = [
+      Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
+      Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb),
+    ];
+    return colors[id.hashCode.abs() % 7];
   }
 }

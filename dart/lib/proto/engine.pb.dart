@@ -5636,6 +5636,16 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     $core.String? id,
     $core.String? name,
     $core.Iterable<$core.String>? chatIds,
+    $core.Iterable<$core.String>? excludeChatIds,
+    $core.Iterable<$core.String>? pinnedChatIds,
+    $core.bool? contacts,
+    $core.bool? nonContacts,
+    $core.bool? groups,
+    $core.bool? channels,
+    $core.bool? bots,
+    $core.bool? excludeMuted,
+    $core.bool? excludeRead,
+    $core.bool? excludeArchived,
   }) {
     final $result = create();
     if (id != null) {
@@ -5647,6 +5657,36 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     if (chatIds != null) {
       $result.chatIds.addAll(chatIds);
     }
+    if (excludeChatIds != null) {
+      $result.excludeChatIds.addAll(excludeChatIds);
+    }
+    if (pinnedChatIds != null) {
+      $result.pinnedChatIds.addAll(pinnedChatIds);
+    }
+    if (contacts != null) {
+      $result.contacts = contacts;
+    }
+    if (nonContacts != null) {
+      $result.nonContacts = nonContacts;
+    }
+    if (groups != null) {
+      $result.groups = groups;
+    }
+    if (channels != null) {
+      $result.channels = channels;
+    }
+    if (bots != null) {
+      $result.bots = bots;
+    }
+    if (excludeMuted != null) {
+      $result.excludeMuted = excludeMuted;
+    }
+    if (excludeRead != null) {
+      $result.excludeRead = excludeRead;
+    }
+    if (excludeArchived != null) {
+      $result.excludeArchived = excludeArchived;
+    }
     return $result;
   }
   EngineFolderInfo._() : super();
@@ -5657,6 +5697,16 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'name')
     ..pPS(3, _omitFieldNames ? '' : 'chatIds')
+    ..pPS(4, _omitFieldNames ? '' : 'excludeChatIds')
+    ..pPS(5, _omitFieldNames ? '' : 'pinnedChatIds')
+    ..aOB(6, _omitFieldNames ? '' : 'contacts')
+    ..aOB(7, _omitFieldNames ? '' : 'nonContacts')
+    ..aOB(8, _omitFieldNames ? '' : 'groups')
+    ..aOB(9, _omitFieldNames ? '' : 'channels')
+    ..aOB(10, _omitFieldNames ? '' : 'bots')
+    ..aOB(11, _omitFieldNames ? '' : 'excludeMuted')
+    ..aOB(12, _omitFieldNames ? '' : 'excludeRead')
+    ..aOB(13, _omitFieldNames ? '' : 'excludeArchived')
     ..hasRequiredFields = false
   ;
 
@@ -5701,6 +5751,84 @@ class EngineFolderInfo extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(3)
   $core.List<$core.String> get chatIds => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.List<$core.String> get excludeChatIds => $_getList(3);
+
+  @$pb.TagNumber(5)
+  $core.List<$core.String> get pinnedChatIds => $_getList(4);
+
+  @$pb.TagNumber(6)
+  $core.bool get contacts => $_getBF(5);
+  @$pb.TagNumber(6)
+  set contacts($core.bool v) { $_setBool(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasContacts() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearContacts() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get nonContacts => $_getBF(6);
+  @$pb.TagNumber(7)
+  set nonContacts($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasNonContacts() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearNonContacts() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.bool get groups => $_getBF(7);
+  @$pb.TagNumber(8)
+  set groups($core.bool v) { $_setBool(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasGroups() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearGroups() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.bool get channels => $_getBF(8);
+  @$pb.TagNumber(9)
+  set channels($core.bool v) { $_setBool(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasChannels() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearChannels() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.bool get bots => $_getBF(9);
+  @$pb.TagNumber(10)
+  set bots($core.bool v) { $_setBool(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasBots() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearBots() => clearField(10);
+
+  @$pb.TagNumber(11)
+  $core.bool get excludeMuted => $_getBF(10);
+  @$pb.TagNumber(11)
+  set excludeMuted($core.bool v) { $_setBool(10, v); }
+  @$pb.TagNumber(11)
+  $core.bool hasExcludeMuted() => $_has(10);
+  @$pb.TagNumber(11)
+  void clearExcludeMuted() => clearField(11);
+
+  @$pb.TagNumber(12)
+  $core.bool get excludeRead => $_getBF(11);
+  @$pb.TagNumber(12)
+  set excludeRead($core.bool v) { $_setBool(11, v); }
+  @$pb.TagNumber(12)
+  $core.bool hasExcludeRead() => $_has(11);
+  @$pb.TagNumber(12)
+  void clearExcludeRead() => clearField(12);
+
+  @$pb.TagNumber(13)
+  $core.bool get excludeArchived => $_getBF(12);
+  @$pb.TagNumber(13)
+  set excludeArchived($core.bool v) { $_setBool(12, v); }
+  @$pb.TagNumber(13)
+  $core.bool hasExcludeArchived() => $_has(12);
+  @$pb.TagNumber(13)
+  void clearExcludeArchived() => clearField(13);
 }
 
 class EngineGetFoldersRequest extends $pb.GeneratedMessage {
@@ -5797,6 +5925,102 @@ class EngineGetFoldersResponse extends $pb.GeneratedMessage {
   $core.List<EngineFolderInfo> get folders => $_getList(0);
 }
 
+
+class EngineGetPinnedMessagesRequest extends $pb.GeneratedMessage {
+  factory EngineGetPinnedMessagesRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    return $result;
+  }
+  EngineGetPinnedMessagesRequest._() : super();
+  factory EngineGetPinnedMessagesRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetPinnedMessagesRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetPinnedMessagesRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetPinnedMessagesRequest clone() => EngineGetPinnedMessagesRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetPinnedMessagesRequest copyWith(void Function(EngineGetPinnedMessagesRequest) updates) => super.copyWith((message) => updates(message as EngineGetPinnedMessagesRequest)) as EngineGetPinnedMessagesRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPinnedMessagesRequest create() => EngineGetPinnedMessagesRequest._();
+  EngineGetPinnedMessagesRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetPinnedMessagesRequest> createRepeated() => $pb.PbList<EngineGetPinnedMessagesRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPinnedMessagesRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetPinnedMessagesRequest>(create);
+  static EngineGetPinnedMessagesRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
+class EngineGetPinnedMessagesResponse extends $pb.GeneratedMessage {
+  factory EngineGetPinnedMessagesResponse({
+    $core.Iterable<EngineCachedMessage>? messages,
+  }) {
+    final $result = create();
+    if (messages != null) {
+      $result.messages.addAll(messages);
+    }
+    return $result;
+  }
+  EngineGetPinnedMessagesResponse._() : super();
+  factory EngineGetPinnedMessagesResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetPinnedMessagesResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetPinnedMessagesResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineCachedMessage>(1, _omitFieldNames ? '' : 'messages', $pb.PbFieldType.PM, subBuilder: EngineCachedMessage.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetPinnedMessagesResponse clone() => EngineGetPinnedMessagesResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetPinnedMessagesResponse copyWith(void Function(EngineGetPinnedMessagesResponse) updates) => super.copyWith((message) => updates(message as EngineGetPinnedMessagesResponse)) as EngineGetPinnedMessagesResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPinnedMessagesResponse create() => EngineGetPinnedMessagesResponse._();
+  EngineGetPinnedMessagesResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetPinnedMessagesResponse> createRepeated() => $pb.PbList<EngineGetPinnedMessagesResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPinnedMessagesResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetPinnedMessagesResponse>(create);
+  static EngineGetPinnedMessagesResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineCachedMessage> get messages => $_getList(0);
+}
 
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');
