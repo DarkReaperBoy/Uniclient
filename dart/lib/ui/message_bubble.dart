@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../models/engine_models.dart';
@@ -213,55 +216,370 @@ class _MediaIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = switch (message.mediaType) {
-      1 => 'Photo',
-      2 => 'Video',
-      3 => 'Audio',
-      4 => 'Voice message',
-      5 => 'Video message',
-      6 => 'Sticker',
-      7 => 'GIF',
-      8 => message.mediaFileName.isNotEmpty ? message.mediaFileName : 'File',
-      _ => 'Media',
-    };
+    // Image, video, sticker, GIF, video note — show visual preview.
+    if (_isVisualMedia) {
+      return _VisualMedia(message: message, theme: theme);
+    }
+    // Voice message — duration bar.
+    if (message.mediaType == 4) {
+      return _VoiceIndicator(message: message, theme: theme);
+    }
+    // Audio — file-like with duration.
+    if (message.mediaType == 3) {
+      return _AudioIndicator(message: message, theme: theme);
+    }
+    // File / document.
+    return _FileIndicator(message: message, theme: theme);
+  }
 
+  bool get _isVisualMedia =>
+      message.mediaType == 1 || // image
+      message.mediaType == 2 || // video
+      message.mediaType == 5 || // video note
+      message.mediaType == 6 || // sticker
+      message.mediaType == 7;   // gif
+}
+
+/// Renders photos, videos, stickers, GIFs as visual thumbnails.
+class _VisualMedia extends StatelessWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+
+  const _VisualMedia({required this.message, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    // Calculate display size (max 300x300, preserve aspect ratio).
+    double displayWidth = 300;
+    double displayHeight = 200;
+    if (message.mediaWidth > 0 && message.mediaHeight > 0) {
+      final aspect = message.mediaWidth / message.mediaHeight;
+      if (aspect > 1) {
+        displayWidth = 300;
+        displayHeight = 300 / aspect;
+      } else {
+        displayHeight = 300;
+        displayWidth = 300 * aspect;
+      }
+      displayWidth = displayWidth.clamp(80, 300);
+      displayHeight = displayHeight.clamp(80, 300);
+    }
+
+    // Sticker: smaller, no background.
+    if (message.mediaType == 6) {
+      displayWidth = displayWidth.clamp(80, 200);
+      displayHeight = displayHeight.clamp(80, 200);
+    }
+
+    Widget imageWidget;
+
+    // Try local file first.
+    if (message.mediaLocalPath.isNotEmpty) {
+      final file = File(message.mediaLocalPath);
+      imageWidget = Image.file(
+        file,
+        width: displayWidth,
+        height: displayHeight,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _placeholder(displayWidth, displayHeight),
+      );
+    }
+    // Try base64 thumbnail.
+    else if (message.mediaThumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(message.mediaThumbB64);
+        imageWidget = Image.memory(
+          bytes,
+          width: displayWidth,
+          height: displayHeight,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _placeholder(displayWidth, displayHeight),
+        );
+      } catch (_) {
+        imageWidget = _placeholder(displayWidth, displayHeight);
+      }
+    }
+    // No image data — show placeholder.
+    else {
+      imageWidget = _placeholder(displayWidth, displayHeight);
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(message.mediaType == 6 ? 0 : 8),
+        child: Stack(
+          children: [
+            imageWidget,
+            // Video/GIF overlay: play button + duration.
+            if (message.mediaType == 2 || message.mediaType == 7)
+              Positioned.fill(
+                child: Center(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      message.mediaType == 7 ? Icons.gif : Icons.play_arrow,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            // Duration badge for video.
+            if (message.mediaType == 2 && message.mediaDuration > 0)
+              Positioned(
+                bottom: 4,
+                left: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.6),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    _formatDuration(message.mediaDuration),
+                    style: const TextStyle(color: Colors.white, fontSize: 11),
+                  ),
+                ),
+              ),
+            // Video note: circular mask.
+            if (message.mediaType == 5)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: theme.colorScheme.primary, width: 2),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _placeholder(double width, double height) {
     final icon = switch (message.mediaType) {
       1 => Icons.photo,
       2 => Icons.videocam,
-      3 => Icons.audiotrack,
-      4 => Icons.mic,
       5 => Icons.videocam,
       6 => Icons.emoji_emotions,
       7 => Icons.gif,
-      8 => Icons.insert_drive_file,
-      _ => Icons.attachment,
+      _ => Icons.image,
     };
+    final label = switch (message.mediaType) {
+      1 => 'Photo',
+      2 => 'Video',
+      5 => 'Video message',
+      6 => 'Sticker',
+      7 => 'GIF',
+      _ => 'Media',
+    };
+    return Container(
+      width: width,
+      height: height,
+      color: theme.colorScheme.surfaceContainerHighest,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 32, color: theme.textTheme.bodySmall?.color),
+          const SizedBox(height: 4),
+          Text(label, style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color)),
+          if (message.mediaSizeLabel.isNotEmpty)
+            Text(message.mediaSizeLabel, style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color)),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(1, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Voice message indicator with duration bar.
+class _VoiceIndicator extends StatelessWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+
+  const _VoiceIndicator({required this.message, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.mic, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          // Waveform placeholder (static bars).
+          SizedBox(
+            width: 120,
+            height: 20,
+            child: CustomPaint(
+              painter: _WaveformPainter(color: theme.colorScheme.primary),
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (message.mediaDuration > 0)
+            Text(
+              _VisualMedia._formatDuration(message.mediaDuration),
+              style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Static waveform visualization.
+class _WaveformPainter extends CustomPainter {
+  final Color color;
+
+  _WaveformPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.6)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    // Draw static waveform bars.
+    const barCount = 24;
+    final barWidth = size.width / barCount;
+    for (var i = 0; i < barCount; i++) {
+      // Pseudo-random heights based on index.
+      final h = (((i * 7 + 3) % 11) / 11.0 * 0.7 + 0.3) * size.height;
+      final x = i * barWidth + barWidth / 2;
+      final top = (size.height - h) / 2;
+      canvas.drawLine(Offset(x, top), Offset(x, top + h), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Audio file indicator (music, podcast, etc.).
+class _AudioIndicator extends StatelessWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+
+  const _AudioIndicator({required this.message, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(Icons.audiotrack, size: 20, color: theme.colorScheme.primary),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  message.mediaFileName.isNotEmpty ? message.mediaFileName : 'Audio',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (message.mediaDuration > 0)
+                      Text(
+                        _VisualMedia._formatDuration(message.mediaDuration),
+                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                      ),
+                    if (message.mediaDuration > 0 && message.mediaSizeLabel.isNotEmpty)
+                      Text(' · ', style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color)),
+                    if (message.mediaSizeLabel.isNotEmpty)
+                      Text(
+                        message.mediaSizeLabel,
+                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// File/document attachment indicator.
+class _FileIndicator extends StatelessWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+
+  const _FileIndicator({required this.message, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final fileName = message.mediaFileName.isNotEmpty ? message.mediaFileName : 'File';
+    final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : '';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: theme.colorScheme.primary),
-          const SizedBox(width: 6),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                color: theme.colorScheme.primary,
-              ),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.insert_drive_file, size: 18, color: theme.colorScheme.primary),
+                if (ext.isNotEmpty && ext.length <= 4)
+                  Text(ext, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+              ],
             ),
           ),
-          if (message.mediaSizeLabel.isNotEmpty) ...[
-            const SizedBox(width: 6),
-            Text(
-              message.mediaSizeLabel,
-              style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
+                ),
+                if (message.mediaSizeLabel.isNotEmpty)
+                  Text(
+                    message.mediaSizeLabel,
+                    style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                  ),
+              ],
             ),
-          ],
+          ),
         ],
       ),
     );

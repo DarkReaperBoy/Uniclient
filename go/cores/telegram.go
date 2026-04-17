@@ -1242,22 +1242,32 @@ func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(
 		return fmt.Errorf("%w: empty file ID", ErrInvalidInput)
 	}
 
+	// Get access hash and file reference — try in-memory cache first, then Extra field.
+	accessHash := t.getCachedFileHash(fileID)
+	fileReference := t.getCachedFileRef(fileID)
+	if accessHash == 0 && fileRef.Extra != "" {
+		accessHash, fileReference = decodeFileExtra(fileRef.Extra)
+		if accessHash != 0 {
+			t.cacheFileInfo(fileID, accessHash, fileReference)
+		}
+	}
+
 	// Determine file location based on mime type
 	var location tg.InputFileLocationClass
 	if strings.HasPrefix(fileRef.MimeType, "image/") && fileRef.MimeType != "image/gif" {
 		// Photos use InputPhotoFileLocation
 		location = &tg.InputPhotoFileLocation{
 			ID:            fileID,
-			AccessHash:    t.getCachedFileHash(fileID),
-			FileReference: t.getCachedFileRef(fileID),
+			AccessHash:    accessHash,
+			FileReference: fileReference,
 			ThumbSize:     "y", // largest photo size
 		}
 	} else {
 		// Documents (files, videos, audio, stickers, etc.)
 		location = &tg.InputDocumentFileLocation{
 			ID:            fileID,
-			AccessHash:    t.getCachedFileHash(fileID),
-			FileReference: t.getCachedFileRef(fileID),
+			AccessHash:    accessHash,
+			FileReference: fileReference,
 		}
 	}
 
@@ -9147,6 +9157,22 @@ func (t *TelegramCore) getCachedChannelHash(channelID int64) (int64, bool) {
 	return hash, ok
 }
 
+// encodeFileExtra packs access hash and file reference for later download.
+func encodeFileExtra(accessHash int64, fileRef []byte) string {
+	return strconv.FormatInt(accessHash, 10) + ":" + base64.StdEncoding.EncodeToString(fileRef)
+}
+
+// decodeFileExtra unpacks access hash and file reference from Extra field.
+func decodeFileExtra(extra string) (int64, []byte) {
+	parts := strings.SplitN(extra, ":", 2)
+	if len(parts) != 2 {
+		return 0, nil
+	}
+	hash, _ := strconv.ParseInt(parts[0], 10, 64)
+	ref, _ := base64.StdEncoding.DecodeString(parts[1])
+	return hash, ref
+}
+
 func (t *TelegramCore) cacheFileInfo(fileID, accessHash int64, fileRef []byte) {
 	t.peerMu.Lock()
 	t.fileAccessHash[fileID] = accessHash
@@ -9264,6 +9290,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					ID:       strconv.FormatInt(d.ID, 10),
 					Size:     d.Size,
 					MimeType: d.MimeType,
+					Extra:    encodeFileExtra(d.AccessHash, d.FileReference),
 				}
 				for _, attr := range d.Attributes {
 					switch a := attr.(type) {
@@ -9289,6 +9316,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					ID:       strconv.FormatInt(p.ID, 10),
 					MimeType: "image/jpeg",
 					Name:     "photo.jpg",
+					Extra:    encodeFileExtra(p.AccessHash, p.FileReference),
 				}
 				for _, size := range p.Sizes {
 					if s, ok := size.(*tg.PhotoSize); ok {

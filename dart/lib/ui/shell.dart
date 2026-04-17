@@ -9,6 +9,7 @@ import 'chat_list_panel.dart';
 import 'chat_view.dart';
 import 'filter_column.dart';
 import 'hamburger_drawer.dart';
+import 'info_panel.dart';
 
 /// Layout modes matching Telegram Desktop's responsive breakpoints.
 enum LayoutMode { oneColumn, twoColumn, threeColumn }
@@ -217,20 +218,10 @@ class _UniClientShellState extends State<UniClientShell> {
         ),
         // Info panel.
         if (_infoOpen && chatState.activeChat != null) ...[
-          _ResizeHandle(onDrag: (_) {}),
           SizedBox(
             width: infoWidth,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  left: BorderSide(
-                    color: Theme.of(context).dividerColor,
-                    width: 1,
-                  ),
-                ),
-              ),
-              child: const Center(child: Text('Info Panel')),
+            child: InfoPanel(
+              onClose: () => setState(() => _infoOpen = false),
             ),
           ),
         ],

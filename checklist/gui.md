@@ -32,14 +32,15 @@
 - [ ] Chat row: stories ring
 - [ ] Chat row: mini media previews in message preview
 - [x] Chat row: send state icons (check for outgoing messages)
-- [ ] Info panel (third column) — user/group/channel info
+- [x] Info panel (third column) — user/group/channel info, members list, shared media links
 - [ ] Search results (top peers, recent contacts, search tabs)
 - [ ] Pinned message bar
 - [ ] Contact status/action bar (add contact, block, report)
 - [ ] Group call bar
 - [ ] Selection mode (multi-select messages)
 - [ ] Forward dialog
-- [ ] Media rendering in messages (photos, videos, stickers)
+- [x] Media rendering in messages (auto-download photos, video placeholders with play/duration, voice waveform, audio/file indicators)
+- [x] Media download pipeline (engine MediaManager init, auto-download photos/stickers/GIFs, Telegram access hash persistence via Extra field, DB schema V4)
 - [ ] Voice/video message players
 - [ ] Emoji/sticker/GIF panel
 - [ ] Calls UI

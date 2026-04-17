@@ -157,6 +157,10 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 	// Resume pending operations from crash.
 	e.resumePending()
 
+	// Start media download manager.
+	e.media = newMediaManager(e)
+	e.media.Start(context.Background())
+
 	return e, nil
 }
 

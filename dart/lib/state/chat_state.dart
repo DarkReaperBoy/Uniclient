@@ -331,6 +331,7 @@ class ChatState extends ChangeNotifier {
     if (newMsgs.length < 50) _hasMoreMessages = false;
     _messages.addAll(newMsgs);
     _loadingMessages = false;
+    _autoDownloadMedia(newMsgs);
     notifyListeners();
   }
 
@@ -350,6 +351,7 @@ class ChatState extends ChangeNotifier {
     final older = _messages.where((m) => !freshIds.contains(m.msgId)).toList();
     // fresh is newest-first; older are already oldest-last from pagination.
     _messages = [...fresh, ...older.where((m) => m.timestamp < (fresh.last.timestamp))];
+    _autoDownloadMedia(fresh);
     notifyListeners();
   }
 
@@ -483,6 +485,20 @@ class ChatState extends ChangeNotifier {
         notifyListeners();
       }
     });
+  }
+
+  /// Auto-download photos and small media for visible messages.
+  void _autoDownloadMedia(List<CachedMessage> msgs) {
+    for (final m in msgs) {
+      if (!m.hasMedia || m.mediaDownloadState != 0) continue;
+      if (m.mediaLocalPath.isNotEmpty) continue;
+      // Auto-download photos, stickers, GIFs, and small videos (<5MB).
+      final autoTypes = {1, 6, 7}; // photo, sticker, gif
+      if (autoTypes.contains(m.mediaType) ||
+          (m.mediaType == 2 && m.mediaFileSize > 0 && m.mediaFileSize < 5 * 1024 * 1024)) {
+        _engine.requestDownload(m.accountId, m.chatId, m.msgId);
+      }
+    }
   }
 
   void _handleDownloadComplete(DownloadCompleteEvent event) {

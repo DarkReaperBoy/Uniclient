@@ -360,11 +360,11 @@ func (e *Engine) cacheMediaRef(accountID, chatID, msgID string, seq int, att cor
 		`INSERT OR REPLACE INTO media
 		 (account_id, chat_id, msg_id, seq, media_type, remote_ref, thumb_b64,
 		  file_name, mime_type, file_size, width, height, duration_ms,
-		  download_state, last_accessed)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  download_state, last_accessed, extra)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, msgID, seq, mediaType, att.ID, att.ThumbB64,
 		att.Name, att.MimeType, att.Size, width, height, durationMs,
-		DownloadNone, time.Now().UnixMilli())
+		DownloadNone, time.Now().UnixMilli(), att.Extra)
 }
 
 // PruneOldMessages removes messages older than the hot tier limit.

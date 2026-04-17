@@ -104,6 +104,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV1,
 	migrateV2,
 	migrateV3,
+	migrateV4,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -264,6 +265,7 @@ func migrateV1(tx *sql.Tx) error {
 			height         INTEGER,
 			download_state INTEGER NOT NULL DEFAULT 0,
 			last_accessed  INTEGER,
+			extra          TEXT,
 			PRIMARY KEY (account_id, chat_id, msg_id, seq)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_media_evict ON media(last_accessed) WHERE local_path IS NOT NULL`,
@@ -336,5 +338,11 @@ func migrateV2(tx *sql.Tx) error {
 // migrateV3 adds last_msg_is_outgoing column to chats table.
 func migrateV3(tx *sql.Tx) error {
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_is_outgoing INTEGER NOT NULL DEFAULT 0`)
+	return err
+}
+
+// migrateV4 adds extra column to media table (stores access hash + file reference for downloads).
+func migrateV4(tx *sql.Tx) error {
+	_, err := tx.Exec(`ALTER TABLE media ADD COLUMN extra TEXT`)
 	return err
 }

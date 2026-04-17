@@ -21,7 +21,8 @@ type downloadJob struct {
 	RemoteRef string
 	FileName  string
 	MimeType  string
-	Priority  int // 0=highest (user tap), 1=visible, 2=prefetch, 3=auto-download
+	Extra     string // platform-specific metadata (e.g., Telegram access hash + file reference)
+	Priority  int    // 0=highest (user tap), 1=visible, 2=prefetch, 3=auto-download
 	cancelFn  context.CancelFunc
 }
 
@@ -166,6 +167,7 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 		ID:       job.RemoteRef,
 		Name:     job.FileName,
 		MimeType: job.MimeType,
+		Extra:    job.Extra,
 	}
 
 	// Download with progress reporting.
@@ -213,10 +215,10 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 
 // RequestDownload queues a download for a media attachment.
 func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority int) error {
-	var remoteRef, fileName, mimeType sql.NullString
+	var remoteRef, fileName, mimeType, extra sql.NullString
 	err := e.db.QueryRow(
-		"SELECT remote_ref, file_name, mime_type FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
-		accountID, chatID, msgID, seq).Scan(&remoteRef, &fileName, &mimeType)
+		"SELECT remote_ref, file_name, mime_type, extra FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
+		accountID, chatID, msgID, seq).Scan(&remoteRef, &fileName, &mimeType, &extra)
 	if err != nil {
 		return fmt.Errorf("media ref not found: %w", err)
 	}
@@ -233,6 +235,7 @@ func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority 
 		RemoteRef: remoteRef.String,
 		FileName:  fileName.String,
 		MimeType:  mimeType.String,
+		Extra:     extra.String,
 		Priority:  priority,
 	})
 	return nil
