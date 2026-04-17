@@ -16,7 +16,7 @@ import 'package:uniclient/models/engine_models.dart';
 import 'package:uniclient/state/app_state.dart';
 import 'package:uniclient/state/chat_state.dart';
 import 'package:uniclient/state/auth_state.dart';
-import 'package:uniclient/screens/home_screen.dart';
+import 'package:uniclient/ui/shell.dart';
 import 'package:uniclient/theme/theme.dart';
 
 // ── Helpers ──
@@ -83,7 +83,7 @@ Widget _buildApp(EngineService engine, AppState appState, ChatState chatState, A
     ],
     child: MaterialApp(
       theme: AppTheme.dark,
-      home: const HomeScreen(),
+      home: const UniClientShell(),
     ),
   );
 }
@@ -272,7 +272,7 @@ void main() {
   // ── Phase 4: Render the full Flutter UI ──
 
   group('Render', () {
-    testWidgets('HomeScreen renders with real engine (loading state)', (tester) async {
+    testWidgets('UniClientShell renders with real engine (loading state)', (tester) async {
       // First, test that the loading state renders.
       final freshAppState = AppState(engine);
       await tester.pumpWidget(_buildApp(engine, freshAppState, chatState, authState));
@@ -283,7 +283,7 @@ void main() {
       expect(find.text('Starting engine...'), findsOneWidget);
     });
 
-    testWidgets('HomeScreen renders with initialized engine', (tester) async {
+    testWidgets('UniClientShell renders with initialized engine', (tester) async {
       // Mark appState as ready by calling initForTest — engine is already running from setUpAll.
       // Don't call full initialize() which triggers connectAllAccounts() and blocks.
       appState.initForTest(engine.listAccounts());
@@ -291,22 +291,22 @@ void main() {
       await tester.pumpWidget(_buildApp(engine, appState, chatState, authState));
       await tester.pump(const Duration(seconds: 1));
 
-      // HomeScreen should be rendered — look for the scaffold.
+      // UniClientShell should be rendered — look for the scaffold.
       expect(find.byType(Scaffold), findsWidgets);
       // Platform rail should be present.
-      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(UniClientShell), findsOneWidget);
 
-      print('  HomeScreen rendered OK with ${authedAccounts.length} accounts');
+      print('  UniClientShell rendered OK with ${authedAccounts.length} accounts');
     });
 
-    testWidgets('HomeScreen renders at narrow width (mobile)', (tester) async {
+    testWidgets('UniClientShell renders at narrow width (mobile)', (tester) async {
       tester.view.physicalSize = const Size(400, 800);
       tester.view.devicePixelRatio = 1.0;
 
       await tester.pumpWidget(_buildApp(engine, appState, chatState, authState));
       await tester.pump(const Duration(seconds: 1));
 
-      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(UniClientShell), findsOneWidget);
       print('  Narrow layout (400px) rendered OK');
 
       // Reset view size.
@@ -314,14 +314,14 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    testWidgets('HomeScreen renders at wide width (desktop)', (tester) async {
+    testWidgets('UniClientShell renders at wide width (desktop)', (tester) async {
       tester.view.physicalSize = const Size(1400, 900);
       tester.view.devicePixelRatio = 1.0;
 
       await tester.pumpWidget(_buildApp(engine, appState, chatState, authState));
       await tester.pump(const Duration(seconds: 1));
 
-      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(UniClientShell), findsOneWidget);
       print('  Wide layout (1400px) rendered OK');
 
       tester.view.resetPhysicalSize();
@@ -338,7 +338,7 @@ void main() {
       await tester.pumpWidget(_buildApp(engine, appState, chatState, authState));
       await tester.pump(const Duration(seconds: 1));
 
-      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(UniClientShell), findsOneWidget);
 
       final totalChats = chatState.chats.length;
       print('  ChatState loaded $totalChats chats across all platforms');
@@ -379,7 +379,7 @@ void main() {
 
       if (chatToOpen != null) {
         print('  Opened chat: "${chatToOpen.title}" with ${chatState.messages.length} messages');
-        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(find.byType(UniClientShell), findsOneWidget);
         if (chatState.messages.isNotEmpty) {
           final msg = chatState.messages.first;
           print('  Latest message: "${msg.contentText.length > 50 ? '${msg.contentText.substring(0, 50)}...' : msg.contentText}"');
@@ -416,7 +416,7 @@ void main() {
       await tester.pumpWidget(_buildApp(engine, appState, chatState, authState));
       await tester.pump(const Duration(seconds: 1));
 
-      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.byType(UniClientShell), findsOneWidget);
       print('  Mumble voice channel rendered OK');
       chatState.closeChat(); // Stop polling timer
 
@@ -447,7 +447,7 @@ void main() {
         await tester.pumpWidget(_buildApp(engine, appState, chatState, authState));
         await tester.pump(const Duration(milliseconds: 500));
 
-        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(find.byType(UniClientShell), findsOneWidget);
         print('    Rendered: ${c.title} OK');
       }
       chatState.closeChat(); // Stop polling timer
@@ -478,7 +478,7 @@ void main() {
         await tester.pumpWidget(_buildApp(engine, appState, chatState, authState));
         await tester.pump(const Duration(seconds: 1));
 
-        expect(find.byType(HomeScreen), findsOneWidget);
+        expect(find.byType(UniClientShell), findsOneWidget);
         print('    Rendered OK');
 
         // Check message timestamps are valid.

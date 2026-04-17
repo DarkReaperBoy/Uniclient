@@ -9,6 +9,7 @@ import 'state/app_state.dart';
 import 'state/chat_state.dart';
 import 'state/auth_state.dart';
 import 'theme/theme.dart';
+import 'ui/shell.dart';
 import 'utils/debug.dart';
 import 'utils/system_tray.dart';
 
@@ -137,9 +138,7 @@ class _UniClientAppState extends State<UniClientApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: appState.themeMode,
-      home: const Scaffold(
-        body: Center(child: Text('UniClient — UI rebuild in progress')),
-      ),
+      home: const UniClientShell(),
     );
   }
 }
