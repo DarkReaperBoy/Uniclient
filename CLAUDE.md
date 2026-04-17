@@ -135,7 +135,7 @@ When the user says "add X", follow these steps in order:
   ```
   **How it works:** Writes JSON commands to `/tmp/uniclient_debug_cmd.json` which the app polls every 1s in debug mode. Gesture commands use `GestureBinding.instance.handlePointerEvent()` to dispatch real `PointerDownEvent`/`PointerUpEvent`/`PointerScrollEvent` at screen coordinates. Text input finds the focused `EditableTextState` and updates its value. Output commands write results to `/tmp/uniclient_debug_out.json`.
 
-  **Testing workflow:** Screenshot → identify element coordinates → interact → screenshot → verify result. This is the PRIMARY way to self-test UI features. Always use this before presenting work to the user.
+  **Testing workflow:** Screenshot → identify element coordinates → interact → screenshot → verify result. This is the PRIMARY way to self-test UI features. You own the entire verification pipeline — the user should not need to test anything.
 
   #### 4. App logs — Verify engine calls
   ```bash
@@ -219,7 +219,7 @@ When the user says "add X", follow these steps in order:
 
 When adding a NEW core not listed here: research the official client libraries, find the best Go library or protocol spec, add a row to this table, and create the research file BEFORE writing any code.
 
-- **Build in batches, user reviews between batches** — Implement a cluster of related features, build, smoke-test with screenshots, then present the user with a specific list of things to manually verify (e.g. "open chat X, long-press a message, check the selection bar appears"). Wait for user feedback before moving to the next batch. Bugs found go into `checklist/gui.md` immediately. Don't ask "what should I do next" — just fix reported bugs first, then continue from `todolist.md`.
+- **Build in batches, self-verify, then continue** — Implement a cluster of related features, build, and fully verify them yourself using the automated testing pipeline (screenshots, gesture dispatch, logs). Fix any bugs found before moving on. Log bugs in `checklist/gui.md`. Don't ask "what should I do next" — fix bugs first, then continue from `todolist.md`. The user does NOT need to verify anything — that's your job.
 - **Self-test BEFORE handing to user — MANDATORY, FULLY AUTOMATED** — After implementing a batch, you MUST build, launch, and thoroughly test every feature yourself. You have ZERO excuse to skip testing — everything is automated:
   - **Screenshots:** `flutter_inspect.sh screenshot` — visually verify against AyuGram Desktop spec
   - **Interaction:** `flutter_interact.sh` — tap, right-click, scroll, type, taptext, findtext
@@ -232,8 +232,8 @@ When adding a NEW core not listed here: research the official client libraries, 
 - **Log every bug found in checklists** — Any bug or issue discovered during testing, auditing, or smoke-testing MUST be added to the relevant checklist file in `checklist/` immediately. Don't just fix it silently — document it so there's a paper trail. If it's a GUI bug, add it to `checklist/gui.md`. If it's a core/engine bug, add it to the relevant platform checklist.
 - **Keep docs in sync at ALL times — THIS IS NON-NEGOTIABLE** — Every session, before committing code, you MUST update: `checklist/` (status, TODOs, priorities — one file per platform), `SPEC.md` (architecture, specs), and `research/` (findings, quirks, protocol details). If you discovered something weird, it goes in `research/` IMMEDIATELY — not later, not "I'll do it at the end", NOW. If a test passed or failed, `checklist/` gets updated IMMEDIATELY. If architecture changed, `SPEC.md` gets updated IMMEDIATELY. Failing to update docs is equivalent to not doing the work. `CLAUDE.md` is ONLY for operational rules and build commands — no findings, no status details, no TODOs.
 - ALL tests are real (hit live APIs with real credentials from `auth/auth.md`)
-- Delete test files after user confirms they pass — never re-run confirmed tests
-- Ask user for credentials/interaction when needed
+- Delete test files after verifying they pass — never re-run confirmed tests
+- Use existing credentials from `auth/`. Create new accounts yourself if needed.
 - Document API quirks in `research/` immediately when discovered
 - Sessions stored in `auth/` (gitignored), convention: `auth/{platform}_session.json`. Reuse sessions to avoid FLOOD_WAIT.
 - Rate limits: 1.5s delay between API calls, skip on FLOOD_WAIT errors
@@ -243,7 +243,7 @@ When adding a NEW core not listed here: research the official client libraries, 
 - **Test files and binaries stay out of git** — all test files go in `go/tests/` (gitignored). Build output in `go/build/` (gitignored). Never commit `.so`, `.dll`, `.dylib`, `.wasm`.
 - **No PII in commits** — never include real names, usernames, phone numbers, user IDs, or GUIDs in commit messages, code comments, or committed files. All credentials stay in `auth/` (gitignored).
 - **Test paths** — `go test` runs from `go/tests/`, so session paths must use `../../auth/` not `../auth/`.
-- **OTP handling** — run tests via Bash tool. For OTP: run test in background, ask user for code, write to `auth/otp_code.txt` which the test polls.
+- **OTP handling** — run tests via Bash tool. For OTP: use existing connected accounts to read the code via the engine, or read from `auth/otp_code.txt`.
 - **Don't invent protocols** — read the official client source and implement 1:1.
 - **No duplicate methods** — Before implementing a method from the checklist, ALWAYS check existing code first. Grep the core file for similar function names and read any matches. A "missing" method may already be implemented under a different name or covered by existing logic. Compare what the checklist says vs what the code already does. Only implement if the functionality genuinely doesn't exist yet. If a checklist item is already covered, remove it from the checklist instead of adding duplicate code.
 - **ZERO placeholders — HARD BAN** — NEVER write placeholder code, stub UI, mock data, "coming soon" snackbars, hardcoded fake content, or any feature that appears to work but doesn't. If a feature isn't implemented, the UI element for it must NOT exist. No fake buttons, no mock sticker packs, no static waveforms, no "TODO" features. Every visible UI element must be fully functional end-to-end. Violating this rule is equivalent to shipping broken code.

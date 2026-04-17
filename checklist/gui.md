@@ -11,7 +11,7 @@
 
 ## MANDATORY: Self-test with automated interaction
 
-**After implementing any change, you MUST test it yourself using the gesture dispatch system before presenting to the user.** Use these scripts:
+**After implementing any change, you MUST test it yourself using the gesture dispatch system. You own the entire verification pipeline — the user should not need to test anything.** Use these scripts:
 
 ```bash
 # Screenshot the app
