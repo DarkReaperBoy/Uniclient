@@ -1,6 +1,6 @@
 # ZeroC Ice Wire Protocol Notes (for Mumble admin)
 
-Pure-Go Ice client implementation notes for talking to Murmur's Ice RPC interface.
+Pure-Go Ice client implementation notes for talking to Murmur's Ice RPC interface. See also: `research/mumble_protocol.md` for the Mumble client protocol.
 
 ## Protocol Version
 

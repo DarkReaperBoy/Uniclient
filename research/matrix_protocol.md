@@ -339,33 +339,21 @@ These are Matrix-specific features worth exposing:
 
 ## E2EE Implementation Notes
 
-Using `cryptohelper.NewCryptoHelper`:
-1. Create SQLite DB at `auth/matrix_crypto.db`
-2. Call `cryptoHelper.Init(ctx)` — handles key upload, cross-signing bootstrap, sync processing
-3. For sending: `cryptoHelper.Encrypt(ctx, roomID, evtType, content)` → encrypted content
-4. For receiving: decrypt happens in sync handler via `cryptoHelper.HandleEncrypted`
-5. `cryptoHelper.Close()` on shutdown
+Uses `OlmMachine` + `MemoryStore` directly — no `cryptohelper`, no SQLite. E2EE state persisted as JSON files (see Session Format below).
 
-Key backup via SSSS — `cryptoHelper` handles this if configured.
+1. `OlmMachine` handles key upload, cross-signing bootstrap, sync processing
+2. For sending: encrypt via `OlmMachine.EncryptMegolmEvent`
+3. For receiving: decrypt in sync handler via `OlmMachine.DecryptMegolmEvent`
+4. Key backup via SSSS if configured
 
 ---
 
 ## Session Format
 
-`auth/matrix_session.json`:
-```json
-{
-  "homeserver": "https://matrix.org",
-  "user_id": "@user:matrix.org",
-  "access_token": "...",
-  "device_id": "ABCDEF",
-  "next_batch": "s123456_789"  // sync token
-}
-```
-
-SQLite databases (managed by mautrix):
-- `auth/matrix_state.db` — room state, member cache
-- `auth/matrix_crypto.db` — Olm/Megolm sessions, device keys, cross-signing
+Three JSON files per account (no SQLite):
+- `matrix_session.json` — homeserver, token, device ID, pickle key, sync token
+- `matrix_session_crypto.json` — Olm/Megolm sessions (pickled), device keys
+- `matrix_session_state.json` — room encryption state, members
 
 ---
 

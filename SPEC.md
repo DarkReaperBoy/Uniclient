@@ -54,9 +54,9 @@ uniclient/
 │   │   ├── teamspeak.go      # TeamSpeak 3 core (UDP client protocol)
 │   │   ├── matrix.go         # Matrix core (mautrix-go SDK, E2EE, VoIP)
 │   │   ├── mumble.go         # Mumble core (TLS TCP + OCB2 encrypted UDP)
-│   │   ├── github.go        # GitHub core (REST API, issues-as-channels)
-│   │   ├── irc.go           # IRC core (RFC 1459/2812 + IRCv3, pure Go)
-│   │   └── xmpp.go         # XMPP core (RFC 6120/6121 + XEPs, pure Go)
+│   │   ├── github.go         # GitHub core (REST API, issues-as-channels)
+│   │   ├── irc.go            # IRC core (RFC 1459/2812 + IRCv3, pure Go)
+│   │   └── xmpp.go           # XMPP core (RFC 6120/6121 + XEPs, pure Go)
 │   ├── utils/
 │   │   ├── encryption.go     # ECDH, AES-256-GCM, Argon2id, keystore, @@ prefix
 │   │   ├── compression.go    # Zstd compress/decompress
@@ -423,42 +423,17 @@ The `go/utils/` package contains **every cross-cutting feature** as an isolated,
 
 ---
 
-## Research Approach
+## Documentation
 
-When learning a library or API, **clone the repo locally and read the source**. Do not rely on slow web searches.
-
-1. `git clone` the repo to `/tmp/<name>` (shallow clone with `--depth 1` for speed).
-2. Read `README.md`, `examples/`, and relevant source files directly.
-3. Store findings in `research/` or inline comments.
-4. Web search is only acceptable for finding a specific URL or link — never for broad research.
-
----
-
-## Documentation Rules
-
-### `research/` — Development Notes
-
-**Every odd/unexpected thing you discover during development goes into `research/`.**
-
-General rules:
-- Update during research, not after.
-- Include raw request/response examples (sanitized).
-- Date entries with `<!-- Discovered YYYY-MM-DD -->` comments.
-- Append-friendly — add new sections, don't reorganize unless wrong.
-
-### `/auth/auth.md` — Test Credentials
-
-All test credentials live in `/auth/auth.md` (gitignored). Format: `export VAR="value"`.
-
-### `/auth/` — Session Files
-
-All session files in `/auth/` (gitignored). Avoids re-authenticating on every test run.
+Research approach, documentation rules, and session management are defined in `CLAUDE.md`. Credentials in `/auth/auth.md` (gitignored), sessions in `/auth/` (gitignored).
 
 ---
 
 ## Build Order
 
-Implement strictly in this order. Each step has a test gate. Track progress in `CHECKLIST.md`.
+Implement strictly in this order. Each step has a test gate. Track progress in `checklist/`.
+
+**Phases 0–11 are ALL COMPLETE** (all 10 cores implemented and tested). Current work: Phase 8 (Flutter UI). See `todolist.md` for active items.
 
 ### Phase 0: Foundation
 1. `flake.nix` — dev shell
@@ -666,7 +641,7 @@ If >4000 words, split at word boundaries. Each chunk independently compressed, e
 
 ## UI/UX: Flutter (Dart)
 
-Built with **Flutter** + **Provider** state management. Multi-column on desktop, responsive on mobile.
+Built with **Flutter** + **Provider** (`ChangeNotifier`) state management. Multi-column on desktop, responsive on mobile. See `research/engine_architecture.md` for the full Dart state layer spec.
 
 ### Visual Design
 
@@ -707,7 +682,7 @@ User action → ChatState/AppState → EngineService → FFI bridge (protobuf) �
 Platform API → Core → Go engine → Event (JSON) → BridgeEvent (proto) → NativeCallable.listener → Dart StreamController → State → UI rebuild
 ```
 
-Polling fallback: 3-second Timer.periodic refreshes messages + chat list for event delivery reliability.
+Polling fallback: 3-second Timer.periodic refreshes messages + chat list for event delivery reliability. See `research/engine_architecture.md` §1 for the full data flow diagram.
 
 ### Media Handling (session 16)
 
@@ -724,20 +699,12 @@ Media metadata piped through proto: mediaType, fileName, mimeType, fileSize, thu
 
 ### Philosophy
 - **ALL tests are real** — hit live APIs with real credentials.
-- **Every feature tested against real API before marked done** — user must confirm.
+- **Self-test before declaring done** — see `CLAUDE.md` for the full automated testing pipeline.
 - **Credentials via environment variables** — never hardcode.
 - **Delete test files after confirmation** — don't keep old passing tests.
 - **Test each feature exactly once.**
 - **Table-driven tests in Go, golden tests for Dart widgets.**
 - **Utils tests are self-contained** (no external credentials needed).
-
-### Workflow
-1. Implement the feature
-2. Write real test (live API)
-3. Ask user for credentials
-4. Run test
-5. Ask user to verify on device
-6. User confirms → mark done in CHECKLIST.md
 
 ### Go Tests
 - Core tests: auth, messages, dialogs, files, read state, calls, real-time — all against live APIs
@@ -825,56 +792,7 @@ Every core and every util must **exist and function in complete isolation**:
 
 **Goal:** Every core is production-ready, uniformly structured, fully tested, docstring'd, and documented as a framework API before starting Flutter.
 
-### Step 1 — Auth modes audit
-
-Review every core's authentication and operating modes. Make sure no mode or functionality is left behind:
-- **Telegram**: bot mode, user mode, test DC mode (`UseTestDC: true`)
-- **Bale**: bot mode (HTTP API), user mode (gRPC-Web/WebSocket)
-- **Rubika**: bot mode, user mode
-- **Delta Chat**: bot mode, user mode (same IMAP/SMTP, different behavior)
-- **TeamSpeak**: identity-based auth (no separate modes, but server password / privilege keys)
-- **Matrix**: user mode (password login), bot mode (access token / appservice)
-- **Mumble**: registered user, unregistered guest, certificate-based auth
-- **GitHub**: PAT-based (single mode, but scopes vary)
-- **IRC**: SASL PLAIN, NickServ identify, connection password, or no-auth (guest)
-
-For each core, verify that every auth mode works end-to-end, session persistence survives restarts, and mode-specific features are accessible.
-
-### Step 2 — Audit every core against the Core interface
-
-Revisit each of the 9 cores (telegram, bale, rubika, deltachat, teamspeak, matrix, mumble, github, irc) and check every method in `base.go`'s `Core` interface. For each core:
-- List methods that are missing, stubbed, or have incomplete implementations
-- Check error handling: clear errors for the UI, not raw API messages
-- Check input validation: bad chat IDs, empty strings, too-long text
-- Check that `ErrNotSupported` is returned (not panic/nil) for unsupported features
-- Verify consistent chat ID format conventions across cores
-- Look for platform-specific extra methods that should be exposed or unified
-
-### Step 3 — Uniform structure
-
-Every core must follow the same layout pattern so they read identically:
-1. Constants & types
-2. Constructor (`NewXCore`)
-3. Auth (Authenticate, Logout)
-4. Dialogs (GetDialogs, CreateGroup, CreateChannel, CreateTopic, GetFolders, CreateFolder)
-5. Messages (Send, Get, Edit, Delete, Reply, Forward, React, Pin, Unpin)
-6. Read state (MarkAsRead, GetReadState)
-7. Files (Upload, Download, SendImageBase64)
-8. Calls (Start, Join, End, Mute)
-9. Profile (GetProfile)
-10. Real-time (OnUpdate, Close)
-11. Chat management (GetChatInfo, EditTitle, EditDescription, Leave, InviteLink)
-12. Members (Add, Remove, Ban, Unban, Get, SetAdmin)
-13. Contacts (Get, Add, Delete, Block, Unblock, GetBlocked)
-14. Search (Messages, Global)
-15. Misc (Typing, Polls, Stickers, Sessions)
-16. Internal helpers
-
-The function mapping must be identical: `cores.NewBaleCore(session).SendMessage(chatID, msg)` works the same as `cores.NewTelegramCore(session).SendMessage(chatID, msg)`. Same params, same return types, same error patterns.
-
-### Step 4 — Full integration tests for every core
-
-Run comprehensive tests for each core covering every implemented method. Document pass/fail in CHECKLIST.md. Tests that already passed and were confirmed don't need re-running — only test untested or changed methods.
+**Steps 1–4 COMPLETE** — all 10 cores audited, structured uniformly, fully integration-tested. See the Implemented Platforms table above for status.
 
 ### Step 5 — Docstrings and comments
 

@@ -1,5 +1,7 @@
 # GUI Build Process — Mandatory Steps Before Writing Any Widget Code
 
+> Spec sections (§1, §2, §3, etc.) refer to `research/telegram_desktop_ui.md`.
+
 **This document exists because we built the entire left panel wrong on the first attempt.** We invented a "navigation rail with account icons" layout instead of Telegram Desktop's actual hamburger-menu + filters-sidebar design. The root cause: jumping to code after skimming the spec instead of deeply studying it first.
 
 ## The Problem Pattern

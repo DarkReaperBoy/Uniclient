@@ -519,32 +519,7 @@ Response: {1: error{1:code, 2:message, 3:details}, 2: response, 3: index}
 HandshakeRequest: {1: mkprotoVersion(=1), 2: apiVersion}
 ```
 
-### Auth Service: 26 methods (bale.auth.v1.Auth)
-StartPhoneAuth, ValidateCode, ValidatePassword, SignUp, SignOut, LogOut,
-GetAuthSessions, TerminateSession, TerminateAllSessions, DeleteAccount,
-ChangePhone, SendDeleteAccountVerificationCode, SendChangePhoneVerificationCode,
-GetUserIdToken, GetTicket, GetBajeBamTicket, GetBaleTicket, GetJWTToken,
-EnableTwoFactorAuthentication, IsTwoFactorAuthenticationEnabled,
-VerifyEmail, RecoverPassword, VerifyPasswordRecovery, SetNewPassword,
-VerifyPassword, DisableTwoFactorAuthentication
-
-### Users Service: 36 methods (bale.users.v1.Users)
-EditName, EditNickName, CheckNickName, EditAbout, EditSex, EditBirthDate,
-EditAvatar, RemoveAvatar, EditMyTimeZone, EditMyPreferredLanguages,
-EditUserLocalName, LoadFullUsers, GetFullUser, GetUsersDefaultCardNumber,
-LoadFullUsersSequentially, LoadAvatars, AddCard, BlockUser, UnblockUser,
-LoadBlockedUsers, NotifyAboutDeviceInfo, ChangeDefaultCardNumber,
-RemoveDefaultCardNumber, ImportContacts, GetContacts, RemoveContact, AddContact,
-SearchContacts, LoadUsers, GetUserPrivacyStatus, SetUserPrivacyStatus,
-GetUserFullPrivacy, ResetContacts, IsNameAllowed, ChangePhoneNumber, ConfirmPhoneNumber
-
-### Other Services from Web
-- bale.v1.Configs (3): GetParameters, EditParameter, GetInAppUpdate
-- ai.bale.pushak.Push (6): RegisterPush, UnregisterPush, RegisterGooglePush, UnregisterGooglePush, UnregisterAllPushCredentials, SetConfig
-- bale.ramz.v1.Ramz (7): SetPassword, DeletePassword, SendOTP, ForgetPassword, ValidateOTP, CheckPasswordSet, CheckPassword
-- bale.report.v1.Report (2): ReportInappropriateContent, ReportDismiss
-- bale.fanoos.v1.fanoos (1): Send (analytics)
-- bale.feedback.v1.FeedBack (1): SendFeedBack
+*(Auth, Users, Configs, Push, Ramz, Report, Fanoos, FeedBack service method lists are in the Services table above — not duplicated here.)*
 
 ### MessageContent: 31 oneof types (from JS protobuf)
 | Field | Type | Description |
@@ -729,4 +704,3 @@ PUPPET_BALE, PUPPET_IGAP, PUPPET_GAP, PUPPET_EITTA, PUPPET_RUBIKA, PUPPET_SPLUS,
 ```
 Bale has built-in bridge/puppet support for other Iranian messengers.
 
-**Pending**: Bale servers offline as of 2026-04-06 evening. Will test when service recovers.

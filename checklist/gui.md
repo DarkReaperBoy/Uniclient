@@ -11,26 +11,9 @@
 
 ## MANDATORY: Self-test with automated interaction
 
-**After implementing any change, you MUST test it yourself using the gesture dispatch system. You own the entire verification pipeline — the user should not need to test anything.** Use these scripts:
+**After implementing any change, you MUST test it yourself using the automated interaction pipeline.** See `CLAUDE.md` § GUI Automation Toolkit for full command reference (`flutter_inspect.sh`, `flutter_interact.sh`, `flutter_auth.sh`).
 
-```bash
-# Screenshot the app
-UNICLIENT_LOG=/tmp/uniclient_log.txt scripts/flutter_inspect.sh screenshot /tmp/ss.png
-
-# Interact with the app (tap, right-click, scroll, type)
-scripts/flutter_interact.sh tap <x> <y>           # left-click at coordinates
-scripts/flutter_interact.sh rightclick <x> <y>     # right-click (context menu)
-scripts/flutter_interact.sh longpress <x> <y>      # long-press (selection mode)
-scripts/flutter_interact.sh scroll <x> <y> 0 -200  # scroll down
-scripts/flutter_interact.sh scroll <x> <y> 0 200   # scroll up
-scripts/flutter_interact.sh type "hello"           # type into focused field
-scripts/flutter_interact.sh open <index>           # open chat by index
-scripts/flutter_interact.sh chats                  # list chats (JSON)
-scripts/flutter_interact.sh messages               # list current messages
-scripts/flutter_interact.sh state                  # get app state
-```
-
-**Workflow:** screenshot → identify coordinates → interact → screenshot → verify result. Repeat for each feature. Do NOT mark anything as done until you have visually confirmed it works via screenshots.
+**Workflow:** screenshot → identify coordinates → interact → screenshot → verify result. Do NOT mark anything as done until visually confirmed.
 
 ## Bugs (fix first, verify with automated interaction)
 
@@ -80,7 +63,7 @@ scripts/flutter_interact.sh state                  # get app state
 - [ ] Settings screens
 - [ ] Mobile (OneColumn) slide navigation
 
-## Done
+## Needs visual review (implemented but not screenshot-verified against AyuGram)
 
 - [ ] Responsive shell layout (UniClientShell) — OneColumn/TwoColumn/ThreeColumn modes
 - [ ] Chat list sidebar (ChatListPanel) — search, sorted chat rows

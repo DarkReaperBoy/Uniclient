@@ -188,29 +188,9 @@ Everything below was prototyped and validated in the HTML demo (now deleted). Mo
 | Must join VC to see VC text chat (TeamSpeak style) | Bad UX — you should be able to read VC chat without joining audio |
 | Floating theme toggle widget | Belongs in Settings, not cluttering the chat area |
 
-## Pre-GUI Requirement: Protobuf Bridge
-
-Before starting Flutter implementation, replace the JSON-based FFI bridge with **Protocol Buffers**:
-- Define `.proto` files for all bridge request/response types
-- `protoc` generates Go structs + Dart classes from the same schema
-- When backend changes a field, regenerate both sides — compiler catches every broken widget instantly
-- No more runtime surprises from JSON shape drift
-
-This is the single most impactful thing to do before writing Flutter code. Without it, every backend change means hunting through the UI for broken JSON parsing. With it, `protoc` + the Dart compiler tell you exactly what to fix.
-
 ## Flutter Implementation Status
 
-The HTML POC validated the design. The Flutter app now implements most of it. See `checklist/gui.md` for detailed component status. Key remaining work:
-
-- Reactions UI
-- Channel broadcast style (no avatar/name)
-- Voice/video recording UI
-- Mention autocomplete (@user, #channel)
-- Custom accent color picker
-- Right panel real content (members, search, threads)
-- Call screen UI
-- System tray + desktop notifications
-- Accessibility (screen readers, keyboard navigation)
+Protobuf bridge is DONE. The Flutter app implements most of the HTML POC design. See `checklist/gui.md` for detailed component status and remaining work.
 
 ## GUI Automation Toolkit
 
@@ -283,3 +263,6 @@ This avoids all the complexity of runtime Dart evaluation and works on every pla
 ### Tools
 - `scripts/flutter_inspect.sh` — screenshot, tree, find, details, text
 - `scripts/flutter_auth.sh` — status, choose, submit, otp-wait, auto, cancel
+- `scripts/flutter_interact.sh` — tap, rightclick, longpress, scroll, type, key, open, send, chats, messages, state
+
+See `CLAUDE.md` § GUI Automation Toolkit for full command reference and usage examples.

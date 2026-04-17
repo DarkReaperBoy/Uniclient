@@ -1,7 +1,8 @@
 # Mumble Protocol Specification
 
-Complete reverse-engineered spec for the Mumble VoIP protocol. Sources: official
-Mumble.proto, MumbleUDP.proto, MumbleProtocol.h, CryptStateOCB2.cpp,
+Complete reverse-engineered spec for the Mumble VoIP protocol. See also: `research/ice_protocol.md` for Murmur admin via ZeroC Ice RPC.
+
+Sources: official Mumble.proto, MumbleUDP.proto, MumbleProtocol.h, CryptStateOCB2.cpp,
 PacketDataStream.h, ACL.h, and docs/dev/network-protocol/ from
 mumble-voip/mumble (GitHub master branch).
 

@@ -41,7 +41,7 @@ This document is the implementation spec for `go/engine/`. Every decision here w
 ╔════════════════════════════════════════════════════════════╗
 ║  FLUTTER UI (Dart)                                        ║
 ║  Screens, widgets, animations, themes                     ║
-║  State mirror (Riverpod 3) — read-only snapshot of engine ║
+║  State mirror (Provider/ChangeNotifier) — read-only snapshot of engine ║
 ║  Bridge (dart:ffi / WASM interop)                         ║
 ╠══════════════════ FFI boundary ═══════════════════════════╣
 ║  BRIDGE (go/bridge/)                                      ║
@@ -64,7 +64,7 @@ This document is the implementation spec for `go/engine/`. Every decision here w
 ### Data Flow
 
 ```
-USER ACTION:   UI → Riverpod → bridge.call() → Engine → Core → Network
+USER ACTION:   UI → Provider → bridge.call() → Engine → Core → Network
 RESPONSE:      Network → Core → Engine (cache + normalize) → PushEvent → Dart → UI
 
 REAL-TIME:     Network → Core.OnUpdate → Engine.handleUpdate
@@ -898,7 +898,9 @@ for rows.Next() {
 
 ## 10. Dart State Layer
 
-### Pattern: Riverpod 3 StreamProvider
+### Pattern: Provider + ChangeNotifier
+
+> **Note:** The current implementation uses three `ChangeNotifier`s (`AppState`, `ChatState`, `AuthState`) with `MultiProvider`. The per-domain providers listed below are the target architecture — not yet implemented.
 
 The Go engine is the source of truth. Dart maintains a read-only mirror, updated by events from the bridge. Widgets rebuild reactively when their specific data changes.
 
@@ -1858,7 +1860,7 @@ Wire the engine into the existing protobuf bridge.
 Build the GUI. The engine handles everything, Dart is boring:
 
 ```
-1. App shell          — MaterialApp, theme, Riverpod scope, bridge init
+1. App shell          — MaterialApp, theme, Provider scope, bridge init
 2. Splash screen      — Vault password prompt, loading state, error state
 3. Zero-state         — Welcome screen with "Add Account" when no accounts
 4. Auth flow          — Generic auth screen (renders any AuthState)
@@ -1906,7 +1908,7 @@ Start using the app daily. Fix every annoyance. This is where the last 10% of qu
 | One DB vs many | One DB, `account_id` column | Unified chat list query is the critical path. One query vs merge-sorting 10. |
 | Credentials | Vault (Argon2id + AES-256-GCM file) | Already exists, battle-tested, encrypted at rest. |
 | Message cache | SQLite (content_raw + content_rich + content_text) | Dual format: raw for editing, normalized for rendering, plain for search. |
-| State management (Dart) | Riverpod 3 StreamProvider | Proven for event-stream-driven state. StreamNotifier for read+write. |
+| State management (Dart) | Provider/ChangeNotifier StreamProvider | Proven for event-stream-driven state. StreamNotifier for read+write. |
 | Auth UI | Generic state machine | 1 Flutter screen handles all 10 platforms. Zero platform-specific auth UI. |
 | Content format | RichContent proto (blocks + spans) | Type-safe, extensible, renders identically in Flutter. Not Markdown (no spoiler/mention support), not HTML (XSS risk). |
 | Offline reliability | Pending queue (SQLite-backed) | Messages survive crashes. Optimistic UI. Retry on reconnect. |

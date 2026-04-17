@@ -4,11 +4,13 @@ Written before any code, per `gui_build_process.md` rules.
 
 ## Spec Sections Referenced
 
-- **SS1** Window Layout & Column Structure
-- **SS2** Chat List Sidebar (folder tabs, search, rows, states)
-- **SS3** Hamburger Menu (profile, accounts, menu items)
-- **SS4** Chat Header / Top Bar (for shell integration)
-- **SS13** Mobile / Web Compatibility (OneColumn mode)
+All section references below are from `research/telegram_desktop_ui.md`:
+
+- **§1** Window Layout & Column Structure
+- **§2** Chat List Sidebar (folder tabs, search, rows, states)
+- **§3** Hamburger Menu (profile, accounts, menu items)
+- **§4** Chat Header / Top Bar (for shell integration)
+- **§13** Mobile / Web Compatibility (OneColumn mode)
 
 ## Architecture Decisions: UniClient Adaptations
 

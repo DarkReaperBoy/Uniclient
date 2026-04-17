@@ -945,22 +945,6 @@ Rubika uses **standard WebRTC** for group voice chats. Much simpler than Telegra
 7. **Leave**: `leaveGroupVoiceChat(group_guid, voice_chat_id)`
 8. **End**: `discardChannelVoiceChat(channel_guid, voice_chat_id)` for channels
 
-### API Methods
-
-| Method | Input | Description |
-|--------|-------|-------------|
-| `createGroupVoiceChat` | `{chat_guid}` | Start voice chat, get voice_chat_id |
-| `createChannelVoiceChat` | `{channel_guid}` | Start in channel |
-| `joinGroupVoiceChat` | `{chat_guid, voice_chat_id, sdp_offer_data, self_object_guid}` | Join with SDP offer, get SDP answer |
-| `joinChannelVoiceChat` | Same as above | Join channel voice chat |
-| `leaveGroupVoiceChat` | `{group_guid, voice_chat_id}` | Leave |
-| `discardChannelVoiceChat` | `{channel_guid, voice_chat_id}` | End channel voice chat |
-| `setVoiceChatState` | `{chat_guid, voice_chat_id, state}` | Set state |
-| `setGroupVoiceChatSetting` | `{group_guid, voice_chat_id, ...settings}` | Update settings |
-| `setChannelVoiceChatSetting` | `{channel_guid, voice_chat_id, ...settings}` | Update settings |
-| `getGroupVoiceChatUpdates` | `{group_guid, voice_chat_id, state}` | Get participants/updates |
-| `sendGroupVoiceChatActivity` | `{group_guid, voice_chat_id}` | Speaking indicator |
-
 ### API Methods (verified 2026-04-12)
 
 All use `chat_guid` (NOT `group_guid`) in the real web client:
@@ -1068,7 +1052,6 @@ Getting the wrong param name = silent failure or cryptic error.
 - DataChannel rejected by Janus: `m=application 0 ... a=inactive` in SDP answer.
 - Rate limit: ~15 voice chat creates before WebRTC connections start failing. Need 60-90s cooldown.
 - Web client uses `RTCPeerConnection(null)` — no ICE servers. Janus provides server candidates in SDP answer.
-- **~~Janus session timeout~~** — FIXED. Root cause: `state` param was string instead of int. With `state: 0` (int64), connection lives indefinitely.
 - **DTLS intermittent**: only ~25% of WebRTC connection attempts succeed. ICE connects, DTLS fails silently.
 - **`getGroupInfo` unreliable for VC discovery** — `group_voice_chat_id` often missing from response even when a VC is active. Use `createGroupVoiceChat` (returns existing VC) or pass VC ID explicitly.
 - **`voice_chat_id` appears in 3 different response paths** — `exist_group_voice_chat.voice_chat_id`, `group_voice_chat_update.voice_chat_id`, `chat_update.chat.group_voice_chat_id`. Must check all three.

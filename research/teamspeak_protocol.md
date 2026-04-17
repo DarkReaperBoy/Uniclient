@@ -437,10 +437,6 @@ Voice packets use the same AES-128-EAX encryption as command packets:
 - QuickLZ spec: http://www.quicklz.com (Level 1 format documentation)
 - Live testing against avanor-gaming.de:9987 (public TS3 server)
 
-<!-- Updated 2026-04-09: added voice packets, full command reference, error codes, sources -->
-<!-- Updated 2026-04-09: voice transport implemented (send/receive/whisper/group whisper, EAX encrypted), S2C body format documented, 189 methods total -->
-<!-- Updated 2026-04-09: voice test findings — Newprotocol flag must NOT be set on voice, server omits error id=0, talk_power blocks voice silently -->
-
 ## Implementation Quirks (discovered 2026-04-09)
 
 ### Voice packets must NOT use Newprotocol flag
