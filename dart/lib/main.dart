@@ -6,6 +6,7 @@ import 'dart:ui' show PointerChange, PointerDeviceKind, PointerData, PointerSign
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'bridge/engine_service.dart';
@@ -482,18 +483,34 @@ class _UniClientAppState extends State<UniClientApp> {
           editableState.performAction(TextInputAction.newline);
         }
       case 'escape':
-        // Dismiss any popup by popping the top route.
-        final element = WidgetsBinding.instance.rootElement;
-        if (element != null) {
-          // Find a navigator context by walking the tree.
-          BuildContext? navCtx;
-          void findNavigator(Element el) {
-            if (navCtx != null) return;
-            if (el.widget is Navigator) { navCtx = el; return; }
-            el.visitChildren(findNavigator);
+        // Dispatch real KeyDownEvent + KeyUpEvent through HardwareKeyboard so
+        // Focus(onKeyEvent:) handlers (e.g. ChatView's reply/edit/selection
+        // cancel) get a chance to handle it first. If nothing handles it,
+        // fall through to the legacy Navigator.maybePop() route so that
+        // modal popups/dialogs still dismiss on Escape.
+        final ts = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+        final handled = HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.escape,
+          logicalKey: LogicalKeyboardKey.escape,
+          timeStamp: ts,
+        ));
+        HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+          physicalKey: PhysicalKeyboardKey.escape,
+          logicalKey: LogicalKeyboardKey.escape,
+          timeStamp: ts,
+        ));
+        if (!handled) {
+          final element = WidgetsBinding.instance.rootElement;
+          if (element != null) {
+            BuildContext? navCtx;
+            void findNavigator(Element el) {
+              if (navCtx != null) return;
+              if (el.widget is Navigator) { navCtx = el; return; }
+              el.visitChildren(findNavigator);
+            }
+            element.visitChildren(findNavigator);
+            if (navCtx != null) Navigator.of(navCtx!, rootNavigator: true).maybePop();
           }
-          element.visitChildren(findNavigator);
-          if (navCtx != null) Navigator.of(navCtx!, rootNavigator: true).maybePop();
         }
     }
   }

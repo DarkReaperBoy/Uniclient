@@ -316,6 +316,28 @@ class _ChatViewState extends State<ChatView> {
     _scrollToBottom();
   }
 
+  /// Escape key handler — Telegram Desktop spec §8: cancels reply, edit,
+  /// or selection in priority order (selection > edit > reply). Returns
+  /// `handled` if anything was cancelled so the event doesn't bubble further.
+  KeyEventResult _handleEscape() {
+    if (_selectionMode) {
+      setState(() => _selectedMsgIds.clear());
+      return KeyEventResult.handled;
+    }
+    if (_editingMsgId != null) {
+      setState(() {
+        _editingMsgId = null;
+        _composeController.clear();
+      });
+      return KeyEventResult.handled;
+    }
+    if (_replyToId != null) {
+      setState(() => _replyToId = null);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -326,7 +348,17 @@ class _ChatViewState extends State<ChatView> {
       return const SizedBox.shrink();
     }
 
-    return Container(
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.escape) {
+          return _handleEscape();
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Container(
       color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
@@ -429,6 +461,7 @@ class _ChatViewState extends State<ChatView> {
             isEditing: _editingMsgId != null,
           ),
         ],
+      ),
       ),
     );
   }
