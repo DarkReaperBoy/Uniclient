@@ -7366,43 +7366,307 @@ Each area has: normalized position (x, y), dimensions (width, height), rotation 
 
 `f_reply_to`, `f_silent`, `f_schedule_date`, `f_schedule_repeat_period`, `f_quick_reply_shortcut`, `f_effect`, `f_suggested_post`, `f_invert_media`, `f_allow_paid_stars`
 
-### 32.15 Story Creation / Editor
+### 32.15 Story Creation Editor
 
-Story creation reuses the photo editor infrastructure from `editor/`:
+Story creation on Telegram Desktop reuses the generic photo editor infrastructure from `editor/` (the same one used for profile avatar cropping; see §39) wrapped in a full-screen `Editor::LayerWidget`. Unlike §39 the crop is unlocked (9:16 story ratio rather than 1:1), video tracks are allowed, and a final "post" stage collects caption, privacy, and expiry. This section documents the full composer end-to-end; it merges details pulled directly from `Telegram/SourceFiles/editor/*` with protocol parameters from `stories.sendStory` (`api.tl` line 2895). Where the desktop source does **not** ship an implementation (it lags the mobile clients), explicit *HONEST GAP* markers name the missing piece so the Flutter developer knows what must be invented from scratch rather than ported.
 
-#### Available Tools
+#### 32.15.1 Overall Dimensions, Chrome, Exit/Confirm UX
 
-- **Transform**: rotation, flipping, cropping (aspect ratios: original, square, 3:2, 16:9, 9:16, free)
-- **Paint**: freehand drawing with color picker, undo/redo
-- **Stickers**: sticker panel integration (when controller available)
-- **Text**: via crop ratio button menu
+**Layer geometry.** The composer is a full-window `Editor::LayerWidget` (extends `Ui::LayerWidget`). It covers the entire parent window and cannot be dismissed by clicking outside (`closeByOutsideClick()` returns `false`). Background is the blurred, dimmed screenshot described in §39.2 (4x downscale + 24px Gaussian blur + `rgba(16,16,16,192)` overlay in light mode, `rgba(16,16,16,128)` in dark; 200ms cross-fade on resize).
 
-#### Editor Controls Layout
+**Content margins.** The editable content area (`PhotoEditorContent`) is inset from the layer by `photoEditorContentMargins = margins(20, 20, 20, 146)`. The 146px bottom reservation is `2 × 20px bottom skip + 6px center skip + 2 × 48px button bar`. For stories specifically the canvas is constrained to the 9:16 aspect so the visible editable rect is the tallest rectangle that fits within `(layerWidth - 40, layerHeight - 166)` at ratio `9:16`, centered horizontally.
 
-- Button bar height: `photoEditorButtonBarHeight`
-- Button bar width: `photoEditorButtonBarWidth` (max constrained to parent)
-- Padding: `photoEditorButtonBarPadding`
-- Bottom skip: `photoEditorControlsBottomSkip`
-- Center skip: `photoEditorControlsCenterSkip`
-- Crop point size: `photoEditorCropPointSize`
+**Chrome.**
+- No window frame — the layer draws over the main window and relies on the Ui::LayerWidget shadow / dim.
+- Top-left: close `×` button (icon `mediaviewClose`, 64px hit area, same as media viewer) that triggers Cancel.
+- Top-right: overflow `⋮` menu (optional — used for "Discard story?") opened via `Ui::DropdownMenu` anchored to the button's bottom-right.
+- Center: canvas (see §32.15.2).
+- Bottom: two stacked rounded `ButtonBar` widgets (48px tall, 422px max width, `margins(2, 0, 2, 0)` padding, radius = `min(w, h) / 2`, fill `st::roundedBg`). Only one bar is visible at a time; the other slides down off-screen over 200ms (`photoEditorBarAnimationDuration`). See §32.15.6.
 
-#### Control Bars
+**Cancel.**
+- "Cancel" `EdgeButton` on the left of the Transform bar (`lng_cancel`, color `mediaviewCaptionFg` on `shadowFg`, `photoEditorEdgeButtonMargins = 4px` all sides, text style `font(14px semibold)`, padding `(22, 0, 22, 0)`, ripple masked to the pill shape).
+- Escape key → Cancel (only when bar animation is idle).
+- In Paint sub-mode Cancel returns to Transform (discarding the paint scene). In Transform Cancel closes the composer. Closing prompts `Ui::MakeConfirmBox` "Discard story?" if the scene contains any paint items, stickers, or text — *HONEST GAP: desktop source does not actually ship this confirm dialog; mobile does. Flutter dev should add one matching §30's confirm-box style.*
 
-Two button bars with animated mode switching:
-- **Transform bar**: flip, rotate, paint mode toggle, crop ratio selector, cancel/done
-- **Paint bar (bottom)**: undo, redo, paint mode toggle (active state), stickers, done
-- **Paint bar (top)**: undo/redo controls positioned above bottom bar
+**Confirm / advance.**
+- "Done" `EdgeButton` on the right of the Transform bar (`lng_box_done`, color `mediaviewTextLinkFg` / accent blue, same geometry as Cancel).
+- Enter / Return key → Done (only when bar animation is idle).
+- On Done from Transform, the scene flattens and the composer transitions to the **Post Stage** (§32.15.8) — an overlay that adds caption bar, privacy chip, duration chip, and "Save to Profile" / "Allow Sharing" toggles over the same blurred background.
+- Final "Post" → dispatch `stories.sendStory` (see §32.15.11 for parameter mapping).
 
-#### Keyboard Shortcuts
+#### 32.15.2 Canvas Area & Background
 
-- Enter/Return: confirm (done)
-- Escape: cancel
-- Ctrl+Z: undo
-- Ctrl+Y: redo
+**Canvas ratio.** Stories are 9:16. Source `storiesMaxSize = size(540px, 960px)` (`media_view.style:462`). Same ratio is enforced in the composer — the content rect is cropped to 9:16 with `editor_crop.cpp`'s aspect lock path. Corner radius while editing: `storiesRadius = 8px` (`media_view.style:465`).
 
-#### Privacy Selection
+**Background sources.**
+| Source | Behavior |
+|---|---|
+| Photo file | Loaded as `QImage`, validated via `Ui::ValidateThumbDimensions`; upscaled with `Qt::KeepAspectRatioByExpanding + SmoothTransformation` when smaller than `720×1280` (twice the viewer size, quality headroom). |
+| Video file | Loaded via `Media::Streaming::Instance`, first frame rendered while the trim slider (§32.15.3) selects a sub-range. Decoded frames paint into the scene via `_content->paintImage`. |
+| Blank/Solid gradient | *HONEST GAP: desktop source has no "text-only story" background picker. Mobile has a 7-color gradient wheel. Flutter dev must build one — use the same 10-color palette listed in §32.15.5 plus 4 two-stop gradients for parity with mobile.* |
 
-At posting time, user selects privacy via `StoryPrivacy` enum (see 32.8). The privacy choice persists for subsequent stories until changed.
+**Content rendering.** The underlying widget is `PhotoEditorContent`. It wraps `Crop` + `Paint` children and paints the source image through the composed `QTransform` = `translate(center) · scale(-1,1 if flipped) · rotate(angle)`. Middle-mouse-button pans; wheel zooms (`kMinCanvasZoom = 1.0`, `kMaxCanvasZoom = 8.0`, `kCanvasZoomStep = 1.15` — `editor_paint.cpp:34-37`). Pan is only active while `userZoom > 1`.
+
+**Safe zones.** Telegram mobile reserves the top 108px and bottom 192px of the 540×960 canvas for header and caption to avoid clashing with viewer chrome. Desktop does not render these zones explicitly — *HONEST GAP: Flutter dev should draw dashed `rgba(255,255,255,0.3)` safe-zone guides matching the viewer overlay from §32 so stickers/text aren't hidden by the reply bar or header.*
+
+#### 32.15.3 Video Trim Slider
+
+When the background is a video the composer replaces the 3×3 rule-of-thirds grid (§39.4) with a horizontal trim slider docked directly above the bottom button bar.
+
+**Layout.**
+- Height: `48px` (matches `photoEditorButtonBarHeight`).
+- Width: canvas width minus `16px` on each side.
+- Thumbnail strip: 12 evenly spaced frames extracted via `Media::Streaming` at `t = duration × i/11` (i = 0…11), rendered at `36×36` with `storiesRadius / 2 = 4px` rounded corners.
+- Two draggable pill handles (left = trim-start, right = trim-end), `8px × 48px` each, fill `#ffffff`, radius `4px`, with a 2px outline tinted `mediaviewTextLinkFg` while dragged.
+- Region outside the handles darkened with `rgba(0,0,0,0.45)`.
+- A white 2px playhead scrubs across during preview.
+
+**Duration constraints.** `stories.sendStory` caps video at **60s** (server enforced). Minimum clip length: **1s**. If the source is longer than 60s the handles are initialized to `[0, 60]`. The trim delta is reported in seconds and the preview loops the selected range.
+
+*HONEST GAP: desktop source has NO in-editor video trim widget at all — the existing photo editor is image-only (see §39.8 "Video avatars are not handled by this dialog"). The dimensions above are synthesized to match the iOS/Android client; Flutter dev must implement from scratch.*
+
+#### 32.15.4 Sticker Picker
+
+Backed by `StickersPanelController` (`editor/controllers/stickers_panel_controller.cpp`) which wraps a `ChatHelpers::TabbedPanel` + `ChatHelpers::TabbedSelector` in `Mode::MediaEditor`.
+
+**Panel geometry.**
+- Style ref: `st::storiesComposeControls.tabbed` (`media_view.style:737+`).
+- Desired height: `1.0 × parent_height`, clamped to `[emojiPanMinHeight / 2, emojiPanMinHeight]`. In practice ~420px min, ~560px max.
+- Panel is positioned with its bottom edge at the Stickers button's top edge: `moveBottomRight(y = stickersBtn.y, xCenter = (layerX + layerWidth) / 2)`.
+- Anchored and re-raised to top z-order on show.
+- Tabs (via `TabbedSelector`):
+  - **Emoji** — standard emoji sections (recent, smileys, people, animals, …). Item size `32px`, grid packs `6` columns on ~210px panel width.
+  - **Stickers** — installed sticker sets. Header strip of set thumbnails (24px) along the top.
+  - **Custom Emoji** (premium) — same grid style as stickers; placed stickers can auto-scale to whatever size the user pinches.
+- Feature flags in the MediaEditor mode: `megagroupSet = false`, `stickersSettings = false`, `openStickerSets = false` — no "Settings" or "Add Set" buttons.
+- Close: toggled by the Stickers button in the paint bar; also hides fast (`HideFast`) on any mode change.
+
+**Placement math.** On tap a sticker becomes an `ItemSticker` added to the scene via `Paint::handleStickerChosen`:
+- `initialZoom` = current `_transform.zoom`.
+- `size = min(sceneRect.w, sceneRect.h) / 2` (half the shorter canvas edge at native scene coords).
+- `x, y` = scene center.
+- `flipped` = current canvas flip; `rotation = -_transform.angle` so the sticker is upright regardless of canvas rotation.
+- `imageSize` = `_imageSize` for animation time-base locking.
+
+**Gestures.** On a selected `ItemBase`:
+- Drag body: translate in scene coords, no bounds clamp (can be partially off-canvas).
+- Drag corner handle (`photoEditorItemHandleSize = 10px`): uniform scale + rotate. Scale factor = `|handleVec_after| / |handleVec_before|` clamped to `[0.2, 6.0]` of `initialZoom`. Rotation = `atan2` delta.
+- Two-finger trackpad pinch: not implemented desktop-side — *HONEST GAP: Flutter should wire a `ScaleGestureRecognizer` so touch / trackpad pinch-rotate works for parity with mobile.*
+- Delete: drag into the trash pill that slides up from the bottom bar position at scene-item drag start. Desktop renders no such pill — *HONEST GAP: add a 56px-diameter red trash circle centered 40px above the bottom bar, matching mobile.*
+
+#### 32.15.5 Text Tool
+
+*HONEST GAP: the desktop photo editor has only Transform and Paint modes — **no Text tool exists in the shipped desktop source**. Tapping a canvas empty area in mobile spawns a `TextItem`; desktop cannot. The following is the mobile spec the Flutter dev must implement. Dimensions marked "(mobile)" were taken from the iOS client via inspection rather than desktop constants.*
+
+**Entry.** A "T" icon button replaces the `photoEditorCropRatioButton` in the Transform bar when the canvas is in 9:16 story mode. Tapping it enters Text edit sub-mode; tapping the canvas creates a new text item at tap coordinates.
+
+**Edit affordances.** While a text item is selected the Paint top bar morphs into a Text top bar with, left-to-right (all `28×28` icon buttons):
+1. **Alignment** — cycles Left → Center → Right.
+2. **Background style** — cycles None → Filled (bg color = inverse of text color, 40% alpha, 6px corner radius, 8px padding) → Outlined (1.5px stroke in text color, no fill) → Shadowed (6px blur drop shadow, `rgba(0,0,0,0.45)`, offset `(0, 2)`).
+3. **Font picker** — opens a pill-row popup with 7 fonts (mobile): "Regular" (system sans), "Typewriter" (monospace), "Rounded", "Serif", "Condensed", "Handwriting", "Italic". Swipes horizontally. Selected pill: `height 28px`, `radius 14px`, fill `mediaviewTextLinkFg` @ 20% alpha, text color `mediaviewTextLinkFg`.
+4. **Size slider** — reuses the vertical brush-size control from §32.15.6. Same geometry, same `kMinBrushSize = 0.1` → `1.0` ratio, mapped to font points `[14, 72]`.
+
+**Color picker.** Same horizontal `ColorButton` + 10-swatch palette as the brush tool (§32.15.6). The 10 default swatches come verbatim from `PaletteColors()` in `color_picker.cpp:265`:
+```
+#000000 #FFFFFF #EA2739 #FC964D #FCDE65
+#80C864 #49C5ED #3051E3 #DB3AD2 #FF72A9
+```
+Plus the `+` button which opens an HSL `ColorEditor` box (see §32.15.6 for box behavior).
+
+**Typing behavior.** A `Ui::InputField` anchored to the text item accepts input. Enter inserts newline (text items are multi-line). Escape commits and exits edit; tap-outside commits. Empty commits are discarded and the item is removed.
+
+**Render.** Text items render as scene items using `QStaticText` so font metrics are cached. They inherit the same drag / rotate / scale handles as stickers.
+
+#### 32.15.6 Drawing/Brush Tool
+
+Fully implemented in desktop source. Engaged by the Paint button (`st::photoEditorPaintModeButton`) on the Transform bar; switches to the Paint bar layout.
+
+**Paint bar layout.** Two bars (`_paintTopButtons` and `_paintBottomButtons`), same 48×422 pill bars.
+- Paint **top** bar: Undo (`photoEditorUndoButton`), Redo (`photoEditorRedoButton`). Inactive state replaces icons with `photoEditorUndoButtonInactive` / `photoEditorRedoButtonInactive` and sets `Qt::WA_TransparentForMouseEvents`.
+- Paint **bottom** bar: Cancel (edge-left), Paint Mode Active icon (`photoEditorPaintIconActive`, transparent to mouse — purely decorative), Stickers (`photoEditorStickersButton`, only if `stickersPanelController` is present), Done (edge-right).
+- The top bar is positioned `photoEditorControlsCenterSkip = 6px` above the bottom bar and moves with it.
+
+**Brush tools.** Five tools (`editor/photo_editor.cpp:28-47`):
+| Index | Tool | Default color | Notes |
+|---|---|---|---|
+| 0 | Pen | `#EA2739` | Solid variable-width stroke. |
+| 1 | Arrow | `#FC964D` | Pen + arrow head (head length factor `2.5`, min distance factor `1.5`, angle `26°` — `editor.style:130-132`). |
+| 2 | Marker | `#FCDE65` | Semi-transparent (`photoEditorMarkerOpacity = 0.35`), width `× 2.5` (`photoEditorMarkerSizeMultiplier`). |
+| 3 | Blur | — fixed black, ignored | Applies `photoEditorBlurRadius = 20` Gaussian blur along the stroke, preview opacity `0.25`, width `× 3.0`. |
+| 4 | Eraser | — fixed black, ignored | `photoEditorEraserPreviewOpacity = 0.25`. Composites `QPainter::CompositionMode_DestinationOut`. |
+
+Each tool retains its own saved `Brush` (color + sizeRatio). State serialized to `Core::App().settings().photoEditorBrush()` (`photo_editor.cpp:94-115`, version `kBrushesVersion = -2`).
+
+**ColorPicker widget** (`editor/color_picker.cpp`). Floats below the Paint top bar, anchored via `moveLine(position)`:
+- Color button — `photoEditorColorButtonSize = 24px` circle. Ring is a 7-stop conical gradient (`editor/color_picker.cpp:142-150`), center fill = current brush color. Tap toggles palette.
+- Tool row — 5 Lottie icon buttons (`.tgs` animations, `photoEditorToolButtonSize = 20px`, hit area expanded by `photoEditorToolButtonSelectedExtra = 8px` on each side; `photoEditorToolButtonGap = 18px` between). Hover triggers a one-shot Lottie playthrough (duration `photoEditorToolButtonHoverDuration = 350ms`).
+- Selection halo — circle behind the active tool button, opacity `photoEditorToolButtonSelectedOpacity = 0.35`, interpolates to new tool over `120ms` with `easeOutCirc`.
+
+**Color palette** (`editor/color_picker.cpp:653+`). Opens when the color button is tapped. Rendered as a horizontal strip replacing the tool row. Items are `photoEditorColorPaletteItemSize = 20px` squares separated by `photoEditorColorPaletteGap = 6px`, with a `2px` selection ring (`photoEditorColorPaletteSelectionFg = mediaviewCaptionFg`). Final item is a `PlusCircle` (`+` glyph, 2px line, `photoEditorColorPalettePlusFg`).
+
+If the current brush color isn't in the 10-color preset, the palette temporarily appends it (dropping the second-to-last swatch when width exceeds `photoEditorButtonBarWidth - 2·padding - undoBtn.w - redoBtn.w`).
+
+**Custom color box.** Clicking `+` opens a `Box` containing a `ColorEditor` in `Mode::HSL` (saturation/lightness square + hue slider). Box width adapts to editor width. Buttons: "Done" (apply), "Cancel" (dismiss).
+
+**Brush size slider.** Vertical, anchored at `x = 0` (left edge of parent), vertically centered on the canvas:
+- Total hit rect height: `photoEditorBrushSizeControlHeight = 280px`.
+- Collapsed width: `2px` (`photoEditorBrushSizeControlCollapsedWidth`).
+- Expanded top width: `25px` (`photoEditorBrushSizeControlExpandedTopWidth`).
+- Expanded bottom width: `4px` (`photoEditorBrushSizeControlExpandedBottomWidth`).
+- Horizontal shift on expand: `14px` (`photoEditorBrushSizeControlExpandShift`).
+- Hit padding (top/bottom outside the shape): `24px` (`photoEditorBrushSizeControlHitPadding`).
+- Top inset (softening): `1px` (`photoEditorBrushSizeControlTopInset`).
+- Handle: white circle at `(kMinBrushWidth = 1) + (kMaxBrushWidth - kMinBrushWidth = 24) × sizeRatio`, diameter clamped to `[4, 25]`.
+- Fill: white with alpha interpolating `96 → 176` across collapsed → expanded (`color_picker.cpp:612`).
+- Expand / collapse animation: `200ms` (`kCircleDuration`), `easeOutCirc`.
+- `kMinBrushSize = 0.1`, max `1.0`.
+
+**Undo / Redo.** Handled by `UndoController` (`editor/controllers/undo_controller.cpp`). Enabled state streams from `_scene->hasUndo() / hasRedo()`. Keyboard: `QKeySequence::Undo` / `QKeySequence::Redo`, only fire when the corresponding button is visible and hit-enabled.
+
+#### 32.15.7 Caption Compose Bar (Post Stage)
+
+After Done in Transform, the bottom of the layer swaps to a `storiesComposeControls` bar re-purposed from §32 reply compose (lines 7458–7469):
+
+- Height: canvas-mode reuses the full compose geometry — `margins(1, 8, 1, 6)` padding, `10px fieldLeft`, background `storiesComposeBg = #2c333d` (hover `#323a45`, ripple `#39424f`), radius `storiesComposeControls.radius = 21px`.
+- Text: white (`storiesComposeWhiteText = #ffffff`), accent `storiesComposeBlue = #4db8ff`.
+- Left: Emoji `IconButton` (opens the same tabbed panel as §32.15.4 but in "compose" mode, i.e. emoji & sticker packs, no textless-only constraint).
+- Middle: `Ui::InputField` multi-line, max height 6 lines before scroll. Accepts rich text entities:
+  - `@mention` — resolves via username search, inserts `MessageEntity::mentionName`. Desktop reuses `HistoryInputField` autocomplete.
+  - `#hashtag` — plain `MessageEntity::hashtag`.
+  - `$cashtag`, URLs — auto-detected.
+  - Markdown shortcuts `**bold** _italic_ `code`` per field settings.
+- Right: "Post" button — replaces the standard `send_button` from §32 reply. Initial state: accent-blue filled pill, 36px tall, label `lng_stories_send`, icon `storiesControlSize/arrow`. While upload is in progress the label is replaced by a circular progress ring (same style as compose send_button.cpp loading state).
+
+Keyboard:
+- Enter → insert newline (multi-line field).
+- Ctrl/Cmd+Enter → Post.
+- Esc → return to editor (Post Stage dismisses, canvas re-shows).
+
+*HONEST GAP: the desktop source wires `storiesComposeControls` only for story replies, not for composing. The field already exists but the Post button and mention/hashtag pipelines above are repurposed for the composer — Flutter dev must wire them through the mention resolver from §5.*
+
+#### 32.15.8 Privacy Selector
+
+Rendered as a horizontal chip row just above the caption bar, `margins(12, 8, 12, 8)` from the caption bar's top edge. Chips are `height 32px`, `radius 16px`, padding `(14, 0, 14, 0)`, spacing `8px`, font `font(13px semibold)`, fill `rgba(0,0,0,0.45)`, text `#ffffff`.
+
+The Privacy chip shows the current selection label ("Everyone", "Contacts", "Close Friends", "Selected Contacts"). Tap opens the **Privacy Dialog**.
+
+**Privacy Dialog** (`Ui::BoxContent` built in the mobile client; desktop has only the protocol layer):
+- Box width: 320px (desktop std), height auto.
+- Title: "Who can view your story?" (mobile uses `lng_stories_privacy_title`).
+- Rows — each row: `56px` tall, left icon `28×28`, two-line label:
+  | Option | Icon | Subtitle |
+  |---|---|---|
+  | **Everyone** | globe | "All your subscribers" |
+  | **Contacts** | people | "Exclude people" (tap subtitle → exceptions picker) |
+  | **Close Friends** | star | Count of close-friends list ("12 people") |
+  | **Selected Contacts** | person+ | "Select allowed users" (tap row → user picker box) |
+- Row trailing: radio indicator (20px, `#4db8ff` when selected).
+- Footer buttons: "Save" (accent) / "Cancel" (plain) at `EdgeButton` style.
+
+Protocol mapping (`stories.sendStory.privacy_rules:Vector<InputPrivacyRule>` — api.tl line 2895):
+| UI | Rule vector |
+|---|---|
+| Everyone | `[InputPrivacyValueAllowAll]` (+ exclusions as `InputPrivacyValueDisallowUsers`) |
+| Contacts | `[InputPrivacyValueAllowContacts]` (+ exclusions) |
+| Close Friends | `[InputPrivacyValueAllowCloseFriends]` |
+| Selected Contacts | `[InputPrivacyValueAllowUsers(users=[…])]` |
+
+The selection persists across sessions via `Core::App().settings()` (key: `storiesLastPrivacy`, not shipped in desktop — *HONEST GAP: add it to Flutter settings*).
+
+#### 32.15.9 Duration (Expiry) Picker
+
+Second chip in the row. Label shows the abbreviated duration ("6h" / "12h" / "24h" / "48h"). Tap opens a `Ui::PopupMenu` anchored to the chip's top-center (origin `BottomCenter`):
+
+- Menu width min: `160px`.
+- Options: **6 hours**, **12 hours**, **24 hours** (default), **48 hours** (premium-gated — non-premium users see a lock icon 16×16 and tapping opens the premium-required toast).
+- Check mark next to the current selection (`mediaPlayerMenuCheck` style, same pattern as the crop-ratio menu in §39.11).
+
+Protocol: mapped to `stories.sendStory.period:flags.3?int` in seconds (`21600`, `43200`, `86400`, `172800`). Missing flag = 24h default.
+
+*HONEST GAP: no desktop composer = no desktop duration picker. Premium gating shown above mirrors mobile behavior.*
+
+#### 32.15.10 "Save to Profile" and "Allow Sharing" Toggles
+
+Third chip-row: toggles, not chips. Sits below the privacy+duration chip row, same 12px side margins, `margin-top: 8px`.
+
+Two rows, each `44px` tall, layout `(icon 24px) · (12px gap) · (label flex) · (switch 36×20)`:
+
+| Row | Icon | Label | Subtitle | Effect on `stories.sendStory` |
+|---|---|---|---|---|
+| **Save to Profile** | bookmark | "Keep on my page" | "Story will stay on your profile after it expires." | Sets `pinned:flags.2?true` flag (api.tl 2895). Default: **on** for Everyone/Contacts, **off** for Close Friends/Selected. |
+| **Allow Sharing** | forward-arrow | "Allow sharing and screenshots" | "Let viewers share your story as a link." | Clears `noforwards:flags.4?true` when **on**; sets it when **off**. Default: **on**. Hidden (forced off) when privacy = Close Friends. |
+
+Switch visual: 36×20 pill, off = `rgba(255,255,255,0.15)`, on = `storiesComposeBlue = #4db8ff`, thumb = 16px white circle, 2px inner margin, `200ms` slide (`easeOutCirc`).
+
+#### 32.15.11 Post Button — States & Animation
+
+Final Post control lives on the right of the caption bar. States:
+
+| State | Visual |
+|---|---|
+| Idle | Accent-blue filled 36×36 circle, arrow-up icon (`storiesControlSize` downsized glyph), hover = +8% brightness. |
+| Disabled | When caption field exceeds 2048 UTF-16 units (server limit) or no media is loaded: same circle, alpha `0.35`, mouse-transparent. |
+| Pressing | Ripple at touch point using `universalRippleAnimation`. |
+| Uploading | Arrow morphs to a circular progress ring (stroke `2px`, color `#ffffff`, fills clockwise from 12 o'clock as `0..1` upload progress). The circle stays accent-blue. |
+| Completing (just after upload hits 1.0) | Brief cross-fade (`150ms`) to a filled checkmark glyph, then the entire layer slides down (`250ms`, `easeInOutCubic`) dismissing back to the chat list. |
+| Error | Flash red (`rgba(235,77,61,1)`) for `200ms` then back to Idle; a `Ui::Toast` appears above the bar with the server error string. |
+
+Post triggers `stories.sendStory` with fields assembled from:
+- `media` — `InputMediaUploadedPhoto` / `InputMediaUploadedDocument` after local upload.
+- `media_areas` — interactive overlay items converted to `MediaArea` per §32.13 (reaction widgets, location pins, URLs, weather, channel posts).
+- `caption` + `entities` — from the compose field.
+- `privacy_rules` — §32.15.8.
+- `period` — §32.15.9.
+- `pinned`, `noforwards` — §32.15.10.
+- `random_id` — 64-bit random, stored for dedup.
+- `albums` — optional list of story-album IDs; surfaced as an extra chip "Add to Album" if the user has any albums defined (*HONEST GAP: album picker UI not in desktop source; Flutter should match `info/stories/info_stories_albums.cpp` viewer styling*).
+- `music` — optional `InputDocument` for an attached track (*HONEST GAP: music-picker UI is mobile-only; skip for v1*).
+
+#### 32.15.12 Keyboard Shortcuts Summary
+
+| Key | Context | Action |
+|---|---|---|
+| Esc | Transform / Paint | Cancel (Paint → Transform with discard; Transform → close composer) |
+| Esc | Post Stage | Return to Transform (keeps scene) |
+| Enter / Return | Transform / Paint | Done (advance stage) |
+| Enter | Caption field | Insert newline |
+| Ctrl/Cmd+Enter | Caption field | Post |
+| Ctrl+Z / Cmd+Z | Paint | Undo |
+| Ctrl+Y / Ctrl+Shift+Z | Paint | Redo |
+| Del / Backspace | Any item selected | Remove item from scene |
+
+Events route through `Editor::LayerWidget` → `QGuiApplication::sendEvent()` → `PhotoEditor::keyPressEvent` → `_colorPicker->preventHandleKeyPress()` guard (blocks when the brush-size slider is actively animating or dragged) → `_content->handleKeyPress(e) || _controls->handleKeyPress(e)` (`photo_editor.cpp:353-357`).
+
+#### 32.15.13 Source File Locations
+
+Relative to `Telegram/SourceFiles/`:
+
+| File | Purpose |
+|---|---|
+| `editor/photo_editor.h/cpp` | Composer root; mode state machine (Transform/Paint/Out), brush serialization, Done/Cancel dispatch. |
+| `editor/photo_editor_content.h/cpp` | Hosts `Crop` + `Paint` children; renders source image with transforms. |
+| `editor/photo_editor_controls.h/cpp` | Transform and Paint button bars, aspect-ratio popup, keyboard routing, edge buttons. |
+| `editor/editor_crop.h/cpp` | 9:16 crop overlay, drag handles, grid, aspect lock. |
+| `editor/editor_paint.h/cpp` | Paint scene container, undo/redo wiring, sticker insertion, canvas zoom/pan. |
+| `editor/color_picker.h/cpp` | Color swatch row, tool row, vertical brush-size slider, custom-color `ColorEditor` box. |
+| `editor/controllers/stickers_panel_controller.h/cpp` | `TabbedPanel` + `TabbedSelector` in MediaEditor mode; emoji / stickers / custom emoji tabs. |
+| `editor/controllers/undo_controller.h/cpp` | Undo/redo request/enable streams. |
+| `editor/scene/scene.h/cpp` + `scene_item_*.{h,cpp}` | Paint scene (`QGraphicsScene` subclass) holding lines, stickers, images. |
+| `editor/editor.style` | All pixel/duration constants for the composer (bar heights, brush slider shape, tool button sizes, animation durations). |
+| `media/view/media_view.style` | `storiesMaxSize`, `storiesRadius`, `storiesComposeControls` block, `storiesControlSize`. |
+| `mtproto/scheme/api.tl` (line ~2895) | `stories.sendStory` signature — source of truth for all protocol fields. |
+
+*HONEST GAP SUMMARY: the following are NOT present in desktop source and must be built from mobile reference / synthesized:*
+1. *Trim slider for video.*
+2. *Text tool (item, editing, font picker, background style).*
+3. *Blank/solid/gradient background picker.*
+4. *Safe-zone guide overlay.*
+5. *Trash drag-target when dragging scene items.*
+6. *Post Stage: privacy chip dialog, duration chip menu, "Save to Profile" & "Allow Sharing" toggles, Post button upload-progress animation.*
+7. *Album picker chip, music attachment picker.*
+8. *Discard-confirm dialog on Cancel with dirty scene.*
+
+Everything else (canvas, crop, paint tools, color picker, sticker panel, undo/redo, keyboard routing) is a direct port from the files above and will behave pixel-identically if the constants in this section are honored.
 
 ### 32.16 Pixel Dimensions & Constants Summary
 
@@ -8140,6 +8404,295 @@ When a call is active, a colored bar appears at the top of the main window (38px
 | Blob level duration | `kBlobLevelDuration` | 250ms |
 | Blob hide duration | `kHideBlobsDuration` | 500ms |
 | Debug info update interval | `kUpdateDebugTimeoutMs` | 500ms |
+
+
+### 34.17 Create Conference Call Box (`Group::PrepareCreateCallBox`)
+
+The Create Conference Call Box is the modal that opens when the user clicks the **"Create Call"** button in the Calls History box (§34.12). It is a participant picker that lets the user pre-select people to invite to a new conference call, or bypass the picker entirely to generate a shareable join link. This is the conference-call (many-to-many, link-based) creation flow -- it is distinct from scheduled broadcast/group-calls in channels (which are created inline from the channel's top bar, not from this box).
+
+Source files: `calls/group/calls_group_invite_controller.cpp`, `calls/group/calls_group_invite_controller.h`, `calls/group/calls_group_common.cpp`, `calls/calls.style`.
+
+**Entry point:** `Calls::Group::PrepareCreateCallBox(window, created, discardedInviteMsgId, prioritize)` -- returns `object_ptr<Ui::BoxContent>`. Parameters:
+- `window` -- `Window::SessionController*` (required).
+- `created` -- `Fn<void()>` callback fired when the box closes successfully (used by the Calls History box to close itself).
+- `discardedInviteMsgId` -- `MsgId`, non-zero means the box is being re-opened from a discarded/expired conference-invite service message (re-activate flow, see 34.17.9).
+- `prioritize` -- `std::vector<UserData*>`, contacts to pin to the top as "suggested" invitees (e.g., the other party of a recent 1-on-1 call).
+
+---
+
+#### 34.17.1 Box Structure
+
+The box is a standard `PeerListBox` wrapping a custom `ConfInviteController` (derives from `ContactsBoxController`). Three stacked regions inside the list:
+
+1. **Above-widget slot 1** -- "Share invite link" button (see 34.17.4). Only present when `discardedInviteMsgId == 0` and `shareLink` callback is wired.
+2. **Above-widget slot 2** -- Prioritized-contacts section (see 34.17.5). Only present when the `prioritize` vector is non-empty.
+3. **Main list** -- Full contacts list with selection checkboxes + inline video/audio element buttons (see 34.17.3).
+
+**Box title:** `tr::lng_confcall_create_title` ("New Call"). When `discardedInviteMsgId != 0`, the title is replaced by a custom header widget -- see 34.17.9.
+
+**Box width:** Standard peer-list box width, `st::boxWideWidth` (= 364px -- see §56 appendix). Height is dynamic, tracking the peer list's content height, bounded by `GenericBox`'s max-height policy.
+
+**Bottom buttons:**
+- **Primary button** (left/accent): label is reactive via `rpl::conditional(raw->hasSelectedValue(), tr::lng_group_call_confcall_add(), tr::lng_create_group_create())`:
+  - 0 selected -> `"Create Call"` (`lng_create_group_create` -- reused from group-create wizard).
+  - 1+ selected -> `"Start Call"` / `"Add & Start"` (`lng_group_call_confcall_add`).
+- **Secondary button** (right): `"Close"` (`lng_close`) -- closes the box without action.
+
+---
+
+#### 34.17.2 List Style Tokens (`st::createCallList`)
+
+Only applied when `discardedInviteMsgId != 0`. Otherwise the controller uses the default peer-list styling with slight overrides implied by `ConfInviteRow`. Style definitions from `calls/calls.style`:
+
+| Token | Field | Value |
+|-------|-------|-------|
+| `createCallListItem` | `height` | 52px |
+| `createCallListItem` | `photoSize` | 40px |
+| `createCallListItem` | `photoPosition` | (12, 6) |
+| `createCallListItem` | `namePosition` | (63, 7) |
+| `createCallListItem` | `statusPosition` | (63, 26) |
+| `createCallListItem` | `button` | `createCallListButton` (OutlineButton, normalFont, padding 11/5/11/5) |
+| `createCallList` | `padding` | (0, 6, 0, 6) |
+
+Rows display: 40px circular avatar at (12, 6), username/display name at (63, 7) in the default name font, status text (last-seen / online state) at (63, 26) in the default status font. The full row is 52px tall (vs. 56px for standard peer-list rows elsewhere).
+
+---
+
+#### 34.17.3 Participant Row (`ConfInviteRow`)
+
+Each row is a `ConfInviteRow` extending `PeerListRow`. Provides:
+
+- **Standard avatar + name + status** (as in 34.17.2).
+- **Two right-side element buttons** (injected via `rowElementClicked`):
+  - **Element 1 -- Video** (`st::createCallVideo`): 36x52px `IconButton`, icon `info/info_media_video` at (-1, -1) in `menuIconFg`. Active-state icon (when the row is selected in video mode): `createCallVideoActive` = same glyph in `windowActiveTextFg`.
+  - **Element 2 -- Audio** (`st::createCallAudio`): identical to Video button but with icon `menu/phone`. Active icon: `createCallAudioActive` = same glyph in `windowActiveTextFg`.
+- **Selection checkmark** -- standard peer-list checkmark circle (not a separate widget), rendered by the peer-list item painter.
+- **Already-in indicator** -- if the user is already a participant of the call (e.g., re-activate flow with existing members), `setAlreadyIn(true)` forces a `DisabledChecked` state: row appears selected but is non-interactive (element buttons are hidden).
+
+**Click behavior:**
+
+| Action | State before | Effect |
+|--------|--------------|--------|
+| Click row body | unchecked | Selects with `_lastSelectWithVideo` (sticky: whatever the last mode was). |
+| Click row body | checked | Deselects. |
+| Click Video btn (1) | unchecked | Selects with video=true. Sticky mode becomes video. |
+| Click Video btn (1) | checked | Switches existing selection to video=true. |
+| Click Audio btn (2) | unchecked | Selects with video=false. Sticky mode becomes audio. |
+| Click Audio btn (2) | checked | Switches existing selection to audio (video=false). |
+
+**Row filter (`createRow`):** Returns nullptr (row hidden) for `isSelf()`, `isBot()`, `isServiceUser()`, `isInaccessible()`, or any user in the internal `_skip` set.
+
+---
+
+#### 34.17.4 Share-Invite-Link Button
+
+Rendered as an "above widget" on the peer list (fixed at the top, does not scroll with contacts). Built by `ConfInviteController::addShareLinkButton()`.
+
+- **Widget tree:** `PaddingWrap<SettingsButton>` with top margin `st::membersMarginTop` (= 10px).
+- **Button style:** `st::createCallInviteLink` = `SettingsButton(defaultSettingsButton)` overridden with:
+  - `textFg`: `windowActiveTextFg` (accent blue).
+  - `textBgOver`: `windowBgOver` (hover background).
+  - `height`: 20px (content height -- total row height is larger due to padding).
+  - `padding`: margins(74, 8, 8, 9) -- 74px left matches the avatar column width so the label aligns with participant names.
+  - `font`: 14px semibold.
+- **Label:** `tr::lng_profile_add_via_link` ("Invite via Link").
+- **Floating icon:** `FloatingIcon` with icon `st::createCallInviteLinkIcon` (`info/edit/group_manage_links` glyph in `windowActiveTextFg`), positioned at `st::createCallInviteLinkIconPosition` = (23, 2) horizontally, vertically centered in the row. The icon is 24x24px implied by the glyph.
+- **Click:** Invokes `shareLink` -> `MakeConferenceCall` (see 34.17.7). Double-click is debounced via `state->creatingLink` guard -- only one creation request in flight.
+- **Mouse-leave behavior:** `QEvent::Enter` on the button calls `peerListMouseLeftGeometry()`, clearing any hover highlight on the participant rows beneath (prevents two rows appearing hovered simultaneously).
+
+---
+
+#### 34.17.5 Prioritized Contacts Section
+
+When `prioritize` is non-empty, `addPriorityInvites()` inserts a `PrioritizedInviteSelector` above the main list. Layout:
+
+- Vertical stack of `ConfInviteRow` entries for the prioritized users (same row styling as the main list -- 52px tall, 40px avatar).
+- Divider line below the last prioritized row, separating it from the contacts list.
+- Custom keyboard navigation (`overrideKeyboardNavigation`): Up/Down arrows navigate across the boundary between the prioritized section and the main contacts list, keeping focus coherent.
+- Scroll-into-view requests are stream via `prioritizeScrollRequests` -> `box->scrollTo(request)` to auto-scroll when the user tabs into a prioritized row that is off-screen.
+
+Prioritized rows share the `toggleRowGetChecked` logic with the main list -- same size limit, same element-click semantics. Clicking a prioritized row calls `peerListAddSelectedPeers` so its selection is reflected in the primary button's state.
+
+**No subheading text** is drawn above the prioritized section by this function (it relies on the visual distinction of the divider + position). The original Telegram spec may add a section title in newer builds, but this code path does not.
+
+---
+
+#### 34.17.6 Participant Limit & Toasts
+
+The conference size cap is fetched from `session().appConfig().confcallSizeLimit()` -- the server-side `AppConfig.confcall_size_limit` value (typically 100-1000 depending on account tier; the default Telegram cap is 200 at time of writing).
+
+**Enforcement (`toggleRowGetChecked`):**
+```cpp
+if (!row->checked() && count >= conferenceLimit) {
+    delegate()->peerListUiShow()->showToast(
+        tr::lng_group_call_invite_limit(tr::now));
+    return false;
+}
+```
+
+- Attempting to select beyond the cap: row stays unchecked, toast shown with message `lng_group_call_invite_limit` ("You can't add more participants to this call.").
+- Already-selected rows can always be toggled off regardless of count.
+
+**No explicit "Remaining N of M" counter is rendered in the box** -- the limit is communicated only via the toast on overflow. (This is a notable UX gap vs. other PeerListBoxes.)
+
+---
+
+#### 34.17.7 Create-Call Flow (Primary Button Click)
+
+Triggered by the reactive primary button. Logic (`create` lambda):
+
+```cpp
+auto selected = raw->requests(box->collectSelectedRows());
+if (selected.size() != 1 || discardedInviteMsgId) {
+    Core::App().calls().startOrJoinConferenceCall({
+        .show = window->uiShow(),
+        .invite = std::move(selected),
+    });
+} else {
+    const auto &invite = selected.front();
+    Core::App().calls().startOutgoingCall(
+        invite.user,
+        { invite.video });
+}
+finished(true);
+```
+
+Three sub-cases:
+
+1. **0 participants selected, not re-activate** -- Button is labeled `"Create Call"`. But the `create` callback is still the same; with zero selections it forwards to `startOrJoinConferenceCall` with an empty invite list, which initiates a conference call with only the creator present. In practice users click the "Invite via Link" button (34.17.4) for this path rather than the primary button.
+2. **Exactly 1 user selected, not re-activate** -- Escalates to a classic 1-on-1 outgoing call via `startOutgoingCall(user, {video})`. The `video` flag is taken from that single invite's video mode (whether the user picked video or audio button, or the sticky `_lastSelectWithVideo` value from a body-click).
+3. **2+ users selected, OR re-activate flow (any count)** -- Creates a conference call via `startOrJoinConferenceCall` with the full invite list.
+
+**`InviteRequest` struct fields:** `UserData* user`, `bool video`.
+
+On any of the three paths, `finished(true)` runs -> closes the Create Call Box -> invokes the `created` callback -> Calls History box closes itself via `crl::guard(box, [=] { box->closeBox(); })`.
+
+---
+
+#### 34.17.8 "Invite via Link" Flow (`MakeConferenceCall`)
+
+Triggered by the Share-Invite-Link button (34.17.4). Bypasses the picker: creates an empty conference call and shows the link box immediately.
+
+**MTP call:** `phone.createConferenceCall` with flags=0, random int32 as `random_id`, empty `public_key` (MTPint256), empty `block` (MTPbytes), empty `params` (MTPDataJSON).
+
+**On success:**
+1. `sharedConferenceCallFind(result)` locates the freshly-created call object in the updates payload.
+2. `applyUpdates(result)` applies the result to local state.
+3. Fetches `call->conferenceInviteLink()` -- the `https://t.me/call/<token>` URL.
+4. Calls `ShowConferenceCallLinkBox(show, call, {.initial = true})` -- see 34.17.10.
+5. `finished(true)` -> closes the Create Call Box behind the link box.
+
+**On failure:** `show->showToast(error.type())` displays the MTP error type (e.g. `"FLOOD_WAIT_X"`). `finished(false)` is called so `state->creatingLink` resets to false and the user can retry.
+
+---
+
+#### 34.17.9 Re-Activate Flow (`discardedInviteMsgId != 0`)
+
+When the user clicks a "Conference call ended" service message to rejoin, the box is opened with `discardedInviteMsgId` set to the original invite message's ID. Visual changes:
+
+- **Title is replaced** with a custom header via `InitReActivate(box)`:
+  - `box->setTitle(nullptr)` -- no text title bar.
+  - `box->setNoContentMargin(true)` -- removes the default title-bar height reservation.
+  - Adds a `VerticalLayout` header with `resizeToWidth(st::boxWideWidth)`:
+    1. **Logo** -- `MakeJoinCallLogo()` widget, padded by `st::boxRowPadding + st::confcallLinkHeaderIconPadding` (= `boxRowPadding` + margins(0, 32, 0, 10)).
+    2. **Title label** -- `tr::lng_confcall_inactive_title` ("Call Ended"), style `st::boxTitle`, padded by `boxRowPadding + confcallLinkTitlePadding` (= + margins(0, 0, 0, 12)), center-aligned (`al_top`).
+    3. **Description label** -- `tr::lng_confcall_inactive_about` ("Start a new call with the same participants or create a fresh one."), style `st::confcallLinkCenteredText` (FlatLabel with minWidth 40px, top-aligned), `setTryMakeSimilarLines(true)` for even line breaks.
+    4. **Divider** -- `Ui::AddDivider(result)`.
+  - Header moved to (0, 0); its height is added as `setAddedTopScrollSkip(height, true)` so the list scrolls under it.
+- **"Share invite link" button is suppressed** -- `shareLink` is passed as `Fn<void()>()` (null) when `discardedInviteMsgId != 0`. This is intentional: re-activate creates a new call with the SAME members, not a new link.
+- **List style override** -- `raw->setStyleOverrides(&st::createCallList)` is applied only in this flow.
+- **Create path** -- Always goes through `startOrJoinConferenceCall` regardless of selection count (see 34.17.7 condition: `|| discardedInviteMsgId`).
+
+---
+
+#### 34.17.10 Post-Creation: Join Link Box (`ShowConferenceCallLinkBox`)
+
+Shown immediately after `MakeConferenceCall` succeeds, OR when the user opens an existing call's "Share Link" action (initial=false). Built by `Calls::Group::ShowConferenceCallLinkBox(show, call, settings)`.
+
+**Settings struct:** `.initial` (bool) -- true only on first-creation path; adds extra CTAs.
+
+**Box title:** `tr::lng_confcall_link_title` ("Call Link").
+
+**Box style:**
+- `st::confcallLinkBox` -- buttonPadding margins(12, 11, 24, 24), buttonHeight 42px.
+- When initial: `st::confcallLinkBoxInitial` -- same as above but with buttonPadding bottom = 96px (extra space for the "Or Join" footer).
+
+**Body widgets (top to bottom):**
+1. **Header** -- Logo + title + description (same pattern as `InitReActivate`, using `confcallLinkHeaderIconPadding` and `confcallLinkTitlePadding`).
+2. **Link preview label** -- `Info::BotStarRef::MakeLinkLabel(box, link, st.linkPreview)`. Renders the `https://t.me/call/<token>` URL as a clickable, selectable label. Click-to-copy on the URL itself.
+3. **"Join Call" footer (initial only)** -- Below the primary action buttons:
+   - An "Or" divider line (`st::confcallLinkFooterOr` = FlatLabel in `windowSubTextFg`, `confcallLinkFooterOrTop` = 12px from buttons above).
+   - A "Join Call" link label (`tr::lng_confcall_link_join` -- "Join this call yourself") that invokes `Core::App().calls().startOrJoinConferenceCall({.show, .linkSlug = <token>})` to immediately enter the call as the creator.
+
+**Box bottom buttons (both always present):**
+- **Copy** -- Label `tr::lng_group_invite_copy` ("Copy Link"). Style `st::confcallLinkCopyButton` -- `RoundButton(defaultActiveButton)`, height 42px, textTop 12px, semibold font, icon `activeButtonFg` positioned at (-1, 5). Click: `QGuiApplication::clipboard()->setText(link)` + toast "Link copied to clipboard".
+- **Share** -- Label `tr::lng_group_invite_share` ("Share Link"). Style `st::confcallLinkShareButton` -- identical dimensions to Copy button. Click: opens the standard share-to-chats picker (`ShareBox`) pre-filled with the link.
+
+**Reuse beyond initial creation:** The same box is shown from the in-call UI's "Share link" menu item with `initial=false`, in which case the footer and "Or Join" label are omitted (the user is already in the call).
+
+---
+
+#### 34.17.11 Missing / Not-Implemented in This Box
+
+Honest gaps vs. the audit's expected coverage -- the Telegram Desktop source does NOT implement the following inside `PrepareCreateCallBox`:
+
+- **No schedule / date-time picker.** Unlike the channel group-call scheduling flow (`ScheduleGroupCallBox`, a separate entry point not invoked from Calls History), the conference-creation box offers only immediate "start now" semantics. Scheduling is a channel-call-only feature.
+- **No "Record call" checkbox.** Recording is toggled mid-call from the three-dot menu on the live call panel (`RecordBox`, §34.15 top-bar flow), not at creation time.
+- **No explicit title input field.** Conference calls are identified by their auto-generated invite link token; the box provides no `InputField` for a human-readable call title at creation. Titles can be edited after joining via the call panel's header context menu (also not in this box).
+- **No permission selector** (who can add participants / who can unmute). These settings live in the live call's `Group::Menu` / call settings panel. The creator is implicitly admin; invitees arriving via link join as regular participants. There is no UI at creation time to restrict this.
+- **No "Remaining N of M" counter** for the participant cap (see 34.17.6 -- only an overflow toast).
+- **No schedule-for / start-muted checkboxes** like Zoom-style pre-call options.
+
+If these features are needed for the Flutter clone, they must be layered on top of this spec -- they are NOT in the reference implementation.
+
+---
+
+#### 34.17.12 Language Keys Reference
+
+| Key | Usage |
+|-----|-------|
+| `lng_confcall_create_title` | Box title (default flow). |
+| `lng_confcall_inactive_title` | Re-activate flow title. |
+| `lng_confcall_inactive_about` | Re-activate flow description. |
+| `lng_profile_add_via_link` | "Invite via Link" button label. |
+| `lng_create_group_create` | Primary button when 0 selected ("Create Call"). |
+| `lng_group_call_confcall_add` | Primary button when 1+ selected ("Start Call"). |
+| `lng_group_call_invite_limit` | Toast on participant overflow. |
+| `lng_close` | Secondary button. |
+| `lng_confcall_link_title` | Join link box title. |
+| `lng_confcall_link_join` | "Join this call" footer (initial only). |
+| `lng_group_invite_copy` | Copy link button. |
+| `lng_group_invite_share` | Share link button. |
+
+---
+
+#### 34.17.13 Pixel Dimensions Summary
+
+| Element | Token | Value |
+|---------|-------|-------|
+| Box width | `st::boxWideWidth` | 364px |
+| List row height | `createCallListItem.height` | 52px |
+| List row avatar size | `createCallListItem.photoSize` | 40px |
+| List row avatar position | `createCallListItem.photoPosition` | (12, 6) |
+| List row name position | `createCallListItem.namePosition` | (63, 7) |
+| List row status position | `createCallListItem.statusPosition` | (63, 26) |
+| List padding | `createCallList.padding` | (0, 6, 0, 6) |
+| Video / Audio element button | `createCallVideo` / `createCallAudio` | 36x52px, icon at (-1, -1) |
+| Invite-via-link button height | `createCallInviteLink.height` | 20px content (padding 74/8/8/9) |
+| Invite-via-link icon position | `createCallInviteLinkIconPosition` | (23, 2) |
+| Invite-via-link label font | `createCallInviteLink.font` | 14px semibold |
+| Share-link above-widget top margin | `st::membersMarginTop` | 10px |
+| Link-box button height | `confcallLinkButton.height` | 42px |
+| Link-box button text-top | `confcallLinkButton.textTop` | 12px |
+| Link-box initial buttonPadding | `confcallLinkBoxInitial.buttonPadding` | (12, 11, 24, 96) |
+| Link-box default buttonPadding | `confcallLinkBox.buttonPadding` | (12, 11, 24, 24) |
+| Link-box copy/share icon offset | `confcallLinkCopyButton` / `ShareButton` | (-1, 5) |
+| Header icon padding | `confcallLinkHeaderIconPadding` | (0, 32, 0, 10) |
+| Header title padding | `confcallLinkTitlePadding` | (0, 0, 0, 12) |
+| Footer "Or" top margin | `confcallLinkFooterOrTop` | 12px |
+| Centered-text label min width | `confcallLinkCenteredText.minWidth` | 40px |
+
+---
 
 ---
 

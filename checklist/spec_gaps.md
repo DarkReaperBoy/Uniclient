@@ -8,6 +8,8 @@ Progress so far:
 - ✅ §50 Streamer Mode & Read Toggles (AyuGram) added.
 - ✅ §56 Appendix A — Resolved Style Constants added (~90 tokens resolved, ~25 still need deeper grep).
 - ✅ §57 Appendix B — Dark Theme Color Palette added (full day-blue / night tables).
+- ✅ §32.15 Story Creation Editor rewritten (300 lines, 13 subsections, honest gaps flagged where desktop source lacks features).
+- ✅ §34.17 Create Conference Call Box added (287 lines — documents the participant picker + invite-link flow; clarifies that title/schedule/record options don't exist at creation time in upstream).
 
 Session-handoff rule: pick any one of the section groups below, spawn parallel research agents (3+ at a time), and fill in. Each fill should be committed separately for clean history.
 
@@ -57,9 +59,9 @@ Audit found dark-theme variants for almost every token are missing. §57 appendi
 - §29 (5730–6017): Account Data checkbox indent, ChooseTimeWidget dims, progress row fonts, TAKEOUT_INVALID box.
 - §30 (6127–6484): bot menu button width formula, Web App loading screen, game button states, Login URL Auth dialog, payments panel details.
 - §31 (6679–6789): SavedMessagesTagBar widget, EditTagNameBox, Subsection Tabs width computation.
-- §32 (7076–7405): Public badge, reply compose layout, views list menu, profile stories grid, **story creation editor is critical missing section** (canvas, sticker/text tools, color picker, privacy, trim, caption), reaction panel trigger.
+- §32 (7076–7405): Public badge, reply compose layout, views list menu, profile stories grid, ~~story creation editor~~ (**DONE** — §32.15 rewritten), reaction panel trigger.
 - §33 (7528–7682): stories bar in contacts, country code picker, edit-contact cover overlay.
-- §34 (7895–8099): date-group headers, Rate Call dialog, active-call top bar details, **Group::PrepareCreateCallBox missing entirely**.
+- §34 (7895–8099): date-group headers, Rate Call dialog, active-call top bar details, ~~Group::PrepareCreateCallBox~~ (**DONE** — §34.17 added).
 
 ## §35–§49 — States / Popups / Misc
 
