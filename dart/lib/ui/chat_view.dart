@@ -512,6 +512,55 @@ class _ChatTopBar extends StatelessWidget {
     return _fallbackAvatar(chat, theme, radius);
   }
 
+  /// Show the chat-level action menu anchored to the more_vert button.
+  /// Mirrors the chat-list right-click menu but scoped to the currently open chat.
+  static void _showTopBarMenu(BuildContext btnCtx, ChatInfo chat) {
+    final chatState = btnCtx.read<ChatState>();
+    final overlay = Overlay.of(btnCtx).context.findRenderObject() as RenderBox;
+    final button = btnCtx.findRenderObject() as RenderBox;
+    final origin = button.localToGlobal(Offset.zero, ancestor: overlay);
+    final position = RelativeRect.fromRect(
+      origin & button.size,
+      Offset.zero & overlay.size,
+    );
+    final isGroupy = chat.type == ChatType.group ||
+        chat.type == ChatType.channel ||
+        chat.type == ChatType.topic;
+    showMenu<String>(
+      context: btnCtx,
+      position: position,
+      items: [
+        PopupMenuItem(value: 'mute', child: Text(chat.isMuted ? 'Unmute' : 'Mute')),
+        PopupMenuItem(
+          value: 'read',
+          child: Text(chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread'),
+        ),
+        PopupMenuItem(value: 'pin', child: Text(chat.isPinned ? 'Unpin' : 'Pin')),
+        PopupMenuItem(value: 'archive', child: Text(chat.isArchived ? 'Unarchive' : 'Archive')),
+        if (isGroupy) ...[
+          const PopupMenuDivider(),
+          const PopupMenuItem(value: 'leave', child: Text('Leave Chat')),
+        ],
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'mute':
+          chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
+        case 'read':
+          if (chat.unreadCount > 0) {
+            chatState.markChatRead(chat.accountId, chat.chatId);
+          }
+        case 'pin':
+          chatState.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
+        case 'archive':
+          chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
+        case 'leave':
+          chatState.leaveChat(chat.accountId, chat.chatId);
+      }
+    });
+  }
+
   static Widget _fallbackAvatar(ChatInfo chat, ThemeData theme, double radius) {
     const colors = [
       Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
@@ -619,18 +668,16 @@ class _ChatTopBar extends StatelessWidget {
             ),
           ),
           // Right-side buttons.
-          IconButton(
-            icon: const Icon(Icons.search, size: 20),
-            onPressed: () {}, // TODO: in-chat search
-          ),
           if (onToggleInfo != null)
             IconButton(
               icon: const Icon(Icons.info_outline, size: 20),
               onPressed: onToggleInfo,
             ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, size: 20),
-            onPressed: () {}, // TODO: chat menu
+          Builder(
+            builder: (btnCtx) => IconButton(
+              icon: const Icon(Icons.more_vert, size: 20),
+              onPressed: () => _showTopBarMenu(btnCtx, chat),
+            ),
           ),
         ],
       ),
