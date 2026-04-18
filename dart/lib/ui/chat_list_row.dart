@@ -119,12 +119,12 @@ class ChatListRow extends StatelessWidget {
                               ],
                             ),
                           ),
-                          // Send state + timestamp.
+                          // Timestamp. Per-chat last-message send/delivery/read
+                          // state is not piped through the engine yet, so the
+                          // sent/delivered/read tick icon is intentionally absent
+                          // (CLAUDE.md ZERO placeholders rule). Add it back when
+                          // ChatInfo carries the real status.
                           const SizedBox(width: 8),
-                          if (_sendStateIcon != null) ...[
-                            Icon(_sendStateIcon, size: 14, color: mutedColor),
-                            const SizedBox(width: 2),
-                          ],
                           Text(
                             _formatTime(chat.lastMsgTime),
                             style: TextStyle(fontSize: 12, color: mutedColor),
@@ -231,13 +231,6 @@ class ChatListRow extends StatelessWidget {
     ChatType.topic => Icons.forum,
     _ => null,
   };
-
-  IconData? get _sendStateIcon {
-    if (!chat.lastMsgIsOutgoing) return null;
-    // Spec: clock for sending, single check for sent, double check for delivered/read.
-    // We don't have per-chat last message status yet, so show single check for all outgoing.
-    return Icons.check;
-  }
 
   static String _formatTime(int timestampMs) {
     if (timestampMs == 0) return '';
