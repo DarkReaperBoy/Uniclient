@@ -426,6 +426,7 @@ class _ChatViewState extends State<ChatView> {
             controller: _composeController,
             onSend: _sendMessage,
             onDraftChanged: (text) => chatState.saveDraft(text),
+            isEditing: _editingMsgId != null,
           ),
         ],
       ),
@@ -1094,11 +1095,13 @@ class _ComposeArea extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final ValueChanged<String> onDraftChanged;
+  final bool isEditing;
 
   const _ComposeArea({
     required this.controller,
     required this.onSend,
     required this.onDraftChanged,
+    this.isEditing = false,
   });
 
   @override
@@ -1163,9 +1166,14 @@ class _ComposeArea extends StatelessWidget {
             icon: const Icon(Icons.emoji_emotions_outlined, size: 22),
             onPressed: () {}, // TODO: emoji panel
           ),
-          // Send button.
+          // Send button — icon switches to check/save while editing (spec §7: "editing -> Save").
           IconButton(
-            icon: Icon(Icons.send, size: 22, color: theme.colorScheme.primary),
+            tooltip: isEditing ? 'Save' : 'Send',
+            icon: Icon(
+              isEditing ? Icons.check : Icons.send,
+              size: 22,
+              color: theme.colorScheme.primary,
+            ),
             onPressed: onSend,
           ),
         ],
