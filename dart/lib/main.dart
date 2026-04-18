@@ -600,6 +600,21 @@ class _UniClientAppState extends State<UniClientApp> {
       ChatView.requestSendCompose();
       return;
     }
+    // Telegram Desktop spec §24.6 lines 2982-2983: Ctrl+Up / Ctrl+Down
+    // cycle the reply target in the active chat. Ctrl+Up goes to the older
+    // message, Ctrl+Down to the newer one (and cancels when at newest).
+    // Same harness bypass as other shortcuts (HardwareKeyboard doesn't
+    // route through Shortcuts).
+    if (lc == 'ctrl+up' || lc == 'control+up' ||
+        lc == 'ctrl+arrowup' || lc == 'control+arrowup') {
+      ChatView.requestCycleReply(1);
+      return;
+    }
+    if (lc == 'ctrl+down' || lc == 'control+down' ||
+        lc == 'ctrl+arrowdown' || lc == 'control+arrowdown') {
+      ChatView.requestCycleReply(-1);
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -859,6 +874,18 @@ class _UniClientAppState extends State<UniClientApp> {
           // more_vert button. No-op when no chat is open.
           const SingleActivator(LogicalKeyboardKey.backslash, control: true):
               () => ChatView.requestShowActiveChatMenu(),
+          // Telegram Desktop spec §24.6 lines 2982-2983: Ctrl+Up replies to
+          // the previous (older) message; Ctrl+Down replies to the next
+          // (newer) message, and cancels the reply when already on the newest.
+          // No-op when no chat is open, no messages are loaded, or edit mode
+          // is active. OS-delivered keystrokes with the compose field focused
+          // hit the TextField's FocusNode.onKeyEvent path directly; this
+          // binding covers the case where focus is elsewhere (e.g. nothing
+          // focused, message list focused).
+          const SingleActivator(LogicalKeyboardKey.arrowUp, control: true):
+              () => ChatView.requestCycleReply(1),
+          const SingleActivator(LogicalKeyboardKey.arrowDown, control: true):
+              () => ChatView.requestCycleReply(-1),
         },
         child: const UniClientShell(),
       ),

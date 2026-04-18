@@ -55,6 +55,18 @@ class ChatView extends StatefulWidget {
   /// consumed (send dispatched).
   static bool requestSendCompose() => sendComposeRequest?.call() ?? false;
 
+  /// Global hook used by Ctrl+Up / Ctrl+Down (spec §24.6 lines 2982-2983) to
+  /// cycle the reply target. direction=+1 → older message (Ctrl+Up), -1 →
+  /// newer message (Ctrl+Down). Ctrl+Down on the newest message cancels the
+  /// reply. Set by the active [_ChatViewState] on mount, cleared on dispose.
+  /// Returns true if consumed (active chat with messages and non-edit state).
+  static bool Function(int direction)? cycleReplyRequest;
+
+  /// Invoked by the app-level Ctrl+Up / Ctrl+Down bindings. Returns true if
+  /// consumed.
+  static bool requestCycleReply(int direction) =>
+      cycleReplyRequest?.call(direction) ?? false;
+
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
@@ -105,6 +117,12 @@ class _ChatViewState extends State<ChatView> {
     // this hook lets the automated harness exercise the same _sendMessage
     // entry point without having to synthesize the full modifier keystream.
     ChatView.sendComposeRequest = _requestSendCompose;
+    // Register the Ctrl+Up / Ctrl+Down reply-cycling hook (spec §24.6 lines
+    // 2982-2983). Real OS-delivered keystrokes land in the compose TextField's
+    // FocusNode.onKeyEvent; this hook exists for the harness path AND for
+    // app-level CallbackShortcuts so the shortcut works regardless of current
+    // focus.
+    ChatView.cycleReplyRequest = _cycleReply;
   }
 
   @override
@@ -120,6 +138,9 @@ class _ChatViewState extends State<ChatView> {
     }
     if (ChatView.sendComposeRequest == _requestSendCompose) {
       ChatView.sendComposeRequest = null;
+    }
+    if (ChatView.cycleReplyRequest == _cycleReply) {
+      ChatView.cycleReplyRequest = null;
     }
     _composeController.dispose();
     _scrollController.dispose();
@@ -492,6 +513,52 @@ class _ChatViewState extends State<ChatView> {
     return true;
   }
 
+  /// Ctrl+Up / Ctrl+Down reply-navigation handler — Telegram Desktop spec
+  /// §24.6 lines 2982-2983. `direction` is +1 for Ctrl+Up (older message)
+  /// and -1 for Ctrl+Down (newer message). `chatState.messages` is newest-
+  /// first (ChatState._onNewMessage inserts at index 0), so "older" is
+  /// `idx + 1` and "newer" is `idx - 1`.
+  ///
+  /// Behavior:
+  /// * If editing, no-op (edit mode takes precedence; cursor movement stays
+  ///   default).
+  /// * If no chat loaded / no messages, no-op.
+  /// * If no reply is set and direction is +1 (Ctrl+Up): set reply to the
+  ///   newest message (index 0).
+  /// * If no reply is set and direction is -1 (Ctrl+Down): no-op (nothing to
+  ///   cancel, nothing newer than "no reply").
+  /// * If a reply is set, move the target by `direction`. Moving past the
+  ///   oldest message clamps (no-op). Moving past the newest message (i.e.
+  ///   Ctrl+Down on index 0) cancels the reply.
+  /// * If the current reply id has scrolled out of the loaded window, restart
+  ///   from the appropriate end.
+  ///
+  /// Returns true iff the event should be consumed.
+  bool _cycleReply(int direction) {
+    if (_editingMsgId != null) return false;
+    final chatState = context.read<ChatState>();
+    final messages = chatState.messages;
+    if (messages.isEmpty) return false;
+    int currentIdx;
+    if (_replyToId == null) {
+      if (direction < 0) return false;
+      currentIdx = -1;
+    } else {
+      currentIdx = messages.indexWhere((m) => m.msgId == _replyToId);
+      if (currentIdx < 0) currentIdx = direction > 0 ? -1 : 0;
+    }
+    final newIdx = currentIdx + direction;
+    if (newIdx >= messages.length) {
+      return true;
+    }
+    if (newIdx < 0) {
+      setState(() => _replyToId = null);
+      return true;
+    }
+    setState(() => _replyToId = messages[newIdx].msgId);
+    return true;
+  }
+
   /// Escape key handler — Telegram Desktop spec §8: cancels reply, edit,
   /// or selection in priority order (selection > edit > reply). Returns
   /// `handled` if anything was cancelled so the event doesn't bubble further.
@@ -638,6 +705,7 @@ class _ChatViewState extends State<ChatView> {
             onDraftChanged: (text) => chatState.saveDraft(text),
             isEditing: _editingMsgId != null,
             onEditLast: _editLastOutgoing,
+            onCycleReply: _cycleReply,
           ),
         ],
       ),
@@ -1344,6 +1412,10 @@ class _ComposeArea extends StatefulWidget {
   /// Called when Up is pressed with empty field + no edit/reply active.
   /// Returns true if edit mode was entered (so the event is consumed).
   final bool Function()? onEditLast;
+  /// Called on Ctrl+Up (direction=+1) / Ctrl+Down (direction=-1) to cycle
+  /// the reply target (spec §24.6 lines 2982-2983). Returns true when the
+  /// event was consumed.
+  final bool Function(int direction)? onCycleReply;
 
   const _ComposeArea({
     required this.controller,
@@ -1351,6 +1423,7 @@ class _ComposeArea extends StatefulWidget {
     required this.onDraftChanged,
     this.isEditing = false,
     this.onEditLast,
+    this.onCycleReply,
   });
 
   @override
@@ -1404,6 +1477,26 @@ class _ComposeAreaState extends State<_ComposeArea> {
         !HardwareKeyboard.instance.isAltPressed &&
         !HardwareKeyboard.instance.isMetaPressed) {
       final handled = widget.onEditLast?.call() ?? false;
+      if (handled) return KeyEventResult.handled;
+    }
+    // Ctrl+Up / Ctrl+Down cycle the reply target (spec §24.6 lines 2982-2983).
+    // Intercepted BEFORE EditableText's cursor-movement actions so the reply
+    // bar appears instead of the caret jumping. No-op when edit mode is active
+    // or when there are no messages loaded (see onCycleReply docs).
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+        HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        !HardwareKeyboard.instance.isMetaPressed) {
+      final handled = widget.onCycleReply?.call(1) ?? false;
+      if (handled) return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
+        HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        !HardwareKeyboard.instance.isMetaPressed) {
+      final handled = widget.onCycleReply?.call(-1) ?? false;
       if (handled) return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
