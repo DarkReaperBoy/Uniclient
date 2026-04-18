@@ -317,33 +317,45 @@ class _NoAccountsScreen extends StatelessWidget {
     final theme = Theme.of(context);
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 400),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Welcome to UniClient',
-                  style: theme.textTheme.headlineMedium),
-              const SizedBox(height: 8),
-              Text('Add an account to get started',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.textTheme.bodySmall?.color,
-                  )),
-              const SizedBox(height: 32),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                alignment: WrapAlignment.center,
-                children: _platforms.map((p) => _PlatformButton(
-                  label: p.$2,
-                  icon: p.$3,
-                  onTap: () => onAdd(p.$1),
-                )).toList(),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('Welcome to UniClient',
+                            style: theme.textTheme.headlineMedium),
+                        const SizedBox(height: 8),
+                        Text('Add an account to get started',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.textTheme.bodySmall?.color,
+                            )),
+                        const SizedBox(height: 32),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          alignment: WrapAlignment.center,
+                          children: _platforms.map((p) => _PlatformButton(
+                            label: p.$2,
+                            icon: p.$3,
+                            onTap: () => onAdd(p.$1),
+                          )).toList(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
