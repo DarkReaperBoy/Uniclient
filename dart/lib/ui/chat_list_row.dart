@@ -31,15 +31,15 @@ class ChatListRow extends StatelessWidget {
   static const _contentLeft = 68.0; // avatarLeft + avatarSize + gap
   static const _paddingRight = 10.0;
 
+  // Spec §2 "Active/selected": Background #419fd9 (Telegram blue), all text white, badges inverted.
+  static const _activeBg = Color(0xFF419fd9);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     // Colors per state.
-    final bgColor = isActive
-        ? theme.colorScheme.primary
-        : null;
     final nameColor = isActive
         ? Colors.white
         : theme.textTheme.bodyLarge?.color;
@@ -52,17 +52,23 @@ class ChatListRow extends StatelessWidget {
             ? (isDark ? const Color(0xFF5c6573) : const Color(0xFFbbbbbb))
             : theme.colorScheme.primary);
     final badgeText = isActive
-        ? theme.colorScheme.primary
+        ? _activeBg
         : Colors.white;
 
-    return Material(
-      color: bgColor ?? Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        hoverColor: isActive ? null : (isDark ? const Color(0xFF1e2430) : const Color(0xFFF1F1F1)),
-        child: SizedBox(
-          height: _rowHeight,
+    // Use a plain Container (not Material widget) to avoid MD3 surface-tint behavior
+    // that washes Material(color: primary) to white in a ColorScheme.dark context.
+    return Container(
+      color: isActive ? _activeBg : null,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          onSecondaryTap: onSecondaryTap,
+          hoverColor: isActive
+              ? Colors.white.withValues(alpha: 0.08)
+              : (isDark ? const Color(0xFF1e2430) : const Color(0xFFF1F1F1)),
+          child: SizedBox(
+            height: _rowHeight,
           child: Padding(
             padding: const EdgeInsets.only(left: _avatarLeft, right: _paddingRight),
             child: Row(
@@ -151,6 +157,7 @@ class ChatListRow extends StatelessWidget {
             ),
           ),
         ),
+      ),
       ),
     );
   }
