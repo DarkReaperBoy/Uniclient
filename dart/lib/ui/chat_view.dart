@@ -581,11 +581,25 @@ class _ChatTopBar extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            chat.title.isNotEmpty ? chat.title : chat.chatId,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium,
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  chat.title.isNotEmpty ? chat.title : chat.chatId,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium,
+                                ),
+                              ),
+                              if (chat.isMuted) ...[
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.volume_off,
+                                  size: 16,
+                                  color: theme.textTheme.bodySmall?.color,
+                                ),
+                              ],
+                            ],
                           ),
                           if (subtitle.isNotEmpty)
                             Text(
