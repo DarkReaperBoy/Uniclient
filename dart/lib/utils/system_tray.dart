@@ -17,6 +17,13 @@ class SystemTray {
   /// No-op when the native tray is unavailable.
   static Future<void> Function()? hideWindowRequest;
 
+  /// Global hook invoked by `Ctrl+M` (Telegram Desktop spec §24.4
+  /// `minimize_telegram`). Wired to `SystemTray.minimizeWindow` after
+  /// `init()`. Works on any platform that implements the native channel;
+  /// unlike hideWindow, minimize does not depend on appindicator being
+  /// present (it just iconifies the existing GTK window).
+  static Future<void> Function()? minimizeWindowRequest;
+
   bool _available = false;
   int _lastUnread = -1;
 
@@ -48,6 +55,10 @@ class SystemTray {
 
     // Register global hide-window hook for Ctrl+W shortcut.
     hideWindowRequest = hideWindow;
+
+    // Register global minimize-window hook for Ctrl+M shortcut. Doesn't
+    // depend on tray availability — minimize is a plain GTK window action.
+    minimizeWindowRequest = minimizeWindow;
   }
 
   /// Update the tray tooltip / label with the current unread count.
@@ -83,6 +94,23 @@ class SystemTray {
     }
   }
 
+  /// Minimize (iconify) the main window. Unlike `hideWindow`, this does
+  /// not depend on the native tray being available — it just asks the
+  /// window manager to minimize the window to its taskbar entry. No-op on
+  /// platforms without a native handler (the channel responds with
+  /// `notImplemented`, which throws `MissingPluginException` — we swallow
+  /// it).
+  Future<void> minimizeWindow() async {
+    try {
+      await _channel.invokeMethod<void>('minimizeWindow');
+      Debug.log('TRAY', 'minimizeWindow dispatched');
+    } on MissingPluginException {
+      // Native side doesn't implement it (non-Linux for now). Silent no-op.
+    } catch (e) {
+      Debug.log('TRAY', 'minimizeWindow failed: $e');
+    }
+  }
+
   /// Toggle window visibility.
   Future<void> toggleVisibility() async {
     if (!_available) return;
@@ -112,6 +140,9 @@ class SystemTray {
     _channel.setMethodCallHandler(null);
     if (hideWindowRequest == hideWindow) {
       hideWindowRequest = null;
+    }
+    if (minimizeWindowRequest == minimizeWindow) {
+      minimizeWindowRequest = null;
     }
   }
 }

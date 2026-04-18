@@ -546,6 +546,14 @@ class _UniClientAppState extends State<UniClientApp> {
       SystemTray.hideWindowRequest?.call();
       return;
     }
+    // Telegram Desktop spec §24.4: Ctrl+M minimizes the window (iconify to
+    // taskbar). Unlike Ctrl+W (which hides the window entirely), minimize
+    // preserves the taskbar entry so the user can click it to restore.
+    // Same harness bypass — HardwareKeyboard doesn't route through Shortcuts.
+    if (lc == 'ctrl+m' || lc == 'control+m') {
+      SystemTray.minimizeWindowRequest?.call();
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -776,6 +784,11 @@ class _UniClientAppState extends State<UniClientApp> {
           // brings it back.
           const SingleActivator(LogicalKeyboardKey.keyW, control: true):
               () => SystemTray.hideWindowRequest?.call(),
+          // Telegram Desktop spec §24.4 Application / Window: Ctrl+M
+          // minimizes the window (iconify to taskbar). Works without the
+          // system tray — just asks the window manager to minimize.
+          const SingleActivator(LogicalKeyboardKey.keyM, control: true):
+              () => SystemTray.minimizeWindowRequest?.call(),
         },
         child: const UniClientShell(),
       ),

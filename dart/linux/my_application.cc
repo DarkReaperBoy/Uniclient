@@ -154,6 +154,15 @@ static void tray_method_call_handler(FlMethodChannel* channel,
 #endif
     }
     fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "minimizeWindow") == 0) {
+    // Telegram Desktop spec §24.4 Ctrl+M `minimize_telegram` — iconify the
+    // window (standard minimize to taskbar). Works regardless of tray
+    // availability. Unlike hideWindow (which removes the window from the
+    // taskbar entirely), minimize leaves the taskbar entry intact.
+    if (self->window && gtk_widget_get_visible(GTK_WIDGET(self->window))) {
+      gtk_window_iconify(self->window);
+    }
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (g_strcmp0(method, "isAvailable") == 0) {
 #ifdef HAVE_APPINDICATOR
     g_autoptr(FlValue) result = fl_value_new_bool(TRUE);
