@@ -94,7 +94,7 @@
 - [ ] Account switcher — profile cover + expand arrow, platform icons, connection dots, checkmark on active
 - [ ] Media rendering in messages — auto-download photos, video placeholders, voice waveform, audio/file indicators
 - [ ] Media download pipeline — engine MediaManager, auto-download, Telegram access hash persistence, DB schema V4
-- [ ] Chat list column width — default ratio 0.17 (~300px on 1920)
+- [x] **Chat list column width verified** — `_dialogsWidthRatio = 0.17` default in `dart/lib/ui/shell.dart:27`, clamped to `[_dialogsMin=260, _dialogsMax=540]` at `dart/lib/ui/shell.dart:31-32`. Hit-test verified on live build at 1280×800 with filter sidebar visible: Filter sidebar 0–72 → **Dialogs column 72–332 (260 px)** → Resize handle 332–336 → Chat area 336–1280. Math matches spec: at body 1208 `→ 1208×0.17=205 → clamped to 260` (min); at body 1920 `→ 1920×0.17=326` (within clamp, matches "~300px" rule of thumb); at body 3180+ `→ clamped to 540` (max). Ratio is mutated by `_ResizeHandle` drags and used by both two-column and three-column layouts (`_buildTwoColumn` and `_buildThreeColumn`). Cannot resize beyond 1280 on this display, but the `0.17 × bodyWidth` formula is direct code and clamp behavior is already screenshot-verified in "Column resize handles verified".
 - [ ] Avatar/profile picture download — Telegram DownloadChatAvatar, cached to disk, DB avatar_path, Image.file rendering
 - [ ] Folder filtering fix — full Telegram filter flag support (contacts, non_contacts, groups, channels, bots, exclude_muted/read/archived) + DialogFilterChatlist support
 - [ ] Chat row: online dot indicator — green dot on DM avatars via UserStatusEvent stream + Telegram OnUserStatus handler
