@@ -755,36 +755,60 @@ class EngineService {
     parentId: p.parentId,
   );
 
-  static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) => CachedMessage(
-    accountId: p.accountId,
-    chatId: p.chatId,
-    msgId: p.msgId,
-    localId: p.localId,
-    senderId: p.senderId,
-    senderName: _safeStr(p.senderName),
-    contentText: _safeStr(p.contentText),
-    contentRaw: p.contentRaw.isEmpty ? '' : _safeStr(utf8.decode(p.contentRaw, allowMalformed: true)),
-    contentRich: p.contentRich.isEmpty ? '' : _safeStr(utf8.decode(p.contentRich, allowMalformed: true)),
-    timestamp: p.timestamp.toInt(),
-    editedAt: p.editedAt.toInt(),
-    status: MsgStatus.values[p.status.clamp(0, MsgStatus.values.length - 1)],
-    replyToId: p.replyToId,
-    replyPreview: _safeStr(p.replyPreview),
-    forwardFrom: _safeStr(p.forwardFrom),
-    isPinned: p.isPinned,
-    isOutgoing: p.isOutgoing,
-    hasMedia: p.hasMedia,
-    mediaType: p.mediaType,
-    mediaFileName: _safeStr(p.mediaFileName),
-    mediaMimeType: p.mediaMimeType,
-    mediaFileSize: p.mediaFileSize.toInt(),
-    mediaThumbB64: p.mediaThumbB64,
-    mediaLocalPath: p.mediaLocalPath,
-    mediaWidth: p.mediaWidth,
-    mediaHeight: p.mediaHeight,
-    mediaDuration: p.mediaDuration,
-    mediaDownloadState: p.mediaDownloadState,
-  );
+  static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {
+    final contentRaw = p.contentRaw.isEmpty ? '' : _safeStr(utf8.decode(p.contentRaw, allowMalformed: true));
+    return CachedMessage(
+      accountId: p.accountId,
+      chatId: p.chatId,
+      msgId: p.msgId,
+      localId: p.localId,
+      senderId: p.senderId,
+      senderName: _safeStr(p.senderName),
+      contentText: _safeStr(p.contentText),
+      contentRaw: contentRaw,
+      contentRich: p.contentRich.isEmpty ? '' : _safeStr(utf8.decode(p.contentRich, allowMalformed: true)),
+      timestamp: p.timestamp.toInt(),
+      editedAt: p.editedAt.toInt(),
+      status: MsgStatus.values[p.status.clamp(0, MsgStatus.values.length - 1)],
+      replyToId: p.replyToId,
+      replyPreview: _safeStr(p.replyPreview),
+      forwardFrom: _safeStr(p.forwardFrom),
+      isPinned: p.isPinned,
+      isOutgoing: p.isOutgoing,
+      hasMedia: p.hasMedia,
+      mediaType: p.mediaType,
+      mediaFileName: _safeStr(p.mediaFileName),
+      mediaMimeType: p.mediaMimeType,
+      mediaFileSize: p.mediaFileSize.toInt(),
+      mediaThumbB64: p.mediaThumbB64,
+      mediaLocalPath: p.mediaLocalPath,
+      mediaWidth: p.mediaWidth,
+      mediaHeight: p.mediaHeight,
+      mediaDuration: p.mediaDuration,
+      mediaDownloadState: p.mediaDownloadState,
+      reactions: _reactionsFromRaw(contentRaw),
+    );
+  }
+
+  /// Parse reactions list from the raw JSON blob written by the Go engine
+  /// (`json.Marshal(*cores.Message)`). The engine doesn't expose reactions as
+  /// a first-class proto field, so we peek into `contentRaw` to recover them.
+  static List<MessageReaction> _reactionsFromRaw(String contentRaw) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"reactions"')) return const [];
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return const [];
+      final raw = decoded['reactions'];
+      if (raw is! List) return const [];
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map(MessageReaction.fromJson)
+          .where((r) => r.emoji.isNotEmpty)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
+    }
+  }
 
   static MemberInfo _memberInfoFromProto(epb.EngineMemberInfo p) => MemberInfo(
     userId: p.userId,

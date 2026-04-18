@@ -147,25 +147,21 @@ class MessageBubble extends StatelessWidget {
                     // Media indicator.
                     if (message.hasMedia)
                       _MediaIndicator(message: message, theme: theme),
+                    // Reactions row — pill badges above the timestamp.
+                    if (message.reactions.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      _ReactionList(
+                        reactions: message.reactions,
+                        isOutgoing: isOutgoing,
+                        theme: theme,
+                      ),
+                    ],
                     // Bottom info: time + edited + status.
                     const SizedBox(height: 2),
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Reactions.
-                        if (message.reactions.isNotEmpty) ...[
-                          for (final r in message.reactions)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 4),
-                              child: Text(
-                                '${r.emoji} ${r.count}',
-                                style: TextStyle(fontSize: 11,
-                                    color: r.byMe ? theme.colorScheme.primary : theme.textTheme.bodySmall?.color),
-                              ),
-                            ),
-                          const Spacer(),
-                        ] else
-                          const Spacer(),
+                        const Spacer(),
                         if (message.isEdited)
                           Padding(
                             padding: const EdgeInsets.only(right: 4),
@@ -253,6 +249,74 @@ class MessageBubble extends StatelessWidget {
     if (timestampMs == 0) return '';
     final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Row of pill-shaped reaction badges shown below a message's content.
+/// Matches AyuGram/Telegram Desktop: rounded capsule, emoji + count,
+/// tinted primary when the current user is among the reactors.
+class _ReactionList extends StatelessWidget {
+  final List<MessageReaction> reactions;
+  final bool isOutgoing;
+  final ThemeData theme;
+
+  const _ReactionList({
+    required this.reactions,
+    required this.isOutgoing,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = theme.colorScheme.primary;
+    final isDark = theme.brightness == Brightness.dark;
+    // Baseline pill color picks up a subtle tint from the primary so it reads
+    // as a badge inside both received (dark) and sent (navy) bubbles.
+    final inactiveBg = primary.withValues(alpha: isDark ? 0.18 : 0.12);
+    final activeBg = primary.withValues(alpha: isDark ? 0.38 : 0.28);
+    final inactiveLabel = theme.textTheme.bodyMedium?.color ?? Colors.white;
+
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        for (final r in reactions)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: r.byMe ? activeBg : inactiveBg,
+              borderRadius: BorderRadius.circular(10),
+              border: r.byMe
+                  ? Border.all(color: primary, width: 1)
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(r.emoji, style: const TextStyle(fontSize: 13)),
+                const SizedBox(width: 3),
+                Text(
+                  _formatCount(r.count),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: r.byMe ? primary : inactiveLabel,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  static String _formatCount(int n) {
+    if (n < 1000) return n.toString();
+    if (n < 10000) {
+      final v = (n / 1000).toStringAsFixed(1);
+      return '${v.endsWith('.0') ? v.substring(0, v.length - 2) : v}K';
+    }
+    return '${(n / 1000).round()}K';
   }
 }
 
