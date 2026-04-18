@@ -15,6 +15,7 @@ import 'state/chat_state.dart';
 import 'state/auth_state.dart';
 import 'theme/theme.dart';
 import 'ui/chat_list_panel.dart';
+import 'ui/chat_view.dart';
 import 'ui/shell.dart';
 import 'utils/debug.dart';
 import 'utils/system_tray.dart';
@@ -531,6 +532,17 @@ class _UniClientAppState extends State<UniClientApp> {
             if (navCtx != null) Navigator.of(navCtx!, rootNavigator: true).maybePop();
           }
         }
+      case 'up':
+      case 'arrowup':
+      case 'arrowUp':
+        // CallbackShortcuts at the MaterialApp level binds ArrowUp to
+        // ChatView.requestEditLastOutgoing, but that path requires routing
+        // through FocusManager (which real OS key events use).
+        // HardwareKeyboard.handleKeyEvent from test code doesn't always
+        // reach the Shortcuts layer, so invoke the hook directly — same
+        // pattern as Ctrl+F above, and it matches what the real Up binding
+        // ends up calling anyway.
+        ChatView.requestEditLastOutgoing();
     }
   }
 
@@ -638,6 +650,13 @@ class _UniClientAppState extends State<UniClientApp> {
           // itself has focus, no descendant claims Esc → this fires.
           const SingleActivator(LogicalKeyboardKey.escape):
               () => ChatListPanel.requestCancelSearch(),
+          // Telegram Desktop spec §24.7: ArrowUp with empty compose field and
+          // no edit/reply active → edit last outgoing message. Only fires when
+          // no descendant widget (e.g. a focused TextField moving the cursor)
+          // consumes the key first — so the same gesture inside a populated
+          // field continues to move the cursor normally.
+          const SingleActivator(LogicalKeyboardKey.arrowUp):
+              () => ChatView.requestEditLastOutgoing(),
         },
         child: const UniClientShell(),
       ),

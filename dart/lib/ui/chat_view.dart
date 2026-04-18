@@ -12,6 +12,16 @@ import 'message_bubble.dart';
 /// Chat column: top bar + message list + compose area.
 /// Spec §4 (top bar 54px), §5 (messages), §7 (compose).
 class ChatView extends StatefulWidget {
+  /// Global hook used by app-level keyboard shortcuts (ArrowUp with nothing
+  /// focused) to trigger edit-last-outgoing-message behavior on the active
+  /// chat (spec §24.7). Set by the active [_ChatViewState] on mount, cleared
+  /// on dispose. Returns true if the active ChatView entered edit mode.
+  static bool Function()? editLastOutgoingRequest;
+
+  /// Invoked by the app-level ArrowUp binding. Returns true if consumed.
+  static bool requestEditLastOutgoing() =>
+      editLastOutgoingRequest?.call() ?? false;
+
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
@@ -41,10 +51,16 @@ class _ChatViewState extends State<ChatView> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    // Register the app-level ArrowUp hook (spec §24.7: edit last outgoing
+    // when compose field is empty and no edit/reply is active).
+    ChatView.editLastOutgoingRequest = _editLastOutgoing;
   }
 
   @override
   void dispose() {
+    if (ChatView.editLastOutgoingRequest == _editLastOutgoing) {
+      ChatView.editLastOutgoingRequest = null;
+    }
     _composeController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -352,6 +368,30 @@ class _ChatViewState extends State<ChatView> {
     _scrollToBottom();
   }
 
+  /// Up-arrow-to-edit-last-message — Telegram Desktop spec §24.7: when the
+  /// compose field is empty and no edit/reply is active, pressing Up enters
+  /// edit mode on the newest outgoing message. `_messages` is newest-first
+  /// (see ChatState._onNewMessage which inserts at index 0), so we scan from
+  /// the front and pick the first `isOutgoing` message. Returns true if edit
+  /// mode was entered, so the key event can be consumed.
+  bool _editLastOutgoing() {
+    if (_composeController.text.isNotEmpty) return false;
+    if (_editingMsgId != null || _replyToId != null) return false;
+    final chatState = context.read<ChatState>();
+    final target = chatState.messages
+        .where((m) => m.isOutgoing && m.contentText.isNotEmpty)
+        .firstOrNull;
+    if (target == null) return false;
+    setState(() {
+      _editingMsgId = target.msgId;
+      _composeController.text = target.contentText;
+      _composeController.selection = TextSelection.fromPosition(
+        TextPosition(offset: _composeController.text.length),
+      );
+    });
+    return true;
+  }
+
   /// Escape key handler — Telegram Desktop spec §8: cancels reply, edit,
   /// or selection in priority order (selection > edit > reply). Returns
   /// `handled` if anything was cancelled so the event doesn't bubble further.
@@ -496,6 +536,7 @@ class _ChatViewState extends State<ChatView> {
             onSend: _sendMessage,
             onDraftChanged: (text) => chatState.saveDraft(text),
             isEditing: _editingMsgId != null,
+            onEditLast: _editLastOutgoing,
           ),
         ],
       ),
@@ -1187,18 +1228,69 @@ class _ScrollToBottomFab extends StatelessWidget {
 
 /// Compose area at bottom. Spec §7.
 /// Enter sends, Shift+Enter for newline (matching Telegram Desktop).
-class _ComposeArea extends StatelessWidget {
+/// Up arrow with empty field → edit last outgoing message (spec §24.7).
+class _ComposeArea extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
   final ValueChanged<String> onDraftChanged;
   final bool isEditing;
+  /// Called when Up is pressed with empty field + no edit/reply active.
+  /// Returns true if edit mode was entered (so the event is consumed).
+  final bool Function()? onEditLast;
 
   const _ComposeArea({
     required this.controller,
     required this.onSend,
     required this.onDraftChanged,
     this.isEditing = false,
+    this.onEditLast,
   });
+
+  @override
+  State<_ComposeArea> createState() => _ComposeAreaState();
+}
+
+class _ComposeAreaState extends State<_ComposeArea> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    // FocusNode.onKeyEvent runs BEFORE EditableText's built-in text-editing
+    // actions (MoveSelectionUp on ArrowUp), so this is the only place we can
+    // reliably intercept ArrowUp in an empty compose field before it gets
+    // consumed as cursor movement. Enter handling moved here too for symmetry.
+    _focusNode = FocusNode(onKeyEvent: _onKey);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    // Enter without Shift → send (spec §7).
+    if (event.logicalKey == LogicalKeyboardKey.enter &&
+        !HardwareKeyboard.instance.isShiftPressed) {
+      widget.onSend();
+      return KeyEventResult.handled;
+    }
+    // Up-arrow-to-edit-last-outgoing (spec §24.7): only when field is empty
+    // and no modifier held. The onEditLast callback itself gates on edit/reply
+    // state and message availability, returning false when it declines.
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp &&
+        widget.controller.text.isEmpty &&
+        !HardwareKeyboard.instance.isShiftPressed &&
+        !HardwareKeyboard.instance.isControlPressed &&
+        !HardwareKeyboard.instance.isAltPressed &&
+        !HardwareKeyboard.instance.isMetaPressed) {
+      final handled = widget.onEditLast?.call() ?? false;
+      if (handled) return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1215,52 +1307,43 @@ class _ComposeArea extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Text input with Enter-to-send.
+          // Text input — key handling lives on the FocusNode so Enter (send)
+          // and ArrowUp (edit last) fire before EditableText's default actions.
           Expanded(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 160),
-              child: KeyboardListener(
-                focusNode: FocusNode(),
-                onKeyEvent: (event) {
-                  if (event is KeyDownEvent &&
-                      event.logicalKey == LogicalKeyboardKey.enter &&
-                      !HardwareKeyboard.instance.isShiftPressed) {
-                    // Prevent the newline from being inserted.
-                    onSend();
-                  }
-                },
-                child: TextField(
-                  controller: controller,
-                  onChanged: onDraftChanged,
-                  maxLines: null,
-                  textInputAction: TextInputAction.newline,
-                  style: theme.textTheme.bodyMedium,
-                  decoration: InputDecoration(
-                    hintText: 'Write a message...',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide.none,
-                    ),
-                    filled: true,
-                    fillColor: theme.brightness == Brightness.dark
-                        ? const Color(0xFF1e2430)
-                        : const Color(0xFFF0F0F0),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              child: TextField(
+                controller: widget.controller,
+                focusNode: _focusNode,
+                onChanged: widget.onDraftChanged,
+                maxLines: null,
+                textInputAction: TextInputAction.newline,
+                style: theme.textTheme.bodyMedium,
+                decoration: InputDecoration(
+                  hintText: 'Write a message...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
                   ),
+                  filled: true,
+                  fillColor: theme.brightness == Brightness.dark
+                      ? const Color(0xFF1e2430)
+                      : const Color(0xFFF0F0F0),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
               ),
             ),
           ),
           // Send button — icon switches to check/save while editing (spec §7: "editing -> Save").
           IconButton(
-            tooltip: isEditing ? 'Save' : 'Send',
+            tooltip: widget.isEditing ? 'Save' : 'Send',
             icon: Icon(
-              isEditing ? Icons.check : Icons.send,
+              widget.isEditing ? Icons.check : Icons.send,
               size: 22,
               color: theme.colorScheme.primary,
             ),
-            onPressed: onSend,
+            onPressed: widget.onSend,
           ),
         ],
       ),
