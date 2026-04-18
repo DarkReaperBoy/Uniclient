@@ -19,6 +19,14 @@ class ChatListPanel extends StatefulWidget {
     this.filterSidebarVisible = false,
   });
 
+  /// Global hook used by app-level keyboard shortcuts (Ctrl+F) to focus the
+  /// currently mounted ChatListPanel's search field. The live state registers
+  /// its `_focusSearch` callback on mount and clears it on dispose.
+  static VoidCallback? focusSearchRequest;
+
+  /// Focus the chat list search field. Safe to call when no panel is mounted.
+  static void requestFocusSearch() => focusSearchRequest?.call();
+
   @override
   State<ChatListPanel> createState() => _ChatListPanelState();
 }
@@ -30,10 +38,25 @@ class _ChatListPanelState extends State<ChatListPanel> {
   List<ChatInfo>? _searchResults;
 
   @override
+  void initState() {
+    super.initState();
+    ChatListPanel.focusSearchRequest = _focusSearch;
+  }
+
+  @override
   void dispose() {
+    if (ChatListPanel.focusSearchRequest == _focusSearch) {
+      ChatListPanel.focusSearchRequest = null;
+    }
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
+  }
+
+  void _focusSearch() {
+    if (!mounted) return;
+    setState(() => _searching = true);
+    _searchFocus.requestFocus();
   }
 
   void _onSearchChanged(String query) {

@@ -14,6 +14,7 @@ import 'state/app_state.dart';
 import 'state/chat_state.dart';
 import 'state/auth_state.dart';
 import 'theme/theme.dart';
+import 'ui/chat_list_panel.dart';
 import 'ui/shell.dart';
 import 'utils/debug.dart';
 import 'utils/system_tray.dart';
@@ -472,6 +473,16 @@ class _UniClientAppState extends State<UniClientApp> {
   }
 
   void _dispatchKey(String key) {
+    // Handle modifier combos like "ctrl+f" / "control+f". Flutter's
+    // CallbackShortcuts only fire from OS-delivered key events that flow
+    // through KeyEventManager → FocusManager; HardwareKeyboard.handleKeyEvent
+    // alone does not reach the shortcut dispatch path. So we invoke the same
+    // callback the shortcut would invoke, to keep the harness observable.
+    final lc = key.toLowerCase();
+    if (lc == 'ctrl+f' || lc == 'control+f') {
+      ChatListPanel.requestFocusSearch();
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -606,7 +617,15 @@ class _UniClientAppState extends State<UniClientApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: appState.themeMode,
-      home: const UniClientShell(),
+      home: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          // Telegram Desktop spec §24.4: Ctrl+F opens search in current context.
+          // We focus the chat list search field.
+          const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+              ChatListPanel.requestFocusSearch,
+        },
+        child: const UniClientShell(),
+      ),
     );
   }
 }
