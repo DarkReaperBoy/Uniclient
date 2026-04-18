@@ -528,6 +528,15 @@ class _UniClientAppState extends State<UniClientApp> {
       ChatListPanel.requestJumpChat(false);
       return;
     }
+    // Telegram Desktop spec §24.4 Folder Switching — Ctrl+1..Ctrl+8 switch
+    // the active folder tab by 1-based index (1 = All Chats, 2..7 = folders
+    // 1..6, 8 = last folder). Same harness bypass as other shortcuts.
+    for (var i = 1; i <= 8; i++) {
+      if (lc == 'ctrl+$i' || lc == 'control+$i') {
+        ChatListPanel.requestSwitchFolderByIndex(i);
+        return;
+      }
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -730,6 +739,26 @@ class _UniClientAppState extends State<UniClientApp> {
               () => ChatListPanel.requestJumpChat(true),
           const SingleActivator(LogicalKeyboardKey.end, control: true, alt: true):
               () => ChatListPanel.requestJumpChat(false),
+          // Telegram Desktop spec §24.4 Folder Switching — Ctrl+1..Ctrl+8
+          // switch to folder tab by 1-based index. Ctrl+1 = All Chats,
+          // Ctrl+2..Ctrl+7 = folders[0]..folders[5], Ctrl+8 = last folder.
+          // No-op when the target folder doesn't exist.
+          const SingleActivator(LogicalKeyboardKey.digit1, control: true):
+              () => ChatListPanel.requestSwitchFolderByIndex(1),
+          const SingleActivator(LogicalKeyboardKey.digit2, control: true):
+              () => ChatListPanel.requestSwitchFolderByIndex(2),
+          const SingleActivator(LogicalKeyboardKey.digit3, control: true):
+              () => ChatListPanel.requestSwitchFolderByIndex(3),
+          const SingleActivator(LogicalKeyboardKey.digit4, control: true):
+              () => ChatListPanel.requestSwitchFolderByIndex(4),
+          const SingleActivator(LogicalKeyboardKey.digit5, control: true):
+              () => ChatListPanel.requestSwitchFolderByIndex(5),
+          const SingleActivator(LogicalKeyboardKey.digit6, control: true):
+              () => ChatListPanel.requestSwitchFolderByIndex(6),
+          const SingleActivator(LogicalKeyboardKey.digit7, control: true):
+              () => ChatListPanel.requestSwitchFolderByIndex(7),
+          const SingleActivator(LogicalKeyboardKey.digit8, control: true):
+              () => ChatListPanel.requestSwitchFolderByIndex(8),
         },
         child: const UniClientShell(),
       ),

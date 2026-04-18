@@ -48,6 +48,12 @@ class ChatListPanel extends StatefulWidget {
   /// sorted list.
   static void Function(bool toFirst)? jumpChatRequest;
 
+  /// Global hook used by app-level Ctrl+1..Ctrl+8 (Telegram Desktop spec
+  /// §24.4 `all_chats`/`folder1`..`folder6`/`last_folder`). `oneIndex` is
+  /// 1-based: 1 → All Chats (null), 2..7 → folders[oneIndex-2], 8 → last
+  /// folder. No-op when the target doesn't exist.
+  static void Function(int oneIndex)? switchFolderByIndexRequest;
+
   /// Focus the chat list search field. Safe to call when no panel is mounted.
   static void requestFocusSearch() => focusSearchRequest?.call();
 
@@ -69,6 +75,13 @@ class ChatListPanel extends StatefulWidget {
   static void requestJumpChat(bool toFirst) =>
       jumpChatRequest?.call(toFirst);
 
+  /// Switch to the folder tab at 1-based [oneIndex]: 1 → All Chats, 2..7 →
+  /// folders[oneIndex-2], 8 → last folder. Safe to call when no panel is
+  /// mounted. No-op when the target folder doesn't exist for the active
+  /// account.
+  static void requestSwitchFolderByIndex(int oneIndex) =>
+      switchFolderByIndexRequest?.call(oneIndex);
+
   @override
   State<ChatListPanel> createState() => _ChatListPanelState();
 }
@@ -87,6 +100,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
     ChatListPanel.navigateChatRequest = _navigateChat;
     ChatListPanel.navigateFolderRequest = _navigateFolder;
     ChatListPanel.jumpChatRequest = _jumpChat;
+    ChatListPanel.switchFolderByIndexRequest = _switchFolderByIndex;
   }
 
   /// Jump to first or last visible chat. Uses the same sorted, non-archived,
@@ -186,6 +200,32 @@ class _ChatListPanelState extends State<ChatListPanel> {
     chatState.setActiveFolder(ids[target]);
   }
 
+  /// Switch to a specific folder tab by its 1-based position in the tab
+  /// order. Tab order is `[null ("All"), folders[0], folders[1], ...]`.
+  /// `oneIndex=1` → All Chats, `oneIndex=2..7` → folders[oneIndex-2],
+  /// `oneIndex=8` → always the last folder (Telegram Desktop spec §24.4
+  /// `last_folder`). No-op if the target doesn't exist.
+  void _switchFolderByIndex(int oneIndex) {
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
+    final folders = chatState.folders;
+    String? target;
+    if (oneIndex == 1) {
+      target = null; // All Chats
+    } else if (oneIndex == 8) {
+      if (folders.isEmpty) return;
+      target = folders.last.id;
+    } else if (oneIndex >= 2 && oneIndex <= 7) {
+      final folderIdx = oneIndex - 2;
+      if (folderIdx >= folders.length) return; // no folder at that slot
+      target = folders[folderIdx].id;
+    } else {
+      return; // out of range
+    }
+    if (chatState.activeFolderId == target) return; // already active
+    chatState.setActiveFolder(target);
+  }
+
   /// Global-Esc hook. If the search field is currently active (Cancel
   /// button visible), cancel and return true so the app-level Esc handler
   /// knows the event was consumed. Pairs with the Ctrl+F focus shortcut —
@@ -212,6 +252,9 @@ class _ChatListPanelState extends State<ChatListPanel> {
     }
     if (ChatListPanel.jumpChatRequest == _jumpChat) {
       ChatListPanel.jumpChatRequest = null;
+    }
+    if (ChatListPanel.switchFolderByIndexRequest == _switchFolderByIndex) {
+      ChatListPanel.switchFolderByIndexRequest = null;
     }
     _searchController.dispose();
     _searchFocus.dispose();
