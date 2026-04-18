@@ -273,9 +273,10 @@ class _ReplyPreview extends StatelessWidget {
         ),
       ),
       child: Text(
-        preview,
+        preview.replaceAll(RegExp(r'\s+'), ' ').trim(),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
+        softWrap: false,
         style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
       ),
     );
