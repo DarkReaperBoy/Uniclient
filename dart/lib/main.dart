@@ -484,6 +484,17 @@ class _UniClientAppState extends State<UniClientApp> {
       ChatListPanel.requestFocusSearch();
       return;
     }
+    // Telegram Desktop spec §24.4 next_chat/previous_chat. HardwareKeyboard
+    // doesn't route through Shortcuts, so invoke the navigation hook
+    // directly for the harness path (same trick as ctrl+f above).
+    if (lc == 'alt+down' || lc == 'alt+arrowdown') {
+      ChatListPanel.requestNavigateChat(1);
+      return;
+    }
+    if (lc == 'alt+up' || lc == 'alt+arrowup') {
+      ChatListPanel.requestNavigateChat(-1);
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -657,6 +668,14 @@ class _UniClientAppState extends State<UniClientApp> {
           // field continues to move the cursor normally.
           const SingleActivator(LogicalKeyboardKey.arrowUp):
               () => ChatView.requestEditLastOutgoing(),
+          // Telegram Desktop spec §24.4: Alt+Down / Alt+Up move the active
+          // selection to the next / previous chat in the visible, sorted
+          // chat list (pinned first, then lastMsgTime desc, archived hidden).
+          // Commands: `next_chat` / `previous_chat`.
+          const SingleActivator(LogicalKeyboardKey.arrowDown, alt: true):
+              () => ChatListPanel.requestNavigateChat(1),
+          const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true):
+              () => ChatListPanel.requestNavigateChat(-1),
         },
         child: const UniClientShell(),
       ),

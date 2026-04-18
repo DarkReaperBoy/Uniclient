@@ -29,11 +29,22 @@ class ChatListPanel extends StatefulWidget {
   /// "consumed"); returns false if nothing to cancel.
   static bool Function()? cancelSearchRequest;
 
+  /// Global hook used by app-level Alt+Down/Alt+Up (Telegram Desktop spec
+  /// §24.4 `next_chat` / `previous_chat`). The live panel state registers a
+  /// handler that opens the adjacent chat in the currently visible, sorted
+  /// list (direction: +1 = next, -1 = previous).
+  static void Function(int direction)? navigateChatRequest;
+
   /// Focus the chat list search field. Safe to call when no panel is mounted.
   static void requestFocusSearch() => focusSearchRequest?.call();
 
   /// Cancel the chat list search if active. Returns true if it was cancelled.
   static bool requestCancelSearch() => cancelSearchRequest?.call() ?? false;
+
+  /// Move active chat selection by [direction] (+1 = next, -1 = previous).
+  /// Safe to call when no panel is mounted.
+  static void requestNavigateChat(int direction) =>
+      navigateChatRequest?.call(direction);
 
   @override
   State<ChatListPanel> createState() => _ChatListPanelState();
@@ -50,6 +61,52 @@ class _ChatListPanelState extends State<ChatListPanel> {
     super.initState();
     ChatListPanel.focusSearchRequest = _focusSearch;
     ChatListPanel.cancelSearchRequest = _cancelSearchIfActive;
+    ChatListPanel.navigateChatRequest = _navigateChat;
+  }
+
+  /// Open the chat adjacent to the currently active one in the visible list.
+  /// Rebuilds the same sorted, non-archived list the ListView renders, so
+  /// navigation order exactly matches what the user sees. If no chat is
+  /// active, opens the first (direction +1) or last (direction -1) visible
+  /// chat. No-op when the visible list is empty.
+  void _navigateChat(int direction) {
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+
+    final accountChats = chatState.chatsForAccount(appState.activeAccountId);
+    final base = chatState.activeFolderId != null
+        ? chatState.chatsForFolder(chatState.activeFolderId)
+        : accountChats;
+    // Search results take priority when actively searching, to match what
+    // the user currently sees in the sidebar.
+    final displayChats = _searchResults ?? base;
+    final sorted = List<ChatInfo>.from(displayChats)
+      ..sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        return b.lastMsgTime.compareTo(a.lastMsgTime);
+      });
+    final visible = sorted.where((c) => !c.isArchived).toList();
+    if (visible.isEmpty) return;
+
+    final active = chatState.activeChat;
+    int target;
+    if (active == null) {
+      target = direction >= 0 ? 0 : visible.length - 1;
+    } else {
+      final idx = visible.indexWhere(
+        (c) => c.chatId == active.chatId && c.accountId == active.accountId,
+      );
+      if (idx < 0) {
+        // Active chat isn't in the visible list (e.g. user is in a different
+        // folder than the active chat). Fall back to the first/last item.
+        target = direction >= 0 ? 0 : visible.length - 1;
+      } else {
+        target = (idx + direction).clamp(0, visible.length - 1);
+        if (target == idx) return; // already at boundary
+      }
+    }
+    chatState.openChat(visible[target]);
   }
 
   /// Global-Esc hook. If the search field is currently active (Cancel
@@ -69,6 +126,9 @@ class _ChatListPanelState extends State<ChatListPanel> {
     }
     if (ChatListPanel.cancelSearchRequest == _cancelSearchIfActive) {
       ChatListPanel.cancelSearchRequest = null;
+    }
+    if (ChatListPanel.navigateChatRequest == _navigateChat) {
+      ChatListPanel.navigateChatRequest = null;
     }
     _searchController.dispose();
     _searchFocus.dispose();
