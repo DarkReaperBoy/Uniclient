@@ -495,6 +495,19 @@ class _UniClientAppState extends State<UniClientApp> {
       ChatListPanel.requestNavigateChat(-1);
       return;
     }
+    // Telegram Desktop spec §24.4: Ctrl+PgDn / Ctrl+PgUp are the primary
+    // next_chat / previous_chat shortcuts. Same harness bypass as alt+down/up
+    // (HardwareKeyboard doesn't route through Shortcuts).
+    if (lc == 'ctrl+pagedown' || lc == 'ctrl+pgdn' ||
+        lc == 'control+pagedown' || lc == 'control+pgdn') {
+      ChatListPanel.requestNavigateChat(1);
+      return;
+    }
+    if (lc == 'ctrl+pageup' || lc == 'ctrl+pgup' ||
+        lc == 'control+pageup' || lc == 'control+pgup') {
+      ChatListPanel.requestNavigateChat(-1);
+      return;
+    }
     // Telegram Desktop spec §24.4 next_folder/previous_folder — Ctrl+Shift+
     // Down/Up switches the active folder tab in the sidebar. Same harness
     // bypass as alt+down/up (HardwareKeyboard doesn't route through
@@ -734,6 +747,14 @@ class _UniClientAppState extends State<UniClientApp> {
           const SingleActivator(LogicalKeyboardKey.arrowDown, alt: true):
               () => ChatListPanel.requestNavigateChat(1),
           const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true):
+              () => ChatListPanel.requestNavigateChat(-1),
+          // Telegram Desktop spec §24.4: Ctrl+PgDn / Ctrl+PgUp are the primary
+          // `next_chat` / `previous_chat` shortcuts (Alt+Down/Up are secondary
+          // bindings). Same navigation: pinned first, then lastMsgTime desc,
+          // archived hidden.
+          const SingleActivator(LogicalKeyboardKey.pageDown, control: true):
+              () => ChatListPanel.requestNavigateChat(1),
+          const SingleActivator(LogicalKeyboardKey.pageUp, control: true):
               () => ChatListPanel.requestNavigateChat(-1),
           // Telegram Desktop spec §24.4: Ctrl+Shift+Down / Ctrl+Shift+Up
           // switch to the next / previous folder tab (`next_folder` /
