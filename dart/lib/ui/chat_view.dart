@@ -143,6 +143,14 @@ class _ChatViewState extends State<ChatView> {
           const PopupMenuItem(value: 'copy', child: ListTile(dense: true, leading: Icon(Icons.copy, size: 20), title: Text('Copy Text'))),
         const PopupMenuItem(value: 'forward', child: ListTile(dense: true, leading: Icon(Icons.forward, size: 20), title: Text('Forward'))),
         const PopupMenuItem(value: 'select', child: ListTile(dense: true, leading: Icon(Icons.check_circle_outline, size: 20), title: Text('Select'))),
+        PopupMenuItem(
+          value: 'pin',
+          child: ListTile(
+            dense: true,
+            leading: Icon(msg.isPinned ? Icons.push_pin : Icons.push_pin_outlined, size: 20),
+            title: Text(msg.isPinned ? 'Unpin Message' : 'Pin Message'),
+          ),
+        ),
         if (msg.isOutgoing)
           const PopupMenuItem(value: 'edit', child: ListTile(dense: true, leading: Icon(Icons.edit, size: 20), title: Text('Edit'))),
         PopupMenuItem(value: 'delete', child: ListTile(dense: true, leading: Icon(Icons.delete_outline, size: 20, color: theme.colorScheme.error), title: Text('Delete', style: TextStyle(color: theme.colorScheme.error)))),
@@ -158,6 +166,8 @@ class _ChatViewState extends State<ChatView> {
           _forwardSingle(context, chatState, msgId);
         case 'select':
           setState(() => _selectedMsgIds.add(msgId));
+        case 'pin':
+          chatState.pinMessage(msgId, !msg.isPinned);
         case 'edit':
           setState(() {
             _editingMsgId = msgId;

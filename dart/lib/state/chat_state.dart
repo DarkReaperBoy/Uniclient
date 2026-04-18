@@ -378,6 +378,21 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Pin or unpin a message in the active chat. Optimistically flips
+  /// `isPinned` on the cached message so the context menu label and any
+  /// pin-dependent UI update immediately, without waiting for the engine
+  /// event round-trip.
+  Future<void> pinMessage(String msgId, bool pinned) async {
+    final chat = _activeChat;
+    if (chat == null) return;
+    await _engine.pinMessage(chat.accountId, chat.chatId, msgId, pinned);
+    final idx = _messages.indexWhere((m) => m.msgId == msgId);
+    if (idx >= 0) {
+      _messages[idx] = _messages[idx].copyWith(isPinned: pinned);
+      notifyListeners();
+    }
+  }
+
   Future<void> retryPending(String localId) async {
     await _engine.retryPending(localId);
   }

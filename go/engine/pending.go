@@ -341,16 +341,32 @@ func (e *Engine) ReactToMessage(accountID, chatID, msgID, emoji string) error {
 	return nil
 }
 
-// PinMessage pins or unpins a message in a chat.
+// PinMessage pins or unpins a message in a chat. On success, the cached
+// message row's `is_pinned` flag is updated so UI context menus that read
+// from the cache immediately reflect the new state without waiting for a
+// server event round-trip.
 func (e *Engine) PinMessage(accountID, chatID, msgID string, pinned bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %s not found", accountID)
 	}
+	var err error
 	if pinned {
-		return acc.Core.PinMessage(chatID, msgID)
+		err = acc.Core.PinMessage(chatID, msgID)
+	} else {
+		err = acc.Core.UnpinMessage(chatID, msgID)
 	}
-	return acc.Core.UnpinMessage(chatID, msgID)
+	if err == nil {
+		flag := 0
+		if pinned {
+			flag = 1
+		}
+		e.db.Exec(
+			"UPDATE messages SET is_pinned = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
+			flag, accountID, chatID, msgID,
+		)
+	}
+	return err
 }
 
 // processPendingItem executes a pending operation with retry logic.
