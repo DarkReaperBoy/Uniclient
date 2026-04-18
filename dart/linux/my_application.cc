@@ -115,6 +115,17 @@ static void init_tray(MyApplication* self) {
 }
 #endif
 
+// Deferred handler for Ctrl+Q `quitApp` — runs on the next main-loop
+// iteration so the method-call response has already been delivered to
+// Dart before we tear down the Flutter view.
+static gboolean quit_app_idle(gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (self->window) {
+    gtk_widget_destroy(GTK_WIDGET(self->window));
+  }
+  return G_SOURCE_REMOVE;
+}
+
 // ── MethodChannel handler (Dart → Native) ──
 
 static void tray_method_call_handler(FlMethodChannel* channel,
@@ -163,6 +174,17 @@ static void tray_method_call_handler(FlMethodChannel* channel,
       gtk_window_iconify(self->window);
     }
     fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "quitApp") == 0) {
+    // Telegram Desktop spec §24.4 Ctrl+Q `quit_telegram` — fully quit the
+    // application (unlike Ctrl+W which only hides to tray). Respond to
+    // the method call first, then defer the window destroy to the next
+    // main-loop iteration via g_idle_add so the method channel finishes
+    // unwinding before the FlView is torn down. Without the defer, the
+    // Flutter engine logs "GetFfiCallbackMetadata called after shutdown"
+    // because Dart's response-return path is still executing when the
+    // view is destroyed.
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+    g_idle_add(quit_app_idle, self);
   } else if (g_strcmp0(method, "isAvailable") == 0) {
 #ifdef HAVE_APPINDICATOR
     g_autoptr(FlValue) result = fl_value_new_bool(TRUE);

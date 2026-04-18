@@ -24,6 +24,12 @@ class SystemTray {
   /// present (it just iconifies the existing GTK window).
   static Future<void> Function()? minimizeWindowRequest;
 
+  /// Global hook invoked by `Ctrl+Q` (Telegram Desktop spec §24.4
+  /// `quit_telegram`). Wired to `SystemTray.quitApp` after `init()`.
+  /// Fully quits the application — does NOT hide to tray. Works
+  /// regardless of tray availability.
+  static Future<void> Function()? quitAppRequest;
+
   bool _available = false;
   int _lastUnread = -1;
 
@@ -59,6 +65,10 @@ class SystemTray {
     // Register global minimize-window hook for Ctrl+M shortcut. Doesn't
     // depend on tray availability — minimize is a plain GTK window action.
     minimizeWindowRequest = minimizeWindow;
+
+    // Register global quit hook for Ctrl+Q shortcut. Doesn't depend on
+    // tray availability — quit tears down the main window.
+    quitAppRequest = quitApp;
   }
 
   /// Update the tray tooltip / label with the current unread count.
@@ -111,6 +121,21 @@ class SystemTray {
     }
   }
 
+  /// Fully quit the application (Ctrl+Q `quit_telegram`). Destroys the
+  /// main window so GApplication shuts down cleanly. Unlike `hideWindow`,
+  /// does NOT depend on the tray being available. No-op on platforms
+  /// without a native handler.
+  Future<void> quitApp() async {
+    try {
+      await _channel.invokeMethod<void>('quitApp');
+      Debug.log('TRAY', 'quitApp dispatched');
+    } on MissingPluginException {
+      // Native side doesn't implement it. Silent no-op.
+    } catch (e) {
+      Debug.log('TRAY', 'quitApp failed: $e');
+    }
+  }
+
   /// Toggle window visibility.
   Future<void> toggleVisibility() async {
     if (!_available) return;
@@ -143,6 +168,9 @@ class SystemTray {
     }
     if (minimizeWindowRequest == minimizeWindow) {
       minimizeWindowRequest = null;
+    }
+    if (quitAppRequest == quitApp) {
+      quitAppRequest = null;
     }
   }
 }

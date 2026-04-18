@@ -567,6 +567,13 @@ class _UniClientAppState extends State<UniClientApp> {
       SystemTray.minimizeWindowRequest?.call();
       return;
     }
+    // Telegram Desktop spec §24.4: Ctrl+Q fully quits the application
+    // (unlike Ctrl+W which only hides to tray). Same harness bypass —
+    // HardwareKeyboard doesn't route through Shortcuts.
+    if (lc == 'ctrl+q' || lc == 'control+q') {
+      SystemTray.quitAppRequest?.call();
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -810,6 +817,11 @@ class _UniClientAppState extends State<UniClientApp> {
           // system tray — just asks the window manager to minimize.
           const SingleActivator(LogicalKeyboardKey.keyM, control: true):
               () => SystemTray.minimizeWindowRequest?.call(),
+          // Telegram Desktop spec §24.4 Application / Window: Ctrl+Q
+          // fully quits the application (unlike Ctrl+W which hides to
+          // tray). Works regardless of tray availability.
+          const SingleActivator(LogicalKeyboardKey.keyQ, control: true):
+              () => SystemTray.quitAppRequest?.call(),
         },
         child: const UniClientShell(),
       ),
