@@ -495,6 +495,13 @@ class _UniClientAppState extends State<UniClientApp> {
       ChatListPanel.requestNavigateChat(-1);
       return;
     }
+    // Telegram Desktop spec §24.4: Ctrl+R marks the currently active chat
+    // as read. HardwareKeyboard doesn't route through Shortcuts, so invoke
+    // the hook directly for the harness path (same trick as ctrl+f above).
+    if (lc == 'ctrl+r' || lc == 'control+r') {
+      ChatView.requestMarkActiveChatRead();
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -676,6 +683,11 @@ class _UniClientAppState extends State<UniClientApp> {
               () => ChatListPanel.requestNavigateChat(1),
           const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true):
               () => ChatListPanel.requestNavigateChat(-1),
+          // Telegram Desktop spec §24.4 Chat Actions: Ctrl+R marks the
+          // currently active chat as read (`read_chat` command). No-op
+          // when no chat is open.
+          const SingleActivator(LogicalKeyboardKey.keyR, control: true):
+              () => ChatView.requestMarkActiveChatRead(),
         },
         child: const UniClientShell(),
       ),

@@ -22,6 +22,16 @@ class ChatView extends StatefulWidget {
   static bool requestEditLastOutgoing() =>
       editLastOutgoingRequest?.call() ?? false;
 
+  /// Global hook used by app-level keyboard shortcuts (Ctrl+R with a chat
+  /// open) to mark the currently active chat as read (spec §24.4
+  /// `read_chat`). Set by the active [_ChatViewState] on mount, cleared on
+  /// dispose. Returns true if the active chat was successfully marked read.
+  static bool Function()? markActiveChatReadRequest;
+
+  /// Invoked by the app-level Ctrl+R binding. Returns true if consumed.
+  static bool requestMarkActiveChatRead() =>
+      markActiveChatReadRequest?.call() ?? false;
+
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
@@ -54,12 +64,18 @@ class _ChatViewState extends State<ChatView> {
     // Register the app-level ArrowUp hook (spec §24.7: edit last outgoing
     // when compose field is empty and no edit/reply is active).
     ChatView.editLastOutgoingRequest = _editLastOutgoing;
+    // Register the app-level Ctrl+R hook (spec §24.4 `read_chat`: mark the
+    // currently active chat as read).
+    ChatView.markActiveChatReadRequest = _markActiveChatRead;
   }
 
   @override
   void dispose() {
     if (ChatView.editLastOutgoingRequest == _editLastOutgoing) {
       ChatView.editLastOutgoingRequest = null;
+    }
+    if (ChatView.markActiveChatReadRequest == _markActiveChatRead) {
+      ChatView.markActiveChatReadRequest = null;
     }
     _composeController.dispose();
     _scrollController.dispose();
@@ -389,6 +405,20 @@ class _ChatViewState extends State<ChatView> {
         TextPosition(offset: _composeController.text.length),
       );
     });
+    return true;
+  }
+
+  /// Ctrl+R handler — Telegram Desktop spec §24.4 `read_chat`: marks the
+  /// currently active chat as read. Uses [ChatState.markChatRead] (not the
+  /// active-only [ChatState.markRead]) so that chats with no messages
+  /// currently loaded still get their unread count cleared, and so the
+  /// sidebar unread badges refresh via the follow-up `loadChats()`.
+  /// Returns true if a chat was active and the mark-read call was issued.
+  bool _markActiveChatRead() {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return false;
+    chatState.markChatRead(chat.accountId, chat.chatId);
     return true;
   }
 
