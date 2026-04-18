@@ -41,9 +41,20 @@ class MessageBubble extends StatelessWidget {
     // Determine if this is an outgoing message (set by Go engine per-platform).
     final isOutgoing = message.isOutgoing;
 
-    final bubbleColor = isOutgoing
-        ? (isDark ? AppColors.bubbleSent : AppColors.bubbleSentLight)
-        : (isDark ? AppColors.bubbleReceived : AppColors.bubbleReceivedLight);
+    // AyuGram spec: sticker-only messages render without a bubble background.
+    // A sticker-only message has no text body, reply, or forward header — only
+    // the sticker image. Sender name (group chats, first-in-group) and timestamp
+    // still render, but the background capsule and padding are suppressed.
+    final isStickerOnly = message.mediaType == 6 &&
+        message.contentText.isEmpty &&
+        message.replyPreview.isEmpty &&
+        message.forwardFrom.isEmpty;
+
+    final bubbleColor = isStickerOnly
+        ? Colors.transparent
+        : isOutgoing
+            ? (isDark ? AppColors.bubbleSent : AppColors.bubbleSentLight)
+            : (isDark ? AppColors.bubbleReceived : AppColors.bubbleReceivedLight);
 
     final alignment = isOutgoing
         ? CrossAxisAlignment.end
@@ -90,15 +101,19 @@ class MessageBubble extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 40 : _maxWidth),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+                padding: isStickerOnly
+                    ? EdgeInsets.zero
+                    : const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
                 decoration: BoxDecoration(
                   color: bubbleColor,
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(isOutgoing ? topOtherSide : topSenderSide),
-                    topRight: Radius.circular(isOutgoing ? topSenderSide : topOtherSide),
-                    bottomLeft: Radius.circular(isOutgoing ? bottomOtherSide : bottomSenderSide),
-                    bottomRight: Radius.circular(isOutgoing ? bottomSenderSide : bottomOtherSide),
-                  ),
+                  borderRadius: isStickerOnly
+                      ? BorderRadius.zero
+                      : BorderRadius.only(
+                          topLeft: Radius.circular(isOutgoing ? topOtherSide : topSenderSide),
+                          topRight: Radius.circular(isOutgoing ? topSenderSide : topOtherSide),
+                          bottomLeft: Radius.circular(isOutgoing ? bottomOtherSide : bottomSenderSide),
+                          bottomRight: Radius.circular(isOutgoing ? bottomSenderSide : bottomOtherSide),
+                        ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
