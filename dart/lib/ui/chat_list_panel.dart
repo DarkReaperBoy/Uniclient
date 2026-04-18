@@ -121,7 +121,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
                         isOnline: chatState.isChatOnline(chat),
                         typingUser: chatState.typingUserFor(chat.chatId),
                         onTap: () => chatState.openChat(chat),
-                        onSecondaryTap: () => _showChatContextMenu(context, chat),
+                        onSecondaryTap: (pos) => _showChatContextMenu(context, chat, pos),
                       );
                     },
                   ),
@@ -131,19 +131,15 @@ class _ChatListPanelState extends State<ChatListPanel> {
     );
   }
 
-  void _showChatContextMenu(BuildContext context, ChatInfo chat) {
+  void _showChatContextMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
     final chatState = context.read<ChatState>();
-    final RenderBox overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
-    final RenderBox button = context.findRenderObject() as RenderBox;
-    final position = button.localToGlobal(Offset.zero, ancestor: overlay);
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
 
     showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        position.dx,
-        position.dy,
-        overlay.size.width - position.dx,
-        overlay.size.height - position.dy,
+      position: RelativeRect.fromRect(
+        globalPosition & const Size(40, 40),
+        Offset.zero & overlay.size,
       ),
       items: [
         PopupMenuItem(value: 'pin', child: Text(chat.isPinned ? 'Unpin' : 'Pin')),

@@ -12,7 +12,7 @@ class ChatListRow extends StatelessWidget {
   final bool isOnline;
   final String? typingUser;
   final VoidCallback onTap;
-  final VoidCallback? onSecondaryTap;
+  final ValueChanged<Offset>? onSecondaryTap;
 
   const ChatListRow({
     super.key,
@@ -63,7 +63,9 @@ class ChatListRow extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onTap,
-          onSecondaryTap: onSecondaryTap,
+          onSecondaryTapDown: onSecondaryTap == null
+              ? null
+              : (details) => onSecondaryTap!(details.globalPosition),
           hoverColor: isActive
               ? Colors.white.withValues(alpha: 0.08)
               : (isDark ? const Color(0xFF1e2430) : const Color(0xFFF1F1F1)),
