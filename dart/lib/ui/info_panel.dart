@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
@@ -280,6 +281,17 @@ class _ChatDetails extends StatelessWidget {
 
   const _ChatDetails({required this.chat, required this.theme});
 
+  void _copyToClipboard(BuildContext context, String value, String label) {
+    Clipboard.setData(ClipboardData(text: value));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label copied to clipboard'),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -287,20 +299,22 @@ class _ChatDetails extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Chat ID (as username-like field).
+          // Chat ID (as username-like field) — tap to copy.
           if (chat.chatId.isNotEmpty)
             _DetailRow(
               icon: Icons.alternate_email,
               label: 'ID',
               value: chat.chatId,
               theme: theme,
+              onTap: () => _copyToClipboard(context, chat.chatId, 'ID'),
             ),
-          // Account.
+          // Account — tap to copy.
           _DetailRow(
             icon: Icons.account_circle,
             label: 'Account',
             value: chat.accountId,
             theme: theme,
+            onTap: () => _copyToClipboard(context, chat.accountId, 'Account'),
           ),
         ],
       ),
@@ -313,18 +327,20 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
   final ThemeData theme;
+  final VoidCallback? onTap;
 
   const _DetailRow({
     required this.icon,
     required this.label,
     required this.value,
     required this.theme,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -339,8 +355,19 @@ class _DetailRow extends StatelessWidget {
               ],
             ),
           ),
+          if (onTap != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Icon(Icons.copy, size: 16, color: theme.textTheme.bodySmall?.color),
+            ),
         ],
       ),
+    );
+    if (onTap == null) return row;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: row,
     );
   }
 }
