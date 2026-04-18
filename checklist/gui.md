@@ -57,6 +57,7 @@
 - [ ] Profile music/channel links
 - [ ] Phone number, bio, username, birthday, notes, number ID display
 - [ ] Media tabs (photos, videos, files, links, voice, GIFs)
+- [x] **Placeholder shared-media button row removed** — `_SharedMediaSection` in `dart/lib/ui/info_panel.dart` rendered 7 clickable rows (Photos, Videos, Files, Audio, Links, Voice, GIFs) with empty `onTap: () {}` handlers — a hard-banned placeholder per CLAUDE.md (visible UI element that "appears to work but doesn't"). Removed the `_SharedMediaSection` widget, its `_mediaTypes` table, and the preceding `Divider(height: 24)` + the call site in the info panel's `ListView`. The Members section now appears directly below the Notifications toggle for group/topic chats. Media tabs will be re-added by the "Media tabs (photos, videos, files, links, voice, GIFs)" task above when the underlying `SearchMessages`/filtered-history engine calls are wired up. Screenshot-verified at 1280×800 on `./Suburban.sh` (`tele_4beb99fd`): opening the info panel with the (i) button shows avatar → ID/Account rows → Notifications toggle → Members (5 members listed with real avatars and "last seen recently" subtitles) — no more 7 dead buttons between Notifications and Members.
 - [ ] Edit contact / delete contact / block user actions
 
 ### Search

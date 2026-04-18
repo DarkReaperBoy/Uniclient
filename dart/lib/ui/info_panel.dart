@@ -97,9 +97,6 @@ class _InfoPanelState extends State<InfoPanel> {
                 const Divider(height: 24),
                 // Notifications toggle.
                 _NotificationToggle(chat: chat, theme: theme),
-                const Divider(height: 24),
-                // Shared media buttons (placeholder counts).
-                _SharedMediaSection(theme: theme),
                 // Members list (for groups).
                 if (chat.type == ChatType.group || chat.type == ChatType.topic) ...[
                   const Divider(height: 24),
@@ -397,52 +394,6 @@ class _NotificationToggle extends StatelessWidget {
             },
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _SharedMediaSection extends StatelessWidget {
-  final ThemeData theme;
-
-  const _SharedMediaSection({required this.theme});
-
-  static const _mediaTypes = [
-    (Icons.photo, 'Photos'),
-    (Icons.videocam, 'Videos'),
-    (Icons.insert_drive_file, 'Files'),
-    (Icons.audiotrack, 'Audio'),
-    (Icons.link, 'Links'),
-    (Icons.mic, 'Voice'),
-    (Icons.gif, 'GIFs'),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: _mediaTypes.map((m) => Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: InkWell(
-            onTap: () {},
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Icon(m.$1, size: 20, color: theme.colorScheme.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(m.$2, style: theme.textTheme.bodyMedium),
-                  ),
-                  Icon(Icons.chevron_right, size: 18, color: theme.textTheme.bodySmall?.color),
-                ],
-              ),
-            ),
-          ),
-        )).toList(),
       ),
     );
   }
