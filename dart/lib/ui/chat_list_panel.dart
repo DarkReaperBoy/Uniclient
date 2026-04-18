@@ -35,6 +35,12 @@ class ChatListPanel extends StatefulWidget {
   /// list (direction: +1 = next, -1 = previous).
   static void Function(int direction)? navigateChatRequest;
 
+  /// Global hook used by app-level Ctrl+Shift+Down / Ctrl+Shift+Up (Telegram
+  /// Desktop spec §24.4 `next_folder` / `previous_folder`). The live panel
+  /// state registers a handler that switches the active folder in the tab
+  /// order (direction: +1 = next, -1 = previous).
+  static void Function(int direction)? navigateFolderRequest;
+
   /// Focus the chat list search field. Safe to call when no panel is mounted.
   static void requestFocusSearch() => focusSearchRequest?.call();
 
@@ -45,6 +51,11 @@ class ChatListPanel extends StatefulWidget {
   /// Safe to call when no panel is mounted.
   static void requestNavigateChat(int direction) =>
       navigateChatRequest?.call(direction);
+
+  /// Move active folder selection by [direction] (+1 = next, -1 = previous).
+  /// Safe to call when no panel is mounted.
+  static void requestNavigateFolder(int direction) =>
+      navigateFolderRequest?.call(direction);
 
   @override
   State<ChatListPanel> createState() => _ChatListPanelState();
@@ -62,6 +73,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
     ChatListPanel.focusSearchRequest = _focusSearch;
     ChatListPanel.cancelSearchRequest = _cancelSearchIfActive;
     ChatListPanel.navigateChatRequest = _navigateChat;
+    ChatListPanel.navigateFolderRequest = _navigateFolder;
   }
 
   /// Open the chat adjacent to the currently active one in the visible list.
@@ -109,6 +121,28 @@ class _ChatListPanelState extends State<ChatListPanel> {
     chatState.openChat(visible[target]);
   }
 
+  /// Switch the active folder by [direction] (+1 = next, -1 = previous).
+  /// Tab order is `[null ("All Chats"), folders[0], folders[1], ...]` — the
+  /// same order rendered by the vertical `FilterColumn` and the horizontal
+  /// `_HorizontalFolderTabs`. Clamps at boundaries (matches Alt+Down/Up chat
+  /// nav behavior). No-op when no folders exist for the active account.
+  void _navigateFolder(int direction) {
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
+    final folders = chatState.folders;
+    if (folders.isEmpty) return; // no folders → no-op
+
+    // Build the tab-order list: null ("All") at index 0, then each folder.
+    final ids = <String?>[null, ...folders.map((f) => f.id)];
+    final currentIdx = ids.indexOf(chatState.activeFolderId);
+    // If the current active folder isn't in the list (e.g. stale id after
+    // folder edit), fall back to "All" at index 0 or end.
+    final startIdx = currentIdx < 0 ? (direction >= 0 ? -1 : ids.length) : currentIdx;
+    final target = (startIdx + direction).clamp(0, ids.length - 1);
+    if (target == currentIdx) return; // already at boundary
+    chatState.setActiveFolder(ids[target]);
+  }
+
   /// Global-Esc hook. If the search field is currently active (Cancel
   /// button visible), cancel and return true so the app-level Esc handler
   /// knows the event was consumed. Pairs with the Ctrl+F focus shortcut —
@@ -129,6 +163,9 @@ class _ChatListPanelState extends State<ChatListPanel> {
     }
     if (ChatListPanel.navigateChatRequest == _navigateChat) {
       ChatListPanel.navigateChatRequest = null;
+    }
+    if (ChatListPanel.navigateFolderRequest == _navigateFolder) {
+      ChatListPanel.navigateFolderRequest = null;
     }
     _searchController.dispose();
     _searchFocus.dispose();

@@ -495,6 +495,20 @@ class _UniClientAppState extends State<UniClientApp> {
       ChatListPanel.requestNavigateChat(-1);
       return;
     }
+    // Telegram Desktop spec §24.4 next_folder/previous_folder — Ctrl+Shift+
+    // Down/Up switches the active folder tab in the sidebar. Same harness
+    // bypass as alt+down/up (HardwareKeyboard doesn't route through
+    // Shortcuts).
+    if (lc == 'ctrl+shift+down' || lc == 'ctrl+shift+arrowdown' ||
+        lc == 'control+shift+down' || lc == 'control+shift+arrowdown') {
+      ChatListPanel.requestNavigateFolder(1);
+      return;
+    }
+    if (lc == 'ctrl+shift+up' || lc == 'ctrl+shift+arrowup' ||
+        lc == 'control+shift+up' || lc == 'control+shift+arrowup') {
+      ChatListPanel.requestNavigateFolder(-1);
+      return;
+    }
     // Telegram Desktop spec §24.4: Ctrl+R marks the currently active chat
     // as read. HardwareKeyboard doesn't route through Shortcuts, so invoke
     // the hook directly for the harness path (same trick as ctrl+f above).
@@ -683,6 +697,13 @@ class _UniClientAppState extends State<UniClientApp> {
               () => ChatListPanel.requestNavigateChat(1),
           const SingleActivator(LogicalKeyboardKey.arrowUp, alt: true):
               () => ChatListPanel.requestNavigateChat(-1),
+          // Telegram Desktop spec §24.4: Ctrl+Shift+Down / Ctrl+Shift+Up
+          // switch to the next / previous folder tab (`next_folder` /
+          // `previous_folder`). Tab order: All Chats, then folders in order.
+          const SingleActivator(LogicalKeyboardKey.arrowDown, control: true, shift: true):
+              () => ChatListPanel.requestNavigateFolder(1),
+          const SingleActivator(LogicalKeyboardKey.arrowUp, control: true, shift: true):
+              () => ChatListPanel.requestNavigateFolder(-1),
           // Telegram Desktop spec §24.4 Chat Actions: Ctrl+R marks the
           // currently active chat as read (`read_chat` command). No-op
           // when no chat is open.
