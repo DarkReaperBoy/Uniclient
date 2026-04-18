@@ -559,6 +559,12 @@ class _UniClientAppState extends State<UniClientApp> {
       SystemTray.hideWindowRequest?.call();
       return;
     }
+    // Telegram Desktop spec §24.4: Ctrl+F4 is the documented alternate
+    // binding for `close_telegram` (hide to tray). Same callback as Ctrl+W.
+    if (lc == 'ctrl+f4' || lc == 'control+f4') {
+      SystemTray.hideWindowRequest?.call();
+      return;
+    }
     // Telegram Desktop spec §24.4: Ctrl+M minimizes the window (iconify to
     // taskbar). Unlike Ctrl+W (which hides the window entirely), minimize
     // preserves the taskbar entry so the user can click it to restore.
@@ -821,6 +827,12 @@ class _UniClientAppState extends State<UniClientApp> {
           // in the background; the tray icon (if present) is how the user
           // brings it back.
           const SingleActivator(LogicalKeyboardKey.keyW, control: true):
+              () => SystemTray.hideWindowRequest?.call(),
+          // Telegram Desktop spec §24.4 Application / Window: Ctrl+F4 is the
+          // documented alternate binding for `close_telegram` (hide to tray).
+          // Same callback as Ctrl+W so behaviour is byte-identical — no-ops
+          // when SystemTray.hideWindowRequest is null (no appindicator tray).
+          const SingleActivator(LogicalKeyboardKey.f4, control: true):
               () => SystemTray.hideWindowRequest?.call(),
           // Telegram Desktop spec §24.4 Application / Window: Ctrl+M
           // minimizes the window (iconify to taskbar). Works without the
