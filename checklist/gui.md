@@ -67,7 +67,7 @@
 
 ## Needs visual review (implemented but not screenshot-verified against AyuGram)
 
-- [ ] Responsive shell layout (UniClientShell) — OneColumn/TwoColumn/ThreeColumn modes
+- [x] Responsive shell layout (UniClientShell) — OneColumn/TwoColumn/ThreeColumn modes — Screenshot-verified at three widths via kdotool resizing: (1) **OneColumn** at ~490px shows single panel with horizontal folder tabs + hamburger; opening a chat replaces list with chat view + back arrow (slide navigation working). (2) **TwoColumn** at ~1280px shows 72px filter sidebar + dialogs column + chat view. (3) **ThreeColumn** at 1400px after tapping top-bar info icon adds right-side Group Info panel (avatar, ID, Notifications toggle, media tabs, Members). Breakpoints: `_oneColumnBreak=640`, `_threeColumnBreak=932` in `dart/lib/ui/shell.dart`.
 - [ ] Chat list sidebar (ChatListPanel) — search, sorted chat rows
 - [ ] Chat list row (ChatListRow) — 62px, avatars, titles, timestamps, badges, previews
 - [ ] Hamburger drawer (HamburgerDrawer) — profile cover (134px), collapsible account switcher, menu items, night mode
