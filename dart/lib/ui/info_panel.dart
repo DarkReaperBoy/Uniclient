@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/chat_state.dart';
+import 'chat_view.dart' show formatChatLastSeen;
 
 /// Spec: Third column info panel, min 292px, max 392px.
 /// Shows user/group/channel info with members and shared media links.
@@ -90,7 +91,12 @@ class _InfoPanelState extends State<InfoPanel> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
                 // Avatar + name header.
-                _AvatarHeader(chat: chat, theme: theme),
+                _AvatarHeader(
+                  chat: chat,
+                  theme: theme,
+                  isOnline: chatState.isChatOnline(chat),
+                  lastSeen: chatState.chatLastSeen(chat),
+                ),
                 const SizedBox(height: 16),
                 // Chat details.
                 _ChatDetails(chat: chat, theme: theme),
@@ -165,14 +171,31 @@ class _TopBar extends StatelessWidget {
 class _AvatarHeader extends StatelessWidget {
   final ChatInfo chat;
   final ThemeData theme;
+  final bool isOnline;
+  final ({String kind, int lastSeenMs}) lastSeen;
 
-  const _AvatarHeader({required this.chat, required this.theme});
+  const _AvatarHeader({
+    required this.chat,
+    required this.theme,
+    this.isOnline = false,
+    this.lastSeen = (kind: '', lastSeenMs: 0),
+  });
 
   @override
   Widget build(BuildContext context) {
     final colorIndex = chat.chatId.hashCode.abs() % 7;
     final color = _avatarColors[colorIndex];
     final initials = _initials(chat.title);
+
+    // Compute status line. For DMs: online (green) / last seen (muted).
+    // For groups/channels/topics: member or subscriber count (muted).
+    final isDm = chat.type == ChatType.dm;
+    final String statusText = isDm
+        ? (isOnline ? 'online' : formatChatLastSeen(lastSeen))
+        : _groupStatusText(chat);
+    final Color? statusColor = isDm && isOnline
+        ? const Color(0xFF3BA55C) // online green
+        : theme.textTheme.bodySmall?.color;
 
     return Column(
       children: [
@@ -204,24 +227,25 @@ class _AvatarHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        // Status / member count.
-        if (chat.memberCount > 0)
+        // Status line: online/last-seen for DMs, member count for groups/channels.
+        if (statusText.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
-              _statusText(chat),
-              style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
+              statusText,
+              style: TextStyle(fontSize: 13, color: statusColor),
             ),
           ),
       ],
     );
   }
 
-  static String _statusText(ChatInfo chat) {
+  static String _groupStatusText(ChatInfo chat) {
     if (chat.type == ChatType.channel) {
       return '${_formatCount(chat.memberCount)} subscribers';
     }
-    if (chat.type == ChatType.group || chat.type == ChatType.topic) {
+    if ((chat.type == ChatType.group || chat.type == ChatType.topic) &&
+        chat.memberCount > 0) {
       return '${_formatCount(chat.memberCount)} members';
     }
     return '';

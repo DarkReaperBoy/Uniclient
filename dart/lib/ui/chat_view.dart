@@ -488,46 +488,8 @@ class _ChatTopBar extends StatelessWidget {
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
-  static String _formatLastSeen(({String kind, int lastSeenMs}) ls) {
-    switch (ls.kind) {
-      case 'recently':
-        return 'last seen recently';
-      case 'within_week':
-        return 'last seen within a week';
-      case 'within_month':
-        return 'last seen within a month';
-      case 'long_ago':
-        return 'last seen a long time ago';
-      case 'exact':
-        if (ls.lastSeenMs <= 0) return '';
-        final then = DateTime.fromMillisecondsSinceEpoch(ls.lastSeenMs);
-        final now = DateTime.now();
-        final diff = now.difference(then);
-        if (diff.inSeconds < 60) return 'last seen just now';
-        if (diff.inMinutes < 60) {
-          final m = diff.inMinutes;
-          return 'last seen $m ${m == 1 ? "minute" : "minutes"} ago';
-        }
-        final sameDay = then.year == now.year &&
-            then.month == now.month &&
-            then.day == now.day;
-        final y = now.subtract(const Duration(days: 1));
-        final yesterday = then.year == y.year &&
-            then.month == y.month &&
-            then.day == y.day;
-        String twoDigits(int n) => n.toString().padLeft(2, '0');
-        final time = '${twoDigits(then.hour)}:${twoDigits(then.minute)}';
-        if (sameDay) return 'last seen today at $time';
-        if (yesterday) return 'last seen yesterday at $time';
-        const months = [
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-        ];
-        return 'last seen ${months[then.month - 1]} ${then.day} at $time';
-      default:
-        return '';
-    }
-  }
+  static String _formatLastSeen(({String kind, int lastSeenMs}) ls) =>
+      formatChatLastSeen(ls);
 
   static Widget _chatAvatar(ChatInfo chat, ThemeData theme, double radius) {
     if (chat.avatarPath.isNotEmpty) {
@@ -1349,5 +1311,48 @@ class _ForwardDialogState extends State<_ForwardDialog> {
       Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb),
     ];
     return colors[id.hashCode.abs() % 7];
+  }
+}
+
+/// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
+/// Shared by the chat top bar and the info panel avatar header.
+String formatChatLastSeen(({String kind, int lastSeenMs}) ls) {
+  switch (ls.kind) {
+    case 'recently':
+      return 'last seen recently';
+    case 'within_week':
+      return 'last seen within a week';
+    case 'within_month':
+      return 'last seen within a month';
+    case 'long_ago':
+      return 'last seen a long time ago';
+    case 'exact':
+      if (ls.lastSeenMs <= 0) return '';
+      final then = DateTime.fromMillisecondsSinceEpoch(ls.lastSeenMs);
+      final now = DateTime.now();
+      final diff = now.difference(then);
+      if (diff.inSeconds < 60) return 'last seen just now';
+      if (diff.inMinutes < 60) {
+        final m = diff.inMinutes;
+        return 'last seen $m ${m == 1 ? "minute" : "minutes"} ago';
+      }
+      final sameDay = then.year == now.year &&
+          then.month == now.month &&
+          then.day == now.day;
+      final y = now.subtract(const Duration(days: 1));
+      final yesterday = then.year == y.year &&
+          then.month == y.month &&
+          then.day == y.day;
+      String twoDigits(int n) => n.toString().padLeft(2, '0');
+      final time = '${twoDigits(then.hour)}:${twoDigits(then.minute)}';
+      if (sameDay) return 'last seen today at $time';
+      if (yesterday) return 'last seen yesterday at $time';
+      const months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ];
+      return 'last seen ${months[then.month - 1]} ${then.day} at $time';
+    default:
+      return '';
   }
 }
