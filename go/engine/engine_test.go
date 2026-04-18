@@ -31,11 +31,11 @@ func TestOpenDB(t *testing.T) {
 		t.Errorf("expected WAL mode, got %q", journalMode)
 	}
 
-	// Verify schema version.
+	// Verify schema version matches latest migration.
 	var version int
 	db.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 1 {
-		t.Errorf("expected schema version 1, got %d", version)
+	if version != len(migrations) {
+		t.Errorf("expected schema version %d, got %d", len(migrations), version)
 	}
 
 	// Verify tables exist.
@@ -78,7 +78,7 @@ func TestDBCorruptionRecovery(t *testing.T) {
 func TestDBMigrationIdempotent(t *testing.T) {
 	dir := tempDir(t)
 
-	// Open twice — second open should be a no-op (already at version 1).
+	// Open twice — second open should be a no-op (already at latest version).
 	db1, err := OpenDB(dir)
 	if err != nil {
 		t.Fatalf("first open: %v", err)
@@ -93,9 +93,94 @@ func TestDBMigrationIdempotent(t *testing.T) {
 
 	var version int
 	db2.QueryRow("PRAGMA user_version").Scan(&version)
-	if version != 1 {
-		t.Errorf("expected version 1, got %d", version)
+	if version != len(migrations) {
+		t.Errorf("expected version %d, got %d", len(migrations), version)
 	}
+}
+
+// TestMigrateV2IsOutgoing verifies the V1→V2 upgrade path: running migrations
+// against an older DB (with user_version < 2) adds the messages.is_outgoing
+// column, preserves existing rows, defaults new rows to 0, and is idempotent.
+func TestMigrateV2IsOutgoing(t *testing.T) {
+	dir := tempDir(t)
+
+	// Step 1: Open a fresh DB, run all migrations, confirm is_outgoing exists.
+	db, err := OpenDB(dir)
+	if err != nil {
+		t.Fatalf("OpenDB: %v", err)
+	}
+
+	// Confirm column exists on a fresh-build DB.
+	var colCount int
+	db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('messages') WHERE name='is_outgoing'`).Scan(&colCount)
+	if colCount != 1 {
+		t.Fatalf("expected is_outgoing column on fresh DB, got count=%d", colCount)
+	}
+
+	// Step 2: Roll the DB back to V1 state to exercise the V2 ALTER path.
+	//   a) create a legacy account row so the FK on messages holds,
+	//   b) drop the is_outgoing column (requires table rebuild on old SQLite,
+	//      but modern SQLite supports DROP COLUMN),
+	//   c) reset user_version to 1.
+	if _, err := db.Exec(`INSERT INTO accounts(id, platform, created_at) VALUES('acc1','telegram',1)`); err != nil {
+		t.Fatalf("insert account: %v", err)
+	}
+	// Insert a V1-era row (is_outgoing will still exist here since DB is V4).
+	if _, err := db.Exec(`INSERT INTO messages(account_id, chat_id, msg_id, content_text, timestamp, is_outgoing)
+		VALUES('acc1','c1','m1','hello from v1',1000, 1)`); err != nil {
+		t.Fatalf("insert legacy msg: %v", err)
+	}
+	if _, err := db.Exec(`ALTER TABLE messages DROP COLUMN is_outgoing`); err != nil {
+		t.Fatalf("drop column: %v", err)
+	}
+	if _, err := db.Exec(`PRAGMA user_version = 1`); err != nil {
+		t.Fatalf("reset user_version: %v", err)
+	}
+	db.Close()
+
+	// Step 3: Reopen — migrateV2 must re-add the column and migrations V3/V4 must still run.
+	db2, err := OpenDB(dir)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer db2.Close()
+
+	var v int
+	db2.QueryRow(`PRAGMA user_version`).Scan(&v)
+	if v != len(migrations) {
+		t.Errorf("expected user_version=%d after reopen, got %d", len(migrations), v)
+	}
+
+	// Column must be back, default 0.
+	var isOut int
+	err = db2.QueryRow(`SELECT is_outgoing FROM messages WHERE msg_id='m1'`).Scan(&isOut)
+	if err != nil {
+		t.Fatalf("select is_outgoing: %v", err)
+	}
+	if isOut != 0 {
+		t.Errorf("expected default is_outgoing=0 for re-added column, got %d", isOut)
+	}
+
+	// Inserts with explicit value work.
+	if _, err := db2.Exec(`INSERT INTO messages(account_id, chat_id, msg_id, content_text, timestamp, is_outgoing)
+		VALUES('acc1','c1','m2','hello post-migrate',2000, 1)`); err != nil {
+		t.Fatalf("insert post-migrate: %v", err)
+	}
+	var out2 int
+	db2.QueryRow(`SELECT is_outgoing FROM messages WHERE msg_id='m2'`).Scan(&out2)
+	if out2 != 1 {
+		t.Errorf("expected is_outgoing=1 for new row, got %d", out2)
+	}
+
+	// Step 4: Idempotency — a second run of migrations on an already-upgraded DB is a no-op.
+	tx, err := db2.Begin()
+	if err != nil {
+		t.Fatalf("begin tx: %v", err)
+	}
+	if err := migrateV2(tx); err != nil {
+		t.Errorf("migrateV2 should be idempotent, got: %v", err)
+	}
+	tx.Commit()
 }
 
 func TestEngineInit(t *testing.T) {
