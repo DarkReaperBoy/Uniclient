@@ -42,7 +42,7 @@
 - [ ] Auto-delete indicator ("1d", "1w" etc.) on DMs with auto-delete enabled
 
 ### Chat view / DM
-- [ ] Sticker rendering (static + animated + video stickers)
+- [ ] Sticker rendering (static WebP decode + animated TGS/Lottie + video WebM) — **classification fixed**: `image/webp` documents now map to `MediaSticker` (type 6) in `go/engine/cache_msgs.go:571-575`, so the bubble renders with `Icons.emoji_emotions` + "Sticker" label + 0-radius corners instead of "Photo" / landscape icon / 8px-radius. Screenshot-verified in "黒の天使" (chatId `449163316` on `tele_4beb99fd`) — both cached stickers now labeled "Sticker 32.0 KB" / "Sticker 27.8 KB". Still TODO: decode the real WebP bytes (currently placeholder), animated TGS, and WebM video stickers; also suppress the bubble background for sticker-only messages per AyuGram spec.
 - [ ] GIF rendering and playback
 - [ ] Video playback in messages (currently shows placeholder)
 - [ ] Animated/video profile pictures

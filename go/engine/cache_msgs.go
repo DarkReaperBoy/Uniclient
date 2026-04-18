@@ -568,6 +568,11 @@ func guessMediaType(mime, name string) int {
 	switch {
 	case mime == "image/gif":
 		return MediaGIF
+	case mime == "image/webp":
+		// Telegram/Bale stickers are delivered as image/webp documents.
+		// Non-sticker webp is vanishingly rare in chat, so classify as sticker
+		// so the UI renders without a bubble background (§5 sticker treatment).
+		return MediaSticker
 	case len(mime) > 6 && mime[:6] == "image/":
 		return MediaImage
 	case len(mime) > 6 && mime[:6] == "video/":
