@@ -590,6 +590,16 @@ class _UniClientAppState extends State<UniClientApp> {
       ChatView.requestShowActiveChatMenu();
       return;
     }
+    // Telegram Desktop spec §24.4 line 2978 — Ctrl+Shift+Enter always sends
+    // the compose field regardless of send-by-Enter mode. Real OS-delivered
+    // keystrokes route through the TextField's FocusNode.onKeyEvent directly;
+    // this harness path invokes the static hook the active ChatView
+    // registered in initState so automated tests can exercise the same
+    // _sendMessage entry point.
+    if (lc == 'ctrl+shift+enter' || lc == 'control+shift+enter') {
+      ChatView.requestSendCompose();
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;

@@ -42,6 +42,19 @@ class ChatView extends StatefulWidget {
   static bool requestShowActiveChatMenu() =>
       showActiveChatMenuRequest?.call() ?? false;
 
+  /// Harness hook for always-send (spec §24.4 line 2978: Ctrl+Shift+Enter
+  /// always sends regardless of mode). Real OS-delivered Ctrl+Shift+Enter
+  /// reaches the compose TextField's FocusNode.onKeyEvent directly; this hook
+  /// exists so the test harness (which uses HardwareKeyboard.handleKeyEvent
+  /// and does not route through FocusManager in all cases) can drive the
+  /// shortcut. Returns true iff the send fired (non-empty compose + active
+  /// chat).
+  static bool Function()? sendComposeRequest;
+
+  /// Invoked by the harness `ctrl+shift+enter` binding. Returns true if
+  /// consumed (send dispatched).
+  static bool requestSendCompose() => sendComposeRequest?.call() ?? false;
+
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
@@ -86,6 +99,12 @@ class _ChatViewState extends State<ChatView> {
     // Register the app-level Ctrl+\ hook (spec §24.4 `show_chat_menu`:
     // open the chat-level action menu anchored to the top-bar more_vert).
     ChatView.showActiveChatMenuRequest = _showActiveChatMenu;
+    // Register the harness Ctrl+Shift+Enter hook (spec §24.4 line 2978:
+    // always send regardless of mode). The real FocusNode.onKeyEvent path on
+    // the compose TextField catches OS-delivered Ctrl+Shift+Enter directly;
+    // this hook lets the automated harness exercise the same _sendMessage
+    // entry point without having to synthesize the full modifier keystream.
+    ChatView.sendComposeRequest = _requestSendCompose;
   }
 
   @override
@@ -98,6 +117,9 @@ class _ChatViewState extends State<ChatView> {
     }
     if (ChatView.showActiveChatMenuRequest == _showActiveChatMenu) {
       ChatView.showActiveChatMenuRequest = null;
+    }
+    if (ChatView.sendComposeRequest == _requestSendCompose) {
+      ChatView.sendComposeRequest = null;
     }
     _composeController.dispose();
     _scrollController.dispose();
@@ -401,6 +423,18 @@ class _ChatViewState extends State<ChatView> {
     final text = msgs.map((m) => m.contentText).join('\n');
     Clipboard.setData(ClipboardData(text: text));
     setState(() => _selectedMsgIds.clear());
+  }
+
+  /// Harness entry point for spec §24.4 line 2978 "Ctrl+Shift+Enter always
+  /// sends". Gates on the same preconditions as the FocusNode-level Enter
+  /// handler: compose text must be non-empty and a chat must be active.
+  /// Returns true iff the send (or edit) fired.
+  bool _requestSendCompose() {
+    if (!mounted) return false;
+    if (_composeController.text.trim().isEmpty) return false;
+    if (context.read<ChatState>().activeChat == null) return false;
+    _sendMessage();
+    return true;
   }
 
   void _sendMessage() {
@@ -1344,6 +1378,16 @@ class _ComposeAreaState extends State<_ComposeArea> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    // Ctrl+Shift+Enter → always send (spec §24.4 line 2978: "always sends
+    // regardless of mode"). Intercepted BEFORE the plain-Enter branch since
+    // isShiftPressed is true here, and BEFORE falling through to default
+    // EditableText handling which would otherwise insert a newline.
+    if (event.logicalKey == LogicalKeyboardKey.enter &&
+        HardwareKeyboard.instance.isControlPressed &&
+        HardwareKeyboard.instance.isShiftPressed) {
+      widget.onSend();
+      return KeyEventResult.handled;
+    }
     // Enter without Shift → send (spec §7).
     if (event.logicalKey == LogicalKeyboardKey.enter &&
         !HardwareKeyboard.instance.isShiftPressed) {
