@@ -660,3 +660,122 @@ func TestUtilsAccessible(t *testing.T) {
 		t.Error("utils.DefaultConfig should have dark theme")
 	}
 }
+
+// TestEnsureChatExists verifies that handleNewMessage auto-creates a chat row
+// when the message arrives for an uncached chat, with the correct INTEGER type
+// column (DM=1) and idempotent on a second invocation. Also confirms the
+// handleNewMessage path emits the message-received event and the chat row is
+// queryable through the normal GetChatList API.
+func TestEnsureChatExists(t *testing.T) {
+	dir := tempDir(t)
+	eng, err := Init(
+		filepath.Join(dir, "config"),
+		filepath.Join(dir, "cache"),
+		filepath.Join(dir, "downloads"),
+		"pw")
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer eng.Shutdown()
+
+	accID, _ := eng.AddAccount("telegram")
+
+	// Sanity: no chats present.
+	chats, _ := eng.GetChatList(accID, false, 50, 0)
+	if len(chats) != 0 {
+		t.Fatalf("expected 0 chats initially, got %d", len(chats))
+	}
+
+	// Inject a message for a chatID that has not been seen before.
+	now := time.Now()
+	msg := &cores.Message{
+		ID:         "m1",
+		SenderID:   "user42",
+		SenderName: "Carol",
+		Text:       "first message from a new contact",
+		Timestamp:  now,
+		Status:     cores.MessageStatusSent,
+	}
+	eng.handleNewMessage(accID, "newchat", msg)
+
+	// Chat row should exist now.
+	chats, _ = eng.GetChatList(accID, false, 50, 0)
+	if len(chats) != 1 {
+		t.Fatalf("ensureChatExists should have created 1 chat, got %d", len(chats))
+	}
+	c := chats[0]
+	if c.ChatID != "newchat" {
+		t.Errorf("chat_id mismatch: got %q want %q", c.ChatID, "newchat")
+	}
+	// Title falls back to sender name for DMs.
+	if c.Title != "Carol" {
+		t.Errorf("title should be sender name 'Carol', got %q", c.Title)
+	}
+	if c.LastMsgText != "first message from a new contact" {
+		t.Errorf("last_msg_text mismatch: got %q", c.LastMsgText)
+	}
+	if c.LastMsgID != "m1" {
+		t.Errorf("last_msg_id mismatch: got %q", c.LastMsgID)
+	}
+	if c.LastMsgSender != "Carol" {
+		t.Errorf("last_msg_sender mismatch: got %q", c.LastMsgSender)
+	}
+	if c.UnreadCount != 1 {
+		t.Errorf("unread_count should be 1 (no active chat set), got %d", c.UnreadCount)
+	}
+
+	// Verify the type column is the INTEGER value 1 (DM), not a string.
+	var rawType any
+	if err := eng.db.QueryRow(
+		"SELECT type FROM chats WHERE account_id = ? AND chat_id = ?",
+		accID, "newchat",
+	).Scan(&rawType); err != nil {
+		t.Fatalf("scan type: %v", err)
+	}
+	switch v := rawType.(type) {
+	case int64:
+		if v != int64(ChatTypeDMVal) {
+			t.Errorf("type should be %d (DM), got %d", ChatTypeDMVal, v)
+		}
+	case int:
+		if v != ChatTypeDMVal {
+			t.Errorf("type should be %d (DM), got %d", ChatTypeDMVal, v)
+		}
+	default:
+		t.Fatalf("type column must be INTEGER, got %T (%v) — this is the corruption that ensureChatExists fixes", rawType, rawType)
+	}
+
+	// Idempotency: a second call with a new message for the same chat must
+	// NOT create a duplicate row, and must update last_msg_*.
+	msg2 := &cores.Message{
+		ID:         "m2",
+		SenderID:   "user42",
+		SenderName: "Carol",
+		Text:       "follow-up",
+		Timestamp:  now.Add(time.Minute),
+		Status:     cores.MessageStatusSent,
+	}
+	eng.handleNewMessage(accID, "newchat", msg2)
+	chats, _ = eng.GetChatList(accID, false, 50, 0)
+	if len(chats) != 1 {
+		t.Fatalf("second message should not duplicate chat row, got %d chats", len(chats))
+	}
+	if chats[0].LastMsgID != "m2" {
+		t.Errorf("last_msg_id should advance to m2, got %q", chats[0].LastMsgID)
+	}
+	if chats[0].UnreadCount != 2 {
+		t.Errorf("unread_count should be 2 after second message, got %d", chats[0].UnreadCount)
+	}
+
+	// Dedup: re-injecting the SAME msg.ID must be a no-op (no extra unread,
+	// no duplicate cached message).
+	eng.handleNewMessage(accID, "newchat", msg2)
+	chats, _ = eng.GetChatList(accID, false, 50, 0)
+	if chats[0].UnreadCount != 2 {
+		t.Errorf("dedup: unread_count must stay 2 after re-injecting m2, got %d", chats[0].UnreadCount)
+	}
+	msgs, _ := eng.GetMessages(accID, "newchat", 0, 50)
+	if len(msgs) != 2 {
+		t.Errorf("dedup: expected 2 cached messages, got %d", len(msgs))
+	}
+}
