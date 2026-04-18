@@ -20,22 +20,65 @@ Four-zone layout (left to right):
 
 4. **Third column** (right, optional) -- Info panel. Min 292px (`columnMinimalWidthThird`), max 392px (`columnMaximalWidthThird`). Resizable, width persisted.
 
-Shadow separators (1px) between columns.
+### Column Shadow Separators
+
+The vertical 1px separators between columns (left/dialogs→chat, chat→third) are `Ui::PlainShadow` widgets that fill a `st::lineWidth` (1px) rectangle with the palette color `shadowFg`.
+
+- **Light themes** (`colors.palette`, `day-blue`): `shadowFg: #00000018` — pure black at alpha `0x18` (24/255 ≈ 9.4% opacity).
+- **Dark theme** (`night.tdesktop-theme`): `shadowFg: #04080e56` — near-black `#04080E` at alpha `0x56` (86/255 ≈ 33.7% opacity). Darker hue and noticeably stronger opacity than the light theme to stay visible against the dark background.
+- **`night-green.tdesktop-theme`**: `shadowFg: #00000018` (same as light — some dark variants don't override it).
+- **No animation.** Separators are flat `fillRect` paints with a static palette color; they are toggled by `show()` / `hide()` when the layout changes, never faded.
+- **Third column collapsed.** When the third column is hidden, `_thirdShadow` is `hide()`d or `destroy()`d (`mainwidget.cpp:1889, 2169, 2180, 2273`). The left side separator (`_sideShadow`, dialogs↔chat) keeps the same `shadowFg` color regardless of third-column state — there is no opacity change for the remaining separator.
+
+Source: `Telegram/lib_ui/ui/widgets/shadow.cpp:129–141`; palette tokens in `Telegram/lib_ui/ui/colors.palette:24` and `Telegram/Resources/night.tdesktop-theme`; layout toggle logic in `mainwidget.cpp:272, 1889–1894, 2119–2123, 2165–2180, 2270–2314`.
 
 ### Responsive Breakpoints
 
 Three layout modes computed against `bodyWidth` (window width minus filters sidebar):
 
-- **OneColumn** (< 640px): Single panel visible at a time. Tapping a chat slides from dialogs to chat view; back button returns. Third column disabled. **This is the mobile layout.**
-- **TwoColumn** (>= 640px, < 932px or third column disabled): Dialogs left, chat right. Standard desktop.
-- **ThreeColumn** (>= 932px with info panel enabled): All three columns. If tight, dialogs and third column shrink proportionally while chat stays at 380px min.
+- **OneColumn** (< 640px): Single panel visible at a time. Tapping a chat slides from dialogs to chat view; back button returns. Third column disabled. **This is the mobile layout.** Triggered when `_hasDialogs && bodyWidth < columnMinimalWidthLeft + columnMinimalWidthMain` (260 + 380 = 640px).
+- **Normal / TwoColumn** (≥ 640px, < 932px or third column disabled): Dialogs left, chat right. `dialogsWidth = round(bodyWidth * dialogsWidthRatio)`, clamped to `[columnMinimalWidthLeft (260px), bodyWidth - columnMinimalWidthMain (bodyWidth - 380px)]`; `chatWidth = bodyWidth - dialogsWidth`.
+- **ThreeColumn** (≥ `minimalThreeColumnWidth()` = 260 + 380 + 292 = 932px, with tabbed selector or info section enabled).
+
+**Column size constants** (`window.style:20–24`):
+- `columnMinimalWidthLeft` = 260px · `columnMaximalWidthLeft` = 540px
+- `columnMinimalWidthMain` = 380px (chat never shrinks below this)
+- `columnMinimalWidthThird` = 292px · `columnMaximalWidthThird` = 392px
+
+**Three-column shrink algorithm** (`SessionController::shrinkDialogsAndThirdColumns`, `window_session_controller.cpp:2560–2582`). Given initial `dialogsWidth` (from `dialogsWidthRatio`) and `thirdWidth` (from saved `thirdColumnWidth`, clamped to [292, 392]):
+
+1. If `dialogsWidth + thirdWidth + columnMinimalWidthMain ≤ bodyWidth`, no shrink — return unchanged.
+2. Otherwise pin chat to its 380px minimum and divide `bodyWidth - 380` between dialogs and third proportionally to their current widths:
+   ```
+   thirdWidthNew   = (bodyWidth - 380) * thirdWidth   / (dialogsWidth + thirdWidth)
+   dialogsWidthNew = (bodyWidth - 380) * dialogsWidth / (dialogsWidth + thirdWidth)
+   ```
+3. Clamp: if `thirdWidthNew < 292`, pin third to 292 and give the rest to dialogs (`dialogsWidthNew = bodyWidth - 292 - 380`); else if dialogs fell below 260, pin dialogs to 260 and give the rest to third.
+4. Final: `chatWidth = bodyWidth - dialogsWidth - thirdWidth` — chat absorbs all leftover beyond the minimums, so it grows past 380px only when the other columns are at their capped widths.
 
 **Wide chat mode**: Triggers at 880px chat width (`adaptiveChatWideWidth`), centering the message bubble column within the chat area.
+
+Source: `window_session_controller.cpp:2484–2582` (`minimalThreeColumnWidth`, `computeColumnLayout`, `countDialogsWidthFromRatio`, `countThirdColumnWidthFromRatio`, `shrinkDialogsAndThirdColumns`); constants in `window.style:13–24`.
 
 ### Window Defaults
 
 - Default: 800x600. Large-screen default: 1024x768. Minimum: 380x480.
 - Main menu (hamburger drawer): 274px wide, 134px cover area.
+
+### Linux Titlebar (X11 / Wayland / KDE / GNOME)
+
+- **Default: custom (client-side) titlebar.** `Core::Settings::_nativeWindowFrame` defaults to `false` (`core_settings.h:1149`), so on fresh installs Telegram draws its own titlebar on Linux. Users can flip this in Settings → Advanced → "Use system window frame" (`settings_advanced.cpp:330–345, 1553–1565`).
+- **Native/custom switch.** `MainWindow::refreshTitleWidget` (`main_window.cpp:641–653`) consults `Ui::Platform::NativeWindowFrameSupported()` (Linux returns `true` — `ui_window_linux.cpp:16–18`) and, if the user enabled native frame, calls `setNativeFrame(true)`. Otherwise `setNativeFrame(false)` installs `DefaultWindowHelper`, which sets `Qt::FramelessWindowHint` on the window handle (`ui_platform_window.cpp:329`) and paints the Telegram-drawn titlebar widget on top of the body.
+- **No Wayland vs X11 branching for the frame itself.** The same `DefaultWindowHelper` code path runs on both sessions; the frameless-window + custom titlebar works under X11 and Wayland alike. Telegram does not request `zxdg_decoration_v1`/SSD explicitly — with `Qt::FramelessWindowHint` set, compositors skip decorations regardless of session.
+- **Button layout** (close/minimize/maximize order and side) is read at runtime from the desktop environment, not hard-coded (`ui_window_title_linux.cpp:32–134`):
+  1. On X11, query `Gtk/DecorationLayout` from XSettings (`base_linux_xsettings`); a watcher re-reads on change.
+  2. If XSettings is unavailable (typical on Wayland), fall back to the XDG desktop portal setting `org.gnome.desktop.wm.preferences::button-layout` (`base_linux_xdp_utilities`), also watched for live changes.
+  3. If neither source yields a value, fall back to `{ right: [Minimize, Maximize, Close] }` (Windows-style). This default serves KDE (default right-side `Minimize,Maximize,Close`). GNOME typically publishes `appmenu:close`, putting a single close button on the right; dconf/Gnome-Tweaks customizations are picked up automatically.
+  4. The layout string is parsed around `:` (left side before, right side after); recognized keywords are `minimize`, `maximize`, `close`; any other token (including GNOME's `appmenu`, `icon`, `spacer`, `menu`) becomes `TitleControls::Control::Unknown` and renders nothing.
+- **KDE/X11 specifics.** X11 integration (`main_window_linux.cpp:52–112`) additionally uses raw XCB `_NET_WM_STATE` client messages for taskbar skip; this path is `#ifndef DESKTOP_APP_DISABLE_X11_INTEGRATION`'d and silently no-ops on Wayland (`SkipTaskbar` only acts if `IsX11()`).
+- **Caveats:** `NativeTitleRequiresShadow()` (referenced at `main_window.cpp:645`) — Linux definition not confirmed; would add a 1px shadow under the native frame when true. No explicit Wayland CSD/SSD protocol negotiation found — CSD behavior is implicit via `Qt::FramelessWindowHint`.
+
+Source: `main_window.cpp:641–653`; `core_settings.h:1149`; `settings_advanced.cpp:330–345, 1553–1565`; `ui_window_linux.cpp:11–18`; `ui_window_title_linux.cpp:20–134`; `ui_platform_window.cpp:320–345, 588…`; `main_window_linux.cpp:52–112`.
 
 ### Animations
 
@@ -59,13 +102,29 @@ Three layout modes computed against `bodyWidth` (window width minus filters side
 
 Top of sidebar. Placeholder: "Search". Padding: 7px each side.
 
-When focused: **Top Peers** strip (horizontal, 46px avatars) + **Recent Contacts** list (56px rows, 42px avatars). When typing: results in three tabs (MyMessages with sub-filters Private/Groups/Channels, PublicPosts, ThisPeer). Cancel button appears. Empty results: Lottie animation (100px) + descriptive text.
+When focused: **Top Peers** strip (horizontal, 46px avatars) + **Recent Contacts** list (56px rows, 42px avatars). When typing: results in three tabs (MyMessages, PublicPosts, ThisPeer). Cancel button appears. Empty results: Lottie animation (100px) + descriptive text.
+
+**Search-mode tabs (`dialogsSearchTabs`).** Segmented slider, NOT pill chips, rendered above results. Strip height **33px**, horizontal padding **9px**, inter-label minimum gap (`strictSkip`) **18px**. Labels use `semiboldTextStyle` (14px semibold), `labelTop: 7px`. Inactive fg = `windowSubTextFg`, active fg = `lightButtonFg` (Telegram blue). Underline indicator: **6px stroke**, radius **2px**, at `barTop: 30px` (3px below label), color = `lightButtonFg`; "bar background" (`barFg`) is transparent — only the active segment shows an underline, no pill fill. Indicator snaps to label width (`barSnapToLabel: true`). Hover ripple bg = `windowBgOver`; active-segment ripple = `lightButtonBgOver`. Tab labels (per `ChatSearchTab` enum): **My Messages**, **Public Posts**, **This Peer**.
+
+**Sub-filters under My Messages (Private/Groups/Channels) are NOT a chip row** — they live in a `ChatSearchIn` popup menu (`dialogsSearchInMenu`) opened from a 38px-tall row (`dialogsSearchInHeight`, photo 28px, left padding 10px, name top 9px, dropdown arrow top 15px). Row divider bar = 28px (`searchedBarHeight`), font = `normalFont`, label left padding = 14px.
+
+**Folder tabs strip (`chatsFiltersTabs`)** is the same `SettingsSlider` widget with `rippleBottomSkip: 0px` — otherwise identical metrics to `dialogsSearchTabs`.
+
+Source: `dialogs.style:798-820, 518-532, 841-843`; `widgets.style:1188-1202` (base `defaultSettingsSlider`); `dialogs/ui/chat_search_in.cpp:262-350`.
 
 ### Chat List Rows
 
 **Row height:** 62px. **Padding:** 10px left, 8px top, 10px right, 8px bottom.
 
-**Avatar:** 46px diameter, positioned at (10, 8). Online indicator: 12px green dot (#4dc920) with 3px white stroke, bottom-right of avatar. Stories ring: unread = gradient outline, read = thinner line at 60% opacity.
+**Avatar:** 46px diameter, positioned at (10, 8). Online indicator: 12px green dot (#4dc920) with 3px white stroke, bottom-right of avatar.
+
+**Stories ring.** Geometry differs by mode: **small/minified** (sidebar collapsed) → photo 21px, unread line width **1.5px** (`lineTwice: 3px`, halved in paint), read line **not drawn** (`lineReadTwice: 0px`). **Full/expanded** → photo 42px, unread line **2px** (`lineTwice: 4px`), read line **1px** (`lineReadTwice: 2px`). Ring is offset outside the userpic by `1.5 × lineWidth`. Multi-story rings split into segments with ~160-unit small separators and round caps; single-unread items draw a full ellipse.
+
+**Unread gradient.** `QLinearGradient` from **topRight → bottomLeft** of the userpic rect, two stops: **0.0 = `groupCallLive1` (#0dcc39 green)**, **1.0 = `groupCallMuted1` (#0992ef blue)**. Identical in day and night (`night.tdesktop-theme` does NOT override these tokens — theme-invariant). **There is no separate premium-stories gradient** — the code path doesn't distinguish premium vs non-premium. **Live-stream (RTMP)** ring replaces the gradient with solid `attentionButtonFg` (red).
+
+**Read ring.** Solid `dialogsUnreadBgMuted`: **#bbbbbb** (day) / **#3e546a** (night). Strip opacity for read rings controlled by `dialogsStoriesList.readOpacity: 0.6` (main strip) or **1.0** (Info/Mine strips) — applied as `QPainter` opacity, not a color alpha channel. There are no `dialogsStoriesUnread*` palette tokens; the gradient reuses `groupCall*` tokens from the group-call UI.
+
+Source: `dialogs/ui/dialogs_stories_list.cpp:514-579, 619-629`; `ui/effects/outline_segments.cpp:98-112`; `dialogs.style:715-834`; `colors.palette:195, 582-585`.
 
 **Chat name:** x=68px, y=10px. Font: semibold. Color: #222222 normal, #ffffff active. Chat-type icon before name (bot/channel/forum/group, 3px skip). Mute icon after name (4px skip). Verified/scam badges after name.
 
@@ -73,7 +132,19 @@ When focused: **Top Peers** strip (horizontal, 46px avatars) + **Recent Contacts
 
 **Message preview:** x=68px, y=34px. Font: normal ~13px. Color: #999999 normal, #ffffff active. Sender name prefix in service color (#168acd). "Draft:" prefix in red (#dd4b39). Typing indicator replaces text with animated dots. Mini media previews: 16px thumbnails.
 
-**Unread badge:** Right side, message preview line. Font: 12px bold. Pill-shaped. Background: #40a7e3 unmuted, #bbbbbb muted. Text: #ffffff. Active row: white badge with blue text. Mention badge: 13x13px icon. Reaction badge: 13x13px icon.
+**Unread counter pill.** Height **19px** (`dialogsUnreadHeight`), horizontal padding **5px** per side (`dialogsUnreadPadding`, 10px total breathing room). **Minimum width = height** (19px — perfect circle for single-digit counts), so `width = max(textWidth + 10px, 19px)`. **Fully round ends**: pill is two colorized half-circle pixmaps (radius = 9.5px) bridged by a solid rect → effective corner-radius = height/2. Font: **12px bold** (`dialogsUnreadFont`). Text baseline: vertically centered (`textTop = (19 − fontHeight)/2`). When count exceeds `allowDigits + 1`, truncates with leading `..` (e.g. `..456`).
+
+**Pill fills (day palette):** unmuted = `dialogsUnreadBg` = `windowBgActive` (#40a7e3-family Telegram blue); muted = `dialogsUnreadBgMuted` = **#bbbbbb**. `*Over` (hover) and `*Active` (on active row) variants exist. Text = `dialogsUnreadFg` = **#ffffff**.
+
+**Positioning on the row.** Right-anchored at `rightEdge = context.width − context.st.padding.right()` (padding.right = **10px** from `defaultDialogRow`). Vertical: pill's vertical center aligns with the message-preview text line. Subsequent badges to the left get `padding + dialogsUnreadPadding` (5px) gap.
+
+**Unread dot** (when `unreadMark` is set without a counter): filled ellipse of diameter `unreadMarkDiameter`, centered in a 19×19 slot, same bg colors as the pill.
+
+**Mention / reaction / poll badges (expanded row).** Implemented as **18×18 `ThreeStateIcon`** (`dialogs_chatlist_{mention,reaction,poll}-18x18`), NOT a pill — just a coloured icon glyph painted at the right edge with 5px gap. Icon color = `dialogsUnreadBg` unmuted / `dialogsUnreadBgMuted` muted.
+
+**Narrow (collapsed sidebar) mode.** Mention/reaction/poll use the **13×13** glyph (`dialogs_chatlist_{mention,reaction,poll}-13x13`) painted *inside* a normal 19×19 unread-bg circle (reads as a no-digit pill with an icon). See `dialogs/ui/dialogs_layout.cpp:173-186` narrow branch.
+
+Source: `ui/unread_badge_paint.cpp:97-191`; `dialogs.style:76-78, 93-101, 579-637`; `dialogs/ui/dialogs_layout.cpp:160-286, 197-222`; `colors.palette:194-195`.
 
 **Pin icon:** Shown when no unreads, right side at textTop position.
 
@@ -81,14 +152,40 @@ When focused: **Top Peers** strip (horizontal, 46px avatars) + **Recent Contacts
 
 ### Chat Item States
 
+**Day theme:**
 - **Default:** Background #ffffff.
 - **Hover:** Background #f1f1f1.
 - **Active/selected:** Background #419fd9, all text white, badges inverted.
 - **Ripple:** #e5e5e5 normal, #2095d0 on active row.
 
+**Night theme** (palette overrides in `night.tdesktop-theme`):
+- **Hover bg** (`dialogsBgOver`): **#202b36**
+- **Active/selected row bg** (`dialogsBgActive`): **#2b5278**
+- **Ripple on normal row** (`dialogsRippleBg`): **#25313d**
+- **Ripple on active row** (`dialogsRippleBgActive`): **#315a80**
+- **Unread bg (unmuted) on active row** (`dialogsUnreadBgActive`): `dialogsTextFgActive` (white/near-white)
+- **Unread bg (muted) on active row** (`dialogsUnreadBgMutedActive`): **#7aa3ca**
+- **Unread bg (unmuted) on hover** (`dialogsUnreadBgOver`): **#4082bc**
+- **Unread bg (muted) on hover** (`dialogsUnreadBgMutedOver`): **#4d5762**
+- **Generic window hover fallback** (`windowBgOver`): **#232e3c**
+- **Active-segment hover (tabs)** (`lightButtonBgOver`): **#1d2a39**
+
+Ripple uses `defaultRippleAnimation` curve; no custom opacity — `RippleAnimation`'s fade-in alpha is unchanged between themes, so the listed `dialogsRippleBg` values ARE the rendered ripple color.
+
+Source: `night.tdesktop-theme` L3, L30, L142–158, L160–177; `dialogs.style:80-82`.
+
 ### Special Rows
 
-**Archived Chats:** 37px height. Folder name + unread counter. Collapsible.
+**Archived Chats.** NOT a regular 62px `dialogRow` — rendered as a "collapsed row" via `PaintCollapsedRow` at fixed height **`dialogsImportantBarHeight: 37px`**. Structure:
+
+- **Wide sidebar:** left-padded text label at `dialogsTopBarLeftPadding: 18px`, font **`semiboldFont` (14px semibold)**, color `dialogsNameFg`. Localized "Archived chats"/"Archive". Baseline centered in the 37px strip.
+- **Narrow sidebar:** instead of text, the folder's stacked-userpic composite is drawn centered horizontally at width 19px (`dialogsUnreadHeight`).
+- **Unread counter (wide only):** right-aligned at `width − padding.right (10px)`, uses `PaintUnreadBadge` with **`st.muted = true` always** — the archive counter is ALWAYS muted/gray (#bbbbbb day / #3e546a night) regardless of actual mute state. Same 19px pill + 12px bold font as regular rows.
+- **Background:** selection/hover uses `dialogsBgOver`; ripple via the same `dialogsRipple` definition. No separate active-row bg — archive is not a "selectable chat" in that sense.
+- **Icon:** `dialogsArchiveUserpic` = SVG `archive_userpic` tinted with `historyPeerUserpicFg` — only in narrow mode / when folder has no userpic composite.
+- **Expand/collapse animation:** driven via `ExpandedFolderStuff` using `Ui::Animations::Simple` with the library `universalDuration` (~200ms, the Qt default; not pinned in style files).
+
+Source: `dialogs/ui/dialogs_layout.cpp:1320-1363` (`PaintCollapsedRow`); `dialogs.style:164, 403, 886`; `dialogs/dialogs_inner_widget.cpp:661-667`.
 
 **Saved Messages:** Bookmark icon userpic (no avatar photo).
 
@@ -98,21 +195,67 @@ Pinned chats at top (no visible separator). Below: sorted by last message time d
 
 ### Swipe & Drag
 
-- Left-to-right swipe: quick action (archive/read).
-- Drag-to-reorder: pinned chats only, `sineInOut` animation.
-- Drag-and-drop forwarding: `application/x-td-forward` MIME, auto-select on hover timer.
+**Swipe quick action** (left-to-right gesture on a chat row):
+
+- **Trigger distance.** Base threshold `kThresholdWidth = 50` (50 logical px, auto-scaled by DPI). Swipe progress interpolated 0–1 against threshold; max clamped ratio `kMaxRatio = 1.5` (commits after ~75px). Slowdown factor `kSwipeSlow = 0.2` (drag visually lags at 1/5 actual speed near threshold — rubberband feel). Swipe-back speed ratio after release = `0.35`.
+- **Commit behavior.** Crossing threshold fires `base::Platform::Haptic::Play(HapticEffect::Medium)` (where supported) and triggers `PerformQuickDialogAction` on pointer release. Below threshold, release animates a spring-back (Simple `Ui::Animations`, default ~200ms).
+- **Revealed action appearance** (`DrawQuickAction`, `dialogs_quick_action.cpp:234-265`):
+  - Lottie icon (`swipe_{mute,unmute,pin,unpin,read,unread,archive,unarchive,delete,disabled}`), size = `dialogsQuickActionSize = 20px`, scaled by `iconRatio`.
+  - Ripple area box `dialogsQuickActionRippleSize = 80px`.
+  - Label below icon in **13px semibold** (`semiboldFont`), auto-shrinks to minimum 5px if localized string doesn't fit; `twoLines=true` splits on first space.
+  - Text color: `premiumButtonFg` (white).
+- **Action colors** (`ResolveQuickActionBg`):
+  - Delete → `attentionButtonFg` (red)
+  - Disabled → `windowSubTextFgOver` (gray)
+  - All other actions (Mute/Unmute/Pin/Unpin/Read/Unread/Archive/Unarchive) → `windowBgActive` (Telegram blue)
+  - Active/pressed variant → `windowSubTextFgOver`
+- **Configurable.** The mapping is per-direction; lives in AyuGram Settings → Chats → "Swipe Gesture". Default Telegram uses Archive for left-swipe. Action values from `Ui::QuickDialogAction`: `Mute | Pin | Read | Archive | Delete`. `ResolveQuickDialogLabel` picks the toggle variant (Archive vs Unarchive, etc.) based on current history state.
+- **Completion toasts** use localized `lng_quick_dialog_action_toast_{mute,unmute,pin,unpin,read,unread,archive,unarchive}_success`.
+
+Source: `ui/controls/swipe_handler.cpp:28-31, 62-64, 84, 203, 361`; `dialogs/dialogs_quick_action.cpp:67-118, 120-143, 184-207, 209-232, 234-265`; `dialogs.style:871-872`.
+
+**Drag-to-reorder:** pinned chats only, `sineInOut` animation.
+
+**Drag-and-drop forwarding:** `application/x-td-forward` MIME, auto-select on hover timer.
 
 ---
 
 ## 3. Hamburger Menu
 
-### Profile Area (top)
+### Profile Area / Cover
 
-Circular avatar (clickable), display name with optional verified/premium badge, emoji status. Phone number and @username below. Toggle arrow at top-right expands/collapses account list.
+**Panel dimensions.** 274px wide (`mainMenuWidth`, `window.style:88`). Cover area is 134px tall (`mainMenuCoverHeight`, `window.style:89`). A 1px `PlainShadow` is drawn at `y = mainMenuCoverHeight - lineWidth` separating the cover from the scrolling body (`window_main_menu.cpp:361-366`).
+
+**Avatar.** 48×48 px circular userpic (`mainMenuUserpic.photoSize: 48px`, `window.style:92-95`), positioned at left 24px / top 20px (`mainMenuUserpicLeft` / `mainMenuUserpicTop`, `window.style:90-91`). Clickable — calls `toggleAccounts()` (`window_main_menu.cpp:627`).
+
+**Display name.** Rendered at left 26px, top 84px (`mainMenuCoverNameLeft` / `mainMenuCoverNameTop`, `window.style:111-112`). Font: `semiboldFont` (13px semibold), color `windowBoldFg` (`window_main_menu.cpp:510-514`). Optional premium/verified badge follows immediately with a `semiboldFont->spacew` gap; AyuGram/Extera badge appears after, offset by `infoVerifiedCheckPosition.x()` (`window_main_menu.cpp:495-521`).
+
+**Status line (phone / @username / emoji-status prompt).** Rendered at left 26px, top 103px (`mainMenuCoverStatusLeft/Top`, `window.style:113-114`). Uses `FlatLabel` with `defaultFlatLabel` style (13px body), color `windowSubTextFg`. Content producer `SetStatusLabel` (`window_main_menu.cpp:111, 314`) — shows phone when present, else "Set Emoji Status" link.
+
+**Account-list toggle chevron.** 6×6 px chevron drawn with 3px strokes (`mainMenuToggleSize: 6px`, `mainMenuToggleFourStrokes: 3px`, `window.style:163-164`) at `point(30px, 30px)` from top-right (`mainMenuTogglePosition`, `window.style:165`). Rotates between up/down when accounts expand/collapse. Only appears when 2+ accounts exist.
+
+**Background.** Palette color `mainMenuCoverBg` (solid fill — no gradient).
 
 ### Account Section (collapsible)
 
-Shows all logged-in accounts (avatar + name each). "Add Account" button at bottom. Toggle appears when 2+ accounts exist. Drag-reorderable. Expanded/collapsed state persisted.
+**Container.** Accounts live in a `SlideWrap<VerticalLayout>` toggled via `_accounts->toggleOn(settings.mainMenuAccountsShownValue())` (`window_main_menu.cpp:339-341, 651-652`). When open, a bottom `PlainShadow` separates it from the menu body (line 654). 6px vertical spacer (`mainMenuSkip`) above and below (`settings_information.cpp:641-643`).
+
+**Row style.** Each account is a `SettingsButton` with `mainMenuAddAccountButton` styling (`settings_information.cpp:789`), inheriting `mainMenuButton`:
+- Padding: `margins(61px, 11px, 20px, 9px)` — left 61px, top 11px, right 20px, bottom 9px (`window.style:131-136`).
+- Font: `semiboldTextStyle` (13px semibold).
+- Icon-left: 23px (`window.style:137-139`). Toggle-skip: 19px (`window.style:134`).
+
+**Avatar in row.** 26px photo (`mainMenuAccountSize: 26px`) padded by `2 * mainMenuAccountLine + lineWidth = 5px` each side (`settings_information.cpp:819-821, 833-836`) — rendered widget is 36×36 px. For the *active* account, a 2px stroke ring (`mainMenuAccountLine`) in `windowBgActive` is drawn around the avatar (`settings_information.cpp:838-848`). Vertically centered; horizontal left = `iconLeft + (iconAdd.width - 36) / 2`.
+
+**Unread badge.** Per-account unread uses `UnreadBadgeStyle` with `mainMenuBadgeFont: 11px bold` and `mainMenuBadgeSize: 18px` (`window.style:143-144`, `settings_information.cpp:1425-1500`). Respects muted state; shortens with `Lang::FormatCountToShort`; hidden when count is 0. Trailing spacing = 2px (`mainMenuAccountLine`).
+
+**Active account.** No row-background highlight — the stroke ring around the avatar is the only indicator. Clicking the active row closes the drawer (`settings_information.cpp:1101-1104`). Right-click context menu: New Window (if inactive), Copy Phone, Activate (if inactive), Mark-As-Read, Log Out (`settings_information.cpp:863-918`).
+
+**Max accounts & scroll.** AyuGram raises the limit to `kMaxAccounts = 100` and `kPremiumMaxAccounts = 200` (vanilla: 3 / 4) (`main_domain.h:34-35`). The whole menu lives inside a `st::defaultSolidScroll` ScrollArea (`window_main_menu.cpp:334`), so many accounts simply extend the inner vertical layout and the scroll bar takes over.
+
+**Drag-to-reorder.** `Ui::VerticalLayoutReorder` (`settings_information.cpp:1060-1084`). Pinned-interval prevents reordering beyond `premiumLimit`. On drop, `Core::App().settings().setAccountsOrder(order)` persists.
+
+**"Add Account" button.** Last row, styled `mainMenuAddAccountButton` (iconLeft 23px) with `settingsIconAdd` over `windowBgActive` (`settings_information.cpp:993-998`). Left-click = Production account; Ctrl+click = new window. Right-click shows context menu to pick Production vs Test server (`settings_information.cpp:1023-1050`). Auto-hides once account count reaches `kPremiumMaxAccounts` (line 1143-1145).
 
 ### Menu Items (in order)
 
@@ -130,9 +273,34 @@ Shows all logged-in accounts (avatar + name each). "Add Account" button at botto
 
 Archive row appears separately when user has an archive folder.
 
-### Night Mode
+**Row metrics (all items use `mainMenuButton` — `SettingsButton` from `defaultSettingsButton`, `window.style:131-136`):**
 
-Inline toggle switch directly in menu. Animates between day/night themes immediately.
+- **Row padding:** `margins(61px, 11px, 20px, 9px)` → left gutter 61px (reserves space for the 24×24 icon at `iconLeft: 21px`), top 11px, right 20px, bottom 9px. Effective row height ≈ `font.height + 20px ≈ 40px` (13px semibold line + padding).
+- **Label font:** `semiboldTextStyle` (13px semibold) in `windowBoldFg` (inactive) / `windowBoldFgOver` (hover) (`window.style:118-120, 132`).
+- **Icon:** 24×24 from `ui/menu_icons.style` (e.g. `menuIconSettings = menu/settings`, `menuIconNightMode = menu/night_mode`, lines 83, 124), rendered in `menuIconColor`. Horizontal at 21px, vertically centered.
+- **Icon-to-label gap:** implicit ~16px (label starts at 61px, icon width 24 + x=21).
+- **Hover/pressed:** `windowBgOver` background + ripple from `defaultRippleAnimation` (`window.style:237`).
+- **Toggle skip:** 19px between label end and any trailing toggle/arrow (`window.style:134`).
+- **Dividers.** No divider between individual rows. A single `PlainShadow` separator appears below the "My Profile"/"Bots" block when either entry is shown, with 6px (`mainMenuSkip`) padding top and bottom (`window_main_menu.cpp:720-723`). The rest of the list is flush.
+
+Gating: each item is conditional on an AyuGram `showXInDrawer()` setting (`window_main_menu.cpp:705-886`). AyuGram-exclusive rows: **Mark Read** (ghost mode), **Mark Unread**, **Ghost Mode**.
+
+### Night Mode Toggle
+
+**Widget.** Same `SettingsButton` row style as other menu items (`mainMenuButton`) with a trailing toggle switch via `->toggleOn(...)`. The toggle uses `itemToggle`/`itemToggleOver` on `mainMenu: Menu(defaultMenu)`: both inherit from `defaultMenuToggle`/`defaultMenuToggleOver` but override `toggledFg` to `mainMenuCoverBg` — so the "on" pill color matches the cover's accent (`window.style:117-130`). Toggle-shift animation offset: 11px (`itemToggleShift: 11px`).
+
+**Row content.**
+- Icon: `menuIconNightMode` → `menu/night_mode.png` (moon) in `menuIconColor` (`menu_icons.style:124`, `window_main_menu.cpp:850`).
+- Label: localized `lng_menu_night_mode` ("Night Mode") in `semiboldTextStyle` (line 849).
+- Trailing toggle: binary on/off, off = `windowSubTextFg`, on = `mainMenuCoverBg`.
+
+**Animation.** Toggle animates over `st::mainMenu.itemToggle.duration` (tdesktop default ≈ 150ms); callback invokes `Window::Theme::ToggleNightMode()` + `KeepApplied()` (lines 368-376, 864-875). The theme cross-fade is handled by `Window::Theme::ToggleNightModeWithConfirmation` (`window_theme.cpp:1442`) — full-window palette animation.
+
+**System theme.** Respected. If `Core::App().settings().systemDarkModeEnabled()` is true, any change to `systemDarkModeValue()` fires `_nightThemeSwitches` and updates the toggle state without user input (lines 877-884).
+
+**AyuGram gating.** Row only inserted when `AyuSettings::showNightModeToggleInDrawer()` is true (line 846). A separate "Ghost Mode" toggle follows with identical styling when `showGhostToggleInDrawer()` is true.
+
+**Confirmation.** If a theme is currently being edited, toggling shows `lng_theme_editor_cant_change_theme` and reverts (lines 858-862).
 
 ### Settings Sections
 
@@ -148,7 +316,22 @@ Inline toggle switch directly in menu. Animates between day/night themes immedia
 | 8 | Power Saving Mode | `menuIconPowerUsage` |
 | 9 | Language | (dynamic label) |
 
-Footer: version number + changelog link.
+### Footer
+
+**Container.** `_footer` is an `RpWidget` at the bottom of the scroll area with `mainMenuFooterHeightMin: 80px` (`window.style:116`, `window_main_menu.cpp:348`).
+
+**Two stacked lines** (both left-aligned at `mainMenuFooterLeft: 25px`, `window.style:146`):
+
+- **Top line — product name / website link.** A `FlatLabel` styled with `mainMenuTelegramLabel` (`window.style:147-156`): `defaultFlatLabel` overridden to `semiboldFont` (13px semibold), color `windowSubTextFg`, link color also `windowSubTextFg` (link NOT blue-tinted). Vertical position: `height - mainMenuTelegramBottom (38px) - label.height` (`window_main_menu.cpp:380`). Content: a clickable "AyuGram Desktop" link pointing to `https://ayugram.one` (lines 393-396). AyuGram replaces upstream's "Telegram Desktop" label here.
+- **Bottom line — version + about link.** A second `FlatLabel` styled with `mainMenuVersionLabel` (inherits `mainMenuTelegramLabel` but uses `defaultTextStyle` — 13px regular instead of semibold, `window.style:158-160`). Vertical position: `height - mainMenuVersionBottom (17px) - label.height` (line 381). Content format (lines 397-407):
+  ```
+  {lng_settings_current_version(version)} – {lng_menu_about}
+  ```
+  Example: `"Version 5.15.2 – About"` with two link regions: (1) version → `Core::App().changelogLink()` (opens @ayugramreleases channel); (2) "About" → opens AboutBox. Version string from `currentVersionText()` (`about_box.cpp:102-118`) with modifiers: `" alpha N"` if alpha build, `" beta"` if beta, `" x64"`/`" arm64"` on Windows, `" DEBUG"` in debug builds.
+
+**Tooltip.** Unless it's a Mac App Store or Windows Store build, hovering the version label shows `Build date: {__DATE__}` (`window_main_menu_helpers.cpp:46-51`).
+
+**Colors.** Both lines use `windowSubTextFg` (muted grey). Link underlines disabled (links inherit `linkFg: windowSubTextFg`).
 
 ---
 

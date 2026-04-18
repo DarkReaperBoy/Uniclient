@@ -10,6 +10,9 @@ Progress so far:
 - ✅ §57 Appendix B — Dark Theme Color Palette added (full day-blue / night tables).
 - ✅ §32.15 Story Creation Editor rewritten (300 lines, 13 subsections, honest gaps flagged where desktop source lacks features).
 - ✅ §34.17 Create Conference Call Box added (287 lines — documents the participant picker + invite-link flow; clarifies that title/schedule/record options don't exist at creation time in upstream).
+- ✅ §1 gaps filled: Shadow Separators subsection + Adaptive Width Formula (three-column shrink algorithm) + Linux Titlebar (X11/Wayland/KDE/GNOME) subsection.
+- ✅ §2 gaps filled: search-mode tabs dimensions, stories ring gradient (confirmed no premium variant), unread/mention/reaction badge metrics, dark-theme hover/active/ripple palette, archived row (collapsed row, 37px, always-muted badge), swipe quick-action spec.
+- ✅ §3 gaps filled: profile cover dimensions, account-switcher rows (26px avatar + active-ring), menu row metrics (`mainMenuButton` padding + font + icons), night-mode toggle widget, footer (two-line FlatLabel + tooltip).
 
 Session-handoff rule: pick any one of the section groups below, spawn parallel research agents (3+ at a time), and fill in. Each fill should be committed separately for clean history.
 
@@ -19,9 +22,9 @@ Session-handoff rule: pick any one of the section groups below, spawn parallel r
 
 Audit found dark-theme variants for almost every token are missing. §57 appendix now covers the palette — cross-reference it when filling these. Remaining structural gaps:
 
-- §1 (line 23): shadow-separator opacity; (line 31) shrink formula <932px; (line 37) Wayland/KDE titlebar rules.
-- §2 (line 62): search-focused tabs/chips dimensions; (line 68) stories ring gradient stops; (line 76) unread/mention/reaction badge metrics; (line 86) dark-theme hover/active; (line 91) archived row visual; (line 101) swipe quick action spec.
-- §3 (lines 110, 115, 131, 134, 151): profile area dims, account-switcher rows, menu row metrics, night-mode toggle widget, footer styling.
+- ~~§1 (line 23): shadow-separator opacity; (line 31) shrink formula <932px; (line 37) Wayland/KDE titlebar rules.~~ **DONE** — Column Shadow Separators subsection, Responsive Breakpoints expanded with shrink formula, Linux Titlebar subsection.
+- ~~§2 (line 62): search-focused tabs/chips dimensions; (line 68) stories ring gradient stops; (line 76) unread/mention/reaction badge metrics; (line 86) dark-theme hover/active; (line 91) archived row visual; (line 101) swipe quick action spec.~~ **DONE** — all six gaps filled with source-verified metrics.
+- ~~§3 (lines 110, 115, 131, 134, 151): profile area dims, account-switcher rows, menu row metrics, night-mode toggle widget, footer styling.~~ **DONE** — Profile cover dims, Account section (26px avatar + 2px active ring), Menu row metrics (`mainMenuButton`), Night-mode toggle, Footer (two FlatLabels + tooltip).
 - §4 (lines 159, 166, 175, 185, 189, 197): topBarBg resolved, avatar size, right-side buttons, pinned-msg bar, action bar, selection mode.
 - §5 (lines 207, 210, 219, 241, 245, 249, 253): jump-down + mentions buttons, date badge font/bg, bubble colors, info row metrics, peer-name palette hex (cross-ref §57.6), selection checkbox, service message pill radius/opacity.
 - §6 (lines 265, 273, 287, 291, 295, 307, 311, 319): photo spoiler particles, album layouter formula, sticker shadows, voice waveform, round-video arc, polls radio/quiz shake, live-location ring, web preview thresholds.
