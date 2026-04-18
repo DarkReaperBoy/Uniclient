@@ -24,8 +24,16 @@ class ChatListPanel extends StatefulWidget {
   /// its `_focusSearch` callback on mount and clears it on dispose.
   static VoidCallback? focusSearchRequest;
 
+  /// Global hook used by app-level Esc handling. Returns true if the live
+  /// panel was actively searching and the search was cancelled (so Esc is
+  /// "consumed"); returns false if nothing to cancel.
+  static bool Function()? cancelSearchRequest;
+
   /// Focus the chat list search field. Safe to call when no panel is mounted.
   static void requestFocusSearch() => focusSearchRequest?.call();
+
+  /// Cancel the chat list search if active. Returns true if it was cancelled.
+  static bool requestCancelSearch() => cancelSearchRequest?.call() ?? false;
 
   @override
   State<ChatListPanel> createState() => _ChatListPanelState();
@@ -33,7 +41,7 @@ class ChatListPanel extends StatefulWidget {
 
 class _ChatListPanelState extends State<ChatListPanel> {
   final _searchController = TextEditingController();
-  final _searchFocus = FocusNode();
+  final FocusNode _searchFocus = FocusNode();
   bool _searching = false;
   List<ChatInfo>? _searchResults;
 
@@ -41,12 +49,26 @@ class _ChatListPanelState extends State<ChatListPanel> {
   void initState() {
     super.initState();
     ChatListPanel.focusSearchRequest = _focusSearch;
+    ChatListPanel.cancelSearchRequest = _cancelSearchIfActive;
+  }
+
+  /// Global-Esc hook. If the search field is currently active (Cancel
+  /// button visible), cancel and return true so the app-level Esc handler
+  /// knows the event was consumed. Pairs with the Ctrl+F focus shortcut —
+  /// Telegram Desktop spec §24.4 uses Esc to close search.
+  bool _cancelSearchIfActive() {
+    if (!mounted || !_searching) return false;
+    _cancelSearch();
+    return true;
   }
 
   @override
   void dispose() {
     if (ChatListPanel.focusSearchRequest == _focusSearch) {
       ChatListPanel.focusSearchRequest = null;
+    }
+    if (ChatListPanel.cancelSearchRequest == _cancelSearchIfActive) {
+      ChatListPanel.cancelSearchRequest = null;
     }
     _searchController.dispose();
     _searchFocus.dispose();

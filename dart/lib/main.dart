@@ -494,6 +494,14 @@ class _UniClientAppState extends State<UniClientApp> {
           editableState.performAction(TextInputAction.newline);
         }
       case 'escape':
+        // Chat list search takes priority: if the user is actively searching
+        // (Ctrl+F focused the field, query typed), cancel it. This mirrors
+        // what OS-delivered Esc does via the app-level CallbackShortcuts
+        // binding — needed here too because HardwareKeyboard.handleKeyEvent
+        // does not route through Shortcuts.
+        if (ChatListPanel.requestCancelSearch()) {
+          return;
+        }
         // Dispatch real KeyDownEvent + KeyUpEvent through HardwareKeyboard so
         // Focus(onKeyEvent:) handlers (e.g. ChatView's reply/edit/selection
         // cancel) get a chance to handle it first. If nothing handles it,
@@ -623,6 +631,13 @@ class _UniClientAppState extends State<UniClientApp> {
           // We focus the chat list search field.
           const SingleActivator(LogicalKeyboardKey.keyF, control: true):
               ChatListPanel.requestFocusSearch,
+          // Esc cancels the chat list search if active. Binding only fires
+          // when no descendant intercepts the key first, so ChatView's own
+          // Focus(onKeyEvent:) Esc handler (reply/edit/selection cancel)
+          // still runs when a chat is open. When the sidebar search field
+          // itself has focus, no descendant claims Esc → this fires.
+          const SingleActivator(LogicalKeyboardKey.escape):
+              () => ChatListPanel.requestCancelSearch(),
         },
         child: const UniClientShell(),
       ),
