@@ -9574,6 +9574,8 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 						ref.Height = a.H
 					}
 				}
+				// Extract stripped thumbnail from document's thumb sizes (videos, stickers, GIFs).
+				ref.ThumbB64 = extractStrippedThumbB64(d.Thumbs)
 				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
 			}
@@ -9592,6 +9594,9 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 						ref.Height = s.H
 					}
 				}
+				// Extract stripped thumbnail — a ~100 byte blurred JPEG delivered inline,
+				// so photos show a blurhash-like preview with no download required.
+				ref.ThumbB64 = extractStrippedThumbB64(p.Sizes)
 				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(p.ID, p.AccessHash, p.FileReference)
 			}
@@ -9679,6 +9684,21 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 	}
 
 	return u
+}
+
+// extractStrippedThumbB64 walks a []PhotoSizeClass looking for a PhotoStrippedSize
+// entry (tiny ~100-byte JPEG thumbnail delivered inline with the message). When
+// found, it inflates it to a valid JPEG and returns the base64 encoding. Works
+// for both Photo.Sizes and Document.Thumbs.
+func extractStrippedThumbB64(sizes []tg.PhotoSizeClass) string {
+	for _, s := range sizes {
+		if stripped, ok := s.(*tg.PhotoStrippedSize); ok && len(stripped.Bytes) > 0 {
+			if jpg := tgStrippedToJPEG(stripped.Bytes); len(jpg) > 0 {
+				return base64.StdEncoding.EncodeToString(jpg)
+			}
+		}
+	}
+	return ""
 }
 
 // tgStrippedToJPEG reconstructs a valid JPEG from Telegram's stripped thumbnail format.
