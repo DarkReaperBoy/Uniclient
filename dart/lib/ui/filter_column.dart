@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../state/chat_state.dart';
 
 /// Spec §1/§2: Vertical folder sidebar, 72px wide.
@@ -18,8 +19,10 @@ class FilterColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final chatState = context.watch<ChatState>();
+    final appState = context.watch<AppState>();
     final folders = chatState.folders;
     final activeFolderId = chatState.activeFolderId;
+    final allUnread = chatState.unreadCountForAccount(appState.activeAccountId);
 
     return Container(
       width: width,
@@ -40,11 +43,13 @@ class FilterColumn extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           // "All Chats" tab (shows all chats for this account, no folder filter).
+          // Spec §1/§2: Unread badges per tab — "All" shows total unread for the
+          // active account (excluding archived chats, to match the visible list).
           _FolderTab(
             icon: Icons.chat,
             label: 'All',
             isActive: activeFolderId == null,
-            unreadCount: 0, // no badge on "All" — it's the default
+            unreadCount: allUnread,
             onTap: () => chatState.setActiveFolder(null),
           ),
           const SizedBox(height: 4),

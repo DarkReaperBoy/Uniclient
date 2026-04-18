@@ -118,6 +118,15 @@ class ChatState extends ChangeNotifier {
   /// Total unread count across all visible chats.
   int get totalUnread => _chats.fold(0, (sum, c) => sum + c.unreadCount);
 
+  /// Unread count summed across a single account's chats.
+  /// Used by the folder sidebar's "All" tab badge.
+  int unreadCountForAccount(String accountId) {
+    if (accountId.isEmpty) return 0;
+    return _chats
+        .where((c) => c.accountId == accountId && !c.isArchived)
+        .fold(0, (sum, c) => sum + c.unreadCount);
+  }
+
   /// Chats filtered by active folder. Returns all chats if no folder active.
   /// Applies Telegram-style folder filtering: a chat is included if it's in
   /// the explicit include list OR matches any type filter flag, minus excludes.

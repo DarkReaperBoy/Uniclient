@@ -103,7 +103,10 @@ class _ChatListPanelState extends State<ChatListPanel> {
           ),
           // Horizontal folder tabs (when active account has folders and vertical sidebar is hidden).
           if (chatState.hasFolders && !widget.filterSidebarVisible && !_searching)
-            _HorizontalFolderTabs(chatState: chatState),
+            _HorizontalFolderTabs(
+              chatState: chatState,
+              allUnread: chatState.unreadCountForAccount(appState.activeAccountId),
+            ),
           // Chat list.
           Expanded(
             child: nonArchived.isEmpty
@@ -257,8 +260,9 @@ class _SearchBar extends StatelessWidget {
 /// Spec §2: scrollable row, active tab with sliding underline.
 class _HorizontalFolderTabs extends StatelessWidget {
   final ChatState chatState;
+  final int allUnread;
 
-  const _HorizontalFolderTabs({required this.chatState});
+  const _HorizontalFolderTabs({required this.chatState, required this.allUnread});
 
   @override
   Widget build(BuildContext context) {
@@ -276,7 +280,7 @@ class _HorizontalFolderTabs extends StatelessWidget {
           _FolderChip(
             label: 'All',
             isActive: activeFolderId == null,
-            unreadCount: 0,
+            unreadCount: allUnread,
             onTap: () => chatState.setActiveFolder(null),
             theme: theme,
           ),
