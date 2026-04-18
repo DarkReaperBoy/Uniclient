@@ -471,77 +471,70 @@ class _MemberRow extends StatelessWidget {
     ][colorIndex];
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: InkWell(
-        onTap: () {},
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            children: [
-              // 40px avatar.
-              SizedBox(
-                width: 40,
-                height: 40,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                ),
+      padding: const EdgeInsets.only(top: 6, bottom: 8),
+      child: Row(
+        children: [
+          // 40px avatar.
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: Container(
+              decoration: BoxDecoration(
+                color: color,
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              alignment: Alignment.center,
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            name.isNotEmpty ? name : member.userId,
-                            style: theme.textTheme.bodyMedium,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (member.isBot) ...[
-                          const SizedBox(width: 4),
-                          Icon(Icons.smart_toy, size: 14, color: theme.textTheme.bodySmall?.color),
-                        ],
-                      ],
-                    ),
-                    if (member.role != 'member' && member.role.isNotEmpty)
-                      Text(
-                        member.role,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: member.role == 'owner'
-                              ? theme.colorScheme.primary
-                              : theme.textTheme.bodySmall?.color,
-                        ),
-                      )
-                    else
-                      Text(
-                        member.isOnline ? 'online' : 'last seen recently',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: member.isOnline
-                              ? theme.colorScheme.primary
-                              : theme.textTheme.bodySmall?.color,
-                        ),
+                    Flexible(
+                      child: Text(
+                        name.isNotEmpty ? name : member.userId,
+                        style: theme.textTheme.bodyMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ),
+                    if (member.isBot) ...[
+                      const SizedBox(width: 4),
+                      Icon(Icons.smart_toy, size: 14, color: theme.textTheme.bodySmall?.color),
+                    ],
                   ],
                 ),
-              ),
-            ],
+                if (member.role != 'member' && member.role.isNotEmpty)
+                  Text(
+                    member.role,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: member.role == 'owner'
+                          ? theme.colorScheme.primary
+                          : theme.textTheme.bodySmall?.color,
+                    ),
+                  )
+                else
+                  Text(
+                    member.isOnline ? 'online' : 'last seen recently',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: member.isOnline
+                          ? theme.colorScheme.primary
+                          : theme.textTheme.bodySmall?.color,
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
