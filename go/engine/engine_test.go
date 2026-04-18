@@ -742,6 +742,61 @@ func TestUtilsAccessible(t *testing.T) {
 // column (DM=1) and idempotent on a second invocation. Also confirms the
 // handleNewMessage path emits the message-received event and the chat row is
 // queryable through the normal GetChatList API.
+func TestMsgPreviewText(t *testing.T) {
+	// Text only: truncated to 100 chars, no emoji.
+	m := &cores.Message{Text: "hello world"}
+	if got := msgPreviewText(m); got != "hello world" {
+		t.Errorf("text-only: got %q want %q", got, "hello world")
+	}
+	long := make([]byte, 150)
+	for i := range long {
+		long[i] = 'x'
+	}
+	m = &cores.Message{Text: string(long)}
+	if got := msgPreviewText(m); len(got) != 100 {
+		t.Errorf("text truncation: expected 100 chars, got %d", len(got))
+	}
+
+	// Media-only cases.
+	cases := []struct {
+		name string
+		att  cores.FileRef
+		want string
+	}{
+		{"photo", cores.FileRef{MimeType: "image/jpeg", Name: "p.jpg"}, "📷 Photo"},
+		{"video", cores.FileRef{MimeType: "video/mp4"}, "🎥 Video"},
+		{"audio", cores.FileRef{MimeType: "audio/mpeg"}, "🎵 Audio"},
+		{"voice", cores.FileRef{MimeType: "audio/ogg"}, "🎙 Voice message"},
+		{"voice_opus", cores.FileRef{MimeType: "audio/opus"}, "🎙 Voice message"},
+		{"sticker", cores.FileRef{MimeType: "image/webp"}, "🖼 Sticker"},
+		{"gif", cores.FileRef{MimeType: "image/gif"}, "🎞 GIF"},
+		{"file_named", cores.FileRef{MimeType: "application/pdf", Name: "report.pdf"}, "📎 report.pdf"},
+		{"file_unnamed", cores.FileRef{MimeType: "application/octet-stream"}, "📎 File"},
+		{"no_mime_named", cores.FileRef{Name: "x"}, "📎 x"},
+		{"no_mime_unnamed", cores.FileRef{}, "📎 File"},
+	}
+	for _, c := range cases {
+		m := &cores.Message{Attachments: []cores.FileRef{c.att}}
+		if got := msgPreviewText(m); got != c.want {
+			t.Errorf("%s: got %q want %q", c.name, got, c.want)
+		}
+	}
+
+	// Media + caption: emoji prefix + text.
+	m = &cores.Message{
+		Text:        "look at this",
+		Attachments: []cores.FileRef{{MimeType: "image/jpeg"}},
+	}
+	if got := msgPreviewText(m); got != "📷 look at this" {
+		t.Errorf("media+caption: got %q want %q", got, "📷 look at this")
+	}
+
+	// No text, no attachments → empty.
+	if got := msgPreviewText(&cores.Message{}); got != "" {
+		t.Errorf("empty msg: got %q want empty", got)
+	}
+}
+
 func TestEnsureChatExists(t *testing.T) {
 	dir := tempDir(t)
 	eng, err := Init(

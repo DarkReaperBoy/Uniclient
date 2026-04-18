@@ -561,6 +561,69 @@ func nullStr(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: true}
 }
 
+// msgPreviewText returns the chat-list preview for a message.
+// - Non-empty text → truncated to 100 chars (optionally prefixed with a media emoji
+//   for media-with-caption messages, e.g. "📷 look at this").
+// - Media-only (text empty, attachments present) → emoji + media-type label
+//   (e.g. "📷 Photo", "🎙 Voice message", "📎 filename.pdf").
+// - No text, no attachments → "".
+func msgPreviewText(msg *cores.Message) string {
+	text := msg.Text
+	if len(msg.Attachments) == 0 {
+		if len(text) > 100 {
+			return text[:100]
+		}
+		return text
+	}
+	att := msg.Attachments[0]
+	emoji, label := mediaPreviewLabel(att)
+	if text != "" {
+		prefix := emoji + " "
+		// Budget: 100 chars total including prefix.
+		if len(prefix)+len(text) > 100 {
+			text = text[:100-len(prefix)]
+		}
+		return prefix + text
+	}
+	// Media-only.
+	if label == "" {
+		return emoji + " Attachment"
+	}
+	return emoji + " " + label
+}
+
+// mediaPreviewLabel returns (emoji, label) for a FileRef.
+// For generic files, label is the filename (truncated) so "📎 report.pdf" renders.
+func mediaPreviewLabel(att cores.FileRef) (emoji, label string) {
+	switch guessMediaType(att.MimeType, att.Name) {
+	case MediaImage:
+		return "📷", "Photo"
+	case MediaVideo:
+		return "🎥", "Video"
+	case MediaAudio:
+		return "🎵", "Audio"
+	case MediaVoice:
+		return "🎙", "Voice message"
+	case MediaVideoNote:
+		return "📹", "Video message"
+	case MediaSticker:
+		return "🖼", "Sticker"
+	case MediaGIF:
+		return "🎞", "GIF"
+	case MediaFile:
+		name := att.Name
+		if name == "" {
+			return "📎", "File"
+		}
+		if len(name) > 80 {
+			name = name[:80]
+		}
+		return "📎", name
+	default:
+		return "📎", "Attachment"
+	}
+}
+
 func guessMediaType(mime, name string) int {
 	if mime == "" {
 		return MediaFile

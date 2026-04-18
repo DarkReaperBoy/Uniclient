@@ -146,10 +146,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 	var lastMsgIsOutgoing int
 	if d.LastMessage != nil {
 		lastMsgID = d.LastMessage.ID
-		lastMsgText = d.LastMessage.Text
-		if len(lastMsgText) > 100 {
-			lastMsgText = lastMsgText[:100]
-		}
+		lastMsgText = msgPreviewText(d.LastMessage)
 		lastMsgSender = d.LastMessage.SenderName
 		lastMsgTime = d.LastMessage.Timestamp.UnixMilli()
 		if d.LastMessage.IsOutgoing {
@@ -237,7 +234,7 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 		  draft_text, member_count, parent_id, updated_at)
 		 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, 0, 0, 0, 0, '', 0, '', ?)`,
 		accountID, chatID, chatType, title,
-		msg.ID, msg.Text, msg.SenderName, msg.Timestamp.UnixMilli(), boolToInt(msg.IsOutgoing), now)
+		msg.ID, msgPreviewText(msg), msg.SenderName, msg.Timestamp.UnixMilli(), boolToInt(msg.IsOutgoing), now)
 
 	// Try to get proper chat info from core in background.
 	go func() {
