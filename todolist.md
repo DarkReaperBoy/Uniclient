@@ -1,5 +1,7 @@
 # UniClient — TODO
 
+**FOCUS: Telegram GUI only.** Do NOT work on other cores (Bale, Rubika, Matrix, XMPP, IRC, Delta Chat, GitHub, Mumble, TeamSpeak) until the human explicitly says so.
+
 Top-to-bottom execution order. Remove items when done.
 
 ## 2. Chat Mode — AyuGram-style UI (Telegram first)

@@ -265,6 +265,16 @@ class _ChatViewState extends State<ChatView> {
         if (msg.isOutgoing)
           const PopupMenuItem(value: 'edit', child: ListTile(dense: true, leading: Icon(Icons.edit, size: 20), title: Text('Edit'))),
         PopupMenuItem(value: 'delete', child: ListTile(dense: true, leading: Icon(Icons.delete_outline, size: 20, color: theme.colorScheme.error), title: Text('Delete', style: TextStyle(color: theme.colorScheme.error)))),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'copy_info',
+          child: ListTile(
+            dense: true,
+            leading: const Icon(Icons.info_outline, size: 20),
+            title: const Text('Copy Info'),
+            trailing: const Icon(Icons.chevron_right, size: 16),
+          ),
+        ),
       ],
     ).then((action) {
       if (action == null) return;
@@ -290,7 +300,34 @@ class _ChatViewState extends State<ChatView> {
           });
         case 'delete':
           chatState.deleteMessage(msgId);
+        case 'copy_info':
+          _showCopyInfoMenu(msg, position);
       }
+    });
+  }
+
+  void _showCopyInfoMenu(CachedMessage msg, Offset position) {
+    final theme = Theme.of(context);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      color: theme.colorScheme.surface,
+      items: [
+        PopupMenuItem(value: 'msg_id', child: Text('Message ID: ${msg.msgId}')),
+        PopupMenuItem(value: 'sender_id', child: Text('Sender ID: ${msg.senderId}')),
+        PopupMenuItem(value: 'chat_id', child: Text('Chat ID: ${msg.chatId}')),
+        PopupMenuItem(value: 'timestamp', child: Text('Timestamp: ${msg.timestamp}')),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      final text = switch (value) {
+        'msg_id' => msg.msgId,
+        'sender_id' => msg.senderId,
+        'chat_id' => msg.chatId,
+        'timestamp' => msg.timestamp.toString(),
+        _ => '',
+      };
+      if (text.isNotEmpty) Clipboard.setData(ClipboardData(text: text));
     });
   }
 

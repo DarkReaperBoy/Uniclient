@@ -70,6 +70,7 @@
             # Dev tools
             jq
             ripgrep
+            libnotify  # notify-send for ralph.sh notifications
           ];
 
           shellHook = ''
