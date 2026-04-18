@@ -433,14 +433,26 @@ class _UniClientAppState extends State<UniClientApp> {
     binding.handlePointerEvent(PointerDownEvent(
       pointer: pointer, position: Offset(x1, y1), buttons: kPrimaryButton, kind: PointerDeviceKind.mouse,
     ));
-    // Interpolate move events.
+    // Interpolate move events. Each event carries a non-zero `delta` so
+    // HorizontalDragGestureRecognizer / PanGestureRecognizer see real motion
+    // (they read `event.delta`, not position-differences).
+    var prevX = x1;
+    var prevY = y1;
     for (var i = 1; i <= steps; i++) {
       final t = i / steps;
       final x = x1 + (x2 - x1) * t;
       final y = y1 + (y2 - y1) * t;
+      final dx = x - prevX;
+      final dy = y - prevY;
+      prevX = x;
+      prevY = y;
       Future.delayed(Duration(milliseconds: i * 16), () {
         binding.handlePointerEvent(PointerMoveEvent(
-          pointer: pointer, position: Offset(x, y), buttons: kPrimaryButton, kind: PointerDeviceKind.mouse,
+          pointer: pointer,
+          position: Offset(x, y),
+          delta: Offset(dx, dy),
+          buttons: kPrimaryButton,
+          kind: PointerDeviceKind.mouse,
         ));
         if (i == steps) {
           binding.handlePointerEvent(PointerUpEvent(
