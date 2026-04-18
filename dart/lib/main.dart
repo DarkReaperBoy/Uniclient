@@ -537,6 +537,15 @@ class _UniClientAppState extends State<UniClientApp> {
         return;
       }
     }
+    // Telegram Desktop spec §24.4: Ctrl+W closes the window (minimizes to
+    // system tray). No-op when the native tray is unavailable (the hook is
+    // only registered in SystemTray.init() after the tray channel responds
+    // with isAvailable=true). Same harness bypass as other shortcuts —
+    // HardwareKeyboard doesn't route through Shortcuts.
+    if (lc == 'ctrl+w' || lc == 'control+w') {
+      SystemTray.hideWindowRequest?.call();
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -759,6 +768,14 @@ class _UniClientAppState extends State<UniClientApp> {
               () => ChatListPanel.requestSwitchFolderByIndex(7),
           const SingleActivator(LogicalKeyboardKey.digit8, control: true):
               () => ChatListPanel.requestSwitchFolderByIndex(8),
+          // Telegram Desktop spec §24.4 Application / Window: Ctrl+W closes
+          // the window (minimizes to system tray). No-op when the native
+          // tray is unavailable — SystemTray.hideWindowRequest is only set
+          // after init() detected the tray channel. The app keeps running
+          // in the background; the tray icon (if present) is how the user
+          // brings it back.
+          const SingleActivator(LogicalKeyboardKey.keyW, control: true):
+              () => SystemTray.hideWindowRequest?.call(),
         },
         child: const UniClientShell(),
       ),

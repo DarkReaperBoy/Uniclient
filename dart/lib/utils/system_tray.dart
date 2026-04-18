@@ -12,6 +12,11 @@ import 'debug.dart';
 class SystemTray {
   static const _channel = MethodChannel('com.uniclient.app/tray');
 
+  /// Global hook invoked by `Ctrl+W` (Telegram Desktop spec §24.4
+  /// `close_telegram`). Wired to `SystemTray.hideWindow` after `init()`.
+  /// No-op when the native tray is unavailable.
+  static Future<void> Function()? hideWindowRequest;
+
   bool _available = false;
   int _lastUnread = -1;
 
@@ -40,6 +45,9 @@ class SystemTray {
       Debug.log('TRAY', 'init failed: $e');
       _available = false;
     }
+
+    // Register global hide-window hook for Ctrl+W shortcut.
+    hideWindowRequest = hideWindow;
   }
 
   /// Update the tray tooltip / label with the current unread count.
@@ -69,6 +77,7 @@ class SystemTray {
     if (!_available) return;
     try {
       await _channel.invokeMethod<void>('hideWindow');
+      Debug.log('TRAY', 'hideWindow dispatched');
     } catch (e) {
       Debug.log('TRAY', 'hideWindow failed: $e');
     }
@@ -101,5 +110,8 @@ class SystemTray {
   /// Clean up resources.
   void dispose() {
     _channel.setMethodCallHandler(null);
+    if (hideWindowRequest == hideWindow) {
+      hideWindowRequest = null;
+    }
   }
 }
