@@ -1180,11 +1180,6 @@ class _ComposeArea extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Attachment button.
-          IconButton(
-            icon: const Icon(Icons.attach_file, size: 22),
-            onPressed: () {}, // TODO: attachment menu
-          ),
           // Text input with Enter-to-send.
           Expanded(
             child: ConstrainedBox(
@@ -1221,11 +1216,6 @@ class _ComposeArea extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-          // Emoji button.
-          IconButton(
-            icon: const Icon(Icons.emoji_emotions_outlined, size: 22),
-            onPressed: () {}, // TODO: emoji panel
           ),
           // Send button — icon switches to check/save while editing (spec §7: "editing -> Save").
           IconButton(
