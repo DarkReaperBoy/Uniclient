@@ -2568,6 +2568,13 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 		return
 	}
 
+	// Self-echo: TS3 broadcasts notifytextmessage to all channel/server subscribers
+	// including the sender. Our SendMessage already added the local copy with
+	// IsOutgoing=true, so drop the echo here to avoid duplicates.
+	if invokerID == t.myClientID {
+		return
+	}
+
 	var chatID string
 	switch targetMode {
 	case 1: // Private message
