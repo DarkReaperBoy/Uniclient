@@ -574,6 +574,16 @@ class _UniClientAppState extends State<UniClientApp> {
       SystemTray.quitAppRequest?.call();
       return;
     }
+    // Telegram Desktop spec §24.4 Chat Actions: Ctrl+\ opens the chat-level
+    // action menu (`show_chat_menu`, aka the peer menu). Anchored at the
+    // top-bar more_vert button. No-op when no chat is open. Same harness
+    // bypass as other shortcuts — HardwareKeyboard doesn't route through
+    // Shortcuts.
+    if (lc == 'ctrl+\\' || lc == 'control+\\' ||
+        lc == 'ctrl+backslash' || lc == 'control+backslash') {
+      ChatView.requestShowActiveChatMenu();
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -822,6 +832,11 @@ class _UniClientAppState extends State<UniClientApp> {
           // tray). Works regardless of tray availability.
           const SingleActivator(LogicalKeyboardKey.keyQ, control: true):
               () => SystemTray.quitAppRequest?.call(),
+          // Telegram Desktop spec §24.4 Chat Actions: Ctrl+\ opens the
+          // chat-level action menu (peer menu) anchored at the top-bar
+          // more_vert button. No-op when no chat is open.
+          const SingleActivator(LogicalKeyboardKey.backslash, control: true):
+              () => ChatView.requestShowActiveChatMenu(),
         },
         child: const UniClientShell(),
       ),

@@ -32,6 +32,16 @@ class ChatView extends StatefulWidget {
   static bool requestMarkActiveChatRead() =>
       markActiveChatReadRequest?.call() ?? false;
 
+  /// Global hook used by app-level keyboard shortcuts (Ctrl+\ with a chat
+  /// open) to open the chat-level action menu (spec §24.4 `show_chat_menu`,
+  /// the "peer menu"). Set by the active [_ChatViewState] on mount, cleared
+  /// on dispose. Returns true if the menu was shown.
+  static bool Function()? showActiveChatMenuRequest;
+
+  /// Invoked by the app-level Ctrl+\ binding. Returns true if consumed.
+  static bool requestShowActiveChatMenu() =>
+      showActiveChatMenuRequest?.call() ?? false;
+
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
@@ -56,6 +66,12 @@ class _ChatViewState extends State<ChatView> {
   String? _lastChatId;
   final Set<String> _selectedMsgIds = {};
   bool get _selectionMode => _selectedMsgIds.isNotEmpty;
+  // GlobalKey attached to the top-bar more_vert IconButton so the Ctrl+\
+  // keyboard shortcut (spec §24.4 `show_chat_menu`) can anchor the menu
+  // at the same pixel position as clicking the button. The key is passed
+  // into _ChatTopBar on every rebuild; the button's RenderBox is read
+  // from `_moreVertKey.currentContext` when the shortcut fires.
+  final GlobalKey _moreVertKey = GlobalKey();
 
   @override
   void initState() {
@@ -67,6 +83,9 @@ class _ChatViewState extends State<ChatView> {
     // Register the app-level Ctrl+R hook (spec §24.4 `read_chat`: mark the
     // currently active chat as read).
     ChatView.markActiveChatReadRequest = _markActiveChatRead;
+    // Register the app-level Ctrl+\ hook (spec §24.4 `show_chat_menu`:
+    // open the chat-level action menu anchored to the top-bar more_vert).
+    ChatView.showActiveChatMenuRequest = _showActiveChatMenu;
   }
 
   @override
@@ -77,9 +96,26 @@ class _ChatViewState extends State<ChatView> {
     if (ChatView.markActiveChatReadRequest == _markActiveChatRead) {
       ChatView.markActiveChatReadRequest = null;
     }
+    if (ChatView.showActiveChatMenuRequest == _showActiveChatMenu) {
+      ChatView.showActiveChatMenuRequest = null;
+    }
     _composeController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Open the chat-level action menu (Mute/Read/Pin/Archive/Leave) anchored
+  /// at the top-bar more_vert button. No-op when no chat is active or the
+  /// top-bar button hasn't been laid out yet (e.g. narrow-layout shell with
+  /// chat column hidden). Returns true if the menu was shown.
+  bool _showActiveChatMenu() {
+    if (!mounted) return false;
+    final chat = context.read<ChatState>().activeChat;
+    if (chat == null) return false;
+    final btnCtx = _moreVertKey.currentContext;
+    if (btnCtx == null) return false;
+    _ChatTopBar._showTopBarMenu(btnCtx, chat);
+    return true;
   }
 
   @override
@@ -486,6 +522,7 @@ class _ChatViewState extends State<ChatView> {
               showBackButton: widget.showBackButton,
               onBack: widget.onBack,
               onToggleInfo: widget.onToggleInfo,
+              moreVertKey: _moreVertKey,
             ),
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty)
@@ -584,6 +621,10 @@ class _ChatTopBar extends StatelessWidget {
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
+  /// Attached to the more_vert IconButton so the Ctrl+\ shortcut (spec
+  /// §24.4 `show_chat_menu`) can anchor the menu at the same pixel
+  /// position as clicking the button.
+  final Key? moreVertKey;
 
   const _ChatTopBar({
     required this.chat,
@@ -593,6 +634,7 @@ class _ChatTopBar extends StatelessWidget {
     required this.showBackButton,
     this.onBack,
     this.onToggleInfo,
+    this.moreVertKey,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -778,6 +820,7 @@ class _ChatTopBar extends StatelessWidget {
             ),
           Builder(
             builder: (btnCtx) => IconButton(
+              key: moreVertKey,
               icon: const Icon(Icons.more_vert, size: 20),
               onPressed: () => _showTopBarMenu(btnCtx, chat),
             ),
