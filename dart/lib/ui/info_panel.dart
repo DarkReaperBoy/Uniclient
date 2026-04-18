@@ -521,14 +521,12 @@ class _MemberRow extends StatelessWidget {
                           : theme.textTheme.bodySmall?.color,
                     ),
                   )
-                else
+                else if (member.isOnline)
                   Text(
-                    member.isOnline ? 'online' : 'last seen recently',
+                    'online',
                     style: TextStyle(
                       fontSize: 12,
-                      color: member.isOnline
-                          ? theme.colorScheme.primary
-                          : theme.textTheme.bodySmall?.color,
+                      color: theme.colorScheme.primary,
                     ),
                   ),
               ],
