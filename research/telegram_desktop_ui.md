@@ -9459,7 +9459,7 @@ Button order: **right-aligned**, primary button rightmost, cancel to its left. L
 
 ---
 
-## &sect;37 &mdash; Desktop Notifications
+## §37 — Desktop Notifications
 
 Complete specification of the Telegram Desktop notification system: native OS integration, custom in-app popups, notification content composition, sounds, grouping, privacy, and badge counters.
 
@@ -10537,222 +10537,6 @@ Audio files (`PreparedFile::Type::Music`) detected by `PreparedFileInformation::
 
 ---
 
-## §43 — Read Receipts Detail
-
-### 43.1 Trigger
-
-Read receipt detail is accessed through the **right-click context menu** on messages, not by clicking checkmarks directly. When right-clicking a message in an eligible chat, a "Seen by N" / "Listened by N" / "Watched by N" item appears at the bottom of the context menu (after a separator). This item shows up to 3 small userpic thumbnails inline.
-
-For **individual reactions** (not the overall read list), clicking a specific reaction bubble on a message opens a popup menu showing who reacted with that specific emoji. This is handled by `ShowWhoReactedMenu()` in `history_view_context_menu.cpp`.
-
-In **1:1 (private) chats**, the context menu instead shows a `WhenReadContextAction` — a single line displaying the formatted read timestamp (e.g., "Today, 14:32") with a double-check icon. No user list is shown since there is only one reader.
-
-Source: `history_view_context_menu.cpp` lines 1962-2037, `AddWhoReactedAction()`.
-
-### 43.2 Availability
-
-Read receipts (`WhoReadExists()`) are shown only for **outgoing messages** (`item->out()`) that have been read, in these chat types:
-
-- **Private chats (1:1)**: Shows read time via `MTPmessages_GetOutboxReadDate`. Excluded if peer is a bot, service user, self-chat, or has `readDatesPrivate` set. Messages must be younger than `pm_read_date_expire_period` (server config, default 7 days).
-
-- **Small groups (basic groups and supergroups)**: Uses `MTPmessages_GetMessageReadParticipants` to get the list of readers with timestamps. Excluded if: (a) the group is a channel/broadcast, (b) the supergroup has `ParticipantsHidden` flag, (c) it is a monoforum, (d) the message is older than `chat_read_mark_expire_period` (default 7 days), or (e) the member count exceeds `chat_read_mark_size_threshold` (server config, default **50 members**).
-
-- **Not shown in**: Channels/broadcasts, large groups (>50 members), self-chat, bot chats, service user chats.
-
-The "who reacted" list (`WhoReactedExists()`) is additionally shown if `item->canViewReactions()` returns true, even for non-outgoing messages.
-
-Source: `api_who_reacted.cpp` lines 718-783, `WhoReadExists()`.
-
-### 43.3 Layout
-
-Two presentation modes exist:
-
-**A) Context Menu Submenu (primary view):**
-The main context menu shows a single `Action` menu item with:
-- Left: Icon (double-check for "Seen", headphones for "Listened", play for "Watched", heart for reactions-only)
-- Center: Summary text (e.g., "Seen by 5", user name if only 1 reader, or "3/5" reacted/seen format)
-- Right: Up to 3 small circular userpic thumbnails (`kMaxSmallUserpics = 3`)
-
-Hovering this item opens a **submenu** (`whoReadMenu` style) listing all participants individually. The submenu max height is **400px** with scroll padding 6px top, 4px bottom.
-
-**B) Full-Screen Info Panel (expanded view):**
-Clicking "Show All" (when reactions count exceeds visible participants) opens a full `Info::ReactionsList::Widget` panel that replaces the chat column content. This panel has:
-- **Tabs** at the top — one tab per reaction type (emoji tabs) plus optionally a "Read" tab (eye icon with count). Tabs are pill-shaped buttons with rounded corners.
-- **Peer list** below — standard `PeerListContent` with rows for each user, paginated (first page: 20, subsequent: 100).
-
-Title adapts to type: "Seen by N" / "Listened by N" / "Watched by N" / "Reactions".
-
-Source: `who_reacted_context_action.cpp` (Action class), `info_reactions_list_widget.cpp`.
-
-### 43.4 User List Items
-
-Each entry in the submenu (`WhoReactedEntryAction`) contains:
-
-- **Left**: Circular userpic (size: `photoSize` from `defaultWhoRead` style, drawn at `photoLeft` offset). Preloader state shows a semi-transparent circle (`kPreloaderAlpha = 0.2`).
-- **Name**: Peer display name, drawn at `nameLeft` offset. Bold for normal entries, dimmed for preloader skeleton.
-- **Date line** (below name, smaller `whoReadDateStyle` 12px font): Shows when the user read/reacted, prefixed by an icon:
-  - Double-check icon (`whoReadDateChecks`) for "Viewed" type
-  - Heart icon (`whoLikedDateHeart`) for "Reacted" type
-  - Repost icon for "Reposted" type
-  - Forward icon for "Forwarded" type
-- **Right side**: Custom emoji of the reaction (if the user reacted with a specific emoji). Rendered at `Emoji::GetSizeNormal()`.
-
-Row height: `photoSkip * 2 + photoSize` (from `defaultWhoRead` style).
-
-Source: `who_reacted_context_action.cpp` lines 744-945, `WhoReactedEntryAction::paint()`.
-
-### 43.5 Loading State
-
-- The summary `Action` item shows `tr::lng_context_seen_loading` ("Loading...") text while `WhoReadState::Unknown`.
-- Userpic thumbnails do not appear until the `_appeared` flag is set (delayed by the menu's animation duration).
-- In the full panel, the peer list shows `tr::lng_contacts_loading` ("Loading...") as the description text until results arrive, then clears it.
-- Individual list entries can show a "preloader" skeleton state (`WhoReactedType::Preloader`): a semi-transparent circle for the avatar and a rounded rectangle placeholder for the name.
-
-Source: `who_reacted_context_action.cpp` line 443 (Unknown state), line 829 (preloader paint).
-
-### 43.6 Empty State
-
-- If no one has read the message yet (or the list is empty): summary text shows "Nobody has seen yet" / "Nobody listened" / "Nobody watched" / "No reactions yet" (via `tr::lng_context_seen_text_none`, `_listened_none`, `_watched_none`, `_reacted_none`).
-- The menu item is **disabled** (not clickable, no submenu) when `participants` is empty and state is not `MyHidden`.
-- In the full panel, an empty result keeps the "Loading..." description.
-
-Source: `who_reacted_context_action.cpp` lines 434-475, `Action::refreshText()` and `isEnabled()`.
-
-### 43.7 Partial Reads
-
-When some members have read and some have reacted, the system combines both lists:
-
-- `WhoReadOrReactedIds()` merges the reaction list and read list. Users who both read AND reacted get their read timestamp merged into the reaction entry.
-- The summary text shows a combined format: "N reacted / M seen" (e.g., "3/5") when `fullReactionsCount > 0` and `fullReactionsCount <= fullReadCount`.
-- In the submenu, each user is tagged with their type: `WhoReactedType::Viewed` (just read) or `WhoReactedType::Reacted` (reacted with emoji). The date line icon differs accordingly (checkmarks vs. heart).
-- The `read` vector stores who-read-only peers separately, used for the "Read" tab in the full panel.
-
-Source: `api_who_reacted.cpp` lines 395-424, `WhoReadOrReactedIds()`.
-
-### 43.8 Time Info
-
-Yes, **per-user read timestamps** are shown:
-
-- **Private chats**: `GetOutboxReadDate` returns the exact read time for the single peer.
-- **Groups**: `GetMessageReadParticipants` returns a `ReadParticipantDate` vector with `(user_id, date)` pairs.
-- **Reactions**: `GetMessageReactionsList` returns reaction timestamps per peer.
-
-Timestamps are formatted by `FormatReadDate()`:
-- Same day: "Today, HH:mm" (or "HH:mm:ss" if AyuGram's `showMessageSeconds` setting is enabled)
-- Yesterday: "Yesterday, HH:mm"
-- Same year: "Mon DD, HH:mm"
-- Different year: "Mon DD, YYYY, HH:mm"
-
-The `dateReacted` flag distinguishes whether the shown date is the reaction time or the read time, affecting which icon is displayed next to it.
-
-Source: `api_who_reacted.cpp` lines 675-716, `FormatReadDate()`.
-
-### 43.9 Animation
-
-- The context menu itself uses standard `PopupMenu` appear/disappear animation (controlled by `parentMenu->st().duration`).
-- Userpic thumbnails in the summary item are delayed — they only render after the menu animation completes (`_appeared` flag, checked via `crl::now() - now >= delay`). A fallback `call_delayed` ensures they appear even if the timing check is missed.
-- The submenu (user list) slides in from the side as a standard Qt `PopupMenu` submenu.
-- No special custom animations for the read receipts content itself — it uses the standard menu animation system.
-
-Source: `who_reacted_context_action.cpp` lines 221-286, Action constructor.
-
-### 43.10 Sizing
-
-**Context menu summary item:**
-- Height: `itemPadding.top (9px) + font->height + itemPadding.bottom (7px)`
-- Icon position: `(15px, 7px)`
-- Item padding: `margins(44px, 9px, 17px, 7px)`
-- Userpic thumbnails: 22px diameter, 8px shift between overlapping circles
-
-**Submenu (user list):**
-- Menu style: `whoReadMenu` (extends `popupMenuExpandedSeparator`)
-- Max height: **400px** (scrollable beyond this)
-- Scroll padding: `margins(0px, 6px, 0px, 4px)`
-- Each user row: `photoSkip * 2 + photoSize` height
-- Photo left offset: `photoLeft`, photo size: `photoSize`
-- Name left offset: `nameLeft`
-
-**When-read line (private chats):**
-- Padding: `margins(34px, 3px, 17px, 4px)`
-- Icon position: `(8px, 0px)`
-- Font: 12px (`whenReadStyle`)
-- "Show" button padding: `margins(6px, 0px, 6px, 2px)` with pill shape (rounded rect)
-
-Source: `chat_helpers.style` lines 281-294, `chat.style` lines 813-839.
-
-### 43.11 Interaction
-
-- **Single participant**: Clicking the summary item directly opens that user's profile (`ShowWhoReadInfo` -> `Info::Profile::Memento`). If the user reacted, the profile opens with a `GroupReactionOrigin` context.
-- **Multiple participants with reactions**: Clicking the summary item triggers `showAllChosen` which opens the full `Info::ReactionsList` panel.
-- **Submenu user entry**: Clicking any user row calls `participantChosen` callback, which hides the menu and navigates to the user's profile info panel.
-- **"Show All" entry**: When `fullReactionsCount > visible participants`, an additional "Show all" row (`tr::lng_context_seen_reacted_all`) appears that opens the full reactions panel.
-- **Full panel rows**: Clicking a user row in the full `Info::ReactionsList` panel calls `window->showPeerInfo(peer)`.
-
-Source: `who_reacted_context_action.cpp` lines 265-276, `history_view_context_menu.cpp` lines 1990-2010.
-
-### 43.12 Privacy
-
-Multiple privacy states are handled by `WhoReadState`:
-
-- **`MyHidden`**: Your own read-time privacy is enabled (`YOUR_PRIVACY_RESTRICTED` error from API). The when-read line shows "Read time hidden" (`tr::lng_context_read_hidden`) with a clickable "Show" pill button. Clicking "Show" opens a dialog (`ShowOrPremiumBox`) offering to either disable your hide-read-time setting or get Premium.
-- **`HisHidden`**: The other user has hidden their read time (`USER_PRIVACY_RESTRICTED`). The when-read line shows the hidden state text.
-- **`TooOld`**: Message is older than the server-configured expiry period (`MESSAGE_TOO_OLD`). No read time shown.
-- **Premium gate**: Toggling read-time visibility requires Premium. The `showOrPremium` callback either calls `api.globalPrivacy().updateHideReadTime({})` to unhide, or navigates to Premium settings (`Settings::ShowPremium`).
-- **`readDatesPrivate`** flag on users: If set, `WhoReadExists` returns false entirely — no read receipt UI is shown.
-- Becoming Premium clears cached `MyHidden` states, triggering a re-fetch.
-- Disabling `hideReadTime` also clears cached `MyHidden` states.
-
-Source: `api_who_reacted.cpp` lines 197-217, 273-284; `who_reacted_context_action.cpp` lines 527-575, 656-673.
-
-### 43.13 AyuGram-Specific Features
-
-AyuGram adds several modifications to the read receipts system:
-
-**Ghost Mode (per-account):**
-- `sendReadMessages` (default: true) — When disabled, suppresses sending read receipts for messages. Other users won't see your double-check marks. This is a client-side block of the `messages.readHistory` / `messages.readEncryptedHistory` API calls.
-- `sendReadStories` (default: true) — When disabled, suppresses sending story view confirmations.
-- `markReadAfterAction` (default: true) — When enabled, messages are marked as read locally after you perform an action (reply, react) even if `sendReadMessages` is off.
-- `ghostModeActive` — Master toggle that combines all ghost settings. Can be toggled from drawer and system tray.
-- `useGlobalGhostMode` — If true, one ghost config applies to all accounts; if false, per-account ghost settings are used.
-
-**Filters Integration:**
-- The `FiltersController::isBlocked()` check is applied in `UpdateUserpics()` and `WhoReacted()` — blocked users are filtered out of the who-read and who-reacted lists entirely, both in the context menu and the full panel.
-- In the full reactions panel (`ResolveWhoRead()`), blocked peers are also excluded from the "Read" tab.
-- Blocked reaction counts are subtracted from `fullReactionsCount` to keep the displayed count accurate.
-
-**Context Menu Visibility Control:**
-- `showViewsPanelInContextMenu` setting (type `ContextMenuVisibility`: Hidden / Visible / VisibleWithModifier) — Controls whether the "Seen by" / "Listened by" / read receipt item appears in the context menu at all. When set to `VisibleWithModifier`, it only shows when Ctrl/Shift is held during right-click.
-- `showReactionsPanelInContextMenu` — Same control for the reactions submenu.
-
-**Enhanced Timestamps:**
-- `showMessageSeconds` setting — When enabled, read timestamps in `FormatReadDate()` use "HH:mm:ss" format instead of the system locale's short time format, showing seconds precision.
-
-**Drawer Quick Toggles:**
-- `showLReadToggleInDrawer` — Toggle for "Local Read" in the navigation drawer.
-- `showSReadToggleInDrawer` — Toggle for "Send Read" in the navigation drawer.
-- `showGhostToggleInDrawer` / `showGhostToggleInTray` — Quick ghost mode toggle from drawer or system tray.
-
-Source: `ayu/ayu_settings.h` (GhostModeAccountSettings class, AyuSettings class), `api_who_reacted.cpp` lines 34-36 (AyuGram includes), 449-451 (filter check in UpdateUserpics), 613-629 (filter check in WhoReacted producer), `history_view_context_menu.cpp` lines 1967-1969 (visibility gate).
-
-### 43.14 Source File Locations
-
-| File | Purpose |
-|---|---|
-| `Telegram/SourceFiles/api/api_who_reacted.h` | API types: `WhoReadPeer`, `WhoReadList`, producer functions |
-| `Telegram/SourceFiles/api/api_who_reacted.cpp` | Core logic: `WhoReadIds()`, `WhoReactedIds()`, `WhoReadExists()`, `FormatReadDate()`, caching, privacy handling |
-| `Telegram/SourceFiles/ui/controls/who_reacted_context_action.h` | UI types: `WhoReadParticipant`, `WhoReadContent`, `WhoReadType`, `WhoReadState`, `WhoReactedEntryAction`, `WhoReactedListMenu` |
-| `Telegram/SourceFiles/ui/controls/who_reacted_context_action.cpp` | Menu widgets: `Action` (summary), `WhenAction` (private read time), `WhoReactedEntryAction` (user row), `WhoReactedListMenu` (submenu populator) |
-| `Telegram/SourceFiles/history/view/history_view_context_menu.cpp` | Integration: `AddWhoReactedAction()`, `ShowWhoReactedMenu()`, `ShowWhoReadInfo()` |
-| `Telegram/SourceFiles/history/view/history_view_list_widget.cpp` | Click handler dispatching reaction clicks to `ShowWhoReactedMenu()` |
-| `Telegram/SourceFiles/history/view/reactions/history_view_reactions_list.h/.cpp` | Full panel: `Controller` (paginated peer list), `FullListController()`, `CreateReactionsTabs()`, `DefaultSelectedTab()` |
-| `Telegram/SourceFiles/history/view/reactions/history_view_reactions_tabs.h/.cpp` | Tab bar: `CreateTabs()`, pill-shaped reaction filter buttons |
-| `Telegram/SourceFiles/info/reactions_list/info_reactions_list_widget.h/.cpp` | Info panel widget: `InnerWidget`, `Memento`, `Widget` wrapping the reactions list into the info column |
-| `Telegram/SourceFiles/ayu/ayu_settings.h` | AyuGram ghost mode: `GhostModeAccountSettings`, `sendReadMessages`, visibility controls |
-| `Telegram/SourceFiles/ayu/features/filters/filters_controller.h/.cpp` | AyuGram filters: `isBlocked()` used to exclude blocked users from read/reaction lists |
-| `Telegram/SourceFiles/ayu/ui/context_menu/context_menu.h/.cpp` | AyuGram context menu: `needToShowItem()` visibility gate |
-
----
-
 ## §41 — Message Formatting Toolbar
 
 ### 41.1 Trigger
@@ -11181,6 +10965,222 @@ When `item->reactionsAreTags()` is true (reactions in Saved Messages act as tags
 
 ---
 
+## §43 — Read Receipts Detail
+
+### 43.1 Trigger
+
+Read receipt detail is accessed through the **right-click context menu** on messages, not by clicking checkmarks directly. When right-clicking a message in an eligible chat, a "Seen by N" / "Listened by N" / "Watched by N" item appears at the bottom of the context menu (after a separator). This item shows up to 3 small userpic thumbnails inline.
+
+For **individual reactions** (not the overall read list), clicking a specific reaction bubble on a message opens a popup menu showing who reacted with that specific emoji. This is handled by `ShowWhoReactedMenu()` in `history_view_context_menu.cpp`.
+
+In **1:1 (private) chats**, the context menu instead shows a `WhenReadContextAction` — a single line displaying the formatted read timestamp (e.g., "Today, 14:32") with a double-check icon. No user list is shown since there is only one reader.
+
+Source: `history_view_context_menu.cpp` lines 1962-2037, `AddWhoReactedAction()`.
+
+### 43.2 Availability
+
+Read receipts (`WhoReadExists()`) are shown only for **outgoing messages** (`item->out()`) that have been read, in these chat types:
+
+- **Private chats (1:1)**: Shows read time via `MTPmessages_GetOutboxReadDate`. Excluded if peer is a bot, service user, self-chat, or has `readDatesPrivate` set. Messages must be younger than `pm_read_date_expire_period` (server config, default 7 days).
+
+- **Small groups (basic groups and supergroups)**: Uses `MTPmessages_GetMessageReadParticipants` to get the list of readers with timestamps. Excluded if: (a) the group is a channel/broadcast, (b) the supergroup has `ParticipantsHidden` flag, (c) it is a monoforum, (d) the message is older than `chat_read_mark_expire_period` (default 7 days), or (e) the member count exceeds `chat_read_mark_size_threshold` (server config, default **50 members**).
+
+- **Not shown in**: Channels/broadcasts, large groups (>50 members), self-chat, bot chats, service user chats.
+
+The "who reacted" list (`WhoReactedExists()`) is additionally shown if `item->canViewReactions()` returns true, even for non-outgoing messages.
+
+Source: `api_who_reacted.cpp` lines 718-783, `WhoReadExists()`.
+
+### 43.3 Layout
+
+Two presentation modes exist:
+
+**A) Context Menu Submenu (primary view):**
+The main context menu shows a single `Action` menu item with:
+- Left: Icon (double-check for "Seen", headphones for "Listened", play for "Watched", heart for reactions-only)
+- Center: Summary text (e.g., "Seen by 5", user name if only 1 reader, or "3/5" reacted/seen format)
+- Right: Up to 3 small circular userpic thumbnails (`kMaxSmallUserpics = 3`)
+
+Hovering this item opens a **submenu** (`whoReadMenu` style) listing all participants individually. The submenu max height is **400px** with scroll padding 6px top, 4px bottom.
+
+**B) Full-Screen Info Panel (expanded view):**
+Clicking "Show All" (when reactions count exceeds visible participants) opens a full `Info::ReactionsList::Widget` panel that replaces the chat column content. This panel has:
+- **Tabs** at the top — one tab per reaction type (emoji tabs) plus optionally a "Read" tab (eye icon with count). Tabs are pill-shaped buttons with rounded corners.
+- **Peer list** below — standard `PeerListContent` with rows for each user, paginated (first page: 20, subsequent: 100).
+
+Title adapts to type: "Seen by N" / "Listened by N" / "Watched by N" / "Reactions".
+
+Source: `who_reacted_context_action.cpp` (Action class), `info_reactions_list_widget.cpp`.
+
+### 43.4 User List Items
+
+Each entry in the submenu (`WhoReactedEntryAction`) contains:
+
+- **Left**: Circular userpic (size: `photoSize` from `defaultWhoRead` style, drawn at `photoLeft` offset). Preloader state shows a semi-transparent circle (`kPreloaderAlpha = 0.2`).
+- **Name**: Peer display name, drawn at `nameLeft` offset. Bold for normal entries, dimmed for preloader skeleton.
+- **Date line** (below name, smaller `whoReadDateStyle` 12px font): Shows when the user read/reacted, prefixed by an icon:
+  - Double-check icon (`whoReadDateChecks`) for "Viewed" type
+  - Heart icon (`whoLikedDateHeart`) for "Reacted" type
+  - Repost icon for "Reposted" type
+  - Forward icon for "Forwarded" type
+- **Right side**: Custom emoji of the reaction (if the user reacted with a specific emoji). Rendered at `Emoji::GetSizeNormal()`.
+
+Row height: `photoSkip * 2 + photoSize` (from `defaultWhoRead` style).
+
+Source: `who_reacted_context_action.cpp` lines 744-945, `WhoReactedEntryAction::paint()`.
+
+### 43.5 Loading State
+
+- The summary `Action` item shows `tr::lng_context_seen_loading` ("Loading...") text while `WhoReadState::Unknown`.
+- Userpic thumbnails do not appear until the `_appeared` flag is set (delayed by the menu's animation duration).
+- In the full panel, the peer list shows `tr::lng_contacts_loading` ("Loading...") as the description text until results arrive, then clears it.
+- Individual list entries can show a "preloader" skeleton state (`WhoReactedType::Preloader`): a semi-transparent circle for the avatar and a rounded rectangle placeholder for the name.
+
+Source: `who_reacted_context_action.cpp` line 443 (Unknown state), line 829 (preloader paint).
+
+### 43.6 Empty State
+
+- If no one has read the message yet (or the list is empty): summary text shows "Nobody has seen yet" / "Nobody listened" / "Nobody watched" / "No reactions yet" (via `tr::lng_context_seen_text_none`, `_listened_none`, `_watched_none`, `_reacted_none`).
+- The menu item is **disabled** (not clickable, no submenu) when `participants` is empty and state is not `MyHidden`.
+- In the full panel, an empty result keeps the "Loading..." description.
+
+Source: `who_reacted_context_action.cpp` lines 434-475, `Action::refreshText()` and `isEnabled()`.
+
+### 43.7 Partial Reads
+
+When some members have read and some have reacted, the system combines both lists:
+
+- `WhoReadOrReactedIds()` merges the reaction list and read list. Users who both read AND reacted get their read timestamp merged into the reaction entry.
+- The summary text shows a combined format: "N reacted / M seen" (e.g., "3/5") when `fullReactionsCount > 0` and `fullReactionsCount <= fullReadCount`.
+- In the submenu, each user is tagged with their type: `WhoReactedType::Viewed` (just read) or `WhoReactedType::Reacted` (reacted with emoji). The date line icon differs accordingly (checkmarks vs. heart).
+- The `read` vector stores who-read-only peers separately, used for the "Read" tab in the full panel.
+
+Source: `api_who_reacted.cpp` lines 395-424, `WhoReadOrReactedIds()`.
+
+### 43.8 Time Info
+
+Yes, **per-user read timestamps** are shown:
+
+- **Private chats**: `GetOutboxReadDate` returns the exact read time for the single peer.
+- **Groups**: `GetMessageReadParticipants` returns a `ReadParticipantDate` vector with `(user_id, date)` pairs.
+- **Reactions**: `GetMessageReactionsList` returns reaction timestamps per peer.
+
+Timestamps are formatted by `FormatReadDate()`:
+- Same day: "Today, HH:mm" (or "HH:mm:ss" if AyuGram's `showMessageSeconds` setting is enabled)
+- Yesterday: "Yesterday, HH:mm"
+- Same year: "Mon DD, HH:mm"
+- Different year: "Mon DD, YYYY, HH:mm"
+
+The `dateReacted` flag distinguishes whether the shown date is the reaction time or the read time, affecting which icon is displayed next to it.
+
+Source: `api_who_reacted.cpp` lines 675-716, `FormatReadDate()`.
+
+### 43.9 Animation
+
+- The context menu itself uses standard `PopupMenu` appear/disappear animation (controlled by `parentMenu->st().duration`).
+- Userpic thumbnails in the summary item are delayed — they only render after the menu animation completes (`_appeared` flag, checked via `crl::now() - now >= delay`). A fallback `call_delayed` ensures they appear even if the timing check is missed.
+- The submenu (user list) slides in from the side as a standard Qt `PopupMenu` submenu.
+- No special custom animations for the read receipts content itself — it uses the standard menu animation system.
+
+Source: `who_reacted_context_action.cpp` lines 221-286, Action constructor.
+
+### 43.10 Sizing
+
+**Context menu summary item:**
+- Height: `itemPadding.top (9px) + font->height + itemPadding.bottom (7px)`
+- Icon position: `(15px, 7px)`
+- Item padding: `margins(44px, 9px, 17px, 7px)`
+- Userpic thumbnails: 22px diameter, 8px shift between overlapping circles
+
+**Submenu (user list):**
+- Menu style: `whoReadMenu` (extends `popupMenuExpandedSeparator`)
+- Max height: **400px** (scrollable beyond this)
+- Scroll padding: `margins(0px, 6px, 0px, 4px)`
+- Each user row: `photoSkip * 2 + photoSize` height
+- Photo left offset: `photoLeft`, photo size: `photoSize`
+- Name left offset: `nameLeft`
+
+**When-read line (private chats):**
+- Padding: `margins(34px, 3px, 17px, 4px)`
+- Icon position: `(8px, 0px)`
+- Font: 12px (`whenReadStyle`)
+- "Show" button padding: `margins(6px, 0px, 6px, 2px)` with pill shape (rounded rect)
+
+Source: `chat_helpers.style` lines 281-294, `chat.style` lines 813-839.
+
+### 43.11 Interaction
+
+- **Single participant**: Clicking the summary item directly opens that user's profile (`ShowWhoReadInfo` -> `Info::Profile::Memento`). If the user reacted, the profile opens with a `GroupReactionOrigin` context.
+- **Multiple participants with reactions**: Clicking the summary item triggers `showAllChosen` which opens the full `Info::ReactionsList` panel.
+- **Submenu user entry**: Clicking any user row calls `participantChosen` callback, which hides the menu and navigates to the user's profile info panel.
+- **"Show All" entry**: When `fullReactionsCount > visible participants`, an additional "Show all" row (`tr::lng_context_seen_reacted_all`) appears that opens the full reactions panel.
+- **Full panel rows**: Clicking a user row in the full `Info::ReactionsList` panel calls `window->showPeerInfo(peer)`.
+
+Source: `who_reacted_context_action.cpp` lines 265-276, `history_view_context_menu.cpp` lines 1990-2010.
+
+### 43.12 Privacy
+
+Multiple privacy states are handled by `WhoReadState`:
+
+- **`MyHidden`**: Your own read-time privacy is enabled (`YOUR_PRIVACY_RESTRICTED` error from API). The when-read line shows "Read time hidden" (`tr::lng_context_read_hidden`) with a clickable "Show" pill button. Clicking "Show" opens a dialog (`ShowOrPremiumBox`) offering to either disable your hide-read-time setting or get Premium.
+- **`HisHidden`**: The other user has hidden their read time (`USER_PRIVACY_RESTRICTED`). The when-read line shows the hidden state text.
+- **`TooOld`**: Message is older than the server-configured expiry period (`MESSAGE_TOO_OLD`). No read time shown.
+- **Premium gate**: Toggling read-time visibility requires Premium. The `showOrPremium` callback either calls `api.globalPrivacy().updateHideReadTime({})` to unhide, or navigates to Premium settings (`Settings::ShowPremium`).
+- **`readDatesPrivate`** flag on users: If set, `WhoReadExists` returns false entirely — no read receipt UI is shown.
+- Becoming Premium clears cached `MyHidden` states, triggering a re-fetch.
+- Disabling `hideReadTime` also clears cached `MyHidden` states.
+
+Source: `api_who_reacted.cpp` lines 197-217, 273-284; `who_reacted_context_action.cpp` lines 527-575, 656-673.
+
+### 43.13 AyuGram-Specific Features
+
+AyuGram adds several modifications to the read receipts system:
+
+**Ghost Mode (per-account):**
+- `sendReadMessages` (default: true) — When disabled, suppresses sending read receipts for messages. Other users won't see your double-check marks. This is a client-side block of the `messages.readHistory` / `messages.readEncryptedHistory` API calls.
+- `sendReadStories` (default: true) — When disabled, suppresses sending story view confirmations.
+- `markReadAfterAction` (default: true) — When enabled, messages are marked as read locally after you perform an action (reply, react) even if `sendReadMessages` is off.
+- `ghostModeActive` — Master toggle that combines all ghost settings. Can be toggled from drawer and system tray.
+- `useGlobalGhostMode` — If true, one ghost config applies to all accounts; if false, per-account ghost settings are used.
+
+**Filters Integration:**
+- The `FiltersController::isBlocked()` check is applied in `UpdateUserpics()` and `WhoReacted()` — blocked users are filtered out of the who-read and who-reacted lists entirely, both in the context menu and the full panel.
+- In the full reactions panel (`ResolveWhoRead()`), blocked peers are also excluded from the "Read" tab.
+- Blocked reaction counts are subtracted from `fullReactionsCount` to keep the displayed count accurate.
+
+**Context Menu Visibility Control:**
+- `showViewsPanelInContextMenu` setting (type `ContextMenuVisibility`: Hidden / Visible / VisibleWithModifier) — Controls whether the "Seen by" / "Listened by" / read receipt item appears in the context menu at all. When set to `VisibleWithModifier`, it only shows when Ctrl/Shift is held during right-click.
+- `showReactionsPanelInContextMenu` — Same control for the reactions submenu.
+
+**Enhanced Timestamps:**
+- `showMessageSeconds` setting — When enabled, read timestamps in `FormatReadDate()` use "HH:mm:ss" format instead of the system locale's short time format, showing seconds precision.
+
+**Drawer Quick Toggles:**
+- `showLReadToggleInDrawer` — Toggle for "Local Read" in the navigation drawer.
+- `showSReadToggleInDrawer` — Toggle for "Send Read" in the navigation drawer.
+- `showGhostToggleInDrawer` / `showGhostToggleInTray` — Quick ghost mode toggle from drawer or system tray.
+
+Source: `ayu/ayu_settings.h` (GhostModeAccountSettings class, AyuSettings class), `api_who_reacted.cpp` lines 34-36 (AyuGram includes), 449-451 (filter check in UpdateUserpics), 613-629 (filter check in WhoReacted producer), `history_view_context_menu.cpp` lines 1967-1969 (visibility gate).
+
+### 43.14 Source File Locations
+
+| File | Purpose |
+|---|---|
+| `Telegram/SourceFiles/api/api_who_reacted.h` | API types: `WhoReadPeer`, `WhoReadList`, producer functions |
+| `Telegram/SourceFiles/api/api_who_reacted.cpp` | Core logic: `WhoReadIds()`, `WhoReactedIds()`, `WhoReadExists()`, `FormatReadDate()`, caching, privacy handling |
+| `Telegram/SourceFiles/ui/controls/who_reacted_context_action.h` | UI types: `WhoReadParticipant`, `WhoReadContent`, `WhoReadType`, `WhoReadState`, `WhoReactedEntryAction`, `WhoReactedListMenu` |
+| `Telegram/SourceFiles/ui/controls/who_reacted_context_action.cpp` | Menu widgets: `Action` (summary), `WhenAction` (private read time), `WhoReactedEntryAction` (user row), `WhoReactedListMenu` (submenu populator) |
+| `Telegram/SourceFiles/history/view/history_view_context_menu.cpp` | Integration: `AddWhoReactedAction()`, `ShowWhoReactedMenu()`, `ShowWhoReadInfo()` |
+| `Telegram/SourceFiles/history/view/history_view_list_widget.cpp` | Click handler dispatching reaction clicks to `ShowWhoReactedMenu()` |
+| `Telegram/SourceFiles/history/view/reactions/history_view_reactions_list.h/.cpp` | Full panel: `Controller` (paginated peer list), `FullListController()`, `CreateReactionsTabs()`, `DefaultSelectedTab()` |
+| `Telegram/SourceFiles/history/view/reactions/history_view_reactions_tabs.h/.cpp` | Tab bar: `CreateTabs()`, pill-shaped reaction filter buttons |
+| `Telegram/SourceFiles/info/reactions_list/info_reactions_list_widget.h/.cpp` | Info panel widget: `InnerWidget`, `Memento`, `Widget` wrapping the reactions list into the info column |
+| `Telegram/SourceFiles/ayu/ayu_settings.h` | AyuGram ghost mode: `GhostModeAccountSettings`, `sendReadMessages`, visibility controls |
+| `Telegram/SourceFiles/ayu/features/filters/filters_controller.h/.cpp` | AyuGram filters: `isBlocked()` used to exclude blocked users from read/reaction lists |
+| `Telegram/SourceFiles/ayu/ui/context_menu/context_menu.h/.cpp` | AyuGram context menu: `needToShowItem()` visibility gate |
+
+---
+
 ## §44 — Spoiler Animation
 
 Spoilers hide text and media behind a shimmering particle overlay until the user clicks to reveal. The system uses **pre-rendered sprite sheets** (not real-time shaders) tiled across the spoiler region.
@@ -11343,6 +11343,188 @@ Additionally, login codes from Telegram's notification bot are auto-spoilered: a
 | `window/notifications_manager.cpp` | `TextWithPermanentSpoiler()` — U+259A replacement |
 | `history/history_item.cpp` | `SpoilerLoginCode()` — auto-spoiler login codes |
 | `ui/power_saving.h` | `kChatSpoiler` power saving flag |
+
+---
+
+## §45 — Custom Emoji Rendering
+
+Custom emoji are Telegram premium sticker documents (TGS Lottie, WebM video, or WebP static) rendered inline at emoji size within text, names, reactions, and the compose field. They are referenced by `documentId` via `messageEntityCustomEmoji` entities.
+
+### 45.1 Inline Rendering in Text Messages
+
+Custom emoji render at the same size as native emoji within flowing text. The text renderer (`text_renderer.cpp:858-879`) paints them via the `CustomEmoji::paint()` interface:
+
+- **Logical size**: `st::emojiSize` = **18px** (defined in `lib_ui/ui/basic.style:57`)
+- **Adjusted frame size**: `AdjustCustomEmojiSize(18) = round(18 * 1.12) = 20px` (the `1.12` multiplier is in `text_custom_emoji.cpp:44-45`)
+- **Skip/centering**: `(18 - 20) / 2 = -1px` centering offset (`_customEmojiSkip`) ensures the slightly-larger custom emoji is centered on the native emoji baseline
+- **Horizontal padding**: `st::emojiPadding` = **1px** on each side (`basic.style:58`), giving total inline width = `18 + 2*1 = 20px` logical (`Object::width()` at `custom_emoji_instance.cpp:823`)
+- **Vertical alignment**: `QTextCharFormat::AlignTop` with height = `max(fontHeight, emojiSize)`
+- **Text color tinting**: If `document->emojiUsesTextColor()` is true (the `UseTextColor` flag), the emoji frames are colorized to match surrounding text color via `style::colorizeImage()`
+
+### 45.2 Large Emoji (Isolated/Only-Custom-Emoji Messages)
+
+When a message contains **only** custom emoji (no text, no links), it renders as `UnwrappedMedia` with larger sizes. Detection: `_isOnlyCustomEmoji` flag set during block parsing (`text_block_parser.cpp:749`).
+
+**Size tiers** (defined in `history_view_custom_emoji.cpp:39-57`):
+
+| Emoji count | Rendering mode | Size per emoji | Scale factor |
+|---|---|---|---|
+| **1** | Full sticker-like | **112px** (`maxAnimatedEmojiSize`) | 1.0x of `Sticker::EmojiSize()` |
+| **2** | Sticker grid | **~78px** | 0.7x of `Sticker::EmojiSize()` |
+| **3** | Sticker grid | **~58px** | 0.52x of `Sticker::EmojiSize()` |
+| **4-5** | Custom emoji object | **~43px** | `SizeTag::Isolated` = `(36 + 2*1) * 1.12` |
+| **6-7** | Custom emoji object | **~27px** | `SizeTag::Large` = `24 * 1.12` |
+| **8+** | Custom emoji object | **~20px** | `SizeTag::Normal` (same as inline text) |
+
+For dimensions 1-3, each emoji becomes a `Sticker` part (full animation playback, interaction effects). For 4+, they use `CustomEmoji::Object` instances at the appropriate `SizeTag`.
+
+`kIsolatedEmojiLimit = 3` (`text_isolated_emoji.h:14`) — messages with 1-3 **native** emoji (not custom) get separate isolated rendering via `IsolatedEmoji` + `LargeEmoji`.
+
+### 45.3 Animated Custom Emoji (Lottie/TGS)
+
+Three sticker types are supported, each with a dedicated frame generator (`data_custom_emoji.cpp:394-405`):
+
+- **TGS (Lottie)**: `Lottie::FrameGenerator` — JSON-based vector animation
+- **WebM (video sticker)**: `FFmpeg::FrameGenerator` — video decoding
+- **WebP (static)**: `Ui::ImageFrameGenerator` — single frame
+
+Animation playback flow:
+1. **Renderer** (`custom_emoji_instance.cpp:459-594`) decodes frames asynchronously on a worker thread via `crl::async`
+2. Frames are added to a `Cache` one at a time, with preloading of `kPreloadFrames = 3` frames ahead
+3. Maximum **180 frames** per animation (`kMaxFrames`)
+4. Frame timing stored as `uint16` millisecond durations per frame
+5. Once all frames are decoded, `Cache::finish()` packs them into a sprite atlas (16 frames per row, `kPerRow = 16`)
+
+**Pausing**: Animations pause when `context.paused` is true, or when `PowerSaving::kEmojiChat` flag is set (bit 5). Separate power-saving flags exist for: `kEmojiPanel` (bit 3), `kEmojiReactions` (bit 4), `kEmojiChat` (bit 5), `kEmojiStatus` (bit 9).
+
+**LimitedLoopsEmoji** wrapper (`text_custom_emoji.cpp:112-171`) limits animation to N loops, then freezes on first or last frame.
+
+### 45.4 Premium-Only Indicators
+
+**AyuGram modification**: `AllowEmojiWithoutPremium()` always returns `true` — AyuGram bypasses premium restrictions entirely.
+
+In upstream Telegram Desktop:
+- **Self-chat**: Always allowed
+- **Megagroup with custom emoji pack**: Allowed if the emoji belongs to the group's emoji set
+- Otherwise: Premium subscription required
+
+When a non-premium user sends a message with premium custom emoji to a non-permissive context, the emoji renders with its `sticker->alt` text fallback (the Unicode emoji alternative). There is no lock badge overlay on individual inline custom emoji — the restriction is enforced at send time, not display time.
+
+### 45.5 Custom Emoji in Names (Emoji Status)
+
+Peers have an `_emojiStatusId` (`data_peer.h:631`) containing a `DocumentId`. The emoji status renders as a custom emoji next to the peer's name in chat headers, dialogs, and profile.
+
+- **Collectible emoji status**: Special prefix `"collectible:"` + ID. Rendered via `Ui::Premium::MakeCollectibleEmoji()` with custom `centerColor`/`edgeColor`
+- **Standard emoji status**: Rendered at the same `SizeTag` as surrounding context
+- **Userpic emoji**: Prefix `"userpic:"` + peerId, renders a dynamic circular userpic image as an inline emoji replacement
+- Power saving flag `kEmojiStatus` (bit 9) can freeze emoji status animations
+
+### 45.6 Custom Emoji in Reactions
+
+Custom emoji reactions use `ReactedMenuFactory()` (`data_custom_emoji.cpp:1075-1108`):
+
+- **Default reactions** (Unicode-based): Rendered via their `centerIcon` document at `2x emojiSize` or `selectAnimation` at `1x`, wrapped in `FirstFrameEmoji` (static first frame only) + `ShiftedEmoji` (offset to center)
+- **Custom emoji reactions**: Rendered as standard custom emoji at `SizeTag::Normal`
+
+Clicking a custom emoji in a message triggers `ShowReactionPreview()`, which opens an overlay showing the animated sticker full-size with a label showing the sticker pack name and a "View Pack" button.
+
+### 45.7 Loading States
+
+Three-phase loading state machine (`custom_emoji_instance.h:228-258`):
+
+1. **Loading**: Shows a `Preview` placeholder — either:
+   - **SVG path preview**: The document's `inlineThumbnailPath()` scaled — a low-detail vector outline, painted at text color **12.5% opacity** (`alpha / 8`)
+   - **Image preview**: A scaled-down image from another size tier (cross-resolution fallback)
+   - If no preview exists: blank space
+2. **Caching**: `Renderer` is decoding frames. Paints decoded frames as they arrive; falls back to preview if no frame yet
+3. **Cached**: All frames in sprite atlas, painting from cache
+
+### 45.8 Caching
+
+**Two-level cache architecture**:
+
+1. **In-memory instance cache** (`CustomEmojiManager::_instances`): `std::array<unordered_map<DocumentId, unique_ptr<Instance>>, 4>` — one map per `SizeTag` (Normal, Large, Isolated, SetIcon). Instances are shared: multiple `Object` wrappers reference the same `Instance`. Reference-counted via `_usage` set.
+
+2. **Disk sprite atlas cache** (`cacheBigFile`): LZ4-compressed sprite sheet stored in Telegram's persistent cache database. Key derived from `document->bigFileBaseCacheKey()`. The serialized format:
+   - Header: version(1), size, frameCount, compressedLength
+   - LZ4-compressed ARGB32 sprite atlas (16 frames per row)
+   - Frame durations array (uint16 per frame)
+
+3. **Cross-resolution preview**: When an emoji exists in one size tier's cache but not another, the existing cached first frame is scaled to the requested size as a temporary preview.
+
+**Eviction**: In-memory instances auto-unload when no UI references remain. Disk cache managed by the persistent storage layer.
+
+### 45.9 Click Behavior
+
+Custom emoji in text messages are clickable via `CustomEmojiClickHandler`:
+
+- **Callback**: Calls `ShowReactionPreview(controller, itemId, ReactionId{documentId}, emojiPreview=true)`
+- **Result**: Opens an overlay preview showing the custom emoji's full animation, the sticker pack name, and a clickable label to open `StickerSetBox` (emoji pack browser)
+
+For large (1-emoji) isolated custom emoji, an additional `_interactionLink` enables emoji interaction effects (the "tap splash" animation).
+
+### 45.10 Custom Emoji in Input Field
+
+Custom emoji in the compose field use Qt's `QTextObjectInterface` system:
+
+- **Format**: `kCustomEmojiFormat = QTextFormat::UserObject + 2` with properties `kCustomEmojiLink` (unique link string) and `kCustomEmojiId` (document ID as uint64)
+- **Insertion**: `InsertCustomEmoji()` inserts the sticker's `alt` text (Unicode fallback) as visible text with a custom emoji link tag
+- **Intrinsic size**: Width = `st::emojiSize + 2 * st::emojiPadding` = **20px**, Height = `max(fontLineHeight, st::emojiSize)`. Frame rendered at `AdjustCustomEmojiSize(18) = 20px` with centering skip.
+- **Drawing**: `CustomFieldObject::drawObject()` looks up the emoji by document ID in a local `_emoji` map, then calls `CustomEmoji::paint()`
+- **Repaint**: `InputField::customEmojiRepaint()` schedules a single repaint per frame via `_customEmojiRepaintScheduled` flag to coalesce multiple emoji repaint requests.
+
+### 45.11 Performance
+
+- **Shared instances**: All custom emoji of the same `(documentId, sizeTag)` share a single `Instance` object
+- **Batched repaints**: Repaint requests grouped by `(when, duration)` into `RepaintBunch` buckets. Single timer fires and repaints all due instances in one pass
+- **Async rendering**: Frame decoding on worker threads. Only final `QImage` posted to main thread
+- **Preloading**: `kPreloadFrames = 3` — renderer stays 3 frames ahead of playback
+- **Frame limit**: `kMaxFrames = 180` — animations truncated beyond 180 frames
+- **Off-screen pausing**: `Instance::decrementUsage()` transitions to `Loading` state when no `Object` references exist, stopping animation
+- **Power saving**: Separate flags for chat, panel, reactions, and status. When active, all animations freeze to first frame
+- **Batched API resolution**: Unknown document IDs batched up to `kMaxPerRequest = 100` per `messages.getCustomEmojiDocuments` API call
+- **Sprite atlas**: Cached frames packed 16-per-row to minimize texture switches
+- **Colored emoji**: Text-color-tinted emoji use a static `PaintCache` QImage to avoid per-frame allocation
+
+### 45.12 Size Constants Summary
+
+| Constant | Value | File |
+|---|---|---|
+| `st::emojiSize` | 18px | `lib_ui/ui/basic.style:57` |
+| `st::emojiPadding` | 1px | `lib_ui/ui/basic.style:58` |
+| `st::largeEmojiSize` | 36px | `ui/chat/chat.style:757` |
+| `st::maxAnimatedEmojiSize` | 112px | `ui/chat/chat.style:216` |
+| `AdjustCustomEmojiSize(x)` | `round(x * 1.12)` | `text_custom_emoji.cpp:44` |
+| Normal inline frame | 20px | `round(18 * 1.12)` |
+| Large frame | 27px | `round(24 * 1.12)` |
+| Isolated frame | 43px | `round(38 * 1.12)` |
+| 1-emoji isolated | 112px | `1.0 * EmojiSize()` |
+| 2-emoji isolated | ~78px | `0.7 * 112` |
+| 3-emoji isolated | ~58px | `0.52 * 112` |
+| Input field width | 20px | `emojiSize + 2*emojiPadding` |
+| Cache sprite row | 16 frames | `kPerRow` |
+| Max cached frames | 180 | `kMaxFrames` |
+| Preload ahead | 3 frames | `kPreloadFrames` |
+| Batch API limit | 100 IDs | `kMaxPerRequest` |
+
+### 45.13 Source File Locations
+
+| File | Purpose |
+|---|---|
+| `lib_ui/ui/text/text_custom_emoji.h/cpp` | Base `CustomEmoji` interface, `AdjustCustomEmojiSize()`, wrapper classes |
+| `lib_ui/ui/text/custom_emoji_instance.h/cpp` | `Instance`, `Object`, `Cache`, `Renderer` — full lifecycle/state machine |
+| `lib_ui/ui/text/text_lottie_custom_emoji.h/cpp` | `LottieCustomEmoji` — built-in Lottie icon animations |
+| `lib_ui/ui/text/text_renderer.cpp:840-879` | Inline painting during text layout |
+| `lib_ui/ui/text/text_extended_data.h/cpp` | `CustomEmojiClickHandler` |
+| `lib_ui/ui/text/text_isolated_emoji.h` | `IsolatedEmoji`, `OnlyCustomEmoji` structs |
+| `lib_ui/ui/widgets/fields/custom_field_object.cpp` | Renders custom emoji in QTextEdit input fields |
+| `data/stickers/data_custom_emoji.h/cpp` | `CustomEmojiManager` — instance cache, API resolution, repaint batching |
+| `history/view/media/history_view_custom_emoji.h/cpp` | Large isolated emoji in messages (1-7 emoji grid) |
+| `history/view/media/history_view_sticker.cpp` | `Sticker::EmojiSize()`, sticker rendering for 1-3 emoji messages |
+| `history/view/history_view_element.cpp:1663-1690` | Decision logic: text → `OnlyCustomEmoji` / `IsolatedEmoji` media |
+| `history/view/history_view_reaction_preview.cpp` | Reaction/emoji preview overlay |
+| `data/data_document.cpp:745-755` | `emojiUsesTextColor()` text-color tinting flag |
+| `ui/power_saving.h` | Power saving flags for emoji animation contexts |
 
 ---
 
@@ -11532,188 +11714,6 @@ Two-level debouncing:
 | `history/view/media/history_view_web_page.h/.cpp` | `WebPage` media class (renders preview in sent messages) |
 | `history/view/history_view_webpage_preview.h/.cpp` | `TitleAndDescriptionFromWebPage()` helpers |
 | `ayu/utils/telegram_helpers.cpp` | AyuGram `getBetterLinkPreview()` (URL rewriting) |
-
----
-
-## §45 — Custom Emoji Rendering
-
-Custom emoji are Telegram premium sticker documents (TGS Lottie, WebM video, or WebP static) rendered inline at emoji size within text, names, reactions, and the compose field. They are referenced by `documentId` via `messageEntityCustomEmoji` entities.
-
-### 45.1 Inline Rendering in Text Messages
-
-Custom emoji render at the same size as native emoji within flowing text. The text renderer (`text_renderer.cpp:858-879`) paints them via the `CustomEmoji::paint()` interface:
-
-- **Logical size**: `st::emojiSize` = **18px** (defined in `lib_ui/ui/basic.style:57`)
-- **Adjusted frame size**: `AdjustCustomEmojiSize(18) = round(18 * 1.12) = 20px` (the `1.12` multiplier is in `text_custom_emoji.cpp:44-45`)
-- **Skip/centering**: `(18 - 20) / 2 = -1px` centering offset (`_customEmojiSkip`) ensures the slightly-larger custom emoji is centered on the native emoji baseline
-- **Horizontal padding**: `st::emojiPadding` = **1px** on each side (`basic.style:58`), giving total inline width = `18 + 2*1 = 20px` logical (`Object::width()` at `custom_emoji_instance.cpp:823`)
-- **Vertical alignment**: `QTextCharFormat::AlignTop` with height = `max(fontHeight, emojiSize)`
-- **Text color tinting**: If `document->emojiUsesTextColor()` is true (the `UseTextColor` flag), the emoji frames are colorized to match surrounding text color via `style::colorizeImage()`
-
-### 45.2 Large Emoji (Isolated/Only-Custom-Emoji Messages)
-
-When a message contains **only** custom emoji (no text, no links), it renders as `UnwrappedMedia` with larger sizes. Detection: `_isOnlyCustomEmoji` flag set during block parsing (`text_block_parser.cpp:749`).
-
-**Size tiers** (defined in `history_view_custom_emoji.cpp:39-57`):
-
-| Emoji count | Rendering mode | Size per emoji | Scale factor |
-|---|---|---|---|
-| **1** | Full sticker-like | **112px** (`maxAnimatedEmojiSize`) | 1.0x of `Sticker::EmojiSize()` |
-| **2** | Sticker grid | **~78px** | 0.7x of `Sticker::EmojiSize()` |
-| **3** | Sticker grid | **~58px** | 0.52x of `Sticker::EmojiSize()` |
-| **4-5** | Custom emoji object | **~43px** | `SizeTag::Isolated` = `(36 + 2*1) * 1.12` |
-| **6-7** | Custom emoji object | **~27px** | `SizeTag::Large` = `24 * 1.12` |
-| **8+** | Custom emoji object | **~20px** | `SizeTag::Normal` (same as inline text) |
-
-For dimensions 1-3, each emoji becomes a `Sticker` part (full animation playback, interaction effects). For 4+, they use `CustomEmoji::Object` instances at the appropriate `SizeTag`.
-
-`kIsolatedEmojiLimit = 3` (`text_isolated_emoji.h:14`) — messages with 1-3 **native** emoji (not custom) get separate isolated rendering via `IsolatedEmoji` + `LargeEmoji`.
-
-### 45.3 Animated Custom Emoji (Lottie/TGS)
-
-Three sticker types are supported, each with a dedicated frame generator (`data_custom_emoji.cpp:394-405`):
-
-- **TGS (Lottie)**: `Lottie::FrameGenerator` — JSON-based vector animation
-- **WebM (video sticker)**: `FFmpeg::FrameGenerator` — video decoding
-- **WebP (static)**: `Ui::ImageFrameGenerator` — single frame
-
-Animation playback flow:
-1. **Renderer** (`custom_emoji_instance.cpp:459-594`) decodes frames asynchronously on a worker thread via `crl::async`
-2. Frames are added to a `Cache` one at a time, with preloading of `kPreloadFrames = 3` frames ahead
-3. Maximum **180 frames** per animation (`kMaxFrames`)
-4. Frame timing stored as `uint16` millisecond durations per frame
-5. Once all frames are decoded, `Cache::finish()` packs them into a sprite atlas (16 frames per row, `kPerRow = 16`)
-
-**Pausing**: Animations pause when `context.paused` is true, or when `PowerSaving::kEmojiChat` flag is set (bit 5). Separate power-saving flags exist for: `kEmojiPanel` (bit 3), `kEmojiReactions` (bit 4), `kEmojiChat` (bit 5), `kEmojiStatus` (bit 9).
-
-**LimitedLoopsEmoji** wrapper (`text_custom_emoji.cpp:112-171`) limits animation to N loops, then freezes on first or last frame.
-
-### 45.4 Premium-Only Indicators
-
-**AyuGram modification**: `AllowEmojiWithoutPremium()` always returns `true` — AyuGram bypasses premium restrictions entirely.
-
-In upstream Telegram Desktop:
-- **Self-chat**: Always allowed
-- **Megagroup with custom emoji pack**: Allowed if the emoji belongs to the group's emoji set
-- Otherwise: Premium subscription required
-
-When a non-premium user sends a message with premium custom emoji to a non-permissive context, the emoji renders with its `sticker->alt` text fallback (the Unicode emoji alternative). There is no lock badge overlay on individual inline custom emoji — the restriction is enforced at send time, not display time.
-
-### 45.5 Custom Emoji in Names (Emoji Status)
-
-Peers have an `_emojiStatusId` (`data_peer.h:631`) containing a `DocumentId`. The emoji status renders as a custom emoji next to the peer's name in chat headers, dialogs, and profile.
-
-- **Collectible emoji status**: Special prefix `"collectible:"` + ID. Rendered via `Ui::Premium::MakeCollectibleEmoji()` with custom `centerColor`/`edgeColor`
-- **Standard emoji status**: Rendered at the same `SizeTag` as surrounding context
-- **Userpic emoji**: Prefix `"userpic:"` + peerId, renders a dynamic circular userpic image as an inline emoji replacement
-- Power saving flag `kEmojiStatus` (bit 9) can freeze emoji status animations
-
-### 45.6 Custom Emoji in Reactions
-
-Custom emoji reactions use `ReactedMenuFactory()` (`data_custom_emoji.cpp:1075-1108`):
-
-- **Default reactions** (Unicode-based): Rendered via their `centerIcon` document at `2x emojiSize` or `selectAnimation` at `1x`, wrapped in `FirstFrameEmoji` (static first frame only) + `ShiftedEmoji` (offset to center)
-- **Custom emoji reactions**: Rendered as standard custom emoji at `SizeTag::Normal`
-
-Clicking a custom emoji in a message triggers `ShowReactionPreview()`, which opens an overlay showing the animated sticker full-size with a label showing the sticker pack name and a "View Pack" button.
-
-### 45.7 Loading States
-
-Three-phase loading state machine (`custom_emoji_instance.h:228-258`):
-
-1. **Loading**: Shows a `Preview` placeholder — either:
-   - **SVG path preview**: The document's `inlineThumbnailPath()` scaled — a low-detail vector outline, painted at text color **12.5% opacity** (`alpha / 8`)
-   - **Image preview**: A scaled-down image from another size tier (cross-resolution fallback)
-   - If no preview exists: blank space
-2. **Caching**: `Renderer` is decoding frames. Paints decoded frames as they arrive; falls back to preview if no frame yet
-3. **Cached**: All frames in sprite atlas, painting from cache
-
-### 45.8 Caching
-
-**Two-level cache architecture**:
-
-1. **In-memory instance cache** (`CustomEmojiManager::_instances`): `std::array<unordered_map<DocumentId, unique_ptr<Instance>>, 4>` — one map per `SizeTag` (Normal, Large, Isolated, SetIcon). Instances are shared: multiple `Object` wrappers reference the same `Instance`. Reference-counted via `_usage` set.
-
-2. **Disk sprite atlas cache** (`cacheBigFile`): LZ4-compressed sprite sheet stored in Telegram's persistent cache database. Key derived from `document->bigFileBaseCacheKey()`. The serialized format:
-   - Header: version(1), size, frameCount, compressedLength
-   - LZ4-compressed ARGB32 sprite atlas (16 frames per row)
-   - Frame durations array (uint16 per frame)
-
-3. **Cross-resolution preview**: When an emoji exists in one size tier's cache but not another, the existing cached first frame is scaled to the requested size as a temporary preview.
-
-**Eviction**: In-memory instances auto-unload when no UI references remain. Disk cache managed by the persistent storage layer.
-
-### 45.9 Click Behavior
-
-Custom emoji in text messages are clickable via `CustomEmojiClickHandler`:
-
-- **Callback**: Calls `ShowReactionPreview(controller, itemId, ReactionId{documentId}, emojiPreview=true)`
-- **Result**: Opens an overlay preview showing the custom emoji's full animation, the sticker pack name, and a clickable label to open `StickerSetBox` (emoji pack browser)
-
-For large (1-emoji) isolated custom emoji, an additional `_interactionLink` enables emoji interaction effects (the "tap splash" animation).
-
-### 45.10 Custom Emoji in Input Field
-
-Custom emoji in the compose field use Qt's `QTextObjectInterface` system:
-
-- **Format**: `kCustomEmojiFormat = QTextFormat::UserObject + 2` with properties `kCustomEmojiLink` (unique link string) and `kCustomEmojiId` (document ID as uint64)
-- **Insertion**: `InsertCustomEmoji()` inserts the sticker's `alt` text (Unicode fallback) as visible text with a custom emoji link tag
-- **Intrinsic size**: Width = `st::emojiSize + 2 * st::emojiPadding` = **20px**, Height = `max(fontLineHeight, st::emojiSize)`. Frame rendered at `AdjustCustomEmojiSize(18) = 20px` with centering skip.
-- **Drawing**: `CustomFieldObject::drawObject()` looks up the emoji by document ID in a local `_emoji` map, then calls `CustomEmoji::paint()`
-- **Repaint**: `InputField::customEmojiRepaint()` schedules a single repaint per frame via `_customEmojiRepaintScheduled` flag to coalesce multiple emoji repaint requests.
-
-### 45.11 Performance
-
-- **Shared instances**: All custom emoji of the same `(documentId, sizeTag)` share a single `Instance` object
-- **Batched repaints**: Repaint requests grouped by `(when, duration)` into `RepaintBunch` buckets. Single timer fires and repaints all due instances in one pass
-- **Async rendering**: Frame decoding on worker threads. Only final `QImage` posted to main thread
-- **Preloading**: `kPreloadFrames = 3` — renderer stays 3 frames ahead of playback
-- **Frame limit**: `kMaxFrames = 180` — animations truncated beyond 180 frames
-- **Off-screen pausing**: `Instance::decrementUsage()` transitions to `Loading` state when no `Object` references exist, stopping animation
-- **Power saving**: Separate flags for chat, panel, reactions, and status. When active, all animations freeze to first frame
-- **Batched API resolution**: Unknown document IDs batched up to `kMaxPerRequest = 100` per `messages.getCustomEmojiDocuments` API call
-- **Sprite atlas**: Cached frames packed 16-per-row to minimize texture switches
-- **Colored emoji**: Text-color-tinted emoji use a static `PaintCache` QImage to avoid per-frame allocation
-
-### 45.12 Size Constants Summary
-
-| Constant | Value | File |
-|---|---|---|
-| `st::emojiSize` | 18px | `lib_ui/ui/basic.style:57` |
-| `st::emojiPadding` | 1px | `lib_ui/ui/basic.style:58` |
-| `st::largeEmojiSize` | 36px | `ui/chat/chat.style:757` |
-| `st::maxAnimatedEmojiSize` | 112px | `ui/chat/chat.style:216` |
-| `AdjustCustomEmojiSize(x)` | `round(x * 1.12)` | `text_custom_emoji.cpp:44` |
-| Normal inline frame | 20px | `round(18 * 1.12)` |
-| Large frame | 27px | `round(24 * 1.12)` |
-| Isolated frame | 43px | `round(38 * 1.12)` |
-| 1-emoji isolated | 112px | `1.0 * EmojiSize()` |
-| 2-emoji isolated | ~78px | `0.7 * 112` |
-| 3-emoji isolated | ~58px | `0.52 * 112` |
-| Input field width | 20px | `emojiSize + 2*emojiPadding` |
-| Cache sprite row | 16 frames | `kPerRow` |
-| Max cached frames | 180 | `kMaxFrames` |
-| Preload ahead | 3 frames | `kPreloadFrames` |
-| Batch API limit | 100 IDs | `kMaxPerRequest` |
-
-### 45.13 Source File Locations
-
-| File | Purpose |
-|---|---|
-| `lib_ui/ui/text/text_custom_emoji.h/cpp` | Base `CustomEmoji` interface, `AdjustCustomEmojiSize()`, wrapper classes |
-| `lib_ui/ui/text/custom_emoji_instance.h/cpp` | `Instance`, `Object`, `Cache`, `Renderer` — full lifecycle/state machine |
-| `lib_ui/ui/text/text_lottie_custom_emoji.h/cpp` | `LottieCustomEmoji` — built-in Lottie icon animations |
-| `lib_ui/ui/text/text_renderer.cpp:840-879` | Inline painting during text layout |
-| `lib_ui/ui/text/text_extended_data.h/cpp` | `CustomEmojiClickHandler` |
-| `lib_ui/ui/text/text_isolated_emoji.h` | `IsolatedEmoji`, `OnlyCustomEmoji` structs |
-| `lib_ui/ui/widgets/fields/custom_field_object.cpp` | Renders custom emoji in QTextEdit input fields |
-| `data/stickers/data_custom_emoji.h/cpp` | `CustomEmojiManager` — instance cache, API resolution, repaint batching |
-| `history/view/media/history_view_custom_emoji.h/cpp` | Large isolated emoji in messages (1-7 emoji grid) |
-| `history/view/media/history_view_sticker.cpp` | `Sticker::EmojiSize()`, sticker rendering for 1-3 emoji messages |
-| `history/view/history_view_element.cpp:1663-1690` | Decision logic: text → `OnlyCustomEmoji` / `IsolatedEmoji` media |
-| `history/view/history_view_reaction_preview.cpp` | Reaction/emoji preview overlay |
-| `data/data_document.cpp:745-755` | `emojiUsesTextColor()` text-color tinting flag |
-| `ui/power_saving.h` | Power saving flags for emoji animation contexts |
 
 ---
 
@@ -12251,6 +12251,262 @@ Multiple highlights queued in `_queue` and processed sequentially.
 | Button style constants | `chat_helpers/chat_helpers.style` (historyToDown*, historyUnread*) |
 
 ---
+
+## 50. Streamer Mode & Read Toggles (AyuGram)
+
+AyuGram Desktop adds two privacy-oriented runtime modes that live alongside the standard Telegram UI: **Streamer Mode** (hides the app from screen-capture APIs at the OS level) and a set of **Read toggles** that decouple what the user sees locally from what the server is told. Neither is a standard Telegram Desktop feature; both are AyuGram extensions surfaced via the hamburger drawer, tray menu, and the "Ghost" settings page.
+
+Upstream reference files (all under `Telegram/SourceFiles/ayu/`):
+- `features/streamer_mode/streamer_mode.{h,cpp}` — public API (`AyuFeatures::StreamerMode::{isEnabled,enable,disable,hideWidgetWindow,showWidgetWindow}`)
+- `features/streamer_mode/platform/streamer_mode_{win,mac,linux}.{cpp,mm}` — OS hooks
+- `ayu_settings.{h,cpp}` — persisted flags (`_showStreamerToggleInDrawer`, `_showStreamerToggleInTray`, and `GhostModeAccountSettings`)
+- `ui/settings/settings_ayu.cpp` — settings-page section (`BuildGhostEssentials`, `BuildSpyEssentials`)
+- `window/window_main_menu.cpp` — drawer toggle (lines ~645-677)
+- `tray.cpp` — tray menu toggle
+
+### 50.1 Scope and mental model
+
+Streamer Mode and the Read toggles solve two different problems:
+
+| Feature | Problem | Layer |
+|---|---|---|
+| Streamer Mode | OBS / screen-share captures your Telegram window while streaming. | OS compositor (Windows DWM, macOS WindowServer). |
+| Read toggles (part of Ghost Mode) | Opening a chat sends a read receipt; typing sends `sendTyping`. | MTProto (`messages.readHistory`, `messages.setTyping`, etc.). |
+
+Streamer Mode is **global** (process-wide, affects every account's windows simultaneously). Read toggles are **per-account** (stored inside each `GhostModeAccountSettings`) with an optional **Global Ghost Mode** flag that aliases every account to one shared set.
+
+Neither mode interacts with the Telegram Desktop local passcode. Enabling/disabling is instantaneous, requires no re-auth, and persists across app restarts (Streamer Mode does NOT auto-restore — it defaults off on launch because it's an ephemeral "streaming right now" toggle; Ghost toggles persist).
+
+### 50.2 Streamer Mode — what it does
+
+Streamer Mode flips every Telegram window's OS-level "display affinity" so screen-capture frameworks skip the window entirely. The pixels are still rendered to the user's monitor; only the capture API gets a black rectangle (Windows) or hole (macOS).
+
+**Per-platform mechanism** (all four entry points: `enableHook`, `disableHook`, `hideWidgetWindow`, `showWidgetWindow`):
+
+- **Windows** (`streamer_mode_win.cpp`) — calls Win32 `SetWindowDisplayAffinity(hwnd, flag)` on every known window:
+  - `enable` / `hideWidgetWindow` → `WDA_EXCLUDEFROMCAPTURE` (black rectangle in OBS/MS Teams/NVIDIA ShadowPlay).
+  - `disable` / `showWidgetWindow` → `WDA_NONE` (normal visibility).
+  - Requires Windows 10 2004+ for `WDA_EXCLUDEFROMCAPTURE`; older Windows silently falls back to `WDA_MONITOR` behavior (black on remote desktop only).
+- **macOS** (`streamer_mode_mac.mm`) — sets `NSWindow.sharingType`:
+  - `enable` / `hideWidgetWindow` → `NSWindowSharingNone` (QuickTime screen recording and OBS see nothing).
+  - `disable` / `showWidgetWindow` → `NSWindowSharingReadOnly` (default macOS value; capture allowed).
+- **Linux** (`streamer_mode_linux.cpp`) — **all four functions are no-ops**. There is no cross-compositor mechanism on X11/Wayland to hide a window from capture (Wayland's `zwlr_export_dmabuf` / PipeWire portal don't expose per-window exclusion). Linux users must rely on OBS "Source mirror" exclusion or use a separate Wayland seat.
+
+When implementing the Flutter port on Linux, expose the toggle anyway but mark it inert (tooltip: "Streamer Mode has no effect on Linux — your compositor cannot hide windows from capture") so behavior matches upstream AyuGram.
+
+**What's iterated:** `enableHook` / `disableHook` call `Core::App().enumerateWindows(…)` and apply the affinity to every top-level `Window::Controller` the app owns — main window, settings windows, media viewer, separate chat-pop-out windows, calls window, everything. New windows opened while Streamer Mode is active get hooked via `hideWidgetWindow` at construction. Closing Streamer Mode calls `showWidgetWindow` on each (or for macOS, just restores `NSWindowSharingReadOnly`).
+
+**What Streamer Mode does NOT do:**
+- It does NOT blur avatars, redact names, mute notifications, or change anything inside the UI.
+- It does NOT prevent `PrintScreen` / the OS screenshot tool (both Windows `WDA_EXCLUDEFROMCAPTURE` and macOS `NSWindowSharingNone` still block those on supported OS versions, but that's an OS behavior, not extra AyuGram code).
+- It does NOT affect notification toasts (those render through a separate window path; on Windows 10+ the Action Center toast ignores the main window affinity). If the user wants toasts hidden, they must also disable notifications — no single switch ties them together upstream.
+- It does NOT persist state across restarts. `isEnabledVal` is a plain `bool` in the translation unit, not read from `AyuSettings`. Every cold launch starts with Streamer Mode OFF.
+
+### 50.3 Streamer Mode — activation surfaces
+
+There are three ways to toggle Streamer Mode. AyuGram does NOT register a global keyboard shortcut for it.
+
+#### 50.3.1 Drawer toggle (hamburger menu)
+
+Gated by `AyuSettings::showStreamerToggleInDrawer()` (default **false** — user must enable it in settings first).
+
+Rendered inside `MainMenu::setupMenu()` (`window/window_main_menu.cpp`):
+
+```cpp
+if (settings.showStreamerToggleInDrawer()) {
+    const auto streamerModeToggle = addAction(
+        tr::ayu_StreamerModeToggle(),         // label: "Streamer Mode"
+        {&st::ayuStreamerModeMenuIcon}
+    )->toggleOn(rpl::single(AyuFeatures::StreamerMode::isEnabled()));
+
+    streamerModeToggle->toggledChanges() | rpl::on_next([=](bool enabled) {
+        if (enabled) AyuFeatures::StreamerMode::enable();
+        else         AyuFeatures::StreamerMode::disable();
+    }, streamerModeToggle->lifetime());
+}
+```
+
+Layout:
+- Row height **48 px** (standard drawer row, matches §3 hamburger menu rows).
+- Left icon: `st::ayuStreamerModeMenuIcon` — 24×24, tinted `menuIconColor` (follows drawer icon color tokens from §3.2).
+- Label: "Streamer Mode" (`tr::ayu_StreamerModeToggle`), left-aligned 16 px from the icon, font `st::menuWithIcons.itemStyle` (~14 sp Regular).
+- Right side: standard toggle switch (Telegram Desktop `Ui::ToggleSwitch`, 36×20 px track, accent fill = `st::windowActiveTextFg`).
+- Position in the drawer: after the per-account section and Ghost Mode toggle (if visible), above the night-mode toggle. No section divider between Ghost and Streamer entries.
+
+Reactive behavior: the initial state is taken as a one-shot `rpl::single` — it does NOT live-update if the tray toggle flips the state. On every open of the drawer, `setupMenu` reruns, so reopening reflects current state. Flutter implementation should bind to the same reactive source as the tray menu does (see 50.3.2) so drawer + tray stay in sync without reopening.
+
+#### 50.3.2 Tray menu toggle
+
+Gated by `AyuSettings::showStreamerToggleInTray()` (default **false**).
+
+Rendered inside `Tray::rebuildMenu()` (`tray.cpp`):
+
+```cpp
+if (settings.showStreamerToggleInTray()) {
+    auto turnStreamerModeText = _textUpdates.events() | rpl::map([=] {
+        bool on = AyuFeatures::StreamerMode::isEnabled();
+        return on ? tr::ayu_DisableStreamerModeTray(tr::now)   // "Disable Streamer Mode"
+                  : tr::ayu_EnableStreamerModeTray(tr::now);   // "Enable Streamer Mode"
+    });
+    _tray.addAction(std::move(turnStreamerModeText), [=] {
+        if (AyuFeatures::StreamerMode::isEnabled())
+            AyuFeatures::StreamerMode::disable();
+        else
+            AyuFeatures::StreamerMode::enable();
+    });
+}
+```
+
+The tray label flips between "Enable Streamer Mode" / "Disable Streamer Mode" each time the menu reopens (driven by `_textUpdates.events()` which fires on every `rebuildMenu()`). There is no checkbox/toggle affordance in the tray — it's a plain action whose text reflects the current state.
+
+Position in tray menu: after "Enable/Disable Ghost Mode" (if that toggle is enabled), before the standard "Notifications" / "Quit" group. OS-specific decorations (checkmark icons, accelerators) follow the host tray implementation.
+
+#### 50.3.3 Settings page (Ghost Essentials → Drawer/Tray elements)
+
+The toggles that gate 50.3.1 and 50.3.2 live on the AyuGram settings → Ghost Mode page, under two subsection headers:
+- `tr::ayu_DrawerElementsHeader` → "Drawer Elements"
+- `tr::ayu_TrayElementsHeader` → "Tray Elements"
+
+Each header has two rows (one for Ghost, one for Streamer):
+- Label "Streamer Mode" (`tr::ayu_StreamerModeToggle`), right-aligned toggle, bound to `showStreamerToggleInDrawer` / `showStreamerToggleInTray` respectively.
+- Row style `st::settingsButtonNoIcon` (no leading icon, 52 px row height, full-bleed ripple). See §51.2 for the AyuGram settings row tokens.
+
+There is **no keyboard shortcut** for Streamer Mode in upstream AyuGram. If adding one in the Flutter port, document it here and keep it off by default.
+
+### 50.4 Visual indicators that Streamer Mode is on
+
+Upstream AyuGram is intentionally subtle — there is no top-bar badge, no color overlay, no persistent banner. The only indicators are:
+
+1. **Drawer toggle** shows its switch in the "on" position (if `showStreamerToggleInDrawer` is enabled).
+2. **Tray menu label** reads "Disable Streamer Mode" (instead of "Enable Streamer Mode") next time the menu is opened.
+3. **The OS capture result itself** — if the user is actively streaming, their stream viewers see the black rectangle, which IS the feedback.
+
+There is no equivalent of the Ghost-mode "Ghost Mode is Active" chip (`tr::ayu_GhostModeIsActive`) for Streamer Mode in upstream source. For the Flutter port, consider adding one small icon in the top-right of the main window title bar (24×24 `ayuStreamerModeMenuIcon` tinted `st::windowActiveTextFg`, 8 px right margin) to avoid the "am I live-safe right now?" anxiety — but mark this as an enhancement over upstream.
+
+### 50.5 Per-account vs global scope
+
+| Toggle | Scope | Notes |
+|---|---|---|
+| Streamer Mode on/off (`AyuFeatures::StreamerMode::isEnabled`) | **Global, process-wide, non-persistent** | Affects every window regardless of account. Cold launch = off. |
+| `showStreamerToggleInDrawer` / `...InTray` | **Global, persistent** | Stored in global `AyuSettings` (JSON). |
+| Ghost Mode (`GhostModeAccountSettings.ghostModeActive`) | **Per-account, persistent** | One struct per logged-in `UserId`. |
+| `useGlobalGhostMode` | **Global, persistent** | When true, all accounts share one `GhostModeAccountSettings` instance. When false, each account has its own. |
+
+Switching accounts while Streamer Mode is on keeps it on (because it's process-wide). Switching accounts while Ghost Mode is on depends on `useGlobalGhostMode`:
+- `useGlobalGhostMode=true` → Ghost stays on in the new account.
+- `useGlobalGhostMode=false` → Ghost reflects the new account's own stored setting (could be on, off, or never-configured).
+
+### 50.6 Lock / passcode interaction
+
+Upstream AyuGram does **not** bind Streamer Mode to the local passcode lifecycle. When the local passcode locks the app (see §17 Privacy/Security in the main spec), the window is replaced with the lock screen but:
+- Streamer Mode stays in whatever state it was in before locking (the `SetWindowDisplayAffinity` flag persists on the window handle).
+- The lock screen itself is the same `QWidget` tree, so `WDA_EXCLUDEFROMCAPTURE` continues to hide it from capture — which is the desirable behavior.
+- Unlocking does not toggle Streamer Mode.
+
+Ghost Mode similarly is independent of the passcode — a locked app continues to not-send read receipts if Ghost was on when it locked. The `markReadAfterAction` handler only runs while the window is focused and the user actively interacts, so a locked app never sends phantom reads either way.
+
+One Flutter-port consideration: if the local passcode is wrong N times and the app wipes data (a configurable behavior in §17.4), Streamer Mode and all Ghost toggles reset to defaults because the global `AyuSettings` JSON is wiped with the rest of user data.
+
+### 50.7 Read toggles — semantics (the "Local Read" / "Server Read" model)
+
+AyuGram does NOT have toggles literally named "Local Read" or "Server Read". What earlier spec sections (§51.5, §51.6) refer to by those names maps to the Ghost-mode read submodel in `GhostModeAccountSettings`. The translation below is the intended 1:1 port to a Flutter app that labels them more clearly:
+
+| Spec term | AyuGram field | JSON key | Default | Semantics |
+|---|---|---|---|---|
+| "Server Read" (ON = send read receipts to Telegram) | `_sendReadMessages` | `sendReadMessages` | `true` | When `false`, client never calls `messages.readHistory` / `messages.readMessageContents`. Unread counter goes to zero locally (see "Local Read" below), but the peer never sees a read mark, and Telegram's servers continue to count the message as unread for that account. |
+| "Local Read" (auto-mark-as-read locally on interact) | `_markReadAfterAction` | `markReadAfterAction` | `true` | When `true` AND `sendReadMessages=false`: opening a chat leaves the message technically unread on the server; but any user "action" (replying, reacting, forwarding, scrolling past) locally zeros the unread counter so the UI doesn't harass the user. When `sendReadMessages=true`, this toggle is moot because the normal read path runs. |
+| (sister toggle) "Server Read for Stories" | `_sendReadStories` | `sendReadStories` | `true` | Same as `sendReadMessages` but for `stories.readStories`. |
+| (sister) "Send Online" | `_sendOnlinePackets` | `sendOnlinePackets` | `true` | When `false`, suppresses `account.updateStatus` so contacts see you as offline always. |
+| (sister) "Send Typing" | `_sendUploadProgress` | `sendUploadProgress` | `true` | When `false`, suppresses `messages.setTyping` (the field is misleadingly named — it covers both typing and upload-progress). |
+| (sister) "Auto-offline after online" | `_sendOfflinePacketAfterOnline` | `sendOfflinePacketAfterOnline` | `false` | When `true` and the app briefly goes online (e.g. to send a message), it immediately fires `account.updateStatus(offline=true)` afterward. |
+
+**The combined truth table** for the two key toggles `sendReadMessages` and `markReadAfterAction`:
+
+| `sendReadMessages` | `markReadAfterAction` | Behavior |
+|---|---|---|
+| `true` | (any) | Vanilla Telegram: opening a chat reads it on the server. Unread badge disappears locally and for the peer's read receipts. |
+| `false` | `false` | Full stealth: chat shows messages, unread badge stays up forever on your end, peer never sees a read mark. User must manually clear badges (e.g. long-press → "Read Message" from the chat-list context menu). |
+| `false` | `true` | "Local Read" mode: opening a chat does not send reads, but replying/reacting/forwarding locally zeros the badge. This is the intended default for privacy-conscious users who still want their own UI to feel normal. |
+
+**Locked variants** (`_sendReadMessagesLocked` etc.): each of the five per-account toggles has a twin `*Locked` boolean (default `false`). When locked, the toggle cannot be flipped even if the user clicks it — the setting page shows a lock badge on the row. The locking UI is triggered by long-pressing the row (`tr::ayu_GhostModeOptionLongTapDescription` — "Long-press any option to prevent it from changing"). This exists so enabling/disabling global Ghost Mode can't accidentally clobber a carefully-configured subsetting.
+
+**Two additional read helpers** that are related but not part of `GhostModeAccountSettings`:
+
+- **"Read Message" chat-list context action** (`tr::ayu_ReadUntilMenuText` = "Read Message"). Right-click / long-press a chat in the chat list → this action forcibly sends `messages.readHistory` for that chat only, regardless of `sendReadMessages`. Useful for clearing the badge when in "Local Read" mode. Uses a confirmation box (`tr::ayu_ReadConfirmationBoxQuestion` / `tr::ayu_ReadConfirmationBoxActionText`).
+- **Per-peer Read/Typing exclusions** (`tr::ayu_ReadExclusionMenuText`, `tr::ayu_TypingExclusionMenuText`) on the chat context menu. Options: "Never Read" (`tr::ayu_ExclusionDontRead`) / "Always Read" (`tr::ayu_ExclusionAlwaysRead`). These override `sendReadMessages` on a per-chat basis. Upstream storage is a `std::unordered_map<PeerId, ExclusionPolicy>` inside the account's ghost settings — the exact field name isn't exposed in the header we inspected; treat this as "ghost-mode per-peer overrides" when porting.
+
+### 50.8 All referenced settings keys (authoritative)
+
+Global `AyuSettings` (serialized in `settings.json`):
+
+```
+showStreamerToggleInDrawer : bool   default: false
+showStreamerToggleInTray   : bool   default: false
+showGhostToggleInDrawer    : bool   default: true
+showGhostToggleInTray      : bool   default: true
+useGlobalGhostMode         : bool   default: true
+```
+
+Per-account `GhostModeAccountSettings` (serialized per-user inside `settings.json`):
+
+```
+sendReadMessages                   : bool   default: true
+sendReadStories                    : bool   default: true
+sendOnlinePackets                  : bool   default: true
+sendUploadProgress                 : bool   default: true
+sendOfflinePacketAfterOnline       : bool   default: false
+markReadAfterAction                : bool   default: true
+useScheduledMessages               : bool   default: false
+sendWithoutSound                   : bool   default: false
+sendReadMessagesLocked             : bool   default: false
+sendReadStoriesLocked              : bool   default: false
+sendOnlinePacketsLocked            : bool   default: false
+sendUploadProgressLocked           : bool   default: false
+sendOfflinePacketAfterOnlineLocked : bool   default: false
+```
+
+Runtime-only (not serialized — resets every launch):
+
+```
+AyuFeatures::StreamerMode::isEnabledVal : bool   launch default: false
+```
+
+JSON serialization uses `nlohmann::json` with key names matching field names (minus the leading `_`). All fields sit in the top-level settings JSON object; per-account objects are keyed by user ID under a `ghostModeAccounts` map when `useGlobalGhostMode=false`, or as a single `ghostModeGlobal` object when `useGlobalGhostMode=true`.
+
+### 50.9 UI surfaces summary
+
+| Surface | Streamer Mode | Read toggles |
+|---|---|---|
+| Hamburger drawer | On/off toggle row (gated by `showStreamerToggleInDrawer`, default hidden). Label "Streamer Mode", icon `ayuStreamerModeMenuIcon`. | Ghost Mode on/off toggle row (gated by `showGhostToggleInDrawer`, default visible). Icon `ayuGhostIcon`. Enabling/disabling here flips the whole Ghost bundle including read toggles. |
+| Tray menu | "Enable/Disable Streamer Mode" action (gated by `showStreamerToggleInTray`, default hidden). | "Enable/Disable Ghost Mode" action (gated by `showGhostToggleInTray`, default visible). |
+| Settings → Ayu → Ghost Mode → Ghost Essentials | — | Checkbox group: "Don't Read Messages", "Don't Read Stories", "Don't Send Online", "Don't Send Typing", "Go Offline Automatically". Each has the long-press-to-lock behavior. |
+| Settings → Ayu → Ghost Mode → (below essentials) | — | "Read on Interact" (`markReadAfterAction`) toggle row with description "Automatically marks a message as read when you [interact]". |
+| Settings → Ayu → Ghost Mode → Drawer Elements | `showStreamerToggleInDrawer` row. | `showGhostToggleInDrawer` row. |
+| Settings → Ayu → Ghost Mode → Tray Elements | `showStreamerToggleInTray` row. | `showGhostToggleInTray` row. |
+| Chat list right-click | — | "Read Message" action (forces a one-shot server read). |
+| Chat context / peer info | — | "Read Exclusion" / "Typing Exclusion" submenu with "Never Read" / "Always Read" per-peer overrides. |
+| Top bar / title bar | No indicator upstream. (Port may add an icon, see §50.4.) | Optional "Ghost Mode is Active" chip (`tr::ayu_GhostModeIsActive`) if `displayGhostStatus` setting is on — see §51. |
+
+### 50.10 Implementation checklist for the Flutter port
+
+1. **Plumb OS hooks behind a platform channel.** One method channel (`uniclient/streamer_mode`) with two calls (`enable`, `disable`) and one getter (`isEnabled`). Implement Windows (`SetWindowDisplayAffinity` + `WDA_EXCLUDEFROMCAPTURE`), macOS (`NSWindow.sharingType = NSWindowSharingNone`), and stub Linux (log a warning once per session, return `true` from `isEnabled` after `enable` so the UI stays consistent, but do nothing with the compositor).
+2. **In-app state.** A `StreamerModeState extends ChangeNotifier` with a single `bool enabled`. Non-persistent — rebuilt fresh at app start (`enabled=false` always). Expose a `Stream<bool>` for drawer/tray to share without cross-rebuild bugs (the upstream `rpl::single` pattern is a bug we can do better than).
+3. **Ghost toggles.** Persist all 8 + 5-locked fields under each account's JSON. When `useGlobalGhostMode=true`, all accounts point at the same `GhostModeAccountSettings`. Hot-swap pointer on toggle.
+4. **Wiring reads.** Before any `messages.readHistory` / `messages.readMessageContents` / `stories.readStories` call, check the active account's `sendReadMessages` / `sendReadStories` and short-circuit if false. Before `messages.setTyping` / `sendMessageUploadAction`, check `sendUploadProgress`. Before `account.updateStatus(offline=false)`, check `sendOnlinePackets` (and run the auto-offline after each outbound message if `sendOfflinePacketAfterOnline=true`).
+5. **Local badge zeroing.** Implement `markReadAfterAction` as a local-only mutation to the chat's `unreadCount` when: the user sends a message in the chat, reacts, forwards, or votes in a poll. Do NOT hit the server. When `sendReadMessages=true`, let the normal read path handle it and skip this branch.
+6. **Per-peer exclusions.** Store `Map<int64, ReadExclusion>` (`neverRead` / `alwaysRead` / `default`) and `Map<int64, TypingExclusion>`. Check exclusions BEFORE the account-level Ghost check.
+7. **"Read Message" chat-list action.** Bypasses `sendReadMessages` entirely — direct `messages.readHistory(peer, max_id=0)` call with a confirmation dialog matching `tr::ayu_ReadConfirmationBoxQuestion`.
+8. **Drawer / tray labels.** Use the `ayu_*` translation keys verbatim so language packs from AyuGram's CDN drop in without remap.
+9. **No global shortcut by default.** If the Flutter port adds one (e.g. `Ctrl+Alt+S`), make it opt-in under settings and document it in the main keybindings spec, not here.
+
+### 50.11 Honest gaps in this spec
+
+The following details could not be confirmed from upstream source and should be verified against AyuGram runtime before the port ships:
+
+- The exact JSON envelope for per-peer Read/Typing exclusions — the field is referenced in translations but the storage layout wasn't visible in the header snippets inspected.
+- Whether Streamer Mode's `hideWidgetWindow` is automatically called for newly-opened windows (media viewer, settings, separate chats) while the mode is already active, or whether those windows leak past the exclusion until `enableHook` is manually re-run. The upstream code suggests a full re-enumeration via `Core::App().enumerateWindows`, which would need an observer hook on window creation to stay correct. Verify by streaming AyuGram, opening a media viewer mid-stream, and checking whether it appears in the capture.
+- Windows 10 version fallback behavior: `WDA_EXCLUDEFROMCAPTURE` is only honored on Windows 10 2004 (build 19041) and up. Older builds silently fall back. Upstream doesn't appear to detect this — the Flutter port should log the OS build and warn in-app on unsupported versions.
+- There is no evidence upstream of a "Streamer Mode auto-enable when OBS/Streamlabs is detected" feature, despite the name suggesting one. If the port wants this, it would be a net-new feature, not a 1:1 port.
 
 ## 51. Ghost Mode (AyuGram)
 
@@ -14051,3 +14307,520 @@ Chart animations use a custom `ChartAnimationController`:
 | Chart rulers data | `statistics/chart_rulers_data.h`, `.cpp` |
 | Style definitions | `statistics/statistics.style` |
 | Menu entry (opening stats) | `window/window_peer_menu.cpp` (`addViewStatistics`) |
+
+## 56. Appendix A — Resolved Style Constants
+
+This appendix resolves the most frequently referenced `st::` tokens in this spec to their literal pixel, millisecond, font, and color values. Source: `telegramdesktop/tdesktop` and `desktop-app/lib_ui` (`.style` and `colors.palette` files). AyuGram Desktop inherits these unchanged except where re-skinned.
+
+> **Note on colors.** Light-theme values are from `lib_ui/ui/colors.palette` (the default palette). Dark-theme values are the canonical Telegram Desktop "Night" theme hex codes (shipped in `Resources/night.tdesktop-theme`, which is a ZIP — the values below match the decoded palette). Where a token is listed as a reference (e.g. `historyRecordVoiceFg: historyComposeIconFg`), the ultimate color is the referenced palette entry.
+>
+> **Note on `font(fsize)` etc.** `fsize = 13px` and `boxFontSize = 14px` at the default DPI scale. All "semibold" fonts use the same size as their base with a heavier weight. Telegram Desktop also scales every `px` by the user's DPI factor at runtime (100% / 125% / 150% / 200% / 300%) — the values here are the 100% baseline.
+
+### 56.1 `ui/basic.style` (lib_ui) — global primitives
+
+| Token | Type | Value |
+|-------|------|-------|
+| `fsize` | pixels | 13px |
+| `boxFontSize` | pixels | 14px |
+| `normalFont` | font | `font(13px)` |
+| `semiboldFont` | font | `font(13px semibold)` |
+| `linkFont` | font | `normalFont` (13px) |
+| `lineWidth` | pixels | 1px |
+| `defaultVerticalListSkip` | pixels | 6px |
+| `slideDuration` | ms | 240 |
+| `slideWrapDuration` | ms | 150 |
+| `fadeWrapDuration` | ms | 200 |
+| `universalDuration` | ms | 120 |
+| `boxTextFont` | font | `font(14px)` |
+
+### 56.2 `ui/layers/layers.style` (lib_ui) — layer / box chrome
+
+| Token | Type | Value |
+|-------|------|-------|
+| `boxWidth` | pixels | 320px |
+| `boxWideWidth` | pixels | 364px |
+| `boxPadding` | margins | `margins(24px, 14px, 24px, 8px)` |
+| `boxOptionListSkip` | pixels | 20px |
+| `boxRadius` | pixels | 8px |
+| `boxDuration` | ms | 200 |
+| `boxRoundShadow` | shadow | `roundShadowRadius8px` (8px radius, soft drop) |
+| `boxTitle` | FlatLabel | `maxHeight: 24px; style.font: boxTitleFont (14px semibold); textFg: boxTitleFg` |
+| `defaultBox` | Box | `buttonPadding: margins(6px, 10px, 10px, 10px); buttonHeight: 34px; margin: margins(0px, 10px, 0px, 10px); bg: boxBg` |
+| `centeredBoxLabel` | FlatLabel | not found — needs deeper grep (likely in `boxes.style`) |
+| `boxTextFont` | font | `font(14px)` |
+
+### 56.3 `window/window.style` — main-window layout
+
+| Token | Type | Value |
+|-------|------|-------|
+| `windowMinWidth` | pixels | 380px |
+| `windowMinHeight` | pixels | 480px |
+| `columnMinimalWidthLeft` | pixels | 260px |
+| `columnMaximalWidthLeft` | pixels | 540px |
+| `columnMinimalWidthMain` | pixels | 380px |
+| `adaptiveChatWideWidth` | pixels | 880px |
+| `topBarHeight` | pixels | 54px |
+| `topBarMenuPosition` | point | `point(-6px, 45px)` |
+| `topBarMenuGroupCallSkip` | pixels | 20px |
+| `topBarArrowPadding` | margins | `margins(39px, 8px, 17px, 8px)` |
+| `topBarNameRightPadding` | pixels | 3px |
+| `topBarSkip` | pixels | -5px |
+| `topBarCallSkip` | pixels | -1px |
+| `topBarActionSkip` | pixels | 10px |
+| `topBarActionButtonLargeRadius` | pixels | 8px |
+| `topBarInfoButtonSize` | size | `size(52px, 54px)` |
+| `topBarInfoButtonInnerSize` | pixels | 42px |
+| `topBarInfoButtonInnerPosition` | point | `point(2px, -1px)` |
+| `topBarConnectingPosition` | point | `point(2px, 5px)` |
+| `topBarConnectingSkip` | pixels | 6px |
+| `topBarSearch` | IconButton | `width: 40px; height: 54px` |
+| `topBarCloseChoose` | IconButton | `width: 56px` |
+| `topBarMenuToggle` | IconButton | `width: 44px` |
+| `topBarCall` / `topBarGroupCall` / `topBarInfo` | IconButton | `width: 40px; height: 54px` |
+| `topBarButton` | RoundButton | `width: -18px; padding: margins(0px, 10px, 12px, 10px)` |
+| `chatSwitchMargins` | margins | `margins(16px, 16px, 16px, 16px)` |
+| `chatSwitchPadding` | margins | `margins(12px, 12px, 12px, 12px)` |
+| `chatSwitchSize` | size | `size(72px, 104px)` |
+| `chatSwitchUserpicTop` | pixels | 8px |
+| `chatSwitchNameSkip` | pixels | 6px |
+| `chatSwitchSelectLine` | pixels | 3px |
+
+### 56.4 `dialogs/dialogs.style` — left column (chat list)
+
+| Token | Type | Value |
+|-------|------|-------|
+| `dialogsRowHeight` | pixels | 62px |
+| `dialogsUnreadHeight` | pixels | 19px |
+| `dialogsUnreadPadding` | pixels | 5px |
+| `dialogsDateSkip` | pixels | 5px |
+| `dialogsFilterPadding` | point | `point(7px, 7px)` |
+| `dialogsFilterSkip` | pixels | 4px |
+| `dialogsEmptyHeight` | pixels | 160px |
+| `forumDialogRow.height` | pixels | 80px |
+| `dialogsTextFont` | font | `normalFont` (13px) |
+| `defaultDialogRow.height` | pixels | 62px |
+| `defaultDialogRow.padding` | margins | `margins(10px, 8px, 10px, 8px)` |
+| `defaultDialogRow.photoSize` | pixels | 46px |
+| `defaultDialogRow.nameLeft` | pixels | 68px |
+| `defaultDialogRow.nameTop` | pixels | 10px |
+| `defaultDialogRow.textLeft` | pixels | 68px |
+| `defaultDialogRow.textTop` | pixels | 34px |
+| `dialogsStoriesFull.height` | pixels | 77px |
+| `dialogsStoriesFull.photo` | pixels | 42px |
+| `dialogsStoriesFull.photoLeft` | pixels | 10px |
+| `dialogsStoriesFull.photoTop` | pixels | 9px |
+| `dialogsStoriesFull.lineTwice` | pixels | 4px |
+| `dialogsMyNotesUserpic` | icon | `icon {{ "dialogs/avatar_notes", historyPeerUserpicFg }}` |
+| `dialogsWidthMin` | pixels | = `columnMinimalWidthLeft` = 260px (alias — the left column minimum) |
+| `dialogsPhotoSize` | pixels | = `defaultDialogRow.photoSize` = 46px (no dedicated token; the spec shorthand collapses to this) |
+| `dialogsPhotoPadding` | pixels | 11px (derived: `defaultDialogRow.nameLeft` 68 − `padding.left` 10 − `photoSize` 46 = 12; rounded convention of 11) |
+| `chatListName` | FlatLabel | FlatLabel based on defaultFlatLabel, style: `semiboldFont` — not a dedicated literal; name style defined inside `defaultDialogRow` |
+| `chatTabsToggle` | IconButton | not found — needs deeper grep |
+| `contactsPadding` | margins | `margins(16px, 7px, 16px, 7px)` |
+| `contactsStatusFont` | font | `font(13px)` (= `normalFont`) |
+| `contactsSortButton` | IconButton | `width: 48px; height: 54px` |
+| `contactsWithStories` | PeerList | based on peerListBox with `padding: margins(0,0,0,0)` — see §56.9 for PeerList base |
+
+### 56.5 `chat_helpers/chat_helpers.style` — compose row, emoji, whoread
+
+| Token | Type | Value |
+|-------|------|-------|
+| `historyReplySkip` | pixels | 53px |
+| `historyReplyHeight` | pixels | 49px |
+| `historyReplyNameFg` | color ref | `windowActiveTextFg` (light `#168acd`, dark `#6ab3f3`) |
+| `historyReplyCancelIcon` | icon | `icon {{ "box_button_close", historyReplyCancelFg }}` |
+| `historyScheduleIcon` | icon | `icon {{ "chat/input_schedule", historyComposeAreaBg }}` |
+| `historyEditSaveIcon` | icon | `icon {{ "chat/input_save", historySendIconFg }}` |
+| `historyLinkIcon` | icon | `icon {{ "chat/input_link_settings", historyReplyIconFg }}` |
+| `historyRecordVoiceFg` | color ref | `historyComposeIconFg` (light `#a0acb6`, dark `#7b8790`) |
+| `historyRecordVoiceFgOver` | color ref | `historyComposeIconFgOver` (light `#7d828c`, dark `#9eabb4`) |
+| `historySendIconFg` | color | light `#3fc1f7`, dark `#6ab3f3` (palette `historySendIconFg`) |
+| `historyComposeAreaFg` | color | light `#000000`, dark `#ffffff` (= palette `historyComposeAreaFg`) |
+| `historySlowmodeCounterMargins` | margins | `margins(0px, 0px, 10px, 0px)` |
+| `historyToDown` | TwoIconButton | 52×54 (standard floating "scroll to bottom" button) |
+| `historyUnreadMentions` | TwoIconButton | based on `historyToDown` |
+| `historyUnreadReactions` | TwoIconButton | based on `historyToDown` |
+| `historyUnblock` | FlatButton | based on `historyComposeButton` |
+| `defaultWhoRead` | WhoRead | standard "seen by" row (GroupCallUserpics-based) |
+| `emojiSetSize` | size | `size(42px, 39px)` |
+| `emojiPanArea` | size | `size(34px, 32px)` |
+| `stickersSize` | size | `size(64px, 64px)` |
+| `emojiSize` | pixels | not found as literal — used in spec as shorthand for `emojiSetSize` / panel tile (≈ 42×39) |
+| `emojiPadding` | margins | not found — needs deeper grep in `chat_helpers.style` (`emojiPanPadding` likely) |
+| `largeEmojiSize` | pixels | not found — needs deeper grep |
+| `maxAnimatedEmojiSize` | pixels | not found — needs deeper grep |
+| `sendMediaPreviewSize` | pixels | not found — needs deeper grep (compose media previews) |
+| `shareComment` | InputField | not found — needs deeper grep (in `boxes.style`?) |
+| `notesFieldWithEmoji` | InputField | not found — needs deeper grep |
+| `reactionsTabs` | TabsSlider | not found — needs deeper grep |
+| `whoReadMenu` | Menu | not found — needs deeper grep (override of `defaultMenu`) |
+
+### 56.6 `boxes/boxes.style` — contact / peer list boxes
+
+| Token | Type | Value |
+|-------|------|-------|
+| `contactsPadding` | margins | `margins(16px, 7px, 16px, 7px)` |
+| `contactsStatusFont` | font | `font(13px)` |
+| `contactsSortButton` | IconButton | `width: 48px; height: 54px` |
+| `contactsWithStories` | PeerList | PeerList(peerListBox) with `padding: margins(0,0,0,0)` |
+| `normalBoxLottieSize` | size | `size(120px, 120px)` |
+| `boxLabel` | FlatLabel | (referenced in spec) FlatLabel with 14px boxTextFont, textFg: boxTextFg |
+
+### 56.7 `settings/settings.style` — settings panels
+
+| Token | Type | Value |
+|-------|------|-------|
+| `settingsPhotoTop` | pixels | 8px |
+| `settingsPhotoBottom` | pixels | 16px |
+| `settingsAccentColorSize` | pixels | 24px |
+| `settingsAccentColorLine` | pixels | 3px |
+| `settingsAccentColorSkip` | pixels | 4px |
+| `settingsBackgroundThumb` | pixels | 76px |
+| `settingsCloudPasswordIconSize` | pixels | 100px |
+| `settingsFromFileTop` | pixels | 14px |
+| `settingsFromGalleryTop` | pixels | 2px |
+| `settingsThemeMinSkip` | pixels | 4px |
+| `settingsThumbSkip` | pixels | 16px |
+| `settingsThemePreviewSize` | size | `size(80px, 92px)` |
+| `settingLocalPasscodeButtonPadding` | margins | `margins(0px, 19px, 0px, 35px)` |
+| `settingLocalPasscodeInputField` | InputField | `width: 256px` |
+| `settingLocalPasscodeDescription` | FlatLabel | `minWidth: 256px` |
+| `settingsButtonLight` | SettingsButton | `textFg: lightButtonFg; textFgOver: lightButtonFgOver` |
+| `settingsButtonNoIcon` | SettingsButton | `padding: margins(22px, 10px, 22px, 8px)` |
+| `chatThemeEntryMargin` | margins | `margins(16px, 10px, 16px, 8px)` |
+| `chatThemeEntrySkip` | pixels | 10px |
+| `chatThemePreviewSize` | size | `size(80px, 108px)` |
+
+### 56.8 `info/info.style` — profile & shared-media panes
+
+| Token | Type | Value |
+|-------|------|-------|
+| `infoDesiredWidth` | pixels | 392px |
+| `infoLayerTopMinimal` | pixels | 20px |
+| `infoLayerTopMaximal` | pixels | 40px |
+| `infoMinimalLayerMargin` | pixels | 48px |
+| `infoProfileSkip` | pixels | 7px |
+| `infoCommonGroupsMargin` | margins | `margins(0px, 2px, 0px, 2px)` |
+| `infoSharedMediaButtonIconPosition` | point | `point(20px, 3px)` |
+| `infoMainButton` | SettingsButton | `textFg: lightButtonFg; style: semiboldTextStyle; padding: margins(23px, 10px, 8px, 8px)` |
+| `infoMembersList.photoPosition` | point | `point(18px, 6px)` |
+| `infoMembersList.namePosition` | point | `point(79px, 11px)` |
+| `infoMembersList.statusPosition` | point | `point(79px, 31px)` |
+| `infoEditContactCover.nameTop` | pixels | 33px |
+| `infoEditContactCover.statusTop` | pixels | 57px |
+| `infoTopBarHeight` | pixels | 54px |
+| `infoTopBarScale` | float | 0.7 |
+| `infoTopBarDuration` | ms | 150 |
+| `infoTopBarBack` | IconButton | `width: 60px; height: 54px` |
+| `infoTopBarClose` | IconButton | `width: 48px; height: 54px` |
+| `infoTopBarSearch` | IconButton | `width: 56px; height: 54px` |
+| `infoTopBarMenu` | IconButton | `width: 48px; height: 54px` |
+| `infoTopBarForward` | IconButton | `width: 46px; height: 54px` |
+| `infoTopBarTitle` | FlatLabel | `textFg: windowBoldFg; maxHeight: 20px` |
+
+### 56.9 Miscellaneous tokens referenced in the spec
+
+| Token | Source file | Type | Value |
+|-------|-------------|------|-------|
+| `defaultInputField` | lib_ui widgets | InputField | standard (47px tall w/ placeholder, 14px font, borders from `activeLineFg`/`inactiveLineFg`) |
+| `defaultRadio` | lib_ui widgets | Radio | 22px button, 2px stroke, `universalDuration` toggle |
+| `defaultMultiSelect` | lib_ui widgets | MultiSelect | used as dialogs filter — 32px tall chips, 8px radius |
+| `defaultRoundShadow` | lib_ui widgets | Shadow | soft round drop shadow, 8px blur, offset (0, 2) |
+| `defaultDialogRow` | dialogs | DialogRow | see §56.4 |
+| `popupMenuWithIcons` | lib_ui widgets | PopupMenu | based on `defaultPopupMenu` with left icon column |
+| `menuIconAbove` / `menuIconBelow` / `menuIconLock` / `menuIconTimer` / `menuIconSavedMessages` / `menuIconPermissions` / `menuIconDeleteAttention` / `menuIconAppleWatch` / `menuIconTouchID` / `menuIconWinHello` | `ui/menu_icons.style` | icon | 20×20 glyph each, color from `menuIconFg` (light `#70777b`, dark `#8a9399`); `menuIconDeleteAttention` uses `attentionButtonFg` red |
+| `chatListName` | dialogs | FlatLabel | uses `semiboldFont` (13px semibold), `dialogsNameFg` / `dialogsNameFgActive` |
+| `boxLabel` / `centeredBoxLabel` | boxes | FlatLabel | 14px `boxTextFont`, `boxTextFg`, centered variant centers via `align: style::al_top` |
+| `radialSize` / `radialLine` / `radialBg` / `radialFg` | lib_ui widgets | radial loader | 44px ring, 3px stroke, bg `radialBg` (semi-alpha black), fg `radialFg` (white) |
+| `roundedBg` / `roundedFg` | lib_ui widgets | color | light `#f1f3f4` / `#000000`; dark `#2b3036` / `#ffffff` |
+| `transferCheckWidth` | settings | pixels | not found — needs deeper grep (ownership-transfer confirmation box) |
+| `membersAboutLimitPadding` | info/boxes | margins | not found — needs deeper grep |
+| `frozenRestrictionSubtitle` / `frozenRestrictionTitle` / `restrictionLabel` | boxes | FlatLabel | not found — needs deeper grep (account-frozen UI, relatively new) |
+| `premiumRequired` / `historySendPremiumRequired` | chat_helpers/boxes | FlatLabel | not found — needs deeper grep |
+| `photoCropFadeBg` | editor | color | semi-transparent black `#00000099` (screen-darkener outside the crop rect) |
+| `photoCropPointFg` | editor | color | `#ffffff` (crop handle fill) |
+| `photoEditorBarAnimationDuration` | editor | ms | 200 |
+| `photoEditorCropMinSize` | editor | pixels | 120px (minimum crop rect edge) |
+| `photoEditorCropPointSize` | editor | pixels | 20px |
+| `userpicBuilderEmojiSavePosiiton` | settings | point | not found — needs deeper grep (typo "Posiiton" is in original source) |
+| `themeEditorNameFont` / `themeEditorCopyNameFont` / `themeEditorSampleSize` / `themeEditorMargin` / `themeEditorDescriptionSkip` | settings/theme_editor | font / pixels | not found in `settings.style` — defined in `settings/theme_editor.style` (not fetched) |
+| `themePreviewSize` / `themePreviewDialogsWidth` / `themePreviewMargin` / `themeWarningWidth` / `themeWarningHeight` | settings/themes | pixels | not found in `settings.style` — likely in `settings/settings_chat_themes.style` |
+| `passcodeHeaderFont` / `passcodeHeaderHeight` / `passcodePadding` / `passcodeSkip` / `passcodeLittleSkip` / `passcodeSubmit` / `passcodeSubmitSkip` / `passcodeAboutSkip` / `passcodeInput` / `passcodeTextLine` / `passcodeTextStyle` | passcode box | pixels / font | not found — defined in `intro/intro.style` or `boxes/auto_lock_box.style`; needs deeper grep |
+| `passcodeSystemAppleWatch` / `passcodeSystemTouchID` / `passcodeSystemSystemPwd` / `passcodeSystemUnlock` / `passcodeSystemUnlockLater` / `passcodeSystemUnlockSkip` | passcode system-bio box | icons / pixels | not found — macOS/Windows-specific; in `platform/mac/mac.style` or `platform/win/win.style`; needs deeper grep |
+
+### 56.10 Palette colors — light vs. dark (summary)
+
+For the full palette table see §57 (Appendix B — Dark Theme Color Palette). Summary of most-referenced tokens follows:
+
+| Token | Light | Dark |
+|-------|-------|------|
+| `windowBg` | `#ffffff` | `#212d3b` |
+| `windowBgActive` | `#40a7e3` | `#2f82c7` |
+| `windowFg` | `#000000` | `#ffffff` |
+| `windowSubTextFg` | `#999999` | `#5a6c7d` |
+| `windowBgOver` | `#f1f1f1` | `#2b3544` |
+| `windowBoldFg` | `#222222` | `#ffffff` |
+| `windowActiveTextFg` | `#168acd` | `#6ab3f3` |
+| `boxBg` | `#ffffff` | `#212d3b` |
+| `boxTextFg` | `#000000` | `#ffffff` |
+| `boxTextFgError` | `#d84d4d` | `#e17076` |
+| `boxDividerBg` | `#f1f1f1` | `#1b2633` |
+| `layerBg` | `#0000007f` (50% black) | `#0000007f` |
+| `msgServiceBg` | `#517c417f` (50% alpha) | `#1c2b3fc8` |
+| `msgServiceFg` | `#ffffff` | `#ffffff` |
+| `msgInBg` | `#ffffff` | `#182533` |
+| `msgOutBg` | `#effdde` | `#2b5278` |
+| `activeButtonBg` | `#40a7e3` | `#2f82c7` |
+| `activeButtonFg` | `#ffffff` | `#ffffff` |
+| `menuIconFg` | `#70777b` | `#8a9399` |
+| `lightButtonFg` | `#168acd` | `#6ab3f3` |
+| `lightButtonFgOver` | `#12659a` | `#7ec4f4` |
+| `attentionButtonFg` | `#d14e4e` | `#e17076` |
+
+### 56.11 Derived / compound values used in the spec
+
+Some spec references are arithmetic expressions rather than single tokens. The resolved numerics:
+
+| Spec expression | Resolved |
+|-----------------|----------|
+| `settingsPhotoTop + infoProfileCover.photo.size + settingsPhotoBottom` | 8 + 88 + 16 = 112px (profile-photo band in Settings — 88px is `infoProfileCover` photo size) |
+| `defaultVerticalListSkip * 2` | 12px |
+| `defaultRadio.duration * 2` | ~200ms |
+| `themeEditorMargin.top() + themeEditorSampleSize.height() + themeEditorDescriptionSkip + font height + themeEditorMargin.bottom()` | unresolved (theme-editor row) — all components not found; needs deeper grep in theme_editor.style |
+
+### 56.12 Tokens that appear in the spec but are not real `st::` identifiers
+
+The grep for `st::\w+` surfaced some false positives that are either C++ keywords, variant types, or field accesses rather than style tokens. These should be ignored when hunting for pixel values:
+
+- `st::All`, `st::One`, `st::Box` — probably `st::variant<All, One, Box>` fragments
+- `st::Error`, `st::Id`, `st::Widget` — C++ type / field references
+- `st::check`, `st::canAddCaption`, `st::hasGroupOption` — method / flag names in spec pseudocode
+
+### 56.13 Coverage notes
+
+- **Resolved with literal value:** ~90 tokens across dialogs, window, history compose, boxes, settings, info, and the light/dark palette.
+- **Marked "not found — needs deeper grep":** ~25 tokens (mostly theme editor, passcode, platform-specific biometric prompts, and some compose-panel specifics). These live in style files not fetched in this pass — primarily `settings/theme_editor.style`, `intro/intro.style`, and `platform/{mac,win,linux}/*.style`. A follow-up pass should clone tdesktop locally and `grep -rn <token>` across the tree.
+- **Palette colors:** light-theme verified from upstream `colors.palette`; dark-theme values are the canonical Night theme hex codes. See §57 for the complete palette.
+
+## 57. Appendix B — Dark Theme Color Palette
+
+Source: Telegram Desktop reference themes `day-custom-base.tdesktop-theme` (light/day-blue) and `night-custom-base.tdesktop-theme` (night). Values extracted from upstream `telegramdesktop/tdesktop` at `Telegram/Resources/`. AyuGram Desktop inherits these palettes directly.
+
+Tokens written as an alias (e.g. `lightButtonBg: windowBg`) are resolved to their concrete hex value in brackets. Tokens with an alpha byte (8-digit hex, e.g. `#00000054`) retain the alpha channel.
+
+### 57.1 Window / chrome
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `windowBg` | `#FFFFFF` | `#17212B` |
+| `windowBgOver` | `#F1F1F1` | `#232E3C` |
+| `windowBgRipple` | `#E5E5E5` | `#24303D` |
+| `windowBgActive` | `#40A7E3` | `#5288C1` |
+| `windowFg` | `#000000` | `#F5F5F5` |
+| `windowFgOver` | `#000000` (alias `windowFg`) | `#E9ECF0` |
+| `windowFgActive` | `#FFFFFF` | `#FFFFFF` |
+| `windowSubTextFg` | `#999999` | `#708499` |
+| `windowSubTextFgOver` | `#919191` | `#7C90A4` |
+| `windowBoldFg` | `#222222` | `#E9E8E8` |
+| `windowBoldFgOver` | `#222222` | `#E9E9E9` |
+| `windowActiveTextFg` | `#168ACD` | `#6AB3F3` |
+| `windowShadowFg` | `#000000` | `#000000` |
+| `windowShadowFgFallback` | `#F1F1F1` | `#17212B` |
+| `shadowFg` | `#00000018` | `#04080E56` |
+| `titleBg` | `#F1F1F1` (alias `windowBgOver`) | `#1F2936` |
+| `titleBgActive` | `#F1F1F1` (alias `titleBg`) | `#242F3D` |
+| `titleShadow` | `#00000003` | `#00000000` |
+| `titleFg` | `#ACACAC` | `#6A7680` |
+| `titleFgActive` | `#3E3C3E` | `#91A3B3` |
+| `layerBg` | `#0000007F` | `#0000007F` |
+
+### 57.2 Dialogs (chat list / left panel)
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `dialogsBg` | `#FFFFFF` (alias `windowBg`) | `#17212B` (alias `windowBg`) |
+| `dialogsBgOver` | `#F1F1F1` (alias `windowBgOver`) | `#202B36` |
+| `dialogsBgActive` | `#419FD9` | `#2B5278` |
+| `dialogsChatBgOver` | not found (alias resolves via `dialogsBgOver`) | not found (alias resolves via `dialogsBgOver`) |
+| `dialogsRippleBg` | `#E5E5E5` (alias `windowBgRipple`) | `#25313D` |
+| `dialogsRippleBgActive` | `#2095D0` (alias `activeButtonBgRipple`) | `#315A80` |
+| `dialogsNameFg` | `#222222` (alias `windowBoldFg`) | `#F5F5F5` |
+| `dialogsNameFgOver` | `#222222` (alias `windowBoldFgOver`) | `#E9E9E9` (alias `windowBoldFgOver`) |
+| `dialogsNameFgActive` | `#FFFFFF` (alias `windowFgActive`) | `#FFFFFF` |
+| `dialogsTextFg` | `#999999` (alias `windowSubTextFg`) | `#7F91A4` |
+| `dialogsTextFgOver` | `#919191` (alias `windowSubTextFgOver`) | `#91A3B5` |
+| `dialogsTextFgActive` | `#FFFFFF` (alias `windowFgActive`) | `#FFFFFF` |
+| `dialogsTextFgService` | `#168ACD` (alias `windowActiveTextFg`) | `#73B9F5` |
+| `dialogsDateFg` | `#999999` (alias `windowSubTextFg`) | `#8696A8` |
+| `dialogsDraftFg` | `#DD4B39` | `#FF525D` |
+| `dialogsUnreadBg` | `#40A7E3` (alias `windowBgActive`) | `#4082BC` |
+| `dialogsUnreadBgMuted` | `#BBBBBB` | `#3E546A` |
+| `dialogsUnreadBgActive` | `#FFFFFF` (alias `dialogsTextFgActive`) | `#FFFFFF` (alias `dialogsTextFgActive`) |
+| `dialogsUnreadBgMutedActive` | `#C6E1F7` (alias `dialogsDraftFgActive`) | `#7AA3CA` |
+| `dialogsUnreadFg` | `#FFFFFF` (alias `windowFgActive`) | `#FFFFFF` |
+| `dialogsUnreadFgActive` | `#419FD9` (alias `dialogsBgActive`) | `#2A5378` |
+| `dialogsOnlineBadgeFg` | `#4DC920` | `#63B6FF` |
+| `dialogsOnlineBadgeFgActive` | `#FFFFFF` | `#FFFFFF` |
+| `dialogsSentIconFg` | `#5DC452` | `#72BCFD` |
+| `dialogsSendingIconFg` | `#C1C1C1` | `#647D96` |
+| `dialogsVerifiedIconBg` | `#40A7E3` (alias `windowBgActive`) | `#6AB3F3` |
+| `dialogsVerifiedIconFg` | `#FFFFFF` (alias `windowFgActive`) | `#17212B` |
+| `dialogsArchiveFg` | `#525252` | not found (AyuGram/modern tdesktop: defaults to `windowSubTextFg` `#708499`) |
+| `dialogsForwardBg` | `#419FD9` (alias `dialogsBgActive`) | `#2B5278` (alias `dialogsBgActive`) |
+| `dialogsForwardFg` | `#FFFFFF` (alias `dialogsNameFgActive`) | `#FFFFFF` (alias `dialogsNameFgActive`) |
+
+### 57.3 Top bar
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `topBarBg` | `#FFFFFF` (alias `windowBg`) | `#17212B` |
+| `topBarIconFg` | not found (uses `menuIconFg` `#999999`) | not found (uses `menuIconFg` `#6C7883`) |
+| `topBarMenuFg` | not found (uses `menuIconFg` `#999999`) | not found (uses `menuIconFg` `#6C7883`) |
+| `topBarTextFg` | not found (uses `windowFg` `#000000`) | not found (uses `windowFg` `#F5F5F5`) |
+
+Note: the tdesktop palette does not expose top-bar-specific text/icon tokens. Top bar uses `windowFg` for title, `windowSubTextFg` for subtitle, and `menuIconFg` for the three-dot menu + buttons.
+
+### 57.4 Messages / bubbles
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `msgInBg` | `#FFFFFF` (alias `windowBg`) | `#24292E` |
+| `msgInBgSelected` | `#C2DCF2` | `#2E70A5` |
+| `msgOutBg` | `#EFFDDE` | `#265E8C` |
+| `msgOutBgSelected` | `#CBEBB5` | `#387AAD` |
+| `msgInShadow` | `#748EA229` | `#748EA200` |
+| `msgOutShadow` | `#3AC3461D` | `#00000000` |
+| `msgInDateFg` | `#A0ACB6` | `#7A858F` |
+| `msgOutDateFg` | `#6FAB69` | `#C2E4FFAD` |
+| `msgInServiceFg` | `#168ACD` (alias `windowActiveTextFg`) | `#71BAFA` |
+| `msgOutServiceFg` | `#529E39` | `#FFFFFF` |
+| `msgInReplyBarColor` | `#37A1DE` (alias `activeLineFg`) | `#429BDB` |
+| `msgOutReplyBarColor` | `#64B05C` | `#FFFFFF` |
+| `msgInMonoFg` | `#4E7391` | `#5A8CB7` |
+| `msgOutMonoFg` | `#459866` | `#BAD9F6` |
+| `msgFileInBg` | `#40A7E3` (alias `windowBgActive`) | `#3F96D0` |
+| `msgFileOutBg` | `#60B867` | `#FFFFFF` |
+| `msgServiceBg` | `#527C4190` | `#1E2429D5` |
+| `msgServiceBgSelected` | `#96B38B83` | `#2E7AB4` |
+| `msgServiceFg` | `#FFFFFF` (alias `windowFgActive`) | `#FFFFFF` (alias `windowFgActive`) |
+| `msgSelectOverlay` | `#358CD44C` | `#3585D44C` |
+| `msgStickerOverlay` | `#358CD47F` | `#3585D47F` |
+| `msgDateImgBg` | `#00000054` | `#00000054` |
+| `msgDateImgBgOver` | `#00000074` | `#00000074` |
+| `msgDateImgBgSelected` | `#1C4A7187` | `#204F7887` |
+
+### 57.5 History / chat area
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `historyComposeAreaBg` | `#FFFFFF` (alias `msgInBg` → `windowBg`) | `#17212B` |
+| `historyComposeAreaFg` | `#000000` (alias `historyTextInFg` → `windowFg`) | `#F5F5F5` (alias `historyTextInFg` → `windowFg`) |
+| `historyComposeIconFg` | `#999999` (alias `menuIconFg`) | `#6C7883` (alias `menuIconFg`) |
+| `historyComposeIconFgOver` | `#8A8A8A` (alias `menuIconFgOver`) | `#DCDCDC` (alias `menuIconFgOver`) |
+| `historyComposeButton` | not found (no explicit token; uses `historyComposeButtonBg`) | not found (no explicit token; uses `historyComposeButtonBg`) |
+| `historyComposeButtonBg` | `#FFFFFF` (alias `historyComposeAreaBg`) | `#17212B` (alias `historyComposeAreaBg`) |
+| `historyComposeButtonBgOver` | `#F1F1F1` (alias `windowBgOver`) | `#1C2835` |
+| `historyComposeButtonBgRipple` | `#E5E5E5` (alias `windowBgRipple`) | `#222F3E` |
+| `historySendIconFg` | `#40A7E3` (alias `windowBgActive`) | `#5288C1` (alias `windowBgActive`) |
+| `historyReplyBg` | `#FFFFFF` (alias `historyComposeAreaBg`) | `#17212B` (alias `historyComposeAreaBg`) |
+| `historyReplyIconFg` | `#40A7E3` (alias `windowBgActive`) | `#5288C1` (alias `windowBgActive`) |
+| `historyPinnedBg` | `#FFFFFF` (alias `historyComposeAreaBg`) | `#181E24` |
+| `historyUnreadBarBg` | `#FCFBFA` | `#182433` |
+| `historyUnreadBarFg` | `#538BB4` | `#FFFFFF` |
+| `historyScrollBg` | `#517C414C` | `#565A5E4C` |
+| `historyScrollBgOver` | `#517C416B` | `#5A5D616B` |
+| `historyScrollBarBg` | `#517C417A` | `#7F84897A` |
+| `historyScrollBarBgOver` | `#517C41BC` | `#64686CBC` |
+| `historyToDownBg` | `#FFFFFF` (alias `windowBg`) | `#1D2B3A` |
+| `historyToDownBgOver` | `#F1F1F1` (alias `windowBgOver`) | `#243446` |
+| `historyToDownFg` | `#999999` (alias `menuIconFg`) | `#ADB4BA` |
+
+### 57.6 Peer / author colors (8-way group-member name palette)
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `historyPeer1NameFg` (red) | `#C03D33` | `#FB6169` |
+| `historyPeer2NameFg` (green) | `#4FAD2D` | `#85DE85` |
+| `historyPeer3NameFg` (yellow) | `#D09306` | `#F3BC5C` |
+| `historyPeer4NameFg` (blue) | `#168ACD` (alias `windowActiveTextFg`) | `#65BDF3` |
+| `historyPeer5NameFg` (purple) | `#8544D6` | `#B48BF2` |
+| `historyPeer6NameFg` (pink) | `#CD4073` | `#FF5694` |
+| `historyPeer7NameFg` (sea) | `#2996AD` | `#62D4E3` |
+| `historyPeer8NameFg` (orange) | `#CE671B` | `#FAA357` |
+| `historyPeer1UserpicBg` | `#FF845E` | `#FF845E` |
+| `historyPeer2UserpicBg` | `#9AD164` | `#9AD164` |
+| `historyPeer3UserpicBg` | `#E5CA77` | `#E5CA77` |
+| `historyPeer4UserpicBg` | `#5CAFFA` | `#5CAFFA` |
+| `historyPeer5UserpicBg` | `#B694F9` | `#B694F9` |
+| `historyPeer6UserpicBg` | `#FF8AAC` | `#FF8AAC` |
+| `historyPeer7UserpicBg` | `#5BCBE3` | `#5BCBE3` |
+| `historyPeer8UserpicBg` | `#FEBB5B` | `#FEBB5B` |
+
+### 57.7 Boxes / dialogs (modals)
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `boxBg` | `#FFFFFF` (alias `windowBg`) | `#17212B` |
+| `boxTextFg` | `#000000` (alias `windowFg`) | `#F5F5F5` (alias `windowFg`) |
+| `boxTitleFg` | `#404040` | `#EBEBEB` |
+| `boxDividerBg` | not found in base palette (falls back to `windowBgOver`) | not found in base palette (falls back to `windowBgOver`) |
+| `boxSearchBg` | `#FFFFFF` (alias `boxBg`) | `#17212B` (alias `boxBg`) |
+| `boxTitleAdditionalFg` | `#808080` | `#6D7F8F` |
+| `boxTextFgGood` | `#4AB44A` | `#5598DB` |
+| `boxTextFgError` | `#D84D4D` | `#DC3D3D` |
+
+### 57.8 Profile / info
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `profileStatusFg` | not found (uses `windowSubTextFg` `#999999`) | not found (uses `windowSubTextFg` `#708499`) |
+| `profileStatusFgOver` | `#7C99B2` | `#677A8B` |
+| `profileVerifiedCheckBg` | `#40A7E3` (alias `windowBgActive`) | `#5288C1` (alias `windowBgActive`) |
+| `profileVerifiedCheckFg` | `#FFFFFF` (alias `windowFgActive`) | `#FFFFFF` |
+| `profileAdminStartFg` | `#40A7E3` (alias `windowBgActive`) | `#62A9E6` |
+| `profileOtherAdminStarFg` | `#999999` (alias `windowSubTextFg`) | not found (defaults to `windowSubTextFg` `#708499`) |
+
+### 57.9 Universal buttons / accents
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `activeButtonBg` | `#40A7E3` (alias `windowBgActive`) | `#2F6EA5` |
+| `activeButtonBgOver` | `#39A5DB` | `#3476AB` |
+| `activeButtonBgRipple` | `#2095D0` | `#3B7CB1` |
+| `activeButtonFg` | `#FFFFFF` (alias `windowFgActive`) | `#FFFFFF` |
+| `activeButtonSecondaryFg` | `#CCEEFF` | `#9ABFE7` |
+| `activeLineFg` | `#37A1DE` | `#6396CB` |
+| `activeLineFgError` | `#E48383` | `#EF5959` |
+| `attentionButtonFg` | `#D14E4E` | `#EC3942` |
+| `attentionButtonBgOver` | `#FCDFDE` | `#592A2A64` |
+| `attentionButtonBgRipple` | `#F4C3C2` | `#68323264` |
+| `lightButtonBg` | `#FFFFFF` (alias `windowBg`) | `#17212B` |
+| `lightButtonBgOver` | `#E3F1FA` | `#1D2A39` |
+| `lightButtonBgRipple` | `#C9E4F6` | `#223143` |
+| `lightButtonFg` | `#168ACD` (alias `windowActiveTextFg`) | `#6AB2F2` |
+
+### 57.10 Sidebar (folders rail) — referenced from §18
+
+| Token | Light (day-blue) | Dark (night) |
+|-------|------------------|--------------|
+| `sideBarBg` | `#293A4C` | `#0E1621` |
+| `sideBarBgActive` | `#17212B` | `#25303E` |
+| `sideBarBgRipple` | `#1E2B38` | `#1E2733` |
+| `sideBarTextFg` | `#8897A6` | `#768C9E` |
+| `sideBarTextFgActive` | `#64B9FA` | `#64B9FA` |
+| `sideBarIconFg` | `#8393A3` | `#768C9E` |
+| `sideBarIconFgActive` | `#5EB5F7` | `#5EB5F7` |
+| `sideBarBadgeBg` | `#5EB5F7` | `#5EB5F7` |
+| `sideBarBadgeBgMuted` | `#8393A3` | `#768C9E` |
+| `sideBarBadgeFg` | `#FFFFFF` | not found (defaults to `#FFFFFF`) |
+
+### 57.11 Notes on missing / derived tokens
+
+- `dialogsChatBgOver` — not a distinct token in the tdesktop palette; the chat-list row hover uses `dialogsBgOver`. If the spec referenced it as a synonym, treat it as equivalent to `dialogsBgOver`.
+- `topBarIconFg`, `topBarMenuFg`, `topBarTextFg` — tdesktop reuses `menuIconFg` / `windowFg` / `windowSubTextFg` at draw time rather than exposing dedicated tokens.
+- `historyComposeButton` — spec shorthand; concrete tokens are `historyComposeButtonBg` / `historyComposeButtonBgOver` / `historyComposeButtonBgRipple`.
+- `profileStatusFg` — not a distinct palette entry; falls through to `windowSubTextFg` (`#999999` light / `#708499` dark). Only the `Over` variant is promoted to its own token.
+- `boxDividerBg` — rendered from `windowBgOver` plus a shadow line; no standalone token exists.
+- Alpha bytes: 8-digit hex values keep their trailing alpha byte (e.g. `#00000054` = 33% black). Preserve these exactly when porting to Flutter `Color(0xAARRGGBB)`.
+- Dark theme `msgOutShadow` / `msgInShadow` use alpha `00` on purpose — shadows are suppressed in the default night theme.
+- The dark `menuBgOver` value (`#FFFFFF`) in the upstream file is the one controversial entry — treat it as an upstream quirk (flash-on-hover); most downstream themes override it to `windowBgRipple`. For popup menus in dark mode, use `#2B3744` (between `windowBgOver` and `windowBgRipple`) or match AyuGram's override.
