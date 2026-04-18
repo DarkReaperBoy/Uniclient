@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../models/engine_models.dart';
 import '../state/auth_state.dart';
@@ -156,19 +159,34 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Widget _buildQR(AuthStateData data, ThemeData theme) {
-    // QR data is raw bytes — show as placeholder for now.
-    // TODO: render QR from data.qrData bytes.
+    // qrData from the engine is the login URL (e.g. tg://login?token=...) encoded
+    // as UTF-8 bytes. QrImageView takes a string and handles the matrix encoding.
+    final payload = utf8.decode(data.qrData, allowMalformed: true);
     return Column(
       children: [
         Container(
           width: 180,
           height: 180,
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(8),
           ),
-          alignment: Alignment.center,
-          child: Icon(Icons.qr_code_2, size: 120, color: theme.colorScheme.primary),
+          child: QrImageView(
+            data: payload,
+            version: QrVersions.auto,
+            backgroundColor: Colors.white,
+            eyeStyle: const QrEyeStyle(
+              eyeShape: QrEyeShape.square,
+              color: Colors.black,
+            ),
+            dataModuleStyle: const QrDataModuleStyle(
+              dataModuleShape: QrDataModuleShape.square,
+              color: Colors.black,
+            ),
+            errorCorrectionLevel: QrErrorCorrectLevel.M,
+            gapless: true,
+          ),
         ),
         const SizedBox(height: 12),
         Text('Open Telegram on your phone', style: theme.textTheme.bodyMedium),
