@@ -183,6 +183,82 @@ func TestMigrateV2IsOutgoing(t *testing.T) {
 	tx.Commit()
 }
 
+// TestOpenDBCleanupCorruptChatType verifies that OpenDB's startup cleanup
+// removes any chat rows whose `type` column is not INTEGER. An earlier
+// version of ensureChatExists wrote string type values ("dm", "group", ...)
+// into a column that should only hold the integer ChatType* constants;
+// those rows stayed in the cache and broke GetChatList when Scan tried to
+// read them into an int destination. The cleanup step in migrateDB deletes
+// them on next startup so the cache self-heals.
+func TestOpenDBCleanupCorruptChatType(t *testing.T) {
+	dir := tempDir(t)
+
+	// Step 1: Open a fresh DB, insert one valid INTEGER-typed row and one
+	// corrupt string-typed row (SQLite's dynamic typing allows this).
+	db, err := OpenDB(dir)
+	if err != nil {
+		t.Fatalf("OpenDB: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO accounts(id, platform, created_at) VALUES('acc1','telegram',1)`); err != nil {
+		t.Fatalf("insert account: %v", err)
+	}
+	// Valid row — type = integer 1 (DM).
+	if _, err := db.Exec(`INSERT INTO chats(account_id, chat_id, type, title, updated_at) VALUES('acc1','good', ?, 'good chat', 1)`, ChatTypeDMVal); err != nil {
+		t.Fatalf("insert valid chat: %v", err)
+	}
+	// Corrupt row — type = string "dm" (simulates the pre-fix bug).
+	if _, err := db.Exec(`INSERT INTO chats(account_id, chat_id, type, title, updated_at) VALUES('acc1','bad', 'dm', 'bad chat', 2)`); err != nil {
+		t.Fatalf("insert corrupt chat: %v", err)
+	}
+	// Sanity: both rows are present before reopen.
+	var before int
+	db.QueryRow(`SELECT COUNT(*) FROM chats WHERE account_id='acc1'`).Scan(&before)
+	if before != 2 {
+		t.Fatalf("expected 2 chats before cleanup, got %d", before)
+	}
+	// Sanity: the corrupt row is actually stored with a TEXT type affinity.
+	var rawType any
+	db.QueryRow(`SELECT type FROM chats WHERE chat_id='bad'`).Scan(&rawType)
+	if _, ok := rawType.(int64); ok {
+		t.Fatalf("test setup bug: expected 'bad' row to have non-integer type, got int64 (%v)", rawType)
+	}
+	db.Close()
+
+	// Step 2: Reopen — migrateDB's cleanup DELETE runs on every OpenDB call
+	// and must drop the 'bad' row while preserving the 'good' row.
+	db2, err := OpenDB(dir)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer db2.Close()
+
+	var after int
+	db2.QueryRow(`SELECT COUNT(*) FROM chats WHERE account_id='acc1'`).Scan(&after)
+	if after != 1 {
+		t.Errorf("expected 1 chat after cleanup, got %d", after)
+	}
+
+	// The surviving row must be 'good'.
+	var surviving string
+	db2.QueryRow(`SELECT chat_id FROM chats WHERE account_id='acc1'`).Scan(&surviving)
+	if surviving != "good" {
+		t.Errorf("expected surviving chat to be 'good', got %q", surviving)
+	}
+
+	// Re-running cleanup on a clean DB must be a no-op (idempotent).
+	db2.Close()
+	db3, err := OpenDB(dir)
+	if err != nil {
+		t.Fatalf("third open: %v", err)
+	}
+	defer db3.Close()
+	var after2 int
+	db3.QueryRow(`SELECT COUNT(*) FROM chats WHERE account_id='acc1'`).Scan(&after2)
+	if after2 != 1 {
+		t.Errorf("idempotent cleanup: expected 1 chat, got %d", after2)
+	}
+}
+
 func TestEngineInit(t *testing.T) {
 	dir := tempDir(t)
 	configDir := filepath.Join(dir, "config")
