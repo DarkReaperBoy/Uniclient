@@ -564,31 +564,43 @@ class _ChatTopBar extends StatelessWidget {
               onPressed: onBack,
             ),
           ],
-          // Avatar — use real photo when available.
-          _chatAvatar(chat, theme, 18),
-          const SizedBox(width: 10),
-          // Title + subtitle.
+          // Tappable avatar + title block — toggles info panel like Telegram Desktop.
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  chat.title.isNotEmpty ? chat.title : chat.chatId,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium,
-                ),
-                if (subtitle.isNotEmpty)
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: subtitleColor,
+            child: InkWell(
+              onTap: onToggleInfo,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: Row(
+                  children: [
+                    _chatAvatar(chat, theme, 18),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            chat.title.isNotEmpty ? chat.title : chat.chatId,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          if (subtitle.isNotEmpty)
+                            Text(
+                              subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: subtitleColor,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
           // Right-side buttons.
