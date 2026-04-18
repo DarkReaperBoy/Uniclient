@@ -68,7 +68,7 @@
 ## Needs visual review (implemented but not screenshot-verified against AyuGram)
 
 - [x] Responsive shell layout (UniClientShell) — OneColumn/TwoColumn/ThreeColumn modes — Screenshot-verified at three widths via kdotool resizing: (1) **OneColumn** at ~490px shows single panel with horizontal folder tabs + hamburger; opening a chat replaces list with chat view + back arrow (slide navigation working). (2) **TwoColumn** at ~1280px shows 72px filter sidebar + dialogs column + chat view. (3) **ThreeColumn** at 1400px after tapping top-bar info icon adds right-side Group Info panel (avatar, ID, Notifications toggle, media tabs, Members). Breakpoints: `_oneColumnBreak=640`, `_threeColumnBreak=932` in `dart/lib/ui/shell.dart`.
-- [ ] Chat list sidebar (ChatListPanel) — search, sorted chat rows
+- [x] **Chat list sidebar (ChatListPanel) verified** — Screenshot-verified at 1280px: rounded search field with search icon and hamburger (3-column mode hides it, OneColumn shows it). Tapping search focuses the field and reveals a "Cancel" button at the right. Chat rows sort correctly — two pinned chats ("Nakoshi's..." and "./Suburb...") with pin icon appear at the top, followed by non-pinned rows in lastMsgTime descending order (05:22, 05:22, 05:10, 04:58, 04:41, 04:39, 04:06, 03:56, 03:49, 03:39). Search wiring: `searchChats(query)` → engine `SearchChats` RPC → `_searchResults` replaces the visible list (`dart/lib/ui/chat_list_panel.dart:39`).
 - [ ] Chat list row (ChatListRow) — 62px, avatars, titles, timestamps, badges, previews
 - [ ] Hamburger drawer (HamburgerDrawer) — profile cover (134px), collapsible account switcher, menu items, night mode
 - [ ] Chat view (ChatView) — top bar, message list, compose area
