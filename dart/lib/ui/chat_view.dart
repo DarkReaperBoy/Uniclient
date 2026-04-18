@@ -31,6 +31,7 @@ class _ChatViewState extends State<ChatView> {
   final _composeController = TextEditingController();
   final _scrollController = ScrollController();
   String? _replyToId;
+  String? _editingMsgId;
   bool _showScrollToBottom = false;
   String? _lastChatId;
   final Set<String> _selectedMsgIds = {};
@@ -57,6 +58,18 @@ class _ChatViewState extends State<ChatView> {
     final chatId = chatState.activeChat?.chatId;
     if (chatId != null && chatId != _lastChatId) {
       _lastChatId = chatId;
+      // Chat changed — cancel any in-progress edit/reply so stale state
+      // doesn't leak into the new chat's compose area.
+      if (_editingMsgId != null || _replyToId != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() {
+            _editingMsgId = null;
+            _replyToId = null;
+            _composeController.clear();
+          });
+        });
+      }
       // Delay slightly to ensure messages are loaded.
       Future.microtask(() => chatState.markRead());
     }
@@ -120,8 +133,14 @@ class _ChatViewState extends State<ChatView> {
         case 'select':
           setState(() => _selectedMsgIds.add(msgId));
         case 'edit':
-          _composeController.text = msg.contentText;
-          // TODO: wire up edit mode
+          setState(() {
+            _editingMsgId = msgId;
+            _replyToId = null; // edit and reply are mutually exclusive
+            _composeController.text = msg.contentText;
+            _composeController.selection = TextSelection.fromPosition(
+              TextPosition(offset: _composeController.text.length),
+            );
+          });
         case 'delete':
           chatState.deleteMessage(msgId);
       }
@@ -284,6 +303,12 @@ class _ChatViewState extends State<ChatView> {
     final text = _composeController.text.trim();
     if (text.isEmpty) return;
     final chatState = context.read<ChatState>();
+    if (_editingMsgId != null) {
+      chatState.editMessage(_editingMsgId!, text);
+      _composeController.clear();
+      setState(() => _editingMsgId = null);
+      return;
+    }
     chatState.sendMessage(text, replyToId: _replyToId ?? '');
     _composeController.clear();
     setState(() => _replyToId = null);
@@ -378,8 +403,19 @@ class _ChatViewState extends State<ChatView> {
               ],
             ),
           ),
-          // Reply bar.
-          if (_replyToId != null)
+          // Edit bar (takes precedence over reply bar).
+          if (_editingMsgId != null)
+            _EditBar(
+              editingId: _editingMsgId!,
+              messages: chatState.messages,
+              onCancel: () {
+                setState(() {
+                  _editingMsgId = null;
+                  _composeController.clear();
+                });
+              },
+            )
+          else if (_replyToId != null)
             _ReplyBar(
               replyId: _replyToId!,
               messages: chatState.messages,
@@ -801,6 +837,74 @@ class _ReplyBar extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.close, size: 18),
             onPressed: onCancel,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Edit bar shown above the compose area while editing an outgoing message.
+/// Telegram Desktop-style: blue 2px side stripe, pencil icon, "Editing" header +
+/// 1-line preview of the message being edited.
+class _EditBar extends StatelessWidget {
+  final String editingId;
+  final List<CachedMessage> messages;
+  final VoidCallback onCancel;
+
+  const _EditBar({
+    required this.editingId,
+    required this.messages,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final msg = messages.where((m) => m.msgId == editingId).firstOrNull;
+
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: theme.dividerColor, width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Row(
+        children: [
+          Icon(Icons.edit, size: 18, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Container(width: 2, height: 28, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Editing',
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  msg?.contentText ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            onPressed: onCancel,
+            tooltip: 'Cancel edit',
           ),
         ],
       ),
