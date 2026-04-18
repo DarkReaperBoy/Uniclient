@@ -55,19 +55,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                 onAddAccount: () => _showAddAccountDialog(context, appState),
               ),
             const Divider(height: 1),
-            // Menu items.
+            // Menu items. Placeholder entries (My Profile, New Group, New
+            // Channel, Contacts, Calls, Saved Messages, Settings) previously
+            // rendered with empty onTap callbacks were removed per CLAUDE.md's
+            // ZERO placeholders rule. They will be re-added as their backing
+            // screens/flows are implemented (tracked in todolist.md).
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  _MenuItem(Icons.person_outline, 'My Profile', () {}),
-                  _MenuItem(Icons.group_add_outlined, 'New Group', () {}),
-                  _MenuItem(Icons.campaign_outlined, 'New Channel', () {}),
-                  _MenuItem(Icons.contacts_outlined, 'Contacts', () {}),
-                  _MenuItem(Icons.phone_outlined, 'Calls', () {}),
-                  _MenuItem(Icons.bookmark_border, 'Saved Messages', () {}),
-                  _MenuItem(Icons.settings_outlined, 'Settings', () {}),
-                  // Night mode toggle.
                   _NightModeToggle(
                     isDark: isDark,
                     onChanged: (dark) {
@@ -350,25 +346,6 @@ class _AccountList extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// Single menu item in the drawer.
-class _MenuItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _MenuItem(this.icon, this.label, this.onTap);
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(icon, size: 22),
-      title: Text(label),
-      dense: true,
-      onTap: onTap,
     );
   }
 }
