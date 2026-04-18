@@ -63,7 +63,8 @@
 ### Other features
 - [ ] Contact status/action bar (add contact, block, report)
 - [ ] Group call bar
-- [ ] Voice/video message players
+- [ ] Voice/video message players (needs `media_kit` wiring + real waveform bytes from `DocumentAttributeAudio.Waveform`)
+- [x] **Placeholder voice waveform removed** — `_VoiceIndicator` in `dart/lib/ui/message_bubble.dart` no longer paints a fake static-bar "waveform" (the old `_WaveformPainter` used pseudo-random heights `(((i*7+3)%11)/11.0*0.7+0.3)*height` which is a hard-banned placeholder per CLAUDE.md). Voice messages now render like `_AudioIndicator`: 40×40 circular mic badge (`Icons.mic`, primary-blue tint), "Voice message" title line, and a subtitle row with duration (`m:ss` via `_VisualMedia._formatDuration`) + ` · ` + `mediaSizeLabel` when present. Wrapped in `Flexible` so long size labels ellipsis correctly instead of overflowing. `_WaveformPainter` class deleted entirely — no callers remain. New `dart/test/voice_bubble_test.dart` (3 tests, all passing): (1) voice bubble renders "Voice message" + "1:05" + "122.1 KB" + `Icons.mic` for `mediaType=4, mediaDuration=65, mediaFileSize=125000`; (2) when `mediaFileSize=0` the ` · ` separator is absent and only the duration renders; (3) no `CustomPaint` with a painter runtime-type containing "waveform" exists anywhere in the rendered tree — regression guard against fake-waveform reintroduction. Flutter build compiles clean (`scripts/build_flutter.sh linux debug`). Real waveform rendering is deferred to the "Voice/video message players" line above, which is the proper place for it: it needs `DocumentAttributeAudio.Waveform` piped from Telegram core → engine → protobuf bridge → Dart model, plus audio playback via `media_kit`.
 - [ ] Emoji/sticker/GIF panel
 - [ ] Calls UI
 - [ ] Settings screens

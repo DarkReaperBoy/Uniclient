@@ -558,7 +558,11 @@ class _VisualMedia extends StatelessWidget {
   }
 }
 
-/// Voice message indicator with duration bar.
+/// Voice message indicator. No placeholder waveform — the real waveform bytes
+/// are not yet piped through the engine/bridge (see research/telegram_notes.md
+/// "Voice"). Until they are, show an honest mic badge + "Voice message" label
+/// + duration + file size, matching the layout of [_AudioIndicator]. CLAUDE.md
+/// hard-bans fake waveforms, so we do not paint one.
 class _VoiceIndicator extends StatelessWidget {
   final CachedMessage message;
   final ThemeData theme;
@@ -572,54 +576,51 @@ class _VoiceIndicator extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.mic, size: 20, color: theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          // Waveform placeholder (static bars).
-          SizedBox(
-            width: 120,
-            height: 20,
-            child: CustomPaint(
-              painter: _WaveformPainter(color: theme.colorScheme.primary),
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primary.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
             ),
+            child: Icon(Icons.mic, size: 20, color: theme.colorScheme.primary),
           ),
           const SizedBox(width: 8),
-          if (message.mediaDuration > 0)
-            Text(
-              _VisualMedia._formatDuration(message.mediaDuration),
-              style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Voice message',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium,
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (message.mediaDuration > 0)
+                      Text(
+                        _VisualMedia._formatDuration(message.mediaDuration),
+                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                      ),
+                    if (message.mediaDuration > 0 && message.mediaSizeLabel.isNotEmpty)
+                      Text(' · ', style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color)),
+                    if (message.mediaSizeLabel.isNotEmpty)
+                      Text(
+                        message.mediaSizeLabel,
+                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                      ),
+                  ],
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );
   }
-}
-
-/// Static waveform visualization.
-class _WaveformPainter extends CustomPainter {
-  final Color color;
-
-  _WaveformPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.6)
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round;
-    // Draw static waveform bars.
-    const barCount = 24;
-    final barWidth = size.width / barCount;
-    for (var i = 0; i < barCount; i++) {
-      // Pseudo-random heights based on index.
-      final h = (((i * 7 + 3) % 11) / 11.0 * 0.7 + 0.3) * size.height;
-      final x = i * barWidth + barWidth / 2;
-      final top = (size.height - h) / 2;
-      canvas.drawLine(Offset(x, top), Offset(x, top + h), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// Audio file indicator (music, podcast, etc.).
