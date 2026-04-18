@@ -516,6 +516,18 @@ class _UniClientAppState extends State<UniClientApp> {
       ChatView.requestMarkActiveChatRead();
       return;
     }
+    // Telegram Desktop spec §24.4 first_chat / last_chat — Ctrl+Alt+Home
+    // jumps selection to the first visible chat, Ctrl+Alt+End jumps to the
+    // last. Same harness bypass as other shortcuts (HardwareKeyboard doesn't
+    // route through Shortcuts).
+    if (lc == 'ctrl+alt+home' || lc == 'control+alt+home') {
+      ChatListPanel.requestJumpChat(true);
+      return;
+    }
+    if (lc == 'ctrl+alt+end' || lc == 'control+alt+end') {
+      ChatListPanel.requestJumpChat(false);
+      return;
+    }
     switch (key) {
       case 'enter':
         final focusNode = FocusManager.instance.primaryFocus;
@@ -709,6 +721,15 @@ class _UniClientAppState extends State<UniClientApp> {
           // when no chat is open.
           const SingleActivator(LogicalKeyboardKey.keyR, control: true):
               () => ChatView.requestMarkActiveChatRead(),
+          // Telegram Desktop spec §24.4: Ctrl+Alt+Home / Ctrl+Alt+End jump
+          // the active chat selection to the first / last chat in the
+          // currently visible, sorted sidebar list (`first_chat` /
+          // `last_chat`). No-op when the visible list is empty or the
+          // target is already active.
+          const SingleActivator(LogicalKeyboardKey.home, control: true, alt: true):
+              () => ChatListPanel.requestJumpChat(true),
+          const SingleActivator(LogicalKeyboardKey.end, control: true, alt: true):
+              () => ChatListPanel.requestJumpChat(false),
         },
         child: const UniClientShell(),
       ),

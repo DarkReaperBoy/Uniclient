@@ -41,6 +41,13 @@ class ChatListPanel extends StatefulWidget {
   /// order (direction: +1 = next, -1 = previous).
   static void Function(int direction)? navigateFolderRequest;
 
+  /// Global hook used by app-level Ctrl+Alt+Home / Ctrl+Alt+End (Telegram
+  /// Desktop spec §24.4 `first_chat` / `last_chat`). The live panel state
+  /// registers a handler that jumps the active chat selection to the first
+  /// (`toFirst=true`) or last (`toFirst=false`) chat in the currently visible
+  /// sorted list.
+  static void Function(bool toFirst)? jumpChatRequest;
+
   /// Focus the chat list search field. Safe to call when no panel is mounted.
   static void requestFocusSearch() => focusSearchRequest?.call();
 
@@ -56,6 +63,11 @@ class ChatListPanel extends StatefulWidget {
   /// Safe to call when no panel is mounted.
   static void requestNavigateFolder(int direction) =>
       navigateFolderRequest?.call(direction);
+
+  /// Jump to the first (`toFirst=true`) or last (`toFirst=false`) chat in the
+  /// currently visible sorted list. Safe to call when no panel is mounted.
+  static void requestJumpChat(bool toFirst) =>
+      jumpChatRequest?.call(toFirst);
 
   @override
   State<ChatListPanel> createState() => _ChatListPanelState();
@@ -74,6 +86,37 @@ class _ChatListPanelState extends State<ChatListPanel> {
     ChatListPanel.cancelSearchRequest = _cancelSearchIfActive;
     ChatListPanel.navigateChatRequest = _navigateChat;
     ChatListPanel.navigateFolderRequest = _navigateFolder;
+    ChatListPanel.jumpChatRequest = _jumpChat;
+  }
+
+  /// Jump to first or last visible chat. Uses the same sorted, non-archived,
+  /// folder/search-filtered list `_navigateChat` builds so the jump target
+  /// exactly matches what the user sees in the sidebar.
+  void _jumpChat(bool toFirst) {
+    if (!mounted) return;
+    final chatState = context.read<ChatState>();
+    final appState = context.read<AppState>();
+
+    final accountChats = chatState.chatsForAccount(appState.activeAccountId);
+    final base = chatState.activeFolderId != null
+        ? chatState.chatsForFolder(chatState.activeFolderId)
+        : accountChats;
+    final displayChats = _searchResults ?? base;
+    final sorted = List<ChatInfo>.from(displayChats)
+      ..sort((a, b) {
+        if (a.isPinned != b.isPinned) return a.isPinned ? -1 : 1;
+        return b.lastMsgTime.compareTo(a.lastMsgTime);
+      });
+    final visible = sorted.where((c) => !c.isArchived).toList();
+    if (visible.isEmpty) return;
+    final target = toFirst ? visible.first : visible.last;
+    final active = chatState.activeChat;
+    if (active != null &&
+        active.chatId == target.chatId &&
+        active.accountId == target.accountId) {
+      return; // already at target
+    }
+    chatState.openChat(target);
   }
 
   /// Open the chat adjacent to the currently active one in the visible list.
@@ -166,6 +209,9 @@ class _ChatListPanelState extends State<ChatListPanel> {
     }
     if (ChatListPanel.navigateFolderRequest == _navigateFolder) {
       ChatListPanel.navigateFolderRequest = null;
+    }
+    if (ChatListPanel.jumpChatRequest == _jumpChat) {
+      ChatListPanel.jumpChatRequest = null;
     }
     _searchController.dispose();
     _searchFocus.dispose();
