@@ -148,11 +148,6 @@ class _TopBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, size: 20),
-            onPressed: () {},
-            tooltip: 'More',
-          ),
         ],
       ),
     );
