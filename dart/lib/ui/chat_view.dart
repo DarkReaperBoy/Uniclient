@@ -101,6 +101,32 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
+  /// Jump to the replied-to message when a user taps a reply preview.
+  /// If the target message is already loaded, calls `jumpToMessage` with its
+  /// timestamp so it becomes the newest visible (index 0 in the reversed list)
+  /// and scrolls the viewport to it. If not loaded (e.g. older than the
+  /// currently paged-in window), shows a snackbar instead of silently failing.
+  void _jumpToReply(ChatState chatState, String replyToId) {
+    if (replyToId.isEmpty) return;
+    final target = chatState.messages.where((m) => m.msgId == replyToId).firstOrNull;
+    if (target == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Message not loaded'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    chatState.jumpToMessage(target.timestamp);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
+
   void _showMessageContextMenu(String msgId, Offset position) {
     final chatState = context.read<ChatState>();
     final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
@@ -421,6 +447,7 @@ class _ChatViewState extends State<ChatView> {
                   }),
                   onContextMenu: _showMessageContextMenu,
                   onSenderTap: (senderId) => _showSenderProfile(context, chatState, senderId),
+                  onReplyTap: (replyToId) => _jumpToReply(chatState, replyToId),
                 ),
                 // Scroll-to-bottom FAB (spec §5: JumpDownButton).
                 if (_showScrollToBottom)
@@ -693,6 +720,7 @@ class _MessageList extends StatelessWidget {
   final ValueChanged<String> onLongPress;
   final void Function(String msgId, Offset position) onContextMenu;
   final ValueChanged<String>? onSenderTap;
+  final ValueChanged<String>? onReplyTap;
 
   const _MessageList({
     required this.messages,
@@ -706,6 +734,7 @@ class _MessageList extends StatelessWidget {
     required this.onLongPress,
     required this.onContextMenu,
     this.onSenderTap,
+    this.onReplyTap,
   });
 
   @override
@@ -787,6 +816,7 @@ class _MessageList extends StatelessWidget {
                           onReply: () => onReply(msg.msgId),
                           onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
                           onSenderTap: onSenderTap,
+                          onReplyTap: onReplyTap,
                         ),
                       ),
                     ),

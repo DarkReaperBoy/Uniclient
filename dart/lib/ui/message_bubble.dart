@@ -16,6 +16,7 @@ class MessageBubble extends StatelessWidget {
   final VoidCallback? onReply;
   final void Function(Offset position)? onContextMenu;
   final ValueChanged<String>? onSenderTap;
+  final ValueChanged<String>? onReplyTap;
 
   const MessageBubble({
     super.key,
@@ -27,6 +28,7 @@ class MessageBubble extends StatelessWidget {
     this.onReply,
     this.onContextMenu,
     this.onSenderTap,
+    this.onReplyTap,
   });
 
   // Spec: max bubble width 430px.
@@ -139,6 +141,9 @@ class MessageBubble extends StatelessWidget {
                       _ReplyPreview(
                         preview: message.replyPreview,
                         theme: theme,
+                        onTap: (onReplyTap != null && message.replyToId.isNotEmpty)
+                            ? () => onReplyTap!(message.replyToId)
+                            : null,
                       ),
                     // Forward header.
                     if (message.forwardFrom.isNotEmpty)
@@ -338,12 +343,13 @@ class _ReactionList extends StatelessWidget {
 class _ReplyPreview extends StatelessWidget {
   final String preview;
   final ThemeData theme;
+  final VoidCallback? onTap;
 
-  const _ReplyPreview({required this.preview, required this.theme});
+  const _ReplyPreview({required this.preview, required this.theme, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final body = Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -358,6 +364,12 @@ class _ReplyPreview extends StatelessWidget {
         softWrap: false,
         style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
       ),
+    );
+    if (onTap == null) return body;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(4),
+      child: body,
     );
   }
 }
