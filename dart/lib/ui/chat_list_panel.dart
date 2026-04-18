@@ -137,6 +137,9 @@ class _ChatListPanelState extends State<ChatListPanel> {
   void _showChatContextMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
     final chatState = context.read<ChatState>();
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final isGroupy = chat.type == ChatType.group ||
+        chat.type == ChatType.channel ||
+        chat.type == ChatType.topic;
 
     showMenu<String>(
       context: context,
@@ -152,8 +155,10 @@ class _ChatListPanelState extends State<ChatListPanel> {
           child: Text(chat.unreadCount > 0 ? 'Mark as Read' : 'Mark as Unread'),
         ),
         PopupMenuItem(value: 'archive', child: Text(chat.isArchived ? 'Unarchive' : 'Archive')),
-        const PopupMenuDivider(),
-        const PopupMenuItem(value: 'leave', child: Text('Leave Chat')),
+        if (isGroupy) ...[
+          const PopupMenuDivider(),
+          const PopupMenuItem(value: 'leave', child: Text('Leave Chat')),
+        ],
       ],
     ).then((value) {
       if (value == null) return;
