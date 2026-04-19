@@ -32,18 +32,9 @@
 ## 2. Chat List Sidebar
 
 ### 2.1 Folder Tabs
-- [ ] Horizontal tab strip mode when vertical sidebar off (S2)
-- [ ] Horizontal tab strip: scrollable row below search bar (S2)
-- [ ] Horizontal tab strip: sliding underline indicator on active tab (S2)
 - [ ] Horizontal tab strip: mouse-wheel horizontal scrolling redirected (S2)
 - [ ] Horizontal tab strip: right-click context menu (edit, remove, setup) (S2)
 - [ ] Horizontal tab strip: drag reorder (S2)
-- [ ] Folder tabs strip: SettingsSlider widget, 33px strip height, 9px horizontal padding (S2)
-- [ ] Folder tabs: semiboldTextStyle 14px, labelTop 7px (S2)
-- [ ] Folder tabs: inactive fg windowSubTextFg, active fg lightButtonFg (S2)
-- [ ] Folder tabs: 6px stroke underline indicator, 2px radius, at barTop 30px (S2)
-- [ ] Folder tabs: barFg transparent (no pill fill, only active underline) (S2)
-- [ ] Folder tabs: hover ripple bg windowBgOver, active ripple lightButtonBgOver (S2)
 
 ### 2.2 Search Bar
 - [ ] Search bar at top of sidebar with "Search" placeholder (S2)

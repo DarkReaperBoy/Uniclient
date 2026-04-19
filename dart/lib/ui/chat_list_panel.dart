@@ -497,110 +497,193 @@ class _SearchBar extends StatelessWidget {
 }
 
 /// Horizontal folder tabs shown when vertical sidebar is hidden.
-/// Spec §2: scrollable row, active tab with sliding underline.
-class _HorizontalFolderTabs extends StatelessWidget {
+/// Spec §2: SettingsSlider-style scrollable tab strip with sliding underline
+/// indicator. 33px strip height, 9px horizontal padding, 14px semibold labels.
+class _HorizontalFolderTabs extends StatefulWidget {
   final ChatState chatState;
   final int allUnread;
 
   const _HorizontalFolderTabs({required this.chatState, required this.allUnread});
 
   @override
+  State<_HorizontalFolderTabs> createState() => _HorizontalFolderTabsState();
+}
+
+class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
+    with TickerProviderStateMixin {
+  TabController? _tabController;
+
+  int get _tabCount => widget.chatState.folders.length + 1;
+
+  int get _activeIndex {
+    final id = widget.chatState.activeFolderId;
+    if (id == null) return 0;
+    final idx = widget.chatState.folders.indexWhere((f) => f.id == id);
+    return idx < 0 ? 0 : idx + 1;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncController();
+  }
+
+  void _syncController() {
+    final count = _tabCount;
+    final target = _activeIndex.clamp(0, count - 1);
+    if (_tabController != null && _tabController!.length == count) {
+      if (_tabController!.index != target) {
+        _tabController!.animateTo(target);
+      }
+      return;
+    }
+    _tabController?.dispose();
+    _tabController = TabController(
+      length: count,
+      vsync: this,
+      initialIndex: target,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _HorizontalFolderTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncController();
+  }
+
+  @override
+  void dispose() {
+    _tabController?.dispose();
+    super.dispose();
+  }
+
+  void _onTabTapped(int index) {
+    if (index == 0) {
+      widget.chatState.setActiveFolder(null);
+    } else {
+      final folders = widget.chatState.folders;
+      if (index - 1 < folders.length) {
+        widget.chatState.setActiveFolder(folders[index - 1].id);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final folders = chatState.folders;
-    final activeFolderId = chatState.activeFolderId;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Spec §2: active fg = lightButtonFg, inactive fg = windowSubTextFg
+    final activeColor =
+        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final inactiveColor =
+        isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
+    // Spec §2: hover bg = windowBgOver
+    final hoverColor =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
     return SizedBox(
-      height: 36,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 7),
-        children: [
-          // "All" tab (no folder filter — show all chats for this account).
-          _FolderChip(
-            label: 'All',
-            isActive: activeFolderId == null,
-            unreadCount: allUnread,
-            onTap: () => chatState.setActiveFolder(null),
-            theme: theme,
-          ),
-          ...folders.map((f) => _FolderChip(
-            label: f.name,
-            isActive: activeFolderId == f.id,
-            unreadCount: chatState.unreadCountForFolder(f.id),
-            onTap: () => chatState.setActiveFolder(
-              activeFolderId == f.id ? null : f.id,
+      height: 33,
+      child: Material(
+        type: MaterialType.transparency,
+        child: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          labelPadding: const EdgeInsets.symmetric(horizontal: 9),
+          labelColor: activeColor,
+          unselectedLabelColor: inactiveColor,
+          labelStyle:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          unselectedLabelStyle:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          indicator: _FolderTabIndicator(color: activeColor),
+          indicatorSize: TabBarIndicatorSize.label,
+          dividerColor: Colors.transparent,
+          splashFactory: InkRipple.splashFactory,
+          overlayColor: WidgetStateProperty.resolveWith((states) {
+            if (states.contains(WidgetState.hovered) ||
+                states.contains(WidgetState.pressed)) {
+              return hoverColor;
+            }
+            return Colors.transparent;
+          }),
+          onTap: _onTabTapped,
+          tabs: [
+            _buildTab('All', widget.allUnread),
+            ...widget.chatState.folders.map(
+              (f) => _buildTab(
+                  f.name, widget.chatState.unreadCountForFolder(f.id)),
             ),
-            theme: theme,
-          )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, int unread) {
+    return Tab(
+      height: 33,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label),
+          if (unread > 0) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: const Color(0xFF40A7E3),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                unread > 999 ? '999+' : '$unread',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _FolderChip extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final int unreadCount;
-  final VoidCallback onTap;
-  final ThemeData theme;
-
-  const _FolderChip({
-    required this.label,
-    required this.isActive,
-    required this.unreadCount,
-    required this.onTap,
-    required this.theme,
-  });
+/// Spec §2: rounded underline indicator for folder tabs — 3px tall,
+/// 2px top corner radius, painted at the bottom of the tab.
+class _FolderTabIndicator extends Decoration {
+  final Color color;
+  const _FolderTabIndicator({required this.color});
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            border: Border(
-              bottom: BorderSide(
-                color: isActive ? theme.colorScheme.primary : Colors.transparent,
-                width: 2,
-              ),
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                  color: isActive ? theme.colorScheme.primary : theme.textTheme.bodySmall?.color,
-                ),
-              ),
-              if (unreadCount > 0) ...[
-                const SizedBox(width: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primary,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    unreadCount > 999 ? '999+' : '$unreadCount',
-                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) {
+    return _FolderTabIndicatorPainter(color: color);
+  }
+}
+
+class _FolderTabIndicatorPainter extends BoxPainter {
+  final Color color;
+  _FolderTabIndicatorPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size!;
+    final rect = Rect.fromLTWH(
+      offset.dx,
+      offset.dy + size.height - 3,
+      size.width,
+      3,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndCorners(
+        rect,
+        topLeft: const Radius.circular(2),
+        topRight: const Radius.circular(2),
       ),
+      Paint()..color = color,
     );
   }
 }
