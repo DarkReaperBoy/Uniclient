@@ -13,6 +13,7 @@ struct _MyApplication {
   char** dart_entrypoint_arguments;
   GtkWindow* window;
   FlMethodChannel* tray_channel;
+  FlMethodChannel* window_channel;
 #ifdef HAVE_APPINDICATOR
   AppIndicator* indicator;
   GtkWidget* tray_menu;
@@ -221,6 +222,118 @@ static gboolean on_window_delete(GtkWidget* /*widget*/,
   return FALSE;  // Allow normal close.
 }
 
+// ── Window control method channel ──
+
+// Track maximize state changes and notify Dart.
+static gboolean on_window_state(GtkWidget* /*widget*/,
+                                GdkEventWindowState* event,
+                                gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (event->changed_mask & GDK_WINDOW_STATE_MAXIMIZED) {
+    gboolean maximized =
+        (event->new_window_state & GDK_WINDOW_STATE_MAXIMIZED) != 0;
+    if (self->window_channel) {
+      g_autoptr(FlValue) args = fl_value_new_bool(maximized);
+      fl_method_channel_invoke_method(self->window_channel, "maximizeChanged",
+                                     args, nullptr, nullptr, nullptr);
+    }
+  }
+  return FALSE;
+}
+
+static void window_method_call_handler(FlMethodChannel* /*channel*/,
+                                       FlMethodCall* method_call,
+                                       gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+
+  if (g_strcmp0(method, "close") == 0) {
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+    if (self->window) gtk_widget_destroy(GTK_WIDGET(self->window));
+  } else if (g_strcmp0(method, "minimize") == 0) {
+    if (self->window) gtk_window_iconify(self->window);
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "maximize") == 0) {
+    if (self->window) {
+      if (gtk_window_is_maximized(self->window))
+        gtk_window_unmaximize(self->window);
+      else
+        gtk_window_maximize(self->window);
+    }
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "isMaximized") == 0) {
+    gboolean maximized =
+        self->window ? gtk_window_is_maximized(self->window) : FALSE;
+    g_autoptr(FlValue) result = fl_value_new_bool(maximized);
+    fl_method_call_respond_success(method_call, result, nullptr);
+  } else if (g_strcmp0(method, "setDecorated") == 0) {
+    // Toggle between native system frame and client-side (custom) titlebar.
+    // Spec §1: NativeWindowFrameSupported() is true on Linux.
+    FlValue* args = fl_method_call_get_args(method_call);
+    gboolean decorated = fl_value_get_bool(args);
+    if (self->window) {
+      gtk_window_set_decorated(self->window, decorated);
+    }
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "startDrag") == 0) {
+    // Respond first, then start the drag — begin_move_drag may redirect
+    // the event loop so the response must be sent beforehand.
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
+    if (self->window) {
+      GdkDevice* device = gdk_seat_get_pointer(
+          gdk_display_get_default_seat(gdk_display_get_default()));
+      gint x, y;
+      gdk_device_get_position(device, NULL, &x, &y);
+      gtk_window_begin_move_drag(self->window, 1, x, y, GDK_CURRENT_TIME);
+    }
+  } else if (g_strcmp0(method, "getButtonLayout") == 0) {
+    // Spec §1: read button layout from desktop environment at runtime.
+    // GtkSettings aggregates Gtk/DecorationLayout from XSettings (X11) and
+    // the XDG desktop portal (Wayland) automatically.
+    GtkSettings* settings = gtk_settings_get_default();
+    gchar* layout = NULL;
+    if (settings) {
+      g_object_get(settings, "gtk-decoration-layout", &layout, NULL);
+    }
+    if (layout && layout[0] != '\0') {
+      g_autoptr(FlValue) result = fl_value_new_string(layout);
+      fl_method_call_respond_success(method_call, result, nullptr);
+      g_free(layout);
+    } else {
+      g_free(layout);
+      // Fallback: Windows-style right-side buttons (spec §1 default).
+      g_autoptr(FlValue) result = fl_value_new_string(":minimize,maximize,close");
+      fl_method_call_respond_success(method_call, result, nullptr);
+    }
+  } else {
+    fl_method_call_respond_not_implemented(method_call, nullptr);
+  }
+}
+
+// Callback for live gtk-decoration-layout changes — pushes to Dart.
+static void on_decoration_layout_changed(GObject* /*settings*/,
+                                         GParamSpec* /*pspec*/,
+                                         gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (!self->window_channel) return;
+  GtkSettings* settings = gtk_settings_get_default();
+  gchar* layout = NULL;
+  if (settings) {
+    g_object_get(settings, "gtk-decoration-layout", &layout, NULL);
+  }
+  if (layout && layout[0] != '\0') {
+    g_autoptr(FlValue) args = fl_value_new_string(layout);
+    fl_method_channel_invoke_method(self->window_channel, "buttonLayoutChanged",
+                                   args, nullptr, nullptr, nullptr);
+    g_free(layout);
+  } else {
+    g_free(layout);
+    g_autoptr(FlValue) args = fl_value_new_string(":minimize,maximize,close");
+    fl_method_channel_invoke_method(self->window_channel, "buttonLayoutChanged",
+                                   args, nullptr, nullptr, nullptr);
+  }
+}
+
 // Implements GApplication::activate.
 // Called on first launch AND when a second instance tries to start.
 static void my_application_activate(GApplication* application) {
@@ -242,11 +355,9 @@ static void my_application_activate(GApplication* application) {
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
   self->window = window;
 
-  GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
-  gtk_widget_show(GTK_WIDGET(header_bar));
-  gtk_header_bar_set_title(header_bar, "UniClient");
-  gtk_header_bar_set_show_close_button(header_bar, TRUE);
-  gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
+  // Spec §1: Custom client-side titlebar by default — remove WM decorations.
+  // Flutter draws its own titlebar (CustomTitlebar widget).
+  gtk_window_set_decorated(window, FALSE);
 
   // Spec §1: Default 800x600, large-screen default 1024x768, minimum 380x480.
   int def_w = 800, def_h = 600;
@@ -298,6 +409,24 @@ static void my_application_activate(GApplication* application) {
       messenger, "com.uniclient.app/tray", FL_METHOD_CODEC(codec));
   fl_method_channel_set_method_call_handler(
       self->tray_channel, tray_method_call_handler, self, nullptr);
+
+  // Window control method channel (minimize, maximize, close, drag).
+  g_autoptr(FlStandardMethodCodec) window_codec = fl_standard_method_codec_new();
+  self->window_channel = fl_method_channel_new(
+      messenger, "com.uniclient.app/window", FL_METHOD_CODEC(window_codec));
+  fl_method_channel_set_method_call_handler(
+      self->window_channel, window_method_call_handler, self, nullptr);
+
+  // Track maximize state changes to notify Dart.
+  g_signal_connect(window, "window-state-event",
+                   G_CALLBACK(on_window_state), self);
+
+  // Watch for live gtk-decoration-layout changes and push to Dart.
+  GtkSettings* gtk_settings = gtk_settings_get_default();
+  if (gtk_settings) {
+    g_signal_connect(gtk_settings, "notify::gtk-decoration-layout",
+                     G_CALLBACK(on_decoration_layout_changed), self);
+  }
 
 #ifdef HAVE_APPINDICATOR
   init_tray(self);
@@ -356,6 +485,7 @@ static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   g_clear_object(&self->tray_channel);
+  g_clear_object(&self->window_channel);
 #ifdef HAVE_APPINDICATOR
   g_clear_object(&self->indicator);
   if (self->tray_menu) {
@@ -377,6 +507,7 @@ static void my_application_class_init(MyApplicationClass* klass) {
 static void my_application_init(MyApplication* self) {
   self->window = nullptr;
   self->tray_channel = nullptr;
+  self->window_channel = nullptr;
 #ifdef HAVE_APPINDICATOR
   self->indicator = nullptr;
   self->tray_menu = nullptr;

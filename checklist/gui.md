@@ -24,8 +24,6 @@
 ## 1. Window Layout & Column Structure
 
 ### 1.5 Linux Titlebar
-- [ ] Window control button layout read from desktop environment at runtime (S1)
-- [ ] GNOME layout support: parse appmenu:close format (S1)
 
 ### 1.6 Animations
 - [ ] Column width change animation: easeOutCirc, ~150-200ms (S1)
