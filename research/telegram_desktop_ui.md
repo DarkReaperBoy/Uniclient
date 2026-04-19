@@ -5893,6 +5893,225 @@ Scheduled messages work within forum topics. The `ScheduledWidget` can be constr
 | Published toast "View" button height | 52px |
 | Request cooldown | 60000ms |
 
+### 23.12 Gap Fills (session 2026-04-19)
+
+Five pending §23 gaps (RTL layout, repeat-period menu visuals, processing-video tip shape, published toast exact px, silent indicator tooltip) resolved against `AyuGram/AyuGramDesktop/dev` source. Findings below cite exact `file:line` references.
+
+#### 23.12.1 RTL layout of Date / "at" / Time row
+
+Source: `Telegram/SourceFiles/ui/boxes/choose_date_time.cpp:127-150` (layout math). Full-file search for `rtl`, `layoutDirection`, `Qt::LayoutDirection`, `isLeftToRight`, `style::RightToLeft` in both `choose_date_time.cpp` and `history/view/history_view_schedule_box.cpp` returns **zero matches** — there is no explicit RTL branch anywhere in the schedule code.
+
+The three inline widgets (`scheduleDateField`, `scheduleAtLabel`, `scheduleTimeField`) are positioned exclusively with `moveToLeft()` using symmetric math:
+
+```cpp
+// choose_date_time.cpp :127-150 (verbatim)
+state->at->widthValue() | rpl::on_next([=](int width) {
+    const auto full = st::scheduleDateWidth
+        + st::scheduleAtSkip + width
+        + st::scheduleAtSkip + st::scheduleTimeWidth;
+    content->setNaturalWidth(full);
+    state->width = full;
+}, state->at->lifetime());
+
+content->widthValue() | rpl::on_next([=](int width) {
+    const auto paddings = width
+        - state->at->width()
+        - 2 * st::scheduleAtSkip
+        - st::scheduleDateWidth
+        - st::scheduleTimeWidth;
+    const auto left = paddings / 2;
+    state->date->moveToLeft(left, st::scheduleDateTop, width);
+    state->at->moveToLeft(
+        left + st::scheduleDateWidth + st::scheduleAtSkip, ...);
+    state->time->moveToLeft(
+        width - left - st::scheduleTimeWidth, ...);
+});
+```
+
+**Resolved:** `scheduleAtSkip` is applied symmetrically on both sides of the "at" label (see `2 * st::scheduleAtSkip` in `paddings` and the mirrored `left + ... + skip` / `width - left - ...` positioning). Because `moveToLeft` in Qt/GTK-wrapped `RpWidget` is itself RTL-aware (the DPI/RTL-mirrored helper), the row **flips as a unit** under RTL locales without any explicit branch in this file: under RTL the Time field appears on the left, the Date field on the right, and the "at" label stays centered between them.
+
+**Unresolved for direct-clone:** There is no RTL-specific pixel override or asymmetric padding. A 1:1 Flutter port should use `Directionality.of(context) == TextDirection.rtl` to swap the Date and Time slots (keeping `scheduleAtSkip = 24px` on both sides) and rely on the framework's native RTL text flow — this matches the observed behaviour (no explicit RTL code exists in the Desktop source because `moveToLeft` already handles it).
+
+#### 23.12.2 Repeat-period menu visuals
+
+Source: `Telegram/SourceFiles/ui/boxes/choose_date_time.cpp` — `ChooseRepeatPeriod()` (lines ~220-330).
+
+| Property | Value / token |
+|---|---|
+| Menu construct | `state->menu = std::make_unique<Ui::PopupMenu>(label);` — **no style token passed** (defaults to `st::defaultPopupMenu`, NOT `st::popupMenuWithIcons`) |
+| Parent widget | The clickable `Ui::FlatLabel` (the "Repeat: {period}" label row) |
+| Popup position | `menu->popup(QCursor::pos());` — opens at cursor, not anchored to the label's bottom-left |
+| addAction form | `menu->addAction(entry.text, [=] { ... });` — **2-arg form, no icon argument** |
+| Selected-tick | **None rendered.** The current period is communicated only by updating the label text after selection (no checkmark icon in the menu) |
+| Animation timing | Inherits `st::defaultPopupMenu` defaults (standard ~150ms show / ~120ms hide PopupMenu fade+grow) |
+
+**Period entries** (iterated from an `std::vector<Entry>`; each entry is `{TimeId value, QString text}`):
+
+| value (sec) | tr key |
+|---|---|
+| 0 | `tr::lng_schedule_repeat_never` |
+| 60 | (test-mode only) `tr::lng_schedule_repeat_minute` |
+| 300 | (test-mode only) `tr::lng_schedule_repeat_5_minutes` |
+| 86400 | `tr::lng_schedule_repeat_daily` |
+| 604800 | `tr::lng_schedule_repeat_weekly` |
+| 1209600 | `tr::lng_schedule_repeat_biweekly` |
+| 2592000 | `tr::lng_schedule_repeat_monthly` |
+| 7862400 | `tr::lng_schedule_repeat_3_months` |
+| 15724800 | `tr::lng_schedule_repeat_6_months` |
+| 31536000 | `tr::lng_schedule_repeat_yearly` |
+
+**Correction to existing spec (line 5655):** The existing description implies the dropdown opens a full icon-menu. In reality the PopupMenu is the **default style** (no icons), and entries are plain text. The `scheduleRepeatDropdownArrow` / `scheduleRepeatDropdownLock` icons are rendered **inline inside the label itself** (via `Ui::Text::SingleCustomEmoji` wrapping an icon), NOT as menu-item icons. The label style combines `tr::lng_schedule_repeat_label` with a marked-text placeholder that receives either the lock or arrow glyph depending on `state->locked`.
+
+#### 23.12.3 Processing-video tip shape
+
+Source: `Telegram/SourceFiles/history/view/history_view_scheduled_section.cpp` `showProcessingVideoTooltip()` lines 1280-1310; preceding toast at lines 1111-1119.
+
+**Two-stage flow:**
+
+**Stage 1 — Top-attached toast** (lines 1111-1119):
+```cpp
+controller()->showToast({
+    .title = tr::lng_scheduled_video_tip_title(tr::now),
+    .text  = { tr::lng_scheduled_video_tip_text(tr::now) },
+    .attach = RectPart::Top,
+    .duration = kVideoProcessingInfoDuration,   // 4000 ms
+});
+```
+Uses the default `showToast` path — standard framed title+body toast, top-attached.
+
+**Stage 2 — ImportantTooltip bubble** (lines 1282-1309):
+```cpp
+_processingVideoTooltip = std::make_unique<Ui::ImportantTooltip>(
+    _inner.data(),
+    Ui::MakeNiceTooltipLabel(
+        _inner.data(),
+        tr::lng_scheduled_video_tip(tr::marked),
+        st::processingVideoTipMaxWidth,
+        st::defaultImportantTooltipLabel),
+    st::defaultImportantTooltip);
+tooltip->setAttribute(Qt::WA_TransparentForMouseEvents);
+const auto shift = view->skipBlockWidth() / 2;
+const auto rect = view->effectIconGeometry().translated(shift, 0);
+tooltip->pointAt(rect, RectPart::Top, countPosition);
+tooltip->toggleAnimated(true);
+_processingVideoTipTimer.setCallback([=]{ tooltip->toggleAnimated(false); });
+_processingVideoTipTimer.callOnce(kVideoProcessingInfoDuration); // 4000 ms
+```
+
+| Property | Value |
+|---|---|
+| Shape | `Ui::ImportantTooltip` — rounded rectangle with downward-pointing tail (triangular arrow) — style `st::defaultImportantTooltip` |
+| Label style | `st::defaultImportantTooltipLabel` (inherits `defaultImportantTooltip.textStyle`) |
+| Max width | `st::processingVideoTipMaxWidth = 364px` (matches schedule box width) |
+| Anchor | `RectPart::Top` of `view->effectIconGeometry()` (bubble's effect/reaction icon), translated by half the skip-block width |
+| Vertical offset | `size.height() + st::processingVideoTipShift` (8px gap) — tooltip appears ABOVE the icon |
+| Mouse passthrough | `Qt::WA_TransparentForMouseEvents` — user cannot click/hover the tip |
+| Text key | `tr::lng_scheduled_video_tip` (marked-text variant for entities) |
+| Auto-hide | `toggleAnimated(false)` fired 4000ms after show |
+| Font/color | Inherited from `st::defaultImportantTooltip` — white text on semi-transparent dark bubble (standard "important tooltip" appearance) |
+
+**Unresolved for direct-clone:** Exact radius, padding, and colour hex of `st::defaultImportantTooltip` require the `ui/widgets/tooltip.style` or palette definition, which lives in the shared `lib_ui` submodule, not in-tree. Flutter port should mimic: dark rounded rectangle (≈8px radius), 10–12px inner padding, small arrow tail, ~0.9 opacity, white foreground, non-hittable.
+
+#### 23.12.4 Published toast exact px
+
+Source: `Telegram/SourceFiles/history/view/history_view_scheduled_section.cpp` `ShowScheduledVideoPublished()` lines 1354-1430.
+
+**Verbatim construction:**
+
+```cpp
+const auto view = tr::lng_scheduled_video_view(tr::now);              // :1363
+const auto skip = st::processingVideoPreviewSkip;                     // :1366
+const auto size = st::processingVideoToast.style.font->height * 2;    // :1367
+const auto additional = QMargins(
+    skip + size,
+    0,
+    (st::processingVideoView.style.font->width(view)
+        - (st::processingVideoView.width / 2)),
+    0);                                                               // :1370-1375
+Ui::Toast::Show(parent, Ui::Toast::Config{
+    .text     = text,
+    .padding  = rpl::single(additional),
+    .st       = &st::processingVideoToast,
+    .attach   = RectPart::Top,
+    .acceptinput = true,
+    .duration = kVideoProcessingInfoDuration,                          // 4000 ms
+});                                                                    // :1381-1388
+
+const auto preview = Ui::CreateChild<Ui::RpWidget>(widget.get());
+preview->moveToLeft(skip, skip);                                       // :1390
+preview->resize(size, size);
+
+const auto button = Ui::CreateChild<Ui::RoundButton>(
+    widget.get(), rpl::single(view), st::processingVideoView);         // :1378-1381
+rpl::combine(widget->sizeValue(), button->sizeValue())
+    | rpl::on_next([=](QSize outer, QSize inner) {
+        button->moveToRight(0,
+            (outer.height() - inner.height()) / 2, outer.width());
+    });                                                                // :1384-1387
+
+const auto image = Images::Round(
+    thumbnail->image(size),
+    ImageRoundRadius::Small);                                          // :1399-1403
+```
+
+**Resolved metrics table:**
+
+| Property | Value | Source |
+|---|---|---|
+| Toast style token | `st::processingVideoToast` | :1373 |
+| Attach | `RectPart::Top` (top-attached) | :1383 |
+| Duration | `kVideoProcessingInfoDuration = 4000ms` | :45, :1387 |
+| Max width | 380px (existing spec) | :5890 |
+| Min width | 32px (existing spec) | :5889 |
+| Base padding | `19/17/19/17` px (existing spec) | :5891 |
+| Extra left padding | `skip + size` = `8 + (font.height * 2)` ≈ 8 + 26..32px — reserves space for thumbnail | :1370-1371 |
+| Extra right padding | `font.width(view) - (processingVideoView.width / 2)` — reserves space for the "View" button | :1372-1374 |
+| Preview skip | `processingVideoPreviewSkip = 8px` | :1366 |
+| Preview position | `moveToLeft(8, 8)` — top-left corner inside toast | :1390 |
+| Preview size | `font.height * 2` (≈26–28px for default font) | :1367 |
+| Preview radius | `ImageRoundRadius::Small` — shared small-image radius (typically 4px) | :1399-1403 |
+| Bold title text | `tr::lng_scheduled_video_published(tr::now)` | existing spec :5831 |
+| Button style | `st::processingVideoView` (RoundButton style) | :1381 |
+| Button label | `tr::lng_scheduled_video_view` | :1363 |
+| Button height | 52px (existing spec) | :5893 |
+| Button position | `moveToRight(0, (outerH - innerH)/2, outerW)` — right-aligned, vertically centered | :1386 |
+| Dismiss on right-click | `acceptinput = true` + right-click handler hides early | :1384, :1404 |
+
+**Correction to existing spec (lines 5830–5837, 5893):**
+- Line 5830 "approximately 26-28px" — correct source formula is `st::processingVideoToast.style.font->height * 2` (exact value depends on the toast's font-height in the active palette, ≈24–32px range).
+- Line 5832 describes the "View" button as `processingVideoView` style with `-24px width padding, 52px height`; the **style token** is confirmed, but exact `width` / `padding` values require the `.style` palette file (in shared `lib_ui` submodule, not in-tree).
+- Line 5836: right-click dismiss confirmed at :1404 (`weak->hideAnimated()`).
+
+**Unresolved for direct-clone:** Background colour hex and corner radius of `st::processingVideoToast` live in a `.style` palette under the shared `lib_ui` submodule. Flutter clone should use the standard dark toast background (same as `defaultToast`: dark grey ~`#2E333Fcc`, ~8px radius) with 19/17 vertical/horizontal outer padding and `8+size` / `font.width(view) - procView.width/2` extra insets for the thumbnail and button slots.
+
+#### 23.12.5 Silent indicator tooltip
+
+Source: `Telegram/SourceFiles/history/view/history_view_element.cpp` `DateTooltipText()` lines 1049-1091 (specifically 1086-1087).
+
+**There is NO dedicated visual marker on the bubble or in the scheduled list.** The silent status of a scheduled message is communicated **only via the hover tooltip of the bottom-info timestamp**:
+
+```cpp
+// history_view_element.cpp :1086-1087 (verbatim)
+if (item->isScheduled() && item->isSilent()) {
+    dateText += '\n' + QChar(0xD83D) + QChar(0xDD15);
+}
+```
+
+- Character appended: U+1F515 🔕 MUTED BELL (encoded as the UTF-16 surrogate pair 0xD83D + 0xDD15).
+- Placement: a new line (`'\n'`) at the end of the existing `dateText` tooltip body.
+- Trigger condition: **both** `isScheduled()` AND `isSilent()` must be true — silent *non-scheduled* messages do NOT show this marker; non-silent scheduled messages also do not.
+- Anchor: the standard bottom-info date tooltip, hover-triggered via `Element::showInfoTooltip()`.
+- Font: inherits the default message-info tooltip font (`st::dialogsForwardFont` / system tooltip font — exact token unresolved without the palette file).
+
+**No dedicated `tr::lng_*` key** — it is a literal emoji append, not a localized string. The localized label for the silent-send toggle at send-time is `tr::lng_scheduled_send_silent_message`; the scheduled-list indicator is purely the emoji.
+
+**Correction to existing spec (lines 5742–5748):**
+- Line 5744 "a muted bell emoji (U+1F515) is appended to the tooltip date text on a new line" — **confirmed exactly** by `:1086-1087`.
+- Line 5748 "Silent messages add the muted-bell emoji" — **qualify**: only *scheduled* silent messages. A non-scheduled silent message does NOT receive this tooltip marker.
+- No bubble-level badge, no list-level icon, no separate tooltip text — the existing spec's description is complete, but should explicitly state: "no on-bubble visual indicator; hover tooltip only" to prevent the clone from inventing a bubble badge.
+
+**Unresolved for direct-clone:** Exact tooltip font / padding / background are governed by the shared `Ui::Tooltip` style (lib_ui submodule). Flutter port: append `'\n🔕'` to the tooltip string when `item.isScheduled && item.isSilent`; render via the standard bubble-timestamp tooltip widget used everywhere else.
+
 ---
 
 ## 24. Keyboard Shortcuts
