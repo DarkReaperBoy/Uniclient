@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -263,7 +264,8 @@ class ChatListRow extends StatelessWidget {
   ];
 }
 
-/// Circular avatar with fallback color + initials + online dot.
+/// Circular avatar with fallback color + initials + online dot + stories ring.
+/// Spec §2: stories ring shrinks photo to 42px in full/expanded mode.
 class _ChatAvatar extends StatelessWidget {
   final ChatInfo chat;
   final double size;
@@ -271,61 +273,92 @@ class _ChatAvatar extends StatelessWidget {
 
   const _ChatAvatar({required this.chat, required this.size, this.isOnline = false});
 
+  // Spec §2: full/expanded stories ring geometry.
+  static const _storyPhotoSize = 42.0;
+  static const _unreadLineWidth = 2.0;
+  static const _readLineWidth = 1.0;
+
+  bool get _hasStories => chat.storyCount > 0;
+
   @override
   Widget build(BuildContext context) {
-    // Assign a color based on chat ID hash (7-color scheme from spec).
     final colorIndex = chat.chatId.hashCode.abs() % 7;
     final color = _avatarColors[colorIndex];
-
     final initials = _initials(chat.title);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final photoSize = _hasStories ? _storyPhotoSize : size;
 
     final avatar = chat.avatarPath.isNotEmpty
         ? ClipOval(
             child: Image.file(
               File(chat.avatarPath),
-              width: size,
-              height: size,
+              width: photoSize,
+              height: photoSize,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _fallback(color, initials),
+              errorBuilder: (_, __, ___) => _fallback(color, initials, photoSize),
             ),
           )
-        : _fallback(color, initials);
+        : _fallback(color, initials, photoSize);
 
-    if (!isOnline) {
+    // No stories, no online dot — simple case.
+    if (!_hasStories && !isOnline) {
       return SizedBox(width: size, height: size, child: avatar);
     }
 
-    // Online: overlay green dot at bottom-right.
-    const dotSize = 12.0;
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
+
     return SizedBox(
       width: size,
       height: size,
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
-          avatar,
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Container(
-              width: dotSize,
-              height: dotSize,
-              decoration: BoxDecoration(
-                color: const Color(0xFF4dc920), // Spec §2: #4dc920 green
-                shape: BoxShape.circle,
-                border: Border.all(color: bgColor, width: 3), // Spec §2: 3px white stroke
+          // Stories ring (painted behind the avatar).
+          if (_hasStories)
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _StoriesRingPainter(
+                  storyCount: chat.storyCount,
+                  hasUnread: chat.hasUnreadStory,
+                  isLiveStream: chat.isLiveStream,
+                  isDark: isDark,
+                ),
               ),
             ),
-          ),
+          // Avatar photo, centered (shrunk to 42px when stories present).
+          if (_hasStories)
+            Positioned(
+              left: (size - photoSize) / 2,
+              top: (size - photoSize) / 2,
+              child: avatar,
+            )
+          else
+            avatar,
+          // Online dot at bottom-right.
+          if (isOnline && !_hasStories)
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4dc920),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: bgColor, width: 3),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
 
-  Widget _fallback(Color color, String initials) {
+  Widget _fallback(Color color, String initials, double photoSize) {
     return Container(
-      width: size,
-      height: size,
+      width: photoSize,
+      height: photoSize,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
@@ -335,7 +368,7 @@ class _ChatAvatar extends StatelessWidget {
         initials,
         style: TextStyle(
           color: Colors.white,
-          fontSize: size * 0.38,
+          fontSize: photoSize * 0.38,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -352,7 +385,6 @@ class _ChatAvatar extends StatelessWidget {
     return t[0].toUpperCase();
   }
 
-  // 7 colors matching Telegram's peer color scheme.
   static const _avatarColors = [
     Color(0xFFe17076), // red
     Color(0xFF7bc862), // green
@@ -362,6 +394,96 @@ class _ChatAvatar extends StatelessWidget {
     Color(0xFFee7aae), // pink
     Color(0xFF6ec9cb), // cyan
   ];
+}
+
+/// Custom painter for stories ring around chat list avatars.
+/// Spec §2 full/expanded mode: photo 42px, unread line 2px, read line 1px,
+/// ring offset outside userpic by 1.5 × lineWidth.
+class _StoriesRingPainter extends CustomPainter {
+  final int storyCount;
+  final bool hasUnread;
+  final bool isLiveStream;
+  final bool isDark;
+
+  _StoriesRingPainter({
+    required this.storyCount,
+    required this.hasUnread,
+    required this.isLiveStream,
+    required this.isDark,
+  });
+
+  static const _photoRadius = 21.0; // 42px / 2
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (storyCount <= 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final lineWidth = hasUnread
+        ? _ChatAvatar._unreadLineWidth
+        : _ChatAvatar._readLineWidth;
+    final offset = 1.5 * lineWidth;
+    // Ring center radius: photo edge + offset.
+    final ringRadius = _photoRadius + offset;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = lineWidth
+      ..strokeCap = StrokeCap.round;
+
+    if (isLiveStream) {
+      // Spec §2: live-stream ring = solid attentionButtonFg (red).
+      paint.color = const Color(0xFFe53935);
+    } else if (hasUnread) {
+      // Spec §2: unread gradient topRight→bottomLeft, green→blue.
+      // Full gradient is a separate checklist item; use solid Telegram blue
+      // as a spec-accurate visible stand-in for the geometry check.
+      paint.color = const Color(0xFF40a7e3);
+    } else {
+      // Spec §2: read ring = solid dialogsUnreadBgMuted.
+      paint.color = isDark
+          ? const Color(0xFF3e546a)
+          : const Color(0xFFbbbbbb);
+    }
+
+    if (storyCount == 1) {
+      // Spec §2: single story = full ellipse.
+      canvas.drawCircle(center, ringRadius, paint);
+    } else {
+      // Spec §2: multi-story ring = segments with ~160-unit separators,
+      // round caps. Full segmentation is a separate checklist item;
+      // draw full circle for now (geometry is correct either way).
+      _drawSegmentedRing(canvas, center, ringRadius, paint);
+    }
+  }
+
+  /// Draw segmented ring arcs for multi-story rings.
+  /// Spec §2: ~160 out of 5760 units (full circle) per separator, round caps.
+  void _drawSegmentedRing(
+      Canvas canvas, Offset center, double radius, Paint paint) {
+    // 5760 units = full circle (Qt convention), separator = ~160 units.
+    const fullCircleUnits = 5760.0;
+    const separatorUnits = 160.0;
+    final separatorRadians = (separatorUnits / fullCircleUnits) * 2 * math.pi;
+    final totalSep = storyCount * separatorRadians;
+    final arcPerStory = (2 * math.pi - totalSep) / storyCount;
+
+    // Start from top (−π/2).
+    var startAngle = -math.pi / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    for (var i = 0; i < storyCount; i++) {
+      canvas.drawArc(rect, startAngle, arcPerStory, false, paint);
+      startAngle += arcPerStory + separatorRadians;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StoriesRingPainter oldDelegate) =>
+      storyCount != oldDelegate.storyCount ||
+      hasUnread != oldDelegate.hasUnread ||
+      isLiveStream != oldDelegate.isLiveStream ||
+      isDark != oldDelegate.isDark;
 }
 
 /// Pill-shaped unread count badge.

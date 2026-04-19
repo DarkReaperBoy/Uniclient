@@ -181,6 +181,9 @@ class ChatInfo {
   final int memberCount;
   final String parentId;
   final String parentTitle;
+  final int storyCount;
+  final bool hasUnreadStory;
+  final bool isLiveStream;
 
   const ChatInfo({
     required this.accountId,
@@ -201,6 +204,9 @@ class ChatInfo {
     this.memberCount = 0,
     this.parentId = '',
     this.parentTitle = '',
+    this.storyCount = 0,
+    this.hasUnreadStory = false,
+    this.isLiveStream = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -222,6 +228,9 @@ class ChatInfo {
     memberCount: j['member_count'] as int? ?? 0,
     parentId: j['parent_id'] as String? ?? '',
     parentTitle: safeStr(j['parent_title'] as String? ?? ''),
+    storyCount: j['story_count'] as int? ?? 0,
+    hasUnreadStory: j['has_unread_story'] as bool? ?? false,
+    isLiveStream: j['is_live_stream'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.

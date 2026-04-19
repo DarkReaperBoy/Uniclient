@@ -36,7 +36,6 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Stories ring (full/expanded): photo 42px, unread line 2px, read line 1px (S2)
 - [ ] Stories ring (small/minified): photo 21px, unread line 1.5px, read line not drawn (S2)
 - [ ] Stories ring offset outside userpic by 1.5x lineWidth (S2)
 - [ ] Multi-story ring: segments with ~160-unit separators and round caps (S2)
