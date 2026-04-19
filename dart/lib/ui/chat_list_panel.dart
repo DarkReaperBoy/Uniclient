@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -512,6 +513,7 @@ class _HorizontalFolderTabs extends StatefulWidget {
 class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     with TickerProviderStateMixin {
   TabController? _tabController;
+  final GlobalKey _firstTabKey = GlobalKey();
 
   int get _tabCount => widget.chatState.folders.length + 1;
 
@@ -568,6 +570,26 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     }
   }
 
+  /// Spec §2: redirect vertical mouse-wheel to horizontal scroll on the
+  /// folder tab strip. If horizontal delta is already present (trackpad
+  /// swipe), let it pass through to the internal horizontal scrollable.
+  void _handlePointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent) {
+      if (event.scrollDelta.dx.abs() > 0 || event.scrollDelta.dy == 0) return;
+      final ctx = _firstTabKey.currentContext;
+      if (ctx == null) return;
+      final scrollable = Scrollable.maybeOf(ctx);
+      if (scrollable == null) return;
+      final position = scrollable.position;
+      position.jumpTo(
+        (position.pixels + event.scrollDelta.dy).clamp(
+          position.minScrollExtent,
+          position.maxScrollExtent,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -581,41 +603,47 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     final hoverColor =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
-    return SizedBox(
-      height: 33,
-      child: Material(
-        type: MaterialType.transparency,
-        child: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          padding: const EdgeInsets.symmetric(horizontal: 9),
-          labelPadding: const EdgeInsets.symmetric(horizontal: 9),
-          labelColor: activeColor,
-          unselectedLabelColor: inactiveColor,
-          labelStyle:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          unselectedLabelStyle:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-          indicator: _FolderTabIndicator(color: activeColor),
-          indicatorSize: TabBarIndicatorSize.label,
-          dividerColor: Colors.transparent,
-          splashFactory: InkRipple.splashFactory,
-          overlayColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.hovered) ||
-                states.contains(WidgetState.pressed)) {
-              return hoverColor;
-            }
-            return Colors.transparent;
-          }),
-          onTap: _onTabTapped,
-          tabs: [
-            _buildTab('All', widget.allUnread),
-            ...widget.chatState.folders.map(
-              (f) => _buildTab(
-                  f.name, widget.chatState.unreadCountForFolder(f.id)),
-            ),
-          ],
+    return Listener(
+      onPointerSignal: _handlePointerSignal,
+      child: SizedBox(
+        height: 33,
+        child: Material(
+          type: MaterialType.transparency,
+          child: TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            labelPadding: const EdgeInsets.symmetric(horizontal: 9),
+            labelColor: activeColor,
+            unselectedLabelColor: inactiveColor,
+            labelStyle:
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            unselectedLabelStyle:
+                const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            indicator: _FolderTabIndicator(color: activeColor),
+            indicatorSize: TabBarIndicatorSize.label,
+            dividerColor: Colors.transparent,
+            splashFactory: InkRipple.splashFactory,
+            overlayColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.pressed)) {
+                return hoverColor;
+              }
+              return Colors.transparent;
+            }),
+            onTap: _onTabTapped,
+            tabs: [
+              KeyedSubtree(
+                key: _firstTabKey,
+                child: _buildTab('All', widget.allUnread),
+              ),
+              ...widget.chatState.folders.map(
+                (f) => _buildTab(
+                    f.name, widget.chatState.unreadCountForFolder(f.id)),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -32,7 +32,6 @@
 ## 2. Chat List Sidebar
 
 ### 2.1 Folder Tabs
-- [ ] Horizontal tab strip: mouse-wheel horizontal scrolling redirected (S2)
 - [ ] Horizontal tab strip: right-click context menu (edit, remove, setup) (S2)
 - [ ] Horizontal tab strip: drag reorder (S2)
 
