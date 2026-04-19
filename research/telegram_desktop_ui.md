@@ -19844,16 +19844,98 @@ The output is a `QStringList` of detected URLs and a `std::vector<MessageLinkRan
 
 ### 46.2 Preview Card
 
-The preview appears as the `FieldHeader` widget, positioned directly above the compose field. It is a fixed-height bar of `st::historyReplyHeight` pixels (same height as the reply bar).
+The preview appears as the `FieldHeader` widget, positioned directly above the
+compose field (`history_view_compose_controls.cpp:164` defines the class,
+`:302-305` constructs it and calls
+`resize(QSize(parent->width(), st::historyReplyHeight))`). It is a fixed-height
+bar of **49 px** (`historyReplyHeight: 49px;` —
+`Telegram/SourceFiles/chat_helpers/chat_helpers.style:1015`) and stretches
+full-width with the parent compose container.
 
-**Layout (left to right):**
-1. **Colored vertical bar** — `st::historyLinkIcon` painted at the left edge (a link icon, analogous to the reply icon position).
-2. **Thumbnail** — If the webpage has a photo or document with a thumbnail, it is drawn as a square preview at position `(st::historyReplySkip, centered-vertically)`, size `st::historyReplyPreview × st::historyReplyPreview`. The image is center-cropped to square. If no thumbnail is available, this space is skipped and text starts at `st::historyReplySkip`.
-3. **Title** — Drawn in `st::historyReplyNameFg` color using `st::msgNameStyle`. Shows the site name (preferred), or title, or description, or author, following a priority cascade in `TitleAndDescriptionFromWebPage()`.
-4. **Description** — Drawn below the title in `st::historyComposeAreaFg` using `st::messageTextStyle`. Shows the next-priority field not used by the title.
-5. **Close/dismiss button** (`_cancel`) — An "X" button at the right edge. Both title and description are elided to fit: `width - previewLeft - _cancel->width() - st::msgReplyPadding.right()`.
+> Spec-correction note: the previous draft said "thumbnail starts at `(st::historyReplySkip, centered-vertically)`" and that "text starts at `st::historyReplySkip`" in all cases. That is wrong: the thumbnail is drawn at `(previewLeft, (height − preview)/2)` where `previewLeft` is initially `historyReplySkip = 53 px`. After the thumbnail is painted, `previewLeft += historyReplyPreview + msgReplyBarSkip = 32 + 10 = 42 px`, so text actually starts at **95 px** when a thumbnail is present (not 53 px). Source: `history_view_compose_controls.cpp:603-616`.
 
-The entire header is a single-line title + single-line description layout, both text-elided.
+**Resolved style tokens (FieldHeader)**
+
+| Property                       | Value                                                | Style key (file:line)                                    |
+|---|---|---|
+| Bar height                     | 49 px                                                | `historyReplyHeight` — chat_helpers.style:1015          |
+| Background fill                | palette `historyComposeAreaBg`                       | `paintRequest` lambda — history_view_compose_controls.cpp:333 |
+| Left icon (`historyLinkIcon`)  | icon `chat/input_link_settings` tinted `historyReplyIconFg` | chat_helpers.style:1018                            |
+| Left icon position             | `point(7px, 7px)` from top-left                       | `historyReplyIconPosition` — chat_helpers.style:1016    |
+| Text-block left inset          | 53 px (`historyReplySkip`)                            | chat_helpers.style:1013                                 |
+| Thumbnail size                 | 32 × 32 px                                            | `historyReplyPreview: 32px;` — chat.style:64            |
+| Thumbnail vertical centre      | `(49 − 32) / 2 = 8.5 px` ⇒ rounds to 8 px top         | computed at history_view_compose_controls.cpp:607-608   |
+| Gap between thumbnail and text | 10 px (`msgReplyBarSkip`)                             | chat.style:87                                           |
+| Title/description text padding | `margins(6px, 6px, 11px, 6px)` (left/top/right/bottom)| `msgReplyPadding` — chat.style:84                       |
+| Title font                     | `msgNameStyle` (= `semiboldTextStyle`)                | chat.style:17                                           |
+| Title colour                   | palette `historyReplyNameFg` (= `windowActiveTextFg`) | chat_helpers.style:1014                                 |
+| Description font               | `messageTextStyle` (= `historyTextStyle`, derived from `defaultTextStyle`) | chat.style:99 ; chat_helpers.style:1114-1131 |
+| Description colour             | palette `historyComposeAreaFg`                        | history_view_compose_controls.cpp:625                   |
+| Description y-offset (below title) | `msgServiceNameFont->height` (= height of `semiboldFont`) | history_view_compose_controls.cpp:629           |
+| Cancel ("X") button class      | `IconButton` (`historyReplyCancel`)                   | chat_helpers.style:1022                                 |
+| Cancel button size             | 49 × 49 px (square — same as bar height)              | chat_helpers.style:1023-1024                            |
+| Cancel icon                    | `box_button_close` tinted `historyReplyCancelFg` / `…FgOver` | chat_helpers.style:1010-1011                     |
+| Cancel icon offset inside button | `point(-1px, -1px)`                                 | chat_helpers.style:1028                                 |
+| Cancel ripple area position    | `point(4px, 4px)`                                     | chat_helpers.style:1030                                 |
+| Cancel ripple area size        | 40 × 40 px                                            | chat_helpers.style:1031                                 |
+| Cancel ripple animation        | `defaultRippleAnimationBgOver`                        | chat_helpers.style:1032                                 |
+| Cancel anchored at             | top-right corner: `_cancel->moveToRight(0, 0);`       | history_view_compose_controls.cpp:821                   |
+
+**Layout (left to right), with the resolved math**:
+
+1. **Left icon** — `st::historyLinkIcon` (`chat/input_link_settings`, palette
+   `historyReplyIconFg`) is painted at `(7, 7)` from the top-left of the bar
+   (`historyReplyIconPosition: point(7px, 7px);` chat_helpers.style:1016;
+   paint call history_view_compose_controls.cpp:339). The icon swaps for
+   `historyEditIcon` / `historyReplyIcon` / `historyQuoteIcon` /
+   `historyForwardIcon` when the bar is showing edit / reply / quoted-reply /
+   forward state instead of a link preview (lines 340-349 in the same file).
+
+2. **Thumbnail** — If `_preview.parsed.drawPreview(p, to)` returns true, a
+   32 × 32 px square is painted at
+   `(previewLeft, (49 − 32)/2)` = `(53, 8.5 px → 8 px)`. `previewLeft` starts at
+   `historyReplySkip = 53 px`. After the draw,
+   `previewLeft += historyReplyPreview + msgReplyBarSkip` = `53 + 32 + 10 = 95 px`
+   (history_view_compose_controls.cpp:603-612). If `drawPreview` returns false
+   (no thumbnail available), `previewLeft` stays at 53 px and the text block
+   starts there directly.
+
+3. **Title** — Single line, elided. Drawn at `(previewLeft, msgReplyPadding.top())`
+   ⇒ `(53 or 95, 6)`. Pen colour `historyReplyNameFg`, font `msgNameStyle` (=
+   `semiboldTextStyle`). Source priority cascade lives in
+   `TitleAndDescriptionFromWebPage()` (`history/view/history_view_webpage_preview.cpp`).
+   (history_view_compose_controls.cpp:618-623)
+
+4. **Description** — Single line, elided. Drawn at
+   `(previewLeft, msgReplyPadding.top() + msgServiceNameFont->height)`
+   ⇒ `(53 or 95, 6 + height(semiboldFont))`. Pen `historyComposeAreaFg`, font
+   `messageTextStyle` (= `historyTextStyle`).
+   (history_view_compose_controls.cpp:625-630)
+
+5. **Cancel ("X") button** — `historyReplyCancel` `IconButton`, 49 × 49 px,
+   anchored top-right at `(width − 49, 0)` via `moveToRight(0, 0)`
+   (history_view_compose_controls.cpp:821; widget chat_helpers.style:1022-1033).
+
+**Elided text width**: both title and description are clipped to
+```
+elidedWidth = bar.width() − previewLeft − _cancel->width() − msgReplyPadding.right()
+            = bar.width() − (53 or 95) − 49 − 11
+```
+(history_view_compose_controls.cpp:613-616).
+
+**No fade / slide animation on appear or dismiss.** `FieldHeader` toggles via
+`updateVisible()` ⇒ `setVisible(isDisplayed())`
+(history_view_compose_controls.cpp:764-771); the parent compose container
+re-lays-out and snaps. The only animated element inside the bar is the
+photo-edit hover overlay (used in edit mode, not for previews), which uses
+`st::defaultMessageBar.duration` = **160 ms**
+(`defaultMessageBar { … duration: 160; }` — chat_helpers.style:907;
+animation start at history_view_compose_controls.cpp:429-433).
+
+The entire bar paints a flat-fill background `historyComposeAreaBg`
+(history_view_compose_controls.cpp:333) — no border, no shadow; the visual
+separation from the message list above is provided by the surrounding compose
+chrome.
 
 ### 46.3 Large vs Small Media
 
@@ -19952,7 +20034,91 @@ The `WebPageType` enum defines 30+ types, parsed from the server's `type` string
 - **Full-width media**: Photo/video/document spans the full bubble width below text. Used for `_asArticle=0`.
 - **Collage**: Multiple photos/documents in a grid layout (`WebPageCollage`).
 - **Sticker set**: Grid of sticker previews (`WebPageStickerSet`).
-- **Action button**: Many Telegram-specific types add a button bar below the preview with type-specific text.
+- **Action button**: Many Telegram-specific types add a button bar below the
+  preview with type-specific text. **This bar appears only on rendered
+  messages, NOT on the compose `FieldHeader`** (the `FieldHeader` is the
+  single-line strip described in §46.2 and never grows a button row). The
+  rendered-message button is `WebPage::_openButton` in
+  `history/view/media/history_view_web_page.cpp`.
+
+**Action-button geometry (rendered message, `WebPage` media)**
+
+| Property               | Value                                  | Style key (file:line)                          |
+|---|---|---|
+| Bar height (when present) | 36 px                                | `historyPageButtonHeight: 36px;` — chat.style:682 |
+| Bar height (when absent)  | 0 px (button row collapses)          | conditional at history_view_web_page.cpp:1715-1717 |
+| Padding inside the button row | `margins(13px, 8px, 13px, 8px)` (l/t/r/b) | `historyPageButtonPadding` — chat.style:683 |
+| Top divider line       | 1 px, drawn at colour `cache->icon`, 30 % alpha | `historyPageButtonLine: 1px;` — chat.style:681 ; draw at history_view_web_page.cpp:1314-1317 |
+| Label font             | `st::semiboldFont`                     | history_view_web_page.cpp:1311                 |
+| Label colour           | `cache->icon` (per-bubble accent)      | history_view_web_page.cpp:1312                 |
+| Label text             | uppercase phrase from `PageToPhrase()` | history_view_web_page.cpp:198-262 (table below)|
+| Label horizontal       | centred in `inner.width()`             | history_view_web_page.cpp:1320                 |
+| Label vertical         | `end + historyPageButtonPadding.top()` (= bottom of media block + 8 px) | history_view_web_page.cpp:1321 |
+| Width contribution     | `2*13 + maxWidth(label)` reserved before paddings | history_view_web_page.cpp:703-705            |
+| Decision to render     | `HasButton(_data)` (history_view_web_page.cpp:264) — see per-type table below |
+| IV inline icon (left of label) | `st::historyIvIcon` glyph prepended when `page->iv` is set | history_view_web_page.cpp:258-260      |
+
+**Per-`WebPageType` action label** (resolved from `PageToPhrase()` at
+history_view_web_page.cpp:198-262 and `HasButton()` at :264-292; all labels are
+uppercased via `tr::upper()`):
+
+| Condition (in evaluation order)                         | Localisation key                      | Default English text     |
+|---|---|---|
+| `page->iv` is set                                       | `lng_view_button_iv`                  | INSTANT VIEW             |
+| `page->uniqueGift` is set                               | `lng_view_button_collectible`         | VIEW GIFT                |
+| `WebPageType::Theme` AND document is a theme            | `lng_view_button_theme`               | VIEW THEME               |
+| `WebPageType::Story` AND has photo or document          | `lng_view_button_story`               | VIEW STORY               |
+| `WebPageType::Message`                                  | `lng_view_button_message`             | VIEW MESSAGE             |
+| `WebPageType::Group`                                    | `lng_view_button_group`               | VIEW GROUP               |
+| `WebPageType::WallPaper`                                | `lng_view_button_background`          | VIEW BACKGROUND          |
+| `WebPageType::Channel`                                  | `lng_view_button_channel`             | VIEW CHANNEL             |
+| `GroupWithRequest` / `ChannelWithRequest`               | `lng_view_button_request_join`        | REQUEST TO JOIN          |
+| `GroupBoost` / `ChannelBoost`                           | `lng_view_button_boost`               | BOOST                    |
+| `WebPageType::Giftcode`                                 | `lng_view_button_giftcode`            | OPEN GIFT LINK           |
+| `WebPageType::User`                                     | `lng_view_button_user`                | SEND MESSAGE             |
+| `WebPageType::VoiceChat`                                | `lng_view_button_voice_chat`          | JOIN VOICE CHAT          |
+| `WebPageType::Livestream`                               | `lng_view_button_voice_chat_channel`  | JOIN LIVESTREAM          |
+| `WebPageType::ConferenceCall`                           | `lng_view_button_call`                | JOIN CALL                |
+| `WebPageType::BotApp`                                   | `lng_view_button_bot_app`             | OPEN APP                 |
+| `WebPageType::StickerSet` AND emoji set                 | `lng_view_button_emojipack`           | VIEW EMOJI PACK          |
+| `WebPageType::StickerSet` (sticker)                     | `lng_view_button_stickerset`          | VIEW STICKERS            |
+| `WebPageType::StoryAlbum`                               | `lng_view_button_storyalbum`          | VIEW ALBUM               |
+| `WebPageType::GiftCollection`                           | `lng_view_button_collection`          | VIEW COLLECTION          |
+| `WebPageType::NewBot`                                   | `lng_view_button_newbot`              | START BOT                |
+| `WebPageType::Auction` (results phase)                  | `lng_auction_preview_view_results`    | VIEW RESULTS             |
+| `WebPageType::Auction` (pre-start phase)                | `lng_auction_bar_view`                | VIEW                     |
+| `WebPageType::Auction` (live phase)                     | `lng_auction_preview_join`            | JOIN AUCTION             |
+| Sponsored page with `buttonText` set                    | sponsored `buttonText` (uppercased)   | (server-supplied)        |
+
+`WebPageType::Bot` is intentionally NOT in `HasButton()` (commented out at
+history_view_web_page.cpp:276) — bot pages render without an action button.
+Likewise, `Profile`, `Photo`, `Video`, `Document`, plain `Article`, `ArticleWithIV`
+without `cachedPage`, and any unhandled type get no action bar.
+
+**Compose-side equivalents (no in-bar buttons — they live in `DraftOptionsBox`)**
+
+For the link preview shown in the compose `FieldHeader`, the user toggles the
+same flags (large/small media, above/below text, remove) via the
+`DraftOptionsBox` modal dialog rather than buttons inside the FieldHeader.
+That dialog uses the standard settings-row button widget
+`st::settingsButton` for "Move up" / "Move down" / "Enlarge photo" /
+"Shrink photo" actions, and the red attention variant
+`st::settingsAttentionButtonWithIcon` for "Remove link preview"
+(history_view_draft_options.cpp:884-934). Icons:
+
+| Action                     | Icon token (when shown)                                |
+|---|---|
+| Move preview above text    | `st::menuIconAbove` (when `webpage.invert == false`)   |
+| Move preview below text    | `st::menuIconBelow` (when `webpage.invert == true`)    |
+| Enlarge photo / video      | `st::menuIconEnlarge` (when currently small)           |
+| Shrink photo / video       | `st::menuIconShrink` (when currently large)            |
+| Remove link preview        | `st::menuIconDeleteAttention`                          |
+
+Source: history_view_draft_options.cpp:880-938. Heights, paddings, and ripple
+behaviour for these rows come from the standard `Settings::Button` style
+(`st::settingsButton` / `st::settingsAttentionButtonWithIcon`), which is
+documented under §14 (Settings UI) and §36 (popup/dialog patterns); the
+dialog itself follows the standard `Box` chrome documented in §36.
 
 ### 46.10 Instant View
 
