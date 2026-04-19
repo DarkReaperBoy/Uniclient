@@ -337,15 +337,17 @@ Gating: each item is conditional on an AyuGram `showXInDrawer()` setting (`windo
 
 ## 4. Chat Header / Top Bar
 
-### Dimensions
+### Dimensions & Background
 
-Fixed height: 54px (`topBarHeight`). Background: `topBarBg`.
+Fixed height: 54px (`topBarHeight`). Background fills with `topBarBg` via `p.fillRect(QRect(0, 0, width(), st::topBarHeight), st::topBarBg)` (`history_view_top_bar_widget.cpp:543`). In both shipped themes `topBarBg` aliases `windowBg`: **day `#ffffff`**, **night `#17212b`** — the bar shares the window background; there is no distinct tinted top-bar color.
+
+**Divider below.** A 1px `Ui::PlainShadow` (`_topBarShadow`) is owned by the chat section widget, positioned just beneath the bar at `st::lineWidth` height (`history_view_chat_section.cpp:258, 2360, 2738`). Color = `shadowFg`: **#00000018** (day, ~9% black) / **#04080e56** (night, ~34% near-black). Hidden during one-column slide transitions (`:2406`), re-shown after (`:2414, :2927`).
 
 ### Left-to-Right Layout
 
-1. **Back button** -- Visible in single-column (narrow/mobile) layout or when navigating into forum topic/sublist. Left-arrow icon. Right-click opens call-type menu.
+1. **Back button** -- Visible in single-column (narrow/mobile) layout or when navigating into forum topic/sublist. Left-arrow icon. Right-click opens call-type menu. Style `historyTopBarBack` (`info/info.style:1016`) inherits from `infoTopBarBack` (`:131-142`), width **60px**; `_leftTaken` is set to 60px when shown (`history_view_top_bar_widget.cpp:1191`), otherwise `_leftTaken = st::topBarArrowPadding.right() = 17px`.
 
-2. **Avatar** (`UserpicButton`) -- Peer's profile photo. For Saved Messages: saved-messages icon. Transparent to clicks (passes through to info area).
+2. **Avatar** (`UserpicButton`) -- `_info` built from `st::topBarInfoButton` (`info/info.style:1082-1086`): hit-area **52×54px**, photo diameter **42px**, photo offset inside hit-area `(2, -1)` so the visible avatar centre sits ≈ `(23, 26)`. Diameter is constant across normal chats / Saved Messages / Replies / forum topics — the same `_info` widget is reused; only the painted glyph changes for special peers. Horizontal origin = `_leftTaken` (60px with back button, 17px without). The 52×54 hit-area IS opaque to hit-testing (from `defaultUserpicButton`); the 42px avatar circle plus transparent corners inside that rect all accept clicks.
 
 3. **Title text** -- Semibold font. Elided with ellipsis. Verified/scam/fake badge inline after name.
 
@@ -357,19 +359,42 @@ Fixed height: 54px (`topBarHeight`). Background: `topBarBg`.
 
 ### Right-Side Buttons (right to left)
 
-1. **Menu toggle** (three-dot) -- Opens: New Window, Archive, Pin, View Profile, Mute submenu, Mark Read/Unread, Clear History, Delete Chat, Leave Channel.
-2. **Info toggle** -- Opens/closes right info panel. Hidden in single-column.
-3. **Call button** -- Phone icon, 1:1 DMs only. Right-click submenu: audio/video call.
-4. **Group call button** -- For groups/channels when calls permitted.
-5. **Search button** -- Toggles inline search (text field replaces title, with "jump to date" / "choose from user" filters).
+All derive from the shared `topBarSearch` chrome (`info/info.style:1032-1043`): **width 40px**, height = `topBarHeight` (54px), 40px circular ripple (`rippleAreaPosition (0,7)` + `rippleAreaSize 40px`), ripple animation `defaultRippleAnimationBgOver` (highlight in `windowBgOver`). Icon colors: `icon = menuIconFg`, `iconOver = menuIconFgOver`. Effective painted glyph ≈ **20px** inside the 40px hit-area (4px left pad + 20 + 16 right, from `iconPosition: point(4px, 11px)`).
+
+Derived buttons (same 40×54 hit-area unless noted):
+1. **Menu toggle** (three-dot) -- `topBarMenuToggle` (`info/info.style:1053-1061`) **overrides width to 44px**, uses `menuToggleIcon` glyphs, iconPosition `(16, 17)`. Opens: New Window, Archive, Pin, View Profile, Mute submenu, Mark Read/Unread, Clear History, Delete Chat, Leave Channel.
+2. **Info toggle** -- `topBarInfo` (`:1071-1074`), icon `top_bar_profile`. Active variant `topBarInfoActive` colored with `windowActiveTextFg` (`:1075`). Opens/closes right info panel. Hidden in single-column.
+3. **Call button** -- `topBarCall` (`:1062-1065`), icon `top_bar_call`. Phone icon, 1:1 DMs only. Right-click submenu: audio/video call.
+4. **Group call button** -- `topBarGroupCall` (`:1066-1070`), icon `top_bar_group_call`, iconPosition `(4, 12)`. For groups/channels when calls permitted.
+5. **Search button** -- `topBarSearch` directly, icon `top_bar_search`. Toggles inline search (text field replaces title, with "jump to date" / "choose from user" filters).
+
+**Padding between right-side buttons:** buttons are flush (0-gap). `topBarSkip: -5px` (`info/info.style:1051`) is a *negative* value that pulls the menu toggle slightly tighter against its neighbour when placed via `history_view_top_bar_widget.cpp:1232`.
+
+**Disabled state.** Inherited from framework `IconButton` — grayscale icon at ~40% alpha, ripple disabled. AyuGram does not override.
 
 ### Pinned Message Bar (below top bar)
 
-Horizontal bar with: message text preview (optional thumbnail, rounded corners), "Pinned Message" title (or "#X of Y" for multiple pins). Click navigates to pinned message. Close/unpin button.
+A `Ui::PinnedBar` host embedding a `Ui::MessageBar` (`history_view_pinned_bar.cpp` builds content; `ui/chat/pinned_bar.cpp` + `ui/chat/message_bar.cpp` renders).
+
+- **Bar height:** **49px** (`historyReplyHeight`, `ui/chat/chat.style:64`; used at `message_bar.cpp:73`).
+- **Thumbnail:** **32×32px** (`historyReplyPreview: 32px`), centered vertically ((49−32)/2 ≈ 8.5 ≈ 8px top offset, `message_bar.cpp:226-227`). Corner radius `ImageRoundRadius::Small` (≈ 3px per tdesktop convention, `history_view_pinned_bar.cpp:68`).
+- **Title:** `defaultMessageBar.title = semiboldTextStyle` (`chat_helpers.style:901-908`), color `titleFg: windowActiveTextFg` (blue accent). Content via `WithPinnedTitle` (`history_view_pinned_bar.cpp:144-161`): "Pinned Message" for single pin, "Previous Pinned Message" when count==2 and the shown one isn't the last, else "Pinned Message #N".
+- **Preview text:** `text = defaultTextStyle`, color `textFg: historyComposeAreaFg`. Palette `historyComposeAreaPalette`; links use `historyComposeAreaFgService`. Max **1 line** (title + preview stacked in two rows within 49px, elided).
+- **Close / unpin button:** `historyReplyCancel` (`chat_helpers.style:1022-1033`), 49×49 hit-area, 40px circular ripple (`rippleAreaPosition (4,4)` + `rippleAreaSize 40px`), icon `box_button_close` in `historyReplyCancelFg` / `historyReplyCancelFgOver`. Right-edge aligned. Multi-pin adds `historyPinnedShowAll` (same size, icon `pinned_show_all`, `chat_helpers.style:1034-1037`).
+- **Background:** `historyPinnedBg`. Day = `historyComposeAreaBg` → `msgInBg` → `#ffffff`. Night = `#1b2734` (subtle lift above night `windowBg #17212b`).
+- **Left accent stripe:** `msgReplyBarSize: size(2px, 36px)` in `msgInReplyBarColor` (day = `activeLineFg`; night ≈ `#429bdb`), offset `msgReplyBarPos: point(1px, 0px)`, followed by `msgReplyBarSkip: 10px` (`ui/chat/chat.style:85-87`).
+- **Content change animation:** 160ms (`chat_helpers.style:907`).
 
 ### Contact Status / Action Bar
 
-Contextual bars: Add Contact, Block, Share Phone Number, Report Spam, Unarchive, Topic Reopen, Join Request Info.
+Built from `history_view_contact_status.cpp`. Styling in `chat_helpers/chat_helpers.style`:
+
+- **Base button** `historyContactStatusButton` (`:952-959`) — derives from `historyComposeButton`. **Height 49px**, `textTop: 16px`, font `semiboldFont`, hover bg `historyComposeButtonBg`, ripple `historyComposeButtonBgOver`. **Flat** (no pill / rounded outline) — full-width `FlatButton`s splitting the bar. Base color `windowActiveTextFg` (blue accent — neutral actions like Add Contact, Share Phone, Unarchive).
+- **Destructive variant** `historyContactStatusBlock` (`:960-963`) — inherits the base, overrides `color`/`overColor` to `attentionButtonFg` (red in both themes). Used for Block, Report Spam.
+- **Unblock** `historyUnblock` (`:948-951`) — derived from `historyComposeButton` (height 46px, textTop 14px) with `color: attentionButtonFg` / `overColor: attentionButtonFgOver`.
+- **Status label** (when no buttons, e.g. "This is a bot") `historyContactStatusLabel` (`:964-966`) — `FlatLabel(defaultFlatLabel)` with `minWidth: 240px`.
+- **Inter-button gap** `historyContactStatusMinSkip: 16px` (`:971`) — minimum separator so two side-by-side actions ("Add Contact | Block", "Report Spam | Unarchive") split the bar with ≥16px gap between their text baselines.
+- **No icons** next to labels (no `icon:` field in tokens). Vertically centered via `textTop: 16px` on a 49px button. Background = flat `historyComposeAreaBg`; hover fills with `historyComposeButtonBg`.
 
 ### Group Call Bar
 
@@ -377,7 +402,14 @@ Active call: overlapping participant userpics (green speaking-indicator rings) +
 
 ### Selection Mode
 
-Title/subtitle slides out, action buttons slide in: Forward, Send Now, Delete. Count label: "X messages selected".
+When `_selectedCount > 0`, the title/subtitle region translates up by `topBarHeight` while selection controls slide in from below — same 54px row reused (`history_view_top_bar_widget.cpp:1070-1071`).
+
+- **Animation:** `_selectedShown.start(..., st::slideWrapDuration, anim::easeOutCirc)` (`:1710-1715`). `slideWrapDuration` ≈ 200ms (tdesktop default, inherited from `lib_ui` — not overridden in AyuGram), easing `easeOutCirc`.
+- **Buttons** (constructed `:129-132`): all three use `st::defaultActiveButton` (pill `RoundButton`, blue fill `activeButtonBg`, white text `activeButtonFg`). Lang keys `lng_selected_forward`, `lng_selected_send_now`, `lng_selected_delete`; labels are uppercased via `setTextTransform(ToUpper)` (`:147-150`) → **"FORWARD"**, **"SEND NOW"**, **"DELETE"**.
+- **Count display:** each button uses `setNumbersText(_selectedCount)` (`:1523-1530`) — an animated number badge appended to the button's label via `RoundButton`'s built-in numbers animation. **There is no separate "X messages selected" label**; the count lives on the buttons themselves.
+- **Inter-button gap:** `topBarActionSkip: 10px` (`info/info.style:1076`). Each visible action button shares equal extra width via `setFullWidth(buttonFullWidth)` (`:1103-1131`).
+- **Corner radii:** per-button via `setCornerRadii(left, right, left, right)` with `large = 8px` (`topBarActionButtonLargeRadius`, `info/info.style:1077`) for the first/last end, `small` for inner ends — row reads as one segmented pill when multiple actions share space (`:1153-1163`).
+- **Cancel (clear) button:** `_clear` (`:129`) uses `st::topBarClearButton` (`info/info.style:1029-1031`) — `RoundButton(defaultLightButton)` with `width: -18px`. Right-aligned at 10px margin from right edge (`:1166`). Label uppercased via lang key `lng_selected_clear` → "CLEAR" / "CANCEL".
 
 ---
 
@@ -385,9 +417,26 @@ Title/subtitle slides out, action buttons slide in: Forward, Send Now, Delete. C
 
 ### Message List
 
-Scrolls newest-at-bottom. Lazy loading via slices. **Scroll-to-bottom FAB** (`JumpDownButton`) appears when scrolled away, displays unread count badge. Additional corner buttons for unread mentions, reactions.
+Scrolls newest-at-bottom. Lazy loading via slices.
 
-**Date separators** (`DateBadge`): Centered text in rounded service-message pill (radius = half min service height). Scroll with messages -- NOT sticky headers.
+**Scroll-to-bottom FAB (`historyToDown`).** `TwoIconButton` sized **52×62 px** hit-area with a **42 px** visible disc (`rippleAreaSize: 42px` at `rippleAreaPosition (5, 15)`) — `chat_helpers.style:1063-1078`. Icon is two layers: `historyToDownBelow` (`history_down_shadow` + `history_down_circle`, disc + drop shadow) and `historyToDownAbove` (`history_down_arrow`). Hover swaps to `Over` variants. Icon glyph at `iconPosition (0, 10)`.
+
+- **Colors (day):** disc `historyToDownBg = windowBg` (#ffffff), hover `windowBgOver` (#f1f1f1), arrow `historyToDownFg = menuIconFg`, hover arrow `menuIconFgOver`, drop shadow `historyToDownShadow = #00000040` (25% black). `colors.palette:447-452`.
+- **Colors (night):** shadow unchanged (`#00000040`, not overridden). Disc/icon inherit night `windowBg`/`menuIconFg` (`night.tdesktop-theme` has no `historyToDown*` overrides).
+- **Position from bottom-right corner:** `historyToDownPosition = point(12px, 10px)` — 12px right margin, bottom edge 10px above viewport bottom. Visual circle's bottom sits ~5px above scroll edge. `chat_helpers.style:1051`.
+- **Stacking for multiple corner buttons:** 4px gap (`historyUnreadThingsSkip`, line 1105). Order from bottom to top: **Jump-down → Mentions → Reactions → PollVotes** (`history_view_corner_buttons.cpp:343-408`). Each upper button's Y = `parent.bottom - 10px - Σ(heights + 4px)`.
+- **Slide-in animation:** `historyToDownDuration = 150ms` (line 1083). Mentions/Reactions/PollVotes slide in from off-screen right via `anim::interpolate(-widget.width() → historyToDownPosition.x)`. Jump-down slides up from below: `top = parent.height - interpolate(0 → button.height + 10)`. Default linear easing (no explicit curve).
+- **Show threshold:** Jump-down appears after scrolling up `historyToDownShownAfter = 480px` from bottom (line 1082).
+- **Unread-count badge on jump-down:** pill, `historyToDownBadgeSize = 22px` min height, font `semiboldFont` (13px semibold). Drawn 4px above button top (stroke=4 arg to `PaintUnreadBadge`, `jump_down_button.cpp:48-57`). Uses **muted** palette: bg `dialogsUnreadBgMuted` = #bbbbbb day / #3e546a night; text = `windowFgActive` white.
+
+**Date separators (`DateBadge`).** Centered text in a rounded service-message pill (radius = `rect.height() / 2`, fully rounded). Scroll with messages — NOT sticky.
+
+- Font: `msgServiceFont` = 13px semibold (`chat.style:18`).
+- Padding: `msgServicePadding = margins(12, 3, 12, 4)` → pill height ≈ 20–21px (`chat.style:88`).
+- Outer vertical margins: `msgServiceMargin = margins(10, 10, 10, 2)` — 10px above, 2px below (`chat.style:89`).
+- Background: `msgServiceBg` = **#517c417f** day (green-grey @ 49.8% alpha) / **#213040d5** night (slate @ 83.5% alpha). Opacity is baked into the alpha channel, not a global multiplier.
+- Text color: `msgServiceFg = windowFgActive = #ffffff` both themes.
+- Horizontal centering: pill centered within `msgMargin.left..right` (`history_view_service_message.cpp:164-170`).
 
 **"Unread Messages" bar**: Full-width horizontal band above first unread message with centered text like "3 unread messages".
 
@@ -399,7 +448,20 @@ Scrolls newest-at-bottom. Lazy loading via slices. **Scroll-to-bottom FAB** (`Ju
 
 **Max bubble width:** 430px. Wide mode: 542px total (430 + margins).
 
-**Bubble colors:** Four variants: `messageIn`, `messageInSelected`, `messageOut`, `messageOutSelected`. Each has `msgBg` (background) + `msgShadow` (2px bottom shadow). Default: incoming = white/light gray, outgoing = green-tinted.
+**Bubble colors.** Four variants `messageIn`/`messageInSelected`/`messageOut`/`messageOutSelected`, each with `msgBg` + `msgShadow` (2px bottom shadow strip):
+
+| Token | Day hex | Night hex |
+|---|---|---|
+| `msgInBg` | `#ffffff` (via `windowBg`) | `#182533` |
+| `msgInBgSelected` | `#c2dcf2` | `#2e70a5` |
+| `msgOutBg` | `#effdde` | `#2b5278` |
+| `msgOutBgSelected` | `#b7dbdb` | `#2e70a5` |
+| `msgInShadow` | `#748ea229` (α 0x29 = 16%) | `#748ea200` (disabled) |
+| `msgInShadowSelected` | `#548dbb29` | `#538ebb00` |
+| `msgOutShadow` | `#3ac3461d` (α 0x1d = 11%) | `#00000000` |
+| `msgOutShadowSelected` | `#37a78d22` | `#366ea600` |
+
+Source: `colors.palette:345-358`; `night.tdesktop-theme:256-269`; `chat.style:54`. **Note:** the night theme shadow colors all have `00` alpha — the bubble drop-shadow is effectively disabled in dark mode by design.
 
 **Margins:** Left 16px, top 6px, right 56px, bottom 2px. Attached to previous: top margin collapses to 0px. Internal padding: 11px horizontal, 8px vertical.
 
@@ -421,19 +483,58 @@ Two flag pairs per element: `AttachedToPrevious/Next` (spacing) and `BubbleAttac
 5. **Reply block** -- Colored left bar (2px wide, 36px tall), reply sender name + preview text (10px gap). Clickable to jump to original.
 6. **Message text** -- Rich text: bold, italic, code, links, spoilers, blockquotes with colored outlines.
 7. **Bottom info** -- Bottom-right: timestamp + "edited" label + delivery status icon (clock/single-check/double-check) + views count + forwards count.
+
+   **Metrics.** Font `msgDateFont` = 13px regular (`chat.style:21`). Horizontal spacing: `historyViewsSpace: 8px` before views/replies count, `historyViewsWidth: 20px` reserved per icon; `historyPinWidth: 24px` for pinned marker; `historySendStateSpace: 24px` before the edited/time group (`chat.style:326-338`). Layout: `width = sendStateSpace? + authorEditedDate + Σ{8 + width + 20 for (views, replies)} + pinned?24` (`history_view_bottom_info.cpp:651-670`).
+
+   **Icon sizes (PNG @1×):** `history_sent` 13×11, `history_received` (double-check) 18×11, `dialogs_sending` (clock) 11×11, `history_views` 16×11, `history_replies` 16×11, `history_pin` 18×18. Tick offset inside send-state slot: `point(2,4)` (`chat.style:328-333`).
+
+   **Colors:**
+   - Outgoing ticks: `historyOutIconFg` = #57b84c day / #6bbfff night.
+   - Media-overlay (inverted) ticks: `historyIconFgInverted = windowFgActive = #ffffff` both themes.
+   - Sending clock (outgoing): `historySendingOutIconFg` = #98d292 / #70a4d2.
+   - Sending clock (incoming): `historySendingInIconFg` = #a0adb5 / #76838b.
+   - Sending clock on media (inverted): `historySendingInvertedIconFg = #ffffffc8`.
+   - Timestamp text: `msgInDateFg` #a0acb6 / #6d7f8f; `msgOutDateFg` #6db566 / #7da8d3; selected variants `msgInDateFgSelected` #6a9cc5 / #ffffff, `msgOutDateFgSelected` #56b2a6 / #ffffff.
+
+   **Edited indicator.** Rendered as the localized text `tr::lng_edited` concatenated with the timestamp inside `_authorEditedDate` — no dedicated icon, same `msgDateFont` and date color tokens as the timestamp.
+
+   **Inside vs outside bubble.** For text or text+caption bubbles, bottom info lives inside the bubble at bottom-right of content rect. For media-only bubbles (image/video without caption), it is overlaid on the media at bottom-right with inverted icon variants plus a rounded translucent background box: inner padding `msgDateImgPadding = point(8, 2)`, outer margin `msgDateImgDelta = 4px` from media corner (`chat.style:95-96`). The `*Inverted` tokens switch in for overlay mode.
+
+   Source: `colors.palette:268-273, 359-362`; `night.tdesktop-theme:201-206, 270-273`; `chat.style:326-355, 95-96`; `history_view_bottom_info.cpp:651-670`.
 8. **Reactions** -- `InlineList` of reaction emoji, inside or outside bubble depending on `embedReactionsInBubble()`.
 
 ### Sender Name Colors
 
-7 base colors (`kSimpleColorIndexCount`), assigned by `id % 7`. Remapped via `{0, 7, 4, 1, 6, 3, 5}` to palette indices `historyPeer1NameFg` through `historyPeer8NameFg`. Consistent per user ID across all groups. Extended: up to 64 colors for premium/collectible name colors.
+7 base colors (`kSimpleColorIndexCount`), assigned by `id % 7`. Remapped via `int8 map[] = {0, 7, 4, 1, 6, 3, 5}` in `ColorIndexToPaletteIndex(colorIndex)` — maps the 7 simple indices (0..6 = Red, Orange, Green, Sea, Blue, Purple, Pink; `ui/color_indices.style`) into slots 1..7 of the historical 8-palette (`chat_style.cpp:1202-1207`). Consistent per user ID across all groups. Constants: `kSimpleColorIndexCount = 7`, `kColorIndexCount = 64` (`chat_style.h:36-37`).
+
+**Base 8 slot hex (day):** `historyPeer1NameFg #c03d33` red, `2 #4fad2d` green, `3 #d09306` yellow (marked "actually unused"), `4 windowActiveTextFg` blue (~#168acd), `5 #8544d6` purple, `6 #cd4073` pink, `7 #2996ad` sea, `8 #ce671b` orange (`colors.palette:288-311`).
+
+**Base 8 slot hex (night):** `1 #fb6169`, `2 #85de85`, `3 #f3bc5c`, `4 #65bdf3`, `5 #b48bf2`, `6 #ff5694`, `7 #62d4e3`, `8 #faa357`. Selected variants on night = `#ffffff`; on day = equal to unselected (`night.tdesktop-theme:218-240`).
+
+**Extended 64-entry palette (indices 8..63, premium/collectible colors).** NOT baked into theme files — fetched at runtime via MTProto `help.peerColors` / `help.peerColorsNotModified` (`api_peer_colors.cpp:41-174`). Each entry returned has a `color_id` (0..63) plus per-theme accent / outline / background hex. Stored in `ChatStyle::colors` array sized `kColorIndexCount * 2 = 128` (`chat_style.h:290, 496, 588, 593`). **There are no hard-coded hexes for indices 8..63 in the source** — the values come from the server and are cached.
 
 ### Selection Mode
 
 Long-press or checkbox to select (not single click). Round checkbox on each message. Top action bar: Forward, Delete, Copy (based on intersection of selected messages' capabilities).
 
+**Checkbox style:** `msgSelectionCheck: RoundCheckbox(defaultPeerListCheck){ bgActive: boxTextFgGood; }` (`chat.style:1230-1232`) → inherits `size: 20px`, stroke `width: 2px` from `defaultRoundCheckbox` (`widgets.style:1237-1256`).
+- **Diameter:** 20px. Check glyph offset inside circle: `(3, 6)`; PNG glyph ~14×8.
+- **Colors.** Empty-state border = `windowBg` (white both themes). Empty-state fill `bgInactive = overviewCheckBg = #00000040` (25% black both themes). Checked fill `bgActive = boxTextFgGood` — day `#4ab44a`, night `#5598db`. Check glyph color = `overviewCheckFgActive = windowBg` (white). Painter in `history_view_message.cpp:1598-1606` additionally strokes the outer ellipse at 2px using `border` pen and fills with `msgServiceBg` beneath → translucent-green disc look when checked.
+- **Position.** Bottom-right of bubble. `X = right − (msgSelectionOffset·progress − 20)/2 − msgPadding.right/2 − 20 − historyScroll.deltax`; `Y = bubbleBottom − 20 − msgSelectionBottomSkip (5px)` (`chat.style:55-56`; `history_view_message.cpp:1591-1597`). Check sits **5px above bubble bottom edge**, aligned to the outbound/rightmost side. Selection-mode offset `msgSelectionOffset = 30px` shifts bubbles leftward when active (`chat.style:55`).
+- **Animation.** Check-mark draw duration = **160ms** (`widgets.style:1241-1243`), with `bgDuration: 0.75` / `fgDuration: 1.0` (fractions reserved for bg-fill vs fg-check phases). Entry animation (switching into selection mode) uses `anim::type::normal` (Qt default easeInOutQuad over same 160ms, `history_view_message.cpp:1575-1577`). Selection-mode-wide progress animation is driven at the `ListWidget` level, separate from `msgSelectionCheck`.
+
 ### Service Messages
 
 Centered text in rounded pill, semi-transparent `msgServiceBg` background. Inverted rounded corners where pill width changes between lines. Semibold font in `msgServiceFg` color.
+
+**Resolved metrics:**
+- **Background:** `msgServiceBg` — day `#517c417f` (green-grey @ 49.8% alpha), night `#213040d5` (slate @ 83.5% alpha). Selected-text variant `msgServiceBgSelected` = `#96b38ba2` / `#2e7ab4` (`colors.palette:364-365`; `night.tdesktop-theme:275-276`).
+- **Text color:** `msgServiceFg = windowFgActive = #ffffff` both themes (`colors.palette:363`).
+- **Radius:** fully rounded pill for single-line — `radius = rect.height() / 2` (`history_view_service_message.cpp:251, 919-921`). Multi-line uses per-corner `BubbleRounding` with `BubbleCornerRounding::Large` (resolved by `CachedCornerRadius::BubbleLarge` in `chat_style.cpp` via `PaintBubble`).
+- **Padding:** `msgServicePadding = margins(12px, 3px, 12px, 4px)` for date-pill and service-row pills (`chat.style:88`).
+- **Outer margins:** `msgServiceMargin = margins(10, 10, 10, 2)` (`chat.style:89`).
+- **Max width:** `WideChatWidth()` clamp applied when chat area wider than standard; inner content width = `maxwidth − 2·msgServiceMargin.left`. Beyond that, text wraps; **no fixed px max-width** beyond the chat-area clamp.
+- **Text style:** `serviceTextStyle = TextStyle(defaultTextStyle){ font: msgServiceFont; }` (13px semibold) with `serviceTextPalette` overriding link/mono/spoiler/selectBg to `msgServiceFg`/`msgServiceBgSelected` (`chat.style:104-117`).
 
 ---
 
@@ -445,15 +546,44 @@ Max media dimension: 430px. Min photo dimension: 100px. Aspect ratio always pres
 
 ### Photos
 
-Inline in bubble. Downscaled to 430x430 max, 100px min per axis. Caption below narrows the photo. Four-tier loading: full -> thumbnail -> small -> blurred inline placeholder. Click opens viewer. Spoiler: particle overlay, animates to reveal on tap. Enlarge button in bottom-right for large photos.
+Inline in bubble. Downscaled to 430x430 max, 100px min per axis. Caption below narrows the photo. Four-tier loading: full -> thumbnail -> small -> blurred inline placeholder. Click opens viewer. Enlarge button in bottom-right for large photos.
+
+#### Spoiler overlay (photos, GIFs, videos)
+
+- **Per-media scope.** Each photo/GIF/video in an album owns its own `MediaSpoiler` instance (`history_view_photo.cpp:87`) — a second spoilered photo in the same album does NOT share state.
+- **Obscuring image:** precomputed animated "spoiler mess" noise rendered by `Ui::SpoilerAnimation`. Descriptor (`lib_ui/ui/effects/spoiler_mess.cpp:55-72`):
+  - `particlesCount = 3000` per 128px canvas
+  - `particleSizeMin/Max = 1.5 / 2.0` logical px (× DPR)
+  - `particleSpeedMin/Max = 10 / 20` logical px/frame
+  - `particleSpritesCount = 5` unique shapes
+  - `particleFadeInDuration / fadeOutDuration = 300ms / 300ms` (shown duration = 0 — particles always fading)
+  - `framesCount = 60`, `frameDuration = 33ms` (~30 fps loop)
+- **Compositing.** Canvas tiled across media rect via `Ui::FillSpoilerRect` with the bubble rounding mask (`history_view_media.cpp:339-360`). Tile darkened by α = 32/255 (`spoiler_mess.cpp:30`).
+- **Tap-to-reveal.** Left-click sets `revealed = true` and starts `revealAnimation` with duration = `fadeWrapDuration = 200ms` (`basic.style:97`). Default easing (`sineInOut` per `lib_ui/ui/effects/animations.h` — no explicit transition passed).
+- **Persistence.** Once revealed, does NOT re-cover automatically within a session. `history()->owner().registerShownSpoiler(view)` (`history_view_media.cpp:522`) persists until the view is rebuilt (scroll-off / chat reopen).
+- **Pause rules.** Paused when off-screen or when `PowerSaving::kChatSpoiler` is on (`history_view_media.cpp:351-352`).
+- **Text-spoiler descriptor** (for inline-text spoilers, separate from media) uses a different `DefaultDescriptorText` (`spoiler_mess.cpp:36-53`): 9000 particles, 4–8 speed, 1.5–2px size, 200ms fade.
 
 ### Photo Albums (Grouped Media)
 
-Up to 10 items. Spacing: 4px. Width: 100-430px. Layout rules by count:
-- **2 items:** Side-by-side (proportional to ratios) or top/bottom if both very wide.
-- **3 items:** Narrow first = left column + two stacked right. Otherwise first spans top, two below.
-- **4 items:** Wide first = top row + three below. Otherwise left column + three stacked right.
-- **5-10 items:** Complex layouter: clamp ratios to 0.667-2.75, generate all valid row configs (1-4 per row, up to 4 rows), select config whose total height closest to `maxHeight * 4/3`.
+Up to 10 items. Spacing: 4px. Width: 100-430px.
+
+**Layouter constants (`ui/grouped_layout.cpp`):**
+- Simple cases (1–4 items): `maxHeight = maxWidth` — a square ceiling (`:99-100`). `_maxSizeRatio = maxWidth / maxHeight = 1.0`.
+- Complex cases (5+ items, or any layout with an item aspect > 2): `ComplexLayouter` uses `_maxHeight = maxWidth * 4 / 3` (`:432`).
+- Aspect-ratio proportion classes (`:115-121`): `'w'` wide (ratio > 1.2), `'n'` narrow (ratio < 0.8), `'q'` square (0.8–1.2). Dispatch is driven by the proportion string.
+
+**Per-count layouts:**
+- **2 items:**
+  - `"ww"` AND averageRatio > `1.4 × maxSizeRatio` AND `|r0 − r1| < 0.2` → top/bottom stack (`:151-154`).
+  - `"ww"` or `"qq"` otherwise → equal left/right split (`:155`).
+  - Else → left/right with `secondWidth = min(max(0.4·(W−s), (W−s)/r0 / (1/r0+1/r1)), W−s−1.5·minWidth)` (`:240-246`).
+- **3 items:** First-char `'n'` → left column + two stacked right; else top row + two below. Top row height = `min(W/r0, (H−s)·0.66)` (`:310-312`).
+- **4 items:** First-char `'w'` → wide top + three below; else left column + three stacked right. Top-row height uses same `0.66·(H−s)` clamp. `w0 = max(minWidth, min(0.4·(W−2s), h·r1))`; `w2 = max(minWidth, 0.33·(W−2s), h·r3)` (`:337-379`).
+- **5–10 items (ComplexLayouter):**
+  - **CropRatios** clamps each ratio: if averageRatio > 1.1, clamp to [1.0, 2.75]; else clamp to [0.6667, 1.0] (`:444-448`).
+  - Generates every split into 2/3/4 horizontal lines where no line has more than 3 items (4 allowed on line 2 when averageRatio < 0.85) (`:474-502`).
+  - Per attempt: `lineHeight = (W − (n−1)·s) / Σ ratios_in_line`. Scoring: `diff = |totalHeight − maxHeight| · bad1 · bad2`, where `bad1 = 1.5` if any line-height < minWidth, `bad2 = 1.5` if earlier line has more items than a later one (`:504-527`). Lowest-`diff` attempt wins.
 
 Corner rounding only at group's outer edges.
 
@@ -467,15 +597,47 @@ Max: 320px (smaller than photos). Auto-play, loop, no audio. Corner badge "GIF".
 
 ### Stickers
 
-No bubble background -- standalone. Max: 224px (static/animated), 256px (emoji stickers). Lottie for animated (TGS), WEBM for video stickers. Premium: 1.49x size with mirrored effect. Click opens sticker pack.
+No bubble background — standalone. Max: 224px (static/animated), 256px (emoji stickers). Lottie for animated (TGS), WEBM for video stickers. Click opens sticker pack.
+
+- **No outline/glow/drop-shadow.** Stickers composite directly onto chat background; `msgStickerOverlay` is only used to tint during message selection (`history_view_sticker.cpp:78-88`).
+- **Auto-play.** Lottie + WEBM stickers auto-play on creation: player instantiated (`:644-653`) with repaint callback ticking frames. Off-screen → `unloadPlayer` is called, state cached. Static stickers draw the thumb only — no click-to-play (no playback state for non-animated).
+- **Power saving.** Gated by `PowerSaving::kStickersChat`; when on, premium effects skip (`:658-662`) but the base sticker animation still plays.
+- **Premium effect multiplier.** `kPremiumMultiplier = 1 + 0.245 × 2 = 1.49` (`:51`). Effect bounding box = `stickerSize × 1.49` on both dimensions (`PremiumEffectSize`, `:221-223`).
+- **Mirroring direction.** `mirrorHorizontal() = !rightAligned` (`:504-510`). **Incoming (left-aligned) premium stickers ARE mirrored horizontally; outgoing (right-aligned) are NOT.** Keeps effect bursts pointing outward from the message side.
+- **Effect fires once.** `_premiumEffectPlayed` flag (`:655-665`) blocks replays. Re-tapping re-triggers only if the flag is reset (e.g. after `unloadHeavyPart`).
 
 ### Voice Messages
 
-Inside bubble. Waveform: bars 2px wide, 1px apart, 3-17px tall. Active (played) = `msgWaveformActive`, unplayed = `msgWaveformInactive`. Play/pause button (44px thumb) left. Duration + played status at status line. Interactive seeking by tap position. If no waveform data: 31 random peaks generated. Optional transcribe button.
+Inside bubble. Play/pause button (44px thumb) left. Duration + played status at status line. Interactive seeking by tap position. Optional transcribe button.
+
+**Waveform.**
+- **Sample count.** Fixed `kWaveformSamplesCount = 100` (`media/audio/media_audio.h:64`) — every voice message is resampled to 100 peaks by `FillWaveform` / `countVoiceWaveform`. If no waveform data: 31 random peaks generated.
+- **Visual bar count.** `min(100, availableWidth / (barWidth + skip))` (`history_view_document.cpp:231-233`). Renderer re-buckets the 100 samples into the visible bar count on the fly (`:238-286`).
+- **Geometry** (`ui/chat/chat.style:555-558`):
+  - `msgWaveformBar: 2px` (bar width)
+  - `msgWaveformSkip: 1px` (gap)
+  - `msgWaveformMin: 3px` (min bar height)
+  - `msgWaveformMax: 17px` (max bar height)
+- **Baseline alignment.** Vertically centered around 17px track: `barTop = lineWidth + (msgWaveformMax − barValue) / 2` (`:253`).
+- **Colors** (note Telegram's inverted naming: "InActive" = *inbox + played*, "InInactive" = *inbox + unplayed*) — `colors.palette:422-429`:
+  - Inbox played `msgWaveformInActive = windowBgActive = #40a7e3`; unplayed `msgWaveformInInactive = #d4dee6`.
+  - Outbox played `msgWaveformOutActive = #5ebd66`; unplayed `msgWaveformOutInactive = #b3e2b4`.
+  - Selected variants: **#51a3d3 / #9cc1e1 / #6badad / #91c3c3** respectively.
+- **Playback cursor.** No separate vertical cursor line — played/unplayed split is drawn as a pixel-aligned color boundary at `activeWidth = round(availableWidth × progress)`; a bar straddling the boundary is drawn in two parts (`:255-269`).
+- **Hover highlight.** While pointer is over waveform, bars in `[min(activeWidth, hoverWidth), max(...)]` are overpainted with the active color at **α = 0.30** (`:270-281`).
 
 ### Video Messages (Round Video)
 
 Circular, max 360px diameter. Duration badge. Click opens playback. Progress as arc overlay.
+
+**Progress arc.**
+- **Stroke width:** `st::radialLine = 3px` (`basic.style:119`), drawn with `Qt::RoundCap` (`history_view_gif.cpp:591-592`).
+- **Geometry.** Arc is inset by half the stroke (`stepInside = radialLine/2`) so it sits on the video edge rather than outside; `rthumb − Margins(stepInside)` defines the ellipse rect (`:599-602`). Effective ring diameter ≈ video diameter − 3px.
+- **Starting angle:** `arc::kQuarterLength = 90° × 16` = **top of circle (12 o'clock)** (`ui/arc_angles.h:12-14`).
+- **Direction:** sweep length = `round(kFullLength × −value)`. Qt's `drawArc` uses positive-angle = counter-clockwise; negative length = **clockwise**. In TTL-viewer mode the sign flips to show drain (`:596-598`).
+- **Color:** `historyVideoMessageProgressFg = historyFileThumbIconFg = msgInBg` (chat bubble bg color — contrasts against the video frame) (`colors.palette:415-420`).
+- **Global opacity:** `historyVideoMessageProgressOpacity = 0.72` (`ui/chat/chat.style:596`).
+- **Tap behavior.** Round videos auto-play muted when on-screen (same streamed-media path as GIFs). Tapping toggles sound (via `_openl`/`_savel` click handlers). Pause/resume of the visual is controlled by scroll-offscreen heavy-view unload, not by tap.
 
 ### Files/Documents
 
@@ -487,11 +649,41 @@ Same as document layout but 44px icon = play/pause button. Track title + artist 
 
 ### Polls
 
-Question: `historyPollQuestionStyle`. Options: radio buttons (circle for single, rounded rect for multi) + text. After voting: percentage + colored filling bar (`easeOutCirc` animation). Quiz mode: correct = green, wrong = red + 400ms shake animation. Correct triggers fireworks. Footer: total votes. Timed polls: remaining seconds. Recent voter userpics in a row.
+Question: `historyPollQuestionStyle`. Options: radio buttons (circle for single, rounded rect for multi) + text. After voting: percentage + colored filling bar (`easeOutCirc` animation). Quiz mode: correct = green, wrong = red + shake animation. Footer: total votes. Timed polls: remaining seconds. Recent voter userpics in a row.
+
+**Radio / checkbox (`boxes/polls.style:40-52`):**
+- `diameter: 18px`, stroke `thickness: 2px`, untoggled color `checkboxFg`, toggled `windowBgActive` (#40a7e3).
+- **Filled-state indicator.** When checked, the center is filled — the icon `historyPollChoiceRight` / `historyPollChoiceWrong` (check mark or X, `polls.style:78-79`) is drawn in `activeButtonFg` inside a filled circle of diameter ≈ 18 − 2 = 16px. **No raw check dot** — an icon is used.
+- **Idle opacity:** `historyPollRadioOpacity = 0.7`; hover `= 1.0` (`polls.style:51-52`). Toggle animation = `universalDuration` (default 120ms).
+- **Loading (vote sending):** `InfiniteRadialAnimation`, 18×18px, thickness 2px (`polls.style:54-57`).
+- **Multi-select checkbox radius:** `historyPollCheckboxRadius: 3px` (`polls.style:50`) — 18px square with 3px corner rounding.
+
+**Quiz "wrong answer" shake** (`history_view_poll.cpp:79-83, 3833-3862`):
+- **Duration:** `kRollDuration = 400ms`, **linear** easing (`:83, 2493-2498`).
+- **Amplitude:**
+  - Rotation: **±3.0°** (`kRotateAmplitude = 3.0`), over `kRotateSegments = 8` zero-crossings → ≈ 10 Hz equivalent.
+  - Scale: **±3%** (`kScaleAmplitude = 0.03`), over `kScaleSegments = 2` → ≈ 2.5 Hz.
+- **Waveform:** saw-like triangle via the `progress()` lambda (`:3839-3848`) — four phases `−shift / shift−1 / shift / 1−shift` repeating.
+- **Repaint padding:** `msgMaxWidth · sin(3°)` on all sides (`:3860-3862`) so the rotated bubble doesn't clip.
+
+**Quiz "correct answer" fireworks** (`ui/effects/fireworks_animation.cpp`):
+- Particle system (NOT a Lottie file): **60 initial particles + 30 fall-down particles** (`kParticlesCount = 60`, `kFallCount = 30`, `:16-17`).
+- **Canvas:** 480×320 px logical (`kFireworkWidth/Height`, `:19-20`). Particles are 2px on the short side (`_smallSide = style::ConvertScale(2)`, `:44`).
+- **Six fixed colors:** `#E8BC2C, #D0049E, #02CBFE, #5723FD, #FE8C27, #6CB859` (`:22-31`).
+- **Duration:** runs until all particles `finished`; speed coefficient ramps from 1.0 → 0.2 at 0.15 per 16ms frame once half have fallen (`:64-69`) — empirically ~2.5–3s. No fixed total; ends when the last particle settles.
 
 ### Locations
 
-Static map thumbnail at `locationSize`, 430px max, 100px min. Optional venue title (2 lines max) + description (3 lines max) below. Click opens coordinates. Live locations: circular progress indicator showing elapsed/remaining time.
+Static map thumbnail at `locationSize`, 430px max, 100px min. Optional venue title (2 lines max) + description (3 lines max) below. Click opens coordinates.
+
+**Live-location remaining-time ring** (`history_view_location.cpp:458-507`):
+- **Placement.** Rendered in the bottom bar next to the address text, **NOT over the map thumbnail**. Ring occupies `liveLocationRemainingSize = 28px` (`ui/chat/chat.style:1150`) vertically centered in the info bar.
+- **Stroke:** `style::ConvertScaleExact(2.) = 2 logical px` (`:481-482`), drawn on both background circle and elapsed arc.
+- **Color:** `messageStyle()->msgServiceFg` (per-theme service label — tints with bubble style). Background ring drawn at `color.alpha × kLiveElapsedPartOpacity = color × 0.20`; elapsed arc uses full-alpha color (`:471-483`).
+- **Arc geometry.** Start at `arc::kQuarterLength` (top, 12 o'clock); sweep = `kFullLength × progress` (positive = counter-clockwise in Qt → **counter-clockwise sweep around the ring**) (`:494-497`).
+- **Progress update cadence.** Discrete: timer re-call interval = `clamp(period / 360, 1, 86400) seconds` (`:504-505`) → one tick per 1/360 of total period (≈ 1° per tick).
+- **Inside the ring:** remaining-minutes number in `semiboldFont`, center-aligned. For "until turned off" (`kUntilOffPeriod`), an infinity glyph `U+221E` is drawn via `liveLocationLongIcon` (`:487-503, 40-44`).
+- **Pulsing dot on the map itself:** NOT FOUND in AyuGram sources. The map image is a static tile from the MapProvider; no secondary pulsing-user overlay is drawn on the thumbnail. Paint paths in `history_view_location.cpp` only composite `_imageCache` and the `_live->previous` crossfade. If a pulsing ring exists, it's baked into the server-rendered tile — not client-drawn.
 
 ### Contacts
 
@@ -499,7 +691,31 @@ Circular userpic left. Name + phone number beside it. Action buttons below: "Sen
 
 ### Web Page Previews
 
-Two modes: **Article** (small thumbnail right, text wraps) and **Standard** (full-width, media below text). Site name, title, description (max 5 lines). YouTube: play icon overlay + duration badge. "Open" button (36px) with localized text.
+Two modes: **Article** (small thumbnail right, text wraps) and **Standard** (full-width, media below text).
+
+**Mode selection** (`history_view_web_page.cpp:518-528`) is **by webpage type, NOT by media dimensions:**
+- `MediaWebPageFlag::ForceLargeMedia` set → Standard.
+- `MediaWebPageFlag::ForceSmallMedia` set → Article.
+- Otherwise `WebPageData::computeDefaultSmallMedia()` (`data/data_web_page.cpp:423-449`):
+  - Returns `false` (Standard) if there's a collage, if siteName/title/description/author are all empty, if webpage type is video/document/photo/story, if siteName is "Twitter"/"Facebook", or if type is `ArticleWithIV`.
+  - Returns `true` (Article) if type is `Profile`, or a generic article with a photo + text.
+- **No pixel-width heuristic exists** — selection is purely by webpage type and siteName.
+
+**Article-mode thumbnail** — square width = `ArticleThumbWidth(photo, articleMinHeight)` (clamped to line-height), placed right of text with `webPagePhotoDelta = 8px` gutter (`ui/chat/chat.style:667`; `history_view_web_page.cpp:650-661`).
+
+**Description line cap:** `descMaxLines = 3 + (siteName empty ? 1 : 0) + (title empty ? 1 : 0)` → **3 to 5 lines** (`:642-643`). With both siteName and title present → 3 lines. Missing one → 4. Missing both → 5. (The "5 lines" figure is the upper bound, not typical.)
+
+**Factcheck / log-entry overrides:** factcheck uses `computeFactcheckMetrics(...)` (collapsible 3-line preview + Show-more); log entries use `kMaxOriginalEntryLines = 8192` (no cap) (`:54, 636-642`).
+
+**Fonts** (`ui/chat/chat.style:663-666`):
+- Site name: `webPageTitleStyle = semiboldTextStyle` (semibold, `normalFont` — 13px @ 1×).
+- Title: also `webPageTitleStyle`.
+- Description: `webPageDescriptionStyle = defaultTextStyle` (regular).
+- Site name always 1 line (`_siteNameLines = 1`, `:606`); title wrap capped by same block.
+
+**Hashtag/mention highlighting** is site-aware: Twitter and Instagram use their own `TextContextDetails::HashtagMentionType` so `@foo`/`#foo` link into the respective platform (`:586-597`).
+
+**YouTube-specific overlay:** NO dedicated YouTube code path in `history_view_web_page.cpp`. Video webpages (`WebPageType::Video`) force Standard mode via `computeDefaultSmallMedia` (`data_web_page.cpp:437`). The large photo preview is rendered via the standard `CreateAttach → Gif/Photo` path; the play-button overlay is the generic `historyFileThumbPlay` icon used by any `Video` webpage — no red play button, no channel-name row, no YouTube branding. "Open" button (36px) with localized text.
 
 ---
 
