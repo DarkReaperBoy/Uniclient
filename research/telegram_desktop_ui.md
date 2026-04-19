@@ -6492,6 +6492,256 @@ Available only when the account is in Telegram Support mode (`session().supportM
 
 **Focus chain gating.** Most shortcut handlers check `Ui::InFocusChain(this)`, `Ui::AppInFocus()`, `isActiveWindow()`, and `!controller()->isLayerShown()` before processing. This ensures shortcuts only fire in the appropriate context and are suppressed when dialogs/popups are open.
 
+### 24.12 Gap Fills (session 2026-04-19)
+
+Six pending §24 gaps resolved against `AyuGram/AyuGramDesktop/dev` source.
+
+#### 24.12.1 Account switching defaults — contradiction resolved
+
+Existing spec note (§24.4 tail) says: *"Account shortcuts are not in fillDefaults() — they have no default key binding."* **Confirmed correct.** The spec's prior tables showing "Cmd+1 / Ctrl+1 = account1" are a *suggestion*, not upstream defaults.
+
+**Source:** `Telegram/SourceFiles/core/shortcuts.cpp:468-535` (`Manager::fillDefaults()`).
+
+Verified:
+- `ShowAccount1..ShowAccount6` commands are declared (`shortcuts.h:44-49`) and name-mapped (`shortcuts.cpp:106-111`).
+- The `fillDefaults()` body contains **zero** `set(...)` calls for any `ShowAccount*` command (shortcuts.cpp:468-535).
+- The `kShowAccount` array at `shortcuts.h:103-110` is only consumed by `writeDefaultFile()` (`shortcuts.cpp:571-580`), which emits each `ShowAccountN` entry with `"keys": null` into `shortcuts-default.json` — a catalog, not a binding.
+- `ranges::views::concat(kShowAccount, kNoValue)` at `shortcuts.cpp:571` confirms Account1..6 share the "no default value" branch with unbound commands.
+
+**Correction to insert at existing Account Switching table:** Replace the Shortcut column with `*(unbound)*` for every row. Keep the existing Note paragraph; delete the misleading Cmd+N / Ctrl+N entries.
+
+Where the bindings come from at runtime: `SessionController::setupShortcuts()` at `window/window_session_controller.cpp:1932-1955` handles every `ShowAccountN` command (via `kShowAccount` zipped with the account index), activating the Nth ordered account via `app->domain().orderedAccounts()[index]`. The handler is registered regardless of whether a key is bound — so if the user assigns a key via `shortcuts-custom.json` or Settings, it wires up to the same handler.
+
+#### 24.12.2 Folder vs pinned-chat precedence
+
+Existing spec hypothesizes *"the folder shortcut loop overwrites the pinned-chat bindings for the same keys."* **Confirmed by source — but the mechanism is chained fire, not overwrite.**
+
+**Source:** `Telegram/SourceFiles/core/shortcuts.cpp:502-517` (order matters).
+
+Sequence in `fillDefaults()`:
+1. Lines 502-509: `set(u"ctrl+1"_q, ChatPinned1)` ... `set(u"ctrl+8"_q, ChatPinned8)` — pinned bindings installed first.
+2. Lines 511-517: the folders loop:
+   ```cpp
+   auto &&folders = ranges::views::zip(
+       kShowFolder,
+       ranges::views::ints(1, ranges::unreachable));
+   for (const auto &[command, index] : folders) {
+       set(u"%1+%2"_q.arg(ctrl).arg(index), command);
+   }
+   ```
+   `kShowFolder` (`shortcuts.h:92-101`) has 8 elements: `ShowAllChats, ShowFolder1..6, ShowFolderLast`. The loop starts at index 1, so it binds `ctrl+1` → `ShowAllChats`, `ctrl+2` → `ShowFolder1`, ..., `ctrl+8` → `ShowFolderLast`.
+
+Precedence mechanism: `Manager::set(const QKeySequence&, Command, bool replace)` at `shortcuts.cpp:674-711`. Default `replace = false`. Line 690-697:
+
+```cpp
+auto i = _shortcuts.find(keys);
+if (i == end(_shortcuts)) {
+    i = _shortcuts.emplace(keys, std::move(shortcut)).first;
+} else if (replace) {
+    unregister(std::exchange(i->second, std::move(shortcut)));
+} else {
+    object = i->second.get();            // reuse existing QAction
+}
+_commandByObject.emplace(object, command); // ADD the new command
+```
+
+When `replace == false` (the default), the second `set()` on the same key does not remove the first command — **both** commands fire when the key is pressed. So `Ctrl+1` by default dispatches *both* `ChatPinned1` and `ShowAllChats`.
+
+**Who wins at fire time:** `SessionController::setupShortcuts()` registers handlers for each command with default priority 0. The `Request::check(command, priority)` / `Request::handle(FnMut<bool()>)` flow at `shortcuts.h:114-128` accepts the first handler that returns `true`. The folder handler returns `false` when no folders are configured (falls through to pinned), and returns `true` otherwise (pre-empts pinned). So:
+
+- **Folders configured:** `Ctrl+N` activates the folder (folder handler wins).
+- **No folders / All Chats only:** `Ctrl+N` opens the N-th pinned chat.
+
+**Correction:** Replace existing precedence text with *"Both commands are registered on the same QAction (Manager::set replaces nothing by default at shortcuts.cpp:690-697). At fire time the folder handler returns true when folders exist, pre-empting the pinned-chat handler; when no folders are configured, the folder handler returns false and pinned-chat takes over."*
+
+#### 24.12.3 Ctrl+Tab chat switcher overlay — full spec
+
+The overlay **does exist on all platforms** in AyuGram (and upstream TD). It's a dedicated widget, not a popup menu.
+
+**Source:** `Telegram/SourceFiles/window/window_chat_switch_process.cpp`, `window_chat_switch_process.h`, style `Telegram/SourceFiles/window/window.style:351-376`.
+
+**Host & lifetime.** `window/window_session_controller.cpp:1894-1922`:
+- Owner: `SessionController::_chatSwitchProcess` (unique_ptr).
+- Parent widget: `widget()->bodyWidget()` (the main window body, NOT a toplevel).
+- Lives from first `ChatSwitchRequest{.started=true}` until `CancelChatSwitch(Qt::Key_Enter)` or `Key_Escape`.
+- Gated by `!window().locked()` and `Core::App().activeWindow() == &window()`.
+
+**Widget composition** (`window_chat_switch_process.cpp:211-228`):
+- Outer `_widget` = `Ui::RpWidget` with the body-widget geometry; semi-transparent overlay; intercepts mouse press to dismiss.
+- Inner `_view` = child `Ui::RpWidget` rendering a rounded-rectangle panel with shadow (`Ui::Shadow::paint` with `st::boxRoundShadow`; background fill via `Ui::RoundRect(st::boxRadius, st::boxBg)`).
+- Grid of `Button` children (one per recent chat).
+
+**Each Button (`window_chat_switch_process.cpp:34-207`):**
+- Size: `st::chatSwitchSize` = **72 × 104 px** (window.style:353).
+- Contents: centered userpic on top + `Ui::FlatLabel` name below (`st::chatSwitchNameLabel`, window.style:367-374, break-everywhere wrapping, 6 px side skip `st::chatSwitchNameSkip`).
+- Userpic variant:
+  - Default (user/chat/channel): `st::chatSwitchUserpic` (UserpicButton at window.style:354-357).
+  - Forum topic: `TopicIconButton` + small badge userpic (`st::chatSwitchUserpicSmall`, window.style:362-365).
+  - Saved-Messages sublist: userpic from sublistPeer + small badge peer userpic.
+- Userpic top padding: `st::chatSwitchUserpicTop = 8px` (window.style:366).
+- Selection indicator: rounded-rect outline drawn in `paintEvent` using `st::defaultRoundCheckbox.bgActive` pen, width `st::chatSwitchSelectLine = 3 px` (window.style:376), animated via `Ui::Animations::Simple` with `st::slideWrapDuration`.
+- Hover triggers `_selectRequests` which mirrors keyboard selection (`mouseMoveEvent` at line 203-207).
+
+**Grid layout algorithm** (`ChatSwitchProcess::layout`, cpp:420-490):
+- Panel margins: `st::chatSwitchMargins = margins(16, 16, 16, 16)` (window.style:351).
+- Inner padding: `st::chatSwitchPadding = margins(12, 12, 12, 12)` (window.style:352).
+- `canPerRow = availableWidth / 72px`. Row count:
+  - `canRows = 1` if `canPerRow > 14`,
+  - `canRows = 2` if `canPerRow > 12`,
+  - `canRows = 3` otherwise.
+- Balances rows × columns: targets roughly square distribution, but caps `_shownPerRow ≤ 7` when `_shownRows > 1`, and `_shownPerRow ≤ 4` when `_shownRows > 2`.
+- `_inner` = centered rect of size `(shownPerRow*72, shownRows*104)`; `_outer = _inner + st::chatSwitchPadding`; `_shadowed = _outer + st::boxRoundShadow.extend`.
+- Maximum visible chats = `_shownPerRow * _shownRows` (excess hidden).
+
+**Navigation** (`ChatSwitchProcess::process`, cpp:242-283):
+- `Tab` / `Right` → wrap next; `Backtab` / `Left` → wrap previous.
+- `Up` / `Down` → move by `_shownPerRow` with wrap.
+- `Escape` → `_closeRequests`.
+- `Enter` → fire `_chosen(_list[_selected])`, then open the chat (or activate the separate window hosting it) via `jumpToChatListEntry` at `window_session_controller.cpp:1906-1916`.
+- **`Q` → remove the currently selected chat from the recent-peers history** (cpp:275-281 calls `RecentPeers::chatOpenRemove` and `CloseInWindows`). Previously undocumented.
+
+**Content source** (`ChatSwitchProcess::setupContent`, cpp:318-369):
+- `_list` comes from `session->recentPeers().collectChatOpenHistory()`.
+- If fewer than 2 recent chats exist, the process closes immediately (cpp:320-322, cpp:433-435).
+- When started from an already-open thread, that thread is rotated to the front at index 0 and auto-selected.
+
+**On destroy** (cpp:230-232): saved userpic views are handed back to `RecentPeers::chatOpenKeepUserpics()` so the cache survives rapid Ctrl+Tab cycles.
+
+**Correction:** Upgrade prior "open chat switcher overlay (hold Ctrl)" line — cite the widget as `Window::ChatSwitchProcess`, size-driven (72×104 cells, margins 16, padding 12), grid layout auto-sized to window width, with `Q` removing the selected entry from history.
+
+#### 24.12.4 Markdown dialog boxes — no table support; EditLinkBox + EditCodeLanguageBox
+
+**Table support:** **absent**. `chat_helpers/message_field.cpp` (1658 lines) contains only `EditLinkBox` and `EditCodeLanguageBox`. No `TableBox`/`EditTableBox` exists anywhere under `SourceFiles/`. Telegram's message entity set has no table entity type.
+
+**EditLinkBox** (`Telegram/SourceFiles/chat_helpers/message_field.cpp:138-282`):
+- Triggered by Ctrl+K when a text selection exists, or via the "Edit link" context-menu action.
+- Invoked as `show->showBox(Box(EditLinkBox, show, startText, startLink, callback, fieldStyle, validate))`.
+- Root: `Ui::GenericBox`; width fixed to `st::boxWidth` (cpp:237-239).
+- Row 1 — display-text field: single-line `Ui::InputField` (cpp:151-157) with placeholder `tr::lng_formatting_link_text`; padding `st::markdownLinkFieldPadding` (cpp:158); instant-replaces + emoji suggestions + spellchecker initialized (cpp:159-167).
+- Row 2 — URL field: second `Ui::InputField` (multi-line), placeholder `tr::lng_formatting_link_url`, attached to a placeholder RpWidget so its height tracks content (cpp:169-198). Default URL pre-filled from `startLink`, or from clipboard if clipboard begins with any `kLinkProtocols` (http://, https://, tg://, ton://, etc.) and `startLink` is empty (cpp:173-182).
+- Title: dynamic — `tr::lng_formatting_link_create_title` when URL empty, else `tr::lng_formatting_link_edit_title` (cpp:230-232).
+- Buttons: `tr::lng_formatting_link_create` (primary, triggers submit) + `tr::lng_cancel` (cpp:234-235).
+- Tab focus flow: text → URL → text (via `tabbed()` handlers at cpp:266-281). Enter in text field focuses URL; Enter in URL submits if text non-empty, else focuses text.
+- Validation (cpp:200-215): both fields required; `validate(url)` callback; errors call `showError()` on the failing field.
+- Initial focus: URL field if startText non-empty (selects all), text field otherwise (cpp:241-250).
+
+**EditCodeLanguageBox** (`chat_helpers/message_field.cpp:284-327`):
+- Triggered on an active code/pre block via context-menu action (no default keyboard shortcut).
+- Root: `Ui::GenericBox`. Title: `tr::lng_formatting_code_title`.
+- Label row: `Ui::FlatLabel` text `tr::lng_formatting_code_language`, style `st::settingsAddReplyLabel` (cpp:291-294).
+- Field row: single `Ui::InputField`, style `st::settingsAddReplyField`, placeholder `tr::lng_formatting_code_auto` (cpp:295-299). `selectAll()` on open (cpp:303). `setMaxLength(kCodeLanguageLimit)` + `Ui::AddLengthLimitLabel` decorator (cpp:304-306).
+- Validation regex: `^[a-zA-Z0-9\+\-]*$` (cpp:310). Failures call `field->showError()`.
+- Buttons: `tr::lng_settings_save` + `tr::lng_cancel` (cpp:323-325). Submit on Enter (cpp:321-322).
+
+No support for markdown tables in the edit boxes, InputField keyboard handler, or context menu — the existing MarkdownActions list is complete.
+
+#### 24.12.5 Support mode visuals
+
+**No distinct chrome, status badge, or sidebar indicator** lights up when `session().supportMode()` is active. Support mode is signalled by the *presence* of new UI affordances, not by decoration.
+
+**Sources:**
+- `support/support_helper.cpp:1-110` — registers support-mode windows and owns the per-user `SupportInfo` editor box. No sidebar/status painting code.
+- `support/support_autocomplete.cpp` — the "Templates" reply picker panel.
+- `history/history_widget.cpp:285-286`, `448-449`, `1517-1527`, `3658-3659`, `3839-3840`, `5003-5005`, `7166-7167` — the only history-widget support-mode touch points are (a) constructing the autocomplete panel when `session().supportMode()`, (b) activating/hiding it, (c) re-positioning it via `setBoundings(_scroll->geometry())`.
+
+**Support status / info editor.** `EditInfoBox` (`support_helper.cpp:60-110`):
+- Regular `Ui::BoxContent`.
+- Single multi-line `Ui::InputField` styled `st::supportInfoField`, placeholder "Support information".
+- `setMaxLength(kMaxSupportInfoLength = MaxMessageSize * 4 = 16384)` (support_helper.cpp:56, 92).
+- Opens from the support helper menu (not from a shortcut).
+
+**Templates / "Reply Templates" panel** (`support/support_autocomplete.cpp`):
+- Class: `Support::Autocomplete`, subclass of `Ui::RpWidget`.
+- Constructor `(QWidget *parent, not_null<Main::Session*> session)` (cpp:309). Parent = `HistoryWidget` (`history_widget.cpp:285-286`).
+- Not owned by any popup / dropdown — child of the history widget, hidden by default.
+- Activation: `activate(field)` at cpp:315, gated on `session->settings().supportTemplatesAutocomplete()`.
+- Anchoring: `setBoundings(QRect rect)` at cpp:349-357 — placed at `(rect.x(), rect.bottom() - height, rect.width(), height)`, i.e. docked to the bottom of the chat scroll area, above the compose box. Called with `_scroll->geometry()` from `HistoryWidget::updateControlsGeometry()` (history_widget.cpp:7166-7167).
+- Height: `maxHeight = int(4.5 * st::mentionHeight)`, clamped to the bounding rect height (cpp:350-351). `st::mentionHeight` ≈ 40 px → panel max height ≈ 180 px.
+- Background: `st::mentionBg` fill (cpp:435-437), top 1-px divider in `st::shadowFg` (cpp:438-440).
+- Internal layout (cpp:375-454):
+  - Top row: `Ui::InputField` search field, style `st::defaultMultiSelectSearchField`, wrapped in `PaddingWrap` using `st::autocompleteSearchPadding`, placeholder "Search for templates" (cpp:376-383). Input loses focus → panel auto-deactivates after 10 ms delay (cpp:401-408).
+  - Below: `Ui::ScrollArea` filling remaining height; owned child `Inner` widget renders rows.
+- Row layout (`Inner`, cpp:36-228):
+  - Per-row `Row` struct with three `Ui::Text::String`s: `question`, `keys`, `answer`, each with maxWidth `st::windowMinWidth / 2` (cpp:63-65).
+  - Row height formula `resizeRowGetHeight` (cpp:136-145): `autocompleteRowPadding.top() + wrapped(question/keys/answer) + autocompleteRowPadding.bottom() + st::lineWidth`.
+  - Text styles: question in `st::autocompleteRowTitle`, keys in `st::autocompleteRowKeys`, answer in `st::autocompleteRowAnswer` (cpp:129-134).
+  - Empty state: `3 * st::mentionHeight` tall with centered `st::windowSubTextFg` caption (cpp:154, 161-162).
+  - Active row: fills with `st::windowBgOver`, mention title in `st::mentionFg` / `st::mentionFgOver`, body text in `st::windowFg`, 1-px bottom divider (cpp:201-226).
+- Keyboard: Up/Down moves selection (cpp:367-373); Enter (via `input->submits()`) or row-click fires `submitValue(value)` (cpp:388-391, 414) → inserts text into compose field or fires contact-share.
+- Dismissal: `deactivate()` → `hide()` (cpp:422-424). Panel is hidden, not destroyed, across activations.
+
+Support shortcut bindings already in `fillDefaults` (F5, Ctrl+Delete, Ctrl+Insert, Ctrl+Shift+X, Ctrl+Shift+C) at `shortcuts.cpp:496-500` — existing §24.10 accurate.
+
+**Unresolved for direct-clone:** `st::supportInfoField`, `st::autocompleteRowPadding`, `st::autocompleteRowTitle/Keys/Answer`, `st::autocompleteSearchPadding`, `st::mentionHeight` — exact values are in `support/support.style` (404 via raw fetch). Flutter port: row ≈ 40 px, padding 10×14 px, search field height 36 px.
+
+#### 24.12.6 Settings Shortcuts UI — dimension table
+
+**Source:** `Telegram/SourceFiles/settings/sections/settings_shortcuts.cpp` (615 lines).
+
+**Screen structure** (settings_shortcuts.cpp:538-589):
+- Section class: `Settings::Shortcuts` (inherits `Section<Shortcuts>`). Lives under `ChatId()` (Chat Settings group), icon `st::menuIconShortcut`, title `tr::lng_settings_shortcuts` (cpp:595-602).
+- Root: `Ui::VerticalLayout` inside `Ui::ResizeFitChild(this, content)` (cpp:538-588).
+
+**Top — "Reset to defaults" affordance** (cpp:448-472):
+- Wrapped in a `Ui::SlideWrap<Ui::VerticalLayout>` (reveal animation when modified state toggles).
+- Contains: `AddDivider` → `AddSkip` → **reset button** → `AddSkip` → `AddDivider`.
+- Reset button: `Ui::SettingsButton`, label `tr::lng_shortcuts_reset`, style `st::settingsButtonNoIcon` (no row icon).
+- Visibility: `modifiedWrap->toggleOn(state->modified.value())` (cpp:472) — visible only when any current binding differs from its default.
+- Click handler (cpp:459-469): stops recording → restores every `entry.now` to `entry.original` → calls `S::ResetToDefaults()`.
+- Deeplink-highlightable via `shortcuts/reset` search ID (cpp:494-498, 567-572).
+
+**Body — entries list** (cpp:474-484): for each `Labeled` entry in `Entries()`:
+- `null` label = **separator row**: `AddSkip` → `AddDivider` → `AddSkip`. Used 11 times in `Entries()` (cpp:65, 67, 73, 82, 89, 102, 108, 112, 115, 117, 119) to chunk 70+ commands into visual groups: App/Window, Search, Chat Nav, Pinned, Accounts, Folders, Chat Actions, Send, Record, Admin Log, Media Viewer, Media Playback.
+- Otherwise: per-entry inline `Ui::VerticalLayout` hosting 1+ `Button` rows (one per current binding; additional bindings added via right-click menu).
+
+**Row widget** (settings_shortcuts.cpp:232-304):
+- Outer: `Ui::SettingsButton`, label = entry's `rpl::producer<QString>` (e.g. `tr::lng_shortcuts_chat_pinned_n` with `lt_index` placeholder), style `st::settingsButtonNoIcon` (cpp:232-236). Height and paddings inherited from this style.
+- Right-hand key label: `Ui::FlatLabel` created as child of the button (cpp:237-240), style `st::settingsButtonNoIcon.rightLabel`.
+  - Positioning: `moveToRight(st::settingsButtonRightSkip, st.padding.top())` (cpp:275-277).
+  - Width budget: `width - st.padding.left() - st.padding.right() - st.style.font->width(labelText) - st::settingsButtonRightSkip` (cpp:253-258). `resizeToNaturalWidth(available)` squeezes as needed.
+  - `Qt::WA_TransparentForMouseEvents` — clicks fall through to SettingsButton.
+- Click modes (cpp:281-294):
+  - Left click → `S::Pause()` + `state->recording = raw`.
+  - Right click → `state->showMenuFor(entry.command)`.
+  - Any click while a popup menu is open → hide the menu first.
+
+**Key-label text states** (cpp:259-273):
+
+| State | Text | Color |
+|---|---|---|
+| Recording active on this row | `tr::italic(tr::lng_shortcuts_recording)` ("Recording...") | `st::boxTextFgGood` |
+| Key slot cleared (empty `QKeySequence`) | empty | default |
+| Binding removed due to conflict | `Ui::Text::Wrapped(keyString, EntityType::StrikeOut)` | `st::attentionButtonFg` |
+| Normal | `ToString(key)` | default |
+
+**`ToString(QKeySequence)`** (cpp:129-138): platform-specific symbol substitution only on macOS (`Q_OS_MAC`):
+- `Ctrl+` → `U+2318` (⌘)
+- `Meta+` → `U+2303` (⌃)
+- `Alt+` → `U+2325` (⌥)
+- `Shift+` → `U+21E7` (⇧)
+
+Windows/Linux use Qt's portable text output unchanged.
+
+**Right-click popup menu** (cpp:305-327):
+- `Ui::PopupMenu` styled `st::popupMenuWithIcons` (cpp:306-308).
+- Single action: `tr::lng_shortcuts_add_another` with icon `st::menuIconTopics` (cpp:309-325). Spawns a new empty key slot and starts recording immediately.
+- Spawned at `QCursor::pos()` (cpp:326).
+
+**Recording state machine** (cpp:394-446, event filter on `qApp`):
+- Trigger: left-click on a row (cpp:292) — calls `S::Pause()` and sets `state->recording = button`.
+- Modifier-only press (Ctrl/Shift/Alt/Meta alone) — `Cancel` the event, stay recording (cpp:405-409).
+- Un-modified non-function key not in `AllowWithoutModifiers` — exit recording without assigning unless it is Escape (cpp:410-415). Escape also handled in `KeyPress` branch (cpp:440-443) to fully dismiss.
+- Backspace / Delete (no modifiers) → clear binding (cpp:403-404, 434).
+- Qt ≥ 6.7 handles Shift+<symbol> keys via `QKeyMapper::possibleKeys` to avoid double-counting the Shift modifier (cpp:416-432).
+
+**`checkModified`** (cpp:198-210): sorts `entry.original` vs `entry.now` and fires `state->modified = true` on any mismatch. Recomputed after every record / clear.
+
+**Translation key catalog** (cpp:42-127): per-command `tr::lng_shortcuts_*` — e.g. `lng_shortcuts_close`, `lng_shortcuts_chat_pinned_n` (parameterized by `lt_index`), `lng_shortcuts_show_account_n`, `lng_shortcuts_show_folder_n`.
+
+**Unresolved for direct-clone:** concrete pixel values for `st::settingsButtonNoIcon` (row height, padding, rightLabel text style), `st::settingsButtonRightSkip`, `st::lineWidth` — live in `settings.style` / `boxes.style`. For implementation, use canonical Settings row metrics from §13 (row height 52 px, horizontal padding 22 px), with the right-aligned key label occupying whatever width remains after the elided primary label.
+
+**No in-page search box.** The screen does not own a dedicated search/filter input — entries are registered with the parent SectionBuilder's search registry via `BuildShortcutsSection` (cpp:492-500), so typing in the Settings page's global search bar surfaces the "reset" highlight and command labels in search results.
+
 ---
 
 ## 25. Theming & Color System
