@@ -420,6 +420,7 @@ class _StoriesRingPainter extends CustomPainter {
   final bool isLiveStream;
   final bool isDark;
   final bool minified;
+  final double readOpacity;
 
   _StoriesRingPainter({
     required this.storyCount,
@@ -427,6 +428,7 @@ class _StoriesRingPainter extends CustomPainter {
     required this.isLiveStream,
     required this.isDark,
     this.minified = false,
+    this.readOpacity = 0.6,
   });
 
   @override
@@ -451,6 +453,10 @@ class _StoriesRingPainter extends CustomPainter {
       ..strokeWidth = lineWidth
       ..strokeCap = StrokeCap.round;
 
+    // Spec §2: read ring opacity = 0.6 (main strip), 1.0 (Info/Mine strips).
+    // Applied as QPainter opacity (canvas-level), not color alpha channel.
+    final applyReadOpacity = !hasUnread && !isLiveStream && readOpacity < 1.0;
+
     if (isLiveStream) {
       // Spec §2: live-stream ring = solid attentionButtonFg (red).
       paint.color = const Color(0xFFe53935);
@@ -469,12 +475,20 @@ class _StoriesRingPainter extends CustomPainter {
           : const Color(0xFFbbbbbb);
     }
 
+    if (applyReadOpacity) {
+      canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, readOpacity));
+    }
+
     if (storyCount == 1) {
       // Spec §2: single story = full ellipse.
       canvas.drawCircle(center, ringRadius, paint);
     } else {
       // Spec §2: multi-story ring = segments with ~160-unit separators, round caps.
       _drawSegmentedRing(canvas, center, ringRadius, paint);
+    }
+
+    if (applyReadOpacity) {
+      canvas.restore();
     }
   }
 
@@ -505,7 +519,8 @@ class _StoriesRingPainter extends CustomPainter {
       hasUnread != oldDelegate.hasUnread ||
       isLiveStream != oldDelegate.isLiveStream ||
       isDark != oldDelegate.isDark ||
-      minified != oldDelegate.minified;
+      minified != oldDelegate.minified ||
+      readOpacity != oldDelegate.readOpacity;
 }
 
 /// Pill-shaped unread count badge.

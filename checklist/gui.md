@@ -36,7 +36,6 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Read ring opacity: 0.6 (main strip), 1.0 (Info/Mine strips) (S2)
 - [ ] Chat-type icon before name: add bot icon (S2)
 - [ ] Verified/scam/fake badges after name (S2)
 - [ ] Typing indicator: animated dots replacing preview text (S2)
