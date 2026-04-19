@@ -18757,46 +18757,138 @@ Opens as a layer widget (`Info::LayerWidget`) or side panel. Structure from top 
 
 ### 42.4 Tab Bar Details
 
-Tabs are created in `CreateTabs()` (`history_view_reactions_tabs.cpp:129-213`):
+Tabs are created in `CreateTabs()` (`history_view_reactions_tabs.cpp:129-213`). The container holds a flat list of `Tab` widgets (no scrolling — see §42.4.3 wrapping). Inside `CreateTab`:
 
-- **"Read" tab** (optional): Only shown if `whoReadIds` has entries. Uses reaction ID `"read"` internally. Icon: double-check marks (`reactionsTabChecks` / `reactionsTabPlayed` for voice/video). Shows count of who read the message.
-- **"All" tab**: Always present. Empty `ReactionId`. Icon: `reactionsTabAll` (heart+eye icon). Count = sum of all reaction counts.
-- **Per-reaction tabs**: One tab per distinct reaction, sorted by count descending. Each shows the emoji (standard or custom) + count.
+```
+const auto st = &st::reactionsTabs;          // = MultiSelect(defaultMultiSelect)
+const auto stm = &st->item;                  // = MultiSelectItem
+```
 
-Each tab is a rounded pill (`stm->height / 2` corner radius) with:
-- Background: `textActiveBg` (selected) or `textBg` (unselected)
-- Text color: `textActiveFg` (selected) or `textFg` (unselected)
-- Icon on the left (emoji size `Emoji::GetSizeNormal()`), text on the right
-- Font: `st::semiboldFont`
-- Count formatted with `Lang::FormatCountDecimal()`
-- Tab width: `height + padding.left + textWidth + padding.right`
-- Tabs container padding: `margins(12px, 10px, 12px, 10px)` from `st::reactionsTabs`
-- Icon left skip: `reactionsTabIconSkip` = 3px
+So every numeric value is sourced from `st::reactionsTabs` (overrides) → `defaultMultiSelect` (base) → `defaultMultiSelectItem` (item base). See `lib_ui/ui/widgets/widgets.style:713` (defaultMultiSelect), `:647-660` (MultiSelectItem), and `Telegram/SourceFiles/ui/chat/chat.style:1079-1082` (reactionsTabs override).
 
-Custom emoji reactions render using `Ui::Text::CustomEmoji` with `Data::ReactionEntityData()`. Standard emoji tabs use static icons. The "Read" tab uses check marks or play icons depending on message type.
+#### 42.4.1 Tab Set
 
-Tab wrapping: tabs flow left-to-right. When a tab would exceed the available width, it wraps to the next line. Line spacing: `tab.height + st::reactionsTabs.itemSkip`.
+| Tab | Condition | Icon | Source |
+|---|---|---|---|
+| **"Read"** | `whoReadIds` is non-empty (group / megagroup with read receipts) | `reactionsTabChecks` (text msg), `reactionsTabPlayed` (voice/round), `reactionsTabAll` fallback | `chat.style:1074-1078`; `history_view_reactions_tabs.cpp:CreateTabs` |
+| **"All"** | Always present | `reactionsTabAll` (heart + eye, `windowFg`) / `reactionsTabAllSelected` (`activeButtonFg`) | `chat.style:1074-1075` |
+| **Per-reaction** | One per distinct reaction, sorted by count descending | Standard emoji (static PNG) or `Ui::Text::CustomEmoji` (animated, paused via `Window::GifPauseReason::Layer`) | `history_view_reactions_tabs.cpp` |
 
-Switching tabs fires `state->selected.changes()` which triggers `_full.switchTab(reaction)` in the `InnerWidget`, which calls `Controller::showReaction()`.
+Counts are formatted with `Lang::FormatCountDecimal()` (no abbreviation: "1,234" not "1.2K").
+
+#### 42.4.2 Pill Geometry (resolved)
+
+| Property | Value | Style key (file:line) |
+|---|---|---|
+| **Pill height** | **32 px** | `MultiSelectItem.height` `lib_ui/ui/widgets/widgets.style:649` (inherited from `defaultMultiSelect.item` `:730` → `defaultMultiSelectItem`) |
+| **Corner radius** | `stm->height / 2` = **16 px** (fully-rounded pill) | computed in `CreateTab` paint code, height = 32 |
+| **Pill horizontal padding (text side)** | `padding.left = 6 px`, `padding.right = 12 px` | `MultiSelectItem.padding` `widgets.style:648` = `margins(6px, 7px, 12px, 0px)` |
+| **Pill width** | `height + padding.left + textWidth + padding.right` = `32 + 6 + textWidth + 12` = `50 + textWidth` | `history_view_reactions_tabs.cpp:35` |
+| **Icon area (left)** | square `height × height` = `32 × 32 px`; emoji centered inside | `CreateTab` paint code |
+| **Icon size** | `Ui::Emoji::GetSizeNormal()` = `st::emojiSize * DevicePixelRatio()` = `18 * DPR` device-px → **18 logical px** | `lib_ui/ui/basic.style:47` (`emojiSize: 18px`); `lib_ui/ui/emoji_config.cpp:872, 1043-1046` |
+| **Icon left skip** (gap before icon inside the icon area) | **3 px** | `reactionsTabIconSkip` `chat.style:1082` |
+| **Custom emoji size** | `Ui::Text::AdjustCustomEmojiSize(GetSizeNormal())` (slightly smaller than 18 px so the rendered glyph fits the icon area without clipping) | `history_view_reactions_tabs.cpp` |
+| **Font** | `st::semiboldFont` (= 13 px Open Sans Semibold per `defaultTextStyle` family) | `history_view_reactions_tabs.cpp:34`; `defaultTextStyle` `lib_ui/ui/basic.style:70` |
+| **Background — unselected** | `textBg` (= `windowBg`) | `MultiSelectItem.textBg` `widgets.style:651` |
+| **Background — selected** | `textActiveBg` (= `activeButtonBg`) | `MultiSelectItem.textActiveBg` `widgets.style:653` |
+| **Text colour — unselected** | `textFg` (= `windowFg`) | `:652` |
+| **Text colour — selected** | `textActiveFg` (= `activeButtonFg`) | `:654` |
+| **Selection-transition duration** | **150 ms** | `MultiSelectItem.duration` `widgets.style:658` |
+
+> Spec-correction note: the previous draft listed only the container padding and the icon skip but did NOT resolve the pill height (32 px), pill horizontal padding (6 + 12 px), or selection-animation duration (150 ms). All three are required to render the tabs correctly.
+
+#### 42.4.3 Container & Wrapping
+
+| Property | Value | Source |
+|---|---|---|
+| **Container outer padding** | `margins(12px, 10px, 12px, 10px)` (L 12 / T 10 / R 12 / B 10) | `reactionsTabs` `chat.style:1080` |
+| **Inter-tab gap (horizontal AND vertical)** | `itemSkip` = **8 px** (inherited from `defaultMultiSelect.itemSkip`) | `defaultMultiSelect.itemSkip` `lib_ui/ui/widgets/widgets.style:719` |
+| **Wrapping behaviour** | **Wrap, do NOT scroll.** Tabs flow left-to-right; when the next tab does not fit in `available - left`, the row breaks: `left = 0; height += tab.height + itemSkip;`. No horizontal scroll bar; container grows downward. | `history_view_reactions_tabs.cpp:106-111` |
+| **Per-tab placement** | `tab->move(st->padding.left() + left, height - tab->height() - st->itemSkip);` | `:108-110` |
+| **Available width** | `outerWidth - st->padding.left() - st->padding.right()` = `outerWidth - 24 px` | derived |
+| **Total container height** | `padding.top + N_rows * tab.height + (N_rows − 1) * itemSkip + padding.bottom` = `10 + N*32 + (N-1)*8 + 10` | derived |
+
+> Spec-correction note: previous text said "tab.height + st::reactionsTabs.itemSkip" for line spacing. Confirmed. But since `reactionsTabs` does NOT override `itemSkip` (only `padding`), the actual value comes from `defaultMultiSelect.itemSkip = 8 px`, not from `reactionsTabs`. The effective inter-row gap is **8 px**, and the inter-tab gap on the same row is also 8 px.
+
+#### 42.4.4 Selection / Switching
+
+Switching tabs fires `state->selected.changes()` which triggers `_full.switchTab(reaction)` in the `InnerWidget`, which calls `Controller::showReaction()`. The pill cross-fades background+foreground over `150 ms` (`MultiSelectItem.duration`). No layout reflow on switch — tabs keep their position.
+
+#### 42.4.5 Ripple
+
+Each tab supports a `Ui::RippleAnimation` mask (rounded-rect with radius `height / 2`). Press → ripple originates at click point, expands to fill the pill, fades over the standard ripple duration (`st::defaultRippleAnimation.duration` = 200 ms; resolved separately in §40 / ripple notes).
 
 ### 42.5 User List Items
 
-Each user row is a `Row` class (extends `PeerListRow`) in `history_view_reactions_list.cpp:39-64`:
+Each user row is a `Row` class (extends `PeerListRow`) in `history_view_reactions_list.cpp:39-63`. The row inherits all geometry from `st::infoMembersList` (Mode B, full panel) — NOT from `st::defaultWhoRead`, which only governs the context-menu summary entries (Mode A, see §42.12).
 
-- **Avatar**: Standard peer userpic (30px, from `st::defaultWhoRead.photoSize`), positioned at `photoLeft` = 13px
-- **Name**: Peer display name, left-aligned at `nameLeft` = 57px. Includes premium badges and verified icons (inherited from `PeerListRow`).
-- **Reaction emoji** (right action): For "All" tab, each user's row shows their specific reaction emoji on the right side. For filtered tabs (specific reaction), the emoji is shown too. Custom emoji reactions render animated via `Ui::Text::CustomEmoji`. Standard reactions show as static emoji.
-  - Right action size: `Emoji::GetSizeNormal() / DevicePixelRatio`
-  - Right action margins: `size/2` left, centered vertically, `size*3/2` right
-  - Right action is disabled (non-clickable) — `rightActionDisabled()` returns true
-- **Date line** (in context menu mode only): Below the name, shows read/reaction timestamp with an icon:
-  - Viewed: double-check icon (`whoReadDateChecks`)
-  - Reacted: heart icon (`whoLikedDateHeart`)
-  - Reposted: repost icon (`whoRepostedDateHeart`)
-  - Forwarded: share icon (`whoForwardedDateHeart`)
-  - Date formatted by `FormatReadDate()`: "today HH:mm" / "yesterday HH:mm" / "Mon DD, HH:mm" / "Mon DD YYYY, HH:mm"
+#### 42.5.1 Row Geometry — Mode B (Full Panel)
 
-Row height: `st::infoMembersList.item.height` (standard peer list item height).
+| Element | Value | Style key (file:line) |
+|---|---|---|
+| **Row height** | **58 px** | `defaultPeerListItem.height` `lib_ui/ui/widgets/widgets.style:1416` (inherited by `infoMembersList.item` `Telegram/SourceFiles/info/info.style:546`) |
+| **Avatar (photo) size** | **46 px** | `defaultPeerListItem.photoSize` `widgets.style:1423` (inherited; `infoMembersList.item` does not override) |
+| **Avatar position** | `point(18px, 6px)` (left 18 from row left, top 6 from row top) | `infoMembersList.item.photoPosition` `info.style:547` |
+| **Name position** | `point(79px, 11px)` (i.e. text starts 79 px from row left, baseline 11 px from row top) | `:548` |
+| **Status / sub-text position** | `point(79px, 31px)` — used for "Reacted at HH:mm" sub-line if `WhoReadType` provides a date; otherwise empty | `:549` |
+| **Name font** | `semiboldTextStyle` (13 px Open Sans Semibold) | `defaultPeerListItem.nameStyle` `widgets.style:1419` |
+| **Name colour** | `contactsNameFg` | `:1420` |
+| **Status colour** | `windowSubTextFg` | `:1427` |
+
+> Spec-correction note: the previous draft cited `photoSize = 30 px` from `st::defaultWhoRead.photoSize` and `nameLeft = 57 px`. Both values are WRONG for Mode B. They are values for the **context-menu Mode A** entries (see `defaultWhoRead` `chat_helpers/chat_helpers.style:343-354`). The Mode-B full-panel rows use `infoMembersList`, which inherits `defaultPeerListItem.photoSize = 46 px` and uses `namePosition.x = 79 px`. The corrected values above are what AyuGram actually renders.
+
+#### 42.5.2 Right-Action Reaction Emoji (resolved)
+
+Defined by `Row::rightActionSize`, `Row::rightActionMargins`, `Row::rightActionPaint` in `history_view_reactions_list.cpp:110-160`:
+
+```
+QSize Row::rightActionSize() const {
+    const auto size = Ui::Emoji::GetSizeNormal() / style::DevicePixelRatio();
+    return _custom ? QSize(size, size) : QSize();
+}
+
+QMargins Row::rightActionMargins() const {
+    if (!_custom) return QMargins();
+    const auto size = Ui::Emoji::GetSizeNormal() / style::DevicePixelRatio();
+    return QMargins(size / 2,
+                    (st::defaultPeerList.item.height - size) / 2,
+                    (size * 3) / 2,
+                    0);
+}
+```
+
+| Property | Resolved value | Source |
+|---|---|---|
+| **Right-action emoji nominal size** | `GetSizeNormal() / DevicePixelRatio` = `(emojiSize × DPR) / DPR` = **18 logical px** (square 18×18) | `lib_ui/ui/basic.style:47` (`emojiSize: 18px`); `lib_ui/ui/emoji_config.cpp:872, 1043-1046` |
+| **Custom-emoji rendered size** | `Ui::Text::AdjustCustomEmojiSize(18)` — typically returns 18 (rounds down to multiple of 2 in the inner DPR space; identical at integer DPRs) | `history_view_reactions_list.cpp:130-131` |
+| **Left margin from row content area** | `size / 2` = **9 px** | `:118` |
+| **Top margin (centered vertically)** | `(defaultPeerList.item.height − size) / 2` = `(58 − 18) / 2` = **20 px** | `:118`; height from `widgets.style:1416` |
+| **Right margin from row right edge** | `size × 3 / 2` = `27 px` | `:118` |
+| **Bottom margin** | `0 px` (centered via top margin) | `:118` |
+| **Final emoji centre Y** | `top_margin + size/2` = `20 + 9` = **29 px from row top** (i.e. half of 58) — visually centred in the row | derived |
+| **Final emoji centre X** | `outerWidth − right_margin − size/2` = `outerWidth − 27 − 9` = `outerWidth − 36` (i.e. its right edge sits 27 px in from the row's right edge, padding ~9 px between glyph and edge after the `size/2 = 9 px` air on its right side of the box) | derived from rightActionMargins |
+| **Visible status** | Shown on **All** tab and on filtered (per-reaction) tabs alike, ONLY when the row has a `_custom` (CustomEmoji factory result). For "Read" tab rows, `_custom` is null → `rightActionSize() == QSize()` → nothing painted | `:110-122` |
+| **Clickable** | `rightActionDisabled()` returns `true` — emoji is decorative | `:124-126` |
+| **Animation pause** | `_paused` callback ties into the controller's GIF-pause state (`Window::GifPauseReason::Layer`); paused when the layer is not topmost | `:147-160` |
+
+> Spec-correction note: previous draft phrased the right-action margins as "size/2 left, centered vertically, size*3/2 right" which is accurate but did not resolve the actual pixel values. With `size = 18 px`, the resolved margins are **L 9 / T 20 / R 27 / B 0** within a 58 px row.
+
+#### 42.5.3 Date Line — Mode A only (Context Menu)
+
+The date sub-line ("Today, 14:32" etc.) is a feature of the **context-menu** entries (`Ui::WhoReactedEntryAction` painted via `defaultWhoRead`), not the full-panel rows. In Mode B the `statusPosition` slot from `infoMembersList.item` is empty (no reaction-time text displayed there).
+
+Date icons (Mode A only):
+
+| Type | Icon (token) | Note |
+|---|---|---|
+| Viewed | `whoReadDateChecks` | double-check |
+| Reacted | `whoLikedDateHeart` | heart |
+| Reposted | `whoRepostedDateHeart` | repost arrow |
+| Forwarded | `whoForwardedDateHeart` | share arrow |
+
+Date formatted by `FormatReadDate()`: `"today HH:mm"` / `"yesterday HH:mm"` / `"Mon DD, HH:mm"` / `"Mon DD YYYY, HH:mm"`. With the AyuGram setting `showMessageSeconds()` enabled, `:ss` is appended.
+
+Source: `defaultWhoRead` `chat_helpers/chat_helpers.style:343-354`; date icons in `chat.style`.
 
 ### 42.6 Pagination / Loading
 
@@ -18857,22 +18949,38 @@ When `item->reactionsAreTags()` is true (reactions in Saved Messages act as tags
 ### 42.12 Sizing
 
 **Info layer panel** (`info_layer_widget.cpp`):
-- Desired width: `st::infoDesiredWidth` = 392px
-- Minimum layer margin: `st::infoMinimalLayerMargin` = 48px (so min width = parentWidth - 96px, capped at 392px)
-- Top margin: clamped between `st::infoLayerTopMinimal` (20px) and `st::infoLayerTopMaximal` (40px), calculated as `windowHeight / 24`
-- Max height: `windowHeight - topMargin`, can extend to bottom (`_tillBottom` flag)
-- Content scrolls within the panel; panel height animates to fit content
+- Desired width: `st::infoDesiredWidth` = **392 px** (`info.style:519`)
+- Minimum layer margin: `st::infoMinimalLayerMargin` = **48 px** (`info.style:520`) — so on narrow windows, panel width = `parentWidth − 96 px`, capped at 392 px
+- Top margin: clamped between `st::infoLayerTopMinimal` = **20 px** (`info.style:480`) and `st::infoLayerTopMaximal` = **40 px** (`:481`), calculated as `windowHeight / 24`
+- Max height: `windowHeight − topMargin`, may extend to bottom (`_tillBottom` flag)
+- Content scrolls within the panel; panel height animates to fit content via `_heightAnimation` over `st::slideDuration`
 - Bottom has `st::boxRadius` corner rounding unless content extends to window bottom
 
-**Context menu** (`st::whoReadMenu`):
-- Standard popup menu sizing from `PopupMenu` with `popupMenuExpandedSeparator` base style
-- Each user entry height: `st::defaultWhoRead.photoSkip * 2 + st::defaultWhoRead.photoSize` = 5 + 30 + 5 = 40px
+**Context menu** (`st::whoReadMenu`, Mode A) — uses `defaultWhoRead` (`chat_helpers/chat_helpers.style:343-354`):
+- Standard popup menu sizing from `PopupMenu` with `popupMenuExpandedSeparator` base
+- Each user entry height: `photoSkip × 2 + photoSize` = `5 × 2 + 30` = **40 px**
+- Avatar: 30 px, photoLeft = 13 px, nameLeft = 57 px
+- Item padding: `margins(44px, 9px, 17px, 7px)` (44 px L reserves space for the right-side reaction emoji on summary row; 9 / 7 vertical)
+- Date line font: `font(12px)`, padding `margins(34px, 3px, 17px, 4px)`, icon at `point(8px, 0px)`
+- Userpics row (summary): GroupCallUserpics — size 22 px, shift 8 px, stroke 4 px (overlapping userpics)
 - Menu item width: clamped between `st.widthMin` and `st.widthMax`
-- Summary row height: `st::defaultWhoRead.itemPadding.top + font.height + itemPadding.bottom`
+- Summary row height: `itemPadding.top + font.height + itemPadding.bottom` = `9 + 14 + 7` = **30 px** (with 12 px font; renders to 14 px line height)
 
-**Tabs area**: Auto-sizing height based on number of tab rows. Each tab row height = `stm->height` + `st::reactionsTabs.itemSkip`. Total padded with `margins(12px, 10px, 12px, 10px)`.
+**Tabs area** (Mode B):
+- Each tab row height = `MultiSelectItem.height` = **32 px**
+- Inter-row gap = `defaultMultiSelect.itemSkip` = **8 px**
+- Container outer padding = `margins(12px, 10px, 12px, 10px)` (`reactionsTabs` `chat.style:1080`)
+- Total tabs-area height = `10 + N×32 + (N−1)×8 + 10` (N = number of rows after wrap)
+- Selection-transition duration = **150 ms** (`MultiSelectItem.duration`)
+- Wraps to new line when next tab doesn't fit; never scrolls horizontally
 
-**Peer list**: Row height from `st::infoMembersList.item.height`. Total list height: `rowCount * rowHeight`. Margins: `st::infoCommonGroupsMargin` = `margins(0px, 2px, 0px, 2px)`.
+**Peer list** (Mode B):
+- Row height from `st::infoMembersList.item.height` = **58 px** (inherited from `defaultPeerListItem` `widgets.style:1416`)
+- Avatar: 46 px (`defaultPeerListItem.photoSize`)
+- Total list height: `rowCount × 58 px`
+- List margins: `st::infoCommonGroupsMargin` = `margins(0px, 2px, 0px, 2px)` (`info.style:560`)
+
+> Spec-correction note: the previous "Each tab row height = `stm->height` + `st::reactionsTabs.itemSkip`" formula was off-by-one — `itemSkip` is the GAP between rows, not part of any single row. Resolved formula above is `padding.top + N×height + (N−1)×itemSkip + padding.bottom`.
 
 ### 42.13 Interaction
 
@@ -18979,20 +19087,56 @@ Source: `who_reacted_context_action.cpp` (Action class), `info_reactions_list_wi
 
 ### 43.4 User List Items
 
-Each entry in the submenu (`WhoReactedEntryAction`) contains:
+Each entry in the submenu (`WhoReactedEntryAction`) is laid out from `st::defaultWhoRead` (`chat_helpers/chat_helpers.style:280-293`).
 
-- **Left**: Circular userpic (size: `photoSize` from `defaultWhoRead` style, drawn at `photoLeft` offset). Preloader state shows a semi-transparent circle (`kPreloaderAlpha = 0.2`).
-- **Name**: Peer display name, drawn at `nameLeft` offset. Bold for normal entries, dimmed for preloader skeleton.
-- **Date line** (below name, smaller `whoReadDateStyle` 12px font): Shows when the user read/reacted, prefixed by an icon:
-  - Double-check icon (`whoReadDateChecks`) for "Viewed" type
-  - Heart icon (`whoLikedDateHeart`) for "Reacted" type
-  - Repost icon for "Reposted" type
-  - Forward icon for "Forwarded" type
-- **Right side**: Custom emoji of the reaction (if the user reacted with a specific emoji). Rendered at `Emoji::GetSizeNormal()`.
+#### 43.4.1 Resolved Row Geometry
 
-Row height: `photoSkip * 2 + photoSize` (from `defaultWhoRead` style).
+| Element | Px / Token | Source (file:line) |
+|---|---|---|
+| **Row height** | `photoSkip*2 + photoSize` = `5*2 + 30` = **40 px** | `chat_helpers.style:288-289` (computed in paint, see who_reacted_context_action.cpp:1074) |
+| **Avatar (userpic) size** | `photoSize` = **30 px** (circular) | `chat_helpers.style:288` |
+| **Avatar left offset** | `photoLeft` = **13 px** | `chat_helpers.style:287` |
+| **Avatar top offset** | `photoSkip` = **5 px** | `chat_helpers.style:289` |
+| **Name left offset** | `nameLeft` = **57 px** (from row's left edge) | `chat_helpers.style:290` |
+| **Name top — single-line (no date)** | centered: `(rowHeight − font->height) / 2` | who_reacted_context_action.cpp:1145 |
+| **Name top — with date line** | `whoReadNameWithDateTop` = **3 px** from row top | `chat.style:804` (used at who_reacted_context_action.cpp:1140) |
+| **Date line top** | `whoReadDateTop` = **20 px** from row top | `chat.style:805` (used at who_reacted_context_action.cpp:1149/1163) |
+| **Gap between date icon and date text** | `whoReadDateSkip` = **15 px** | `chat.style:806` (who_reacted_context_action.cpp:1163) |
+| **Date icon position offset** | `whoReadDateChecksPosition` = **point(−7px, −4px)** (relative to text baseline) | `chat.style:815` (who_reacted_context_action.cpp:1150) |
+| **Reaction emoji (right action) size** | `Emoji::GetSizeNormal() / DevicePixelRatio` (typically 18 px @ 1x) | `who_reacted_context_action.cpp` paint |
+| **Right edge inset** | `itemPadding.right` = **17 px** | `chat_helpers.style:292` |
+| **Preloader skeleton alpha** | `kPreloaderAlpha` = **0.2** (semi-transparent fill for both avatar circle and name placeholder rect) | `who_reacted_context_action.cpp:82` (applied at :1095, :1110) |
 
-Source: `who_reacted_context_action.cpp` lines 744-945, `WhoReactedEntryAction::paint()`.
+#### 43.4.2 Date-Line Icons (resolved from switch in `WhoReactedEntryAction::paint`, who_reacted_context_action.cpp:558-573)
+
+The icon to the LEFT of the date string is selected by `WhoReactedType`. Each entry has a normal + Over (hovered) variant.
+
+| `WhoReactedType` | Icon (normal / over) | Sprite path | Tint colour | Alignment offset | Source |
+|---|---|---|---|---|---|
+| `Viewed` | `whoReadDateChecks` / `whoReadDateChecksOver` | `menu/read_ticks_s` | `windowSubTextFg` / `windowSubTextFgOver` | (default 0,0) | `chat.style:807-808` |
+| `Reacted` | `whoLikedDateHeart` / `whoLikedDateHeartOver` | `menu/read_react_s` | `windowSubTextFg` / `windowSubTextFgOver` | (default 0,0) | `chat.style:809-810` |
+| `Reposted` | `whoRepostedDateHeart` / `whoRepostedDateHeartOver` | `mediaview/mini_repost` | `groupCallMemberActiveIcon` | **point(4px, 4px)** (sprite inset within icon box) | `chat.style:811-812` |
+| `Forwarded` | `whoForwardedDateHeart` / `whoForwardedDateHeartOver` | `statistics/mini_stats_share` | `groupCallMemberActiveIcon` | **point(4px, 4px)** | `chat.style:813-814` |
+| `Preloader` | (none — only skeleton rect drawn at α 0.2) | — | — | — | `who_reacted_context_action.cpp:82, 1110` |
+| `RefRecipient` / `RefRecipientNow` | (no icon emitted by the switch) | — | — | — | `who_reacted_context_action.h:72-79` |
+
+Note: the sprite path string is the resource key — actual artwork lives under `Telegram/Resources/icons/<path>.png` (e.g., `menu/read_ticks_s.png`). The `_s` suffix denotes the small (date-line) variant; the full-size `whoReadChecks` (`menu/read_ticks` at `chat.style:819`) is reserved for the SUMMARY row's left icon (see §43.10), not the per-user date line.
+
+#### 43.4.3 Date Text Style
+
+`whoReadDateStyle` (`chat.style:816-818`) inherits from `defaultTextStyle` and overrides:
+
+| Field | Value |
+|---|---|
+| `font` | `font(12px)` (regular weight) |
+
+Date string itself is produced by `FormatReadDate()` (see §43.8). Tint colour matches the icon (`windowSubTextFg` normal, `windowSubTextFgOver` hovered).
+
+#### 43.4.4 Custom-Emoji Reaction Indicator (right side)
+
+For "Reacted" entries, a `Ui::Text::CustomEmoji` is drawn at the right edge instead of a static double-check. Sized via `Text::AdjustCustomEmojiSize(Emoji::GetSizeNormal())`. Positioned with right margin = `itemPadding.right` (17 px) and `size*3/2` extra inner gap; centered vertically. Animated custom emoji play with pause control tied to `Window::GifPauseReason::Layer`. Source: `who_reacted_context_action.cpp` paint section (right-action branch).
+
+Source: `who_reacted_context_action.cpp:558-573` (icon switch), `:1074` (height formula), `:1140-1163` (text/icon layout), `chat.style:804-818` (style tokens), `chat_helpers.style:280-293` (defaultWhoRead block).
 
 ### 43.5 Loading State
 
@@ -19049,29 +19193,72 @@ Source: `api_who_reacted.cpp` lines 675-716, `FormatReadDate()`.
 
 Source: `who_reacted_context_action.cpp` lines 221-286, Action constructor.
 
-### 43.10 Sizing
+### 43.10 Sizing — Resolved
 
-**Context menu summary item:**
-- Height: `itemPadding.top (9px) + font->height + itemPadding.bottom (7px)`
-- Icon position: `(15px, 7px)`
-- Item padding: `margins(44px, 9px, 17px, 7px)`
-- Userpic thumbnails: 22px diameter, 8px shift between overlapping circles
+#### 43.10.1 Context-Menu Summary Item (the "Seen by N" row inside the parent menu)
 
-**Submenu (user list):**
-- Menu style: `whoReadMenu` (extends `popupMenuExpandedSeparator`)
-- Max height: **400px** (scrollable beyond this)
-- Scroll padding: `margins(0px, 6px, 0px, 4px)`
-- Each user row: `photoSkip * 2 + photoSize` height
-- Photo left offset: `photoLeft`, photo size: `photoSize`
-- Name left offset: `nameLeft`
+Built by the `Action` class. Height formula at `who_reacted_context_action.cpp:163-165`:
 
-**When-read line (private chats):**
-- Padding: `margins(34px, 3px, 17px, 4px)`
-- Icon position: `(8px, 0px)`
-- Font: 12px (`whenReadStyle`)
-- "Show" button padding: `margins(6px, 0px, 6px, 2px)` with pill shape (rounded rect)
+`_height = defaultWhoRead.itemPadding.top() + _st.itemStyle.font->height + defaultWhoRead.itemPadding.bottom()`
 
-Source: `chat_helpers.style` lines 281-294, `chat.style` lines 813-839.
+| Element | Px / Token | Source (file:line) |
+|---|---|---|
+| **`itemPadding`** | `margins(44px, 9px, 17px, 7px)` (left 44, top 9, right 17, bottom 7) | `chat_helpers.style:292` |
+| **Row height** | `9 + font->height + 7` ≈ **30 px** at 14 px font | `chat_helpers.style:292` + `who_reacted_context_action.cpp:163-165` |
+| **Left icon position** | `iconPosition` = **point(15px, 7px)** | `chat_helpers.style:291` |
+| **Left icon (per type)** | `whoReadChecks` (Seen) / `whoReadPlayed` (Listened/Watched) / `whoReadReactions` (Reacted) | `chat.style:819-827` (full-size variants — see §43.10.4) |
+| **Text position** | Drawn at `itemPadding.left` = **44 px** from row's left | `who_reacted_context_action.cpp:242` |
+| **Right inner inset** | `itemPadding.right` = **17 px** | `chat_helpers.style:292`, used at `who_reacted_context_action.cpp:247` |
+| **Userpic strip (right)** | `defaultWhoRead.userpics` = `GroupCallUserpics{ size:22px, shift:8px, stroke:4px, align:right }` — up to 3 overlapping circles, drawn at `width − itemPadding.right − userpics.size` × `(height − userpics.size)/2` | `chat_helpers.style:281-286`, paint at `who_reacted_context_action.cpp:367-372` |
+| **Max userpic count** | `WhoReadParticipant::kMaxSmallUserpics` = **3** | `who_reacted_context_action.h:16` (used at .cpp:201) |
+| **Userpic stroke (border around each circle)** | **4 px** | `chat_helpers.style:284` |
+
+#### 43.10.2 Submenu (User List `whoReadMenu`)
+
+`whoReadMenu` style (`chat.style:800-803`) extends `popupMenuExpandedSeparator`:
+
+| Field | Value | Source |
+|---|---|---|
+| `scrollPadding` | `margins(0px, 6px, 0px, 4px)` | `chat.style:801` |
+| `maxHeight` | **400 px** (scrollable beyond) | `chat.style:802` |
+| Inherited frame | `popupMenuExpandedSeparator` (which itself extends `popupMenuWithIcons` — see §39 popup-menu spec for the shadow/radius/separator chrome) | `chat.style:798-799` (region) |
+| Per-row geometry | See §43.4.1 — uses the SAME `defaultWhoRead` token block | `chat_helpers.style:280-293` |
+
+#### 43.10.3 When-Read Line (Private 1:1 Chats — `WhenAction`)
+
+| Element | Px / Token | Source (file:line) |
+|---|---|---|
+| **`whenReadPadding`** | `margins(34px, 3px, 17px, 4px)` (left 34, top 3, right 17, bottom 4) | `chat_helpers.style:297` |
+| **`whenReadIconPosition`** | **point(8px, 0px)** (left icon offset within the row) | `chat_helpers.style:298` |
+| **`whenReadSkip`** | **3 px** (gap between icon and text) | `chat_helpers.style:299` |
+| **`whenReadStyle.font`** | **12 px** (regular) | `chat_helpers.style:294-296` |
+| **Row height** | `padding.top + font->height + padding.bottom` = `3 + 12 + 4` ≈ **19 px** | derived from `whenReadPadding` + `whenReadStyle` |
+| **"Show" button (`MyHidden` state)** | `whenReadShowPadding` = `margins(6px, 0px, 6px, 2px)` — rendered as pill (rounded rect with `_st.itemStyle.font->height` corner radius); button width = text width + `padding.left + padding.right` (= +12 px) | `chat_helpers.style:300`, `who_reacted_context_action.cpp:493-503` (width add), `:526-537` (rounded-rect paint) |
+| **Show button label** | `tr::lng_context_read_show` ("Show") | `who_reacted_context_action.cpp` (string lookup near :493) |
+
+#### 43.10.4 Summary-Row Left Icons (per type)
+
+These are the FULL-SIZE icons shown at the LEFT edge of the summary `Action` row in the parent context menu (NOT the small `_s` date-line icons in §43.4.2).
+
+| Type | Icon name | Sprite path | Tint | Source |
+|---|---|---|---|---|
+| Seen | `whoReadChecks` | `menu/read_ticks` | `windowBoldFg` | `chat.style:819` |
+| Listened (audio) | `whoReadPlayed` | `menu/read_audio` | `windowBoldFg` | `chat.style:822` |
+| Watched (video) | `whoReadPlayed` | `menu/read_audio` | `windowBoldFg` | `chat.style:822` (same icon — there is no separate "watched" full-size variant) |
+| Reactions | `whoReadReactions` | `menu/read_reactions` | `windowBoldFg` | `chat.style:825` |
+| Edited (when-edited row) | `whenEdited` | `menu/edited_status` | `windowBoldFg` | `chat.style:828` |
+| Original (when-forwarded-from row) | `whenOriginal` | `menu/forwarded_status` | `windowBoldFg` | `chat.style:830` |
+| Disabled state | `*Disabled` variant tinted `menuFgDisabled` | (e.g. `menu/read_ticks` for `whoReadChecksDisabled`) | `menuFgDisabled` | `chat.style:821, 824, 827` |
+
+Position: drawn at `iconPosition` = **point(15px, 7px)** within the row (`chat_helpers.style:291`).
+
+#### 43.10.5 Animation Timing
+
+The summary row's userpic strip has a deferred reveal:
+
+`delay = anim::Disabled() ? 0 : parentMenu->st().duration` — the parent `PopupMenu`'s open animation duration (typically `st::popupMenu.duration` ≈ **150 ms** — see §39). The `_appeared` flag flips after `crl::now() − constructionTime ≥ delay`, after which the userpic thumbnails fade in. A `crl::on_main` fallback timer ensures they appear if the timing check is missed. Source: `who_reacted_context_action.cpp:300` (delay computation), :221-286 (Action constructor / `checkAppeared` lambda).
+
+Source: `chat_helpers/chat_helpers.style:280-300` (defaultWhoRead, whenRead* tokens), `ui/chat/chat.style:800-830` (whoReadMenu, summary icons, date-line icons, whoReadDateStyle), `ui/controls/who_reacted_context_action.cpp:163-165` (height), `:201, :367-372` (userpics), `:300` (delay), `who_reacted_context_action.h:16` (kMaxSmallUserpics).
 
 ### 43.11 Interaction
 
@@ -19143,6 +19330,39 @@ Source: `ayu/ayu_settings.h` (GhostModeAccountSettings class, AyuSettings class)
 | `Telegram/SourceFiles/ayu/ayu_settings.h` | AyuGram ghost mode: `GhostModeAccountSettings`, `sendReadMessages`, visibility controls |
 | `Telegram/SourceFiles/ayu/features/filters/filters_controller.h/.cpp` | AyuGram filters: `isBlocked()` used to exclude blocked users from read/reaction lists |
 | `Telegram/SourceFiles/ayu/ui/context_menu/context_menu.h/.cpp` | AyuGram context menu: `needToShowItem()` visibility gate |
+
+### 43.15 Style-Token Quick Reference
+
+All read-receipt styling resolves to two source files:
+
+| Token | File:line | Value |
+|---|---|---|
+| `defaultWhoRead` | `chat_helpers/chat_helpers.style:280-293` | photoLeft 13, photoSize 30, photoSkip 5, nameLeft 57, iconPosition (15,7), itemPadding (44,9,17,7) |
+| `defaultWhoRead.userpics` | `chat_helpers.style:281-286` | size 22, shift 8, stroke 4, align right |
+| `whenReadStyle` | `chat_helpers.style:294-296` | font 12 px |
+| `whenReadPadding` | `chat_helpers.style:297` | (34, 3, 17, 4) |
+| `whenReadIconPosition` | `chat_helpers.style:298` | (8, 0) |
+| `whenReadSkip` | `chat_helpers.style:299` | 3 |
+| `whenReadShowPadding` | `chat_helpers.style:300` | (6, 0, 6, 2) |
+| `whoReadMenu` | `ui/chat/chat.style:800-803` | scrollPadding (0,6,0,4), maxHeight 400 |
+| `whoReadNameWithDateTop` | `chat.style:804` | 3 |
+| `whoReadDateTop` | `chat.style:805` | 20 |
+| `whoReadDateSkip` | `chat.style:806` | 15 |
+| `whoReadDateChecks` | `chat.style:807` | sprite `menu/read_ticks_s`, tint `windowSubTextFg` |
+| `whoLikedDateHeart` | `chat.style:809` | sprite `menu/read_react_s`, tint `windowSubTextFg` |
+| `whoRepostedDateHeart` | `chat.style:811` | sprite `mediaview/mini_repost`, tint `groupCallMemberActiveIcon`, offset (4,4) |
+| `whoForwardedDateHeart` | `chat.style:813` | sprite `statistics/mini_stats_share`, tint `groupCallMemberActiveIcon`, offset (4,4) |
+| `whoReadDateChecksPosition` | `chat.style:815` | (-7, -4) |
+| `whoReadDateStyle` | `chat.style:816-818` | font 12 px |
+| `whoReadChecks` | `chat.style:819` | sprite `menu/read_ticks`, tint `windowBoldFg` |
+| `whoReadPlayed` | `chat.style:822` | sprite `menu/read_audio`, tint `windowBoldFg` |
+| `whoReadReactions` | `chat.style:825` | sprite `menu/read_reactions`, tint `windowBoldFg` |
+| `whenEdited` | `chat.style:828` | sprite `menu/edited_status`, tint `windowBoldFg` |
+| `whenOriginal` | `chat.style:830` | sprite `menu/forwarded_status`, tint `windowBoldFg` |
+| `kMaxSmallUserpics` | `who_reacted_context_action.h:16` | 3 |
+| `kPreloaderAlpha` | `who_reacted_context_action.cpp:82` | 0.2 |
+
+Animation duration: inherited from `parentMenu->st().duration` (typically `popupMenu.duration` — see §39 for the canonical 150 ms PopupMenu fade).
 
 ---
 
@@ -19386,12 +19606,14 @@ Peers have an `_emojiStatusId` (`data_peer.h:631`) containing a `DocumentId`. Th
 
 ### 45.6 Custom Emoji in Reactions
 
-Custom emoji reactions use `ReactedMenuFactory()` (`data_custom_emoji.cpp:1075-1108`):
+Custom emoji reactions use `ReactedMenuFactory()` (`data/stickers/data_custom_emoji.cpp:963-1005`):
 
-- **Default reactions** (Unicode-based): Rendered via their `centerIcon` document at `2x emojiSize` or `selectAnimation` at `1x`, wrapped in `FirstFrameEmoji` (static first frame only) + `ShiftedEmoji` (offset to center)
-- **Custom emoji reactions**: Rendered as standard custom emoji at `SizeTag::Normal`
+- **Default reactions** (Unicode-based): Rendered via their `centerIcon` document at `2x emojiSize` or `selectAnimation` at `1x`, wrapped in `FirstFrameEmoji` (static first frame only) + `ShiftedEmoji` (offset to center).
+- **Custom emoji reactions**: Rendered as standard custom emoji at `SizeTag::Normal` (logical 18px frame, atlas-cached frame 20px).
 
-Clicking a custom emoji in a message triggers `ShowReactionPreview()`, which opens an overlay showing the animated sticker full-size with a label showing the sticker pack name and a "View Pack" button.
+Clicking a custom emoji in a message triggers `ShowReactionPreview()` (`history/view/history_view_reaction_preview.cpp:199-289`), which opens the floating preview overlay described in §45.14. The overlay carries a clickable pack-name label that opens the matching `StickerSetBox` — this label is the "View Pack" affordance (there is **no separate icon-bearing button**; the entire rounded-shadow background-button rectangle is clickable, and clicking dismisses the overlay and pushes the StickerSet box for `Data::StickersType::Emoji`).
+
+See §45.14 for the full overlay geometry, animation, and "View Pack" behaviour.
 
 ### 45.7 Loading States
 
@@ -19408,23 +19630,54 @@ Three-phase loading state machine (`custom_emoji_instance.h:228-258`):
 
 **Two-level cache architecture**:
 
-1. **In-memory instance cache** (`CustomEmojiManager::_instances`): `std::array<unordered_map<DocumentId, unique_ptr<Instance>>, 4>` — one map per `SizeTag` (Normal, Large, Isolated, SetIcon). Instances are shared: multiple `Object` wrappers reference the same `Instance`. Reference-counted via `_usage` set.
+1. **In-memory instance cache** (`CustomEmojiManager::_instances`): `std::array<unordered_map<DocumentId, unique_ptr<Instance>>, 4>` — one map per `SizeTag` (Normal, Large, Isolated, SetIcon). Instances are shared: multiple `Object` wrappers reference the same `Instance`. Reference-counted via the `Instance::_usage` set of `Object*` pointers.
 
 2. **Disk sprite atlas cache** (`cacheBigFile`): LZ4-compressed sprite sheet stored in Telegram's persistent cache database. Key derived from `document->bigFileBaseCacheKey()`. The serialized format:
-   - Header: version(1), size, frameCount, compressedLength
-   - LZ4-compressed ARGB32 sprite atlas (16 frames per row)
-   - Frame durations array (uint16 per frame)
+   - Header: `kCacheVersion = 1` (`custom_emoji_instance.h:23`), per-frame side `_size` (px), `_frames` (frame count), compressed payload length.
+   - LZ4-compressed ARGB32 sprite atlas — `Format_ARGB32_Premultiplied`, 16 frames per row (`Cache::kPerRow = 16`, `custom_emoji_instance.h:98`).
+   - Frame durations array — `uint16` ms per frame, indexed by frame number.
 
 3. **Cross-resolution preview**: When an emoji exists in one size tier's cache but not another, the existing cached first frame is scaled to the requested size as a temporary preview.
 
-**Eviction**: In-memory instances auto-unload when no UI references remain. Disk cache managed by the persistent storage layer.
+**Atlas dimensions** (computed in `Cache::finish()`, `custom_emoji_instance.cpp:430-468`):
+
+```
+rows    = ceil(_frames / kPerRow)              = ceil(_frames / 16)
+columns = min(_frames, kPerRow)                = min(_frames, 16)
+zero    = (rows * columns) - _frames           // empty trailing cells
+_full   = QImage(columns * _size,
+                 rows    * _size,
+                 QImage::Format_ARGB32_Premultiplied)
+```
+
+Where `_size` is the per-frame square pixel side from `FrameSizeFromTag(tag)` (`data/stickers/data_custom_emoji.cpp:981-984`, applying `Ui::Text::AdjustCustomEmojiSize()` to the `EmojiSizeFromTag()` value at `data_custom_emoji.cpp:65-75`):
+
+| `SizeTag` | Logical emoji | Atlas frame `_size` | Single-frame atlas | 180-frame atlas (12×16, kMaxFrames-row) |
+|---|---|---|---|---|
+| `Normal`   | 18px (`emojiSize`)            | **20px**  | 20×20 px       | 320×240 px (16 cols × 12 rows) |
+| `Large`    | 24px (`emojiSize × 4/3`)      | **27px**  | 27×27 px       | 432×324 px |
+| `Isolated` | 38px (`largeEmojiSize + 2*outline`) | **43px**  | 43×43 px       | 688×516 px |
+| `SetIcon`  | 21px (`int(18 × 7/6 ×scale)`) | **24px**  | 24×24 px       | 384×288 px |
+
+`zero` trailing cells (when `_frames` is not a multiple of 16) are zeroed via `memset` so the atlas is a clean rectangular grid (`custom_emoji_instance.cpp:460-467`).
+
+`kMaxFrames = 180` (`custom_emoji_instance.h:22`) — animations longer than 180 frames are truncated; therefore the maximum on-disk atlas footprint per emoji is **180 / 16 = 12 rows × 16 cols** at the relevant `_size`.
+
+**Eviction**:
+- **In-memory** — `Instance::decrementUsage(Object*)` (`custom_emoji_instance.cpp:685-710`) removes the `Object*` from `_usage`; when the set empties, the state machine transitions:
+  - `Loading` → `Loading::cancel()` (no-op transition).
+  - `Caching` → `Loading{ renderer->cancel(), preview }` — frames in-progress are dropped; preview fallback retained.
+  - `Cached` → `state.unload()` returning `Loading` — atlas is unloaded; the next `paint()` will reload from disk.
+  - A repaint is then scheduled via `_repaintLater(this, RepaintRequest())`.
+- **Disk** — managed by the persistent `Storage::Cache::Database` LRU; no per-emoji custom retention. The atlas blob is evicted alongside other cached big-file entries when the database hits its size limit.
 
 ### 45.9 Click Behavior
 
 Custom emoji in text messages are clickable via `CustomEmojiClickHandler`:
 
-- **Callback**: Calls `ShowReactionPreview(controller, itemId, ReactionId{documentId}, emojiPreview=true)`
-- **Result**: Opens an overlay preview showing the custom emoji's full animation, the sticker pack name, and a clickable label to open `StickerSetBox` (emoji pack browser)
+- **Callback**: Calls `ShowReactionPreview(controller, itemId, ReactionId{documentId}, emojiPreview=true)` (`history/view/history_view_reaction_preview.h`).
+- **Result**: Opens the floating reaction-preview overlay described in §45.14. The overlay's pack-name label is the "View Pack" affordance — clicking the rounded-shadow background dismisses the overlay and pushes a `StickerSetBox(show, setId, Data::StickersType::Emoji)` (`history_view_reaction_preview.cpp:223-232`).
+- **`emojiPreview = true`** vs `false` only changes the label string: `tr::lng_context_animated_emoji_preview` ("Custom emoji from {name}.") versus `tr::lng_context_animated_reaction` ("Reaction from {name}."). Both emit the same overlay (`history_view_reaction_preview.cpp:233-241`).
 
 For large (1-emoji) isolated custom emoji, an additional `_interactionLink` enables emoji interaction effects (the "tap splash" animation).
 
@@ -19490,6 +19743,85 @@ Custom emoji in the compose field use Qt's `QTextObjectInterface` system:
 | `history/view/history_view_reaction_preview.cpp` | Reaction/emoji preview overlay |
 | `data/data_document.cpp:745-755` | `emojiUsesTextColor()` text-color tinting flag |
 | `ui/power_saving.h` | Power saving flags for emoji animation contexts |
+| `Telegram/SourceFiles/history/view/history_view_reaction_preview.h/.cpp` | `ShowReactionPreview` / `ShowStickerPreview` / `ShowPhotoPreview` / `ShowWidgetPreview` — floating media-preview overlay with optional View-Pack background button |
+| `Telegram/SourceFiles/window/window_media_preview.h/.cpp` | `MediaPreviewWidget` — animated sticker preview surface used inside the overlay (`setCustomDuration`, `currentDimensions`, premium scaling) |
+| `Telegram/SourceFiles/boxes/sticker_set_box.h/.cpp` | `StickerSetBox` — opened by clicking the "View Pack" rectangle (`Data::StickersType::Emoji` mode for custom-emoji sets) |
+| `lib_ui/ui/effects/show_animation.h` | `Ui::Animations::ShowWidgets` / `HideWidgets` — fade-in/out used for the View-Pack rectangle and label |
+| `lib_ui/ui/cached_special_layer_shadow_corners.h` | `Ui::SpecialLayerShadowCorners()` — corner-cache used by the overlay's `Ui::Shadow::paint` call |
+
+### 45.14 Reaction / Emoji Preview Overlay (View Pack)
+
+Opened by `ShowReactionPreview()` in `history/view/history_view_reaction_preview.cpp:199-289` (also reachable from `ShowStickerPreview` / `ShowPhotoPreview` for non-emoji previews via the shared `CreatePreviewOverlay()` template at lines 81-122).
+
+**Composition** (inside the main window's `bodyWidget`, all siblings of the chat view):
+
+1. `Window::MediaPreviewWidget` (`state->mediaPreview`) — full-viewport widget that renders the animated sticker centred. Its show/hide animation is set via `setCustomDuration(st::defaultToggle.duration)` = **120ms** (`universalDuration`, `lib_ui/ui/basic.style:116`). The intrinsic per-sticker render scale is bounded by `st::maxStickerSize` = **224px** (`ui/chat/chat.style:188`); photo previews honour `st::mediaPreviewPhotoSkip` = **48px** outer margin (`chat_helpers/chat_helpers.style:558`). For Telegram-Premium effect stickers `MediaPreviewWidget` applies the `kPremiumDownscale = 1.25` factor, `kPremiumShift = 21/240`, and `kPremiumMultiplier = 1 + 0.245*2` constants (`window/window_media_preview.cpp:25-27`).
+2. `Ui::AbstractButton` (`state->clickable`) — full-viewport invisible click-catcher. Sized to `Rect(size)` of the body widget. Painted with `st::stickerPreviewBg` fill in `ShowWidgetPreview` variant (`history_view_reaction_preview.cpp:300-303`) — semi-transparent backdrop dim. Clicking anywhere outside the centred sticker invokes `hideAll`. Pressing **Escape** also dismisses (`SetupOverlayHideOnEscape`, lines 41-58).
+3. `Ui::AbstractButton` (`state->background`) — the **"View Pack" rounded-shadow rectangle** (only created when the custom emoji belongs to a resolvable sticker set, `lookupSetName(setId.id)` returns non-empty, `history_view_reaction_preview.cpp:218-223`). Whole rectangle is clickable; click handler calls `hideAll()` then `show->show(Box<StickerSetBox>(show, setId, Data::StickersType::Emoji))` (`history_view_reaction_preview.cpp:225-232`).
+4. `Ui::FlatLabel` (`state->label`) — child of `state->background`, transparent for mouse events (so clicks fall through to the background button). Text is `tr::lng_context_animated_emoji_preview` (emoji mode) or `tr::lng_context_animated_reaction` (reaction mode), with `lt_name` substituted by the sticker pack name via `Ui::Text::Colorized(packName)` (`history_view_reaction_preview.cpp:233-242`).
+
+**"View Pack" rectangle geometry** (computed in the size-binding lambda at `history_view_reaction_preview.cpp:266-289`):
+
+```
+shadowExtend  = st::boxRoundShadow.extend          = margins(10px,10px,10px,10px)   // lib_ui/ui/widgets/widgets.style:1273-1284 (roundShadowRadius8px)
+padding       = st::msgServicePadding              = margins(12px,3px,12px,4px)     // ui/chat/chat.style:87
+maxLabelWidth = labelRaw->textMaxWidth() / 2                                          // half of the natural single-line width — forces wrap
+labelHeight   = labelRaw->height() * 2                                                // two lines after wrap
+innerWidth    = maxLabelWidth + padding.h_sum                                         // 12 + maxLabelWidth + 12
+innerHeight   = labelHeight   + padding.v_sum                                         // 3  + labelHeight   + 4
+bgWidth       = innerWidth    + shadowExtend.h_sum                                    // 10 + innerWidth    + 10
+bgHeight      = innerHeight   + shadowExtend.v_sum                                    // 10 + innerHeight   + 10
+bgX           = (bodyWidth  - bgWidth)  / 2                                           // horizontally centred
+bgY           = (bodyHeight * 3 / 4) - (bgHeight / 2)                                 // centred on the 75% horizontal line
+labelX        = shadowExtend.left() + padding.left()    = 10 + 12 = 22px              // inside bg rect
+labelY        = shadowExtend.top()  + padding.top()     = 10 + 3  = 13px
+```
+
+So the "View Pack" rectangle is dynamically sized to the wrapped pack-name label: minimum visible chrome is **44 px** added to the label width (10+12 left + 12+10 right) and **27 px** added to the label height (10+3 top + 4+10 bottom).
+
+**Painting** (`paintOn` lambda at `history_view_reaction_preview.cpp:244-261`):
+
+1. `innerRect = backgroundRaw->rect() - shadowExtend` — strip the 10-px shadow margin from each side.
+2. `Ui::Shadow::paint(p, innerRect, width, st::boxRoundShadow, Ui::SpecialLayerShadowCorners(), RectPart::Full)` — eight-piece soft shadow ring around the rounded rect (corner icons `round_shadow_box_*` in `windowShadowFg`).
+3. `p.setBrush(st::windowBg)` then `drawRoundedRect(innerRect, st::boxRadius, st::boxRadius)` — fill at `boxRadius` = **8px** (`lib_ui/ui/layers/layers.style:23`).
+
+There is **no icon** — the pack-name label is the entire button content. The "View Pack" affordance is identified purely by the rectangle's clickability (cursor stays default, no hover styling beyond the label's RPL-driven colorisation).
+
+**Show/hide animation:**
+
+- Show — `Ui::Animations::ShowWidgets({ backgroundRaw })` (`history_view_reaction_preview.cpp:263`) cross-fades the rectangle in over `st::defaultToggle.duration` = **120ms**.
+- Hide — `state->extraHide` calls `Ui::Animations::HideWidgets({ backgroundRaw, labelRaw })` over the same **120ms** (`history_view_reaction_preview.cpp:268-273`). After the duration elapses, `base::call_delayed(st::defaultToggle.duration, ...)` destroys all overlay widgets (`history_view_reaction_preview.cpp:97-100`).
+- The `MediaPreviewWidget`'s sticker fade uses the same **120ms** via `setCustomDuration` (line 90).
+- Note: a separate `stickerPreviewDuration = 150` ms (`chat_helpers/chat_helpers.style:556`) and `stickerPreviewMin = 0.1` (line 557) are the legacy hover-preview tunings used by `MediaPreviewWidget` when no custom duration is set (`window_media_preview.cpp:144-147, 172-175`); for emoji/reaction previews the explicit 120 ms `defaultToggle.duration` overrides this.
+
+**Window resize** — any size change of the body widget after the first emission is treated as a dismiss (`mainwidget->sizeValue() | rpl::skip(1) | rpl::on_next([=](QSize) { hideAll(); })`, lines 105-108).
+
+**`SetupPreviewMenu` variant** (lines 123-176) — used by `ShowStickerPreview` / `ShowPhotoPreview`; adds a `Ui::DropdownMenu` (e.g. "Save", "Send without compression") in a `Ui::FadeWrap`, positioned `gap = st::defaultMenu.itemPadding.top()` = **8px** (`lib_ui/ui/widgets/widgets.style:1148`) below the preview's `contentBottom()`. The reaction-preview overlay does **not** include this dropdown — only the View-Pack rectangle.
+
+### 45.15 Atlas Cache Constants Summary
+
+| Constant | Value | File |
+|---|---|---|
+| `kMaxFrames`              | 180        | `lib_ui/ui/text/custom_emoji_instance.h:22` |
+| `kCacheVersion`           | 1          | `lib_ui/ui/text/custom_emoji_instance.h:23` |
+| `kPreloadFrames`          | 3          | `lib_ui/ui/text/custom_emoji_instance.h:24` |
+| `Cache::kPerRow`          | 16         | `lib_ui/ui/text/custom_emoji_instance.h:98` |
+| Atlas pixel format        | `QImage::Format_ARGB32_Premultiplied` | `custom_emoji_instance.cpp:445` |
+| Atlas width               | `min(_frames,16) * _size` px          | `custom_emoji_instance.cpp:435,442-445` |
+| Atlas height              | `ceil(_frames/16) * _size` px         | `custom_emoji_instance.cpp:434,442-445` |
+| Frame duration array      | `uint16` ms per frame                 | `Cache::_durations`, `custom_emoji_instance.h:106` |
+| Reaction-preview fade     | 120 ms (`universalDuration`)          | `lib_ui/ui/basic.style:116` |
+| Legacy sticker-preview fade | 150 ms                              | `chat_helpers/chat_helpers.style:556` |
+| Sticker-preview min scale | 0.1                                   | `chat_helpers/chat_helpers.style:557` |
+| Photo-preview margin      | 48 px                                 | `chat_helpers/chat_helpers.style:558` |
+| `maxStickerSize`          | 224 px                                | `ui/chat/chat.style:188` |
+| `boxRadius`               | 8 px                                  | `lib_ui/ui/layers/layers.style:23` |
+| `boxRoundShadow.extend`   | margins(10,10,10,10) px               | `lib_ui/ui/widgets/widgets.style:1273-1284` |
+| `msgServicePadding`       | margins(12,3,12,4) px                 | `ui/chat/chat.style:87` |
+| `defaultMenu.itemPadding.top` | 8 px                              | `lib_ui/ui/widgets/widgets.style:1148` |
+| Premium-sticker shift     | 21/240                                | `window_media_preview.cpp:25` |
+| Premium-sticker multiplier | 1 + 0.245 * 2 (= 1.49)                | `window_media_preview.cpp:26` |
+| Premium-sticker downscale | 1.25                                  | `window_media_preview.cpp:27` |
 
 ---
 
