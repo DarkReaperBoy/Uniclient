@@ -118,6 +118,21 @@ class ChatListRow extends StatelessWidget {
                                     ),
                                   ),
                                 ),
+                                if (chat.isVerified) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.verified,
+                                    size: 16,
+                                    color: isActive ? Colors.white : const Color(0xFF168acd),
+                                  ),
+                                ],
+                                if (chat.isScam) ...[
+                                  const SizedBox(width: 4),
+                                  _WarningBadge(label: 'SCAM', isActive: isActive),
+                                ],
+                                if (chat.isFake) ...[
+                                  const SizedBox(width: 4),
+                                  _WarningBadge(label: 'FAKE', isActive: isActive),
+                                ],
                                 if (chat.isMuted) ...[
                                   const SizedBox(width: 4),
                                   Icon(Icons.volume_off, size: 14, color: mutedColor),
@@ -172,17 +187,11 @@ class ChatListRow extends StatelessWidget {
   }
 
   Widget _buildPreview(Color nameColor, Color mutedColor) {
-    // Typing indicator.
+    // Typing indicator: animated dots replacing preview text (spec §2).
     if (typingUser != null) {
-      return Text(
-        '$typingUser is typing...',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 13,
-          color: const Color(0xFF168acd), // Spec: sender prefix / service color
-          fontStyle: FontStyle.italic,
-        ),
+      return _TypingDotsIndicator(
+        userName: typingUser!,
+        color: const Color(0xFF168acd),
       );
     }
 
@@ -524,6 +533,116 @@ class _StoriesRingPainter extends CustomPainter {
       isDark != oldDelegate.isDark ||
       minified != oldDelegate.minified ||
       readOpacity != oldDelegate.readOpacity;
+}
+
+/// Animated typing indicator: "UserName typing" + bouncing dots.
+/// Spec §2: replaces preview text with animated dots.
+class _TypingDotsIndicator extends StatefulWidget {
+  final String userName;
+  final Color color;
+
+  const _TypingDotsIndicator({required this.userName, required this.color});
+
+  @override
+  State<_TypingDotsIndicator> createState() => _TypingDotsIndicatorState();
+}
+
+class _TypingDotsIndicatorState extends State<_TypingDotsIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            '${widget.userName} typing',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              color: widget.color,
+            ),
+          ),
+        ),
+        const SizedBox(width: 1),
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(3, (i) {
+                // Stagger each dot by 1/3 of the cycle, bounce up using sin().
+                final phase = (_controller.value + i / 3.0) * 2 * math.pi;
+                final dy = -3.0 * math.max(0.0, math.sin(phase));
+                return Padding(
+                  padding: const EdgeInsets.only(left: 1),
+                  child: Transform.translate(
+                    offset: Offset(0, dy),
+                    child: Text(
+                      '.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: widget.color,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// Red text badge for scam/fake indicators.
+/// Spec §2: rendered inline after name, red border + red text.
+class _WarningBadge extends StatelessWidget {
+  final String label;
+  final bool isActive;
+
+  const _WarningBadge({required this.label, required this.isActive});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isActive ? Colors.white : const Color(0xFFe53935);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+      decoration: BoxDecoration(
+        border: Border.all(color: color, width: 1),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
 }
 
 /// Pill-shaped unread count badge.

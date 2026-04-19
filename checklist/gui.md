@@ -36,7 +36,6 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Typing indicator: animated dots replacing preview text (S2)
 - [ ] Mini media previews: 16px thumbnails in preview (S2)
 - [ ] Unread pill Over and Active color variants (S2)
 - [ ] Unread dot (when unreadMark set without counter): filled ellipse, 19x19 slot (S2)
