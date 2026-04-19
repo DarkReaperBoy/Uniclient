@@ -265,18 +265,31 @@ class ChatListRow extends StatelessWidget {
 }
 
 /// Circular avatar with fallback color + initials + online dot + stories ring.
-/// Spec §2: stories ring shrinks photo to 42px in full/expanded mode.
+/// Spec §2: stories ring has two geometry modes:
+///   full/expanded: photo 42px, unread line 2px, read line 1px
+///   small/minified (sidebar collapsed): photo 21px, unread line 1.5px, read line not drawn
 class _ChatAvatar extends StatelessWidget {
   final ChatInfo chat;
   final double size;
   final bool isOnline;
+  final bool minified;
 
-  const _ChatAvatar({required this.chat, required this.size, this.isOnline = false});
+  const _ChatAvatar({
+    required this.chat,
+    required this.size,
+    this.isOnline = false,
+    this.minified = false,
+  });
 
   // Spec §2: full/expanded stories ring geometry.
-  static const _storyPhotoSize = 42.0;
-  static const _unreadLineWidth = 2.0;
-  static const _readLineWidth = 1.0;
+  static const _storyPhotoSizeFull = 42.0;
+  static const _unreadLineWidthFull = 2.0;
+  static const _readLineWidthFull = 1.0;
+
+  // Spec §2: small/minified stories ring geometry.
+  static const _storyPhotoSizeSmall = 21.0;
+  static const _unreadLineWidthSmall = 1.5;
+  static const _readLineWidthSmall = 0.0; // not drawn
 
   bool get _hasStories => chat.storyCount > 0;
 
@@ -287,7 +300,8 @@ class _ChatAvatar extends StatelessWidget {
     final initials = _initials(chat.title);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final photoSize = _hasStories ? _storyPhotoSize : size;
+    final storyPhotoSize = minified ? _storyPhotoSizeSmall : _storyPhotoSizeFull;
+    final photoSize = _hasStories ? storyPhotoSize : size;
 
     final avatar = chat.avatarPath.isNotEmpty
         ? ClipOval(
@@ -323,6 +337,7 @@ class _ChatAvatar extends StatelessWidget {
                   hasUnread: chat.hasUnreadStory,
                   isLiveStream: chat.isLiveStream,
                   isDark: isDark,
+                  minified: minified,
                 ),
               ),
             ),
@@ -397,34 +412,39 @@ class _ChatAvatar extends StatelessWidget {
 }
 
 /// Custom painter for stories ring around chat list avatars.
-/// Spec §2 full/expanded mode: photo 42px, unread line 2px, read line 1px,
-/// ring offset outside userpic by 1.5 × lineWidth.
+/// Spec §2: two geometry modes (full/expanded and small/minified).
+/// Ring offset outside userpic by 1.5 × lineWidth.
 class _StoriesRingPainter extends CustomPainter {
   final int storyCount;
   final bool hasUnread;
   final bool isLiveStream;
   final bool isDark;
+  final bool minified;
 
   _StoriesRingPainter({
     required this.storyCount,
     required this.hasUnread,
     required this.isLiveStream,
     required this.isDark,
+    this.minified = false,
   });
-
-  static const _photoRadius = 21.0; // 42px / 2
 
   @override
   void paint(Canvas canvas, Size size) {
     if (storyCount <= 0) return;
 
-    final center = Offset(size.width / 2, size.height / 2);
+    // Spec §2: small/minified read ring is not drawn (lineReadTwice: 0px).
     final lineWidth = hasUnread
-        ? _ChatAvatar._unreadLineWidth
-        : _ChatAvatar._readLineWidth;
+        ? (minified ? _ChatAvatar._unreadLineWidthSmall : _ChatAvatar._unreadLineWidthFull)
+        : (minified ? _ChatAvatar._readLineWidthSmall : _ChatAvatar._readLineWidthFull);
+    if (lineWidth <= 0) return; // small/minified read ring: skip entirely
+
+    final photoRadius = minified
+        ? _ChatAvatar._storyPhotoSizeSmall / 2
+        : _ChatAvatar._storyPhotoSizeFull / 2;
+    final center = Offset(size.width / 2, size.height / 2);
     final offset = 1.5 * lineWidth;
-    // Ring center radius: photo edge + offset.
-    final ringRadius = _photoRadius + offset;
+    final ringRadius = photoRadius + offset;
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
@@ -483,7 +503,8 @@ class _StoriesRingPainter extends CustomPainter {
       storyCount != oldDelegate.storyCount ||
       hasUnread != oldDelegate.hasUnread ||
       isLiveStream != oldDelegate.isLiveStream ||
-      isDark != oldDelegate.isDark;
+      isDark != oldDelegate.isDark ||
+      minified != oldDelegate.minified;
 }
 
 /// Pill-shaped unread count badge.
