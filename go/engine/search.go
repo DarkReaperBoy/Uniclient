@@ -84,10 +84,11 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 	rows, err := e.db.Query(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
 		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing,
+		        c.last_msg_is_outgoing, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0)
+		        COALESCE(u.is_bot, 0),
+		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 WHERE c.title LIKE '%' || ? || '%'

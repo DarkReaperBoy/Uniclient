@@ -263,8 +263,15 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 
 	// Update chat list — create chat entry if it doesn't exist yet (new conversation).
 	preview := msgPreviewText(msg)
+	var mediaType int
+	var thumbB64 string
+	if len(msg.Attachments) > 0 {
+		att := msg.Attachments[0]
+		mediaType = guessMediaType(att.MimeType, att.Name)
+		thumbB64 = att.ThumbB64
+	}
 	e.ensureChatExists(accountID, chatID, msg)
-	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli(), msg.IsOutgoing)
+	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli(), msg.IsOutgoing, mediaType, thumbB64)
 
 	// Increment unread if not active chat.
 	if !e.isActiveChat(accountID, chatID) {

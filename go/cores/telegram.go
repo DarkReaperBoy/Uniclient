@@ -9824,6 +9824,9 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 			dialog.Type = ChatTypeDM
 			if user, ok := userMap[p.UserID]; ok {
 				dialog.Title = strings.TrimSpace(user.FirstName + " " + user.LastName)
+				dialog.IsVerified = user.Verified
+				dialog.IsScam = user.Scam
+				dialog.IsFake = user.Fake
 				if _, ok := user.Photo.(*tg.UserProfilePhoto); ok {
 					dialog.AvatarURL = "has_photo"
 				}
@@ -9846,6 +9849,9 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 				if c, ok := ch.(*tg.Channel); ok {
 					dialog.Title = c.Title
 					dialog.MemberCount = c.ParticipantsCount
+					dialog.IsVerified = c.Verified
+					dialog.IsScam = c.Scam
+					dialog.IsFake = c.Fake
 					if c.Broadcast {
 						dialog.Type = ChatTypeChannel
 					} else {

@@ -105,6 +105,8 @@ var migrations = []func(*sql.Tx) error{
 	migrateV2,
 	migrateV3,
 	migrateV4,
+	migrateV5,
+	migrateV6,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -169,6 +171,9 @@ func migrateV1(tx *sql.Tx) error {
 			member_count  INTEGER,
 			parent_id     TEXT,
 			capabilities  TEXT,
+			is_verified   INTEGER NOT NULL DEFAULT 0,
+			is_scam       INTEGER NOT NULL DEFAULT 0,
+			is_fake       INTEGER NOT NULL DEFAULT 0,
 			updated_at    INTEGER NOT NULL,
 			PRIMARY KEY (account_id, chat_id)
 		)`,
@@ -364,4 +369,32 @@ func migrateV4(tx *sql.Tx) error {
 	}
 	_, err := tx.Exec(`ALTER TABLE media ADD COLUMN extra TEXT`)
 	return err
+}
+
+// migrateV5 adds verified/scam/fake columns to chats table.
+func migrateV5(tx *sql.Tx) error {
+	for _, col := range []string{"is_verified", "is_scam", "is_fake"} {
+		if columnExists(tx, "chats", col) {
+			continue
+		}
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN ` + col + ` INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateV6 adds last_msg_media_type and last_msg_thumb_b64 columns to chats table.
+func migrateV6(tx *sql.Tx) error {
+	if !columnExists(tx, "chats", "last_msg_media_type") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_media_type INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "chats", "last_msg_thumb_b64") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_thumb_b64 TEXT`); err != nil {
+			return err
+		}
+	}
+	return nil
 }

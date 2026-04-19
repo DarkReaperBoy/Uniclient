@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -52,15 +53,6 @@ class ChatListRow extends StatelessWidget {
     final mutedColor = isActive
         ? Colors.white
         : (isDark ? theme.textTheme.bodySmall?.color : _mutedColorDay);
-    final badgeBg = isActive
-        ? Colors.white
-        : (chat.isMuted
-            ? (isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb)) // Spec §2: muted badge
-            : (isDark ? const Color(0xFF40a7e3) : const Color(0xFF40a7e3))); // Spec §2: windowBgActive
-    final badgeText = isActive
-        ? _activeBg
-        : Colors.white;
-
     // Use a plain Container (not Material widget) to avoid MD3 surface-tint behavior
     // that washes Material(color: primary) to white in a ColorScheme.dark context.
     return Container(
@@ -75,10 +67,25 @@ class ChatListRow extends StatelessWidget {
           hoverColor: isActive
               ? Colors.white.withValues(alpha: 0.08)
               : (isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1)), // Spec §2: night #202b36, day #f1f1f1
-          child: SizedBox(
-            height: _rowHeight,
-          child: Padding(
-            padding: const EdgeInsets.only(left: _avatarLeft, right: _paddingRight),
+          child: _HoverBuilder(
+            builder: (_, isHovered) {
+              // Spec §2: Unread pill Over and Active color variants.
+              final badgeBg = isActive
+                  ? (isDark
+                      ? (chat.isMuted ? const Color(0xFF7aa3ca) : Colors.white)
+                      : Colors.white)
+                  : isHovered
+                      ? (chat.isMuted
+                          ? (isDark ? const Color(0xFF4d5762) : const Color(0xFFbbbbbb))
+                          : (isDark ? const Color(0xFF4082bc) : const Color(0xFF40a7e3)))
+                      : (chat.isMuted
+                          ? (isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb))
+                          : (isDark ? const Color(0xFF40a7e3) : const Color(0xFF40a7e3)));
+              final badgeText = isActive ? _activeBg : Colors.white;
+              return SizedBox(
+                height: _rowHeight,
+              child: Padding(
+                padding: const EdgeInsets.only(left: _avatarLeft, right: _paddingRight),
             child: Row(
               children: [
                 // Avatar with online dot.
@@ -180,7 +187,9 @@ class ChatListRow extends StatelessWidget {
               ],
             ),
           ),
-        ),
+        );
+            },
+          ),
       ),
       ),
     );
@@ -221,7 +230,10 @@ class ChatListRow extends StatelessWidget {
     final showSender = chat.lastMsgSender.isNotEmpty &&
         (chat.type == ChatType.group || chat.type == ChatType.channel);
 
-    return Text.rich(
+    // Spec §2: Mini media previews — 16px thumbnail before preview text.
+    final hasThumb = chat.lastMsgMediaType > 0 && chat.lastMsgThumbB64.isNotEmpty;
+
+    final textWidget = Text.rich(
       TextSpan(children: [
         if (showSender)
           TextSpan(
@@ -238,6 +250,25 @@ class ChatListRow extends StatelessWidget {
       ]),
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+    );
+
+    if (!hasThumb) return textWidget;
+
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: Image.memory(
+            base64Decode(chat.lastMsgThumbB64),
+            width: 16,
+            height: 16,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const SizedBox(width: 16, height: 16),
+          ),
+        ),
+        const SizedBox(width: 4),
+        Expanded(child: textWidget),
+      ],
     );
   }
 
@@ -680,6 +711,27 @@ class _UnreadBadge extends StatelessWidget {
           height: 1.0,
         ),
       ),
+    );
+  }
+}
+
+/// Hover-tracking wrapper that exposes hover state to its builder.
+/// Used for Spec §2 unread pill Over/Active color variants.
+class _HoverBuilder extends StatefulWidget {
+  final Widget Function(BuildContext context, bool isHovered) builder;
+  const _HoverBuilder({required this.builder});
+  @override
+  State<_HoverBuilder> createState() => _HoverBuilderState();
+}
+
+class _HoverBuilderState extends State<_HoverBuilder> {
+  bool _isHovered = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: widget.builder(context, _isHovered),
     );
   }
 }

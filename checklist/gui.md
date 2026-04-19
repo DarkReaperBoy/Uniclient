@@ -36,8 +36,6 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Mini media previews: 16px thumbnails in preview (S2)
-- [ ] Unread pill Over and Active color variants (S2)
 - [ ] Unread dot (when unreadMark set without counter): filled ellipse, 19x19 slot (S2)
 - [ ] Mention/reaction/poll badges: 18x18 ThreeStateIcon, not pill (S2)
 - [ ] Badge icon color: dialogsUnreadBg unmuted / dialogsUnreadBgMuted muted (S2)
@@ -54,10 +52,6 @@
 - [ ] Night active/selected bg: #2b5278 (S2)
 - [ ] Night ripple normal: #25313d (S2)
 - [ ] Night ripple active: #315a80 (S2)
-- [ ] Night unread bg (unmuted) on active: dialogsTextFgActive (white) (S2)
-- [ ] Night unread bg (muted) on active: #7aa3ca (S2)
-- [ ] Night unread bg (unmuted) on hover: #4082bc (S2)
-- [ ] Night unread bg (muted) on hover: #4d5762 (S2)
 - [ ] Ripple animation: defaultRippleAnimation curve (S2)
 
 ### 2.5 Special Rows

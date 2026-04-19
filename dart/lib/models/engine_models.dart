@@ -173,6 +173,8 @@ class ChatInfo {
   final int lastMsgTime;
   final String lastMsgSender;
   final bool lastMsgIsOutgoing;
+  final int lastMsgMediaType;
+  final String lastMsgThumbB64;
   final int unreadCount;
   final bool isMuted;
   final bool isPinned;
@@ -185,6 +187,9 @@ class ChatInfo {
   final bool hasUnreadStory;
   final bool isLiveStream;
   final bool isBot;
+  final bool isVerified;
+  final bool isScam;
+  final bool isFake;
 
   const ChatInfo({
     required this.accountId,
@@ -197,6 +202,8 @@ class ChatInfo {
     this.lastMsgTime = 0,
     this.lastMsgSender = '',
     this.lastMsgIsOutgoing = false,
+    this.lastMsgMediaType = 0,
+    this.lastMsgThumbB64 = '',
     this.unreadCount = 0,
     this.isMuted = false,
     this.isPinned = false,
@@ -209,6 +216,9 @@ class ChatInfo {
     this.hasUnreadStory = false,
     this.isLiveStream = false,
     this.isBot = false,
+    this.isVerified = false,
+    this.isScam = false,
+    this.isFake = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -222,6 +232,8 @@ class ChatInfo {
     lastMsgTime: j['last_msg_time'] as int? ?? 0,
     lastMsgSender: safeStr(j['last_msg_sender'] as String? ?? ''),
     lastMsgIsOutgoing: j['last_msg_is_outgoing'] as bool? ?? false,
+    lastMsgMediaType: j['last_msg_media_type'] as int? ?? 0,
+    lastMsgThumbB64: j['last_msg_thumb_b64'] as String? ?? '',
     unreadCount: j['unread_count'] as int? ?? 0,
     isMuted: j['is_muted'] as bool? ?? false,
     isPinned: j['is_pinned'] as bool? ?? false,
@@ -234,6 +246,9 @@ class ChatInfo {
     hasUnreadStory: j['has_unread_story'] as bool? ?? false,
     isLiveStream: j['is_live_stream'] as bool? ?? false,
     isBot: j['is_bot'] as bool? ?? false,
+    isVerified: j['is_verified'] as bool? ?? false,
+    isScam: j['is_scam'] as bool? ?? false,
+    isFake: j['is_fake'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.
