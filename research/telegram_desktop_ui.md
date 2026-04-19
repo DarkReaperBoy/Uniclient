@@ -3074,6 +3074,28 @@ Starts with `settingsPrivacySkip` (14px) vertical skip, then a subsection title 
 
 - **Unconfirmed** (email confirmation pending): Navigates to `CloudPasswordEmailConfirm` to complete the pending setup.
 
+##### 16.2.1.1 Cloud-password box field metrics
+
+The `PasscodeBox` (used for set / check / change password) is a `BoxContent` whose working width is `st::boxWidth`. Text and form fields share a common horizontal layout:
+
+| Field / spacing | Token | Source |
+|---|---|---|
+| Box working width | `st::boxWidth` | `boxes/passcode_box.cpp:136` |
+| Text label wrap width | `boxWidth - boxPadding.left() * 1.5` | `boxes/passcode_box.cpp:135` |
+| Input field width | `boxWidth - boxPadding.left() - boxPadding.right()` | `boxes/passcode_box.cpp:590` |
+| Box outer top padding | `st::passcodePadding.top()` | `boxes/passcode_box.cpp:160` |
+| Box outer bottom padding | `st::passcodePadding.bottom()` | `boxes/passcode_box.cpp:589` |
+| Inter-field line spacing | `st::passcodeTextLine` | `boxes/passcode_box.cpp:151, 157, 590` |
+| Small gap (hint -> error) | `st::passcodeLittleSkip` | `boxes/passcode_box.cpp:148-159` |
+| Main block skip | `st::passcodeSkip` | `boxes/passcode_box.cpp:149, 157, 159` |
+| About-label skip | `st::passcodeAboutSkip` | `boxes/passcode_box.cpp:151, 159` |
+
+**Label / helper-text font.** Multiline body labels render with `st::boxLabel` (source: `boxes/passcode_box.cpp:72`). Password input fields use `st::defaultInputField` (source: `:131-134, 139-142`). The "about" / "forgot password?" helper below the field uses `st::passcodeTextStyle` (source: `:115, 164`). Inline hint labels use `st::normalFont` in `st::boxTextFg` colour (source: `:670-671, 706`).
+
+**Error ring / red outline.** On a wrong password or mismatched new/repeat pair, the error label text uses `st::boxTextFgError` (source: `boxes/passcode_box.cpp:710, 715, 721`); the input field simultaneously re-renders in its error sub-style (red underline baked into `st::defaultInputField`). Error text keys surfaced here: `lng_cloud_password_wrong`, `lng_cloud_password_bad_new_email`, `lng_cloud_password_differ`.
+
+**Recovery-email row.** At the `CloudPasswordEmail` stage a single `InputField` spans the same `boxWidth - boxPadding.left() - boxPadding.right()` width, placeholder `lng_cloud_password_email`. Below the field, a `st::passcodeLittleSkip` gap separates it from the "Skip" link; tapping Skip surfaces a confirm box (`lng_cloud_password_about_recover`) warning that a forgotten password cannot be recovered without the email.
+
 #### 16.2.2 Auto-Delete Messages (Global TTL)
 
 - **Button**: `lng_settings_ttl_title` ("Auto-Delete Messages").
@@ -3087,6 +3109,23 @@ Opens `GlobalTTL` section with:
 - **Radio buttons** for preset periods: Off, 1 day, 7 days, 31 days. If the current value is a custom value, it is added to the list and sorted. Each option is a `SettingsButton` with a `Radiobutton` child overlaid on the right side. Selecting a non-zero value from zero shows a confirmation dialog (`lng_settings_ttl_after_sure`).
 - **"Set Custom Period"** button (`lng_settings_ttl_after_custom`): Opens the TTL picker box.
 - **Footer**: `lng_settings_ttl_after_about` with a clickable link `lng_settings_ttl_after_about_link` that opens a peer-list box for applying the current TTL to existing chats.
+
+##### 16.2.2.1 TTL radio-row metrics
+
+The Global-TTL radio options are rendered as full-width `SettingsButtonNoIcon` rows with an overlaid `Radiobutton` child. Row visuals match the standard privacy radio row:
+
+| Metric | Token / Value | Source |
+|---|---|---|
+| Preset values (seconds) | `{ 0, 86400, 604800, 2678400 }` (Off / 24h / 7d / 31d) | `settings/sections/settings_global_ttl.cpp:304` |
+| Row style | `st::settingsButtonNoIcon` (padding 22/10/22/8) | `settings_global_ttl.cpp:319` |
+| Row height | inherits `SettingsButtonNoIcon.height` (computed via `padding.top() + height + padding.bottom()`) | `boxes/edit_privacy_box.cpp:992` |
+| Selected ring | `st::defaultRadio.diameter` circle with `activeFg` fill; re-uses the same radio style as `AutoLockBox` / `SelfDestructionBox` | `boxes/self_destruction_box.cpp:117` |
+| TTL-ON / TTL-OFF chat icons | `st::settingsTTLChatsOn` / `st::settingsTTLChatsOff` | `settings_global_ttl.cpp:54` |
+| Arrow position / skip | `st::callArrowPosition`, `st::callArrowSkip` | `settings_global_ttl.cpp:56, 60` |
+| Footer info label style | `st::boxDividerLabel` | `settings_global_ttl.cpp:421` |
+| Footer padding | `st::defaultBoxDividerLabelPadding` | `settings_global_ttl.cpp:428` |
+
+If the user has set a custom period that is not one of the four presets, it is inserted into the list and sorted into place (so the radio group grows to five options). The "Set Custom Period" button sits directly below the last radio and, when tapped, opens the shared TTL picker. The `boxDividerLabel` footer below describes the rule in prose and contains the `lng_settings_ttl_after_about_link` anchor that opens a peer-list box applying the chosen TTL to existing chats.
 
 #### 16.2.3 Passcode Lock
 
@@ -3115,6 +3154,25 @@ Opens `GlobalTTL` section with:
 - **System Unlock toggle** (platform-specific: Windows Hello, Touch ID, Apple Watch, system password).
 - **"Turn Off Passcode"** button (red attention style): Shows confirmation dialog, on confirm clears passcode and navigates back.
 
+##### 16.2.3.1 AutoLockBox metrics
+
+`AutoLockBox` is a small preset-plus-custom radio box. The five preset values are hard-coded:
+
+| Metric | Token / Value | Source |
+|---|---|---|
+| Box width | `st::autolockWidth` | `boxes/auto_lock_box.cpp:97` |
+| Preset timeouts (seconds) | `{ 60, 300, 3600, 18000, kCustom }` — 1 min / 5 min / 1 h / 5 h / custom | `boxes/auto_lock_box.cpp:15` |
+| Radio-row top margin | `st::autolockButton.margin.top()` | `boxes/auto_lock_box.cpp:35` |
+| Option list top padding | `st::boxOptionListPadding.top()` | `boxes/auto_lock_box.cpp:35, 97` |
+| Option list left padding | `st::boxOptionListPadding.left()` | `boxes/auto_lock_box.cpp:33` |
+| Option list bottom padding | `st::boxOptionListPadding.bottom()` | `boxes/auto_lock_box.cpp:99` |
+| Gap between options | `st::boxOptionListSkip` | `boxes/auto_lock_box.cpp:39, 100` |
+| Custom-row input field width | `st::autolockTimeWidth` | `boxes/auto_lock_box.cpp:67` |
+| Box left padding | `st::boxPadding.left()` | `boxes/auto_lock_box.cpp:33` |
+| Box bottom padding | `st::boxPadding.bottom()` | `boxes/auto_lock_box.cpp:99` |
+
+**Custom row.** The "If away for..." row is the final option in the radio group; when selected it reveals a `TimeInput` widget positioned `moveToLeft(last->x() + textLeft, last->y() + textTop)` relative to the last preset radio (source: `boxes/auto_lock_box.cpp:70`). Input is `HH:MM`, default `"10:00"`. Confirming the box writes the chosen seconds value back to local-passcode settings; Cancel closes without change.
+
 #### 16.2.4 Passkeys (conditional)
 
 Shown only if platform supports WebAuthn or user has passkeys configured.
@@ -3135,6 +3193,21 @@ Shown only if user has a login email configured.
 - **Icon**: `menuIconBlock`.
 - **Right label**: Blocked count or "None".
 
+##### 16.2.6.1 Blocked users empty state
+
+When the user has no blocked peers, the list reserves a full-height placeholder region:
+
+| Metric | Token / Value | Source |
+|---|---|---|
+| Min height of empty region | `st::settingsBlockedHeightMin` (240px per §16.10) | `settings/sections/settings_blocked_peers.cpp:78` |
+| Empty Lottie animation | `"blocked_peers_empty"` | `settings_blocked_peers.cpp:183` |
+| Empty title | `lng_blocked_list_empty_title` | `settings_blocked_peers.cpp:189` |
+| Empty description | `lng_blocked_list_empty_description` | `settings_blocked_peers.cpp:194` |
+| Lottie-icon padding | `st::settingsBlockedListIconPadding` | `settings_blocked_peers.cpp:182` |
+| Subtitle extra padding (list with items) | `st::settingsBlockedListSubtitleAddPadding` | `settings_blocked_peers.cpp:160` |
+
+**"Block user" button row.** Always rendered above the list (or above the empty state) in a `Ui::VerticalLayout` sequence of `skip -> button -> skip -> divider` (source: `settings_blocked_peers.cpp:139-147`). The button uses `st::settingsButtonActive` with icon `menuIconBlockSettings` (source: `:141`) — i.e. the blue-tinted "active" settings-button variant that reads `lng_blocked_list_add`. The button opens a peer picker that disables already-blocked rows; selecting a user calls the Blocklist API and returns to this screen.
+
 #### 16.2.7 Active Sessions
 
 - **Button**: `lng_settings_show_sessions` ("Active Sessions").
@@ -3147,6 +3220,25 @@ Opens `ActiveSessions` section with:
 - Close button per session (34x34px).
 - "Terminate All Other Sessions" button.
 - Auto-terminate inactive sessions timer (7 days / 1-6 months / 1 year).
+
+##### 16.2.7.1 Sessions list row layout
+
+**Cross-reference:** §19.x covers the Active-Sessions screen from the "Sessions, Power, Language" settings branch with per-tab detail (terminate-all confirmation, auto-terminate picker wiring). The metrics below are the row-level visuals only; refer to §19 for the parent screen's section structure and for the top-level Lottie/Divider layout used when no other sessions exist.
+
+| Metric | Token / Value | Source |
+|---|---|---|
+| Row photo (platform icon) size | `st::sessionListItem.photoSize` | `settings/sections/settings_active_sessions.cpp:528` |
+| Device name (top line) | `_data.name` (generated via `generateName()`) | `settings_active_sessions.cpp:510` |
+| App / info (second line, "custom status") | `_data.info` set via `setCustomStatus()` | `settings_active_sessions.cpp:506` |
+| Location + date (third line) | `LocationAndDate(data)` — e.g. "Berlin, Germany - online" | `settings_active_sessions.cpp:419` |
+| Location top offset | `st::sessionLocationTop` (x from `sessionListItem.namePosition.x()`) | `settings_active_sessions.cpp:463` |
+| Terminate (close) button geometry | `st::sessionTerminate` dims, inset `st::sessionTerminateSkip` from right, `st::sessionTerminateTop` from top | `settings_active_sessions.cpp:468` |
+
+**Current-session highlight.** The current session is identified by `!auth.hash` (source: `:381`) and is pulled out of the scrollable list: it renders at the top of the screen (see §16.2.7 and §19) with a 70px userpic and 52px Lottie badge; no "Terminate" close-button is drawn on it.
+
+**Terminate-all.** The red `_terminateAll` button is labelled `lng_sessions_terminate_all` (source: `:633`). Tapping it shows a confirm box whose body uses `lng_settings_reset_sure` (source: `:742`) and whose OK button uses `st::attentionBoxButton`; confirming calls `session->api().authorizations().requestTerminate()`.
+
+**Auto-terminate row.** `_autoTerminate` is a standalone settings button (source: `:646`) whose right label is produced by `SelfDestructionBox::DaysLabel(_ttlDays.value())`; tapping it opens `SelfDestructionBox(Type::Sessions)` with the sessions-specific days set (see §16.2.x / §16.8.1).
 
 ---
 
@@ -3166,6 +3258,35 @@ Clicking any privacy button opens `EditPrivacyBox` (width: `boxWideWidth` = 364p
 7. Optional below widget.
 8. "Save" + "Cancel" buttons.
 
+#### 16.3.0 EditPrivacyBox - shared internals
+
+The shared picker used by every privacy setting is in `boxes/edit_privacy_box.cpp`. All child controllers (phone, last seen, calls, forwards, voice, gifts, etc.) feed this box a `Controller` that supplies strings, icons, and optional above / middle / below widgets.
+
+| Metric | Token / Value | Source |
+|---|---|---|
+| Box width | `st::boxWideWidth` (364px per §16.10) | `boxes/edit_privacy_box.cpp:1093` |
+| Option row padding | `st::settingsSendTypePadding + margins(-lineWidth, settingsPrivacySkipTop, 0, 0)` | `boxes/edit_privacy_box.cpp:941` |
+| Radio-row top pad | `st::settingsPrivacySkipTop` (4px) | `boxes/edit_privacy_box.cpp:950` |
+| Message-privacy radio gap | `st::messagePrivacyRadioSkip` | `boxes/edit_privacy_box.cpp:1107` |
+| Message-privacy bottom skip | `st::messagePrivacyBottomSkip` | `boxes/edit_privacy_box.cpp:1109` |
+| Exception link row style | `st::settingsButtonNoIcon` | `boxes/edit_privacy_box.cpp:965` |
+| Exception link height | `padding.top() + height + padding.bottom()` of `settingsButtonNoIcon` | `boxes/edit_privacy_box.cpp:992` |
+| Description label style | `st::boxDividerLabel` | `boxes/edit_privacy_box.cpp:912` |
+| Description label padding | `st::defaultBoxDividerLabelPadding` | `boxes/edit_privacy_box.cpp:918` |
+| Gap above exceptions block | `st::defaultVerticalListSkip` | `boxes/edit_privacy_box.cpp:987` |
+
+**Radio rows (1..N).** The controller supplies the ordered option list (e.g. Everybody / Contacts / CloseFriends / Nobody, or the three-way Messages-from-Non-Contacts set). Each row is a `SettingsButton` with an overlaid `Radiobutton`; Premium-locked options show a 14px padlock icon to the right of the label (per §16.3 intro).
+
+**Add-exceptions link rows.** Added via two `addExceptionLink()` calls - one for `Exception::Always`, one for `Exception::Never` (source: `:965-967`). Each row's label comes from the controller's `exceptionsDescription()` / `exceptionButtonTextKey()` and is wrapped in a `SlideWrap` gated by `showExceptionLink(exception)` on the currently-selected option. Rows use `st::settingsButtonNoIcon` height and are tappable anywhere in the row area.
+
+**Exception-list preview format.** The right-side label of each link reflects the exception set (source: `:944-960`):
+- Peers only: `Settings::ExceptionUsersCount(value.peers)` rendered with `lng_edit_privacy_exceptions_count` when > 0, `lng_edit_privacy_exceptions_add` when empty.
+- Premium-only (no peers): `lng_edit_privacy_premium`.
+- Premium + peers: `lng_edit_privacy_exceptions_premium_and` with `lt_users` = peer count.
+- MiniApps variant: `lng_edit_privacy_miniapps` or `lng_edit_privacy_exceptions_miniapps_and`.
+
+**Save-button behavior.** No client-side validation (source: `:987-1009`). On save, the box computes `someAreDisallowed = (option != Everyone) || !never.peers.empty()` (source: `:988`) and routes through `_controller->confirmSave(someAreDisallowed, ...)` - controllers like LastSeen and Forwards may inject a confirmation box here. The final commit calls `_window->session().api().userPrivacy().save(_controller->key(), _value)` (source: `:982, 998-1003`); constraints (e.g. Premium-only options) are enforced server-side. The "Cancel" button simply closes the box (source: `:985`).
+
 #### 16.3.1 Phone Number
 
 Options: Everyone / My Contacts / Nobody. When "Nobody" selected, a sub-section appears: "Who can find me by my number?" with Everyone / My Contacts radio options (controls `AddedByPhone` key separately). Warning shows user's phone-based link when not set to Nobody.
@@ -3182,6 +3303,31 @@ Options: Everyone / My Contacts / Nobody. Middle widget: "Set Public Photo" / "U
 
 Options: Everyone / My Contacts / Nobody. Above widget: Live message preview bubble showing a forwarded message with tooltip that changes based on selected option (link included / link for contacts only / name not clickable). Tooltip uses `toastBg` background, `toastFg` text, arrow size 7px.
 
+##### 16.3.4.1 Forward preview bubble
+
+The "above widget" on Forwards is a rendered chat-view slice — a real history `View` built from a mocked forwarded message so the preview matches the user's theme, bubble colour, and fonts exactly.
+
+| Metric | Token / Value | Source |
+|---|---|---|
+| Bubble width | `ranges::min({ availableWidth, view->maxWidth(), st::msgMaxWidth })` | `settings/settings_privacy_controllers.cpp:263` |
+| Available width | `usable - msgMargin.left() - msgMargin.right()` | `settings/settings_privacy_controllers.cpp:260` |
+| Inner content width | `bubbleWidth - msgPadding.left() - msgPadding.right()` | `settings/settings_privacy_controllers.cpp:265` |
+| Tooltip outer padding | `st::settingsForwardPrivacyPadding` | `settings/settings_privacy_controllers.cpp:283` |
+| Tooltip arrow skip | `st::settingsForwardPrivacyArrowSkip` | `settings/settings_privacy_controllers.cpp:285` |
+| Tooltip arrow size | `st::settingsForwardPrivacyArrowSize` (7px per §16.10) | `settings/settings_privacy_controllers.cpp:285` |
+| Tooltip arrow shape | `QPainterPath` downward triangle below tooltip | `settings/settings_privacy_controllers.cpp:341-346` |
+
+**"Forwarded from X" label.** Rendered using `tr::lng_forwarded(tr::now, lt_user, view->history()->session().user()->name())` (source: `:270`). The controller inserts a `QChar(0x0001)` marker where the user-name substring lives so the preview can highlight / anchor just that segment (source: `:272`). The user shown is always the current logged-in user (not a mock) so the preview reads like the user's own forward.
+
+**Mocked contents.** The preview is a regular `History` + `View` pair holding a single fake `Message` whose text is static placeholder copy ("This is a reply..." / example message body) and whose "forwarded from" header resolves to the user themself. There is no sender photo, no timestamp chip — just the forward-header + body + bubble tail.
+
+**Tooltip text (depends on selected option).**
+- Everyone: `lng_edit_privacy_forwards_sample_everyone` (source: `:277`).
+- Contacts or CloseFriends: `lng_edit_privacy_forwards_sample_contacts` (source: `:279`).
+- Nobody: `lng_edit_privacy_forwards_sample_nobody` (source: `:281`).
+
+The tooltip uses `toastBg` background and `toastFg` text (per §16.10), and the triangle arrow points from the tooltip down to the forwarded-header of the bubble.
+
 #### 16.3.5 Calls
 
 Options: Everyone / My Contacts / Nobody. Below widget: Peer-to-Peer sub-section with its own privacy button (`menuIconNetwork` icon) opening a second `EditPrivacyBox` for P2P settings (Everyone / My Contacts / Nobody).
@@ -3194,6 +3340,33 @@ Options: Everyone / My Contacts / Nobody. Non-Premium users see lock icons on re
 
 Three radio options: Everyone / Contacts & Premium / Charge Stars. "Charge Stars" reveals a star price slider (1 to max) with commission info and USD equivalent, plus "Remove fee for" exceptions button. Non-Premium: restricted options show lock icons.
 
+##### 16.3.7.1 Charge-Stars slider
+
+When the third radio ("Charge Stars", `kOptionCharge`) is selected, a `SlideWrap` reveals the shared `SetupChargeSlider` widget (also used by Monoforum pricing and channel rights). The slider drives a single integer — the per-message star price.
+
+| Metric | Token / Value | Source |
+|---|---|---|
+| Title (non-contacts variant) | `lng_messages_privacy_price` | `boxes/edit_privacy_box.cpp:SetupChargeSlider (messages variant)` |
+| Title (channel variant) | `lng_manage_monoforum_price` | `boxes/edit_privacy_box.cpp (SetupChargeSlider, broadcast)` |
+| Title (group-rights variant) | `lng_rights_charge_price` | `boxes/edit_privacy_box.cpp (SetupChargeSlider, group)` |
+| Min value | `1` | `boxes/edit_privacy_box.cpp:SetupChargeSlider` (slider builds the values vector starting at 1) |
+| Max value | `peer->session().appConfig().paidMessageStarsMax()` | `boxes/edit_privacy_box.cpp:1105` |
+| Step scheme | 1-step for 1..99, 10-step for 100..999, 100-step for 1000..max | `boxes/edit_privacy_box.cpp:1108-1122` |
+| Default (channels) | `appConfig.paidMessageChannelStarsDefault()` | `boxes/edit_privacy_box.cpp:1128` |
+| Default (messages) | `savedValue.value_or(defaultValue)` | `boxes/edit_privacy_box.cpp:1102` |
+| Slider widget | `Ui::MediaSliderWheelless` | `boxes/edit_privacy_box.cpp:975` |
+| End-labels format | `Lang::FormatCountDecimal(minValue)` / `Lang::FormatCountDecimal(maxValue)` | `boxes/edit_privacy_box.cpp:962` |
+| Current-value label (>0) | `lng_action_gift_for_stars` (star + count) | `boxes/edit_privacy_box.cpp:987` |
+| Current-value label (==0) | `lng_manage_monoforum_free` | `boxes/edit_privacy_box.cpp:987` |
+
+**Star preview count.** The central "thumb-label" floats above the slider thumb as the user drags, rendered through the same `lng_action_gift_for_stars` string pattern ("⭐ 42") so the preview reads as stars-per-message. The label updates reactively via `state->stars` (an `rpl::variable<int>`) whenever the slider position changes.
+
+**Commission / USD info.** Below the slider, a divider label renders `lng_manage_monoforum_price_about` with substitutions for `appConfig.paidMessageCommission()` (commission percentage) and a USD equivalent derived from `appConfig.starsWithdrawRate()` (source: `boxes/edit_privacy_box.cpp:1165-1171`). So the user sees e.g. "You receive 85% - about $0.05 per message." The USD line updates live as the slider moves.
+
+**"Remove fee for" button.** A `settingsButtonNoIcon` row labelled `lng_messages_privacy_remove_fee` (source: `:1134`) sits below the commission label. Tapping it calls `EditNoPaidMessagesExceptions()` (source: `:1137`) which opens a peer-list box scoped to the star-cost exceptions (distinct from the generic Always/Never exception lists of the parent `EditPrivacyBox`).
+
+**Save behavior.** The parent box's Save button calls `privacy->updateMessagesPrivacy(premiumRequired, chargeStars)` (source: `:1150`), sending both the Premium-gate flag and the chosen stars value. If stars == 0, charging is disabled; otherwise the server records the price.
+
 #### 16.3.8 Birthday
 
 Standard three-option privacy. Above widget shows "set your birthday" link if not yet set.
@@ -3201,6 +3374,23 @@ Standard three-option privacy. Above widget shows "set your birthday" link if no
 #### 16.3.9 Gifts (Auto-Save)
 
 Above widget: "Show Icon" toggle (Premium-locked). Below widget: "Accepted Types" with five toggles — Limited, Unlimited, Unique, From Channels, Premium (all Premium-locked).
+
+##### 16.3.9.1 Gifts toggles
+
+The auto-save gifts controller adds two blocks: a single toggle above the radio options and a five-toggle "Accepted Types" block below.
+
+| Element | String key | Source |
+|---|---|---|
+| "Accepted Types" subsection title | `lng_edit_privacy_gifts_types` | `settings/settings_privacy_controllers.cpp:1391` |
+| Toggle 1 - Limited | `lng_edit_privacy_gifts_limited` | `settings/settings_privacy_controllers.cpp:1394` |
+| Toggle 2 - Unlimited | `lng_edit_privacy_gifts_unlimited` | `settings/settings_privacy_controllers.cpp:1395` |
+| Toggle 3 - Unique | `lng_edit_privacy_gifts_unique` | `settings/settings_privacy_controllers.cpp:1396` |
+| Toggle 4 - From Channels | `lng_edit_privacy_gifts_channels` | `settings/settings_privacy_controllers.cpp:1397` |
+| Toggle 5 - Premium (from Premium users) | `lng_edit_privacy_gifts_premium` | `settings/settings_privacy_controllers.cpp:1398` |
+
+**Row styling.** Each toggle is a standard `settingsButtonNoIcon` row with a right-aligned `Ui::ToggleView` — same geometry as the notification toggles in §15. All five are Premium-locked: non-Premium users see a 14px padlock icon where the toggle would be, and tapping surfaces the Premium-promo sheet (same pattern as Voice Messages privacy in §16.3.6).
+
+**"Show gift button in input" toggle.** Above the radio options, the controller also adds a single `settingsButtonNoIcon` toggle labelled `lng_edit_privacy_gifts_show_icon` (the gift-icon in the message composer's right-hand area). This one is Premium-locked as well and persists through the same save call as the accepted-types set. On save, all six toggle values are bundled into the Gifts privacy payload alongside the main Everyone/Contacts/Nobody option.
 
 #### 16.3.10 Bio
 
@@ -3227,6 +3417,21 @@ Shown only if `showArchiveAndMute` is true or user is Premium.
 
 - **Button**: "Clear Payment and Shipping Info" — opens `ClearPaymentInfoBox` with two checkboxes (Shipping Info, Payment Info) and two-step confirmation with attention-styled "Clear" button.
 
+#### 16.5.1 ClearPaymentInfoBox
+
+The box has two vertically stacked checkboxes — both default-checked — followed by a `lng_clear_payment_info_about` body label and two actions ("Clear" + "Cancel").
+
+| Element | Token / Value | Source |
+|---|---|---|
+| Shipping checkbox label | `lng_clear_payment_info_shipping` | `settings/sections/settings_privacy_security.cpp:~150` (ClearPaymentInfoBoxBuilder, lines 136-187) |
+| Payment checkbox label | `lng_clear_payment_info_payment` | `settings/sections/settings_privacy_security.cpp:~158` |
+| Checkbox style | `st::defaultBoxCheckbox` | `settings/sections/settings_privacy_security.cpp` (both checkboxes) |
+| Default checked | `true` for both | `settings/sections/settings_privacy_security.cpp:~151, ~159` |
+| Checkbox row padding | `checkboxPadding` (locally declared) | `settings/sections/settings_privacy_security.cpp:136-187` |
+| Clear button style | `st::attentionBoxButton` (red / danger colour) | `settings/sections/settings_privacy_security.cpp:169, 182` |
+
+**Confirmation flow.** Clicking "Clear" with both boxes checked triggers the direct API call. With only one checked, the same button acts as a single-step commit. If both are unchecked, the button is disabled (grey). The "Cancel" button simply closes the box. There is no intermediate "Are you sure?" dialog — the attention-red colouring is the entire "are you sure" UX, matching the "Terminate All Sessions" pattern in §16.2.7.
+
 ---
 
 ### 16.6 File Confirmations Section (Conditional)
@@ -3234,6 +3439,22 @@ Shown only if `showArchiveAndMute` is true or user is Premium.
 Shown only if user has added no-warning file extensions or disabled IP reveal warning.
 - Multi-line input field for file extensions (space-separated, max 10240 chars / 1024 entries).
 - "Show IP in WebRTC calls" toggle.
+
+#### 16.6.1 File-extensions input
+
+`OpenFileConfirmationsBox` (source: `settings/sections/settings_privacy_security.cpp:305-331`) builds a single multi-line input above the IP toggle.
+
+| Metric | Token / Value | Source |
+|---|---|---|
+| Input field style | `st::defaultInputField` | `settings/sections/settings_privacy_security.cpp:318-324` |
+| Input mode | `Ui::InputField::Mode::MultiLine` | `settings/sections/settings_privacy_security.cpp:319` |
+| Placeholder | `lng_settings_edit_extensions` | `settings/sections/settings_privacy_security.cpp:322` |
+| Row padding | `st::boxRowPadding + QMargins(0, 0, 0, st::settingsPrivacySkip)` | `settings/sections/settings_privacy_security.cpp:323` |
+| Max text length | 10240 chars (text is `.mid(0, 10240)` before splitting) | `settings/sections/settings_privacy_security.cpp:329` |
+| Max entries | 1024 (list `.split(' ', Qt::SkipEmptyParts).mid(0, 1024)`) | `settings/sections/settings_privacy_security.cpp:329` |
+| Split separator | ASCII space | `settings/sections/settings_privacy_security.cpp:329` |
+
+The field is prefilled with the current comma/space-joined list of no-warning extensions (e.g. "txt log md"). On save, the raw text is truncated to 10240 characters, split on spaces (skipping empty runs), and the first 1024 resulting tokens become the new allowlist. Each token is a file-extension string without the leading dot; matching is case-insensitive at file-open time.
 
 ---
 
@@ -3247,6 +3468,30 @@ Shown only if user has added no-warning file extensions or disabled IP reveal wa
 
 - **Button**: "If away for..." — right label shows current period.
 - Opens `SelfDestructionBox` with radio buttons: 1 month, 3 months, 6 months, 12 months, 18 months, 24 months.
+
+#### 16.8.1 SelfDestructionBox metrics
+
+`SelfDestructionBox` has two variants, selected via `Type`: `Account` (inactivity account deletion) and `Sessions` (inactive-session auto-terminate, re-used by §16.2.7 / §19).
+
+| Element | Token / Value | Source |
+|---|---|---|
+| Box width | `st::boxWidth` | `boxes/self_destruction_box.cpp:108` |
+| Account-type radio values (days) | `{ 30, 90, 180, 365, 548, 720 }` (1 / 3 / 6 / 12 / 18 / 24 months) | `boxes/self_destruction_box.cpp:67` |
+| Sessions-type radio values (days) | `{ 7, 30, 90, 180, 365 }` (1 week / 1 / 3 / 6 / 12 months) | `boxes/self_destruction_box.cpp:68` |
+| Radio-row style | `st::autolockButton` (shared with AutoLockBox) | `boxes/self_destruction_box.cpp:89` |
+| Radio diameter | `st::defaultRadio.diameter` | `boxes/self_destruction_box.cpp:117` |
+| Option list top padding | `st::boxOptionListPadding.top()` | `boxes/self_destruction_box.cpp:84` |
+| Gap between radios | `st::boxOptionListSkip` | `boxes/self_destruction_box.cpp:91` |
+| Gap after info label | `st::boxMediumSkip` | `boxes/self_destruction_box.cpp:88` |
+| Info label style | `st::boxLabel` | `boxes/self_destruction_box.cpp:85` |
+| Info label (account) | `lng_self_destruct_description` | `boxes/self_destruction_box.cpp:85` |
+| Info label (sessions) | `lng_self_destruct_sessions_description` | `boxes/self_destruction_box.cpp:86` |
+| Confirm button label | `lng_settings_save` | `boxes/self_destruction_box.cpp:94` |
+| Cancel button label | `lng_cancel` | `boxes/self_destruction_box.cpp:96` |
+
+**Info label.** Above the radios, a body-text label explains the irreversible consequence — for the Account variant it reads the equivalent of "If you do not come online at least once within this period, your account will be deleted along with all groups, messages and contacts." The label uses `st::boxLabel` (standard body) and wraps to the full `boxWidth`. For the Sessions variant, the equivalent wording covers inactive-session auto-termination rather than account deletion.
+
+**Confirm button.** `lng_settings_save` is styled as the default positive button (blue); there is no attention-red colouring, because the action is a setting change rather than an immediate destructive commit. Cancel simply closes the box.
 
 ---
 
