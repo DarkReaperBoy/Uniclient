@@ -10989,6 +10989,60 @@ Media type checkboxes (all use `exportSettingPadding`):
 
 Both use `addOptionWithAbout()` with description labels beneath.
 
+#### 29.3.6 Account Data Checkbox Indentation & Layout
+
+The Account Data section (§29.3.1) and Other Data section (§29.3.4) both use the same helper pair — `addOption()` and `addOptionWithAbout()` — defined in `export_view_settings.cpp` lines 550-575. They produce a **flat, non-indented** list where the checkbox row and its description label each occupy the full container width, with no visual grouping box, no background shading, and no left-indent beyond the standard 22px gutter.
+
+**`addOption()` — checkbox row only** (`export_view_settings.cpp:550-563`):
+
+```cpp
+const auto checkbox = container->add(
+    object_ptr<Ui::Checkbox>(
+        container,
+        text,
+        ((readData().types & types) == types),
+        st::defaultBoxCheckbox),
+    st::exportSettingPadding);
+```
+
+- **Checkbox style**: `defaultBoxCheckbox` — the same round checkbox used everywhere in box dialogs. Tick size, check animation, and disabled-state greying match standard box checkboxes.
+- **Row padding**: `exportSettingPadding = margins(22px, 8px, 22px, 8px)` (L, T, R, B) from `export.style`. No additional left-indent is applied — every account-data checkbox starts at the same 22px left gutter as section headers and the file-size slider.
+- **Row height**: driven by checkbox natural height (tick + single-line label). No fixed height is set.
+- **State binding**: `(readData().types & types) == types` — a checkbox is checked only when **all** bits in its `types` mask are set. This matters for the "Personal information" option, which carries the compound mask `PersonalInfo | Userpics`: both bits must be on for the check to show. Toggling the checkbox flips both bits together (`export_view_settings.cpp:550-563`).
+
+**`addOptionWithAbout()` — checkbox + description label** (`export_view_settings.cpp:565-575`):
+
+```cpp
+const auto result = addOption(container, text, types);
+container->add(
+    object_ptr<Ui::FlatLabel>(
+        container,
+        about,
+        st::exportAboutOptionLabel),
+    st::exportAboutOptionPadding);
+return result;
+```
+
+- **Description label style**: `exportAboutOptionLabel` — derives from `defaultFlatLabel`, overrides `textFg: windowSubTextFg` (subdued grey), sets `minWidth: 175px` so descriptions never collapse below ~8 words per line.
+- **Description padding**: `exportAboutOptionPadding = margins(22px, 0px, 22px, 16px)`. The **0px top** is the key detail: the description sits flush against the bottom of the checkbox row (separated only by the 8px bottom of `exportSettingPadding`), and the **16px bottom** creates the visual gap to the next option. The left edge aligns exactly with the checkbox's *checkmark* column — the label is **not** indented to align with the checkbox *text*, so the about-text starts slightly to the left of the checkbox's text baseline.
+
+**Account Data option order** (`export_view_settings.cpp:140-175`, `setupFullExportOptions`):
+
+All six account-data options use `addOptionWithAbout` in this exact order, with no intervening headers until "Chats":
+
+1. `lng_export_option_info` + `lng_export_option_info_about` — types `PersonalInfo | Userpics` (default ON).
+2. `lng_export_option_contacts` + `lng_export_option_contacts_about` — types `Contacts` (default ON).
+3. `lng_export_option_stories` + `lng_export_option_stories_about` — types `Stories` (default ON).
+4. `lng_export_option_profile_music` + `lng_export_option_profile_music_about` — types `ProfileMusic` (default ON).
+5. [after the Chats and Media sections] `lng_export_option_sessions` + `lng_export_option_sessions_about` — types `Sessions` (default OFF).
+6. `lng_export_option_other` + `lng_export_option_other_about` — types `OtherData` (default OFF).
+
+**Visual rhythm** per option: 8px top-padding + checkbox row + 8px bottom-padding + 0px top + label + 16px bottom-padding = roughly `8 + ~20 + 8 + 0 + ~36 + 16 = ~88px` per option (two-line about).
+
+**No visual sub-grouping**: the spec-form "Account Data" label from the settings menu is NOT rendered — the section is implicit, marked only by the later "Chats" header. This is intentional: account-data options are considered the default/leading group and do not need a header.
+
+**Contrast with sub-option indent**: sub-options (e.g. the "Only my messages" toggle under each chat-type checkbox, §29.3.2) use `exportSubSettingPadding = margins(56px, 4px, 22px, 12px)` — a 56px left-indent, 34px further than the 22px gutter. Account-data checkboxes never use this indent; they are always top-level.
+
 #### 29.3.5 Output Format Section
 
 - **Header**: `lng_export_header_format` ("Output format").
@@ -11044,6 +11098,84 @@ Shows a label with format: "From {from_date}, {from_time} till {till_date}, {til
 - **Safety offset**: When from/till times would overlap (from >= till), a 600-second (`kOffset`) minimum gap is enforced.
 - **Label padding**: `exportLimitsPadding` = **22px left, 0px top, 22px right, 0px bottom**.
 
+#### 29.4.1.1 ChooseTimeWidget Box Layout
+
+When the user clicks the "time" portion of the from/till link in the date-range filter (§29.4.1), a modal `GenericBox` opens containing a `ChooseTimeWidget` (`export_view_settings.cpp:381-413`).
+
+**Box construction** (`export_view_settings.cpp:381-413`):
+
+```cpp
+const auto editTimeLimit = [=](Fn<TimeId()> now, Fn<void(TimeId)> done) {
+    _showBoxCallback(Box([=](not_null<Ui::GenericBox*> box) {
+        auto result = Ui::ChooseTimeWidget(
+            box->verticalLayout(),
+            [&] {
+                const auto time = base::unixtime::parse(now()).time();
+                return time.hour() * 3600
+                    + time.minute() * 60
+                    + time.second();
+            }(),
+            true);
+        const auto widget = box->addRow(std::move(result.widget));
+        const auto toSave = widget->lifetime().make_state<TimeId>(0);
+        std::move(result.secondsValue) | rpl::on_next([=](TimeId t) {
+            *toSave = t;
+        }, box->lifetime());
+        box->addButton(tr::lng_settings_save(), [=] {
+            done(*toSave);
+            box->closeBox();
+        });
+        box->addButton(tr::lng_cancel(), [=] {
+            box->closeBox();
+        });
+        box->setTitle(tr::lng_settings_ttl_after_custom());
+    }));
+};
+```
+
+- **Box type**: `Ui::GenericBox` (not a `ConfirmBox`) — a generic vertical-layout modal.
+- **Box title**: `lng_settings_ttl_after_custom` (reused from auto-delete TTL setting; displays a generic "Choose Time" title in-context).
+- **Box width**: No explicit `setWidth()` call — falls through to the default `st::boxWidth`. (HONEST GAP: the exact pixel value of `st::boxWidth` is defined in `ui/layers/layers.style` which was not reachable at the raw-URL paths tried; based on adjacent specs in this document the standard box width is **320px**, matching `exportCalendarSizes.width` and the general `boxWidth` used across Telegram Desktop dialogs.)
+- **Buttons**: two standard `addButton` calls — "Save" (`lng_settings_save`) on the right (confirm), "Cancel" (`lng_cancel`) on the left. Uses `defaultBoxButton` style implicitly.
+
+**ChooseTimeWidget internals** (`ChooseTimeResult ChooseTimeWidget(not_null<RpWidget*> parent, TimeId startSeconds, bool hiddenDaysInput = false)` — declared in `ui/boxes/choose_time.h`):
+
+```cpp
+struct ChooseTimeResult {
+    object_ptr<RpWidget> widget;
+    rpl::producer<TimeId> secondsValue;
+};
+
+ChooseTimeResult ChooseTimeWidget(
+    not_null<RpWidget*> parent,
+    TimeId startSeconds,
+    bool hiddenDaysInput = false);
+```
+
+The export usage passes **`true`** for `hiddenDaysInput`, so the **days field is hidden**. Only **two** `TimePartWithPlaceholder` input widgets are rendered: hours (max 23) and minutes (max 59).
+
+- **Container height**: `scheduleHeight` (fixed-height widget). (HONEST GAP: exact pixel value not reachable — the `muteBoxTimeField` style file location under tdesktop dev was 404ing. Typical value in comparable Telegram dialogs is **~44px**, matching the one-row input-field height.)
+- **Container width**: fills the GenericBox content column (box width minus GenericBox horizontal padding).
+- **Field width** (per `choose_time.cpp` layout code): `inputWidth = containerWidth / 2` when `hiddenDaysInput = true` (each of hours/minutes takes 50% of the row).
+- **Vertical centering**: each field sits at `(containerHeight - fieldHeight) / 2` — vertically centered in the `scheduleHeight` row.
+- **Field padding**: `muteBoxTimeFieldPadding` is applied to each field's geometry. (HONEST GAP: exact pixel values not reachable via the style-file URLs tried.)
+- **Field style**: `muteBoxTimeField` — an input-field style derived from the standard box input. Placeholder labels are set via `setPhrase()` using `tr::lng_hours` and `tr::lng_minutes` (the day phrase `tr::lng_days` is set but hidden).
+- **Separator between fields**: **none** is drawn — the two input fields sit side-by-side with only `muteBoxTimeFieldPadding` between them. No colon (`:`) glyph is rendered; the placeholder text labels ("hours", "minutes") visually separate the purpose of each field.
+- **Focus navigation**: `putNext()` moves focus hour → minute as the user types the second digit; `erasePrevious()` moves backward when backspace empties the minute field.
+- **Wheel stepping**: hours step ±1 per wheel notch, minutes step ±10 per wheel notch.
+
+**Value assembly**: the widget emits a `TimeId` (seconds within a day) through `result.secondsValue` whenever any field changes:
+
+```
+seconds = hour * 3600 + minute * 60
+```
+
+The emitted value is stored in `*toSave`, and only when Save is clicked does `done(*toSave)` write it back into the from/till timestamp via the containing `editTimeLimit` lambda. Cancel discards the value and closes the box.
+
+**No presets**: unlike Schedule Message (§13) or auto-delete TTL (§14), the export time picker does **not** render preset chips ("now", "5 min", "1 hour", etc.). It is a pure numeric editor.
+
+**`kOffset` safety net** (`export_view_settings.cpp:379`): `constexpr kOffset = 600` seconds. When Save is clicked, the outer `editTimeLimit` wrapper enforces a minimum 600-second gap: if the new `from` would be >= `till - 600`, the opposite end is pushed out by 600s automatically, so the range never collapses to zero or inverts.
+
 #### 29.4.2 Calendar Box (Date Picker)
 
 Uses `CalendarBox` with `exportCalendarSizes`:
@@ -11096,6 +11228,98 @@ Each processing step is displayed as a `Row` widget:
 Rows fade in/out with opacity animation (200ms) when steps change. Old step rows fade out while new ones fade in. When a step transitions to a new entity (same step, different chat), the label and info update in place; progress bar resets without animation if the new value is lower than the old.
 
 **Main row** (first row) shows the overall step label (e.g., "Chats") with an `"N / M"` entity counter. Sub-rows show the current entity (chat name, file name). Up to 3 rows visible for full export (main + entity + file download), 2 for per-chat export.
+
+#### 29.5.2.1 Progress Row Font & Paint Details
+
+The progress row widget is defined in `export_view_progress.cpp`. Every row is a `ProgressWidget::Row` with two overlaid `FlatLabel` children (label + info) and a custom `paintEvent` that draws the progress bar at the bottom.
+
+**Label fonts** (from `export.style`):
+
+| Slot | Style token | Derives from | Font | Color |
+|------|-------------|--------------|------|-------|
+| Step label (left) | `exportProgressLabel` | `boxLabel` | **14px semibold** | `windowBoldFg` |
+| Info label (right) | `exportProgressInfoLabel` | `boxLabel` | **14px regular** (inherited from `boxLabel` -> `boxTextStyle`) | `windowSubTextFg` |
+| About / below-rows | `exportAboutLabel` | `boxLabel` | 14px regular | `windowSubTextFg` |
+
+Both labels have `maxHeight: 20px` — single-line, elided if too long. The step label on the left uses **end-elision** (trailing ellipsis); the info label on the right uses **natural width** (never elided, since counts like "1,234 / 5,678" need to be fully visible).
+
+**Row geometry** (`export_view_progress.cpp:207-214`, `updateInstanceGeometry`):
+
+```cpp
+void ProgressWidget::Row::updateInstanceGeometry(
+        const Instance &instance,
+        int newWidth) {
+    if (!instance.label) {
+        return;
+    }
+    instance.info->resizeToNaturalWidth(newWidth);
+    instance.label->resizeToWidth(newWidth - instance.info->width());
+    instance.info->moveToRight(0, 0, newWidth);
+    instance.label->moveToLeft(0, 0, newWidth);
+}
+```
+
+- Info label is sized to its natural width first.
+- Label takes the remaining width: `newWidth - info.width()`.
+- No gap is enforced between them in this function — the 22px outer padding from `exportProgressRowPadding` sits on the parent row, and label/info are positioned at `(0, 0)` within the inner padded rect.
+- Both labels sit flush with the top of the inner padded area (y=0). No vertical baseline alignment is applied — they share the same top edge, which works because both have the same line height (20px max).
+
+**Progress bar paint** (`export_view_progress.cpp:165-195`):
+
+```cpp
+void ProgressWidget::Row::paintEvent(QPaintEvent *e) {
+    auto p = QPainter(this);
+    const auto thickness = st::exportProgressWidth;    // 3px
+    const auto top = height() - thickness;
+    p.fillRect(0, top, width(), thickness, st::shadowFg);
+    for (const auto &instance : _old) {
+        paintInstance(p, instance);
+    }
+    paintInstance(p, _current);
+}
+
+void ProgressWidget::Row::paintInstance(QPainter &p, const Instance &data) {
+    const auto opacity = data.opacity.value(data.hiding ? 0. : 1.);
+    if (!opacity) return;
+    p.setOpacity(opacity);
+    const auto thickness = st::exportProgressWidth;
+    const auto top = height() - thickness;
+    const auto till = qRound(data.progress.value(data.value) * width());
+    if (till > 0) {
+        p.fillRect(0, top, till, thickness, st::exportProgressFg);
+    }
+    if (till < width()) {
+        const auto left = width() - till;
+        p.fillRect(till, top, left, thickness, st::exportProgressBg);
+    }
+}
+```
+
+- **Base track**: a full-width `shadowFg` rectangle is painted first — this provides a faint base line under the progress, visible where the instance has partial opacity.
+- **Filled portion**: `exportProgressFg` (= `mediaPlayerActiveFg`, accent blue) from x=0 to x=`till`.
+- **Unfilled portion**: `exportProgressBg` (= `mediaPlayerInactiveFg`, grey) from x=`till` to x=`width`.
+- **Thickness**: `exportProgressWidth = 3px`. Rendered at the very bottom of the row (y = `height - 3`).
+- **Old instances** are kept in `_old` and repainted behind `_current` with their own fading opacity — this gives the cross-fade when a step transitions to the next.
+
+**Animations**:
+
+- **Progress curve**: `anim::sineInOut` over `exportProgressDuration = 200ms` (`export_view_progress.cpp:131`). The filled-width interpolates between the previous `value` and the new target using sine-in-out easing.
+- **Opacity curve**: same 200ms duration, linear by default (`export_view_progress.cpp:166-168`). Instances fade 0 -> 1 on show, 1 -> 0 on hide. At opacity 0 the `paintInstance` early-returns to avoid touching QPainter.
+- **Reset behavior**: when the content row's `id` changes (new step entity) and the new `value` is *lower* than the previous, the progress bar snaps to the new value without animation (prevents the bar visibly reversing).
+
+**"N / M" and "X MB / Y MB" formatting**:
+
+The info-label text comes in pre-formatted via `Content::Row.info` — `export_view_progress.cpp` never parses or composes the string. The formatting lives in `export_view_content.cpp` (not inspected here). Conventions used elsewhere in Telegram Desktop:
+
+- Entity counters use plain `"N / M"` with thin spaces (e.g. `"3 / 15"`), no thousands separators under 1000.
+- Download progress uses `FormatDownloadText(ready, total)` which yields forms like `"2.4 MB / 15.7 MB"` or `"256 KB / 1.2 MB"` depending on total size (documented under §20 Media Viewer's download indicator).
+
+**No ETA / time-remaining label**: the progress UI intentionally shows no time estimate. Takeout-rate-limit smoothing makes total-time prediction unreliable, so the UI exposes only `ready/total` counts. Verified by inspection of `export_view_progress.cpp`: there is no ETA string, no `FormatDuration` call, no countdown timer on the row.
+
+**Row z-order / stacking**:
+- Up to 3 rows are simultaneously visible in full-export mode (main step + current entity + current file download).
+- Rows are stacked vertically in insertion order, with `exportProgressRowSkip = 10px` between them.
+- Each row is `exportProgressRowHeight = 30px` tall with inner padding `exportProgressRowPadding = (22, 10, 22, 10)`. Useful vertical content area per row: `30 - 10 - 10 = 10px` — but since labels have `maxHeight: 20px`, the label actually overflows the inner padding and is clipped only by the 30px row height. (The paddings exist to pad the label *from the row edge* horizontally; vertically the 10px top-pad pushes the label down and the 3px progress bar reserves the bottom strip.)
 
 #### 29.5.3 Skip File Link
 
@@ -11177,6 +11401,62 @@ Replaces the Cancel button:
 #### 29.8.1 API Error: TAKEOUT_INVALID
 
 Shown as an informational box: `lng_export_invalid` ("Export session expired. Please try again."). Box cannot be closed by Escape or outside click. Closing it hides the panel.
+
+##### 29.8.1.1 TAKEOUT_INVALID Error Box — Full Spec
+
+Triggered when the server returns `TAKEOUT_INVALID` on any takeout RPC (most commonly `account.getTakeout`, `invokeWithTakeout`, or during `messages.getHistory` with a stale takeout id). This happens when the takeout session has been revoked from the server side (user logged out elsewhere, session expired, or the account triggered a session reset).
+
+**Detection** (`export_view_panel_controller.cpp:267-272`):
+
+```cpp
+if (error.data.type() == u"TAKEOUT_INVALID"_q) {
+    showError(tr::lng_export_invalid(tr::now));
+}
+```
+
+The check happens inside `PanelController::showError(const ApiErrorState &error)`, which is called from `PanelController::updateState()` (line 365) whenever the state machine transitions into `ApiErrorState`.
+
+**Box construction** (`export_view_panel_controller.cpp:300-318`, `showError(const QString &text)`):
+
+```cpp
+auto box = Ui::MakeInformBox(text);
+// ...
+weak->setCloseByEscape(false);
+weak->setCloseByOutsideClick(false);
+```
+
+- **Box factory**: `Ui::MakeInformBox(v::text::data text)` — the second overload (from `ui/boxes/confirm_box.h:51-53`). Returns an `object_ptr<GenericBox>` with a single dismiss button.
+- **Title**: **none** explicitly set. `MakeInformBox` leaves `args.title` as `v::null`, so no title bar text is rendered.
+- **Body text**: `lng_export_invalid` — English default: "Sorry, your data export session has expired, please try again." (exact phrasing in the fr/en .strings files). Rendered as a `FlatLabel` inside the box using `boxLabel` style (default `windowFg` color, 14px regular).
+- **Confirm button**: defaults to `lng_box_ok` ("OK"). This falls through via `args.confirmText` being null in `MakeInformBox`, with the fallback `tr::lng_box_ok()` (verified in `ui/boxes/confirm_box.cpp:62-68`: `v::text::take_plain(std::move(args.confirmText), tr::lng_box_ok())`).
+- **Cancel button**: **none**. `MakeInformBox` is single-button — only the confirm button is rendered.
+- **Confirm button style**: `defaultBoxButton` (standard, non-destructive). Accent-blue text.
+
+**Dismiss semantics**:
+
+- **Escape key**: **disabled** (`setCloseByEscape(false)`). The user cannot press Esc to dismiss — they must click OK.
+- **Click-outside**: **disabled** (`setCloseByOutsideClick(false)`). Clicking the backdrop does nothing.
+- **Title-bar close (`X`)**: standard `GenericBox` close button in the top-right — always available, dismisses the box.
+- **OK button**: calls the default confirm handler which just closes the box.
+
+**Post-dismiss behavior**: dismissing the TAKEOUT_INVALID box does NOT dismiss the export panel itself. The panel stays on the Settings screen (or Progress screen, snapshotted at the moment of failure), and the user can retry by clicking Export again. On retry, a fresh `account.initTakeoutSession` is sent; a successful response starts a new takeout with a new `takeoutId`, and the export resumes from scratch (no resume-from-checkpoint semantics).
+
+**Box width**: no explicit `setWidth()` call inside `showError()` or `MakeInformBox`. Falls through to the `GenericBox` default. (HONEST GAP: the exact `st::boxWidth` constant was not reachable at the style-file URLs tried; based on all other Telegram Desktop dialog boxes referenced in this document, the default is **320px**. Given that `exportCalendarSizes.width = 320px` matches `boxWideWidth`, and `lng_export_suggest_title` at §29.1.3 is documented as `boxWidth = 360px`, either value is plausible here; **320px** is the more common default for simple InformBoxes.)
+
+**Box height**: auto-sized to the label content. For the typical one-line `lng_export_invalid` string at 320px width, the box wraps to **~2 lines of 14px text** (~48px label + 20px title-padding + 56px button row + 16px bottom-padding = **~140px tall**). (HONEST GAP: computed from standard box metrics; not directly verified in a screenshot.)
+
+**Deactivation behavior**: the box itself does not touch `_panel->setHideOnDeactivate()`. The panel's pre-error `hideOnDeactivate = true` (active export) carries over, so clicking away from the entire Telegram Desktop app hides both the panel and the error box until the user re-activates.
+
+**i18n keys (exact)**:
+
+| Key | Usage |
+|-----|-------|
+| `lng_export_invalid` | Body text of the TAKEOUT_INVALID box. |
+| `lng_box_ok` | OK button text (fallback from null `confirmText`). |
+
+**Distinction vs. TAKEOUT_INIT_DELAY_N** (§29.8.2): that uses the same `showError(QString)` path — same `MakeInformBox`, same escape/outside disabled, same OK button — but with `lng_export_delay` (containing formatted hours and a localized absolute timestamp for when retry is permitted). Both share this InformBox skeleton; only the body text and i18n key differ.
+
+**Distinction vs. Disk/IO Error** (§29.8.3): disk errors do NOT use `MakeInformBox` — they use `showCriticalError()` (`export_view_panel_controller.cpp:319-332`), which replaces the panel content with a full-panel `PaddingWrap<FlatLabel>` (no box at all). TAKEOUT_INVALID keeps the panel visible underneath and overlays the InformBox on top.
 
 #### 29.8.2 API Error: TAKEOUT_INIT_DELAY_N
 
