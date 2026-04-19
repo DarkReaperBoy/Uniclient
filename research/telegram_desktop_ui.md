@@ -7549,7 +7549,7 @@ AyuGram allows showing/hiding the Night Mode toggle in the hamburger drawer menu
 | Color token count (Day Custom Base) | 543 (with comments) |
 | Peer colors | 8 (cycling by user ID) |
 | Default accent palette | 8 colors per theme type |
-| Colorize exclusion list | ~81 tokens |
+| Colorize exclusion list | 63 tokens (see §25.17.2) |
 | Bubble radius range (AyuGram) | 0-16 |
 | Avatar corners slider (AyuGram) | 0 to kMaxAvatarCorners |
 | Palette default resize area | 112x112 (AyuGram) |
@@ -7557,9 +7557,400 @@ AyuGram allows showing/hiding the Night Mode toggle in the hamburger drawer menu
 | Min contrast title text | 3.0 (AyuGram palette) |
 | Min contrast body text | 4.5 (AyuGram palette) |
 | Theme name word lists | 101 colors, 97 adjectives, 81 nouns |
-| Lightness clamp (colorizer) | 64-160 (Day themes) |
+| Lightness clamp (colorizer, Day themes) | `[0, 160]` (ceiling 160, no floor) |
+| Lightness clamp (colorizer, Night themes) | `[64, 255]` (floor 64, no ceiling) |
 | Dark detection threshold | 0.5 (dialogsBg HSV value) |
 | Min bubble text contrast | 1.14 (chat themes) |
+
+### 25.17 Gap Fills (session 2026-04-19)
+
+Seven pending §25 gaps resolved against `AyuGram/AyuGramDesktop/dev` source.
+
+#### 25.17.1 Colorizer Night-theme lightness clamp
+
+**Source:** `window/themes/window_themes_embedded.cpp:131-167` (`ColorizerFrom()`).
+
+The colorizer `lightnessMin`/`lightnessMax` asymmetry is the primary Day-vs-Night divergence:
+
+| `EmbeddedType` | `lightnessMin` | `lightnessMax` | `keepContrast` used |
+|---|---|---|---|
+| `Default` (classic day) | (unset → `0`) | **`160`** | no |
+| `DayBlue` | (unset → `0`) | **`160`** | no |
+| `Night` (tinted dark) | **`64`** | (unset → `255`) | yes — 10 entries |
+| `NightGreen` | **`64`** | (unset → `255`) | yes — 3 entries |
+
+Night themes are **one-sided clamped** — they raise the lightness floor to `64` but do not cap the top, allowing the accent to go arbitrarily bright. Day themes do the opposite (no floor, ceiling at `160`).
+
+The clamp is applied via HSL (not HSV) on `color.hslHue() / hslSaturation() / limitedLightness`, then re-extracted to HSV (`window_themes_embedded.cpp:168-181`):
+
+```cpp
+const auto nowLightness = color.lightness();
+const auto limitedLightness = std::clamp(nowLightness, result.lightnessMin, result.lightnessMax);
+if (limitedLightness != nowLightness) {
+    QColor::fromHsl(color.hslHue(), color.hslSaturation(), limitedLightness)
+        .getHsv(&result.now.hue, &result.now.saturation, &result.now.value);
+}
+```
+
+**Hue threshold:** `result.hueThreshold = 15` (`window_themes_embedded.cpp:122`) — the minimum hue delta for any color to be recolored. Applied uniformly across Day and Night; colors whose original hue differs from the theme's "was" accent hue by more than 15° are left untouched.
+
+**Correction to prior text:** Pre-existing bullet said *"Clamp lightness to `[lightnessMin=64, lightnessMax=160]` (for Day themes)"* — this is backwards. Day has `[0, 160]`, Night has `[64, 255]`. Pixel Dims Summary table amended with two separate rows.
+
+#### 25.17.2 Colorize exclusion list (`kColorizeIgnoredKeys`) — exact enumeration
+
+**Source:** `window/themes/window_themes_embedded.cpp:32-101` (verbatim, source order).
+
+Exactly **63 tokens** (prior spec said "~81" — wrong). Full list:
+
+**Box-text service colors (2):** `boxTextFgGood`, `boxTextFgError`.
+
+**Call icon (1):** `callIconFg`.
+
+**Peer name colors × 8 peers × 3 variants (24):**
+`historyPeer1NameFg`, `historyPeer1NameFgSelected`, `historyPeer1UserpicBg`,
+`historyPeer2NameFg`, `historyPeer2NameFgSelected`, `historyPeer2UserpicBg`,
+`historyPeer3NameFg`, `historyPeer3NameFgSelected`, `historyPeer3UserpicBg`,
+`historyPeer4NameFg`, `historyPeer4NameFgSelected`, `historyPeer4UserpicBg`,
+`historyPeer5NameFg`, `historyPeer5NameFgSelected`, `historyPeer5UserpicBg`,
+`historyPeer6NameFg`, `historyPeer6NameFgSelected`, `historyPeer6UserpicBg`,
+`historyPeer7NameFg`, `historyPeer7NameFgSelected`, `historyPeer7UserpicBg`,
+`historyPeer8NameFg`, `historyPeer8NameFgSelected`, `historyPeer8UserpicBg`.
+
+**Peer gradient userpic Bg2 × 8 (8):** `historyPeer1UserpicBg2` … `historyPeer8UserpicBg2`.
+
+**File-type palette × 4 types × 4 states (16):**
+`msgFile1Bg`, `msgFile1BgDark`, `msgFile1BgOver`, `msgFile1BgSelected`,
+`msgFile2Bg`, `msgFile2BgDark`, `msgFile2BgOver`, `msgFile2BgSelected`,
+`msgFile3Bg`, `msgFile3BgDark`, `msgFile3BgOver`, `msgFile3BgSelected`,
+`msgFile4Bg`, `msgFile4BgDark`, `msgFile4BgOver`, `msgFile4BgSelected`.
+
+**Media-viewer file corner markers (4):** `mediaviewFileRedCornerFg`, `mediaviewFileYellowCornerFg`, `mediaviewFileGreenCornerFg`, `mediaviewFileBlueCornerFg`.
+
+**Settings-section icon backgrounds (8 — note `settingsIconBg7` is absent and `settingsIconBgArchive` takes its slot):** `settingsIconBg1`, `settingsIconBg2`, `settingsIconBg3`, `settingsIconBg4`, `settingsIconBg5`, `settingsIconBg6`, `settingsIconBg8`, `settingsIconBgArchive`.
+
+**Premium gradients (5):** `premiumButtonBg1`, `premiumButtonBg2`, `premiumButtonBg3`, `premiumIconBg1`, `premiumIconBg2`.
+
+**NOT ignored (DO get colorized, contrary to intuition):**
+- Pure white/black window colors (`windowBg`, `windowFg`) — the `hueThreshold=15` keeps them effectively stable (desaturated colors have no hue delta).
+- Chat gradient colors (`backgroundColor`) — not palette tokens; they live in `WallPaper`, not in `style::main_palette`, so the colorizer never touches them.
+
+#### 25.17.3 Theme editor geometry (`Editor` + `Editor::Inner`)
+
+**Source:** `window/themes/window_theme_editor.cpp:530-535, 663-719, 855-897`.
+
+Top-to-bottom layout of the `Editor` widget:
+
+| Zone | Position | Size | Citation |
+|------|----------|------|----------|
+| `_close` button | top-right `(0, 0)` | `st::defaultMultiSelect.fieldCancel` | :857 |
+| `_menuToggle` (three-dot) | `(_close->width(), 0)` from right | `st::themesMenuToggle` | :858, :671 |
+| `_select` search field | below close row at `(0, _close->height())` | full width × intrinsic | :860-861 |
+| `_topShadow` | `(lineWidth, shadowTop)` where `shadowTop = _select->y() + _select->height()` | `(width - lineWidth) × lineWidth` | :863-866 |
+| `_leftShadow` | `(0, 0)` | `lineWidth × fullHeight` | :867-868 |
+| `_scroll` / `_inner` | `(0, shadowTop)` | `width × (height - shadowTop - _save->height())` | :869-874 |
+| `_save` (bottom button) | `(0, _scroll->y() + _scroll->height())` | full width × `st::dialogsUpdateButton.height` | :675-678, :879 |
+
+- **Editor widget min width:** `st::windowMinWidth` (:713, :718)
+- **Title position inside inner paintEvent:** `drawTextLeft(st::themeEditorMargin.left(), st::themeEditorMargin.top(), width(), "Theme Editor")` — :911
+- **Section-header ("New keys") position:** `y = _existingRows->y() + _existingRows->height() + st::boxTitlePosition.y()` — :547
+- **Menu popup anchor:** `moveToRight(st::themesMenuPosition.x(), st::themesMenuPosition.y())` with `Ui::PanelAnimation::Origin::TopRight` — :760-761
+- **Menu items (3):** `lng_theme_editor_menu_export` (`st::menuIconExportTheme`), `lng_theme_editor_menu_import` (`st::menuIconImportTheme`), `lng_theme_editor_menu_show` (`st::menuIconPalette`) — :747-759
+- **Menu dismiss delay after click:** `st::defaultRippleAnimation.hideDuration` before actual action — :748
+- **Select focus delay after open:** `2 * st::boxDuration` — :698
+
+**Palette entry row height formula (:531-535):**
+
+```cpp
+defaultRowHeight = st::themeEditorMargin.top()
+                 + st::themeEditorSampleSize.height()
+                 + st::themeEditorDescriptionSkip
+                 + st::defaultTextStyle.font->height
+                 + st::themeEditorMargin.bottom();
+```
+
+This is the baseline height used for Page-Up/Down page scrolling math — actual per-row heights may grow if the description line wraps.
+
+**Background panel (inside `SaveThemeBox` / `BackgroundSelector`) — `window_theme_editor_box.cpp:127-152`:**
+
+| Element | Value / Formula |
+|---------|-----------------|
+| Thumbnail (square) side | `_thumbnailSize = boxTextFont->height + themesSmallSkip + chooseFromFile->heightNoMargins() + themesSmallSkip + tileBackground->heightNoMargins()` |
+| Widget total height | `_thumbnailSize + themesSmallSkip` |
+| Image label | drawn at `(left, 0)` where `left = _thumbnailSize + st::themesSmallSkip` |
+| "Choose from file" button | `(left, boxTextFont->height + themesSmallSkip)` |
+| "Tile background" checkbox | `(left, boxTextFont->height + themesSmallSkip + chooseFromFile->height() + themesSmallSkip)` |
+| Thumbnail rounding | `ImageRoundRadius::Small` (:173) |
+| Accepted image formats | `*.jpeg`, `*.jpg`, `*.png` (:212) |
+
+**SaveThemeBox (window_theme_editor_box.cpp:781-917):**
+
+| Element | Style / Value |
+|---------|---------------|
+| Box width | `st::boxWideWidth` (:857) |
+| Title | `tr::lng_theme_editor_save_title` (:793) |
+| Name field | `st::defaultInputField`, pre-filled with `GenerateName(accent)` or cloud title (:795-799) |
+| Link field | `st::createThemeLink` UsernameInput, placeholder `addtheme/`, max `kMaxSlugSize` (:807-825) |
+| Link-wrap row padding | `{boxRowPadding.left, themesSmallSkip, boxRowPadding.right, boxRowPadding.bottom}` (:802-806) |
+| "Background image" subsection header | `st::defaultSubsectionTitle`, padding `st::defaultSubsectionTitlePadding` (:842-843) |
+| Primary action buttons | "Save" (default) + "Cancel" (:915-916) |
+| JPEG export quality | **87** (:767) |
+
+**`CreateForExistingBox` attach-existing dialog** (`window_theme_editor_box.cpp:661-708`):
+- Title: `lng_theme_editor_create_title` (or current theme title if owner)
+- "Import existing" button: `st::createThemeImportButton` style
+- Enter/Return key triggers `done()` (:696-704)
+- Buttons: `lng_theme_editor_create` (primary) + `lng_cancel`
+
+#### 25.17.4 Pattern intensity math
+
+**Source:** `data/data_wall_paper.h:110,123`, `data/data_wall_paper.cpp:252-257,389,410-414`, `ui/chat/chat_theme.cpp:1102-1132`.
+
+**Storage:**
+- `WallPaper::_intensity` — `int` in range **`[-100, +100]`** (validated at `data_wall_paper.cpp:652-662`)
+- Default value: `kDefaultIntensity = 50` (`data_wall_paper.h:110`)
+- Getter `WallPaper::patternIntensity()` returns raw int (:252-254)
+- `WallPaper::patternOpacity()` returns **`_intensity / 100.0`** as `float64` — this is the direct float form consumed by the renderer (:256-258)
+
+**Pattern rendering (`chat_theme.cpp:1102-1132`, `GenerateBackgroundImage`):**
+
+```cpp
+if (drawPattern) {
+    QPainter p(&result);
+    if (patternOpacity >= 0.) {
+        p.setCompositionMode(QPainter::CompositionMode_SoftLight);
+        p.setOpacity(patternOpacity);          // 0.0 … 1.0
+    } else {
+        p.setCompositionMode(QPainter::CompositionMode_DestinationIn);
+    }
+    drawPattern(p, IsPatternInverted(bg, patternOpacity));
+    if (patternOpacity < 0. && patternOpacity > -1.) {
+        p.setCompositionMode(QPainter::CompositionMode_SourceOver);
+        p.setOpacity(1. + patternOpacity);     // 0.0 … 1.0
+        p.fillRect(QRect{ QPoint(), size }, Qt::black);
+    }
+}
+```
+
+**Formulas by sign:**
+
+| `_intensity` | `patternOpacity` | Rendering |
+|-------------|------------------|-----------|
+| `0` | `0.0` | Pattern drawn with 0 opacity → gradient only |
+| `> 0` (e.g. `+50`) | `+0.5` | `SoftLight` composite, pattern opacity = `patternOpacity` (`0.5`) |
+| `-100` | `-1.0` | `DestinationIn` composite; post-fill skipped (strict `> -1.0`) |
+| `< 0` & `> -100` (e.g. `-50`) | `-0.5` | `DestinationIn` composite for pattern; then `SourceOver` black fill with opacity `1 + patternOpacity` (= `0.5`) |
+
+**`IsPatternInverted` check (`chat_theme.cpp:924-929`):**
+
+```cpp
+bool IsPatternInverted(const std::vector<QColor>& background, float64 patternOpacity) {
+    return (patternOpacity > 0.)
+        && (CountAverageColor(background).toHsv().valueF() <= 0.3);
+}
+```
+
+When positive intensity is used AND background is dark (HSV value ≤ 0.3), the pattern is inverted via `InvertPatternImage` (:1146) — which at :1155-1170 replicates each pixel's alpha byte into R, G, and B channels (producing a white-on-transparent silhouette from what was originally a dark-on-transparent shape).
+
+**Correction:** Prior text is roughly correct but misses: (1) default intensity is **50**, not 0; (2) for intensity exactly `-100` the post-darkening fill is skipped (strict `> -1.0`); (3) the inversion trigger requires background HSV value ≤ **0.3** AND positive intensity.
+
+#### 25.17.5 ThemeAdjustedColor & CountAverageColor sampling
+
+**Source:** `ui/chat/chat_theme.cpp:880-938`.
+
+**`CountAverageColor(const QImage&)` — :880-901:**
+
+```cpp
+QColor CountAverageColor(const QImage &image) {
+    Expects(image.format() == QImage::Format_ARGB32_Premultiplied
+         || image.format() == QImage::Format_RGB32);
+    uint64 components[3] = { 0 };
+    const auto w = image.width();
+    const auto h = image.height();
+    const auto size = w * h;
+    if (const auto pix = image.constBits()) {
+        for (auto i = 0, l = size * 4; i != l; i += 4) {
+            components[2] += pix[i + 0];    // B
+            components[1] += pix[i + 1];    // G
+            components[0] += pix[i + 2];    // R
+        }
+    }
+    if (size) {
+        for (auto &component : components) component /= size;
+    }
+    return QColor(components[0], components[1], components[2]);
+}
+```
+
+**Sampling strategy:** No Nth-pixel skipping, no downscale — it is an **exhaustive byte-level mean over every pixel** of the prepared image. Because the image is already `Ui::PreprocessBackgroundImage`-capped at `kMaxSize = 2960px` on the longest side (chat_theme.cpp:948-963) before this runs, the worst-case sample count is ~8.7M pixels. Accumulators are `uint64` so at 2960² × 255 ≈ 2.2×10¹² it does not overflow.
+
+Channel mapping assumes **BGRA byte order** (pix[0]=B, pix[1]=G, pix[2]=R, pix[3]=A) — standard Qt premultiplied format.
+
+**Overload for `std::vector<QColor>` — :903-922:** Plain arithmetic mean across RGB components (no alpha weighting) for pure-color gradient backgrounds.
+
+**`ThemeAdjustedColor(original, background)` — :931-938:**
+
+```cpp
+QColor ThemeAdjustedColor(QColor original, QColor background) {
+    return QColor::fromHslF(
+        background.hslHueF(),           // borrow hue from background
+        background.hslSaturationF(),    // borrow saturation from background
+        original.lightnessF(),          // keep original's lightness
+        original.alphaF()               // keep original's alpha
+    ).toRgb();
+}
+```
+
+Keeps the original token's lightness and alpha untouched, but **transplants the hue+saturation of the wallpaper's average color onto it**. This makes service-message bubbles tint toward whatever dominates the wallpaper while preserving their relative brightness.
+
+**Applied to (`chat_theme.cpp:332-337`):**
+- `msgServiceBg`, `msgServiceBgSelected`
+- `historyScrollBg`, `historyScrollBgOver`
+- `historyScrollBarBg`, `historyScrollBarBgOver`
+
+The sampling runs only when there is a real background image OR 1+ gradient colors (:326-328). Pattern-only themes sample via the colors vector.
+
+**Bubble-accent flavor (`chat_theme.cpp:342-345`):** For outgoing bubble accent derivation:
+```cpp
+bubblesAccent = ThemeAdjustedColor(
+    p.msgOutReplyBarColor()->c,
+    CountAverageColor(descriptor.bubblesData.colors));
+```
+The reply-bar color is adjusted against the **average of the theme's own fill colors**, not the wallpaper — producing a compatible but distinct accent.
+
+#### 25.17.6 Per-chat theme chooser geometry
+
+**Source:** `ui/chat/choose_theme_controller.cpp:58-60, 108-162, 231-303, 389-419, 422-439, 608-610`.
+
+Bottom-docked horizontal strip shown in a chat when the user taps "Change theme".
+
+**Wrap / outer layout:**
+
+| Element | Metric | Line |
+|---------|--------|------|
+| Title wrap height | `boxTitle.style.font->height` | :240 |
+| Title padding | `st::chatThemeTitlePadding` | :241 |
+| Title label style | `st::boxTitle`, text `lng_chat_theme_title` | :242-245 |
+| Close button style | `st::boxTitleClose`, pinned top-right | :251-260 |
+| Wrap bg fill | `st::windowBg` | :248 |
+| Top shadow (docked to chat) | `st::lineWidth` tall, above the wrap | :275-276 |
+
+**Preview card ("theme pill") — :422-427, :608-610, :389-419:**
+
+| Property | Value |
+|----------|-------|
+| Card size (single) | `st::chatThemePreviewSize` |
+| Card margins | `st::chatThemeEntryMargin` (top+bottom contribute to the wrap's fixed height) |
+| Inter-card skip | `st::chatThemeEntrySkip` |
+| Strip height | `chatThemeEntryMargin.top() + chatThemePreviewSize.height() + chatThemeEntryMargin.bottom()` |
+
+**Card contents (`paintEntry`, :60-145):**
+
+| Layer | Metric |
+|-------|--------|
+| Card corners | `st::chatThemeBubbleRadius` outer rounding (matches bubble radius) |
+| Received bubble rect | `(chatThemeBubblePosition.x(), chatThemeBubblePosition.y(), chatThemeBubbleSize)` :107-112 |
+| Sent bubble rect | right-aligned at `(cardW - bubbleW - bubblePos.x, received.y + received.height + chatThemeBubbleSkip)` :107-117 |
+| Bubble radius | `st::chatThemeBubbleRadius` :118 |
+| Gift-theme icon | `st::chatThemeGiftTaken.paintInCenter` :144 |
+| Disabled / empty card icon top | `st::chatThemeEmptyPreviewTop` :170-172 |
+
+**Emoji indicator — :388-406:**
+- Emoji size: `Ui::Emoji::GetSizeLarge() / devicePixelRatio`
+- Horizontal centering: `emojiLeft = geometry.x() + (geometry.width() - esize) / 2`
+- Vertical: `emojiTop = geometry.y() + geometry.height() - esize - st::chatThemeEmojiBottom`
+- Custom emoji size: `Ui::Text::AdjustCustomEmojiSize(esize)`, centered with `customSkip = (esize - customSize) / 2`
+
+**Selection ring — :408-419:**
+```cpp
+if (entry.chosen) {
+    auto pen = st::activeLineFg->p;
+    const auto width = st::defaultInputField.borderActive;
+    pen.setWidth(width);
+    const auto add = st::lineWidth + width;
+    p.drawRoundedRect(
+        entry.geometry.marginsAdded({ add, add, add, add }),
+        st::roundRadiusLarge + add,
+        st::roundRadiusLarge + add);
+}
+```
+- **Ring colour:** `st::activeLineFg` (active-blue for current theme)
+- **Ring width:** `st::defaultInputField.borderActive`
+- **Offset from card:** `st::lineWidth + borderActive` → pushes ring **outside** the card geometry
+- **Ring corner radius:** `st::roundRadiusLarge + offset` (concentric with the card)
+
+**Control buttons — :289-303:**
+- Two `Ui::RoundButton` with `st::defaultLightButton` style: `lng_chat_theme_apply` and `lng_chat_theme_change_wallpaper`
+- Controls row size: `{margin.left + chooseW + margin.right, margin.top + chooseH + margin.bottom}` where `margin = st::chatThemeButtonMargin`
+
+**Correction:** The selection ring is **drawn outside** the card with a wider rounded radius, not as an inner border.
+
+#### 25.17.7 CloudListCheck row layout (Cloud themes grid)
+
+**Source:** `window/themes/window_themes_cloud_list.cpp:154-291, 305-313, 519-538, 746-777`.
+
+**Grid layout (`CloudList::resizeGetHeight`, :746-777):**
+
+```cpp
+const auto minSkip = st::settingsThemeMinSkip;
+const auto single = std::min(
+    st::settingsThemePreviewSize.width(),
+    (newWidth - minSkip * (kShowPerRow - 1)) / kShowPerRow);
+const auto skip = (newWidth - kShowPerRow * single) / float64(kShowPerRow - 1);
+```
+
+- `kShowPerRow = 4` (existing spec notes)
+- Card width clamped to `settingsThemePreviewSize.width()` when container is wide (doesn't stretch)
+- Inter-column skip = `(containerW - 4 × cardW) / 3` (float, rounded per-card)
+- Inter-row skip: `st::themesSmallSkip` (:768)
+
+**`CloudListCheck` widget — :154-303:**
+
+| Element | Metric | Line |
+|---------|--------|------|
+| Widget size | `st::settingsThemePreviewSize` | :206-208 |
+| Background image rounding | `ImageRoundRadius::Large` | :223-225 |
+| "Not supported" fallback bg | `st::settingsThemeNotSupportedBg` + `roundRadiusLarge` | :246-251 |
+| "Not supported" icon | `st::settingsThemeNotSupportedIcon` painted in center | :252 |
+| Received bubble rect | `(settingsThemeBubblePosition, settingsThemeBubbleSize)` | :267-269 |
+| Sent bubble rect | right-aligned, y = received.bottom + `settingsThemeBubbleSkip` | :270-274 |
+| Bubble radius | `st::settingsThemeBubbleRadius` | :275 |
+| Radio button position | centered horizontally, `y = height - radio.height - settingsThemeRadioBottom` | :285-290 |
+
+**Radio button & contrast (`ensureContrast`, :184-204):**
+- The radio indicator's `toggled` and `untoggled` colors are overridden per-theme from `_colors->radiobuttonActive` / `radiobuttonInactive` (:178-179)
+- Contrast is enforced via `style::internal::EnsureContrast` against the local average of the background patch directly under the radio:
+  ```cpp
+  const auto under = QRect(QPoint(x, y) * devicePixelRatio, radio * devicePixelRatio);
+  const auto image = _backgroundFull.copy(under).convertToFormat(ARGB32_Premultiplied);
+  const auto active = style::internal::EnsureContrast(
+      _colors->radiobuttonActive, Ui::CountAverageColor(image));
+  ```
+- Active color is forced fully opaque (alpha=255); inactive sets alpha=192 (:198-203)
+
+**Radiobutton wrapper (:520-536):**
+- Style: `st::settingsTheme`
+- `setCheckAlignment(style::al_top)` — check indicator at top (layout-level; the radio itself is painted at bottom via `ensureContrast`)
+- `setAllowTextLines(2)` — theme name wraps to max 2 lines
+- `setTextBreakEverywhere()` — word-breaking allowed mid-word
+- `setAcceptBoth(true)` — right-click is dispatched (used for share/edit/delete context menu)
+
+**Animation:** Check toggle uses `st::defaultRadio.duration` (:160) — the standard radio-button transition duration.
+
+**Ripple:** `prepareRippleMask()` returns empty QImage and `checkRippleStartPosition` returns false (:293-299) — **CloudListCheck explicitly disables the default radio ripple**; the whole widget acts as the click target without a ripple overlay.
+
+#### 25.17.8 Full palette dump — cross-reference
+
+Per `checklist/spec_gaps.md` §25 directive: the full dark-palette token dump is already present in **§57 Appendix B: Full Palette Dumps** (Day Blue 369-token dump and Night 467-token dump as literal `tokenName: #rrggbbaa;` lines extracted from `:/gui/day-blue.tdesktop-theme` and `:/gui/night.tdesktop-theme`).
+
+No duplication here — tables 25.2.1–25.2.10 list only the ~80 most commonly-referenced tokens; consult Appendix §57 for the complete byte-level palette when re-implementing the Flutter theme system.
+
+**Cache & timing constants (verified) — `ui/chat/chat_theme.cpp:28-32`:**
+- `kCacheBackgroundTimeout = 1000 ms`
+- `kCacheBackgroundFastTimeout = 200 ms`
+- `kBackgroundFadeDuration = 200 ms`
+- `kMaxSize = 2960 px`
+
+These match existing Pixel Dims Summary values (lines 7540-7544); no correction needed.
 
 ---
 
