@@ -18075,10 +18075,16 @@ Constructor takes: `PreparedList` (files), `TextWithTags` (prefilled caption), `
 When sending multiple photos/videos, they display in a grouped album layout preview (`AlbumPreview` widget). This uses the same `LayoutMediaGroup` algorithm as message rendering (see 40.8).
 
 The album preview supports:
-- **Drag-to-reorder** — Press and hold a thumbnail to enter drag mode (after `QApplication::startDragTime()` or immediately if pressing a non-button area). Thumbnails animate with a shrink effect (`kShrinkDuration = 150ms`). Dragging to a new position swaps the item, with smooth layout transition animation (`kDragDuration = 200ms`). The closest thumb to the cursor position is calculated by distance.
-- **Delete button** — Each thumbnail in album mode has an overlay delete button (X). Fires `thumbDeleted` signal.
-- **Edit/Replace button** — Each thumbnail has an edit button. Fires `thumbChanged` signal, which opens a context menu with replace/draw/rename/caption/spoiler options.
-- **Modify (double-click area)** — Clicking the photo area of a thumbnail opens the photo editor (`Editor::OpenWithPreparedFile`).
+
+- **Drag-to-reorder** — Press a thumbnail to enter drag mode (`AlbumPreview::pressedHandle()` triggers after `QApplication::startDragTime()`). Thumbnails animate with a shrink-toward-corner effect; on drop the layout springs back. Constants:
+  - `kShrinkDuration = 150ms` — duration of the shrink/un-shrink tween (`attach_album_thumbnail.h:78`).
+  - `kDragDuration = 200ms` — duration of (a) the drag-finish spring-back and (b) the layout-shift tween used when the dragged thumb crosses into a new slot (`attach_album_preview.cpp:24`, used at `:282`, `:286`).
+  - **Shrink amount** — `_shrinkSize = ceil(roundRadiusLarge / 1.4) = ceil(6 / 1.4) = 5px` (`attach_album_thumbnail.cpp:42`; `roundRadiusLarge = 6px` per `lib_ui/ui/basic.style:48`). This is **not** a scale factor — it is a fixed pixel inset applied to every side of the thumb's geometry while shrunk. The previous spec wording "shrink scale factor" is therefore corrected: there is no multiplicative scale, only a 5 px linear inset that is animated 0 → 5 px over `kShrinkDuration`.
+  - The closest-thumb target during a drag is computed by Manhattan distance from cursor to each candidate slot's centre (`AlbumPreview::orderUpdated`).
+- **Delete button** — Each thumbnail in album mode carries an overlay delete (X) button rendered with `st::sendBoxAlbumGroupButtonMediaDelete` icon (`chat_helpers.style:626`). Fires `thumbDeleted` signal.
+- **Edit/Replace button** — Each thumbnail also carries an edit (pencil) button rendered with `st::sendBoxAlbumGroupButtonMediaMore` icon (`chat_helpers.style:625`). Fires `thumbChanged` signal which opens the context menu (replace/draw/rename/caption/spoiler).
+- **Both buttons** sit in a horizontal capsule of `st::sendBoxAlbumGroupSize = 48 × 26 px` placed at top-right of the thumb, offset `(sendBoxAlbumGroupSkipRight = 5, sendBoxAlbumGroupSkipTop = 5)` from the corner; internal gap between the two icons is `sendBoxAlbumGroupEditInternalSkip = 8 px` (`chat_helpers.style:604-607`). For thumbs too narrow to fit the horizontal capsule the layout switches to `sendBoxAlbumGroupSizeVertical = 30 × 50 px` (vertical capsule) or, for the smallest thumbs, `sendBoxAlbumSmallGroupSize = 30 × 25 px` with an `sendBoxAlbumSmallGroupCircleSize = 27 px` circular button (`:608-610`).
+- **Modify (double-click area)** — Double-clicking the photo area opens the photo editor (`Editor::OpenWithPreparedFile`).
 
 ### 40.3 Send As Modes
 
@@ -18097,9 +18103,19 @@ If `overrideSendImagesAsPhotos` is set on the `PreparedList` (e.g., when files a
 
 Photo quality is controlled via the top-right hamburger menu (not a visible checkbox):
 
-- **"Send in high quality" / "Send in standard quality"** — Toggleable menu item. Controls `SendFilesWay::sendLargePhotos()`. Only available when `hasSendLargePhotosOption` returns true (at least one file is a photo that supports high quality via `canUseHighQualityPhoto()`).
-- When high quality is enabled, an "HD" badge is painted on the preview corner (`PaintHighQualityBadge`). Badge is a rounded rect with "HD" text in `st::roundedBg`/`st::roundedFg` colors.
-- The quality setting affects `PhotoSideLimit()` — standard quality scales photos to 1280px on the longest side (`kStandardPhotoSideLimit = 1280`), high quality preserves larger dimensions.
+- **"Send in high quality" / "Send in standard quality"** — Toggleable menu item. Controls `SendFilesWay::sendLargePhotos()`. Default flag set includes `SendLargePhotos` (`attach_send_files_way.h:64-66`). Only available when `hasSendLargePhotosOption` returns true (at least one file is a photo that supports high quality via `canUseHighQualityPhoto()`).
+- **HD badge** — When `SendLargePhotos` is on AND the file's `canUseHighQualityPhoto()` returned true, `PaintHighQualityBadge` (`attach_prepare.cpp:502-521`) overlays a rounded "HD" pill on the preview corner. Resolved geometry:
+  - **Text** — Literal `"HD"` (`attach_prepare.cpp:52`).
+  - **Font** — `st::mediaPlayerSpeedButton.font` (`attach_prepare.cpp:53`). Width and height come from `font->width("HD")` and `font->height` — text-dependent, not a fixed px value.
+  - **Horizontal padding** — `xpadding = ConvertScale(2.) = 2 px` (DPR-aware) (`attach_prepare.cpp:54`).
+  - **Vertical padding** — `ypadding = 0 px` (`attach_prepare.cpp:55`).
+  - **Outline stroke** — `stroke = ConvertScaleExact(1.) = 1 px`, drawn with `Qt::transparent` pen (used only as a sub-pixel inset around the fill so the rounded rect anti-aliases cleanly) (`attach_prepare.cpp:56, 82`).
+  - **Pill rect** — `width = font->width("HD") + 2*xpadding + stroke`, `height = font->height + 2*ypadding + stroke`. Corner radius = `height / 3` on both x and y (`attach_prepare.cpp:85-92`).
+  - **Fill colour** — `st::roundedBg` (palette token; semi-transparent black surround used for media badges).
+  - **Text colour** — `st::roundedFg` (palette token; opaque white).
+  - **Outer offset from preview corner** — `st.photoQualityBadgeOuterSkip = 3 px` (`chat_helpers.style:1550`, struct field declared `chat_helpers.style:246`). The badge anchors per `RectPart` origin; default in single-media preview is bottom-right (`x = rect.right - badgeSize - 3`, `y = rect.bottom - badgeSize - 3`) (`attach_prepare.cpp:514-519`).
+  - **Cache** — Rendered once into `HighQualityBadgeCache` and re-blitted; rebuilt only when bg/fg colour, DPR, or text size changes (`attach_prepare.cpp:40-47, 62-77`).
+- **Photo side limit** — `PhotoSideLimit(large)` returns **`large ? 2560 : 1280`** (`localimageloader.cpp:210-212`). Earlier spec text named the constant `kStandardPhotoSideLimit = 1280`; the source uses an inline literal, not a named constant. Recommended correction: rename the spec reference to "PhotoSideLimit standard = 1280, large = 2560" with the citation above. The single-photo size cap on the preview surface itself is `st::sendMediaPreviewHeightMax = 1280` (`boxes.style:410`).
 
 Videos do not have a separate compression toggle in this dialog — video compression is determined by whether they are sent as photos/videos (compressed) or as files (original).
 
@@ -18132,39 +18148,63 @@ The caption input (`Ui::InputField` in `MultiLine` mode) sits at the bottom of t
 
 When files are sent as documents (not as media), each file renders as a `SingleFilePreview`:
 
-- **Thumbnail** — 48x48px rounded thumbnail for images/videos (`attachPreviewThumbLayout.thumbSize`). For audio files with album art, a circular cover image (`PrepareSongCoverForThumbnail`). For audio without art, a colored circle with a play icon (`iconPlay`). For generic images without thumbs, a colored circle with an image icon (`iconImage`). For other files, a colored circle with a document icon (`iconDocument`).
-- **File name** — Semibold font, truncated to available width. For audio: formatted as "Artist — Title" via `Text::FormatSongName`. Renamable via right-click context menu > "Rename file" which opens `RenameFileBox` (max 64 characters including extension, `kMaxDisplayNameLength = 64`).
-- **File size** — Normal font, status color. Formatted via `FormatSizeText` for files or `FormatImageSizeText` (WxH) for images.
-- **Caption line** — Single-line ellipsized caption text below the thumbnail area, if a per-file caption exists.
-- **Edit button** — Icon button on the right side, opens the context menu (replace, rename, edit caption, etc.).
-- **Delete button** — Icon button (X) on the right side. If it is the only file, closing the delete removes the file and closes the box entirely.
-- **Reorder (AyuGram extension)** — File-type blocks support drag-and-drop reorder. A custom MIME type `application/x-tg-sendfile-index` carries the source index. Drag starts after `QApplication::startDragDistance()` manhattan length. The dragged widget's `grab()` pixmap is used as the drag preview. Drop swaps the two file positions and refreshes the layout.
+Two layouts apply, picked at draw time by `isThumbedLayout(data) = (fileThumb non-null AND not audio)` (`attach_abstract_single_file_preview.cpp:127-129, 209-211`):
+
+- **`attachPreviewLayout`** — used when the preview is the iconified circle (no real thumb, or audio without cover). Defined `chat.style:532-538`:
+  - `padding = margins(0, 0, 0, 0)`
+  - `nameTop = 6 px`
+  - `statusTop = 27 px`
+  - `thumbSize = 44 px`  *(this is the diameter of the colored ellipse drawn behind the icon — overrides the previous "48 × 48" claim, which was wrong)*
+  - `thumbSkip = 11 px` (gap between thumb right edge and name baseline left)
+- **`attachPreviewThumbLayout`** — used when there is a real raster thumb (image / video / audio cover). Defined `chat.style:539-545`:
+  - `padding = margins(0, 0, 0, 0)`
+  - `nameTop = 7 px`
+  - `statusTop = 37 px`
+  - `thumbSize = 64 px` (square; image is centre-cropped via `outer = {64, 64}` and `RoundSmall` corners — radius = `msgFileThumbRadiusSmall = 4 px`, `chat.style:504`)
+  - `thumbSkip = 10 px`
+
+**Per-element resolution:**
+
+- **Thumbnail (real)** — `64 × 64 px` rounded square, corner radius 4 px (image/video, or audio with non-null `cover` QImage prepared via `PrepareSongCoverForThumbnail` and round-clipped to `thumbSize` `attach_single_file_preview.cpp:87-91`).
+- **Thumbnail (icon mode)** — `44 × 44 px` filled ellipse drawn with `_st.files.iconBg` (palette colour declared `chat_helpers.style:195`), with the chosen icon painted centred via `icon.paintInCenter` (`attach_abstract_single_file_preview.cpp:143-154`).
+  - Audio without cover → `_st.files.iconPlay = icon "history_file_play"` tinted `historyFileInIconFg` (`chat_helpers.style:1488`).
+  - Image without thumb → `_st.files.iconImage = icon "history_file_image"` tinted `historyFileInIconFg` (`chat_helpers.style:1489`).
+  - Other (document) → `_st.files.iconDocument = icon "history_file_document"` tinted `historyFileInIconFg` (`chat_helpers.style:1490`).
+  - Audio with cover thumb pixmap → still uses `st::historyFileThumbPlay` icon overlay (`attach_abstract_single_file_preview.cpp:148-150`).
+  - The pixel size of each icon is fixed by the source SVG/PNG asset (`history_file_play.svg` etc., shipped in `Telegram/Resources/icons/`); they are bitmap resources, not parametrised. They are sized to fit visually inside the 44 px circle.
+- **File name** — `st::semiboldFont`, colour `_st.files.nameFg` (`chat_helpers.style:199`). Drawn at `(x + thumbSize + thumbSkip, y + nameTop)`. Elided middle if wider than `availableFileWidth` (`attach_album_thumbnail.cpp:108-115`). For audio: `Text::FormatSongName(filename, songTitle, songPerformer)`. Rename limit: `kMaxDisplayNameLength = 64` chars (`send_files_box.cpp:15`).
+- **File size / status** — `st::normalFont`, colour `_st.files.statusFg`. Drawn at `(x + thumbSize + thumbSkip, y + statusTop)`. `FormatSizeText(bytes)` for files, `FormatImageSizeText(QSize)` for raw images.
+- **Caption line** — Drawn at `y + thumbSize + attachPreviewCaptionTopOffset` where `attachPreviewCaptionTopOffset = 6 px` (`chat.style:546`). Single line, `elisionLines = 1`, `elisionBreakEverywhere = true`, `availableWidth = captionAvailableWidth = sendMediaPreviewSize − 2 × buttonFile.width − 2 × sendBoxAlbumGroupEditInternalSkip − sendBoxAlbumGroupSkipRight` (`attach_album_thumbnail.cpp:90-94`).
+- **Edit button + Delete button** — `IconButton` instances of `st::sendBoxAlbumGroupButtonFile` (defined `chat_helpers.style:616-620`, ripple colour `windowBgRipple`). Positioned by `resizeEvent` at top-right of the file row: top offset = `sendBoxFileGroupSkipTop = 2 px`, right offset = `sendBoxFileGroupSkipRight = 5 px`, inter-button gap = `sendBoxFileGroupEditInternalSkip = -1 px` (i.e. they overlap by 1 px) (`chat_helpers.style:612-614`; `attach_abstract_single_file_preview.cpp:200-206`). Delete-only when `Type::EditOnly` is set on the controls.
+- **Reorder (AyuGram extension)** — File-type blocks support drag-and-drop reorder. A custom MIME type `kDragMime = "application/x-tg-sendfile-index"` (`send_files_box.cpp:17`) carries the source index. Drag starts after `QApplication::startDragDistance()` manhattan length. The dragged widget's `grab()` pixmap is used as the drag preview. Drop swaps the two file positions and refreshes the layout.
 
 ### 40.8 Grouped/Album Layout Algorithm
 
 The `LayoutMediaGroup` function in `ui/grouped_layout.cpp` computes album geometry. It takes a vector of `QSize` (item dimensions) and produces a `GroupMediaLayout` per item (QRect geometry + RectParts sides for corner rounding).
 
-**Algorithm overview:**
+**Resolved layout constants** (all from `ui/grouped_layout.cpp` and `ui/chat/chat.style` / `boxes/boxes.style`):
 
-1. **Compute aspect ratios** for each item (`width / height`).
-2. **Classify proportions** — Each ratio mapped to: `'w'` (wide, ratio > 1.2), `'n'` (narrow, ratio < 0.8), `'q'` (square, 0.8-1.2).
-3. **Select layout strategy** based on count:
-   - **1 item** — Full width, height proportional to aspect ratio.
-   - **2 items** — Three sub-strategies:
-     - Top-bottom stack: if both wide, average ratio > 1.4x max, and ratios within 0.2 of each other.
-     - Left-right equal: if both wide or both square.
-     - Left-right proportional: otherwise, width split based on ratio proportion.
-   - **3 items** — Two sub-strategies:
-     - Left + right column: if first item is narrow.
-     - Top + bottom row: otherwise.
-   - **4 items** — Two sub-strategies:
-     - Top + bottom row of 3: if first item is wide.
-     - Left + right column of 3: otherwise.
-   - **5-10 items** (or any item with ratio > 2) — `ComplexLayouter`: divides items into rows, crops ratios toward the average, and optimizes row heights to minimize wasted space. Uses multi-row distribution with spacing.
+| Constant | Value | Source |
+|---|---|---|
+| `kMaxAlbumCount` | **10** items per album | `attach_prepare.cpp:27` (re-used inside `LayoutMediaGroup` callers; `MaxAlbumItems()` declared `attach_prepare.h:174` returns this) |
+| `maxWidth` (album bounding width) | `st::sendMediaPreviewSize = 308 px` | `boxes.style:409`, used `attach_album_preview.cpp:183` |
+| `minWidth` (sub-cell minimum) | `st::historyGroupWidthMin / 2 = minPhotoSize / 2 = 50 px` | `chat.style:213` (`minPhotoSize: 100px`), `chat.style:650` (`historyGroupWidthMin: minPhotoSize`), used `attach_album_preview.cpp:184` |
+| `spacing` (between cells) | `st::historyGroupSkip / 2 = 4 / 2 = 2 px` | `chat.style:651` (`historyGroupSkip: 4px`), used `attach_album_preview.cpp:185` |
+| `maxHeight` (single-row cap) | = `maxWidth` (square bounding box) | `grouped_layout.cpp` (square clamp in `LayoutMediaGroup`) |
+| `ComplexLayouter::_maxHeight` | `maxWidth * 4 / 3` (4:3 cap for multi-row) | `grouped_layout.cpp:281` |
+| Wide / narrow / square thresholds | `> 1.2` → `'w'`, `< 0.8` → `'n'`, in-between → `'q'` | `grouped_layout.cpp:107` |
+| 2-image top-bottom-stack trigger | both wide AND `_averageRatio > 1.4 * _maxSizeRatio` AND `_ratios[1] - _ratios[0] < 0.2` | `grouped_layout.cpp:119` |
+| 3-image top-row height share | `(_maxHeight - _spacing) * 0.66` | `grouped_layout.cpp:148` |
+| 4-image top-row height share | `(_maxHeight - _spacing) * 0.66` | `grouped_layout.cpp:168` |
+| ComplexLayouter ratio crop bounds | `kMinRatio = 0.6667`, `kMaxRatio = 2.75` | `grouped_layout.cpp:286-290` |
+| ComplexLayouter trigger | count ≥ 5 OR any item ratio > 2 | `grouped_layout.cpp:117` |
+| Inter-row vertical spacing | `st::historyGroupSkip = 4 px` | `attach_album_preview.cpp:450` |
 
-**Constants:** `maxWidth = st::sendMediaPreviewSize`, `minWidth = st::historyGroupWidthMin / 2`, `spacing = st::historyGroupSkip / 2`. Max height equals max width (square bounding box). Max album size: `kMaxAlbumCount = 10` items.
+**Algorithm overview:** unchanged — see the original 1/2/3/4/5-10-item branches above.
 
-Corner rounding is determined by `GetCornersFromSides` — only outer corners (where a side touches the album boundary) get rounded.
+**"Shrink scale factor" clarification (cross-ref §40.2):** AyuGram has no `kShrinkScale` constant. The album layout itself is fixed — only the *individual* `AlbumThumbnail` shrinks during drag, by the linear `_shrinkSize = ceil(roundRadiusLarge / 1.4) = 5 px` inset documented in §40.2. There is no per-album shrink-vs-expand behaviour; the layout merely re-tweens between two `LayoutMediaGroup` results when a drag swaps two slots, animated over `kDragDuration = 200 ms`.
+
+Corner rounding is determined by `GetCornersFromSides` — only outer corners (where a side touches the album boundary) get rounded; the radius itself is `ImageRoundRadius::Large` (resolves to `roundRadiusLarge = 6 px` via the image-prepare path, applied at `attach_album_thumbnail.cpp:113`).
 
 ### 40.9 Add More Files
 
@@ -18199,24 +18239,32 @@ File type classification happens in `Storage::PrepareDetails`:
 
 ### 40.12 Size Limits
 
-- **File size** — `kFileSizeLimit` (2 GB for regular users) and `kFileSizePremiumLimit` (4 GB for premium). Files exceeding the applicable limit produce `PreparedList::Error::TooLargeFile`. The error file's size is preserved in the result for display.
-- **Empty files** — Zero-byte files produce `PreparedList::Error::EmptyFile`.
-- **Directories** — Produce `PreparedList::Error::Directory`.
-- **Image dimensions** — `ValidateThumbDimensions`: both width and height must be > 0, and neither can exceed 20x the other (no extremely elongated images in albums).
-- **Photo side limit** — Standard: 1280px (`kStandardPhotoSideLimit`). Large/HD: higher limit from `PhotoSideLimit(true)`. Photos are scaled to fit within this limit.
-- **Album count** — Maximum 10 items per album (`kMaxAlbumCount = 10`). Files beyond 10 are queued in `filesToProcess` for async preparation.
-- **Display name** — Max 64 characters (`kMaxDisplayNameLength`) when renaming files.
+| Limit | Value | Source |
+|---|---|---|
+| `kFileSizeLimit` (free user) | `2'000 * 1024 * 1024` bytes ≈ 2.0 GiB | `localimageloader.h:22` |
+| `kFileSizePremiumLimit` (premium) | `4'000 * 1024 * 1024` bytes ≈ 4.0 GiB | `localimageloader.h:25` |
+| `PhotoSideLimit(false)` (standard quality) | **1280 px** longest side | `localimageloader.cpp:210-212` (literal, no named constant — earlier spec mention of `kStandardPhotoSideLimit` does not exist in source; recommend renaming to `PhotoSideLimit standard`) |
+| `PhotoSideLimit(true)` (HD quality) | **2560 px** longest side | `localimageloader.cpp:210-212` |
+| `sendMediaPreviewHeightMax` (preview render cap) | 1280 px | `boxes.style:410` |
+| `kMaxAlbumCount` | 10 items per album | `attach_prepare.cpp:27` |
+| `kMaxDisplayNameLength` | 64 chars (rename) | `send_files_box.cpp:15` |
+| `kMaxMessageLength` (caption) | 4096 chars | `send_files_box.cpp:14` |
+| `ValidateThumbDimensions` | width > 0, height > 0, max(w,h) ≤ 20 × min(w,h) | `attach_prepare.cpp` (helper used by `PrepareDetails`) |
+| `PreparedList::Error` enum | `TooLargeFile`, `EmptyFile`, `Directory`, `NonLocalUrl` | `attach_prepare.h` |
+
+Files exceeding the applicable size limit produce `PreparedList::Error::TooLargeFile` with the offending file's `size` preserved for the error UI (`storage_media_prepare.cpp:217-218`). Files beyond `kMaxAlbumCount` are queued in `filesToProcess` for async preparation (`send_files_box.cpp` `addPreparedAsyncFile`).
 
 ### 40.13 Drag-and-Drop Overlay
 
-`DragArea::SetupDragAreaToContainer` creates two overlay zones on the `SendFilesBox`:
+`DragArea::SetupDragAreaToContainer` creates two overlay zones on the `SendFilesBox`. The widget itself, its dimensions, the dashed-border style, the icon overlay, the placeholder labels, and the opacity-fade timing are documented in detail in **§48 — Chat Area Drag-and-Drop Overlay** (the same `DragArea` class is reused here verbatim). This subsection only documents the §40-specific *wiring* on top of that shared widget.
 
-- **Photo drop zone** (`areas.photo`) — Shown when dragged data is classified as `PhotoFiles` / `Image` / `MediaFiles` and current mode sends images as photos. Labeled accordingly.
-- **Document drop zone** (`areas.document`) — Shown when dragged data is classified as `Files`. Labeled for document upload.
-- Both zones call `addFiles(data)` on drop, which processes URLs via `Storage::PrepareMediaList` or clipboard images via `Core::ReadMimeImage`. The drop also calls `_show->activate()` to bring the window to front.
-- The overlay has animated opacity transitions (`_a_opacity`, `_a_in`) for show/hide.
-- Caption field's `setAcceptDrops` is toggled off while the drag area is active, to prevent the field from consuming the drop.
-- Only one drag area is visible at a time — `computeState` callback determines which based on the MIME data type and current send mode.
+- **Photo drop zone** (`areas.photo`) — Visible when the dragged MIME data is classified `MimeDataState::PhotoFiles` / `Image` / `MediaFiles` AND `SendFilesWay::sendImagesAsPhotos()` is true. Title from `lng_dlg_drag_images_here` / subtitle from `lng_dlg_drag_to_send_quick`.
+- **Document drop zone** (`areas.document`) — Visible when the dragged MIME data is classified `MimeDataState::Files` OR when photo-mode is off. Title from `lng_dlg_drag_files_here` / subtitle from `lng_dlg_drag_to_send_no_compression`.
+- **MIME classification** see §40.11 (`Storage::ComputeMimeDataState`).
+- **Drop handler** — Both zones call `addFiles(data)` which routes through `Storage::PrepareMediaList` for URL drops or `Core::ReadMimeImage` → `Storage::PrepareMediaFromImage` for raw image data; valid files are appended to the existing list and the preview refreshes (see §40.9 async pipeline). The drop also calls `_show->activate()` to bring the window forward.
+- **Caption field interlock** — `_caption->setAcceptDrops(false)` is asserted while either drag zone is active, so the inner `InputField` cannot consume the drop and re-route it through its own MIME-paste hook (which would treat the file as an inline insert rather than an attachment add — see §40.14).
+- **Mutual exclusion** — Only one zone is visible at any time; the `computeState` lambda passed to `SetupDragAreaToContainer` returns either `Photo` or `Document` based on current MIME state and send-mode flags.
+- **Animation** — `_a_opacity` and `_a_in` fade tweens are inherited from the shared `DragArea` widget; durations and easing are spec-listed in §48.
 
 ### 40.14 Paste Handling
 
