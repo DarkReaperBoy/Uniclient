@@ -9498,7 +9498,375 @@ When a notification is clicked while locked (`openNotificationMessage`):
 
 ---
 
-### 27.14 Pixel Dimensions & Constants Summary
+### 27.14 Per-Platform Biometric / System Unlock Support
+
+The "system unlock" toggle (referenced in §27.4 and §27.8) is a thin UI wrapper around a platform-abstracted helper `base::SystemUnlockStatus()` / `base::SuggestSystemUnlock()` declared in `base/system_unlock.h`. The settings section and lock widget both consume it uniformly; the actual native bindings live outside AyuGram's source tree in the upstream Telegram Desktop `base` library.
+
+**Capability query** (`settings/sections/settings_local_passcode.cpp:279-287`):
+
+```cpp
+// Returns: { bool available; bool withBiometrics; bool withCompanion; }
+auto status = base::SystemUnlockStatus(/*refresh=*/true);
+```
+
+The returned struct is collapsed into an internal `UnlockType` enum with four states: `None`, `Default`, `Biometrics`, `Companion`. Mapping rule: `withBiometrics` → `Biometrics`, else `withCompanion` → `Companion`, else `available` → `Default`, else `None`.
+
+**UI label resolution** (`settings/sections/settings_local_passcode.cpp:297-304`):
+
+```
+if (Platform::IsWindows())                    → "Use Windows Hello"   (tr::lng_passcode_winhello)
+else if (type == UnlockType::Biometrics)      → "Use Touch ID"        (tr::lng_passcode_touchid)
+else if (type == UnlockType::Companion)       → "Use Apple Watch"     (tr::lng_passcode_applewatch)
+else                                           → "Use system password" (tr::lng_passcode_systempwd)
+```
+
+The entire `systemUnlockWrap` (a `Ui::SlideWrap`) is toggled on by the stream `unlockType->value() | rpl::map(_1 != UnlockType::None)` (`settings_local_passcode.cpp:334-336`). When biometrics go away at runtime (e.g., user disabled Touch ID in system prefs), the wrap slide-closes automatically.
+
+**Lock screen icon switch** (`window/window_lock_widgets.cpp:97-107`):
+
+```cpp
+const auto button = Ui::CreateChild<Ui::IconButton>(
+    _passcode.data(),
+    st::passcodeSystemUnlock);
+if (!Platform::IsWindows()) {
+    button->setIconOverride(
+        (type == SystemUnlockType::Biometrics) ? &st::passcodeSystemTouchID
+      : (type == SystemUnlockType::Companion)  ? &st::passcodeSystemAppleWatch
+                                               : &st::passcodeSystemSystemPwd);
+}
+```
+
+Windows keeps the default `st::passcodeSystemUnlock` icon (which is the Windows Hello glyph). Only macOS / other POSIX platforms invoke `setIconOverride`. The prompt string shown while the native dialog is active also branches: `tr::lng_passcode_winhello_unlock` on Windows vs. `tr::lng_passcode_touchid_unlock` on macOS (`window_lock_widgets.cpp:149`).
+
+**Cooldown:** `kSystemUnlockDelay = crl::time(1000)` — a 1000 ms wait before a second `SuggestSystemUnlock()` invocation is permitted. Prevents accidental loop-tapping the biometric icon.
+
+---
+
+#### Per-Platform Native Binding Status
+
+| Platform | Dedicated source file in AyuGram | Native API that upstream Desktop calls | Status in AyuGram `dev` branch |
+|----------|----------------------------------|----------------------------------------|-------------------------------|
+| **macOS** | none in `Telegram/SourceFiles/platform/mac/` | `LAContext` + `LocalAuthentication.framework` — policies `LAPolicyDeviceOwnerAuthenticationWithBiometrics` (Touch ID / Face ID) and `LAPolicyDeviceOwnerAuthentication` (adds password + Apple Watch companion) | Binding lives in upstream `base/` submodule (not vendored in AyuGram source tree). AyuGram consumes it via `base::SystemUnlockStatus()` / `base::SuggestSystemUnlock()`. |
+| **Windows** | none in `Telegram/SourceFiles/platform/win/` | `Windows.Security.Credentials.UI.UserConsentVerifier` (WinRT) — `CheckAvailabilityAsync()` + `RequestVerificationAsync()`. No PIN/password fallback API; if Hello isn't enrolled, `CheckAvailabilityAsync()` returns `DeviceNotPresent` and the toggle disappears. | Same as macOS: upstream `base` binding. |
+| **Linux** | **none** — no `system_unlock_linux.*`, no PAM code, no `fprintd`/`polkit` call. `specific_linux.cpp` contains zero references to `unlock`, `PAM`, `polkit`, `biometric`, or `fprintd`. | Would require `libpam` or `fprintd` D-Bus, neither of which upstream has wired up. | *HONEST GAP: Linux has no system-unlock implementation. `base::SystemUnlockStatus().available` returns `false` on Linux, so the entire system-unlock row in §27.4 is hidden and the icon button on the lock screen (§27.8) never renders. Users get passcode only; there is no "Use system password" / PAM integration on Linux.* |
+| **WebAuthn** | `webauthn_mac.mm`, `webauthn_win.cpp`, `webauthn_linux.cpp` all exist. | Used for **login 2FA security keys** — FIDO2 hardware tokens and platform authenticators during Telegram account sign-in, not for local-passcode bypass. | Unrelated to this section. Biometric access to the *local passcode lock* is a separate code path. |
+
+*HONEST GAP: AyuGram does not ship per-platform biometric source files of its own for the local-passcode lock. Every biometric call is delegated to the upstream `tdesktop/base` submodule via `base::SystemUnlockStatus()` and `base::SuggestSystemUnlock()`. A Flutter port cannot copy "AyuGram's biometric code" because AyuGram doesn't own it. The port must re-implement the abstraction from scratch per platform:*
+
+- *macOS Flutter: `local_auth_darwin` plugin (wraps `LAContext`). Evaluate `biometricOnly` vs. `deviceCredential` for Biometrics vs. Default fallback. Companion (Apple Watch) is only reported by `LAContext.biometryType == .watch` on macOS 10.15+.*
+- *Windows Flutter: `local_auth_windows` plugin (wraps `UserConsentVerifier`). Call `UserConsentVerifier::CheckAvailabilityAsync()` to drive the `UnlockType::None` vs. `Default` decision — there is no "Biometrics vs. Password" distinction exposed on Windows; it's a single "Windows Hello" toggle.*
+- *Linux Flutter: no established plugin path. Options are: (a) skip system unlock entirely (match AyuGram's behaviour), (b) wrap `pam_authenticate` via a C FFI shim (violates this project's zero-CGo rule), or (c) invoke `/usr/bin/fprintd-verify` via `Process.run` and parse stdout. Option (a) is the only one compatible with project constraints — Linux users get passcode-only, same as AyuGram.*
+
+**Project rule reminder:** Uniclient is pure Go + Flutter, zero CGo. The macOS and Windows Flutter plugins above are acceptable because the Flutter engine loads them as platform-channel plugins compiled by the platform's own toolchain, not via Go CGo. Linux biometrics stay a gap.
+
+---
+
+#### Why `Platform::IsWindows()` gets a Windows-specific branch
+
+The branch `if (!Platform::IsWindows()) setIconOverride(...)` at `window_lock_widgets.cpp:97` exists because the `UserConsentVerifier` WinRT API does not expose a biometric-type discriminator the way `LAContext.biometryType` does on macOS. Windows can only answer "Hello is available" or "Hello is not available" — it cannot tell the app whether the user will be prompted for a fingerprint, face scan, or PIN. So the Windows icon is fixed (`st::passcodeSystemUnlock`, the generic Hello glyph), while macOS dynamically swaps between fingerprint, watch, and padlock glyphs based on `SystemUnlockType`.
+
+---
+
+### 27.15 Multi-Account Lock Layout
+
+Telegram Desktop supports up to **three logged-in accounts simultaneously**. The local passcode interacts with that multi-account state in a very specific way that must be mirrored exactly in the Flutter port.
+
+---
+
+#### Single Global Lock — Not Per-Account
+
+The passcode is **one lock for the whole application**, not one per account. Evidence:
+
+- **Storage layer** (`main/main_domain.cpp:237-238`): The passcode is owned by `Storage::Domain` (the "_local" member), which is the singleton that holds all accounts. There is exactly one hash stored in the local database file regardless of how many accounts are logged in.
+
+  ```cpp
+  // main_domain.cpp — single storage location
+  _local->hasLocalPasscode();
+  _local->setPasscode(QByteArray());   // empty = remove
+  ```
+
+- **Application-level state** (`core/application.cpp:1295-1316`):
+  - `_passcodeLock` is an `rpl::variable<bool>` at the `Application` level — one flag, not a map keyed by account ID.
+  - `lockByPasscode()` (line 1295) does **not** iterate accounts. It iterates *windows*: `enumerateWindows([&](not_null<Window::Controller*> w) { w->setupPasscodeLock(); })`. Every open main window (one per account, typically) gets the same overlay.
+  - `unlockPasscode()` (line 1305) mirrors the same pattern — all windows clear their lock widget at once.
+
+- **Settings UI** (`settings_local_passcode.cpp:34`): Although the setter call is written `controller->session().domain().local().setPasscode(...)`, `session().domain()` returns the shared `Main::Domain` (there is only one). The `session()` prefix is a convenience path, not an indication of per-session storage.
+
+**Consequence for Flutter port:** Store the passcode hash in a single global table row, not scoped to any account ID. Lock state is a single top-level `ValueNotifier<bool>` or `rxdart` `BehaviorSubject<bool>` — not a per-account map.
+
+---
+
+#### Multiple Windows, Each Fully Masked
+
+When the user has N main windows open (each typically hosting one account), `lockByPasscode()` replaces *every* window's content with its own `PasscodeLockWidget`:
+
+1. **`MainWindow::setupPasscodeLock()`** is called on each window independently (`application.cpp:1296`). Each window captures its own pre-lock snapshot via `grabForSlideAnimation()` and runs the slide animation described in §27.9 separately.
+2. **Each window is its own unlock surface.** Typing the passcode in *any* window unlocks *all* windows simultaneously — `unlockPasscode()` flips the single `_passcodeLock` variable, and the reactive `passcodeLockChanges()` stream on every window triggers `clearPasscodeLock()`.
+3. **Media viewer, web views, additional popup windows are force-closed** at lock time via `closeAdditionalWindows()` (`application.cpp:174-180`):
+
+   ```cpp
+   for (const auto &[index, account] : _domain->accounts()) {
+       // each account's attached webview(s) get closed
+   }
+   ```
+
+   This *is* the only place the lock path iterates accounts — and it's only to tear down attached web views, not to manage per-account lock state.
+
+---
+
+#### Lock Widget Does Not Show Account Identity
+
+Per `window_lock_widgets.cpp:47-62`, the `PasscodeLockWidget` renders:
+- Header "Please enter your passcode"
+- Single password input
+- Submit button
+- "Log out" link
+- Optional system-unlock icon
+
+It renders **no account name, no avatar, no phone number, no @username** — the lock screen is completely account-agnostic. An attacker who sees the lock screen learns nothing about who is logged in. The spec at §27.8 already lists the exact elements; the key property to preserve is the *absence* of account identity.
+
+*HONEST GAP: AyuGram (and upstream Desktop) does not offer an account switcher on the lock screen. If you want to switch accounts, you unlock first, then use the account switcher in the sidebar (§3). The Flutter port MUST match this — do not add an account row selector inside the lock overlay, it would be a privacy regression.*
+
+---
+
+#### The Log Out Link While Locked
+
+The "Log out" link on the lock screen (`window_lock_widgets.cpp` — `_logout` member) logs out the **currently active** account only, not all accounts. Tapping it:
+
+1. Shows a confirmation box ("Are you sure you want to log out?" — `tr::lng_sure_logout`).
+2. On confirm, calls `Core::App().logout(account)` for the active account.
+3. If that was the last account, also wipes the local passcode via `removePasscodeIfEmpty()` (see `main_domain.cpp:228-244`):
+
+   ```cpp
+   void Domain::removePasscodeIfEmpty() {
+       if (_accounts.size() != 1 || _active.current()->sessionExists()) {
+           return;  // still have other accounts, keep passcode
+       }
+       if (Core::App().passcodeLocked()) {
+           Core::App().unlockPasscode();  // force-unlock
+       }
+       _local->setPasscode(QByteArray());  // wipe hash
+   }
+   ```
+
+   So the passcode auto-cleans itself when zero accounts remain. The app drops back to the intro screen with no passcode protection — which is correct, since there is no user data to protect.
+
+4. If there are still other accounts, the passcode is retained and the remaining accounts continue to be protected by it.
+
+---
+
+#### State Machine Summary
+
+| Situation | Lock storage | Lock active? |
+|-----------|--------------|--------------|
+| 0 accounts logged in, passcode was set | Auto-cleared by `removePasscodeIfEmpty()` | N/A |
+| 1 account logged in, passcode set | Single hash in `Storage::Domain` local file | Yes, covers whole app |
+| 2 or 3 accounts logged in, passcode set | Same single hash | Yes, one unlock reveals all accounts simultaneously |
+| User adds a 2nd account while passcode is set | Passcode stays; new account is now also protected | Yes |
+| User logs out one account while 2+ are logged in | Passcode stays protecting the remaining accounts | Yes |
+| Last account logs out | `removePasscodeIfEmpty()` fires, hash wiped | No (no data to protect) |
+
+**Invariant:** passcode exists ⇔ at least one account is logged in.
+
+---
+
+### 27.16 AutoLockBox — Exact Widget Layout & Custom Time Input
+
+Source: `Telegram/SourceFiles/boxes/auto_lock_box.cpp` (~120 LOC), `auto_lock_box.h`. This expands on §27.6 with the precise widget graph, style keys with resolved pixel values, and the custom `HH:MM` input path.
+
+---
+
+#### Constants
+
+```cpp
+// auto_lock_box.cpp:20-26
+constexpr auto kCustom = std::numeric_limits<int>::max();
+constexpr auto kOptions = { 60, 300, 3600, 18000, kCustom };
+constexpr auto kDefaultCustom = "10:00"_cs;
+```
+
+- Five radio entries: 1 min, 5 min, 1 hr, 5 hr, Custom.
+- `kCustom = INT_MAX` is a sentinel — not a real duration. When the user selects Custom, the actual duration comes from the `HH:MM` `TimeInput` widget.
+- `kDefaultCustom = "10:00"` is the placeholder shown if the current `settings().autoLock()` value matches one of the four presets (so the custom field has no meaningful pre-fill).
+
+---
+
+#### Widget Tree
+
+```
+AutoLockBox  (Ui::BoxContent, title "Auto-Lock" from tr::lng_passcode_autolock)
+ └─ inner VerticalLayout
+     ├─ Ui::Radiobutton  option[0]    "1 minute"   style st::autolockButton
+     ├─ Ui::Radiobutton  option[1]    "5 minutes"  style st::autolockButton
+     ├─ Ui::Radiobutton  option[2]    "1 hour"     style st::autolockButton
+     ├─ Ui::Radiobutton  option[3]    "5 hours"    style st::autolockButton
+     └─ horizontal row (parent of option[4]):
+         ├─ Ui::Radiobutton option[4]  (NO text label, empty string)   st::autolockButton
+         └─ Ui::TimeInput  _timeInput  (HH:MM)                          st::autolockTimeField
+
+Buttons: "OK" (tr::lng_box_ok) + "Cancel" (tr::lng_cancel)
+```
+
+**Style keys resolved:**
+
+| Key | Value | Source |
+|-----|-------|--------|
+| `st::autolockWidth` | `256px` | upstream `boxes.style` |
+| `st::autolockButton` | `Checkbox(defaultBoxCheckbox) { width: 200px }` | upstream `boxes.style` |
+| `st::autolockTimeField` | `InputField(scheduleTimeField) { heightMin: 20px }` | upstream `boxes.style` |
+| `st::autolockDateField` | `InputField(scheduleDateField) { heightMin: 22px }` | upstream `boxes.style` (unused here but referenced by `Ui::TimeInput` separator) |
+| `st::autolockTimeWidth` | `52px` | upstream `boxes.style` |
+| `st::boxOptionListSkip` | `20px` | shared boxes style — vertical gap between radios |
+| `st::boxWidth` | `320px` | standard box outer width |
+| `st::boxPadding` | `margins(24, 14, 24, 8)` | dialog content padding |
+
+The inner content area is 320 − 24 − 24 = **272 px wide**. Individual radio checkbox widgets are **200 px wide** (`autolockButton`), leaving 72 px of tail space on the 1-min/5-min/1-hr/5-hr rows (used for hit-target padding). On the custom row, that tail is occupied by the 52 px `TimeInput` plus ~20 px gap.
+
+---
+
+#### Radio Group Construction
+
+```cpp
+// auto_lock_box.cpp:49-51
+const auto currentTime = Core::App().settings().autoLock();
+const auto group = std::make_shared<Ui::RadiobuttonGroup>(
+    ranges::contains(kOptions, currentTime) ? currentTime : kCustom);
+```
+
+Pre-selection rule: if the stored auto-lock value (in seconds) is exactly 60, 300, 3600, or 18000, that radio is pre-selected. Otherwise "Custom" is pre-selected and the `TimeInput` is pre-filled with the stored value formatted as `HH:MM`.
+
+Labels for presets 0-3 use `tr::lng_minutes` / `tr::lng_hours` with plural-count format (e.g., `tr::lng_minutes(tr::now, lt_count, 1)` → "1 minute"). The fifth radio (Custom) is created with an **empty string** — the adjacent `TimeInput` serves as its visual label (`auto_lock_box.cpp:46`, `_options.push_back(...)` with `""` text argument on the custom entry).
+
+---
+
+#### Ui::TimeInput Widget
+
+```cpp
+// auto_lock_box.cpp:77-84
+const auto timeInput = Ui::CreateChild<Ui::TimeInput>(
+    inner,
+    ranges::contains(kOptions, currentTime)
+        ? QString::fromUtf8(kDefaultCustom.utf8())        // "10:00"
+        : FormatTime(currentTime),                         // e.g. "02:30"
+    st::autolockTimeField,
+    st::autolockDateField,
+    st::scheduleTimeSeparator,                             // ":" glyph style
+    st::scheduleTimeSeparatorPadding);                     // padding around ":"
+```
+
+`Ui::TimeInput` is a composite widget from `lib_ui` that renders two numeric `InputField`s separated by a centred colon. Format: **24-hour `HH:MM`**. Maximum storable duration: **23:59 = 23×3600 + 59×60 = 86340 seconds (~23 hr 59 min)**. There is no seconds component.
+
+Width: 52 px total (`st::autolockTimeWidth`). The two digit fields split the width, each showing 2 digits + caret.
+
+**Input restrictions:**
+- Hours field: accepts `0`-`23`.
+- Minutes field: accepts `0`-`59`.
+- Validation happens inside `Ui::TimeInput` on each keystroke — invalid digits are rejected immediately (no error banner needed for out-of-range input).
+- Empty fields: `timeInput->value()` returns an empty `QString`, which produces a parse failure in `collect()` below.
+
+---
+
+#### Signal Wiring (Radio ↔ TimeInput)
+
+```cpp
+// auto_lock_box.cpp:100-109 — two-way binding
+
+// (1) User clicks in TimeInput → force-select the Custom radio
+timeInput->focuses() | rpl::start_with_next([=] {
+    group->setValue(kCustom);
+}, timeInput->lifetime());
+
+// (2) User picks a preset radio → refocus logic
+group->setChangedCallback([=](int value) {
+    if (value == kCustom) {
+        timeInput->setFocusFast();       // move caret into HH:MM
+    }
+    // (presets 1m/5m/1h/5h: no side-effect, just update state)
+});
+```
+
+**UX consequence:** tabbing into the HH:MM field automatically checks the "Custom" radio. You can't edit the time without committing to a custom value. Conversely, clicking a preset does NOT clear the HH:MM field — the field retains its value but is no longer consulted for the save.
+
+---
+
+#### Save Path — `collect()` and Validation
+
+```cpp
+// auto_lock_box.cpp:111-115 (approx)
+const auto collect = [=]() -> int {
+    const auto value = group->current();
+    if (value != kCustom) return value;          // preset, return seconds directly
+    const auto parts = timeInput->value().split(':');
+    if (parts.size() != 2) return 0;             // malformed → sentinel 0
+    return parts[0].toInt() * 3600 + parts[1].toInt() * 60;
+};
+
+addButton(tr::lng_box_ok(), [=] {
+    const auto seconds = collect();
+    if (!seconds) {
+        timeInput->showError();                  // red border, 150ms
+        return;
+    }
+    Core::App().settings().setAutoLock(seconds);
+    Core::App().saveSettingsDelayed();
+    Core::App().checkAutoLock();                  // re-evaluate immediately
+    closeBox();
+});
+```
+
+**Validation semantics:**
+1. **Preset selected:** return `60`/`300`/`3600`/`18000` as-is. Always valid, always saves.
+2. **Custom with valid `HH:MM`:** parse, convert to seconds, save. Note: `0:00` → `0` → falsy → treated as error (no zero auto-lock allowed; auto-lock = 0 would mean lock instantly after any interaction).
+3. **Custom with empty or malformed field:** `parts.size() != 2` → returns 0 → `showError()` fires (border turns `activeLineFgError`, 150 ms animated, same behaviour as §27.10). Box stays open, focus lands on the broken field.
+4. **No explicit max-value clamp.** Since `Ui::TimeInput` rejects hours > 23 at keystroke level, the hard upper bound is **86340 seconds ≈ 23h 59m**. Users wanting 24 h or longer cannot configure it via this dialog — consistent with upstream Telegram Desktop.
+
+`checkAutoLock()` is called synchronously after save so that if the user reduced the timeout below the current idle duration, the app locks right away.
+
+---
+
+#### FormatTime Helper
+
+```cpp
+// upstream helper, roughly:
+static QString FormatTime(int seconds) {
+    const auto h = seconds / 3600;
+    const auto m = (seconds % 3600) / 60;
+    return QString("%1:%2")
+        .arg(h, 2, 10, QChar('0'))
+        .arg(m, 2, 10, QChar('0'));
+}
+```
+
+Used only for pre-filling the `TimeInput` when the stored value is non-preset. Always zero-pads to `HH:MM`.
+
+---
+
+#### i18n Keys
+
+| Key | Usage |
+|-----|-------|
+| `tr::lng_passcode_autolock` | Box title ("Auto-Lock") |
+| `tr::lng_minutes` (count-plural) | Preset labels "1 minute" / "5 minutes" |
+| `tr::lng_hours` (count-plural) | Preset labels "1 hour" / "5 hours" |
+| `tr::lng_box_ok` | Primary button ("OK") |
+| `tr::lng_cancel` | Secondary button ("Cancel") |
+
+*(No dedicated "Custom" string — the fifth radio's label is empty; the `TimeInput` is its de facto label.)*
+
+---
+
+#### Flutter Port Notes
+
+- Build a custom `AutoLockBox` dialog that mirrors the widget tree above. Do NOT use `CupertinoTimerPicker` or `showTimePicker` — those are hour-of-day pickers, semantically wrong for a duration.
+- Use a `RadioGroup<int>` with five values `[60, 300, 3600, 18000, INT_MAX]`.
+- For the `HH:MM` field, compose two `TextField`s with `TextInputFormatter.digitsOnly` and numeric range validators (0-23 / 0-59). Add a non-editable `Text(':')` between them. Wrap in a `Row` sized to 52 logical px.
+- Wire focus listener on either digit field → set group value to `INT_MAX`.
+- Wire group value change → if `INT_MAX`, request focus on hours field.
+- On OK: if `group.value != INT_MAX`, save `group.value`. Else parse `hh*3600 + mm*60`. If result is 0 or parse fails, set error state on the field (red border, 150 ms `Curves.easeInOut` colour tween) and keep the dialog open.
+
+---
+
+### 27.17 Pixel Dimensions & Constants Summary
 
 | Constant | Value | Used in |
 |----------|-------|---------|
