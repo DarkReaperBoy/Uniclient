@@ -14321,6 +14321,47 @@ Time format: `QLocale::ShortFormat` (locale-dependent).
 
 The displayed time is always from the newest item (`_items.front()`).
 
+#### 34.8.1 Date-Group Headers (Investigation Result: None Exist)
+
+*HONEST GAP / FINDING.* The prompt asked for date-group headers separating call-history entries (`Today` / `Yesterday` / `May 3` section headings). After auditing `Telegram/SourceFiles/calls/calls_box_controller.cpp` (lines 282-297) and the relevant lang strings, **AyuGram Desktop does NOT render sticky, bold date-group headers in the Calls History list.** Dates are instead embedded directly in each row's 30px-tall status line (see §34.8).
+
+**Evidence:**
+
+1. **No separator rows are created.** `BoxController::loadedCallsReceived()` and `insertRow()` append only `BoxController::Row` objects (which extend `PeerListRow`). There is no `PeerListRowDivider`, `PeerListRowHeader`, or custom `AddSkip`/`AddSubsectionTitle` insertion between rows of different dates. Confirmed by reading `calls_box_controller.cpp:282-297` (`refreshStatus`) — status is painted per-row via `PeerListRow::paintStatusText()`, never hoisted into a shared header.
+
+2. **Lang strings do not prefix with "Today".** The per-row date string tokens are:
+
+    | Token | English text |
+    |-------|--------------|
+    | `lng_call_box_status_today` | `{time}` (bare time, no "Today" prefix) |
+    | `lng_call_box_status_yesterday` | `yesterday at {time}` |
+    | `lng_call_box_status_date` | `{date} at {time}` |
+    | `lng_call_box_status_group` | `({amount}) {status}` |
+
+    Source: `Telegram/Resources/langs/lang.strings`. Today's calls show just the clock time; yesterday shows "yesterday at …"; older shows "February 7 at …". The word "Today" is never rendered — it is elided by design, matching Telegram's official clients.
+
+3. **Grouping is by peer+date+type, not visual section.** `BoxController::canAddItem()` groups items with the same `ComputeType`, same `history()`, and same `date()` into a single grouped `Row` (rendered as one 56px line, with `lng_call_box_status_group` showing `({amount})` prefix). This is **row-grouping**, not **date-section grouping**.
+
+4. **No sticky-scroll behaviour.** `PeerListContent` (the widget managing the rows) has no sticky-header mode. The only sibling widgets above the list are the single-shot "Active Group Calls" subsection (§34.3) and the "Create Call" divider (§34.12) — neither is date-based and neither repeats as you scroll.
+
+**Implication for this clone.** If this project wants true date-group headers (matching e.g. the iOS Telegram Calls screen or WhatsApp's call log), that is a DEVIATION FROM AYUGRAM DESKTOP and must be specified as such. Recommended tokens if we add them anyway (matching Telegram's conventional subsection header style used elsewhere in AyuGram — `searchedBarHeight: 32px`, `searchedBarFg: windowActiveTextFg`, `searchedBarBg: windowBgOver`, `searchedBarFont: semiboldFont`):
+
+- Header height: 32 px.
+- Background: `windowBg` (flat; non-sticky like iOS would be a deliberate choice).
+- Font: `semiboldFont` (13 px semibold).
+- Color: `windowActiveTextFg` (accent blue, matching AyuGram's other list subheaders like Chats search "Recent" / "Global search").
+- Left padding: 16 px (aligns with row avatar x-position in §34.5).
+- Top padding: 8 px; bottom padding: 4 px.
+- Labels: `"Today"`, `"Yesterday"`, and `"MMMM d"` (e.g. `"May 3"`) for older dates. Introduce new i18n keys `lng_call_box_group_today`, `lng_call_box_group_yesterday`, `lng_call_box_group_date` — do NOT reuse the existing inline tokens (they contain `{time}` placeholders and would break).
+- Sticky: MATCH-AYUGRAM = non-sticky (scroll with content). Sticky would require a custom `PeerListContent` subclass; AyuGram has no precedent for this.
+
+**Decision for spec.** Keep the inline per-row format from §34.8 as the DEFAULT (matches AyuGram 1:1). If product wants visual day-separator headers, flag it as an intentional divergence and implement via a custom row type injected by `BoxController` at date boundaries.
+
+**Files audited:**
+- `Telegram/SourceFiles/calls/calls_box_controller.cpp:282-297` (refreshStatus)
+- `Telegram/SourceFiles/calls/calls.style:542-547` (call arrow tokens — no date-header tokens present)
+- `Telegram/Resources/langs/lang.strings` (lang key verification)
+
 ---
 
 ### 34.9 Context Menu
@@ -14389,6 +14430,81 @@ The rate call dialog is presented after a call ends (triggered by the call panel
 
 **API call:** `phone.setCallRating` with the selected star count (1-5) and optional comment string.
 
+#### 34.13.1 Rate Call Dialog — Detailed Spec
+
+**Current status in AyuGram Desktop.** The trigger path exists but is **DEAD-CODED**: `calls/calls_call.cpp` line ~1112 guards the box with `if (false && data.is_need_rating() ...)`. The box is still fully implemented at `Telegram/SourceFiles/ui/boxes/rate_call_box.cpp` and is ready to be re-enabled by flipping the `false`. This clone should implement the box per spec and wire the trigger without the dead `false`.
+
+**Source files:**
+- `Telegram/SourceFiles/ui/boxes/rate_call_box.cpp` — RateCallBox implementation.
+- `Telegram/SourceFiles/ui/boxes/rate_call_box.h` — Result struct declaration.
+- `Telegram/SourceFiles/calls/calls_call.cpp:~1100-1150` — trigger site, inside `mtpc_phoneCallDiscarded` handler.
+- `Telegram/SourceFiles/calls/calls.style:564-579` — style tokens.
+
+**Trigger.** After an `mtpc_phoneCallDiscarded` MTProto update with `data.is_need_rating() == true` and the call had a valid `_id` / `_accessHash`, the box is shown attached to the window for the peer (`Core::App().windowFor(::Window::SeparateId(_user))`). The `InputSubmitSettings` passed to the ctor is `Core::App().settings().sendSubmitWay()` so the comment field honours the user's Enter/Ctrl+Enter submit preference.
+
+**Box class:** `Ui::RateCallBox`, a `BoxContent` subclass.
+
+**Box title:** `lng_call_rate_label` → `"Please rate the quality of your call"` (English). No subtitle.
+
+**Box width:** `st::boxWideWidth` (rate_call_box.cpp:107). Typically 364 px — the standard wide-box width in AyuGram Desktop.
+
+**Box height:** Dynamic — recomputed by `updateMaxHeight()` each time the rating changes. Driven by whether the comment field is visible.
+
+**Star row.**
+- 5 `IconButton` widgets held in `std::vector<object_ptr<Ui::IconButton>> _stars` (rate_call_box.h).
+- Each star uses `st::callRatingStar` (calls.style:565-572): 36 × 36 px icon button, unfilled icon `calls/call_rating` coloured `windowSubTextFg` (mid-grey), ripple `defaultRippleAnimationBgOver` over a 36 px square at offset (0,0).
+- Filled state: `st::callRatingStarFilled` = `calls/call_rating_filled` in `lightButtonFg` (accent blue). Toggle by setting `IconButton::setIconOverride(star <= _rating ? &st::callRatingStarFilled : nullptr)` in `ratingChanged()`.
+- Stars are laid out horizontally, **centred** in the box width. `starTop` = `st::callRatingStarTop` = 4 px.
+- Outer padding around the star row: `st::callRatingPadding` = margins(24 px, 12 px, 24 px, 0 px) — 24 px left/right, 12 px top, 0 px bottom (comment margin takes over below).
+
+**Comment field.**
+- Widget: `object_ptr<Ui::InputField> _comment`. Created lazily inside `ratingChanged()` on first non-zero rating where rating < 5.
+- **Critical behaviour:** destroyed (set to `nullptr`) when the user selects 5 stars. The rationale from rate_call_box.cpp:87 is "a 5-star rating needs no comment." Selecting 4 or fewer stars after selecting 5 reinstates the field.
+- Mode: `Ui::InputField::Mode::MultiLine`.
+- Max length: `kRateCallCommentLengthMax = 200` UTF-16 characters (rate_call_box.cpp:14).
+- Style: `st::callRatingComment` (calls.style:577-580) — `InputField(defaultInputField)` override with `textMargins(1, 26, 1, 4)` and `heightMax: 135 px`.
+- Placeholder: `lng_call_rate_comment` → `"Comment (optional)"`.
+- Top margin from star row: `st::callRatingCommentTop` = 8 px.
+- Horizontal padding: reuses `st::callRatingPadding.left/right` = 24 px each side.
+- Auto-focus: yes (focus is forced onto the field when it is created).
+- Submit shortcut: whatever `_sendWay` says (`Enter` vs `Ctrl+Enter`) — pressing that shortcut while focused in the field fires `send()`.
+
+**Buttons.**
+
+| Position | Label i18n | Shown when |
+|---------|-----------|-----------|
+| Left (negative/cancel) | `lng_cancel` → `"Cancel"` | Always, at box creation (rate_call_box.cpp:29). |
+| Left (negative/cancel) | `lng_cancel` → `"Cancel"` | Re-added after rating set (rate_call_box.cpp:43). |
+| Right (positive/send) | `lng_send_button` → `"Send"` | Only after `_rating > 0` (rate_call_box.cpp:42). |
+
+Click actions:
+- **Send:** builds `Result{ _rating, _comment ? _comment->getLastText().trimmed() : QString() }` and fires it on the `rpl::event_stream<Result> _sends` stream. The parent site (calls_call.cpp) subscribes and issues `MTPphone_SetCallRating(flags=0, inputPhoneCall(callId, accessHash), rating, comment)`. The box closes itself after `send()`.
+- **Cancel:** closes without emitting. No rating sent.
+
+**Result struct (rate_call_box.h):**
+
+```cpp
+struct Result {
+    int rating = 0;     // 1..5
+    QString comment;    // trimmed; empty if omitted or 5-star
+};
+```
+
+**Stream accessor:** `[[nodiscard]] rpl::producer<Result> sends() const;` — parent subscribes to fire the MTProto request.
+
+**Animations.**
+- Star fill toggle: instant (no animation — just `setIconOverride`).
+- Comment field appear/disappear: no crossfade; box resizes via `updateMaxHeight()` which triggers the standard box resize (which itself uses the default box geometry animation if any parent transition is running).
+- Send button appear: standard `BoxContent` button add — no custom animation.
+
+**i18n keys summary:**
+- `lng_call_rate_label` — box title.
+- `lng_call_rate_comment` — comment placeholder.
+- `lng_send_button` — send button label.
+- `lng_cancel` — cancel button label.
+
+*HONEST GAP: The `lightButtonBgOver` token referenced at rate_call_box.cpp:82 is used somewhere (likely a hover/press effect on the star button), but its exact role wasn't isolated in this audit — treat as "standard light-button hover background" unless a second audit pass disagrees.*
+
 ---
 
 ### 34.14 Call Settings Section
@@ -14432,6 +14548,137 @@ When a call is active, a colored bar appears at the top of the main window (38px
 **Click behavior:**
 - Info area click: Opens the call panel (for 1:1) or group call panel. With Ctrl+click in debug mode: opens `DebugInfoBox` showing call debug log (updated every 500ms, displayed in `callDebugLabel` with margins(24, 0, 24, 0)).
 - Hangup click: For 1:1 calls, hangs up directly. For group calls, if the user can manage the call, shows `Group::LeaveBox`; otherwise hangs up directly.
+
+#### 34.15.1 Host Widget & Parent Integration
+
+**Host class:** `Calls::TopBar` (RpWidget). Source: `Telegram/SourceFiles/calls/calls_top_bar.cpp`, `.h`.
+
+**Ownership.** The bar is owned by `MainWidget` via `_callTopBar` (a `SlideWrap<Calls::TopBar>` — see `mainwidget.cpp:1067-1079`). Two overloads of the constructor exist:
+1. `Calls::TopBar(parent, std::shared_ptr<Call>, show)` — 1:1 call variant (line 238 of calls_top_bar.cpp).
+2. `Calls::TopBar(parent, std::shared_ptr<GroupCall>, show)` — group call variant (line 244).
+
+**Layout slot (from `mainwidget.cpp:1591-1614`):** The bar pins to the top-left of either the dialogs column (one-column / narrow mode) or the main section column (multi-column / wide mode):
+- One-column: `resizeToWidth(dialogsWidth); moveToLeft(0, 0);` — the bar spans the dialog list width only, leaving the chat window below.
+- Multi-column: `resizeToWidth(mainSectionWidth); moveToLeft(dialogsWidth, 0);` — the bar spans the chat window column only.
+
+The main-section content top is offset by `_callTopBarHeight` (mainwidget.cpp:1564) so chat content slides down to make room. This offset animates in/out with the bar's slide.
+
+**Show/hide animation:** `SlideWrap` standard slide-down on appear (duration = default `SlideWrap` duration, ~200 ms). On creation, if a show animation is already in progress, the bar is hidden instantly and shown with `anim::type::normal` afterwards to avoid double-animating.
+
+#### 34.15.2 Widget Layout (Left → Right)
+
+**Personal (1:1) call variant** creates: `_mute`, `_durationLabel`, `_signalBars`, `_fullInfoLabel` / `_shortInfoLabel`, `_hangupLabel`, `_info` (invisible click-through area), `_hangup`.
+
+**Group call variant** creates: `_mute`, `_userpics` (`Ui::GroupCallUserpics`), `_fullInfoLabel` / `_shortInfoLabel`, `_info`, `_hangup`. No duration label, no signal bars, no hangup text label (group has its own "End Call" text handling).
+
+**Horizontal sequence with pixel offsets:**
+
+| Index | Element | Width/Height | Left anchor | Notes |
+|-------|---------|--------------|-------------|-------|
+| 1 | `_mute` (IconButton) | 41 × 38 px | 0 | `callBarMuteToggle`, icon `calls/call_record_active` in `callBarFg`. Cross-line anim token `callTopBarMuteCrossLine`: stroke 2 px. Ripple area 32 px at (5, 3) with `callBarMuteRipple` colour. |
+| 2 | `_durationLabel` (1:1 only) | auto × semiboldFont | right of mute + `callBarSkip` = 10 px | Top offset `callBarLabelTop` = 10 px. Format `FormatDurationText(seconds)` e.g. `"1:23"` / `"1:02:45"`. Updates every `msTillNextSecond + 5` ms via `_updateDurationTimer`. |
+| 3 | `_signalBars` (1:1 only) | ~19 px × 12 px | right of duration + `callBarSkip` | `callBarSignalBars`: 4 bars, each 3 px wide, 1 px skip, heights stepping 3..12 px in `callBarFg`. Inactive bars drawn at 50 % opacity. |
+| 3' | `_userpics` (group only) | `_userpicsWidth` × 28 px | right of mute | `groupCallTopBarUserpics`: size 28 px, shift 8 px, stroke 2 px. Width tracked by rpl; bar re-laid-out when it changes. |
+| 4 | `_fullInfoLabel` / `_shortInfoLabel` | flexible | next after prev | `callBarInfoLabel`: FlatLabel, font `semiboldFont`, colour `callBarFg`. Max height 28 px top-aligned. Full/short swap logic at bottom of `updateControlsGeometry()` — uses full label if `left + fullWidth + rightArea <= width()`, else short. |
+| 5 | `_hangupLabel` (1:1 only) | auto | left of hangup button − `callBarSkip` | `callBarLabel`, text = `lng_call_bar_hangup` → `"End call"`. Top offset `callBarLabelTop` = 10 px. Hidden on group call variant. |
+| 6 | `_hangup` (IconButton) | 41 × 38 px | `width() - 41 - callBarRightSkip(12)` | `callBarHangup` = `callBarMuteToggle` with icon `calls/call_discard` at position (3, 1). |
+
+An invisible full-width click-through widget `_info` is layered on top of the label area and between the mute and hangup buttons — it is what reacts to the user "clicking the bar" (see 34.15.5).
+
+#### 34.15.3 Text Contents & i18n
+
+**1:1 call info label:**
+- `_fullInfoLabel` content: `user->name()` (full display name).
+- `_shortInfoLabel` content: `user->firstName`.
+- Connection state overrides (pre-established): `lng_group_call_connecting` → `"Connecting..."` is used for both 1:1 and group when state is `Connecting` / `Waiting`.
+
+**Group call info label:**
+- Conference-empty state: `lng_confcall_join_title` → `"Group Call"`.
+- Normal state: peer display name OR chat title.
+- Multi-participant speaker list: composed with `lng_forwarding_from` (single name) / `lng_forwarding_from_two` (two names). For 3+ the format is truncated name + `"and {count} others"`-style (defined elsewhere).
+- Force-muted toast (not in bar itself): `lng_group_call_force_muted_sub`.
+
+**Hangup label (1:1):** `lng_call_bar_hangup` → `"End call"`.
+
+#### 34.15.4 Background & Gradient System
+
+The background is painted in `paintEvent()` via `p.fillRect(e->rect(), brush)`. The `brush` is `_groupBrush`, a `QBrush` rebuilt whenever the bar state changes.
+
+**BarState enum:** `Connecting`, `Active`, `Muted`, `ForceMuted` (plus implicit `Hidden`).
+
+**Per-state gradient** (`Colors()` function, `base::flat_map<BarState, anim::gradient_colors>`):
+
+| State | Type | Stops (0.0 → 1.0) | Colours |
+|-------|------|-------------------|---------|
+| `Connecting` | Solid | single | `callBarBgMuted` (flat grey). |
+| `Active` | Linear 2-stop | 0.0, 1.0 | `groupCallLive1` → `groupCallLive2` (green, palette-defined). |
+| `Muted` | Linear 2-stop | 0.0, 1.0 | `groupCallMuted1` → `groupCallMuted2` (blue/purple). |
+| `ForceMuted` | Linear 3-stop | 0.0, 0.35, 1.0 | `groupCallForceMutedBar1` → `…2` → `…3`. |
+
+Gradient orientation: horizontal (left-to-right across the bar width) — `anim::gradient_colors` paints with `QLinearGradient(rect.topLeft(), rect.topRight())`.
+
+#### 34.15.5 State Transition Animation
+
+- Driver: `Ui::Animations::Simple _switchStateAnimation`.
+- Triggered whenever `BarState` changes (mute toggle, group call state change, speaker change, connecting → active).
+- Duration formula: `duration = (to - from) * st::universalDuration`. `to` is always 1.0, `from` is the current interpolation value (0..1) so an animation interrupted mid-flight scales its remaining time proportionally. `st::universalDuration` is the global UI "universal" crossfade — ~150 ms in AyuGram's palette.
+- Callback `_switchStateCallback`: rebuilds `_groupBrush` by linearly blending the previous gradient stops with the new gradient stops at the current animation value, then calls `_mute->setIconOverride(...)` progress to crossfade the mute icon via the `CrossLineAnimation`.
+- Repaint is triggered each frame by the animation's `update()` emission.
+
+#### 34.15.6 Mute Cross-Line Animation
+
+Token `callTopBarMuteCrossLine` (calls.style:1437-1441):
+- Base icon: `calls/call_record_active` in `callBarFg`.
+- Stroke width: 2 px.
+- Draws a diagonal slash across the mic icon when muted.
+- Progress 0.0 → 1.0 is driven by the same `_switchStateAnimation` as the gradient, so slash and colour change in lockstep.
+
+#### 34.15.7 Group Call Blobs (Group Variant Only)
+
+Decorative audio-level blobs painted **beneath** the bar (they bleed slightly below the 38 px bar onto the dialogs/chat content behind via `initBlobsUnder(this, geometryValue())` — mainwidget.cpp:1077).
+
+- Class: `Ui::Paint::LinearBlobs`, 3 layers returned by local `LinearBlobs()` factory.
+- Segment counts per layer: 5, 7, 8.
+- Idle radius: 3 px. Max radii: 4, 12, 12 px.
+- `kBlobUpdateInterval = 100 ms` (level poll).
+- Level-change ease duration: ~250 ms.
+- `kHideBlobsDuration = 500 ms` (fade out when call disconnects, app deactivates, or power-saving mode enabled).
+
+Blobs are hidden while:
+- `Core::App().settings().hardwareAcceleratedVideo()` off in power-saving mode, OR
+- App deactivated (`Core::App().activeWindow()` null), OR
+- Call state ∈ {`Disconnected`, `Connecting`, `Waiting`}.
+
+#### 34.15.8 Click & Event Handlers
+
+| Target | Action | Detail |
+|--------|--------|--------|
+| `_mute` click | Toggle mute. | For 1:1: `call->setMuted(!call->muted())`. For group: `call->changeMuted()`. If force-muted, shows a toast using `lng_group_call_force_muted_sub` instead. |
+| `_hangup` click | End / leave call. | 1:1: `call->hangup()`. Group (when user `canManage()`): presents `Group::LeaveBox`. Group (regular member): `call->hangup()` directly. |
+| `_info` click (the invisible middle strip) | Open call panel. | `Core::App().calls().showInfoPanel(call)` — expands the full call window / GroupCallPanel. |
+| `_info` Ctrl+click (debug) | Open `DebugInfoBox`. | Only when debug logging enabled; updates `callDebugLabel` every `kUpdateDebugTimeoutMs = 500 ms`; label padding `margins(24, 0, 24, 0)`. |
+| Resize | Re-run `updateControlsGeometry()`. | Recomputes which of `_fullInfoLabel` / `_shortInfoLabel` fits. |
+| `_durationLabel` second tick | Update text. | `_updateDurationTimer.callOnce(1000 - (currentDuration % 1000) + 5 ms)` so ticks land just after each wall-clock second. |
+
+#### 34.15.9 Pixel Dimension Addendum
+
+All the following are additions to the §34.16 summary table:
+
+| Element | Token | Value |
+|---------|-------|-------|
+| Top bar mute ripple area | `callBarMuteToggle.rippleAreaSize` | 32 px |
+| Top bar mute ripple offset | `callBarMuteToggle.rippleAreaPosition` | (5, 3) |
+| Top bar mute icon offset | `callBarMuteToggle.iconPosition` | (3, 2) |
+| Top bar hangup icon offset | `callBarHangup.iconPosition` | (3, 1) |
+| Top bar cross-line stroke | `callTopBarMuteCrossLine.stroke` | 2 px |
+| Universal duration (state xfade) | `universalDuration` | ~150 ms |
+| Group blob update interval | `kBlobUpdateInterval` | 100 ms |
+| Group blob hide duration | `kHideBlobsDuration` | 500 ms |
+| Debug log update interval | `kUpdateDebugTimeoutMs` | 500 ms |
+
+*HONEST GAP — palette colours. The exact hex values for `callBarBg`, `callBarBgMuted`, `callBarFg`, `callBarMuteRipple`, `groupCallLive1/2`, `groupCallMuted1/2`, `groupCallForceMutedBar1/2/3` were NOT extracted in this audit — they live in the palette file (`colors.palette` / theme) not in `calls.style`. Defer to §25 (Theming & Color System) for palette resolution. If a palette audit disagrees with the colour family labels above ("green", "blue/purple", "grey"), palette is source of truth.*
+
+*HONEST GAP — bar-area full-click behaviour. `calls_top_bar.cpp` contains no explicit `mousePressEvent` override on the bar background itself; all clicks go through the `_info` / `_mute` / `_hangup` child widgets. The `_info` widget is laid out to cover the central label strip, so in practice the "click the bar anywhere" UX is produced by making `_info` span most of the width between the two buttons. Confirmed indirectly via constructor widget creation; the exact geometry of `_info` vs. the buttons was not traced line-by-line.*
 
 ---
 
