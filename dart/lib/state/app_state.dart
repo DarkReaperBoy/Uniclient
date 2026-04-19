@@ -19,6 +19,7 @@ class AppState extends ChangeNotifier {
   bool _initialized = false;
   String? _initError;
 
+  String _configDir = '';
   final List<StreamSubscription<dynamic>> _subs = [];
 
   /// Callback for showing connection-state notifications (set by UI layer).
@@ -41,6 +42,7 @@ class AppState extends ChangeNotifier {
   List<AccountInfo> get accounts => _accounts;
   Map<String, ConnState> get connStates => _connStates;
   String get activeAccountId => _activeAccountId;
+  String get configDir => _configDir;
   AppConfig get config => _config;
   bool get initialized => _initialized;
   String? get initError => _initError;
@@ -67,6 +69,7 @@ class AppState extends ChangeNotifier {
     String vaultPassword = '',
   }) async {
     try {
+      _configDir = configDir;
       await _engine.init(
         configDir: configDir,
         cacheDir: cacheDir,

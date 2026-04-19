@@ -23,35 +23,6 @@
 
 ## 1. Window Layout & Column Structure
 
-### 1.1 Column System
-- [ ] Dialogs column with persisted width ratio (S1)
-- [ ] Dialogs column min 260px, max 540px (S1)
-- [ ] Dialogs column resizable via drag handle (S1)
-- [ ] Dialogs column collapse to avatar-only mode when dragged below 130px (S1)
-- [ ] Chat column min 380px, takes remaining width (S1)
-- [ ] Third column (info panel) min 292px, max 392px (S1)
-- [ ] Third column resizable, width persisted (S1)
-
-### 1.2 Column Shadow Separators
-- [ ] 1px vertical separators between columns using shadowFg color (S1)
-- [ ] Light theme separator: #00000018 (S1)
-- [ ] Dark theme separator: #04080e56 (S1)
-- [ ] Third column shadow hidden when third column collapsed (S1)
-- [ ] No animation on separators -- static fillRect (S1)
-
-### 1.3 Responsive Breakpoints
-- [ ] OneColumn mode below 640px: single panel visible, slide transitions (S1)
-- [ ] TwoColumn mode 640-932px: dialogs left, chat right (S1)
-- [ ] ThreeColumn mode at 932px+: dialogs, chat, and info panel (S1)
-- [ ] dialogsWidth computed from bodyWidth * dialogsWidthRatio, clamped to [260, bodyWidth-380] (S1)
-- [ ] Three-column shrink algorithm: proportional division when space tight (S1)
-- [ ] Wide chat mode at 880px chat width: center message bubble column (S1)
-
-### 1.4 Window Defaults
-- [ ] Default window size 800x600 (S1)
-- [ ] Large-screen default 1024x768 (S1)
-- [ ] Minimum window size 380x480 (S1)
-
 ### 1.5 Linux Titlebar
 - [ ] Custom (client-side) titlebar by default on Linux (S1)
 - [ ] Option to switch to native system window frame (S1)

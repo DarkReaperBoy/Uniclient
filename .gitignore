@@ -43,3 +43,4 @@ dart/linux/flutter/ephemeral/
 dart/native_assets/
 dart/.flutter-plugins
 dart/.flutter-plugins-dependencies
+.ralph.lock

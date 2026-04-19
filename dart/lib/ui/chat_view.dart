@@ -70,12 +70,16 @@ class ChatView extends StatefulWidget {
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
+  /// Spec §1: Wide chat mode (chat width >= 880px) centers the message bubble
+  /// column within the chat area.
+  final bool wideChatMode;
 
   const ChatView({
     super.key,
     this.showBackButton = false,
     this.onBack,
     this.onToggleInfo,
+    this.wideChatMode = false,
   });
 
   @override

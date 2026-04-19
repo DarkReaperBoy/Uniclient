@@ -248,7 +248,26 @@ static void my_application_activate(GApplication* application) {
   gtk_header_bar_set_show_close_button(header_bar, TRUE);
   gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
 
-  gtk_window_set_default_size(window, 1280, 800);
+  // Spec §1: Default 800x600, large-screen default 1024x768, minimum 380x480.
+  int def_w = 800, def_h = 600;
+  GdkDisplay* display = gdk_display_get_default();
+  if (display) {
+    GdkMonitor* monitor = gdk_display_get_primary_monitor(display);
+    if (!monitor) monitor = gdk_display_get_monitor(display, 0);
+    if (monitor) {
+      GdkRectangle workarea;
+      gdk_monitor_get_workarea(monitor, &workarea);
+      if (workarea.width >= 1280 && workarea.height >= 800) {
+        def_w = 1024;
+        def_h = 768;
+      }
+    }
+  }
+  gtk_window_set_default_size(window, def_w, def_h);
+  GdkGeometry geometry;
+  geometry.min_width = 380;
+  geometry.min_height = 480;
+  gtk_window_set_geometry_hints(window, NULL, &geometry, GDK_HINT_MIN_SIZE);
 
   // Set window icon from bundled PNG.
   gchar* icon_path = get_icon_path();

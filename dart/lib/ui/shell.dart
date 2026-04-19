@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,19 +26,64 @@ class UniClientShell extends StatefulWidget {
 }
 
 class _UniClientShellState extends State<UniClientShell> {
-  // Dialogs column width ratio (0.0-1.0 of body width).
-  double _dialogsWidthRatio = 0.17;
+  // Dialogs column width ratio (0.0-1.0 of body width), persisted to layout.json.
+  double _dialogsWidthRatio = 0.33;
   bool _infoOpen = false;
+  // Third column width, persisted within [_thirdMin, _thirdMax].
+  double _thirdColumnWidth = 360.0;
+  // Whether dialogs column is collapsed to avatar-only mode (spec §1: below 130px).
+  bool _dialogsCollapsed = false;
+  bool _layoutLoaded = false;
 
-  // Spec: min 260, max 540, collapse below 130.
+  // Spec §1 column constants (window.style:20-24).
   static const _dialogsMin = 260.0;
   static const _dialogsMax = 540.0;
-  // Reserved for future use: collapse below 130, chat min 380, info 292-392.
+  static const _dialogsCollapseThreshold = 130.0;
+  static const _chatMin = 380.0;
+  static const _thirdMin = 292.0;
+  static const _thirdMax = 392.0;
   static const _filtersWidth = 72.0;
+
+  // Spec §1: Wide chat mode triggers at 880px chat width.
+  static const _wideChatThreshold = 880.0;
 
   // OneColumn: < 640, ThreeColumn: >= 932
   static const _oneColumnBreak = 640.0;
   static const _threeColumnBreak = 932.0;
+
+  String _configDir = '';
+
+  String get _layoutFilePath =>
+      _configDir.isEmpty ? '' : '$_configDir/layout.json';
+
+  void _loadLayoutPrefs() {
+    final path = _layoutFilePath;
+    if (path.isEmpty) return;
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return;
+      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      _dialogsWidthRatio = (data['dialogsWidthRatio'] as num?)?.toDouble() ?? _dialogsWidthRatio;
+      _thirdColumnWidth = (data['thirdColumnWidth'] as num?)?.toDouble() ?? _thirdColumnWidth;
+      _dialogsCollapsed = (data['dialogsCollapsed'] as bool?) ?? _dialogsCollapsed;
+    } catch (_) {
+      // Ignore corrupt/missing file.
+    }
+  }
+
+  void _saveLayoutPrefs() {
+    final path = _layoutFilePath;
+    if (path.isEmpty) return;
+    try {
+      File(path).writeAsStringSync(jsonEncode({
+        'dialogsWidthRatio': _dialogsWidthRatio,
+        'thirdColumnWidth': _thirdColumnWidth,
+        'dialogsCollapsed': _dialogsCollapsed,
+      }));
+    } catch (_) {
+      // Best-effort persistence.
+    }
+  }
 
   LayoutMode _layoutMode(double bodyWidth) {
     if (bodyWidth < _oneColumnBreak) return LayoutMode.oneColumn;
@@ -48,6 +96,13 @@ class _UniClientShellState extends State<UniClientShell> {
     final appState = context.watch<AppState>();
     final authState = context.watch<AuthState>();
     final chatState = context.watch<ChatState>();
+
+    // Load layout prefs once configDir becomes available.
+    if (!_layoutLoaded && appState.configDir.isNotEmpty) {
+      _layoutLoaded = true;
+      _configDir = appState.configDir;
+      _loadLayoutPrefs();
+    }
 
     // Show loading while engine initializes.
     if (!appState.initialized) {
@@ -133,8 +188,13 @@ class _UniClientShellState extends State<UniClientShell> {
   /// Two columns: dialogs + chat.
   Widget _buildTwoColumn(BuildContext context, double bodyWidth,
       bool showFilters, ChatState chatState) {
-    final dialogsWidth = (bodyWidth * _dialogsWidthRatio)
-        .clamp(_dialogsMin, _dialogsMax);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec §1: clamp dialogs width to [min, bodyWidth - chatMin] so chat
+    // never shrinks below 380px.
+    final maxDialogs = (bodyWidth - _chatMin).clamp(_dialogsMin, _dialogsMax);
+    final dialogsWidth = _dialogsCollapsed
+        ? 72.0 // avatar-only collapsed mode
+        : (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, maxDialogs);
 
     return Row(
       children: [
@@ -143,6 +203,7 @@ class _UniClientShellState extends State<UniClientShell> {
           FilterColumn(
             onOpenDrawer: () => _openDrawer(context),
           ),
+        if (showFilters) _ColumnShadow(isDark: isDark),
         // Dialogs column.
         SizedBox(
           width: dialogsWidth,
@@ -150,15 +211,24 @@ class _UniClientShellState extends State<UniClientShell> {
             showHamburger: !showFilters,
             onOpenDrawer: showFilters ? null : () => _openDrawer(context),
             filterSidebarVisible: showFilters,
+            collapsed: _dialogsCollapsed,
           ),
         ),
-        // Resize handle.
+        // Resize handle + shadow separator.
+        _ColumnShadow(isDark: isDark),
         _ResizeHandle(
           onDrag: (dx) {
             setState(() {
-              final newWidth = (bodyWidth * _dialogsWidthRatio + dx)
-                  .clamp(_dialogsMin, _dialogsMax);
-              _dialogsWidthRatio = newWidth / bodyWidth;
+              final raw = (bodyWidth * _dialogsWidthRatio + dx);
+              // Spec §1: below 130px threshold, snap to collapsed mode.
+              if (raw < _dialogsCollapseThreshold) {
+                _dialogsCollapsed = true;
+              } else {
+                _dialogsCollapsed = false;
+                final newWidth = raw.clamp(_dialogsMin, maxDialogs);
+                _dialogsWidthRatio = newWidth / bodyWidth;
+              }
+              _saveLayoutPrefs();
             });
           },
         ),
@@ -176,11 +246,41 @@ class _UniClientShellState extends State<UniClientShell> {
   }
 
   /// Three columns: dialogs + chat + info panel.
+  /// Implements the Telegram Desktop three-column shrink algorithm (spec §1
+  /// SessionController::shrinkDialogsAndThirdColumns).
   Widget _buildThreeColumn(BuildContext context, double bodyWidth,
       bool showFilters, ChatState chatState) {
-    final dialogsWidth = (bodyWidth * _dialogsWidthRatio)
-        .clamp(_dialogsMin, _dialogsMax);
-    const infoWidth = 360.0; // Between min (292) and max (392).
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Step 1: Start from preferred widths.
+    var dw = (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, _dialogsMax);
+    var tw = _thirdColumnWidth.clamp(_thirdMin, _thirdMax);
+
+    // Step 2: Shrink algorithm — if both columns + chat min don't fit.
+    if (dw + tw + _chatMin > bodyWidth) {
+      // Pin chat to 380px minimum, divide the rest proportionally.
+      final available = bodyWidth - _chatMin;
+      final total = dw + tw;
+      if (total > 0) {
+        tw = available * tw / total;
+        dw = available * dw / total;
+      }
+      // Step 3: Clamp — ensure both columns meet minimums.
+      if (tw < _thirdMin) {
+        tw = _thirdMin;
+        dw = bodyWidth - _thirdMin - _chatMin;
+      } else if (dw < _dialogsMin) {
+        dw = _dialogsMin;
+        tw = bodyWidth - _dialogsMin - _chatMin;
+      }
+      tw = tw.clamp(_thirdMin, _thirdMax);
+      dw = dw.clamp(_dialogsMin, _dialogsMax);
+    }
+
+    // Chat gets all remaining width (always >= 380px).
+    final chatWidth = bodyWidth - dw - tw;
+    // Spec §1: Wide chat mode at 880px — center message bubble column.
+    final wideChatMode = chatWidth >= _wideChatThreshold;
 
     return Row(
       children: [
@@ -189,37 +289,59 @@ class _UniClientShellState extends State<UniClientShell> {
           FilterColumn(
             onOpenDrawer: () => _openDrawer(context),
           ),
+        if (showFilters) _ColumnShadow(isDark: isDark),
         // Dialogs column.
         SizedBox(
-          width: dialogsWidth,
+          width: dw,
           child: ChatListPanel(
             showHamburger: !showFilters,
             onOpenDrawer: showFilters ? null : () => _openDrawer(context),
             filterSidebarVisible: showFilters,
+            collapsed: _dialogsCollapsed,
           ),
         ),
+        // Dialogs-chat shadow separator + resize handle.
+        _ColumnShadow(isDark: isDark),
         _ResizeHandle(
           onDrag: (dx) {
             setState(() {
-              final newWidth = (bodyWidth * _dialogsWidthRatio + dx)
-                  .clamp(_dialogsMin, _dialogsMax);
-              _dialogsWidthRatio = newWidth / bodyWidth;
+              final raw = dw + dx;
+              if (raw < _dialogsCollapseThreshold) {
+                _dialogsCollapsed = true;
+              } else {
+                _dialogsCollapsed = false;
+                _dialogsWidthRatio = raw.clamp(_dialogsMin, _dialogsMax) / bodyWidth;
+              }
+              _saveLayoutPrefs();
             });
           },
         ),
         // Chat column.
-        Expanded(
+        SizedBox(
+          width: chatWidth,
           child: chatState.activeChat != null
               ? ChatView(
                   showBackButton: false,
                   onToggleInfo: () => setState(() => _infoOpen = !_infoOpen),
+                  wideChatMode: wideChatMode,
                 )
               : _EmptyChatPlaceholder(),
         ),
-        // Info panel.
+        // Chat-info shadow separator.
         if (_infoOpen && chatState.activeChat != null) ...[
+          _ColumnShadow(isDark: isDark),
+          // Info panel with resize handle.
+          _ResizeHandle(
+            onDrag: (dx) {
+              setState(() {
+                // Dragging right = shrinking third column.
+                _thirdColumnWidth = (tw - dx).clamp(_thirdMin, _thirdMax);
+                _saveLayoutPrefs();
+              });
+            },
+          ),
           SizedBox(
-            width: infoWidth,
+            width: tw,
             child: InfoPanel(
               onClose: () => setState(() => _infoOpen = false),
             ),
@@ -248,7 +370,27 @@ class _UniClientShellState extends State<UniClientShell> {
   }
 }
 
-/// Drag handle between columns (1px separator with drag behavior).
+/// Spec §1 column shadow separator. 1px fillRect with shadowFg color.
+/// Light theme: #00000018 (black at 9.4% opacity).
+/// Dark theme: #04080e56 (near-black at 33.7% opacity).
+/// No animation — static paint, toggled by show/hide.
+class _ColumnShadow extends StatelessWidget {
+  final bool isDark;
+
+  const _ColumnShadow({required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      color: isDark
+          ? const Color(0x5604080e) // #04080e at alpha 0x56
+          : const Color(0x18000000), // #000000 at alpha 0x18
+    );
+  }
+}
+
+/// Drag handle between columns (invisible 4px hit target, no visual).
 class _ResizeHandle extends StatelessWidget {
   final void Function(double dx) onDrag;
 
@@ -260,10 +402,7 @@ class _ResizeHandle extends StatelessWidget {
       onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
       child: MouseRegion(
         cursor: SystemMouseCursors.resizeColumn,
-        child: Container(
-          width: 4,
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
-        ),
+        child: const SizedBox(width: 4),
       ),
     );
   }

@@ -8,14 +8,9 @@ Top-to-bottom execution order. Remove items when done.
 
 All per-section content gaps in `research/telegram_desktop_ui.md` have been filled. See `checklist/spec_gaps.md` for full completion notes. Every section §1-§57 now has source-cited pixel-level detail.
 
-## Step 2: Build the complete GUI checklist (session after Step 1)
+## Step 2: Build the complete GUI checklist — COMPLETE (2026-04-19)
 
-Using the perfected `research/telegram_desktop_ui.md`, build a full implementation checklist in `checklist/gui.md`. Rules:
-- Every UI feature gets a checklist entry
-- Each entry cites the relevant `telegram_desktop_ui.md` section (e.g. "see §4.2") — do NOT copy-paste spec content
-- If a feature is already implemented, verify it matches the spec exactly (is it canon?)
-- If a feature is not implemented, it goes on the list as TODO
-- The checklist must be COMPLETE — every single UI element, interaction, and state from the spec
+Full implementation checklist built in `checklist/gui.md` — 5329 checkbox items across all 57 sections (§1-§57) of `research/telegram_desktop_ui.md`. Every UI feature, interaction, state, dimension, and color token has a checklist entry citing its spec section.
 
 ## Step 3: Implement everything on the checklist
 

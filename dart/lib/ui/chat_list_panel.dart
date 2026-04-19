@@ -7,16 +7,20 @@ import '../state/chat_state.dart';
 import 'chat_list_row.dart';
 
 /// The entire left panel: search bar + chat list.
+/// When [collapsed] is true, renders in avatar-only narrow mode (spec §1:
+/// dialogs dragged below 130px snap to collapsed showing only avatars).
 class ChatListPanel extends StatefulWidget {
   final bool showHamburger;
   final VoidCallback? onOpenDrawer;
   final bool filterSidebarVisible;
+  final bool collapsed;
 
   const ChatListPanel({
     super.key,
     this.showHamburger = false,
     this.onOpenDrawer,
     this.filterSidebarVisible = false,
+    this.collapsed = false,
   });
 
   /// Global hook used by app-level keyboard shortcuts (Ctrl+F) to focus the

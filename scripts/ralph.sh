@@ -127,9 +127,9 @@ CONSECUTIVE_FAILURES=0
 STALL_ITERATIONS=0
 LAST_COMMIT_HASH="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || echo "none")"
 
-log "=== Ralph loop starting (infinite, subscription mode) ==="
-log "Kill with: Ctrl+C or kill \$\$"
-log "Monitor with: tail -f $LOG_FILE"
+log "=== Ralph loop starting ==="
+log "All output streams here. Logs also saved to: $LOG_FILE"
+log "Kill with: Ctrl+C"
 
 while true; do
   ITERATION=$((ITERATION + 1))
