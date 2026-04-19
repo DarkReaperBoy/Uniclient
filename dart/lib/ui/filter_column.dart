@@ -91,6 +91,17 @@ class FilterColumn extends StatelessWidget {
               },
             ),
           ),
+          // Spec §1: "Edit" button at bottom of filters sidebar.
+          // Opens the hamburger menu (settings access point).
+          const SizedBox(height: 4),
+          _FolderTab(
+            icon: Icons.edit,
+            label: 'Edit',
+            isActive: false,
+            unreadCount: 0,
+            onTap: onOpenDrawer ?? () {},
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );

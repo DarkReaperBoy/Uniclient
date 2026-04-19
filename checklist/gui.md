@@ -24,7 +24,6 @@
 ## 1. Window Layout & Column Structure
 
 ### 1.1 Column System
-- [ ] "Edit" button at bottom of filters sidebar (S1)
 - [ ] Dialogs column with persisted width ratio (S1)
 - [ ] Dialogs column min 260px, max 540px (S1)
 - [ ] Dialogs column resizable via drag handle (S1)
