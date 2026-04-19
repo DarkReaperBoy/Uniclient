@@ -32,14 +32,7 @@
 ## 2. Chat List Sidebar
 
 ### 2.1 Folder Tabs
-- [ ] Vertical sidebar mode: 72px left-edge column (S2)
-- [ ] SideBarButton with icon + folder name per tab (S2)
-- [ ] "All Chats" default tab (filter ID 0, can be hidden) (S2)
-- [ ] Active tab highlighted (S2)
 - [ ] Unread badges per tab (muted vs unmuted color) (S2)
-- [ ] Vertical sidebar: scrollable tabs (S2)
-- [ ] Vertical sidebar: drag-reorderable tabs (S2)
-- [ ] Hamburger button at top of vertical sidebar (S2)
 - [ ] Horizontal tab strip mode when vertical sidebar off (S2)
 - [ ] Horizontal tab strip: scrollable row below search bar (S2)
 - [ ] Horizontal tab strip: sliding underline indicator on active tab (S2)
