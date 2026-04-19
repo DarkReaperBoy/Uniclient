@@ -53,22 +53,39 @@ class FilterColumn extends StatelessWidget {
             onTap: () => chatState.setActiveFolder(null),
           ),
           const SizedBox(height: 4),
-          // Folder tabs (scrollable).
+          // Folder tabs (scrollable, drag-reorderable).
           Expanded(
-            child: ListView.separated(
+            child: ReorderableListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 4),
               itemCount: folders.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 4),
+              buildDefaultDragHandles: false,
+              proxyDecorator: (child, index, animation) {
+                return Material(
+                  elevation: 4,
+                  color: Colors.transparent,
+                  child: child,
+                );
+              },
+              onReorder: (oldIndex, newIndex) {
+                chatState.reorderFolders(oldIndex, newIndex);
+              },
               itemBuilder: (context, index) {
                 final folder = folders[index];
                 final unread = chatState.unreadCountForFolder(folder.id);
-                return _FolderTab(
-                  icon: _folderIcon(folder.name),
-                  label: _shortenLabel(folder.name),
-                  isActive: activeFolderId == folder.id,
-                  unreadCount: unread,
-                  onTap: () => chatState.setActiveFolder(
-                    activeFolderId == folder.id ? null : folder.id,
+                return ReorderableDelayedDragStartListener(
+                  key: ValueKey(folder.id),
+                  index: index,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: _FolderTab(
+                      icon: _folderIcon(folder.name),
+                      label: _shortenLabel(folder.name),
+                      isActive: activeFolderId == folder.id,
+                      unreadCount: unread,
+                      onTap: () => chatState.setActiveFolder(
+                        activeFolderId == folder.id ? null : folder.id,
+                      ),
+                    ),
                   ),
                 );
               },

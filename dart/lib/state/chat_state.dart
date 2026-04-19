@@ -186,6 +186,16 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reorder folders locally (drag-and-drop in folder sidebar).
+  void reorderFolders(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= _folders.length) return;
+    if (newIndex < 0 || newIndex > _folders.length) return;
+    if (newIndex > oldIndex) newIndex--;
+    final item = _folders.removeAt(oldIndex);
+    _folders.insert(newIndex, item);
+    notifyListeners();
+  }
+
   /// Load folders for a specific account.
   Future<void> loadFoldersForAccount(String accountId) async {
     _foldersForAccount = accountId;

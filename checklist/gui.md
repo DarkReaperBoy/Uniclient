@@ -24,12 +24,7 @@
 ## 1. Window Layout & Column Structure
 
 ### 1.1 Column System
-- [ ] Filters sidebar column, 72px fixed width, leftmost position (S1)
-- [ ] Hamburger menu icon at top of filters sidebar (S1)
-- [ ] Vertical folder filter buttons in filters sidebar, scrollable (S1)
-- [ ] Drag-reorderable folder filter buttons (S1)
 - [ ] "Edit" button at bottom of filters sidebar (S1)
-- [ ] Filters sidebar shown only when user has chat folders enabled (S1)
 - [ ] Dialogs column with persisted width ratio (S1)
 - [ ] Dialogs column min 260px, max 540px (S1)
 - [ ] Dialogs column resizable via drag handle (S1)
