@@ -4731,6 +4731,17 @@ Zoom range: -7 (1/8x) to +7 (8x). Special `kZoomToScreenLevel` (1024) = fit-to-s
 
 Zoom transitions animate with `_geometryAnimation` using `widgetFadeDuration`.
 
+#### 20.4.1 HiDPI / Device-Pixel-Ratio Matrix
+
+The overlay is DPR-aware end-to-end. All `QImage` buffers handed to the painter have their DPR stamped before draw so logical coordinates stay integer-aligned across 1x / 1.25x / 1.5x / 2x displays:
+
+- Document thumbnail buffer: `_docRectImage.setDevicePixelRatio(style::DevicePixelRatio())` (source: `media_view_overlay_widget.cpp:1380`).
+- Static image path (photo / frame snapshot): `image.setDevicePixelRatio(style::DevicePixelRatio())` (source: `media_view_overlay_widget.cpp:3516`) — DPR is stamped *before* the flip/rotate transform (source: `media_view_overlay_widget.cpp:3520-3521`), so rotation never introduces half-pixel origins.
+- Oversize guard: `kMaxDisplayImageSize = 4096` (source: `media_view_overlay_widget.cpp:147`). Images exceeding this are downscaled in `PrepareStaticImage()` with `Qt::SmoothTransformation` (source: `media_view_overlay_widget.cpp:3508-3512`) — the macOS OpenGL texture ceiling, applied on every backend for consistency.
+- Toolbar / button metrics are declared in logical px (`mediaviewIconSize: size(46px, 54px)` at `media_view.style:249`; `mediaviewControllerSize: size(480px, 72px)` at `media_view.style:42`); Qt's DPR pipeline handles physical scaling, so no per-DPR asset swap happens inside the overlay.
+
+Flutter parity: honour `MediaQuery.devicePixelRatio` when decoding, snap the destination `Rect` to whole logical pixels before `canvas.drawImageRect`, and cap any decoded texture at 4096 logical px on the long edge.
+
 ### 20.5 Rotation and Flip
 
 Rotation: 0/90/180/270 degrees, each click subtracts 90°. Rotate button in bottom-right toolbar. Animates on OpenGL renderer.
@@ -4776,6 +4787,34 @@ Icons right-to-left in 46x54px cells (`mediaviewIconSize`). Hover: 36px circle.
 | 6 | OCR | `mediaview/recognize` | OCR results available |
 
 Hover fade: 150ms (`mediaviewFadeDuration`), `anim::linear`.
+
+#### 20.8.1 More-Menu (Overflow "⋯") Contents
+
+Clicking the `title_menu_dots` button opens a `Ui::DropdownMenu` (`_dropdown`, source: `media_view_overlay_widget.h:946`). Its items are populated by the same routine that builds the right-click menu — `fillContextMenuActions()` at `media_view_overlay_widget.cpp:3963+` — so dropdown and context menu share identical item ordering and gating. The list below is what the more-menu shows, top to bottom, skipping entries whose guard fails:
+
+| # | Item | Guard | Source line |
+|---|---|---|---|
+| — | (sponsored messages early-return; menu not shown) | `_message->isSponsored()` | `media_view_overlay_widget.cpp:3967` |
+| 1 | Cancel download | `_document && _document->loading()` | `media_view_overlay_widget.cpp:3975` |
+| 2 | Show in Chat | `_message && _message->isRegular()` | `media_view_overlay_widget.cpp:3980` |
+| 3 | Retract Vote | `currentPollAnswer()` set, poll still open | `media_view_overlay_widget.cpp:3985` |
+| 4 | Archive / Save to Profile | self-owned story | `media_view_overlay_widget.cpp:3993` |
+| 5 | Show in Folder | `!_document->filepath(true).isEmpty()` | `media_view_overlay_widget.cpp:4005` |
+| 6 | Copy Image / Copy Frame | `!hasCopyMediaRestriction()` && content ready | `media_view_overlay_widget.cpp:4016` |
+| 7 | Attached Stickers | photo/document has attached stickers | `media_view_overlay_widget.cpp:4025` |
+| 8 | Forward | `_message && _message->allowsForward()` | `media_view_overlay_widget.cpp:4032` |
+| 9 | Share at Time | `canShareAtTime()` (video w/ timestamp) | `media_view_overlay_widget.cpp:4038` |
+| 10 | Share Story | `story && story->canShare()` | `media_view_overlay_widget.cpp:4051` |
+| 11 | Delete | story/message/userpic deletion permitted | `media_view_overlay_widget.cpp:4062` |
+| 12 | Save As… | `!hasCopyMediaRestriction(true)` | `media_view_overlay_widget.cpp:4073` |
+| 13 | Show All Photos / Files | `computeOverviewType()` returns value | `media_view_overlay_widget.cpp:4080` |
+| 14 | Set as Userpic | peer + photo permissions | `media_view_overlay_widget.cpp:4091` |
+| 15 | Report Userpic | user-photo report eligibility | `media_view_overlay_widget.cpp:4120` |
+| 16 | View Statistics | channel with statistics flag | `media_view_overlay_widget.cpp:4150` |
+| 17 | Stealth Mode | stories + user peer + premium/active stealth | `media_view_overlay_widget.cpp:4158` |
+| 18 | Report Story | `story && story->canReport()` | `media_view_overlay_widget.cpp:4168` |
+
+Keyboard shortcuts: none are bound inside `fillContextMenuActions()` itself — the global shortcuts from §20.18 (Ctrl+S / Ctrl+C / Escape / etc.) fire at the overlay level and are independent of whether the dropdown is open.
 
 ### 20.9 Caption Display
 
@@ -4824,12 +4863,53 @@ Toggled by: double-click, Alt+Enter, Ctrl+Enter, Ctrl+F, or fullscreen button. C
 
 Floating always-on-top window. Default 320px (`pipDefaultSize`), minimum 120px (`pipMinimalSize`). Resize area 10px edges. Own play/pause, close, enlarge, volume controls. Playback track: 2px default, 4px hover. Geometry persisted. Closing returns to full overlay at same position.
 
+#### 20.13.1 Snap Rules on Drag Release
+
+PiP uses edge-snap, not corner-snap: any of the four edges that ends up within `pipBorderSnapArea` of the screen edge on pointer-release is pulled flush; the opposite edge is free. Constants (source: `media_view.style:334-338`):
+
+| Constant | Value | Purpose |
+|---|---|---|
+| `pipDefaultSize` | 320px | initial square size |
+| `pipMinimalSize` | 120px | minimum on resize |
+| `pipBorderSkip` | 20px | margin from screen edge when snapped |
+| `pipBorderSnapArea` | 16px | edge-snap threshold |
+| `pipResizeArea` | 10px | grab-handle thickness |
+
+Default landing corner when PiP is first opened: **top-left** (`position.snapped = RectPart::Top | RectPart::Left`, source: `media_view_pip.cpp:1038`).
+
+Snap algorithm — `ClampToEdges()` (source: `media_view_pip.cpp:66-88`): for each edge it tests `if (edge + shift >= screenEdge - pipBorderSnapArea && edge + shift < screenEdge + pipBorderSnapArea)`, then shifts the window so the inner margin equals `3 * pipBorderSkip = 60px` on the snapped sides (source: `media_view_pip.cpp:48`).
+
+Release animation: `_positionAnimation.start(..., 0., 1., st::slideWrapDuration, anim::easeOutCirc)` (source: `media_view_pip.cpp:1278-1284`). Flutter parity: `Curves.easeOutCirc` with `slideWrapDuration` (150 ms range; equivalent to standard Material "medium" easing).
+
+Z-order: the PiP window is created with `Qt::Tool | Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint | Qt::WindowDoesNotAcceptFocus` (source: `media_view_pip.cpp:894-898`). `WindowStaysOnTopHint` enforces always-on-top across all other Telegram windows and other OS apps. `WindowDoesNotAcceptFocus` means clicking the PiP does not steal focus from whatever chat window is below it.
+
 ### 20.14 Gallery / Group Thumbs Strip
 
 Horizontal thumbnails at bottom for shared media / multi-photo messages:
 - Width: 56px (`mediaviewGroupWidth`) to 160px (`mediaviewGroupWidthMax`), height 80px (`mediaviewGroupHeight`)
 - Padding: 0/14/0/14px, skip 3px between, 12px for current item
 - Click navigates, active highlighted, items animate in/out
+
+#### 20.14.1 Row Geometry and Overflow Behavior
+
+All metrics resolve to the style declarations at `media_view.style:268-273`:
+
+| Metric | Value | Source |
+|---|---|---|
+| `mediaviewGroupPadding` | `margins(0px, 14px, 0px, 14px)` | `media_view.style:268` |
+| `mediaviewGroupHeight` | 80px | `media_view.style:269` |
+| `mediaviewGroupWidth` | 56px (neighbour thumbs) | `media_view.style:270` |
+| `mediaviewGroupWidthMax` | 160px (current thumb, wide) | `media_view.style:271` |
+| `mediaviewGroupSkip` | 3px (between thumbs) | `media_view.style:272` |
+| `mediaviewGroupSkipCurrent` | 12px (around current) | `media_view.style:273` |
+
+Layout model is **centered, not scrolled**. The current thumbnail sits centered in the strip at `-_fullWidth / 2` (source: `media_view_group_thumbs.cpp:389`) and is drawn at up to `mediaviewGroupWidthMax` (160px); neighbours shrink to `mediaviewGroupWidth` (56px). Vertical padding (top/bottom of row) comes from `mediaviewGroupPadding.top()` / `.bottom()` (source: `media_view_group_thumbs.cpp:714`).
+
+Overflow handling: there is **no scrollbar and no drag-scroll**. `ComputeThumbsLimit()` at `media_view_group_thumbs.cpp:375-382` caps how many side thumbs are laid out: `max(leftWidth / (2 * singleWidth), 1)` where `leftWidth` is the available half-width. Items beyond that cap are not rendered; navigating Left/Right shifts the centered item and neighbours animate in/out from outside the visible band.
+
+Animation: `kThumbDuration = crl::time(150)` (source: `media_view_group_thumbs.cpp:30`) — 150 ms per in/out slide when the current item changes.
+
+Highlighted current ring: no explicit stroke ring is drawn. The active thumb is emphasised purely by width (`mediaviewGroupWidthMax` 160px vs neighbours' 56px) plus the 12 px `mediaviewGroupSkipCurrent` gap isolating it. Flutter parity: animate `width` 56→160 over 150 ms with `Curves.linear` (the call site uses default `Ui::Animations::Simple` with no easing override).
 
 ### 20.15 Save/Download Toast
 
@@ -4840,6 +4920,36 @@ Centered toast: `mediaviewSaveMsgBg` background, check icon at (23, 21)px, paddi
 Right-click opens dark-themed popup (`groupCallMenuBg` background, `groupCallMembersFg` text):
 
 Items include: Cancel download, Show in Chat, Show in Folder, Copy/Copy Frame, Forward, Share at Time, Delete, Save As, All Photos/Files, Set as Userpic, Report, Stealth Mode (stories).
+
+#### 20.16.1 Structured Context Menu Table
+
+Right-click on the viewer surface invokes the same `fillContextMenuActions()` as the more-menu (source: `media_view_overlay_widget.cpp:3963+`), so ordering and gating match §20.8.1. The table below adds per-content-type conditionals (photo / video / GIF / own-message / channel / story) derived from the guard expressions:
+
+| Order | Item | Own msg | Channel admin | Photo | Video/GIF | Story | Source |
+|---|---|---|---|---|---|---|---|
+| — | (sponsored) — menu suppressed | — | — | — | — | — | `:3967` `isSponsored()` early return |
+| 1 | Cancel Download | any | any | — | if loading | any | `:3975` |
+| 2 | Show in Chat | any | any | from msg | from msg | — | `:3980` regular only |
+| 3 | Retract Vote | own | — | — | — | — | `:3985` poll answer |
+| 4 | Archive / Save Story | own | — | — | — | own | `:3993` `peer()->isSelf()` |
+| 5 | Show in Folder | any | any | downloaded | downloaded | downloaded | `:4005` `filepath()` set |
+| 6 | Copy Image / Copy Frame | any | if allowed | yes | yes (frame) | if allowed | `:4016` no-copy guard |
+| 7 | Attached Stickers | any | any | if present | if present | — | `:4025` |
+| 8 | Forward | any | if forwardable | msg-bound | msg-bound | story-forwardable | `:4032` `allowsForward()` |
+| 9 | Share at Time | any | any | — | yes | — | `:4038` `canShareAtTime()` |
+| 10 | Share Story | — | — | — | — | yes | `:4051` `canShare()` |
+| 11 | Delete | own | admin | yes | yes | own | `:4062` per-entity |
+| 12 | Save As… | any | if allowed | yes | yes | if allowed | `:4073` no-copy guard |
+| 13 | Show All Photos / Files | any | any | yes | yes (Files) | — | `:4080` overview type |
+| 14 | Set as Userpic | self | — | photo | — | — | `:4091` peer+photo |
+| 15 | Report Userpic | — | — | foreign user photo | — | — | `:4120` |
+| 16 | View Statistics | — | channel w/ stats | yes | yes | — | `:4150` stats flag |
+| 17 | Stealth Mode | — | — | — | — | premium viewer | `:4158` user peer |
+| 18 | Report Story | — | — | — | — | not own | `:4168` `canReport()` |
+
+Rotate Left / Rotate Right are **not** part of this menu — rotation is the bottom-right toolbar button only (§20.8 row 2) plus the keyboard accelerator in §20.18. This matches AyuGram/Telegram Desktop: the context menu never exposes rotation directly.
+
+Popup chrome inherits `groupCallMenuBg` background / `groupCallMembersFg` foreground per the existing §20.16 lead-in.
 
 ### 20.17 Stories Viewer Integration
 
@@ -4868,6 +4978,36 @@ Delegates to `Stories::View`. Content: aspect-fit within 540x960px (`storiesMaxS
 - **Between-media**: `_geometryAnimation` interpolates rect + rotation over `widgetFadeDuration`
 - **Radial loading**: spinning arc in `radialSize` circle, `radialBg`/`radialFg` colors
 - **Save toast**: 200ms in, 2s hold, 2.5s out
+
+#### 20.19.1 Open / Close Geometry Animation (thumbnail → lightbox)
+
+The enter/exit transition is driven by two animation objects declared in the overlay header:
+
+| Field | Type | Line |
+|---|---|---|
+| `_geometryAnimation` | `Ui::Animations::Simple` | `media_view_overlay_widget.h:892` |
+| `_stateAnimation` | `Ui::Animations::Basic` | `media_view_overlay_widget.h:923` |
+| `_controlsOpacity` | `anim::value` | `media_view_overlay_widget.h:944` |
+| `_saveMsgAnimation` | `Ui::Animations::Simple` | `media_view_overlay_widget.h:967` |
+| `_recognitionAnimation` | `Ui::Animations::Simple` | `media_view_overlay_widget.h:990` |
+
+`_stateAnimation` is the driver (basic ticker; source: `media_view_overlay_widget.cpp:1371` — `_stateAnimation([=](crl::time now) { return stateAnimationCallback(now); })`). Inside `updateControlsAnimation()` (source: `media_view_overlay_widget.cpp:2509`) the opacity transition picks duration based on direction:
+
+- Show: `st::mediaviewShowDuration` = 200 ms (source: `media_view.style:253`), curve `anim::linear` (source: `media_view_overlay_widget.cpp:2516-2527`).
+- Hide: `st::mediaviewHideDuration` = 600 ms (source: `media_view.style:252`), curve `anim::linear`.
+
+`_controlsOpacity.update(dt, anim::linear)` (source: `media_view_overlay_widget.cpp:2523-2527`) is the exact easing — a straight ramp, not a Bezier. Match with `Curves.linear` in Flutter.
+
+Rectangle interpolation — `contentGeometry()` at `media_view_overlay_widget.cpp:2614-2651`:
+1. While `_geometryAnimation.animating()`, read `progress = _geometryAnimation.value(1.)` (range 0.0–1.0).
+2. Rotation delta is normalised through the ±180° wrap at `:2629-2651` so a 270° → 0° animation interpolates via −90° (shortest path), never +270°.
+3. Rect coordinates are linearly interpolated component-wise at `:2641-2650` — `left`, `top`, `width`, `height` each via `anim::interpolate(from, to, progress)`.
+
+No explicit `_saveTransitionAnim` exists in the current source; prior renames consolidated under `_geometryAnimation`. `_saveMsgAnimation` (toast) is separate — see §20.15.
+
+Overlay fade-in on open uses `widgetFadeDuration` (e.g. recognition-results path at `media_view_overlay_widget.cpp:2516`). That constant lives in a shared `basic.style` outside `media_view.style`; it is the standard Qt-widgets widget-fade value used throughout Telegram Desktop (nominally 200 ms per Qt-widgets conventions — verify next session by fetching `basic.style`).
+
+Flutter mapping: drive a single `AnimationController` with `Duration(milliseconds: 200)` for open and `600` for close, `curve: Curves.linear`. Use `RectTween` for geometry, `Tween<double>` for rotation in degrees with manual shortest-path wrap, and a separate fade layer for overlay background (`mediaviewBg` 0→1 on the 200 ms ramp).
 
 ---
 
