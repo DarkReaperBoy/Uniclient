@@ -9979,6 +9979,59 @@ Most steps share a header layout produced by `SetupHeader()`:
 - **Text field** (`AddWrappedField`): `Ui::InputField` with same `settingLocalPasscodeInputField` style. Used for hint and email inputs. Full width, not centered.
 - **Error label** (`AddError`): `FlatLabel` with style `settingLocalPasscodeError` (inherits `changePhoneError`, minWidth 256px, error-red text `boxTextFgError`). Padding: `changePhoneDescriptionPadding`. Initially hidden; shown on validation failure. Auto-hides when the associated input field changes.
 
+#### 28.2.3a `Add*Field` Wrapper Error Ring & Focus Behavior
+
+The 2FA setup wizard uses three reusable input wrappers defined in `Telegram/SourceFiles/settings/cloud_password/settings_cloud_password_common.cpp` (`AddPasswordField`, `AddWrappedField`, `AddSkipInsteadOfField`). The "error ring" around these wrappers is not a custom-drawn overlay — it is delegated entirely to the underlying `Ui::InputField` / `Ui::PasswordInput` error-state machinery from `lib_ui` (tdesktop's UI submodule, outside the `Telegram/SourceFiles/` tree). The wrappers add centering, spacing, and automatic error-label hide logic on top of that.
+
+**`AddPasswordField` wrapper** (`settings_cloud_password_common.cpp:127-143`):
+
+1. Creates an `Ui::RpWidget` container added to the `VerticalLayout`.
+2. Inside the container, constructs a `Ui::PasswordInput` with style `st::settingLocalPasscodeInputField` (inherits `defaultInputField`; **width 256px**, **heightMin 61px**).
+3. Resizes the container height to `st.heightMin` (61px) so the wrapper occupies a fixed slot.
+4. Horizontally centers the field inside the container: `field->moveToLeft((r.width() - field->width()) / 2, 0)` — this is the centering rule that differentiates password fields from the full-width wrapped field.
+5. Returns the field pointer so callers can wire `submits()` and `changes()` signals.
+
+**`AddWrappedField` wrapper** (`settings_cloud_password_common.cpp:145-153`):
+
+1. Directly adds a `Ui::InputField` to the vertical layout with the same `st::settingLocalPasscodeInputField` style.
+2. No manual centering, no container; occupies the full layout width (spans column inside the section's content margin).
+3. Used for the Hint field, the Email field, and the SentCodeField confirmation field.
+
+**`AddSkipInsteadOfField`** (`settings_cloud_password_common.cpp:189-191`): inserts a `FixedHeightWidget` with `st::settingLocalPasscodeInputField.heightMin` (61px) vertical space. This is how steps with only one visible input (e.g., check mode, which shows only "Current password") keep the Lottie icon, title, and button at the same vertical position as two-input steps — an invisible phantom slot preserves alignment.
+
+**Error ring visuals (inherited from `Ui::InputField`):**
+
+The visible "error ring" is drawn by `Ui::InputField::paintEvent` using four color tokens from the `InputField::Style` struct:
+
+| State | Border color token |
+|-------|--------------------|
+| Unfocused, no error | `borderFg` (from `defaultInputField` = `activeLineFgOver`, the muted line) |
+| Focused, no error | `borderFgActive` (`activeLineFg`, accent blue) |
+| Unfocused, error | `borderFgError` (`boxTextFgError`, error red) |
+| Focused + error | `borderFgErrorActive` (also `boxTextFgError`, the red is kept while focused) |
+
+Border animation is driven by a `Ui::Animations::Simple` inside `InputField`, crossfading between current and target color over `st::defaultInputField.duration` (typically 150ms). `showError()` raises an internal error flag, swaps the target border color, and kicks the animation; the field auto-clears the error on the next emitted `changes()` signal.
+
+**Error auto-hide wiring** (`AddError`, `settings_cloud_password_common.cpp:167-180`):
+
+```
+auto label = content->add(
+    object_ptr<FlatLabel>(content, st::settingLocalPasscodeError),
+    st::changePhoneDescriptionPadding);
+label->hide(anim::type::instant);
+if (input) {
+    input->changes() | rpl::start_with_next([=] {
+        label->hide(anim::type::instant);
+    }, input->lifetime());
+}
+```
+
+Any keystroke in the bound field instantly hides the red error text below it; the border ring fades back to neutral on the same `changes()` tick via the InputField's own animation. The `FlatLabel` style `settingLocalPasscodeError` inherits `changePhoneError` (font 14px, color `boxTextFgError`, text-align center, minWidth 256px to match the field). Padding `changePhoneDescriptionPadding` = margins(0, 1, 0, 8) produces a tight 1px top gap so the message sits immediately below the input's baseline.
+
+**Link button docking** (`AddLinkButton`, `settings_cloud_password_common.cpp:155-165`): positions a `Ui::LinkButton` as a sibling of the input's **parent widget** (not the layout), tracking `input.geometry()` via an rpl subscription. Offset: `(input.x, input.y + input.height + st::passcodeTextLine)` — **28px below the input baseline**. This is why the Forgot/Skip link animates with the field when the container reflows, instead of relying on a separate layout row.
+
+**HONEST GAPS:** The `Ui::InputField` class itself lives in the external `lib_ui` submodule (not at `Telegram/SourceFiles/ui/widgets/input_fields.h` in this fork). The exact value of `borderFg` / `borderFgError` tokens, the error-fade duration, and the border stroke width for the 2FA wrapper cannot be cited from AyuGramDesktop sources alone — they are defined in `lib_ui/ui/widgets/fields/input_field.{h,cpp,style}` upstream. The client should mirror the upstream defaults (150ms fade, 1px border, `boxTextFgError = #d14e4e`-class red).
+
 #### 28.2.4 Common Done Button
 
 `AddDoneButton` creates a `RoundButton` with style `changePhoneButton` (inherits `defaultActiveButton`, accent background `activeButtonBg`, white text `activeButtonFg`). Padding: `settingLocalPasscodeButtonPadding` = **margins(0, 19, 0, 35)**. Width matches the `changePhoneButton` style (300px from `introNextButton` base). Height: 42px. Border radius: 6px.
@@ -10086,6 +10139,209 @@ Entry: User clicks "Two-Step Verification" when status is "Off".
 - Flood: `lng_flood_error`.
 
 **Navigation stack cleanup**: `removeTypes()` returns all 2FA step types, so pressing "Back" after confirmation returns directly to Privacy Settings.
+
+#### 28.3.5a `Ui::SentCodeField` Internals
+
+Source: `Telegram/SourceFiles/ui/widgets/sent_code_field.{h,cpp}`. The 2FA email-confirmation step uses `Ui::SentCodeField`, which is **not** a cell-based widget. It is a thin subclass of `Ui::InputField` that adds three behaviors: digit-only display filtering, optional hyphen grouping, and auto-submit on length. There are no per-digit boxes, no focus ring per cell, no between-cell transitions — just the normal InputField underline/border. The cell-based look (separate boxes per digit) is a **different** widget, `Intro::CodeInput`, used only in the login intro flow (see §28.9.1a below for its email variant).
+
+**Class declaration** (`ui/widgets/sent_code_field.h:11-27`):
+
+```
+class SentCodeField final : public Ui::InputField {
+public:
+    SentCodeField(
+        QWidget *parent,
+        const style::InputField &st,
+        rpl::producer<QString> placeholder = nullptr,
+        const QString &val = QString());
+
+    void setAutoSubmit(int length, Fn<void()> submitCallback);
+    void setChangedCallback(Fn<void()> changedCallback);
+    [[nodiscard]] QString getDigitsOnly() const;
+
+private:
+    void fix();
+
+    bool _fixing = false;
+    int _autoSubmitLength = 0;
+    Fn<void()> _submitCallback;
+    Fn<void()> _changedCallback;
+};
+```
+
+**Constructor behavior** (`ui/widgets/sent_code_field.cpp:14-18`): wires every `changes()` signal to `fix()`, so the filter runs after every keystroke, paste, or programmatic set.
+
+**`fix()` pipeline** (`ui/widgets/sent_code_field.cpp:35-74`):
+
+1. Guards against reentry via `_fixing` (since mutating text inside `changes()` would re-trigger the signal).
+2. Walks the current text character by character, counting digits.
+3. If `_autoSubmitLength > 0` and the digit count reaches the target, enters **strict mode**: further digits are dropped, hyphens that would exceed the grouped display are removed, cursor is clamped.
+4. Reconstructs the text with digits + single hyphens (the field visibly inserts `-` separators if the original SMS layout included them; email codes sent for 2FA are plain digits so no hyphens appear).
+5. If strict mode fires on this pass and `_submitCallback` is set, invokes `_submitCallback()` — **this is the auto-submit hook** used by the email-confirm step so the user doesn't have to press the Confirm button.
+6. Calls `_changedCallback` at the end if set.
+
+**`getDigitsOnly()`** (`ui/widgets/sent_code_field.cpp:30-33`): returns `getLastText()` with `TextUtilities::RegExpDigitsExclude()` stripped. This is the value handed to the `cloudPassword().confirmEmail(newText)` API call.
+
+**Visual behavior:** because `SentCodeField` inherits `Ui::InputField`, the widget renders as the same single-line bar as the hint/email fields:
+
+- **Width**: 256px (from `st::settingLocalPasscodeInputField`).
+- **Height**: 61px slot height, baseline around 44px.
+- **Font**: `st::settingLocalPasscodeInputField.font` (16px, inherits `defaultInputField.font`).
+- **Placeholder**: `lng_change_phone_code_title` → "Code".
+- **Border**: single bottom-line animation (see §28.2.3a). On wrong code, `showError()` flips to red.
+- **Digit grouping**: if the code length is 5–6 digits (email verification codes), the field shows the digits with no separators. For the login SMS flow at 5 digits, hyphens are inserted (`12-345`) by `fix()` when `_autoSubmitLength == 5`; this varies by flow, not by widget.
+
+**Auto-submit wiring (2FA email confirm)** (`settings/cloud_password/settings_cloud_password_email_confirm.cpp:268-269`):
+
+```
+newInput->setAutoSubmit(currentStepDataCodeLength, submit);
+newInput->submits() | rpl::start_with_next(submit, newInput->lifetime());
+```
+
+`currentStepDataCodeLength` comes from `StepData.unconfirmedEmailLengthCode` (populated by the server response to `account.getPassword` / `account.confirmPasswordEmail`). Both triggers call the same `submit` lambda, so either pressing Enter or reaching the digit-count threshold executes `confirmEmail(newText)`.
+
+**Timing / constants:** no custom fade, focus, or transition timings on `SentCodeField` itself — it reuses `InputField` animation durations. No `kFillerDigit` or `kEmpty` constants exist in this file.
+
+**HONEST GAPS:** AyuGramDesktop's 2FA email confirm uses a *single* masked `SentCodeField`, **not** per-digit cells. If the spec/GUI team wants per-digit cells for 2FA email confirmation, that is a deliberate divergence from upstream Telegram Desktop — upstream only uses cells for login SMS via `Intro::CodeInput` (see §28.9.1a below). Our Flutter rebuild can choose either: (a) mirror upstream (single field) to be 1:1, or (b) intentionally upgrade the email-confirm input to cells and note this as an AyuGram → uniclient improvement.
+
+#### 28.3.5b `CloudPasswordEmailConfirm` — Full Step Construction Walkthrough
+
+Source: `Telegram/SourceFiles/settings/cloud_password/settings_cloud_password_email_confirm.cpp` (class `EmailConfirm`, lines 47-276). This is the single wizard page that handles three overlapping flows: (a) first-time setup email confirmation, (b) unconfirmed-email resume (user navigated away before confirming), and (c) recovery-code entry when the user forgot the password. All three share the same widget stack; behavior branches on `StepData.processRecover.setNewPassword` and whether `currentPassword` is present.
+
+**Step lifecycle & stack management**
+
+1. **Entry**: either (a) `CloudPasswordEmail` after a successful `set()` call that returned `unconfirmedEmailLengthCode > 0`, (b) the Privacy Settings click path when `PasswordState == Unconfirmed`, or (c) the "Forgot password?" Recover path from `CloudPasswordInput`.
+2. **Constructor** (`email_confirm.cpp:47-72`): reads `StepData` via `std::any_cast`, caches `emailPattern` (for description) and `unconfirmedEmailLengthCode` (for auto-submit).
+3. **`removeTypes()`** (`email_confirm.cpp:83-90`) returns all six wizard step IDs:
+   ```
+   { CloudPasswordStartId(), CloudPasswordInputId(),
+     CloudPasswordHintId(),  CloudPasswordEmailId(),
+     CloudPasswordEmailConfirmId(), CloudPasswordManageId() }
+   ```
+   On completion, the navigation controller removes every listed type from the back-stack, so pressing Back from any subsequent screen goes straight to Privacy & Security. This is critical UX: users must not be able to "back up" into a half-configured password state.
+
+**`setupContent()` widget build order** (`email_confirm.cpp:91-276`):
+
+1. **Outer container**: `Ui::VerticalLayout* content` (the step's scrollable column).
+
+2. **Header** (`email_confirm.cpp:~95-102`): `SetupHeader(content, "cloud_password/email", showFinished(), title, description)`:
+   - Lottie icon `cloud_password/email` at 100×100 with padding margins(0, 19, 0, 5); plays once on `showFinished`.
+   - Title: `lng_cloud_password_confirm` ("Check your email") for the primary setup path; `lng_settings_cloud_password_email_recovery_subtitle` ("Recovery Email") for the recovery path.
+   - Description: `lng_cloud_password_waiting_code(lt_email, WrapEmailPattern(emailPattern))` → "We've sent a code to j***@g****.com" (the pattern is server-provided; `Ui::Text::WrapEmailPattern` wraps the email in non-breaking-space-preserved spans so the masked email never breaks mid-string).
+
+3. **Skip**: `Ui::AddSkip(content, st::settingLocalPasscodeDescriptionBottomSkip)` = **15px**.
+
+4. **Input** (`email_confirm.cpp:105-107`):
+   ```
+   const auto newInput = AddWrappedField(
+       content,
+       tr::lng_change_phone_code_title(),
+       QString());
+   ```
+   - Widget: `Ui::SentCodeField` via `AddWrappedField` helper — **not** `Ui::CodeInput` cells (cells are login-only; see §28.9.1a).
+   - Width: full column = **256px** from `st::settingLocalPasscodeInputField`.
+   - Placeholder: `lng_change_phone_code_title` ("Code").
+   - Auto-extracted value via `getDigitsOnly()` on submit.
+
+5. **Error label** (`email_confirm.cpp:109`): `AddError(content, nullptr)` — the nullptr means "don't auto-hide on input changes"; instead the submit handler clears it explicitly before each attempt. Style: `settingLocalPasscodeError` (red 14px, centered, minWidth 256px).
+
+6. **Resend-info label** (`email_confirm.cpp:110-120`): a second `FlatLabel` with style `changePhoneLabel` (green/muted confirmation tone), initially hidden, occupying the *same* geometry as the error label. Only one of {error, resendInfo} is visible at a time. When the resend fires, the error hides and the resendInfo shows `lng_cloud_password_resent` ("Code resent"); when the user types a new digit, both auto-hide so the slot is clean for the next verdict.
+
+7. **Resend link** (`email_confirm.cpp:155-167`): `AddLinkButton(newInput, text)` where `text` is:
+   - Setup flow: `lng_cloud_password_resend` ("Resend code").
+   - Recovery flow: `lng_signin_try_password` ("Can't access your email?").
+   - Positioned 28px below the field's baseline (`passcodeTextLine`).
+   - Click handler for setup: `cloudPassword().resendEmailCode()` → on done, show resendInfo; on error, show error label.
+   - Click handler for recovery: opens a `ConfirmBox` with `lng_cloud_password_reset_with_email` and an attention-red `lng_cloud_password_reset_ok` confirm button; on confirm, `cloudPassword().resetPassword()`.
+
+8. **Skip**: `Ui::AddSkip` (default 8px).
+
+9. **Done button** (`email_confirm.cpp:~175-180`): `AddDoneButton(content, nextButtonText())` where `nextButtonText()` returns:
+   - Setup flow: `lng_settings_cloud_password_email_confirm` ("Confirm").
+   - Recovery flow: `lng_passcode_check_button` ("Check").
+   - Width: 300px (`changePhoneButton`); height: 42px; radius: 6px; padding margins(0, 19, 0, 35).
+
+**Submit handler wiring** (`email_confirm.cpp:228-276`):
+
+A single `submit` lambda is wired to both the button's `setClickedCallback` and the input's `submits()` stream, and also triggered by `setAutoSubmit(currentStepDataCodeLength, submit)` when the digit count reaches the expected length:
+
+```
+newInput->setAutoSubmit(currentStepDataCodeLength, submit);
+newInput->submits() | rpl::start_with_next(submit, newInput->lifetime());
+```
+
+The lambda branches on `_processRecover.setNewPassword`:
+
+**Branch A — Setup confirmation** (`email_confirm.cpp:228-250`):
+1. `const auto newText = newInput->getDigitsOnly();` — digits only.
+2. Guard: if empty, show the error label with `lng_signin_wrong_code`, showError on field, return.
+3. Call `cloudPassword().confirmEmail(newText)`.
+4. On done: clear step data, `showOther(CloudPasswordManageId())` if `currentPassword` present, else `showBack()` to Privacy Settings; `removeTypes()` cleans the stack.
+5. On fail, map server errors:
+   - `"CODE_INVALID"` → error label `lng_signin_wrong_code`, `newInput->showError()`, selectAll.
+   - `"EMAIL_HASH_EXPIRED"` → hard-coded string "Email confirmation expired" (deliberate: server-side only fallback; no i18n key upstream).
+   - Flood → `lng_flood_error`.
+   - `"PASSWORD_HASH_INVALID"` / `"SRP_PASSWORD_CHANGED"` → trigger `isPasswordInvalidError()` helper: info box `lng_cloud_password_expired`, clear StepData, pop to Privacy Settings.
+
+**Branch B — Recovery code check** (`email_confirm.cpp:252-276`):
+1. `const auto code = newInput->getDigitsOnly();`
+2. Call `cloudPassword().checkRecoveryEmailAddressCode(code)`.
+3. On done: set `StepData.processRecover.checkedCode = code` and `processRecover.setNewPassword = true`, navigate to `CloudPasswordInputId()` in **recreate mode** (two new password fields + a "Disable" link that calls `recoverPassword` with empty password).
+4. On fail:
+   - `"CODE_INVALID"` → `lng_signin_wrong_code`, showError, selectAll.
+   - `"PASSWORD_RECOVERY_NA"` → fall back to password mode (silent).
+   - `"PASSWORD_RECOVERY_EXPIRED"` → clear email pattern, fall back to password mode, show transient error.
+   - Flood → `lng_flood_error`.
+
+**Top-bar menu** (`email_confirm.cpp:~200-220`): the section's top-bar three-dot menu gets a single action `lng_settings_password_abort` ("Abort Two-Step Verification Setup") with `menuIconCancel`. Click → `cloudPassword().clearUnconfirmedPassword()` → pops back to Privacy Settings with password state `Off`. This action is only shown when `unconfirmedPattern` is non-empty (i.e., the step is resumed mid-flow, not reached via explicit user navigation).
+
+**Button-state table (box-width 256px field, 300px button):**
+
+| Condition | Input border | Error label | Resend link | Button |
+|-----------|--------------|-------------|-------------|--------|
+| Initial (focused empty) | Accent blue underline | hidden | "Resend code" / "Can't access…" | "Confirm" / "Check", enabled |
+| Typing | Accent blue | hidden | same | same |
+| Reached target length | — | — | — | Auto-invoke submit (button visually pressed via its own ripple) |
+| Wrong code | Red underline (`showError`) | shown red | same | enabled (user can retry) |
+| Expired | Red underline | "Email confirmation expired" | same | enabled |
+| Resend succeeded | unchanged | hidden | same | unchanged; resendInfo label shown green |
+| Flood | Red underline | `lng_flood_error` | same | enabled |
+
+**Complete step stack call-order (Flow 1 new-password path):**
+
+```
+Privacy & Security
+  -> CloudPasswordStart                     (lottie: intro)
+  -> CloudPasswordInput (create mode)       (lottie: password_input)
+  -> CloudPasswordHint                      (lottie: hint)
+  -> CloudPasswordEmail                     (lottie: email)
+  -> [API: account.updatePasswordSettings]
+     returns SetOk { unconfirmedEmailLengthCode: N }
+  -> CloudPasswordEmailConfirm              (lottie: email)
+     [SentCodeField, setAutoSubmit(N, submit)]
+  -> [API: account.confirmPasswordEmail(code)]
+  -> removeTypes() wipes stack
+  -> showOther(CloudPasswordManageId())  OR  showBack() to Privacy & Security
+```
+
+**Complete step stack call-order (recovery path):**
+
+```
+CloudPasswordInput (check mode)
+  [Forgot password? + hasRecovery]
+  -> [API: auth.requestPasswordRecovery] → emailPattern
+  -> CloudPasswordEmailConfirm (recovery)
+     [SentCodeField, button="Check"]
+  -> [API: auth.checkRecoveryPassword(code)]
+  -> CloudPasswordInput (recreate mode) [processRecover.setNewPassword=true]
+     [two new password fields + Disable link]
+  -> CloudPasswordHint (recreate)
+  -> [API: auth.recoverPassword(code, newPassword, hint)]
+  -> removeTypes() wipes stack
+  -> showBack() to Privacy & Security  (shows lng_cloud_password_was_set / _updated toast)
+```
+
+**HONEST GAPS:** The exact line numbers inside `setupContent` beyond the ones cited (91-276 block, with 105-107 / 109 / 110-120 / 155-167 / 228-276 landmarks) could not all be directly verified — WebFetch summarization collapses long function bodies. A port implementer should open `settings_cloud_password_email_confirm.cpp` and confirm the precise ordering of `Ui::AddSkip` calls between the header, input, error, resend-info, resend-link, and done button widgets before freezing the Flutter widget tree.
 
 ---
 
@@ -10305,6 +10561,122 @@ Separate from 2FA password, this flow sets an email for passwordless login.
 - `EMAIL_HASH_EXPIRED`: `EmailConfirmationExpired`.
 
 **Stack cleanup**: On `_processFinishes`, removes `CloudLoginEmailId` from the navigation stack.
+
+#### 28.9.1a `Ui::CodeInput` — Cell-Based Widget (Login-Email Confirm)
+
+Source: `Telegram/SourceFiles/intro/intro_code_input.{h,cpp}`, styles `introCodeDigit*` in `Telegram/SourceFiles/intro/intro.style`. Despite the filename's `intro/` prefix, the Login-Email Confirm step (`CloudLoginEmailConfirm`) reuses this widget because it needs a fixed-length, auto-submitting digit entry with per-digit visual feedback. The widget is a composition: an outer `CodeInput` (`Ui::RpWidget`) manages focus, IME, paste, and clipboard; inside it are N `CodeDigit` child widgets (`Ui::AbstractButton`), one per digit slot.
+
+**Class declaration** (`intro/intro_code_input.h:13-58`):
+
+```
+class CodeInput final : public Ui::RpWidget {
+public:
+    explicit CodeInput(QWidget *parent);
+
+    void setDigitsCountMax(int digitsCount);
+    void setCode(QString code);
+    void requestCode();
+    [[nodiscard]] rpl::producer<QString> codeCollected() const;
+    void clear();
+    void showError();
+
+protected:
+    void focusInEvent(QFocusEvent *e) override;
+    void focusOutEvent(QFocusEvent *e) override;
+    void paintEvent(QPaintEvent *e) override;
+    void keyPressEvent(QKeyEvent *e) override;
+    void contextMenuEvent(QContextMenuEvent *e) override;
+    void inputMethodEvent(QInputMethodEvent *e) override;
+
+private:
+    int _digitsCountMax = 0;
+    std::vector<not_null<CodeDigit*>> _digits;
+    int _currentIndex = 0;
+    base::unique_qptr<Ui::PopupMenu> _menu;
+    rpl::event_stream<QString> _codeCollected;
+};
+```
+
+**Cell geometry** (`intro/intro_code_input.cpp:187, 193-195` + `intro.style:73-76`):
+
+| Token | Value | Role |
+|-------|-------|------|
+| `introCodeDigitHeight` | **50px** | Cell height |
+| `kWidthRatio` | **0.8** | Cell width = `height * 0.8` = **40px** |
+| `introCodeDigitSkip` | **10px** | Horizontal gap between cells + outer padding on all sides |
+| `introCodeDigitBorderWidth` | **4px** | Stroke width of the cell border |
+| `introCodeDigitFont` | **20px** | Digit glyph font |
+| `kSlideDistanceRatio` | **0.2** | Slide distance for fill/clear animation = `cellHeight * 0.2` = **10px** |
+
+**Total widget size:** `padding + (40 + 10) * count + padding`, so for a 6-digit code: `10 + 50*6 + 10 = 320px` wide, `10 + 50 + 10 = 70px` tall.
+
+**CodeDigit visuals** (`intro/intro_code_input.cpp:131-160`):
+
+1. `QPainter` with `Antialiasing | HighQualityAntialiasing` rendering hints.
+2. Build rounded rect path: `path.addRoundedRect(rect(), st::boxRadius, st::boxRadius)` — radius from the shared box-radius token, typically **3px**.
+3. Clip to path and fill background with `st::windowBgOver` — the muted panel fill (same tone as hover states, so empty cells read as "slots").
+4. Stroke the border along the path using `_borderPen` (width = `introCodeDigitBorderWidth` = 4px). Pen brush is set by `setBorderColor(brush)`, which receives **`windowActiveTextFg`** (accent blue) when focused and **`windowBgRipple`** (muted neutral) otherwise — see `CodeInput::unfocusAll` at `intro_code_input.cpp:329-335`:
+
+```
+void CodeInput::unfocusAll(int except) {
+    for (auto i = 0; i < _digits.size(); i++) {
+        const auto focused = (i == except);
+        _digits[i]->setBorderColor(focused
+            ? st::windowActiveTextFg
+            : st::windowBgRipple);
+    }
+}
+```
+
+5. Draw the digit glyph with `introCodeDigitFont` in `st::windowFg`, centered in the cell. Transform/opacity come from the digit's current animation state.
+
+**Fill/clear transition** (`intro/intro_code_input.cpp:108-121`):
+
+Each `CodeDigit` owns a `Ui::Animations::Simple`. When `setDigit(n)` is called and the old `_viewDigit` differs from the new `_dataDigit`:
+
+- Fade-out half: current glyph scales from center and fades from opacity 1 → 0 while translating downward by `height * 0.2` = 10px (direction picked based on whether we're filling or clearing).
+- Fade-in half: new glyph enters from the opposite 10px offset, scaling up to full size, fading 0 → 1.
+- Duration: `st::universalDuration` (the project-wide short duration, typically **120ms**).
+
+**Shake (error) animation** (`intro/intro_code_input.cpp:46-50`):
+
+`showError()` calls `shake()` on all digits. The `Shaker` uses `DefaultShakeCallback` over `st::shakeDuration` (typically ~300ms), horizontally wobbling each cell. Combined with the usual red-text error label below the widget, this gives the OTP-cell feel users expect on wrong code.
+
+**CodeInput paint/layout** (`intro/intro_code_input.cpp:200-209, 315-317`):
+
+- `paintEvent` fills the outer rect with `st::windowBg` (each cell paints itself independently — parent just clears background).
+- `resizeEvent` / initial layout places each `CodeDigit` at `padding + i*(cellWidth + skip)` left, `padding` top.
+
+**Focus & input handling:**
+
+- Mouse focus → `focusInEvent` calls `unfocusAll(_currentIndex)`, marking the current slot blue. `focusOutEvent` sets all borders to `windowBgRipple`.
+- `keyPressEvent` (`intro_code_input.cpp:~345-400`): digit keys call `insertDigit`; Backspace removes the last digit and moves `_currentIndex` left; Left/Right navigate without editing; Ctrl+V triggers `insertCodeAndSubmit()` via clipboard.
+- `inputMethodEvent` (`intro_code_input.cpp:365-371`): IME commits are filtered to digits only via the `Qt::ImhDigitsOnly` hint — essential for Android/iOS SMS-autofill and desktop IME.
+- `contextMenuEvent`: a two-item `Ui::PopupMenu` with Paste (keyboard shortcut `Ctrl+V`, action = paste full code and auto-submit) and Copy if any digit is visible.
+
+**Completion** → emits `codeCollected` with the concatenated string once the N-th digit is filled. The 2FA login-email-confirm step reacts via:
+
+```
+codeInput->codeCollected()
+    | rpl::start_with_next([=](QString code) { verify(code); },
+                            lifetime());
+```
+
+No separate Confirm button is shown on this step — the widget *is* the submit.
+
+**Differences between `CodeInput` (login-email-confirm) and `SentCodeField` (password-email-confirm):**
+
+| Aspect | `Ui::CodeInput` (§28.9.1a) | `Ui::SentCodeField` (§28.3.5a) |
+|--------|---------------------------|--------------------------------|
+| Visual | Per-digit cells, 40×50px each, 10px gap, 4px border | Single underlined field, 256px wide |
+| Focus | Accent-blue border on current slot only | Single underline fades blue/red |
+| Auto-submit | Yes, implicit (emits on last cell filled) | Yes, explicit via `setAutoSubmit(len, cb)` |
+| Error feedback | `shake()` all digits + red border (if set) | `showError()` flips underline red |
+| Confirm button | Hidden (widget auto-submits) | "Confirm" button present as fallback |
+| Used in | Login Email Code (`CloudLoginEmailConfirm`) | 2FA recovery/email-confirm (`CloudPasswordEmailConfirm`) |
+| IME hint | `Qt::ImhDigitsOnly` enforced | Digit regex stripped post-hoc by `fix()` |
+
+**HONEST GAPS:** The exact `st::boxRadius`, `st::universalDuration`, and `st::shakeDuration` values are defined in shared style files (`basic.style`, `common.style` in `lib_ui`). This research cites the AyuGramDesktop tokens that are visible in-repo; defaults mirror upstream Telegram Desktop conventions (3px radius, ~120ms universal, ~300ms shake) but the exact ms values are best confirmed against `lib_ui` when porting.
 
 ---
 
