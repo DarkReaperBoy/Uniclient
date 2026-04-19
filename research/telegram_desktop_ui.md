@@ -2101,40 +2101,89 @@ Flagged for verification with direct repo clone next session.
 
 ## 13. Mobile / Web Compatibility Notes
 
-### OneColumn Mode (< 640px)
+### 13.1 Adaptive Layout — Resolved Width Breakpoints
 
-This IS the mobile layout. Behaviors:
-- Only one panel visible at a time (dialogs OR chat OR info).
-- Chat list fills full width. Tapping a chat slides right to message view.
-- Back button appears in chat header to return to chat list.
-- Third column (info panel) opens as full-width takeover or modal layer.
-- Folder tabs switch to horizontal strip below search bar.
-- Compose area: full width, same controls.
-- No resize handles (columns don't coexist).
+All column widths resolved from `window/window.style` (upstream tdesktop):
 
-### Responsive Adaptations
+| Token | Value | Role |
+|---|---|---|
+| `columnMinimalWidthLeft` | `260px` | Minimum chat-list / sidebar width |
+| `columnMinimalWidthMain` | `380px` | Minimum message-list column width |
+| `columnMinimalWidthThird` | `292px` | Minimum info-panel (third) column width |
+| `adaptiveChatWideWidth` | `880px` | Threshold above which the message list centres its bubbles instead of stretching |
 
-- **Dialogs collapse:** At extreme narrow widths, dialog list shows only avatars (no text).
-- **Wide chat mode (880px+):** Message bubbles center within the chat area instead of stretching.
-- **Emoji panel:** Anchors relative to compose area, height scales to 75% of available space.
-- **Forward dialog:** Full-screen overlay regardless of width.
-- **Calls:** Panel adapts between narrow (list-only) and wide (video grid) at 960px.
+**Layout-mode switches** (`mainwidget.cpp::updateWindowAdaptiveLayout`) derived from those tokens — NOT from literal pixel thresholds:
 
-### Touch vs Mouse
+- **OneColumn** (mobile layout): `windowWidth < columnMinimalWidthLeft + columnMinimalWidthMain = 640px`. A single panel visible at a time (dialogs OR chat OR info).
+- **Normal / Two-column**: `640px ≤ windowWidth < columnMinimalWidthLeft + columnMinimalWidthMain + columnMinimalWidthThird = 932px`. Sidebar + message list visible; info panel opens as an overlay.
+- **ThreeColumn**: `windowWidth ≥ 932px` — sidebar + message list + info panel all coexist.
 
-- **Context menus:** Long-press instead of right-click.
-- **Swipe gestures:** Left/right on chat list rows for quick actions.
-- **Drag-to-reorder:** Touch-hold + drag for pinned chats and folder tabs.
-- **Voice recording:** Hold-to-record on send button, slide up to lock.
-- **Message selection:** Long-press to enter selection mode (not right-click).
+`isOneColumn()`, `isNormal()`, `isThreeColumn()` predicates are used throughout the codebase; no hard-coded pixel literals elsewhere.
 
-### Web Considerations
+**Calls breakpoint** (verified against §12.5): `groupCallWideModeWidthMin = 600px` — group-call panel narrow↔wide switch. Note: this does NOT share the 640/932 breakpoints from the main window.
 
-- All rendering is Flutter (Skia/CanvasKit), no native widgets to adapt.
-- Keyboard shortcuts (Ctrl+B/I/U etc.) work on desktop web, hidden on mobile web.
-- File drag-and-drop available on desktop web only.
-- System tray / notifications use Web Notifications API.
-- Clipboard paste for images/files via browser APIs.
+### 13.2 OneColumn Mode Behaviour (< 640px)
+
+This *is* the mobile layout in tdesktop; Flutter-web/mobile clients will inherit the same structure.
+
+- Only one panel visible at a time: dialogs list OR chat OR info panel.
+- Chat list fills the full window width. Tapping a chat slides the message view in from the right.
+- Back button appears in chat top-bar to return to the dialog list.
+- Third column (info panel) opens as a full-width takeover layer, not as a side-column.
+- Folder tabs switch from a vertical rail to a horizontal strip below the search bar.
+- Compose area is full-width; controls unchanged.
+- No resize handles (columns never coexist, so there is nothing to drag).
+
+**Slide animation.** Managed by `window/window_slide_animation.cpp`; `Ui::SlideAnimation` uses `anim::easeOutCirc` for the incoming panel and `anim::easeInCirc` for the outgoing panel. Duration = `st::slideDuration` — numeric value lives in a style header not retrieved this pass; typical value across tdesktop animations is **200-250ms** (flagged for verification). The transition renders both sides of the slide as cached pixmaps with hardware-accelerated translate.
+
+### 13.3 Other Responsive Adaptations
+
+- **Dialogs avatar-only.** At widths below `columnMinimalWidthLeft = 260px`, the dialog rows would clip; the sidebar actually *cannot* shrink below 260px because `adjustColumnsToFit()` rebalances by collapsing the third column first, then folding to OneColumn. An "avatar-only" strip is NOT a distinct mode in upstream — the sidebar simply stops shrinking at 260px.
+- **Wide chat mode (≥ 880px).** When the message area width ≥ `adaptiveChatWideWidth = 880px`, bubbles centre within the chat area with gutters on both sides rather than stretching full-width.
+- **Emoji panel.** Anchors to bottom-right of compose area; height clamped to `[emojiPanMinHeight (278px), emojiPanMaxHeight (640px)]` — see §10.1 for the exact height formula.
+- **Forward / Share dialog.** Full-screen overlay regardless of window width.
+- **Calls panel.** See §12 — narrow/wide switch at `groupCallWideModeWidthMin = 600px` (distinct from the main-window 640/932 breakpoints).
+
+### 13.4 Touch vs Mouse — Resolved Thresholds
+
+Touch-input code paths are active on Linux (with libinput), Windows (WM_TOUCH), macOS (NSTouch), and will map 1:1 to Flutter's `GestureDetector` on mobile/web targets.
+
+- **Context menus / message selection.** Long-press instead of right-click. Timer `_touchSelectTimer.callOnce(QApplication::startDragTime())` (`history/history_inner_widget.cpp`) — threshold delegated to Qt's platform-dependent `startDragTime()`, typically **500ms on desktop / 300ms on mobile Qt ports**. Not a Telegram-specific constant.
+- **Swipe gestures** (chat-list quick-actions, Reply on long message). Manhattan distance gate via `QApplication::startDragDistance()` — platform-dependent, **~5-10px typical**.
+- **Drag-to-reorder** (pinned chats, folder tabs). `kStartReorderThreshold = 30px` (`dialogs/dialogs_inner_widget.cpp`) — vertical pointer-travel required to begin a reorder gesture. Additional:
+  - `kStartDragToFilterThresholdX = 30px` — horizontal travel to drop a chat into a folder tab.
+  - `kStartDragToFilterThresholdY = 75px` — vertical travel before the filter-drop hint shows.
+  - `kFreezeTimeout = 2000ms` — hover duration over a folder tab to auto-switch into it while dragging.
+- **Voice recording.** Hold-to-record on send button; slide up to lock (Telegram's "pull-up-to-lock" gesture). Exact slide-threshold NOT in `chat_helpers.style` — computed at runtime from the locker-widget geometry; see §7.4.
+- **Message selection.** Long-press to enter selection mode (same `startDragTime()` path as context menu; mode chosen by subsequent gesture — release vs drag).
+
+### 13.5 Flutter-Web Divergence from Desktop
+
+AyuGram/tdesktop is a native desktop client; the uniclient target compiles the same UI to Flutter-web. Some features in §1–§12 have no web-compatible path and require conditional gating.
+
+**Desktop-only features (hide on web):**
+- System tray icon + tray menu → use Web Notifications API + favicon badge instead.
+- Global hotkeys (e.g. show-window chord) → browser intercepts all global-level shortcuts.
+- Native file picker + OS-level drag-and-drop state monitoring → fall back to `<input type=file>` and HTML5 drop events.
+- Clipboard image read → limited to user-gesture-initiated paste, no background monitoring.
+- Process-level single-instance (GApplication D-Bus + flock) → no equivalent; every tab is its own instance.
+
+**Degraded features on web:**
+- Keyboard shortcuts (Ctrl+B/I/U in compose field) work but must yield to browser-reserved combos (Ctrl+W / Ctrl+T / Ctrl+N).
+- Native notifications use `window.Notification` (requires permission grant; mobile web may ignore).
+- Fullscreen requires user gesture; can't auto-enter on call-accept.
+- No access to raw audio devices → WebRTC `getUserMedia` constrains device-selection UX.
+
+**Mobile-web specific:**
+- Hover states don't exist; all `:hover` interactions become tap-only. Spec sections that reference hover (signal-bar tooltips, pinned-bar preview, reaction-bar pop) need a long-press fallback on mobile.
+- Keyboard shortcuts hidden; compose-toolbar formatting buttons become visible in place of `Ctrl+B/I/U`.
+
+### 13.6 Flagged Constants for Next Session
+
+- `st::slideDuration` numeric value — lives in a style header not retrieved via WebFetch; needs direct clone.
+- `st::dialogsWidthDuration` — sidebar-width animation duration.
+- `st::shakeDuration` / `st::shakeShift` — shared shake envelope (used by error states in §11 and §12).
+- `st::slideWrapDuration` / `st::fadeWrapDuration` — animation durations referenced across compose (§7), calls (§12), and settings transitions.
 
 ---
 
