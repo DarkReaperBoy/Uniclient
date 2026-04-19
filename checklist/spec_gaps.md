@@ -24,7 +24,9 @@ Progress so far:
 
 - ✅ §54 AyuGram Filters semantics + Shadow Ban flow added (2026-04-19): full Filter Engine Semantics block (ICU 78 regex flavor, synthesized match-input blob, hide-only action, evaluation order, `filtersEnabledInChats` gate, cache lifecycle); AyuFiltersList three-mode screen (Shared / Shadow Ban / Per-dialog) with row click + popup menu spec; RegexEditBox single-filter edit form (5 fields, ICU validation, Save/Cancel); PerDialogFiltersListController (status text formula, click flows for both modes); Shadow Ban storage + peer-menu entry (`AddShadowBanAction` -- chat-list right-click only, NOT message bubble) + Block-vs-ShadowBan semantics; `Ui::FillImportFiltersBox` free function (clipboard / dpaste URL modes, JSON v2 wire format with example, shallow validation). Also corrected misplaced "Shadow Ban" message-menu entry at line 15537.
 
-Session-handoff rule: pick any one of the remaining section groups below (§14-§19 settings / §20-§26 media-wizards-topics / §27-§34 auth-export-bots-stories / §35-§49 states-popups-misc / §51-§55 AyuGram extensions), spawn parallel research agents (3+ at a time), and fill in. Each fill should be committed separately for clean history.
+**§14–§19 Settings group is COMPLETE** as of session 2026-04-19. All six settings sections filled in six separate commits (three per batch, dispatched as parallel Opus agents). Outstanding items flagged per-section as "Unresolved for direct-clone" for the few style-block files that 404 via WebFetch (see §17.11 experimental flags, §18.3.1 `defaultPeerListItem.height` base, §19.16 `langsRadio`/`passportRowPadding`).
+
+Session-handoff rule: pick any one of the remaining section groups below (§20-§26 media-wizards-topics / §27-§34 auth-export-bots-stories / §35-§49 states-popups-misc / §51-§55 AyuGram extensions), spawn parallel research agents (3+ at a time), and fill in. Each fill should be committed separately for clean history.
 
 ---
 
