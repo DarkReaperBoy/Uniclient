@@ -17800,7 +17800,17 @@ The photo editor is a **full-window layer** (`Editor::LayerWidget` extends `Ui::
 3. **Image + Crop overlay** — The photo with transform controls (center area).
 4. **Control bar** — Button bar at the bottom with tool buttons and Cancel/Done edges.
 
-**Margins:** The content area (`PhotoEditorContent`) has 20px margins on left/right/top, and 146px at bottom (reserved for controls). The controls zone is: `20px bottom skip + 48px button bar + 6px center skip + 48px button bar + 20px bottom skip = 146px`.
+**Margins (resolved):** The content area (`PhotoEditorContent`) is laid out via `st::photoEditorContentMargins = margins(20px, 20px, 20px, 146px)` (`editor.style:9-12` — synthesized from `photoEditorControlsBottomSkip` + `photoEditorControlsHeight`). All four numbers are explicit:
+
+| Side | Value | Source |
+|---|---|---|
+| Left | 20 px | `photoEditorControlsBottomSkip` (`editor.style:15`) |
+| Top | 20 px | same |
+| Right | 20 px | same |
+| Bottom | 146 px | `photoEditorControlsHeight` (`editor.style:13`) |
+
+The 146 px controls strip decomposes as:
+`photoEditorControlsBottomSkip (20)` + `photoEditorButtonBarHeight (48)` + `photoEditorControlsCenterSkip (6)` + `photoEditorButtonBarHeight (48)` + `photoEditorControlsBottomSkip (20)` × portrait branch — but the actual stored constant is `photoEditorControlsHeight = 146` (`editor.style:13`); the bar layout consumes only the bottom 48 px in landscape and uses the upper 48 px slot only when the second (paint top) bar is shown.
 
 ### 39.3 Image Display
 
@@ -17828,17 +17838,28 @@ For profile photos, `keepAspectRatio` is always `true`, which locks the crop to 
 - **Corner indicators** — Bold white corner lines at all four corners. Each corner has two perpendicular lines of length `min(pointSize * 2, min(cropWidth, cropHeight) / 2)`, stroked at `4 * st::lineWidth` with full opacity (alpha 255).
 - **Grid overlay** — A 3x3 rule-of-thirds grid drawn inside the crop shape (clipped to the crop path). Uses `st::photoCropPointFg` at `st::lineWidth`. Grid is only visible during active drag operations, with animated opacity fade (duration: `st::photoEditorBarAnimationDuration` = 200ms).
 
-**Resize handles:** 8 hit-test zones (`_edges` map):
-- **4 corner handles** (TopLeft, TopRight, BottomLeft, BottomRight) — Each is a `10px × 10px` (`st::photoEditorCropPointSize`) square centered on the corner point. Always present.
+**Resize handles (resolved):** 8 hit-test zones (`_edges` map):
+- **4 corner handles** (TopLeft, TopRight, BottomLeft, BottomRight) — Each is `photoEditorCropPointSize × photoEditorCropPointSize = 10 × 10 px` (`editor.style:89`). Always present.
 - **4 edge handles** (Left, Right, Top, Bottom) — Span the full edge length minus corner zones. Only present when `keepAspectRatio` is `false` (not used for profile photos).
 
-**Minimum crop size:** `20px` (`st::photoEditorCropMinSize`), enforced during both resize and transform operations.
+**Minimum crop size:** `photoEditorCropMinSize = 20 px` (`editor.style:90`), enforced during both resize and transform operations.
+
+**Item handle size** (paint-mode object handles, e.g. for stickers placed during paint): `photoEditorItemHandleSize = 10 px` (`editor.style:92`) — same dimension as the crop point but a separate token.
 
 **Initial crop for profile photos:** A centered square with side length equal to `min(imageWidth, imageHeight)`, covering the maximum square area of the image.
 
-### 39.5 Zoom Controls
+### 39.5 Zoom Controls (resolved)
 
-There are **no explicit zoom controls** (no slider, no scroll wheel zoom, no pinch-to-zoom). The image is displayed at a fixed scale to fit the content area. The crop region is resized to select a portion of the image rather than zooming the image itself.
+There are **no zoom controls of any kind**:
+
+- **No slider** — neither `PhotoEditorContent` nor `Crop` constructs a zoom slider widget.
+- **No scroll-wheel zoom** — `photo_editor_content.cpp` defines no `wheelEvent`/`QWheelEvent` override (verified by direct read of the .cpp file). `editor_crop.cpp` likewise defines no `wheelEvent` override. Mouse-wheel input therefore falls through to the parent `LayerWidget`, which also ignores it. Scrolling the wheel inside the editor does **nothing**.
+- **No pinch / no gesture** — no `QGestureEvent`, `QPinchGesture`, or `grabGesture()` call exists in the editor source tree. Touch pinch-zoom is unsupported.
+- **No keyboard zoom** — `+` / `-` / `Ctrl+0` are not bound. Only Enter (Done), Escape (Cancel), and Ctrl+Z/Ctrl+Y (paint mode undo/redo) are bound, per §39.12.
+
+The image is rendered at a single, fixed scale: it is fit-to-content (`Qt::KeepAspectRatio` against `_innerRect`), and that scale never changes for the lifetime of the editor session. The user composes the avatar exclusively by **moving and resizing the crop rectangle**, never by scaling the underlying image. Rotation (90 ° increments) and horizontal flip are the only image-space transforms available, both of which preserve scale.
+
+This is a deliberate Telegram-Desktop / AyuGram design decision — Instagram-style pan-and-zoom-the-photo-under-a-fixed-circle is **not** the model used here. Direct-clone implementations must NOT add scroll-to-zoom; doing so would diverge from upstream behavior.
 
 ### 39.6 Pan/Drag
 
@@ -17883,10 +17904,39 @@ The crop shape provides a **real-time WYSIWYG preview** — the visible portion 
 
 ### 39.11 Button Labels
 
-**Transform mode (crop/rotate) — bottom bar:**
-- Left edge: **"Cancel"** (`lng_cancel`) — `mediaviewCaptionFg` text on `shadowFg` background
-- Center buttons (left to right): Flip, Rotate, Paint Mode (brush icon), Aspect Ratio (if `keepAspectRatio` is false; hidden for profile photos)
-- Right edge: **confirm button** — For profile photos: **"Set Photo"** (`lng_profile_set_photo_button`). For suggestions: **"Suggest"** (`lng_profile_suggest_button`). For general editing: **"Done"** (`lng_box_done`). Uses `mediaviewTextLinkFg` (blue/accent) text.
+**Transform mode (crop/rotate) — bottom bar (resolved geometry):**
+
+Bar host: `ButtonBar` widget (`photo_editor_controls.cpp:128-167`).
+
+| Property | Value | Source |
+|---|---|---|
+| Bar height | 48 px | `photoEditorButtonBarHeight` (`editor.style:33`) |
+| Bar width (landscape default) | 422 px | `photoEditorButtonBarWidth` (`editor.style:34`) |
+| Outer padding (left, top, right, bottom) | 2, 0, 2, 0 px | `photoEditorButtonBarPadding` (`editor.style:28` / `:35`) |
+| Edge button (Cancel / Done) margins around glyph/text | 4, 4, 4, 4 px | `photoEditorEdgeButtonMargins` (`editor.style:21` / `:31`) |
+| Edge button background fill | `shadowFg` palette colour | `photoEditorEdgeButtonBg` (`editor.style:30`) |
+| Text-button (e.g. aspect-ratio label) horizontal padding | 22 px left + 22 px right | `photoEditorTextButtonPadding` (`editor.style:29` / `:36`) |
+| Button label text style | 14 px semibold (`TextStyle{14, semibold}`) | `photoEditorButtonStyle` (`editor.style:38-40`) |
+| Button text vertical baseline | 15 px from bar top | `photoEditorButtonTextTop` (`editor.style:41`) |
+| Center skip (Transform↔Paint top-bar gap) | 6 px | `photoEditorControlsCenterSkip` (`editor.style:16`) |
+| Bar bottom skip from window edge | 20 px | `photoEditorControlsBottomSkip` (`editor.style:15`) |
+| Icon tint (idle) | `mediaviewPipControlsFg` | `photoEditorButtonIconFg` (`editor.style:25`) |
+| Icon tint (hover) | `mediaviewPipControlsFgOver` | `photoEditorButtonIconFgOver` (`editor.style:26`) |
+| Icon tint (toggled-on, e.g. Flip when flipped) | `lightButtonFg` | `photoEditorButtonIconFgActive` (`editor.style:28`) |
+| Icon tint (disabled, e.g. Undo when stack empty) | `mediaviewPipPlaybackInactive` | `photoEditorButtonIconFgInactive` (`editor.style:29`) |
+
+**Layout algorithm** (`ButtonBar::updateChildrenPositions`, `photo_editor_controls.cpp:128-167`):
+1. Collect every child widget's intrinsic width (icon button = 48; text button = textWidth + 2×22 px padding).
+2. Sum widths. Residual = `bar.width() − sum(widths) − 2 px (left padding) − 2 px (right padding)`.
+3. **Symmetric branch (default for Transform mode):** widgets are paired from the edges inward. The left-most and right-most slots are reserved for the "edge buttons" (Cancel, Confirm) which use `photoEditorEdgeButtonMargins`. Center buttons distribute residual space evenly: `step = residual / max(1, count − 1)`.
+4. Right-aligned widgets are shifted by `(slotWidth − widgetWidth)` so glyphs hug the slot's right edge.
+5. **Fallback (asymmetric):** if `sum(widths) > bar.width() − 2×padding`, the bar reverts to left-pack-only (no even distribution); excess is clipped on the right. In practice this fallback never triggers for default profile-photo localisations because the 422 px width comfortably fits Cancel + 2-3 icon buttons + Confirm.
+
+So in the **profile-photo** case (Cancel | Flip | Rotate | Paint | Set Photo) the five widgets sit in a 422 px bar with 2 px outer padding, distributing roughly: Cancel left-edge, Set Photo right-edge, three 48 px icon buttons centered with `(422 − 4 − cancelWidth − doneWidth − 3×48) / 4` of equal gap between them.
+
+- Left edge: **"Cancel"** (`lng_cancel`) — `mediaviewCaptionFg` text on `photoEditorEdgeButtonBg` (= `shadowFg`) background, 4 px inner margins.
+- Center icon buttons (left to right): Flip, Rotate, Paint Mode (brush icon), Aspect Ratio (only if `keepAspectRatio` is false; hidden for profile photos).
+- Right edge: **confirm button** — For profile photos: **"Set Photo"** (`lng_profile_set_photo_button`). For suggestions: **"Suggest"** (`lng_profile_suggest_button`). For general editing: **"Done"** (`lng_box_done`). Uses `mediaviewTextLinkFg` (blue/accent) text on `photoEditorEdgeButtonBg`.
 
 **Paint mode — two bars:**
 - Top bar: Undo, Redo (with inactive styling when unavailable)
@@ -17921,12 +17971,66 @@ All key events are forwarded from the `LayerWidget` to the `PhotoEditor` via `QG
 ### 39.14 Animation
 
 - **Layer open/close:** Standard `Ui::LayerWidget` slide-up animation.
-- **Background:** Blurred background image cross-fades over 200ms (`kFadeBackgroundDuration`) when recached (e.g., on resize or palette change).
+- **Background (resolved blur + debounce timing):** The behind-editor screenshot is downscaled, Gaussian-blurred, dimmed, and cross-faded into the layer.
+  - Downscale factor: 4 × (per `editor_layer_widget.cpp:33`).
+  - Gaussian blur radius: 24 px (per `editor_layer_widget.cpp:35`). Note: there is also a `photoEditorBlurRadius = 20` token (`editor.style:124`) used for the in-paint blur tool — distinct from the layer-background blur radius.
+  - Dim overlay: `QColor(16, 16, 16, 192)` in light mode, `QColor(16, 16, 16, 128)` in dark mode (`editor_layer_widget.cpp:23`).
+  - **Recache debounce — fast path:** `kCacheBackgroundFastTimeout = 200 ms` (`editor_layer_widget.cpp:14`). After a resize, palette change, or behind-window repaint, the manager waits 200 ms of quiescence before producing a quick low-quality recache so the editor doesn't thrash during a drag-resize.
+  - **Recache debounce — full path:** `kCacheBackgroundFullTimeout = 1000 ms` (`editor_layer_widget.cpp:15`). After 1 s with no further invalidation, the manager produces the final full-quality blur (the fast path may have used a coarser intermediate). Only the full-path result feeds the cross-fade.
+  - **Cross-fade duration:** `kFadeBackgroundDuration = 200 ms` (`editor_layer_widget.cpp:16`), driven by `Ui::Animations::Simple _backgroundFade` (`editor_layer_widget.h:49`). Old → new background blends linearly over 200 ms.
+  - **Implementation members:** `base::Timer _backgroundTimer` (`editor_layer_widget.h:48`) drives the debounce; `crl::time _lastAreaChangeTime = 0` (`editor_layer_widget.h:50`) records the last invalidation timestamp.
 - **Userpic transition:** When a new userpic is shown on the `UserpicButton`, the old userpic fades to the new one using `Animations::Simple` with duration from `_st.duration`.
-- **Control bar toggle:** When switching between Transform and Paint modes, the current button bar slides down off-screen, then the new bar slides up from off-screen. Duration: 200ms (`st::photoEditorBarAnimationDuration`).
+- **Control bar toggle:** When switching between Transform and Paint modes, the current button bar slides down off-screen, then the new bar slides up from off-screen. Duration: `photoEditorBarAnimationDuration = 200 ms` (`editor.style:23`, used at `photo_editor_controls.cpp:415`). Same constant also drives the grid-overlay fade (`editor_crop.cpp:412`, in `setGridVisible()` — see §39.4).
 - **Grid overlay fade:** The 3x3 grid fades in instantly when drag starts (`animated = false`), fades out over 200ms when drag ends (`animated = true`).
 - **Change overlay (OpenPhoto role):** When hovering over the userpic in OpenPhoto mode, a bar slides up from the bottom of the userpic (height: `_st.uploadHeight`) with an upload icon, animated via `Animations::Simple` over `st::slideWrapDuration`.
 - **About text:** The EditorData about label uses `Ui::FadeWrap` and toggles visibility with animation when switching modes.
+
+### 39.14a About-Label Margins (resolved)
+
+When the editor is opened with `EditorData::about` set (Set Photo For / Suggest Photo flows), the `photoEditorAbout` `FlatLabel` (`editor.style:36-40`, base style = `defaultFlatLabel`) is positioned with `photoEditorAboutMargin = margins(10px, 22px, 10px, 0px)` (`editor.style:43`):
+
+| Side | Value |
+|---|---|
+| Left | 10 px |
+| Top | 22 px (gap from top of content area to label baseline area) |
+| Right | 10 px |
+| Bottom | 0 px |
+
+Color: `mediaviewCaptionFg`. Toggled with `Ui::FadeWrap` (`photo_editor_controls.cpp` mode-switch wiring) — the label fades out when entering Paint mode and back in when returning to Transform mode, sharing the 200 ms `photoEditorBarAnimationDuration` envelope.
+
+### 39.14b Resolved-Tokens Cheat Strip
+
+| Element | Px / Value | Token | File:line |
+|---|---|---|---|
+| Controls strip total height | 146 px | `photoEditorControlsHeight` | `editor.style:13` |
+| Controls bottom skip | 20 px | `photoEditorControlsBottomSkip` | `editor.style:15` |
+| Center skip (between top + bottom paint bars) | 6 px | `photoEditorControlsCenterSkip` | `editor.style:16` |
+| Content margins (L,T,R,B) | 20, 20, 20, 146 px | `photoEditorContentMargins` | `editor.style:9-12` |
+| Bar height | 48 px | `photoEditorButtonBarHeight` | `editor.style:33` |
+| Bar width | 422 px | `photoEditorButtonBarWidth` | `editor.style:34` |
+| Bar outer padding | 2,0,2,0 px | `photoEditorButtonBarPadding` | `editor.style:28`/`:35` |
+| Edge-button glyph margins | 4,4,4,4 px | `photoEditorEdgeButtonMargins` | `editor.style:21`/`:31` |
+| Edge-button bg | `shadowFg` | `photoEditorEdgeButtonBg` | `editor.style:30` |
+| Text-button h-padding | 22 px | `photoEditorTextButtonPadding` | `editor.style:29`/`:36` |
+| Button label font | 14 px semibold | `photoEditorButtonStyle` | `editor.style:38-40` |
+| Button text top | 15 px | `photoEditorButtonTextTop` | `editor.style:41` |
+| Crop point size | 10 × 10 px | `photoEditorCropPointSize` | `editor.style:89` |
+| Min crop size | 20 px | `photoEditorCropMinSize` | `editor.style:90` |
+| Item handle (paint-mode) | 10 px | `photoEditorItemHandleSize` | `editor.style:92` |
+| Color picker button | 24 × 24 px | `photoEditorColorButtonSize` | `editor.style:67` |
+| Brush size control height | 280 px | `photoEditorBrushSizeControlHeight` | `editor.style:83` |
+| Paint blur tool radius | 20 | `photoEditorBlurRadius` | `editor.style:124` |
+| About label style | `defaultFlatLabel` | `photoEditorAbout` | `editor.style:36-40` |
+| About label margins | 10,22,10,0 px | `photoEditorAboutMargin` | `editor.style:43` |
+| Bar slide / grid-fade duration | 200 ms | `photoEditorBarAnimationDuration` | `editor.style:23` |
+| Bg recache debounce (fast) | 200 ms | `kCacheBackgroundFastTimeout` | `editor_layer_widget.cpp:14` |
+| Bg recache debounce (full) | 1000 ms | `kCacheBackgroundFullTimeout` | `editor_layer_widget.cpp:15` |
+| Bg cross-fade duration | 200 ms | `kFadeBackgroundDuration` | `editor_layer_widget.cpp:16` |
+| Bg blur scale factor | 4 × | (literal) | `editor_layer_widget.cpp:33` |
+| Bg blur radius | 24 px | (literal) | `editor_layer_widget.cpp:35` |
+| Bg dim overlay (light) | `QColor(16,16,16,192)` | (literal) | `editor_layer_widget.cpp:23` |
+| Bg dim overlay (dark) | `QColor(16,16,16,128)` | (literal) | `editor_layer_widget.cpp:23` |
+| Wheel / scroll / pinch zoom | NONE | n/a | confirmed absent in `photo_editor_content.cpp` and `editor_crop.cpp` |
 
 ### 39.15 Source File Locations
 
