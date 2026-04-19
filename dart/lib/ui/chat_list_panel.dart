@@ -97,12 +97,17 @@ class ChatListPanel extends StatefulWidget {
 /// Search-mode tab enum matching Telegram Desktop `ChatSearchTab`.
 enum _SearchTab { myMessages, publicPosts, thisPeer }
 
+/// Sub-filter for "My Messages" tab (spec §2.2: ChatSearchIn popup menu).
+/// Filters search results by chat type under the My Messages tab.
+enum _MyMsgSubFilter { all, private_, groups, channels }
+
 class _ChatListPanelState extends State<ChatListPanel> {
   final _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   bool _searching = false;
   List<ChatInfo>? _searchResults;
   _SearchTab _activeSearchTab = _SearchTab.myMessages;
+  _MyMsgSubFilter _myMsgSubFilter = _MyMsgSubFilter.all;
 
   @override
   void initState() {
@@ -306,8 +311,17 @@ class _ChatListPanelState extends State<ChatListPanel> {
   List<ChatInfo> _filterByTab(List<ChatInfo> results, ChatState chatState) {
     switch (_activeSearchTab) {
       case _SearchTab.myMessages:
-        // All results (DMs, groups, channels — the user's own chats).
-        return results;
+        // Apply sub-filter (Private/Groups/Channels) if set.
+        switch (_myMsgSubFilter) {
+          case _MyMsgSubFilter.all:
+            return results;
+          case _MyMsgSubFilter.private_:
+            return results.where((c) => c.type == ChatType.dm).toList();
+          case _MyMsgSubFilter.groups:
+            return results.where((c) => c.type == ChatType.group || c.type == ChatType.topic).toList();
+          case _MyMsgSubFilter.channels:
+            return results.where((c) => c.type == ChatType.channel).toList();
+        }
       case _SearchTab.publicPosts:
         // Only channels (public posts).
         return results.where((c) => c.type == ChatType.channel).toList();
@@ -323,9 +337,24 @@ class _ChatListPanelState extends State<ChatListPanel> {
     }
   }
 
+  void _onSubFilterChanged(_MyMsgSubFilter filter) {
+    setState(() {
+      _myMsgSubFilter = filter;
+    });
+    // Re-run search with new sub-filter.
+    final query = _searchController.text;
+    if (query.isNotEmpty) {
+      final chatState = context.read<ChatState>();
+      setState(() {
+        _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+      });
+    }
+  }
+
   void _onSearchTabChanged(_SearchTab tab) {
     setState(() {
       _activeSearchTab = tab;
+      _myMsgSubFilter = _MyMsgSubFilter.all; // Reset sub-filter on tab switch.
     });
     // Re-run search with current query under the new tab filter.
     final query = _searchController.text;
@@ -344,6 +373,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
       _searching = false;
       _searchResults = null;
       _activeSearchTab = _SearchTab.myMessages;
+      _myMsgSubFilter = _MyMsgSubFilter.all;
     });
   }
 
@@ -403,6 +433,14 @@ class _ChatListPanelState extends State<ChatListPanel> {
             _SearchTabsStrip(
               activeTab: _activeSearchTab,
               onTabChanged: _onSearchTabChanged,
+            ),
+          // Sub-filter row under My Messages (spec §2.2: ChatSearchIn popup).
+          if (_searching &&
+              _searchController.text.isNotEmpty &&
+              _activeSearchTab == _SearchTab.myMessages)
+            _SearchSubFilterRow(
+              activeFilter: _myMsgSubFilter,
+              onFilterChanged: _onSubFilterChanged,
             ),
           // Top Peers strip (spec §2: shown when search focused, no query).
           if (_searching && _searchController.text.isEmpty)
@@ -1555,6 +1593,155 @@ class _SearchTabItem extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Sub-filter row for "My Messages" tab (spec §2.2: ChatSearchIn popup).
+/// 38px-tall row with current filter label and dropdown arrow.
+/// Tapping opens a popup menu with Private/Groups/Channels options.
+class _SearchSubFilterRow extends StatelessWidget {
+  final _MyMsgSubFilter activeFilter;
+  final ValueChanged<_MyMsgSubFilter> onFilterChanged;
+
+  const _SearchSubFilterRow({
+    required this.activeFilter,
+    required this.onFilterChanged,
+  });
+
+  static const _filters = [
+    (filter: _MyMsgSubFilter.all, label: 'All Messages', icon: Icons.forum_outlined),
+    (filter: _MyMsgSubFilter.private_, label: 'Private', icon: Icons.person_outline),
+    (filter: _MyMsgSubFilter.groups, label: 'Groups', icon: Icons.group_outlined),
+    (filter: _MyMsgSubFilter.channels, label: 'Channels', icon: Icons.campaign_outlined),
+  ];
+
+  String get _activeLabel =>
+      _filters.firstWhere((f) => f.filter == activeFilter).label;
+
+  IconData get _activeIcon =>
+      _filters.firstWhere((f) => f.filter == activeFilter).icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec: normalFont color for the label.
+    final labelColor =
+        isDark ? const Color(0xFFCCCCCC) : const Color(0xFF555555);
+    // Spec: dropdown arrow color.
+    final arrowColor =
+        isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
+    // Spec: divider bar background.
+    final dividerBg =
+        isDark ? const Color(0xFF1D2A36) : const Color(0xFFF1F1F1);
+    // Spec: hover bg = windowBgOver.
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Divider bar (spec §2.2: searchedBarHeight = 28px, normalFont, label left padding 14px).
+        Container(
+          height: 28,
+          width: double.infinity,
+          color: dividerBg,
+          alignment: Alignment.centerLeft,
+          padding: const EdgeInsets.only(left: 14),
+          child: Text(
+            'Search in',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+              color: arrowColor,
+            ),
+          ),
+        ),
+        // Filter row (spec §2.2: dialogsSearchInHeight = 38px).
+        Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: () => _showFilterMenu(context),
+            hoverColor: hoverBg,
+            child: SizedBox(
+              height: 38,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 10),
+                child: Row(
+                  children: [
+                    // Photo placeholder / icon (28px).
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: Icon(
+                        _activeIcon,
+                        size: 20,
+                        color: labelColor,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Filter label (spec: name top 9px — centered in 38px row).
+                    Expanded(
+                      child: Text(
+                        _activeLabel,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: labelColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // Dropdown arrow (spec: dropdown arrow top 15px).
+                    Padding(
+                      padding: const EdgeInsets.only(right: 14),
+                      child: Icon(
+                        Icons.arrow_drop_down,
+                        size: 20,
+                        color: arrowColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showFilterMenu(BuildContext context) {
+    final RenderBox button = context.findRenderObject() as RenderBox;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      button.localToGlobal(Offset(0, button.size.height)) &
+          Size(button.size.width, 0),
+      Offset.zero & overlay.size,
+    );
+
+    showMenu<_MyMsgSubFilter>(
+      context: context,
+      position: position,
+      items: [
+        for (final entry in _filters)
+          PopupMenuItem<_MyMsgSubFilter>(
+            value: entry.filter,
+            child: Row(
+              children: [
+                Icon(entry.icon, size: 20),
+                const SizedBox(width: 12),
+                Text(entry.label),
+              ],
+            ),
+          ),
+      ],
+    ).then((value) {
+      if (value != null) {
+        onFilterChanged(value);
+      }
+    });
   }
 }
 

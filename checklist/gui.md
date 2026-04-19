@@ -34,9 +34,6 @@
 ### 2.1 Folder Tabs
 
 ### 2.2 Search Bar
-- [ ] Sub-filters under My Messages: popup menu from 38px row (not chip row) (S2)
-- [ ] Sub-filter row: photo 28px, left padding 10px, name top 9px, dropdown arrow top 15px (S2)
-- [ ] Sub-filter divider bar: 28px height, normalFont, label left padding 14px (S2)
 
 ### 2.3 Chat List Rows
 - [ ] Row height: 62px (S2)
