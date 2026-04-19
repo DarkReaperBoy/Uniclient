@@ -2206,6 +2206,26 @@ The top of the Main settings page is a fixed-height cover widget. Its total heig
 st::settingsPhotoTop (8px) + photo height (infoProfileCover.photo.size) + st::settingsPhotoBottom (16px)
 ```
 
+#### 14.2.1 Cover Height Formula and Photo Proportions
+
+The cover is implemented as a `Cover : Ui::FixedHeightWidget` subclass; the computed height passed into the base constructor is exactly `settingsPhotoTop + infoProfileCover.photo.size.height() + settingsPhotoBottom` (source: sections/settings_main.cpp:109-156). With the canonical theme values this resolves to `8 + 88 + 16 = 112 px` for a standard `infoProfileCover.photo.size` of 88 px. The avatar itself is a circular `UserpicButton` anchored at `(settingsPhotoLeft=22 px, settingsPhotoTop=8 px)` (source: settings.style:514-515, sections/settings_main.cpp:311).
+
+The remaining vertical budget inside the cover is split by three fixed top offsets — `settingsNameTop=12 px`, `settingsPhoneTop=37 px`, and `settingsUsernameTop=58 px` (source: settings.style:524-529) — all measured from the widget top, not from the avatar. This stacks the three text lines at a fixed 25/21 px line pitch regardless of the photo size, so the cover never dynamically reflows.
+
+#### 14.2.2 Scroll / Collapse Behavior
+
+The cover is not collapsible. It is inserted as a child of the top-level `Ui::VerticalLayout` passed to `ResizeFitChild`, so it scrolls out of view with the rest of the main list once the scroll offset exceeds 112 px (source: sections/settings_main.cpp:712-721). No parallax, no pinned-header shrink, no fade — a plain `FixedHeightWidget` that leaves the viewport when scrolled past. The top bar is rendered by the outer `Info::Section` wrapper and handles its own back-button / title bar separately.
+
+#### 14.2.3 Cover Widget Right-Side Controls
+
+| Control | Placement | Source |
+|---------|-----------|--------|
+| QR code button | Vertically centered on the cover, `moveToRight(buttonRight - infoProfileLabeledButtonQrInset)` | sections/settings_main.cpp:380-388 |
+| Premium / emoji-status badge | Inline after the name, horizontal offset `infoVerifiedCheckPosition.x` from the text end | sections/settings_main.cpp:339-360 |
+| Name label max-width | Recomputed on every resize as `width - QR button width - badge width - right padding` | sections/settings_main.cpp:339-360 |
+
+The username label installs a custom context-menu hook (source: sections/settings_main.cpp:214-222) that injects the AyuGram-only "Copy ID" entry above the default "Copy Username" row.
+
 **Layout:**
 
 | Element | Position | Details |
@@ -2249,6 +2269,22 @@ The order from top to bottom:
 
 10. **Language** (`lng_settings_language`) — Icon: `menuIconTranslate` (globe/A). Keywords: "translate", "localization", "language". Right-side label shows the current language native name (e.g., "English", "Deutsch"). Clicking opens the `LanguageBox` with a searchable list of all available language packs.
 
+#### 14.3.1 Nav Row Metrics
+
+Every nav row is produced by `builder.addSectionButton(...)` which resolves to `AddButtonWithIcon` using the `settingsButton` style (source: sections/settings_main.cpp:407-506, settings.style:16).
+
+| Metric | Value | Source |
+|--------|-------|--------|
+| Row total height | `settingsButton.padding.top + settingsButton.padding.bottom + textFontHeight` ≈ `10 + 10 + 21 = 41 px` | settings.style:16 |
+| Left padding (icon column) | 60 px | settings.style:16 |
+| Icon horizontal position | `settingsButton.iconLeft = 20 px` from the row left edge | settings.style (iconLeft field) |
+| Icon background | 6 px rounded square (`settingsIconRadius`) filled with the icon's accent colour | settings.style (settingsIconRadius) |
+| Right padding | 22 px | settings.style:16 |
+| Right chevron / label skip | `settingsButtonRightSkip = 23 px` between the text end and any right-aligned label or chevron | settings.style:66 |
+| Label text style | `boxTextStyle` (same 14 px regular as boxes) | settings_common.cpp |
+
+Rows do **not** draw their own 1-px separators. Grouping is instead controlled by `Ui::AddSkip` + `Ui::AddDivider` pairs inserted between logical blocks (source: sections/settings_main.cpp:407-506). The canonical grouping is: **AyuGram Preferences** (standalone, followed by skip+divider+skip) → **My Account / Notifications / Privacy / Chat Settings / Folders** (no inter-row dividers) → skip+divider+skip → **Advanced / Devices** → skip+divider+skip → **Power Saving / Language**. Hover state is the `settingsButton` hover fill; pressed state adds a ripple originating at the cursor.
+
 ### 14.4 Main Settings Page — Interface Scale
 
 Below the navigation buttons, separated by a divider:
@@ -2260,6 +2296,24 @@ Below the navigation buttons, separated by a divider:
 **Preview tooltip:** While dragging, a floating preview window (`ScalePreview`) appears above the slider showing how the UI would look at that scale.
 
 **Restart confirmation:** If the user releases the slider at a different scale, a confirmation dialog appears: "Some settings will be applied after restarting. Restart now?" with "Restart Now" / "Cancel" buttons.
+
+#### 14.4.1 Slider Dimensions, Step Values, and Label
+
+| Metric | Value | Source |
+|--------|-------|--------|
+| Slider style | `settingsScale : MediaSlider(defaultContinuousSlider)` | settings.style:546-548 |
+| Seek handle size | 15 × 15 px circular thumb | settings.style:548, 75 |
+| Padding (standard width) | `margins(60px, 7px, 22px, 4px)` — aligns slider track with the 60-px icon column above | settings.style:68 |
+| Padding (wide layout / `settingsBigScalePadding`) | `margins(21px, 7px, 21px, 4px)` | settings.style:69 |
+| Right-side percentage label | `settingsScaleLabel : FlatLabel(defaultFlatLabel)` with `textFg: windowActiveTextFg` | settings.style:549-551 |
+| Step | 5 percentage-point discrete stops interpolated to a continuous 0..1 slider value via `valueFromScale` | sections/settings_main.cpp:753-763 |
+| Value range | `style::kScaleMin` .. `style::MaxScaleForRatio(devicePixelRatio)` — typically 100%..300% depending on DPR | sections/settings_main.cpp:734-749 |
+
+The percentage label is positioned at the right edge of the row, vertically centered on the slider, and updates live while dragging.
+
+**Preview and restart semantics:** the preview tooltip (`ScalePreview`) floats above the thumb during drag, showing a miniature mockup of the sidebar at the selected scale. The actual UI scale does **not** change in real time — it is applied on pointer-release. If the new `cEvalScale(scale)` differs from the currently active scale, the restart dialog fires `tr::lng_settings_need_restart()` with Restart / Cancel buttons (source: sections/settings_main.cpp:805-816). Cancel reverts the slider. Accept calls `Core::Restart()` immediately.
+
+**"Use Default Scale" toggle** gates the slider: when ON the slider + label are wrapped in a `SlideWrap` that collapses to zero height with a slide animation, and `cConfigScale()` is forced to `style::kScaleAuto` which follows the system DPR (source: sections/settings_main.cpp:729-732).
 
 ### 14.5 My Account / Edit Profile (Information Section)
 
@@ -2282,6 +2336,14 @@ Centered layout at the top, height `settingsInfoPhotoHeight` (162px):
 - **Emoji Support:** Emoji suggestions enabled, instant replacements follow global settings.
 - **Footer:** "Any details such as age, occupation or city."
 
+##### 14.5.2.1 Character Counter Widget
+
+The counter is a `Ui::FlatLabel` in the `settingsBioCountdown` style, positioned at the top-right of the bio input's geometry (source: sections/settings_information.cpp:1076, 1084-1089). Its width is computed per-frame from the text metrics so it does not push the caret; it floats in the right inset of `settingsBioMargins` (22 px).
+
+**Max length (upstream Telegram Desktop):** derived from `Data::PremiumLimits` — non-Premium users get `defaultLimit` (70 characters), Premium users get `premiumLimit` (140 characters) (source: sections/settings_information.cpp:1058-1059, 521-522). The visible counter is `limit - entered`. The underlying `InputField` is set to accept up to `premiumLimit * 2` characters (source: sections/settings_information.cpp:1100, 533) so that a brief overshoot is shown as a negative count rather than silently truncated — the server rejects the save if still negative on submit.
+
+**Colour thresholds:** default text colour is `windowSubTextFg`. When the remaining count is strictly less than zero the label overrides `textFg` to `boxTextFgError` (red) (source: sections/settings_information.cpp:1099-1101, 546-550). There is no intermediate "warning" colour — it is binary (grey when ≥ 0, red when < 0).
+
 #### 14.5.3 Profile Information Rows
 
 | Row | Icon | Label | Value | Click | Right-Click |
@@ -2291,6 +2353,17 @@ Centered layout at the top, height `settingsInfoPhotoHeight` (162px):
 | **Username** | `menuIconUsername` | "Username" | @-prefixed or "Add" link | Opens `UsernamesBox` | "Copy @mention" |
 
 Footer: "People can message you using your username without knowing your phone number."
+
+##### 14.5.3.1 Row Layout
+
+Rows are produced by the local `AddRow` helper, which emits a `SettingsButton` wrapper around a two-line `PeerListRow`-style widget (source: sections/settings_information.cpp:356-409). Each row has:
+
+- **Left icon block:** 60 px column. The icon is drawn at `settingsButton.iconLeft = 20 px` inside a 6 px rounded square fill in the icon's themed colour.
+- **Primary line:** the value (full name, formatted phone, `@username`), rendered in `boxTextStyle` at 14 px.
+- **Secondary line:** the label ("Name" / "Phone Number" / "Username"), rendered in `defaultFlatLabel` with `windowSubTextFg`.
+- **Right edit affordance:** an inline edit pencil is not drawn — the entire row is clickable, and the hover ripple covers the full width. A trailing chevron is absent; the implicit affordance is the primary-line text colour (themed active) plus cursor-pointer hover.
+
+Left-click on any row invokes the edit handler (`EditNameBox`, dial-copy toast, `UsernamesBox`). Right-click opens a context menu assembled in lines 356-409: a single "Copy …" entry whose label is specialized per row ("Copy Full Name" / "Copy Phone Number" / "Copy @mention"). The copy entry is **disabled** when the primary text contains entities that would lose meaning on plain-text copy (source: sections/settings_information.cpp:397-405).
 
 #### 14.5.4 Personal Channel & Color
 
@@ -2315,6 +2388,37 @@ Lists all logged-in accounts as `SettingsButton` rows with small avatar, name, a
 
 **Add Account Button:** Plus icon with `windowBgActive` fill. Hidden at max accounts. Ctrl+Click: add in new window.
 
+#### 14.5.6.1 Account Row Dimensions and Badges
+
+Each row is a `MakeAccountButton` instance styled with `mainMenuAddAccountButton` (source: sections/settings_information.cpp:413-615, 722-754).
+
+| Metric | Value | Source |
+|--------|-------|--------|
+| Userpic diameter | `mainMenuAccountSize + 2 * (2 * mainMenuAccountLine + lineWidth)` — base avatar ringed by the active-account indicator | sections/settings_information.cpp:736-738 |
+| Userpic skip | `2 * mainMenuAccountLine + lineWidth` | sections/settings_information.cpp:737 |
+| Row height | Driven by `MakeAccountButton` contents (not fixed) | sections/settings_information.cpp:734 |
+| Max accounts (source of truth) | `_controller->session().domain().maxAccounts()` — server-reported value | sections/settings_information.cpp:719 |
+| Premium account cap constant | `Main::Domain::kPremiumMaxAccounts` (currently 10) | sections/settings_information.cpp:809-811 |
+
+**Badges (ComposedBadge, sections/settings_information.cpp:195-250):**
+
+- **Unread badge** — drawn at the right edge of the row when `hasUnread` is true (lines 217-230). Two variants: loud (accent fill, white text) and muted (muted fill). Position is anchored to the right padding.
+- **Premium / emoji-status badge** — drawn inline after the account name, same placement convention as the cover name badge (lines 231-240).
+- **Supporter / verified ("extra") badge** — drawn further right after the name badge slot (lines 241-250).
+
+**Reorder mechanics:** a `Ui::VerticalLayoutReorder` wraps the rows (source: sections/settings_information.cpp:667-708). Pinning is applied to the tail: `addPinnedInterval(premiumLimit, max(1, count - premiumLimit))` locks slots beyond the Premium limit so a free user cannot reorder accounts they cannot use anyway (source: sections/settings_information.cpp:807).
+
+**Add Account slide-wrap:** the add-account row sits inside a `SlideWrap` toggled on `count < Main::Domain::kPremiumMaxAccounts` (source: sections/settings_information.cpp:755, 809-811). The row grays out (stays visible, click does nothing) when `count >= premiumLimit` for the current tier.
+
+**Context-menu items** (source: sections/settings_information.cpp:773-821):
+
+1. Copy Phone (line 786)
+2. Mark All Chats as Read (via `MenuAddMarkAsReadAllChatsAction`, line 791)
+3. Activate (only when the account is not currently active, line 794)
+4. Log Out — styled `attentionBoxButton` (red), hidden for the active account (lines 797-806)
+
+Ctrl+Click on any row (active or inactive) opens that account in a new window rather than switching in-place (source: sections/settings_information.cpp:700).
+
 ### 14.6 Chat Settings Section
 
 Title: "Chat Settings". Top bar overflow: "Create New Theme".
@@ -2327,6 +2431,25 @@ Horizontal row of 4 theme cards (80x92px each): Default (light), Day (blue tint)
 
 **System Accent Color:** Checkbox "Use system accent color" (Qt6+ only).
 
+##### 14.6.1.1 Theme Card Dimensions and Selected Ring
+
+Each card is a `Ui::Radioenum<Type>` within a shared `RadioenumGroup<Type>` (source: sections/settings_chat.cpp:2617-2632).
+
+| Metric | Value | Source |
+|--------|-------|--------|
+| Card preview | `settingsThemePreviewSize = size(80px, 92px)` | settings.style:441 |
+| Mini chat bubble | `settingsThemeBubbleSize = size(40px, 14px)` | settings.style:442 |
+| Bubble corner radius | `settingsThemeBubbleRadius = 2 px` | settings.style:443 |
+| Bubble anchor inside preview | `settingsThemeBubblePosition = point(6px, 8px)` — first bubble's top-left | settings.style:444 |
+| Radio dot bottom inset | `settingsThemeRadioBottom = 12 px` from the preview bottom edge | settings.style:447 |
+| Horizontal top/bottom skips | `settingsThemesTopSkip = 10 px`, `settingsThemesBottomSkip = 8 px` | settings.style:469-470 |
+
+**Card layout algorithm** (source: sections/settings_chat.cpp:2718-2735): the row tries to fit all cards at their desired 80 px width; if total width `count * 80 + skips * minSkip` fits, cards are drawn at 80 px. Otherwise cards are proportionally scaled down while preserving aspect, and the bubble preview scales with them.
+
+**Selected state:** a `Window::Theme::CloudListCheck` instance draws the selection ring around the card (source: sections/settings_chat.cpp:2621). The check animates in/out with the standard `defaultRadio.duration` spring. No external stroke around the card itself — the ring is drawn just inside the preview's rounded border.
+
+**Preview rendering:** each `ThemePreview` paints (bottom-up) a miniature background, two mini chat bubbles at `settingsThemeBubblePosition`, the radio dot at `settingsThemeRadioBottom`, and the theme's accent colour for sent bubbles. The four built-in cards are Default, Day, Dark, Night Blue.
+
 #### 14.6.2 Theme Settings
 
 - **Your Color** — Name color preview, opens `EditPeerColorBox`.
@@ -2336,6 +2459,17 @@ Horizontal row of 4 theme cards (80x92px each): Default (light), Day (blue tint)
 #### 14.6.3 Cloud Themes
 
 Horizontal scrollable list of cloud themes. "Show All" link if truncated. "Edit Current Theme" button for user-created themes.
+
+##### 14.6.3.1 Cloud Theme List and Share/Create Flow
+
+The entire cloud-themes block is wrapped in a `Ui::SlideWrap<Ui::VerticalLayout>` so the section can collapse with a slide animation when the feature is disabled or the list is empty (source: sections/settings_chat.cpp:2448-2451).
+
+- **List widget:** `Window::Theme::CloudList` populated from the account's uploaded/installed cloud themes, with a `showAll()` toggle that expands from the collapsed 2-row grid to the full grid (source: sections/settings_chat.cpp:2463, 2468-2470). Each entry uses the same `settingsThemePreviewSize` card footprint as built-in themes.
+- **Edit Current Theme button:** `AddButtonWithIcon(edit, tr::lng_settings_bg_theme_edit(), settingsButton, &st::menuIconPalette)` — only appears when the currently-applied theme is a cloud theme owned by the user. Click launches `Window::Theme::StartEditor(&controller->window(), Background()->themeObject().cloud)` which opens the full theme editor window (source: sections/settings_chat.cpp:2475-2490).
+- **Create New Theme:** surfaced as a top-bar overflow action on the Chat Settings section (see §14.6 header note) rather than an inline button. The dialog walks the user through picking a name and an initial palette derived from the active theme.
+- **Share theme link:** when editing a cloud theme, the editor exposes a shareable `https://t.me/addtheme/<slug>` link in a dedicated link box with Copy / Share buttons. The link box is not drawn on the main Chat Settings page itself — it is owned by the editor flow and is out of §14's scope.
+
+If a share-flow dialog is expected directly on the Chat Settings page, it is not present in the current AyuGram Desktop dev branch; verified by inspection of `SetupCloudThemes` (sections/settings_chat.cpp:2446-2515).
 
 #### 14.6.4 Chat Background
 
@@ -2351,6 +2485,20 @@ Radio buttons for left-swipe action: Mute, Pin, Read, Archive, Delete, Disabled.
 
 Checkboxes: Large Emoji, Replace Emojis, Suggest Emoji, Suggest Animated Emoji (Premium only), Suggest Stickers by Emoji, Loop Animated Stickers. Navigation buttons: Your Stickers, Emoji Sets.
 
+##### 14.6.6.1 Control Order and Source Mapping
+
+The builder is `SetupStickersEmoji` (source: sections/settings_chat.cpp:2083-2181). Top to bottom:
+
+1. **Large Emoji** checkbox — `tr::lng_settings_large_emoji` (source: sections/settings_chat.cpp:2129).
+2. **Replace Emojis** checkbox — `tr::lng_settings_replace_emojis` (source: sections/settings_chat.cpp:2137).
+3. **Suggest Emoji** checkbox — `tr::lng_settings_suggest_emoji` (source: sections/settings_chat.cpp:2147). AyuGram inherits upstream's Premium-only gating for the animated variant via a nested row, not a separate top-level checkbox.
+4. **Suggest Stickers by Emoji** checkbox — toggles the "type an emoji to see suggested stickers" behaviour.
+5. **Loop Animated Stickers** checkbox — `tr::lng_settings_loop_stickers` (source: sections/settings_chat.cpp:2165).
+6. **Your Stickers** row — opens `StickersBox` (source: sections/settings_chat.cpp:2170-2175). Uses `settingsButton` style, icon `menuIconStickers`.
+7. **Emoji Sets** row — opens `Emoji::ManageSetsBox` (source: sections/settings_chat.cpp:2177-2181). Uses `settingsButton` style, icon `menuIconEmoji`.
+
+Each checkbox uses `settingsCheckboxPadding = margins(22px, 10px, 10px, 10px)` (source: settings.style:557), which is narrower on the left than the 60 px used by icon rows — giving the checkboxes a left-aligned block that visually groups apart from nav rows.
+
 #### 14.6.7 Messages
 
 **Send by:** Radio — Enter or Ctrl+Enter (Cmd+Enter on Mac).
@@ -2358,6 +2506,17 @@ Checkboxes: Large Emoji, Replace Emojis, Suggest Emoji, Suggest Animated Emoji (
 **Double-click action:** Radio — Reply or React (with animated reaction button showing current favorite).
 
 Checkboxes: Show reply button in corner, Show reaction button in corner.
+
+##### 14.6.7.1 Messages Subsection Control Map
+
+`SetupMessages` is emitted into a `Ui::VerticalLayout` with overridden margins (source: sections/settings_chat.cpp:2183-2381, 2209-2213). Controls in order:
+
+1. **Send by** radio group — `RadioenumGroup<SendByType>` with two options: Enter and Ctrl+Enter (Cmd+Enter label on macOS) (source: sections/settings_chat.cpp:2216-2230). Radio rows use `settingsSendTypePadding = margins(22px, 5px, 10px, 5px)` (source: settings.style:560).
+2. **Double-click action** radio group — `RadioenumGroup<Quick>` with two options: Reply and React (source: sections/settings_chat.cpp:2236-2246). The React option includes an inline animated preview of the current favorite reaction, updating live when the favorite changes.
+3. **Show reply button in corner** checkbox — state variable `cornerReply` with delayed-save callback (source: sections/settings_chat.cpp:2343-2370).
+4. **Show reaction button in corner** checkbox — state variable `cornerReaction` with delayed-save callback (source: sections/settings_chat.cpp:2343-2370).
+
+Both corner toggles use `settingsCheckboxPadding`; the radio groups use `settingsSendTypePadding`. Between the "Send by" and "Double-click" groups, a subsection title + skip separates them; between the radio groups and the two corner checkboxes, a divider + skip separates them (source: sections/settings_chat.cpp:2209-2213, 2343).
 
 #### 14.6.8 Sensitive Content
 
@@ -2369,6 +2528,24 @@ Toggle "Disable filtering" with footer about sensitive media in public channels.
 - **Archive Settings** — opens `ArchiveSettingsBox`.
 
 ### 14.7 Advanced Section
+
+#### 14.7.0 Advanced Section Build Order
+
+The Advanced page is assembled top-to-bottom from 11 builder functions (source: sections/settings_advanced.cpp:1293-1305). The build order, which is the visible row order, is:
+
+1. **Software Update (top position)** — only when `!cAutoUpdate()`, so non-auto-updating clients see the update row first.
+2. Data and Storage — `BuildDataStorageSection` (sections/settings_advanced.cpp:87-165)
+3. Automatic Media Download — `BuildAutoDownloadSection` (sections/settings_advanced.cpp:167-208)
+4. Window Title — `BuildWindowTitleSection` (sections/settings_advanced.cpp:210-283)
+5. Window Close Behavior — `BuildWindowCloseBehaviorSection` (sections/settings_advanced.cpp:285-336), gated `#if !defined Q_OS_WIN && !defined Q_OS_MAC` (Linux/BSD only)
+6. System Integration — `BuildSystemIntegrationSection` (sections/settings_advanced.cpp:338-564)
+7. Performance — `BuildPerformanceSection` (sections/settings_advanced.cpp:566-626)
+8. Spellchecker — `BuildSpellcheckerSection` (sections/settings_advanced.cpp:628-697)
+9. Screen Reader — `BuildScreenReaderSection` (sections/settings_advanced.cpp:699-728) — not currently documented in this spec; accessibility toggles only.
+10. **Software Update (bottom position)** — only when `cAutoUpdate()`, so auto-updating clients see the update row near the end instead.
+11. Export Data — `BuildExportSection` (sections/settings_advanced.cpp:789-813)
+
+Each section is separated from the next by the standard skip + divider + skip pattern. Disclosures (conditional subsections like multi-account window-title checkbox or Send-To menu on Windows) use `SlideWrap` so they animate in/out when preconditions change.
 
 #### 14.7.1 Data and Storage
 
@@ -2382,6 +2559,13 @@ Three buttons: In Private Chats, In Groups, In Channels — each opens `AutoDown
 
 Checkboxes: Show chat name, Show account name (multi-account only), Show unread count, Native/Qt frame toggle.
 
+Row order inside this subsection (source: sections/settings_advanced.cpp:210-283):
+
+1. Show chat name — always visible.
+2. Show account name — wrapped in a `SlideWrap` gated on `accountsAuthedCount() > 1`; collapses to zero height with a slide animation for single-account users.
+3. Show total unread count.
+4. Native Frame toggle — wrapped in a `SlideWrap` gated on `Platform::NativeWindowFrameSupported()`; on platforms where the custom titlebar cannot be swapped for the native one, the row is hidden entirely rather than disabled.
+
 #### 14.7.4 Window Close Behavior (Linux only)
 
 Radio: Run in Background, Close to Taskbar, Quit.
@@ -2390,9 +2574,26 @@ Radio: Run in Background, Close to Taskbar, Quit.
 
 Checkboxes: Show tray icon, Show taskbar icon (at least one required), Monochrome tray icon, Launch at startup, Start minimized (with autostart only), Add to "Send To" menu (Windows only).
 
+Row sequence inside `BuildSystemIntegrationSection` (source: sections/settings_advanced.cpp:338-564):
+
+1. **Show tray icon** checkbox — present on all platforms that support a system tray.
+2. **Show taskbar icon** checkbox — present where the OS lets the app hide the taskbar entry. Invariant: at least one of (1) and (2) must be ON; unchecking the last one is blocked and a toast explains why.
+3. **Monochrome tray icon** checkbox — slide-wrapped on `trayIconSupported && iconMonochromeSupported`.
+4. **macOS-specific block** — in-tray icon style controls under an `#ifdef Q_OS_MAC` guard, following the tray/taskbar rows.
+5. **Windows-specific close behavior** — under `#ifdef Q_OS_WIN`, Windows equivalent of the Linux §14.7.4 block.
+6. **Launch at startup** checkbox — slide-wrapped on platform-specific autostart availability.
+7. **Start minimized** checkbox — nested inside a `SlideWrap` gated on the Launch-at-startup checkbox; collapses when autostart is OFF.
+8. **Add to "Send To" menu** checkbox — `#ifdef Q_OS_WIN` only (source: sections/settings_advanced.cpp:338-564 Windows block).
+
 #### 14.7.6 Performance
 
 Power Saving button, Hardware video acceleration toggle, OpenGL/ANGLE backend toggle (restart required).
+
+Rows in order (source: sections/settings_advanced.cpp:566-626):
+
+1. **Power Saving** row — opens `PowerSavingBox` (the same dialog as the main-page Power Saving entry, so users can reach it from either place).
+2. **Hardware-accelerated video** toggle — slide-wrapped on `Webrtc::DesktopCaptureAllowed()`-style platform support.
+3. **OpenGL / ANGLE** toggle — on Windows this selects between `ANGLE` and native OpenGL backends; on other platforms it gates `Ui::GL::ForceDisabled()`. Flipping the toggle triggers the same "Restart now?" dialog as §14.4 (source: sections/settings_advanced.cpp:566-626).
 
 #### 14.7.7 Spellchecker
 
@@ -2407,6 +2608,28 @@ Auto-update toggle with version/progress label. Install beta versions toggle. Ch
 **Premium:** Telegram Premium (gradient button), Telegram Stars (with balance), TON Currency (if balance), Telegram Business, Send a Gift.
 
 **Help:** Telegram FAQ, Telegram Features, Ask a Question (confirmation dialog → support chat).
+
+#### 14.8.1 Footer Layout
+
+Between the Interface Scale block and the Premium section, the builder emits the standard skip + divider + skip separator. The Premium section itself is composed from `builder.addPremiumButton({...})` calls (source: sections/settings_main.cpp:520-582, 585-586). Each premium button uses a dedicated gradient-backed style (the builder internally picks the `settingsButton`-compatible gradient variant) and supports an optional right-side label (`.label`) for balances and an optional `newBadge` for promotional entries.
+
+Row order inside the Premium section:
+
+1. **Telegram Premium** — `.id = "main/premium"`, title `tr::lng_premium_summary_title()`, uses the builder's premium-button styling (source: sections/settings_main.cpp:523-529). No explicit custom icon; the builder draws the gradient star glyph.
+2. **Telegram Stars** — `.id = "main/credits"`, title `tr::lng_settings_credits()`, `.credits = true` which binds `.label` to `session->credits().balanceValue()` and formats it as a live-updating balance string (source: sections/settings_main.cpp:531-541).
+3. **TON** — a normal `addButton` with icon `&st::menuIconTon`, visibility gated on a non-empty TON balance (source: sections/settings_main.cpp:543-556). Hidden entirely when balance is empty rather than shown as "0 TON".
+4. **Telegram Business** — icon `&st::menuIconShop`, navigates to the Business settings section (source: sections/settings_main.cpp:558-563).
+5. **Send a Gift** — conditionally shown when gift purchasing is enabled server-side; draws a `newBadge` indicator until the user interacts with it (source: sections/settings_main.cpp:565-571).
+
+#### 14.8.2 Help Section Layout
+
+Separated from Premium by another skip + divider + skip (source: sections/settings_main.cpp:584-586). Three rows follow in order (source: sections/settings_main.cpp:584-605):
+
+1. **Telegram FAQ** (line 591) — opens the FAQ page in the external browser via `UrlClickHandler::Open`.
+2. **Telegram Features** (line 597) — opens the features channel link.
+3. **Ask a Question** (line 603) — click handler calls `OpenAskQuestionConfirm()` (source: sections/settings_main.cpp:930-948) which shows a confirmation dialog before contacting volunteer support. Accepting the dialog opens a 1:1 chat with the assigned support bot; cancel dismisses without side-effects.
+
+All three Help rows use the standard `settingsButton` style with 60 px icon column. The about-label below the Premium group (when present) uses `settingsPremiumRowAboutPadding = margins(59px, 0px, 46px, 6px)` (source: settings.style:815) — the 59 px left inset aligns the helper text with the row title column rather than the icon column.
 
 ### 14.9 Visual Style Constants
 
