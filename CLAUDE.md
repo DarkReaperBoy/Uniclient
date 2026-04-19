@@ -4,6 +4,17 @@
 
 Operational guide for Claude Code. **Rules and build commands only** — no findings, quirks, or TODOs here.
 
+## Ralph Unattended Mode
+
+If your prompt starts with "You are running in unattended automation mode (ralph loop)", you are in ralph mode. The following overrides apply:
+
+- **Reading list:** Follow the ralph prompt's steps — do NOT read SPEC.md, auth/auth.md, or research/ files upfront. Only read CLAUDE.md and the specific spec section cited by your checklist item.
+- **No plan files:** The component plan file requirement (gui_component_plan_{name}.md) is waived. The checklist IS the plan.
+- **No doc sync:** Do NOT update SPEC.md or research/ files. Only update checklist/gui.md (delete completed items).
+- **No auto-continue:** After completing your one item, exit cleanly. Do NOT read todolist.md and keep working.
+- **No agents:** Do NOT spawn parallel agents. Stay focused on one item.
+- All other CLAUDE.md rules still apply fully.
+
 ## On Context Reset — Read These First
 
 **STOP. Before doing ANYTHING, read these files in order. Do not skip any.**
@@ -76,7 +87,7 @@ When the user says "add X", follow these steps in order:
 
 ## Key Rules
 
-- **SPEC FIRST, CODE SECOND — mandatory for all UI work** — Before writing ANY widget or screen code, you MUST: (1) Read the FULL spec sections for that component (`research/telegram_desktop_ui.md`), not just headers — every subsection, dimension, and state. (2) Write a component breakdown plan in `research/gui_component_plan_{name}.md` listing every widget, its nesting, exact dimensions, and state needs. (3) Cross-reference all related spec sections (a sidebar involves §1 layout + §2 chat list + §3 hamburger + §18 folders). (4) Explicitly note where your instinct differs from the spec. Do NOT start coding until the plan is written and reviewed against the spec. See `research/gui_build_process.md` for the full process. This rule exists because we wasted an entire session building a completely wrong left panel by skipping the spec.
+- **SPEC FIRST, CODE SECOND — mandatory for all UI work** — Before writing ANY widget or screen code, you MUST: (1) Read the FULL spec sections for that component (`research/telegram_desktop_ui.md`), not just headers — every subsection, dimension, and state. (2) Cross-reference all related spec sections (a sidebar involves §1 layout + §2 chat list + §3 hamburger + §18 folders). (3) For large components (new screens, multi-widget layouts), write a component breakdown plan in `research/gui_component_plan_{name}.md` listing every widget, its nesting, exact dimensions, and state needs — not required for small single-widget checklist items. This rule exists because we wasted an entire session building a completely wrong left panel by skipping the spec.
 - **Research before implementing UI features** — If you check `research/telegram_desktop_ui.md` and don't find the UI feature you need to implement, you MUST research AyuGram Desktop source code (https://github.com/AyuGram/AyuGramDesktop) first and add your findings to the research file BEFORE writing any code. Never guess how a UI feature should work — find the real implementation.
 - **Smoke-test the GUI before declaring done** — After ANY GUI-related work, you MUST build the app, launch it, and **interact with it like a normal user** to verify changes work. Passing unit tests is not enough — the actual app must work.
 - **UI is the source of truth, not API calls** — A feature is NOT working unless the user can SEE it working in the UI. An API call succeeding behind the scenes means nothing if the display is broken. When verifying bugs or features: screenshot the rendered result and judge what the USER sees, not what the logs say. "Forward works" means a forwarded message renders with a "Forwarded from" header — not that the API returned 200. "Pinned bar works" means clicking it scrolls to the pinned message visually — not that GetPinnedMessages returned data. Always verify the VISUAL output, never just the data layer.
@@ -161,6 +172,20 @@ When the user says "add X", follow these steps in order:
   ```
   Note: `flutter_inspect.sh screenshot` is preferred — it captures the Flutter UI directly without needing window focus.
 
+  #### Gotchas & low-level details
+  - **websocat buffer:** Default 64KB — large widget trees get truncated. Screenshot responses usually fit.
+  - **Inspector IDs** (`inspector-N`) change between app restarts. Use `flutter_inspect.sh tree` to find the right one, or `inspector-8` (typically app root).
+  - **`evaluate` doesn't work:** Dart expression evaluation isn't available in custom builds (no JIT compilation service). That's why we use file-based IPC instead.
+  - **HTTP vs WebSocket:** `getVM`/`getIsolate` work via HTTP GET, but `ext.flutter.inspector.*` extension methods require WebSocket.
+  - **Isolate discovery:** `curl -s "http://127.0.0.1:PORT/TOKEN=/getVM" | jq '.result.isolates[] | select(.isSystemIsolate == false) | .id'`
+  - **Raw JSON-RPC** (if scripts break and you need to debug manually):
+    ```
+    screenshot:  {"method":"ext.flutter.inspector.screenshot","params":{"isolateId":"isolates/XXX","id":"inspector-8","width":1280,"height":800,"margin":0,"maxPixelRatio":2.0,"debugPaint":false}}
+    widget tree: {"method":"ext.flutter.inspector.getRootWidgetSummaryTree","params":{"isolateId":"isolates/XXX","objectGroup":"inspect"}}
+    details:     {"method":"ext.flutter.inspector.getDetailsSubtree","params":{"isolateId":"isolates/XXX","arg":"inspector-116","subtreeDepth":10}}
+    ```
+    Send via: `echo '<json>' | websocat -n1 "ws://127.0.0.1:PORT/TOKEN=/ws"`
+
   ### Checklist: what to verify
   - Does the screen render correctly? (screenshot)
   - Do chats load after auth? (logs: `GetChatList`)
@@ -178,9 +203,9 @@ When the user says "add X", follow these steps in order:
 | Task | Source of truth | Research file | How to verify |
 |------|----------------|---------------|---------------|
 | **Design any UI widget/screen** | [AyuGram Desktop](https://github.com/AyuGram/AyuGramDesktop) — match 1:1 | `research/telegram_desktop_ui.md` | Read spec section first. If missing/vague, send agent to AyuGram source, ADD findings to research, THEN implement. |
-| **Test UI renders correctly** | Flutter debug tools (built in-repo) | `research/gui_notes.md` | Build → launch → `flutter_inspect.sh screenshot` → `flutter_interact.sh` (tap/scroll/findtext/taptext) → screenshot → verify. Update `research/gui_notes.md` with any new patterns/gotchas. |
+| **Test UI renders correctly** | Flutter debug tools (built in-repo) | See CLAUDE.md § GUI Automation Toolkit | Build → launch → `flutter_inspect.sh screenshot` → `flutter_interact.sh` (tap/scroll/findtext/taptext) → screenshot → verify. |
 | **Test UI interaction flows** | `scripts/flutter_interact.sh` | `checklist/gui.md` | `taptext "Button"` to click by label. `findtext "X"` to locate elements. `rightclick x y` for context menus. `scroll` for pagination. `alltext` to dump screen. Always screenshot before AND after. |
-| **Test auth flow** | `scripts/flutter_auth.sh` | `research/gui_notes.md` | `flutter_auth.sh auto phone "+..."` → monitor `AUTH:` logs → verify `ready` state. |
+| **Test auth flow** | `scripts/flutter_auth.sh` | See CLAUDE.md § GUI Automation Toolkit | `flutter_auth.sh auto phone "+..."` → monitor `AUTH:` logs → verify `ready` state. |
 
 ### Telegram Backend
 
@@ -270,5 +295,4 @@ When adding a NEW core not listed here: research the official client libraries, 
 - `research/ice_protocol.md` — ZeroC Ice wire protocol for Murmur admin (encap format, identities, tested methods)
 - `research/xmpp_protocol.md` — XMPP (RFC 6120/6121 + 30+ XEPs, Jingle)
 - `research/engine_architecture.md` — Engine layer spec: SQLite cache, auth FSM, events, pending queue, media pipeline, content normalization
-- `research/gui_notes.md` — UI/UX design exploration + GUI automation toolkit (merged from gui-idea.md + flutter_gui_automation.md)
 - `research/telegram_desktop_ui.md` — Complete Telegram Desktop UI spec (22 sections: §1-13 core UI, §14 general/account settings, §15 notifications, §16 privacy/security, §17 data/storage/advanced, §18 folders, §19 sessions/power/language, §20 media viewer, §21 create group/channel, §22 forum topics)

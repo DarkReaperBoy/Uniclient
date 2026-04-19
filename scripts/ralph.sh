@@ -6,16 +6,16 @@
 #   nix develop --command bash -c "scripts/ralph.sh"
 #
 # What it does:
-#   Loops FOREVER. Each iteration: fresh context, picks next todolist item,
+#   Loops FOREVER. Each iteration: fresh context, picks next checklist item,
 #   implements, tests with GUI toolkit, commits, pushes. Handles every
-#   failure gracefully — never stops unless you kill it or todolist is empty.
+#   failure gracefully — never stops unless you kill it or checklist is empty.
 #
 # Failure recovery:
 #   - Rate limit → wait 5 min, retry
 #   - Network/crash → exponential backoff (30s→60s→120s→5min cap), retry forever
 #   - Stuck task → after 3 attempts on same position, tells Claude to skip it
 #   - Stall (no commits) → notifies you, keeps going
-#   - NEVER stops on its own (except: todolist.md deleted)
+#   - NEVER stops on its own (except: checklist fully checked)
 #
 # Kill it: Ctrl+C or `kill $(pgrep -f ralph.sh)`
 
@@ -24,7 +24,7 @@ cd "$(dirname "$0")/.."
 PROJECT_ROOT="$(pwd)"
 
 # ─── Configuration ───────────────────────────────────────────────
-COOLDOWN_SECONDS="${RALPH_COOLDOWN:-10}"
+COOLDOWN_SECONDS="${RALPH_COOLDOWN:-0}"
 RATE_LIMIT_WAIT="${RALPH_RATE_WAIT:-300}"
 BACKOFF_BASE=30
 BACKOFF_MAX=300
@@ -44,14 +44,23 @@ notify() {
 }
 
 # ─── Gitignore logs ──────────────────────────────────────────────
-if ! grep -q "^logs/" "$PROJECT_ROOT/.gitignore" 2>/dev/null; then
-  echo "logs/" >> "$PROJECT_ROOT/.gitignore"
+for pat in "logs/" ".ralph.lock"; do
+  grep -q "^${pat}$" "$PROJECT_ROOT/.gitignore" 2>/dev/null || echo "$pat" >> "$PROJECT_ROOT/.gitignore"
+done
+
+# ─── Lockfile ────────────────────────────────────────────────────
+LOCKFILE="$PROJECT_ROOT/.ralph.lock"
+if [[ -f "$LOCKFILE" ]] && kill -0 "$(cat "$LOCKFILE")" 2>/dev/null; then
+  echo "Another ralph instance is running (PID $(cat "$LOCKFILE")). Exiting."
+  exit 1
 fi
+echo $$ > "$LOCKFILE"
 
 # ─── Cleanup on exit ────────────────────────────────────────────
 cleanup() {
   log "Shutting down..."
-  pkill -f "bundle/uniclient" 2>/dev/null || true
+  pkill uniclient 2>/dev/null || true
+  rm -f "$LOCKFILE"
   notify "Ralph stopped after $ITERATION iterations ($TOTAL_COMMITS commits)."
   log "=== Final stats: $ITERATION iterations, $TOTAL_COMMITS commits ==="
 }
@@ -66,17 +75,15 @@ You are running in unattended automation mode (ralph loop). No human is watching
 
 MANDATORY FIRST STEPS — do these in order:
 1. Read CLAUDE.md (the entire file — every rule is binding)
-2. Read todolist.md
-3. Check git log --oneline -20 to see what was already done recently
-4. Pick the FIRST uncompleted sub-item from todolist.md that wasn't already done
-   - If a section has bullet points (- items), each bullet is ONE iteration
-   - Skip bullets that already have matching commits in git log
-   - If the entire section is done, move to the next section
+2. Read checklist/gui.md and find the FIRST unchecked "- [ ]" item
+   - Each "- [ ]" entry is one checklist item; scan top-to-bottom
+   - If an entire section is done, move to the next section
 
 THEN:
-5. Read the relevant spec sections and source files BEFORE writing code
-6. Implement the feature completely — no stubs, no placeholders
-7. Build and verify:
+3. Read the relevant spec section cited in the checklist entry (e.g. §4.2 → read that section of research/telegram_desktop_ui.md)
+4. Read existing source files BEFORE writing code
+5. Implement the feature completely — no stubs, no placeholders
+6. Build and verify — do NOT skip any step:
    a. Build Go: scripts/build_go.sh linux
    b. Build Flutter: scripts/build_flutter.sh linux debug
    c. Launch app: cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
@@ -84,18 +91,26 @@ THEN:
    e. Screenshot: scripts/flutter_inspect.sh screenshot /tmp/ralph_ss.png
    f. Read screenshot to verify visually
    g. Test interaction with scripts/flutter_interact.sh if applicable
-   h. Kill app: pkill -f "bundle/uniclient"
-8. If it works: remove the completed bullet from todolist.md, git add changed files, commit, push
-9. If build/test fails: fix and retry (up to 3 attempts in this session)
+   h. Kill app: pkill uniclient
+7. If it works: DELETE the completed item from checklist/gui.md, git add changed files, commit, push
+8. If build/test fails: fix and retry (up to 3 attempts in this session)
    - If still broken after 3 attempts: commit partial progress with "WIP:" prefix, push, exit
-10. Update checklist/ if relevant
+9. Update checklist/ docs if relevant
 
 RULES:
-- ONE bullet point per session. Small, focused, atomic.
+- ONE item per session. Implement it, test it to perfection, push it. The loop gives you fresh context next round.
+- ALWAYS delete completed items from checklist/gui.md — never mark [x], just remove the line. Git log is the record of done work.
 - ALWAYS commit something — working code or WIP progress.
 - ALWAYS push after commit: git push origin main
-- ALWAYS remove completed items from todolist.md before committing.
+- Do NOT declare something working until you have visually verified it via screenshot and tested every interaction.
 - Exit cleanly when done. The loop restarts you with fresh context.
+
+STAY ON TASK — do NOT:
+- Read SPEC.md, auth/auth.md, or any research/ file EXCEPT the spec section cited in your checklist item.
+- Refactor, clean up, or "improve" code that isn't part of your checklist item.
+- Fix unrelated bugs you discover — log them in checklist/gui.md under "## Bugs" instead.
+- Add comments, docstrings, or type annotations to code you didn't change.
+- Read files beyond what's needed for the current item. Stay narrow.
 PROMPT_END
 
   # Append extra context if provided
@@ -119,28 +134,36 @@ log "Monitor with: tail -f $LOG_FILE"
 while true; do
   ITERATION=$((ITERATION + 1))
   ITER_FILE="$ITER_LOG_DIR/iter_$(printf '%04d' $ITERATION).log"
-  ITER_START="$(date +%s)"
 
   log "── Iteration $ITERATION (commits so far: $TOTAL_COMMITS) ──"
 
-  # ─── Check todolist exists ───────────────────────────────────
-  if [[ ! -f "$PROJECT_ROOT/todolist.md" ]]; then
-    log "todolist.md gone. All done?"
-    notify "Ralph: todolist.md not found — all done?"
-    sleep 60  # wait in case it's a transient git issue
-    continue  # don't stop — it might reappear after a git operation
+  # ─── Check checklist exists and has unchecked items ──────────
+  if [[ ! -f "$PROJECT_ROOT/checklist/gui.md" ]]; then
+    log "checklist/gui.md not found. Nothing to do."
+    notify "Ralph: checklist/gui.md not found"
+    sleep 60
+    continue
   fi
+  REMAINING=$(grep -c '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || echo 0)
+  if [[ "$REMAINING" -eq 0 ]]; then
+    log "All checklist items completed! ($TOTAL_COMMITS total commits)"
+    notify "Ralph: ALL DONE! $TOTAL_COMMITS commits across $ITERATION iterations."
+    break
+  fi
+  log "Remaining checklist items: $REMAINING"
 
   # ─── Kill leftover app ──────────────────────────────────────
-  pkill -f "bundle/uniclient" 2>/dev/null || true
+  pkill uniclient 2>/dev/null || true
 
   # ─── Build prompt with context ──────────────────────────────
   EXTRA=""
   if [[ $STALL_ITERATIONS -ge 3 ]]; then
-    EXTRA="WARNING: The last $STALL_ITERATIONS iterations produced no commits. You may be stuck on a task.
-Try a DIFFERENT todolist item — skip the one you've been attempting. Look further down the list.
+    STUCK_ITEM="$(grep -m1 '^- \[ \]' "$PROJECT_ROOT/checklist/gui.md" 2>/dev/null || echo "unknown")"
+    EXTRA="WARNING: The last $STALL_ITERATIONS iterations produced no commits. You are likely stuck on this item:
+  $STUCK_ITEM
+SKIP IT — delete it from checklist/gui.md and try the NEXT item instead.
 If all remaining items seem blocked, commit a note explaining why and exit."
-    log "Injecting skip instruction (stalled $STALL_ITERATIONS iterations)"
+    log "Injecting skip instruction (stalled $STALL_ITERATIONS iterations on: $STUCK_ITEM)"
   fi
 
   PROMPT="$(build_prompt "$EXTRA")"
@@ -153,6 +176,7 @@ If all remaining items seem blocked, commit a note explaining why and exit."
     --dangerously-skip-permissions \
     --model claude-opus-4-6 \
     --effort max \
+    --max-turns 50 \
     --output-format stream-json \
     --verbose \
     -p "$PROMPT" \
@@ -188,7 +212,7 @@ If all remaining items seem blocked, commit a note explaining why and exit."
     log "Progress! $NEW_COMMITS new commit(s). Total: $TOTAL_COMMITS"
     log "Latest: $(git -C "$PROJECT_ROOT" log --oneline -1)"
     # Kill uniclient after successful push
-    pkill -f "bundle/uniclient" 2>/dev/null || true
+    pkill uniclient 2>/dev/null || true
     log "Killed uniclient after push"
   else
     STALL_ITERATIONS=$((STALL_ITERATIONS + 1))
