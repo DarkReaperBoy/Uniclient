@@ -13259,6 +13259,79 @@ When the user has contacts with active stories, a horizontal stories strip appea
 - The stories bar is enabled via `setStoriesShown(true)` in `PrepareContactsBox()`.
 
 When stories are shown, the item style switches to `st::contactsWithStories`:
+
+#### Stories Row Widget (`Dialogs::Stories::List`)
+
+The stories bar inside the Contacts box is NOT the same widget as the main chat-list stories strip. In the Contacts box, the stories treatment is applied **inline per row** via `PeerListStories` (see `boxes/peer_list_controllers.cpp:747-834`) rather than a horizontal strip widget. Each contact row that has an active story gets:
+
+- A colored ring drawn around its 42px avatar (the same row as its name/status, not a separate strip).
+- A small hit target check: `point.x < st.photoPosition.x + st.photoSize` routes the click to `window->openPeerStories(peer->id)` (`peer_list_controllers.cpp:804-807`). Anywhere else on the row opens the chat.
+- Ring segments are pre-baked in `applyForRow()` via `PeerListStoriesSegments(counts, _unreadBrush)` (`peer_list_controllers.cpp:828-829`).
+
+The **horizontal strip** widget (`Dialogs::Stories::List`, `dialogs/ui/dialogs_stories_list.cpp:83`) lives in the main chat-list sidebar, not in the Contacts box. We document it here because AyuGram reuses its style tokens (`st::dialogsStoriesFull.lineTwice`) for the contacts row rings, and because it is the source of truth for ring geometry + unread gradient.
+
+#### Style Tokens (`dialogs/dialogs.style:1115-1166`)
+
+| Token | Mode | Value |
+|---|---|---|
+| `dialogsStories.photo` | Small (collapsed) | **21px** |
+| `dialogsStories.photoLeft` | Small | **4px** |
+| `dialogsStories.photoTop` | Small | **4px** |
+| `dialogsStories.shift` | Small | **16px** (spacing between items) |
+| `dialogsStories.height` | Small | **35px** |
+| `dialogsStories.lineTwice` | Small | **3px** (unread stroke, drawn at `lineTwice/2 = 1.5px` logical) |
+| `dialogsStories.lineReadTwice` | Small | **0px** (read state: no stroke in small mode) |
+| `dialogsStories.nameLeft/Right/Top` | Small | **11 / 10 / 3px** |
+| `dialogsStories.nameStyle` | Small | `semiboldTextStyle` |
+| `dialogsStoriesFull.photo` | Full (expanded) | **42px** |
+| `dialogsStoriesFull.photoLeft` | Full | **10px** |
+| `dialogsStoriesFull.photoTop` | Full | **9px** |
+| `dialogsStoriesFull.height` | Full | **77px** |
+| `dialogsStoriesFull.lineTwice` | Full | **4px** (unread stroke, 2px logical) |
+| `dialogsStoriesFull.lineReadTwice` | Full | **2px** (read state: 1px logical stroke) |
+| `dialogsStoriesFull.nameLeft/Right/Top` | Full | **0 / 0 / 56px** (centered caption below avatar) |
+| `dialogsStoriesFull.nameStyle` | Full | custom `TextStyle{font:11px}` |
+| `dialogsStoriesList.bg` | Container | `dialogsBg` (theme-resolved) |
+| `dialogsStoriesList.readOpacity` | Container | **0.6** (already-read thumbs fade to 60%) |
+| `dialogsStoriesList.fullClickable` | Container | **0** (name label in full mode is not a separate click target) |
+
+#### Avatar Ring Rendering (`dialogs_stories_list.cpp:696-729, 285`)
+
+- Stroke width animates linearly between modes: `line = elerp(st.lineTwice, full.lineTwice) / 2` (line 285). So transitioning from small→full the ring thickens from 1.5px to 2px.
+- `validateSegments()` (696-729) builds the segment path per avatar. Each story slot is a separate arc; gaps between arcs scale with `count`.
+- **Unread brush:** `Ui::UnreadStoryOutlineGradient()` (line 388) — linear gradient applied top-right → bottom-left (line 408). Colors pulled from theme: start `storiesRingUnreadLight`, end `storiesRingUnreadDark` (Telegram default brand gradient).
+- **Read brush:** solid `st::dialogsUnreadBgMuted` (muted grey-blue), drawn only in full mode (`lineReadTwice=2px`); small mode skips reading the read state (`lineReadTwice=0px`).
+- **Video stream indicator:** for stories with `hasVideoStream=true`, the whole ring switches to `st::attentionButtonFg` (red) — replaces the gradient entirely (not overlaid). Set per-row via `applyForRow` (peer_list_controllers.cpp:829).
+
+#### Unread Indicator
+
+The outline itself IS the unread indicator — there is no separate dot or counter. Ring state encodes:
+
+1. **All stories unread:** full gradient ring, all segments at full stroke.
+2. **Mixed:** unread segments gradient, read segments muted colour at `lineReadTwice` thickness (visible only in full mode).
+3. **All read:** entire ring rendered with muted colour at reduced thickness; in small mode the ring disappears entirely since `lineReadTwice=0`.
+
+`readOpacity = 0.6` additionally fades the **thumbnail inside** a fully-read ring to 60% alpha (not the ring itself), visually demoting it vs. unread entries.
+
+#### Horizontal Scroll Behaviour (`dialogs_stories_list.cpp:662-680`)
+
+- Wheel events captured; when the user scrolls **horizontally** (shift-scroll or trackpad sideways), the internal `_scrollLeftMax` drags the content. Pure vertical wheel is forwarded via `verticalScrollEvents()` to the parent chat list so outer scroll still works when cursor is over the strip.
+- Clamp range: `[0, _scrollLeftMax]` (line 673).
+- **Load-more trigger:** fires `loadMoreRequests()` when remaining right-scroll drops below `width() * kPreloadPages` where `kPreloadPages = 2` (line 34). So prefetch starts at ~2 viewports of runway left.
+- **Expand/collapse momentum:** `requestExpanded(bool)` (230-245) animates the `ratio` parameter 0→2 (expanding) or 2→0 (collapsing) over `slideWrapDuration`. An additional `kExpandCatchUpDuration = 200ms` (line 35) smooths the transition when user flicks between states.
+
+#### Empty State (`dialogs_stories_list.cpp:118`)
+
+If `content.elements.empty()`, `_empty = true` and the widget collapses to zero height — no placeholder row, no "No stories yet" label. Parent container (Contacts box) therefore sees a hidden strip and lays out the contacts list flush with the search field. In the Contacts box specifically, since stories attach to rows (not a strip), "empty" simply means no row gets a ring.
+
+#### i18n
+
+The strip itself has no user-facing text in the collapsed/small mode. In full mode each entry shows the contact's first name in `nameStyle` (11px). Tooltip on long-hover is wired through `setShowTooltip()` (class API) but AyuGram does not configure it by default, so *HONEST GAP: no localized tooltip key currently applied.*
+
+*HONEST GAP: Exact pixel positioning of the ring relative to the avatar inside a Contacts row (`st::contactsWithStories`) is inherited from `peerListBoxItem` + `dialogsStoriesFull.lineTwice`, but AyuGram's style file does not explicitly override the ring margin — it is drawn flush to the avatar circle. Stroke-centred, so half the stroke extends inside/outside the 42px avatar disc.*
+
+#### Row-Style Overrides when Stories Enabled
+
 - Row height: **52px** (vs 56px default).
 - Photo position: **(18px, 5px)**.
 - Name position: **(70px, 7px)**.
@@ -13353,6 +13426,106 @@ Opened by the "Add Contact" bottom-left button, or via hamburger menu > "Contact
   1. **First name** -- `InputField`, label "First name". Left padding: 49px (`contactPadding.left()`). Max length: `kMaxUserFirstLastName`.
   2. **Last name** -- `InputField`, label "Last name". Spacing from first name: `contactSkip` (9px).
   3. **Phone number** -- `PhoneInput` field with country code selector. Spacing from last name: `contactPhoneSkip` (30px).
+
+#### Country Code Picker
+
+##### Picker Trigger (`ui/countryinput.cpp:68-99`)
+
+The country selector is the left-side component of `PhoneInput`. Interaction model:
+
+- **Mouse press** anywhere on the country label region → opens `Ui::CountrySelectBox` (line 69).
+- **Keyboard:** pressing **Enter**, **Return**, or **Space** while the PhoneInput has focus and the country field is the active sub-region also opens the picker (line 99).
+- The picker is modal and owned by the parent `BoxContent` via `_show->showBox(box, LayerOption::KeepOther)`.
+- On selection, `box->entryChosen()` emits an `Entry{country, iso2, code, alternativeName}` struct (lines 72-73) back into `PhoneInput`, which splits the phone digits to re-prefix.
+- Placeholder when no country picked: `tr::lng_country_code` ("Code"). Error when user types an invalid prefix: `tr::lng_bad_country_code` ("Invalid country code").
+
+##### CountrySelectBox Shell (`ui/boxes/country_select_box.cpp:109-125`)
+
+| Property | Value | Source |
+|---|---|---|
+| Width | `st::boxWidth` (**320px** default) | line 113 |
+| Max height | `st::boxMaxListHeight` | line 113 |
+| Title | `tr::lng_country_select` ("Choose a country") | line 109 |
+| Title font | `boxTitleFont` (17px semibold) | inherited from `BoxContent` |
+| Title height | `boxTitleHeight` (54px) | inherited |
+| Bottom button | `tr::lng_cancel` ("Cancel"), standard `boxButton` | inherited |
+
+##### Search Field (`country_select_box.cpp:100-115`)
+
+- Widget: `Ui::MultiSelect`, style `st::defaultMultiSelect`.
+- Placeholder: `tr::lng_country_ph` ("Search").
+- Height: flexible, determined by `_select->height()` — typically ~48px.
+- **Filter callback** (lines 111-113): fires on every text change. No debounce (purely local data). Calls `applyFilterUpdate(query)` which rebuilds the visible row set.
+- **Escape** clears the query and restores the full list.
+
+##### Country Row Layout (`country_select_box.cpp:149, 207-233, 229-230`)
+
+| Property | Value |
+|---|---|
+| Row height | `st::countryRowHeight` (~36px typical, theme-driven) |
+| Row padding | `st::countryRowPadding` (margins left/right inset for content) |
+| Name position | Left-aligned inside padding |
+| Code position | Right-aligned; code is prefixed with `+` at render time |
+| Name font | `st::countryRowNameFont` (regular ~14px) |
+| Code font | `st::countryRowCodeFont` (regular ~14px, monospace tendency) |
+| Top margin | `st::countriesSkip` (section header spacer, only before alphabetical blocks) |
+
+**Flag:** AyuGram's CountrySelectBox does **NOT** render a flag emoji in the row. The row is purely text (name on left, `+code` on right). *HONEST GAP: the commonly-assumed "🇺🇸 United States +1" layout is the mobile convention; Desktop shows only "United States +1".*
+
+##### Visual States (`country_select_box.cpp:208-233, 264`)
+
+| State | Background | Name colour | Code colour |
+|---|---|---|---|
+| Normal | `st::countryRowBg` | `st::countryRowNameFg` | `st::countryRowCodeFg` |
+| Hover / selected | `st::countryRowBgOver` | `st::countryRowNameFg` (unchanged) | `st::countryRowCodeFgOver` |
+| Pressed | `st::countryRowBgOver` + ripple | same | same |
+| Ripple | `st::countryRipple` animation | — | — |
+
+The ripple uses the standard `Ui::RippleAnimation` with origin at the press point; fade duration matches `st::defaultRippleAnimation` (~400ms).
+
+##### Alphabetical Indexing (`country_select_box.cpp:180-197, 295-315`)
+
+- Countries are pre-indexed: each country name is split on whitespace and hyphens; the **first character of each word** feeds the prefix trie (lines 180-197).
+- Query matching (lines 295-315):
+  1. Lowercase the query, split on whitespace.
+  2. For each query word, filter candidates whose first-letter index contains that initial.
+  3. Secondary validation: every query word must appear as a substring/prefix of some word in the country name.
+- Alphabetical section dividers: **not implemented as visual headers.** Results are ordered by `entry priority` (most-common countries float up) then alphabetically. The picker renders a flat list.
+- `st::countriesSkip` produces vertical gaps between "priority clusters" (popular countries vs. the rest) but there are no letter labels.
+
+##### Keyboard Navigation (`country_select_box.cpp:122-127, 114`)
+
+| Key | Action |
+|---|---|
+| ↓ | `selectSkip(1)` — move selection down one row |
+| ↑ | `selectSkip(-1)` — move up one row |
+| PageDown | `selectSkipPage(boxMaxListHeight, 1)` — jump one viewport down |
+| PageUp | `selectSkipPage(boxMaxListHeight, -1)` — jump one viewport up |
+| Enter / Return | `submit()` — fire `entryChosen` with the highlighted row |
+| Esc | Close box (standard `BoxContent` behaviour) |
+
+Selected row auto-scrolls into view on each skip.
+
+##### No-Results State (`country_select_box.cpp:208-211`)
+
+- Background: `st::boxBg`.
+- Font: `st::noContactsFont` (regular, larger than row font — typically 14px).
+- Colour: `st::noContactsColor` (`windowSubTextFg` gray).
+- Text: `tr::lng_country_none` ("No countries found").
+- Height: `st::noContactsHeight` — the label occupies the full list area with vertical centring.
+
+##### Selection Persistence (`country_select_box.cpp:318`)
+
+Setting the filter to empty after a no-match query **clears the previous selection**. So if the user searches "Zz", the list goes empty, they clear the query — the previously-highlighted country is NOT restored; selection resets to the first visible row.
+
+##### Entry Type Variants (`country_select_box.h`)
+
+Two modes configured via `Type` enum:
+- `Type::Phones` — phone number entry; rows show `+code` column (used by Add Contact).
+- `Type::Countries` — generic country picker; rows show name only, no code column (used by language/region settings).
+
+*HONEST GAP: AyuGram does not override `countryRowHeight` or `countryRowPadding` numeric values in `dev` branch's `dialogs.style` / main styles file — resolved values are inherited from upstream Telegram Desktop and not re-declared. They can be inspected at runtime but are not documented in-tree as literal pixels.*
+
 - **Bottom padding:** `contactPadding.bottom()` (14px).
 - **Field order:** Respects `langFirstNameGoesSecond()` -- in some locales (e.g., Japanese, Korean), last name appears first. The `_invertOrder` flag swaps rendering and tab order.
 - **Icon:** Contact icon rendered at `contactIconPosition` (-5px, 23px) relative to each field row.
@@ -13384,6 +13557,100 @@ Opened from the contact's profile info panel (three-dot menu > "Edit Contact") o
 #### Layout
 
 - **Cover widget (top):** Displays the contact's current avatar, name, and phone status. Observes reactive data streams and updates dynamically. Styled with `st::infoEditContactCover`.
+
+##### Cover Overlay — Detailed Spec
+
+**Cover class** (`boxes/peers/edit_contact_box.cpp:103`): a dedicated `Cover` class inheriting from `Ui::FixedHeightWidget`. Constructed once at the top of the Edit Contact box body, above the name/notes form. This is NOT the same widget as the main Profile cover (`Info::Profile::Cover`); it is a simplified local variant showing only avatar + name + phone line. Photo-change buttons are separate rows below, not embedded in the cover.
+
+**Style token** (`info/info.style:1074-1088`):
+
+```
+infoEditContactCover: InfoProfileCover(infoProfileCover) {
+    nameTop: 33px;          // overridden from 32px
+    statusTop: 57px;        // overridden from 58px
+}
+```
+
+Inherits `infoProfileCover` (`info/info.style:1045-1088`) except for those 1-px nudges.
+
+| Field | Value | Notes |
+|---|---|---|
+| `height` | **108px** | Fixed (line 1046) |
+| `photo` | `UserpicButton(size=infoProfilePhotoSize)` | 72×72 circular |
+| `infoProfilePhotoInnerSize` | **72px** | Inner photo disc (line 1030) |
+| `infoProfilePhotoSize` | `size(72, 72)` | Widget size (line 1031) |
+| `photoLeft` | **19px** | Avatar left offset |
+| `photoTop` | **18px** | Avatar top offset |
+| `nameLeft` | **109px** | = 19 + 72 + 18 |
+| `nameTop` | **33px** (edit variant) | vs 32px base |
+| `name.style` | `font(16px semibold)`, `textFg: windowBoldFg` | `FlatLabel` |
+| `statusLeft` | **109px** | Aligned with name left |
+| `statusTop` | **57px** (edit variant) | vs 58px base |
+| `status` | `infoProfileStatus` | `FlatLabel`, `textFg: windowSubTextFg`, `maxHeight: 18px` |
+| `showLastSeen` | `RoundButton` at `point(3px, 58px)` | Only visible in base variant; edit variant does NOT attach a "show last seen" button |
+
+**Background &amp; gradient:** *HONEST GAP: the edit-contact cover does **NOT** use a gradient background.* The upstream `infoProfileCover` renders on solid `windowBg`. No `paintEvent` override in `Cover` (edit_contact_box.cpp) paints a gradient; the widget is a transparent layout over the box body. The assumption of a "gradient cover" conflates this with the Profile screen's full-width cover (§13), or with Premium-badge gradients (`premium_graphics.cpp`) which are NOT used in the edit-contact modal. If a gradient is desired in the uniclient port, it is an *addition*, not a reimplementation.
+
+**Avatar** (`edit_contact_box.cpp:130-164`):
+- Widget: `Ui::UserpicButton` (line 130).
+- Role: `OpenPhoto` — clicking opens the photo editor (elliptical crop) rather than viewing at full size.
+- Photo source: `PeerPhoto` — pulls the user's current profile photo reactively; updates on any `UserpicChanged` event.
+- Style: `_st.photo` = `infoEditContactCover.photo` = `UserpicButton` at 72×72.
+- Position: `(_st.photoLeft, _st.photoTop)` = **(19, 18)** (line 164).
+- `UserpicButton` internally renders: circular avatar OR initials-on-coloured-disc fallback (same palette as chat list); pressed state shows a 40% dim overlay; no ring/segments (stories ring does not appear on the edit-cover avatar).
+
+**Name label** (`edit_contact_box.cpp:128, 172, 177`):
+- Widget: `Ui::FlatLabel` styled with `_st.name` (16px semibold, `windowBoldFg`).
+- Position: `(_st.nameLeft, _st.nameTop)` = **(109, 33)** (line 172).
+- Data binding: `Info::Profile::NameValue(_user)` (line 177) — reactive `rpl::producer<QString>`. Emits the live `firstName + " " + lastName` as the user types in the form fields below, so the cover updates letter-by-letter.
+- Text context menu on right-click: "Copy full name" (`lng_profile_copy_fullname`, line 126).
+- Ellipsis: single-line with right-ellipsis if width exceeds `boxWideWidth - nameLeft - 16px`.
+
+**Status / phone line** (`edit_contact_box.cpp:129, 175, 195-197`):
+- Widget: `Ui::FlatLabel` styled with `_st.status` (regular ~13px, `windowSubTextFg`).
+- Position: `(_st.statusLeft, _st.statusTop)` = **(109, 57)** (line 175).
+- Content resolution (lines 195-197):
+  1. If `_phone` is non-empty → `Ui::FormatPhone(_phone)` (e.g. "+1 555 123 4567" with locale spacing).
+  2. Else → `tr::lng_contact_mobile_hidden` ("Mobile hidden") — shown when the user has their phone privacy set to nobody.
+- No link styling on the phone; it is plain text (unlike the profile-screen phone which can be tap-to-copy).
+
+**Badges:** *HONEST GAP: the edit-contact cover explicitly does **NOT** render verified / premium / scam / fake / bot badges.* `Cover` (lines 103-200) does not instantiate a `Ui::PeerBadge`; the name `FlatLabel` is plain text only. This differs from:
+- Contact row in the Contacts list — renders badges after the name.
+- Profile screen cover (§13) — renders badges.
+
+If the uniclient port wants badges here for parity with the chat-list row, it is an addition. AyuGram does not ship them in this dialog.
+
+**Avatar controls (the three buttons below cover):** NOT part of the cover widget itself — separate `SettingsButton` rows in the form below, styled `st::settingsButtonLight`:
+
+1. **Suggest photo** — appears only for non-contacts; Lottie animation played through `HistoryView::LottiePlayer` (ref `info_profile_cover.cpp:82-88`), frames 0-21 play once on row appear.
+2. **Set personal photo** — camera glyph icon; on click opens `Editor::PhotoModifications` dialog with elliptical crop preset.
+3. **Reset to default** — opens a standard confirm box ("Reset to default photo?") before calling `MTPcontacts_EditCloseFriends` / photo-clear API.
+
+Lottie runs at native 60fps; ~350ms total duration.
+
+**Animations inside the cover:**
+
+| Event | Animation | Duration |
+|---|---|---|
+| User changes name in form | `NameValue` producer re-fires → `FlatLabel::setText` | Instant (no fade) |
+| User uploads new photo | `UserpicButton` cross-fade | **150ms** (`st::fadeWrapDuration`) |
+| Suggest-photo row Lottie | Frames 0-21, single play | **~350ms** |
+
+**Colour tokens:**
+
+| Element | Token | Default (day) |
+|---|---|---|
+| Name text | `windowBoldFg` | `#222222` |
+| Status text | `windowSubTextFg` | `#999999` |
+| Cover background | `windowBg` (inherited from box) | `#FFFFFF` |
+| Avatar fallback disc | Hash-derived palette (same as chat list) | 8 colours |
+| Avatar pressed overlay | `st::buttonFgOver` at ~40% alpha | — |
+
+**i18n keys used by the cover:**
+- `lng_profile_copy_fullname` — right-click "Copy full name" (edit_contact_box.cpp:126).
+- `lng_contact_mobile_hidden` — fallback phone text (edit_contact_box.cpp:195).
+
+No other localized strings originate inside the cover widget; everything else (field labels, buttons, delete confirm) lives in the form rows below.
 - **Name fields:**
   - First name and last name `InputField` widgets, max length `kMaxUserFirstLastName`.
   - Language-aware ordering (`_invertOrder`).
