@@ -4319,6 +4319,36 @@ Reached from **Privacy & Security > Active Sessions**. Displays every authorized
 - Location: at y=54px, `normalFont` 13px, `sessionInfoFg` (`windowSubTextFg`). Format: "{location} · {active_date}"
 - No terminate button for current session
 
+#### 19.2.1 "Rename this device" Link Style
+
+Right-aligned link button anchored against the "This device" subsection header.
+
+- **Style:** `st::defaultLinkButton` — standard blue link (`windowActiveTextFg` + underline on hover), font derived from `defaultLinkButton.font`. Source: `settings/sections/settings_active_sessions.cpp:559,573`.
+- **Label:** `tr::lng_settings_rename_device` (e.g. "Rename this device"). Source: `settings_active_sessions.cpp:558`.
+- **Positioning:** X offset = `st::sessionTerminateSkip + st::sessionTerminate.iconPosition.x()` (11px + 12px = 23px from right edge). Y derived from header baseline + font metrics. Source: `settings_active_sessions.cpp:563-569`.
+- **Click handler:** opens `RenameBox` via `_controller->show(Box(RenameBox))`. Source: `settings_active_sessions.cpp:572`.
+- **Hover state:** inherited from `defaultLinkButton` — underline only, no background fill, no icon.
+
+#### 19.2.2 Current-Session Card Background (No Special Gradient)
+
+Unlike some forks, Telegram Desktop / AyuGram render the current session using the **same** `sessionListItem` layout as every other row — no card tint, no full-row gradient. Source: `settings_active_sessions.cpp:505` (`GenerateUserpic` shared across rows). Only the 42px userpic circle carries a gradient.
+
+- **Background:** standard `windowBg`.
+- **Userpic gradient:** `QLinearGradient(0, 0, 0, size)` — **vertical**, top→bottom. Source: `settings_active_sessions.cpp:285-287`. Stops = `(colorBg, colorBg2)` pair from `GradientForType`. Source: `settings_active_sessions.cpp:268-293`.
+
+| Device | Top color | Bottom color |
+|---|---|---|
+| Windows / Mac / Other | `historyPeer4UserpicBg` | `historyPeer4UserpicBg2` |
+| Ubuntu | `historyPeer8UserpicBg` | `historyPeer8UserpicBg2` |
+| Linux | `historyPeer5UserpicBg` | `historyPeer5UserpicBg2` |
+| iPhone / iPad | `historyPeer7UserpicBg` | `historyPeer7UserpicBg2` |
+| Android | `historyPeer2UserpicBg` | `historyPeer2UserpicBg2` |
+| Web / Chrome / Edge / Firefox / Safari | `historyPeer6UserpicBg` | `historyPeer6UserpicBg2` |
+
+- **Device-name format:** raw `data.name` string — server already embeds model info, no client-side platform prefix. Source: `settings_active_sessions.cpp:476`. Fallback before the user renames is `Platform::DeviceModelPretty()` (OS-reported model string, e.g. "Dell Latitude 7420"). Source: `settings_active_sessions.cpp:139`.
+- **No terminate button** on the current session row.
+- **Terminate-all button** lives below the card, not inside it — see §19.7.
+
 ### 19.3 Device Type Detection & Icons
 
 Sessions classified by API ID first, then keyword detection in device/platform strings.
@@ -4351,6 +4381,17 @@ Row click → `SessionInfoBox` (detail view). Terminate click → confirmation d
 
 Footer: explanatory divider text about apps.
 
+#### 19.4.1 Between-Row Dividers
+
+There are **no between-row hairline dividers** drawn inside the "Active sessions" list. `Row::elementsPaint` paints only the terminate icon and the location text — no divider stroke. Source: `settings_active_sessions.cpp:544-567`.
+
+Row separation is achieved purely by the 84px row height (`sessionListItem`, source: `settings/settings.style:424-438`) and the `windowBgOver` hover fill. Section separation uses full-width `AddDivider()` / `AddDividerText()` elements that wrap the explanatory text blocks:
+
+- `Ui::AddDivider(container)` before/after sections. Source: `settings_active_sessions.cpp:404`.
+- `AddDividerText()` for sub-labels and footers. Sources: `settings_active_sessions.cpp:407,616,621,626`.
+
+Divider colors come from the theme palette (no explicit override for the sessions list), so they follow the global `shadowFg` / divider tokens used site-wide and flip automatically between light and dark themes.
+
 ### 19.5 Incomplete Login Attempts
 
 Header: "Incomplete Login Attempts" (14px top skip). Same row style as other sessions. Sorted newest first.
@@ -4377,6 +4418,26 @@ Width: 364px (`boxWideWidth`).
 
 **Buttons:** "OK" (closes). For non-current sessions: "Terminate Session" (`attentionBoxButton`, red).
 
+#### 19.6.1 Full Field List (as rendered by AyuGram `SessionInfoBox`)
+
+The info rows rendered by `AddSessionInfoRow` in the current AyuGram source (sources: `settings_active_sessions.cpp:318-376`) are a **subset** of the legacy Telegram Desktop set. Active date is rendered once as a subtitle below the header, not as a separate row. Fields:
+
+| Row key | i18n key | Source line |
+|---|---|---|
+| Application | `lng_sessions_application` (with `data.info`) | `settings_active_sessions.cpp:319-322` |
+| System | `lng_sessions_system` (with `data.system`) | `settings_active_sessions.cpp:323-326` |
+| Official App | `ayu_SessionInfoOfficialApp` ("Yes"/"No") — **AyuGram addition** | `settings_active_sessions.cpp:327-331` |
+| IP Address | `lng_sessions_ip` (with `data.ip`) | `settings_active_sessions.cpp:333-336` |
+| Location | `lng_sessions_location` (with `data.location`) | `settings_active_sessions.cpp:337-340` |
+
+**Active date** (header subtitle): `langDateTimeFull(base::unixtime::parse(data.activeTime))` rendered in `windowSubTextFg`, bottom margin `sessionDateSkip` = 19px. Source: `settings_active_sessions.cpp:333`, style `settings/settings.style:448`.
+
+**Not rendered in this fork (absent from AyuGram SessionInfoBox):** "Accepts secret chats", "Accepts calls", "Date first login", "Active apps" — these existed in older Telegram Desktop builds but are not in the current box.
+
+**Terminate button (non-current sessions):** `box->addLeftButton(tr::lng_sessions_terminate(), ..., st::attentionBoxButton)`. Destructive red style. Source: `settings_active_sessions.cpp:373-376`.
+
+**Confirmation dialog:** text message passed to `terminate()` (source: `settings_active_sessions.cpp:705`) — `Ui::ConfirmBox` with "Terminate" button in `attentionBoxButton`. Closing the info box follows only on successful API reply.
+
 ### 19.7 Terminate All Sessions
 
 Button: "Terminate All Other Sessions" styled `infoBlockButton` with `infoIconBlock`. Visible when other sessions > 0.
@@ -4387,15 +4448,57 @@ Confirmation: "Are you sure?" with "Terminate" in `attentionBoxButton` (red).
 
 Title: "Rename Device". Input: `settingsDeviceName` style (transparent bg, 29px min height), placeholder = device model name, max 32 characters. Buttons: "Save" + "Cancel".
 
+#### 19.8.1 RenameBox Full Spec
+
+`GenericBox` built by `RenameBox(not_null<Ui::GenericBox*> box)` (source: `settings_active_sessions.cpp:130`).
+
+- **Box width:** default `st::boxWidth` (the narrow GenericBox width, not `boxWideWidth`) — follows GenericBox defaults, no explicit override.
+- **Title:** `tr::lng_settings_rename_device_title()`. Source: `settings_active_sessions.cpp:131`.
+- **Input field:**
+  - **Style token:** `st::settingsDeviceName` — transparent background, 29px min height (see §19.18 styling summary).
+  - **Placeholder:** `Platform::DeviceModelPretty()` (OS-reported model). Source: `settings_active_sessions.cpp:139`.
+  - **Initial value:** `Core::App().settings().customDeviceModel()` — the user's last saved name, empty on first use. Source: `settings_active_sessions.cpp:140`.
+  - **Max length:** `kMaxDeviceModelLength = 32` characters, enforced client-side. Source: `settings_active_sessions.cpp:24`.
+- **Submit handler:** writes `result` via `Core::App().settings().setCustomDeviceModel(result)` then `Core::App().saveSettingsDelayed()`. Sources: `settings_active_sessions.cpp:153-154`.
+- **Buttons:** left "Save" (default button, triggers submit + close), right "Cancel" (closes). Enter in the input field triggers submit (GenericBox default).
+- **Empty-input behavior:** saving an empty string reverts to the platform-pretty model name (stored empty → displayed as placeholder).
+
 ### 19.9 Auto-Terminate Inactive Sessions
 
 Button: "If Inactive For" with right label showing current value. `settingsButtonNoIcon` style.
 
 Opens `SelfDestructionBox` (Sessions type) with radio buttons: 1 week, 1 month, 3 months, 6 months, 12 months. Width 320px, option spacing 20px. Buttons: "Save" + "Cancel".
 
+#### 19.9.1 SelfDestructionBox — Sessions Variant
+
+Cross-reference: §16.8.1 documents the **Account** variant of the same `SelfDestructionBox`. The Sessions variant shares the box shell but differs in TTL options, i18n strings, and the API call. Source file: `boxes/self_destruction_box.cpp`.
+
+| Aspect | Account variant (§16.8.1) | Sessions variant (§19.9) |
+|---|---|---|
+| TTL radio values | `{30, 90, 180, 365, 548, 720}` days | `{7, 30, 90, 180, 365}` days — source `self_destruction_box.cpp:75` |
+| Default selection | From `gotCurrent()` — closest match to server value | First value (7 days) per `gotCurrent()` logic — source `self_destruction_box.cpp:95` |
+| Title key | `lng_self_destruct_title` | `lng_self_destruct_sessions_title` — source `self_destruction_box.cpp:154` |
+| Description key | `lng_self_destruct_description` | `lng_self_destruct_sessions_description` — sources `self_destruction_box.cpp:106,155` |
+| API call on Save | `selfDestruct().updateAccountTTL(value)` | `authorizations().updateTTL(value)` — source `self_destruction_box.cpp:120` |
+
+**Shared layout:**
+- **Box width:** `st::boxWidth` (sources: `self_destruction_box.cpp:113,157`).
+- **Description text:** rendered above the radio group via the description label (sources: `self_destruction_box.cpp:106,155`).
+- **Option row:** radio button style `st::autolockButton`, radio diameter = `st::defaultRadio.diameter`. Sources: `self_destruction_box.cpp:110,162`.
+- **Padding / spacing:** top padding `st::boxOptionListPadding.top()`, inter-option skip `st::boxOptionListSkip`. Sources: `self_destruction_box.cpp:103,112`.
+- **Label formatting:** `DaysLabel()` renders "{N} weeks" / "{N} months" via `tr::lng_weeks` / `tr::lng_months` with correct plural. Source: `self_destruction_box.cpp:146`.
+- **Save button:** left-placed, `tr::lng_settings_save()`. Source: `self_destruction_box.cpp:114`.
+- **Info label below radios:** **none in the Sessions variant** (the Account variant uses a gray help label; the Sessions variant relies on the description above the radios).
+
 ### 19.10 Power Saving Settings
 
 `GenericBox` dialog. Title: "Power Saving". Width: 364px.
+
+#### 19.10.1 Nesting & Indent vs §17
+
+Power Saving is rendered as a standalone `GenericBox` opened from **Advanced Settings** (§17) via a single "Power Saving" row — it is **not** inlined as an indented subsection of §17. The box body lays out its own category headers and toggles flat (see §19.11); there is no extra horizontal indent nesting beyond each toggle's own style padding (`powerSavingButton` 57/8/22/8 for icon rows, `powerSavingButtonNoIcon` 22/8/22/8 for the auto-mode toggle).
+
+Inside the box, nothing is indented beyond its `powerSavingButton`/`powerSavingButtonNoIcon` padding — category headers sit at the default subsection-title inset, and "sub-items" (e.g. "Stickers in Messages" under "Stickers in Panel") simply use the `powerSavingButtonNoIcon` padding so their label aligns with the parent row's label (iconLeft 20px + label inset = ~57px). Source container wiring: `settings/settings_power_saving.cpp:38`.
 
 ### 19.11 Power Saving — Toggle Categories
 
@@ -4433,6 +4536,28 @@ Shown only when OS provides battery status.
 
 Buttons: "Save" + "Cancel".
 
+#### 19.12.1 Battery-Saver Overlay — Full Spec
+
+When the OS reports that it is in battery-saver mode **and** the user has enabled "Automatic Power Saving", an invisible-ish disabler widget is laid over the toggle block to prevent interaction and explain why.
+
+- **Widget:** `Ui::AbstractButton` created as `Ui::CreateChild<Ui::AbstractButton>(container.get())`. Source: `settings/settings_power_saving.cpp:83`.
+- **Fill:** `QPainter(disabler).fillRect(clip, color)` with `color = st::boxBg->c` and alpha set to `96` (≈ 37.6% of 255). Source: `settings_power_saving.cpp:87-90`.
+- **Geometry:** union of subtitle and controls rects — tracks both reactively via `rpl::combine(subtitle->geometryValue(), controlsRaw->geometryValue())`. Source: `settings_power_saving.cpp:91-94`.
+- **Z-order:** child of the vertical layout container, painted on top of the toggle rows.
+- **Visibility:** bound to `state->forceDisabledMessage.value()` being non-empty. Disappears automatically when the OS exits battery-saver mode — no explicit dismiss gesture. Source: `settings_power_saving.cpp:95-99`.
+
+**Toast on interaction:**
+- Trigger: click on the disabler button. Source: `settings_power_saving.cpp:68-72`.
+- Message: `tr::lng_settings_power_turn_off` → "Turn off your device's power saving mode to change these settings."
+- Duration: `kForceDisableTooltipDuration = 3 * crl::time(1000)` = 3000 ms. Source: `settings_power_saving.cpp:10`.
+- Invocation: `show->showToast({ .text = ..., .duration = kForceDisableTooltipDuration })`. Source: `settings_power_saving.cpp:69`.
+
+**"Automatic Power Saving" toggle:**
+- Style: `st::powerSavingButtonNoIcon` (22/8/22/8 padding). Source: `settings_power_saving.cpp:54`.
+- Initial state: `rpl::single(!ignore)` — checked when auto-mode is enabled. Source: `settings_power_saving.cpp:55`.
+
+**No separate banner or floating toast** appears automatically when the OS flips into battery saver — the overlay is the only visual. The user learns about the state by trying to click a (now overlaid) toggle and triggering the toast.
+
 ### 19.13 Language Selection (LanguageBox)
 
 Title: "Language". Width: 320px. Max list height: 492px.
@@ -4447,6 +4572,30 @@ Three toggles above the language list (logged-in only):
 
 Divider text explains translation feature.
 
+#### 19.14.1 Translation-Toggle Source Map
+
+| Row | Style | Source |
+|---|---|---|
+| "Show Translate Button" | `st::settingsButtonNoIcon` | `boxes/language_box.cpp:895-897` |
+| "Translate Entire Chats" | `st::settingsButtonNoIconLocked` (Premium-locked lock icon; AyuGram bypasses the premium gate) | `boxes/language_box.cpp:897-898` |
+| "Do Not Translate" | `SlideWrap` around a `settingsButtonNoIcon`, right-label populated below | `boxes/language_box.cpp:937-941` |
+
+**"Do Not Translate" right label formatting:**
+- Multiple languages: `tr::lng_languages_count(tr::now, lt_count, list.size())` → e.g. "3 languages". Source: `language_box.cpp:937-941`.
+- Single language: `Ui::LanguageName(list.front())` — the native-name string for the one skipped language. Source: `language_box.cpp:937-941`.
+- Click opens the skip-languages editor implemented by `ChooseLanguageBox` (see §19.14.2).
+
+#### 19.14.2 Skip-Languages Editor (`ChooseLanguageBox`)
+
+Invoked by `Box(ChooseLanguageBox, ...)` from `TranslateBox`. Source: `boxes/translate_box.cpp:111`.
+
+- **Title:** `tr::lng_translate_settings_choose()` — "Do Not Translate". Source: `translate_box.cpp:108`.
+- **Selection model:** **checkbox-based multi-select** (not the MultiSelect tag-chip widget — see §19.15.1 for where tag-chips actually appear). Each language row carries a checkbox; tapping toggles it in the `selected` set.
+- **Remove mechanism:** `ranges::remove(*selected, id)` on uncheck. Source: `translate_box.cpp:105`.
+- **Enforced minimum:** one language must remain selected; attempting to deselect all triggers a toast with key `lng_translate_settings_one`. Source: `translate_box.cpp:109-110`.
+- **Save action:** `Core::App().settings().setSkipTranslationLanguages(std::move(list))` followed by `Core::App().saveSettingsDelayed()`. Source: `translate_box.cpp:113-114`.
+- **Width / row style:** inherited from `ChooseLanguageBox`, which reuses the LanguageBox row layout (§19.16) with the radio slot replaced by a checkbox.
+
 ### 19.15 Language List
 
 `MultiSelect` search field with placeholder "Search".
@@ -4456,6 +4605,28 @@ Two sections separated by `BoxContentDivider`:
 2. **Official languages** — from cloud, de-duplicated against recent
 
 **Empty state:** "No languages found" centered, styled `membersAbout`.
+
+#### 19.15.1 Search MultiSelect (Top of List)
+
+- **Widget:** `Ui::MultiSelect` — the shared tag-chip + search widget. Source: `ui/widgets/multi_select.cpp:535`.
+- **Style token:** `st::defaultMultiSelect`. Source: `boxes/language_box.cpp:799`.
+- **Placeholder:** `tr::lng_participant_filter()` → "Search" (reuses the member-search placeholder string). Source: `language_box.cpp:799`.
+- **Role in LanguageBox:** purely a search bar — there are **no tag chips** in this use of MultiSelect (the list is single-select via radio). Input is filtered by matching against language title + native name. See §19.15.2 for chip mechanics (used by MultiSelect in other contexts such as member pickers).
+
+#### 19.15.2 `Ui::MultiSelect` Widget Reference
+
+Used anywhere a search input combines with chip-style selected items (share-to, invite pickers, etc.). In LanguageBox only the search field is used; tags are not populated.
+
+- **Class:** `Ui::MultiSelect`. Source: `ui/widgets/multi_select.cpp:535`.
+- **Constrained height:** `_st.maxHeight` caps the widget before it starts scrolling tags. Source: `multi_select.cpp:651`.
+- **Chip padding:** `_st.padding.{left,right,top,bottom}`. Source: `multi_select.cpp:690-691`.
+- **Chip background:** `_st.textBg` (inactive) / `_st.textActiveBg` (active/focused chip). Source: `multi_select.cpp:174`.
+- **Chip text color:** `_st.textFg` (inactive) / `_st.textActiveFg` (active). Source: `multi_select.cpp:192`.
+- **Close ("remove") icon:** `_st.deleteCross` glyph drawn in `_st.deleteFg`. Source: `multi_select.cpp:228`.
+- **Per-item height:** `_st.item.height`. Source: `multi_select.cpp:146`.
+- **Animation duration:** `_st.item.duration` (add/remove slide). Sources: `multi_select.cpp:404,925`.
+- **Scroll behavior:** `ScrollCallback` invokes `scrollTo()` to keep the active chip in view. Source: `multi_select.cpp:595-602`.
+- **Search InputField:** styled by `_st.field`, up/down navigation disabled for list pickers. Sources: `multi_select.cpp:708-710`.
 
 ### 19.16 Language Row Layout
 
@@ -4467,6 +4638,29 @@ Two sections separated by `BoxContentDivider`:
 | Menu toggle (3-dot) | `topBarMenuToggle` | Right side, centered |
 
 Row hover: `windowBgOver`. Click: activates language. Menu toggle: opens context menu.
+
+#### 19.16.1 Exact Language Row Height
+
+Row height is computed, not a constant. Source: `boxes/language_box.cpp:553-560`.
+
+```
+rowHeight = passportRowPadding.top()
+          + titleHeight              // semiboldFont->height
+          + passportRowSkip          // gap between title and description
+          + descriptionHeight        // normalFont->height
+          + passportRowPadding.bottom()
+```
+
+Using the standard tokens (`passportRowPadding` = 22/8/25/8 so top = 8px, bottom = 8px; `semiboldFont->height` ≈ 18px at scale 1.0; `passportRowSkip` ≈ 4px; `normalFont->height` ≈ 16px):
+
+**Default row height ≈ 8 + 18 + 4 + 16 + 8 = 54px** (scales with user font size; wrapping adds `titleHeight`/`descriptionHeight` proportionally). Constant fallback formula in source: `language_box.cpp:545`.
+
+Text metrics for this row:
+- **Title (native name):** `st::semiboldTextStyle`, color `st::passportRowTitleFg`. Sources: `language_box.cpp:297,651`.
+- **Description (English name):** `st::defaultTextStyle`, color `st::windowSubTextFg` (or `windowSubTextFgOver` when the row is selected). Sources: `language_box.cpp:301,651-652`.
+- **Title↔description gap:** `st::passportRowSkip`. Source: `language_box.cpp:553`.
+- **Menu-toggle icon:** `st::topBarMenuToggle.icon` (normal) / `.iconOver` (selected). Source: `language_box.cpp:669`.
+- **Radio diameter:** `st::langsRadio.diameter`. Source: `language_box.cpp:287`.
 
 ### 19.17 Language Row Context Menu
 
