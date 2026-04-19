@@ -5384,6 +5384,149 @@ rootId = 1. Cannot be deleted. Cannot change icon (uses `general.svg`). Can be h
 - **Icon fly**: `EmojiFlyAnimation` in edit dialog
 - **Highlight**: Info top bar fade between `bg` and `highlightBg`
 
+### 22.2.1 Topic Icon SVG Shape
+
+The six colored topic icons are loaded from `:/gui/topic_icons/{name}.svg` (built from `Telegram/Resources/art/topic_icons/{name}.svg`), resolved via `ForumTopicIconPath` (`data_forum_topic.cpp:81-83`).
+
+**Source SVG geometry** (`blue.svg`, identical shape across `yellow/violet/green/rose/red`):
+
+| Attribute | Value |
+|-----------|-------|
+| viewBox | `0 0 84 84` (declared `width=84px height=84px`) |
+| Fill-rule | `evenodd` on the root `<g>` |
+| Body path | "speech-bubble-with-tail" silhouette — circle (r ≈ 38.5 around cx = 42, cy = 39.83) with a concave cut-in at the bottom-left forming the chat-tail flap |
+| Body `fill` | Top-to-bottom `linearGradient-1` (blue: `#4BB7FF` at 0% → `#015EC1` at 100%) |
+| Body `stroke` | Top-to-bottom `linearGradient-2` (blue: `#0888DF` → `#0042AC`), `stroke-width: 2.94736842px` (≈ 3.5% of the 84px viewBox) |
+| Inner highlight | `Path-22` light-arc along top-left, `fill=#71D0FF`, `opacity=0.37491644` |
+
+Per-palette gradient stops are hardcoded inside each SVG file — the `colorId` lookup (`ForumTopicIcons()` table, `data_forum_topic.cpp:50-59`) selects WHICH SVG file, NOT a runtime hue shift:
+
+| colorId | name | file |
+|---|---|---|
+| `0x6FB9F0` | blue | `blue.svg` |
+| `0xFFD67E` | yellow | `yellow.svg` |
+| `0xCB86DB` | violet | `violet.svg` |
+| `0x8EEE98` | green | `green.svg` |
+| `0xFF93B2` | rose | `rose.svg` |
+| `0xFB6F5F` | red | `red.svg` |
+
+`ForumTopicIconBackground` (`data_forum_topic.cpp:85-99`) renders the chosen SVG via `QSvgRenderer` into a premultiplied ARGB32 image at the requested size. `gray.svg` is the fallback default (`ForumTopicDefaultIcon() == "gray"`, line 70-73).
+
+**General-topic SVG (`general.svg`)**: 20×20 viewBox, single `evenodd` path shaped like a stylized hash (two diagonal parallelograms with counter-punched inner voids). Source fill is white (`#FFFFFF`); recolored at paint time by `style::colorizeImage` (line 162) using palette color (`windowSubTextFg` for profile preview, `dialogsTextFg / dialogsTextFgOver / dialogsTextFgActive` for chat list states).
+
+**Render sizes** (`dialogs.style:55-74`): `defaultForumTopicIcon` size 21px, `normalForumTopicIcon` 19px, `largeForumTopicIcon` 26px, `infoForumTopicIcon` 32px. DPR-aware — `QImage` is allocated `size * ratio` physical pixels with `setDevicePixelRatio(ratio)` (line 91).
+
+No corner radius is applied in code — the speech-bubble shape is self-contained in the SVG body path. No clipping rectangle.
+
+### 22.2.2 Z-order / Stacking of Composed Icons
+
+When a topic icon has no custom-emoji override (`iconId == 0`), `ForumTopicIconFrame` (`data_forum_topic.cpp:128-145`) composes the final image in strict paint order:
+
+1. **Background SVG**: `ForumTopicIconBackground(colorId, st.size)` renders the speech-bubble SVG fully opaque onto a transparent `QImage`. The SVG's internal gradients, stroke, and highlight all resolve first.
+2. **Letter overlay**: If `ExtractNonEmojiLetter(title)` returns a non-empty character (skipping emoji and non-letter-or-number codepoints, `data_forum_topic.cpp:101-126`), a `QPainter` is reopened on the background image with `pen = Qt::white`, `font = st.font` (e.g. `bold 11px` for `defaultForumTopicIcon`), and draws the letter via `p.drawText(QRect(0, st.textTop, st.size, st.font->height * 2), one, style::al_top)` — horizontally centered, top-aligned. No outline/shadow, flat white fill.
+
+No emoji-foreground-over-shape offset exists — default icons never combine color background with an emoji. Custom-emoji icons bypass this path entirely: when `iconId != 0`, `_icon` (a `CustomEmoji` from `CustomEmojiManager::create`) is painted DIRECTLY in `ForumTopic::paintUserpic` (`data_forum_topic.cpp:643-661`) — the bubble-shape background is NOT painted underneath. The custom-emoji frame is the complete icon.
+
+General-topic paint (`paintUserpic` line 663-678): `validateGeneralIcon` re-renders `general.svg` through `style::colorizeImage` into `_defaultIcon` whenever active/selected state changes (bit mask `GeneralIconActive | GeneralIconSelected` tracked in `_flags`, lines 700-716). The colorized hash-shape is drawn flat — no color-background under it. One layer only.
+
+Custom-emoji narrow-mode centering (line 644-651): when `context.narrow`, the icon is re-centered to `((context.width - size) / 2, (st->height - size) / 2)`; non-narrow uses `st->padding.topLeft() + st::forumTopicIconPosition + QPoint(shift, 0)` where `forumTopicIconPosition = point(2px, 0px)` (`dialogs.style:675`) and `shift = (emojiSize - size) / 2`.
+
+Context text color for custom emojis (line 652-657): `dialogsNameFgActive` when row active, `dialogsNameFgOver` when hover-selected, else `dialogsNameFg`. Applied to monochrome glyphs inside the custom-emoji renderer.
+
+### 22.3.1 TopicsView Separator Rule (or Absence)
+
+**There are NO separator lines between topic rows in the topic list.** `TopicsView::paint` (`dialogs_topics_view.cpp:193-241`) only draws topic-title runs horizontally inside the `forumDialogRow` preview strip — never between vertically stacked topic rows. The outer topic-list row itself is a `forumTopicRow` (`dialogs.style:665-674`, height 54px, padding `8/7/10/7px`), painted by the standard `Dialogs::Ui::PaintRow` pipeline in `dialogs_layout.cpp` — that pipeline contains zero `drawLine` / `fillRect` calls for inter-row dividers (verified by grep of the full file).
+
+Row differentiation relies entirely on state-background fills:
+
+| State | Background | Source |
+|-------|------------|--------|
+| Idle | Transparent — `dialogsBg` shows through | `dialogs.style` defaults |
+| Hover | `dialogsBgOver` fill across full row rect | `PaintRow` via `context.selected` |
+| Active (open topic) | `dialogsBgActive` fill across full row rect | `context.active` |
+| Ripple | `dialogsRipple` (`dialogs.style:80-82`, color `dialogsRippleBg`) on click origin | `RippleAnimation` |
+
+Inside the horizontal TopicsView preview strip (`forumDialogRow` in the main chat list), consecutive topic titles are separated by a **blank gap**, not a rule:
+- Normal spacing: `topicsSkip = 8px` (`dialogs.style:110`)
+- After the "jump bubble" title (front unread topic in a forum row): `topicsSkipBig = 14px` (`dialogs.style:111`) — applied once for the first gap following the jump title, then reverts to `topicsSkip` (`dialogs_topics_view.cpp:235-239`).
+
+No inset, no thickness, no color — the separator is absent. Active forum row in the main chat list uses the expanded-topics-bar animation (`PaintExpandedTopicsBar`, `dialogs_layout.cpp:288-300`) which paints a colored bar of width `st::forumDialogRow.padding.left() / 2` on the left edge — left-marker, not an inter-row separator.
+
+### 22.8.1 Topic Context Menu Conditional Matrix
+
+Right-click on a topic row invokes `Filler::fillContextMenuActions` in `window_peer_menu.cpp:1743-1765`. Items are added in strict source order; each `addX()` helper contains its own gating `if` guards which early-return when the condition fails.
+
+Ordered items as declared:
+
+| Item | String key | Guard |
+|------|------------|-------|
+| New Window | `lng_context_new_window` | `addNewWindow()` — always shown for topic rows |
+| Hide Promotion | `lng_context_hide_psa` | `addHidePromotion` (line 500-514): `if (_topic \|\| !history->useTopPromotion() \|\| ...) return;` — **never shown on topics** |
+| Toggle Archive | — | `addToggleArchive` (line 757-): `if (... \|\| _topic \|\| ...) return;` — suppressed for topics |
+| Pin / Unpin | `lng_context_pin_to_top` / `lng_context_unpin_from_top` | `addTogglePin` (line 532-565): requires `_topic->canTogglePinned()` = `!creating() && peer()->canManageTopics()` (`data_forum_topic.cpp:339-341`). Hidden for non-admin. Label toggled via `entry->isPinnedDialog(filterId)` |
+| View Info | — | `addInfo` only when `ViewProfileInChatsListContextMenu` setting is true (line 1748-1750) |
+| Mute submenu | `lng_mute_menu_duration_forever` etc | `addToggleMuteSubmenu(false)` (line 567-578): suppressed on `isSelf()`, sublist, or when the row IS the forum-group row (`history->isForum()`) |
+| Mark as Read / Unread | `lng_context_mark_read` / `lng_context_mark_unread` | `addToggleUnreadMark` (line 676-700): requires `_thread->canToggleUnread(unread)`. Label flips on `IsUnreadThread(_thread)`. Icon: `menuIconMarkRead` / `menuIconMarkUnread` |
+| Close / Reopen | `lng_forum_topic_close` / `lng_forum_topic_reopen` | `addToggleTopicClosed` (line 516-530): requires `_topic->canToggleClosed()` = `!creating() && canEdit() && !forum->peer()->isBot()` (`data_forum_topic.cpp:335-337`). Label flips on `_topic->closed()`. Icon: `menuIconBlock` (opening→closed) / `menuIconRestartBot` (closed→open) |
+| Add to Folder | `lng_filters_menu_add` (submenu) | `addToggleFolder` (line 652-674): requires `chatsFilters().has()` and `history->inChatList()` |
+| Clear History | `lng_context_clear_history` | `addClearHistory` — standard gating |
+| Delete Own Messages | AyuGram extension | `AyuUi::AddDeleteOwnMessagesAction` (line 1761) |
+| Delete Chat / Leave Chat | — | `addDeleteChat` / `addLeaveChat` — not topic-specific |
+| Delete Topic | `lng_forum_topic_delete` | `addDeleteTopic` (line 1100-1117): requires `_topic->canDelete()` = `!creating() && !isGeneral() && (bot() \|\| channel->canDeleteMessages() \|\| (my() && replies()->canDeleteMyTopic()))` (`data_forum_topic.cpp:322-333`). **Always gated off on General topic.** Styled `.isAttention = true` (red) |
+
+**Items reachable only from OTHER menus** (not row right-click):
+- **Edit Topic** (`lng_forum_topic_edit`) — in profile menu via `addManageTopic` (line 1140-1157); requires `_topic->canEdit()` = `my() || peer()->canManageTopics()` (`data_forum_topic.cpp:318-320`).
+- **Copy Topic Link** (`lng_context_copy_topic_link`) — in profile/info menu via `addTopicLink` (line 1119-1138); requires `!creating()` AND `channel->hasUsername()` (line 1124).
+- **Hide General topic** — `ForumTopic::setHidden` API and `hidden()` getter exist (`data_forum_topic.cpp:498-502`) but no menu entry exposes it in `fillContextMenuActions`; toggled via the separate `toggle_topics_box.cpp` flow.
+
+Gating matrix (Y = shown, N = hidden, — = N/A):
+
+| Item | Admin | Non-admin creator (`my()`) | Non-admin non-creator | General topic | Closed topic | Pinned topic |
+|------|:---:|:---:|:---:|:---:|:---:|:---:|
+| Pin/Unpin | Y | N | N | per-admin | per-admin | Y (label = "Unpin") |
+| Mark Read/Unread | Y | Y | Y | Y | Y | Y |
+| Mute submenu | Y | Y | Y | Y | Y | Y |
+| Close/Reopen | Y | Y | N | Y (if admin) | Y (label = "Reopen") | per-base guard |
+| Delete Topic | Y (if `canDeleteMessages`) | Y (if `canDeleteMyTopic`) | N | **N (hard-blocked)** | per-base guard | per-base guard |
+| Edit Topic (profile menu) | Y | Y | N | Y | Y | Y |
+| Copy Link (profile menu) | Y (public channel) | Y (public channel) | Y (public channel) | Y | Y | Y |
+
+### 22.5.1 EditForumTopicBox Icon Panel Layout
+
+`EditForumTopicBox(box, controller, forum, rootId)` (`edit_forum_topic_box.cpp:404-599`) builds the editor. Title input is pinned to top via `setPinnedToTopContent(VerticalLayout)` (line 439-440), with the emoji-icon picker below in a scrollable body.
+
+**Pinned-top composition** (line 442-450, 458-472):
+
+| Element | Widget | Style | Position |
+|---|---|---|---|
+| Title input | `Ui::InputField` with `st::defaultInputField` | Placeholder `lng_forum_topic_title` (or `lng_bot_thread_title` when forum is a bot) | `editTopicTitleMargin = margins(70px, 2px, 22px, 18px)` (`dialogs.style:676`) — 70px left pad reserves the icon column |
+| Icon button | `AbstractButton` via `EditIconButton` OR `GeneralIconPreview` for General topic | size = `EditIconSize() = Data::FrameSizeFromTag(Large) / DevicePixelRatio` (line 128-131) | Moved on title-geometry change to `editTopicIconPosition = point(24px, 19px)` (`dialogs.style:677`) |
+| Divider text | `Ui::AddDividerText` | `lng_forum_choose_title_and_icon` (or `lng_bot_thread_choose_title_and_icon`) | Below title, only when NOT General topic (line 499-500) |
+
+Box title uses `tr::lng_forum_topic_new` (creating), `tr::lng_bot_thread_edit` (bot forum), or `tr::lng_forum_topic_edit` (normal edit) — line 415-419. Max height `editTopicMaxHeight = 408px` (`dialogs.style:678`, line 421).
+
+**Icon-button paint pipeline** (`EditIconButton` line 148-209):
+- State holds `unique_ptr<CustomEmoji> icon` + `QImage defaultIcon` + `QPointer<QWidget> button`.
+- `iconId` stream drives `icon` (null when `iconId == 0`) — signals re-create via `customEmojiManager().create(id, repaint, tag = Large)`.
+- `defaultIcon` stream drives a re-render of `ForumTopicIconFrame(colorId, title, st::largeForumTopicIcon)` (line 181-186).
+- `paintRequest` chain (line 189-206): if the ongoing `EmojiFlyAnimation` overlay is painting this frame (`paintIconFrame(result)` returns true), skip; else `state->icon` paints at `QPainter(result)` with `CustomEmoji::Context{ textColor = windowFg->c, paused = isGifPausedAtLeastFor(Layer) }`; else `drawImage(skip, skip, state->defaultIcon)` with `skip = (size - st::largeForumTopicIcon.size) / 2`.
+- Click cycles color (line 481-487): `icon->setClickedCallback` calls `ChooseNextColorId(current.colorId, state->otherColorIds)` (line 133-146) which removes the current id from the candidate pool, picks one at random via `base::RandomIndex`, and refills the pool when exhausted.
+- When a custom emoji is selected (`state->iconId != 0`) OR when editing an already-`created` topic, the icon button is marked `WA_TransparentForMouseEvents` (line 474-479) — color-cycling is disabled. Re-enabled only when icon is cleared back to default AND topic is freshly-creating.
+
+**EmojiListWidget integration** (`AddIconSelector` line 248-393):
+- Widget: `EmojiListWidget` in `Mode::TopicIcon` (line 291-299), inserted into pinned-top `VerticalLayout` with padding `st::reactPanelEmojiPan.padding`.
+- Recent list: `forumIcons()->list()` prepended with sentinel `kDefaultIconId = 0x7FFF'FFFF'FFFF'FFFFULL` (line 285-289, 43). The sentinel renders as the color+letter default via `DefaultIconEmoji` (line 47-114) using `ForumTopicIconFrame` for non-general and `ForumTopicGeneralIconFrame(st.size, white)` + `style::colorizeImage(_image, context.textColor)` for general (line 98-113).
+- Factory (line 271-281): sentinel id → `DefaultIconEmoji`; everything else → `manager->create(id, repaint, SizeTag::Large)`.
+- Premium gating (line 351-358): custom emojis NOT in `forumIcons().list()` require Premium; non-Premium user tapping one triggers `showToast(document)` via `StickerToast::showFor(document, Section::TopicIcon)` and the selection is rejected.
+- Shadow separator (line 309-317): `Ui::PlainShadow` of height `st::lineWidth`, positioned below the pinned-top cover (via `coverHeight` stream, width follows selector width).
+- Fly animation (line 360-376): on non-default custom-emoji selection, creates `Ui::EmojiFlyAnimation` with `flyIcon = from.frame`, `flyFrom = body->mapFromGlobal(from.globalStartGeometry)`, color provider `st::windowFg->c`, tag `Large`. The animation paints inside the icon button's region via `paintBadgeFrame`.
+
+**Auto-title reactivity** (line 488-494): `title->changes()` stream updates `state->defaultIcon` with the trimmed title text — triggers a re-render of the default icon's letter (first non-emoji letter). Submitting the field triggers the primary box button: `title->submits() | rpl::on_next([box] { box->triggerButton(0); })` (line 495-497).
+
+**Keep-emoji vs replace-with-icon logic**: the icon slot shows custom emoji while `state->iconId != 0`; default-color rendering resumes only when `iconId` is cleared to 0 via the selector choosing `kDefaultIconId` (line 517-520 — `(iconId != kDefaultIconId) ? iconId : 0`). Selecting the default chip does NOT discard color — `state->defaultIcon.current().colorId` is preserved; only the iconId is zeroed. General topics bypass the entire selector — `GeneralIconPreview` (line 211-241) is shown instead, `paintRequest` colorized with `st::windowSubTextFg->c`, and the box adds NO divider/selector (line 499 guard).
+
+**Save button gating** (line 543-589): `title->getLastText().trimmed().isEmpty()` triggers `title->showError()` and aborts. For existing topics: `MTPmessages_EditForumTopic` is sent with flags `f_title | (isGeneral() ? 0 : f_icon_emoji_id)` — General topics cannot change icon (line 562-567). If topic is still creating locally (`parent->creating(rootId)`), the handler applies title/colorId/iconId to the local topic directly and closes — no server request issued (line 556-560). `TOPIC_NOT_MODIFIED` error closes the box gracefully (line 581-582); other errors set `state->requestId = -1` to allow retry. Create flow (line 523-541): reserves a local MsgId via `forum->peer->forum()->reserveCreatingId(title, colorId, iconId)` and navigates to the topic. Cancel button always present (line 596-598) calling `box->closeBox`.
+
 ### 22.12 Pixel Dimensions Summary
 
 | Element | Value |
@@ -5403,6 +5546,10 @@ rootId = 1. Cannot be deleted. Cannot change icon (uses `general.svg`). Can be h
 | Info cover height | 77px |
 | Info cover icon | 36x36px at (22, 18) |
 | Info top bar height | 54px |
+| Topic icon SVG viewBox | 84×84 (colored) / 20×20 (general) |
+| Topic icon SVG stroke width | 2.94736842px |
+| TopicsView inter-title gap | 8px / 14px (post-jump) |
+| EditForumTopic recent sentinel | `0x7FFFFFFFFFFFFFFF` |
 
 ---
 
