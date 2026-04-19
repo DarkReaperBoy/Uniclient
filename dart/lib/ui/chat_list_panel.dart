@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
@@ -419,7 +420,10 @@ class _ChatListPanelState extends State<ChatListPanel> {
                     chatState: chatState,
                   )
                 : nonArchived.isEmpty
-                    ? _EmptyState(searching: _searching)
+                    ? _EmptyState(
+                        searching: _searching,
+                        query: _searchController.text,
+                      )
                     : ListView.builder(
                         itemCount: nonArchived.length,
                         itemBuilder: (context, index) {
@@ -1532,30 +1536,83 @@ class _SearchTabItemState extends State<_SearchTabItem> {
 /// Empty state for chat list.
 class _EmptyState extends StatelessWidget {
   final bool searching;
+  final String query;
 
-  const _EmptyState({required this.searching});
+  /// Max chars to show in the "no results for ..." message before truncating.
+  static const _kQueryPreviewLimit = 18;
+
+  const _EmptyState({required this.searching, this.query = ''});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            searching ? Icons.search_off : Icons.chat_bubble_outline,
-            size: 48,
-            color: theme.textTheme.bodySmall?.color,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            searching ? 'No results found' : 'No chats yet',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodySmall?.color,
+    final subColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
+    if (!searching) {
+      // No chats loaded (non-search state).
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.chat_bubble_outline, size: 48, color: subColor),
+            const SizedBox(height: 12),
+            Text(
+              'No chats yet',
+              style: theme.textTheme.bodyMedium?.copyWith(color: subColor),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Search empty state (spec §35.7.2): noresults Lottie 100px + text.
+    final displayQuery = query.length > _kQueryPreviewLimit
+        ? '${query.substring(0, _kQueryPreviewLimit)}…'
+        : query;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Spec: icon at 1/3 of available height; min widget height 220px.
+        final topPad = (constraints.maxHeight / 3) - 50; // 50 = half of 100px icon
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: 220),
+            child: Padding(
+              padding: const EdgeInsets.all(10), // recentPeersEmptyMargin
+              child: Column(
+                children: [
+                  SizedBox(height: topPad.clamp(10.0, double.infinity)),
+                  // 100x100 Lottie animation (spec: recentPeersEmptySize).
+                  SizedBox(
+                    width: 100,
+                    height: 100,
+                    child: Lottie.asset(
+                      'assets/animations/noresults.json',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                  const SizedBox(height: 10), // recentPeersEmptySkip
+                  Text(
+                    'No Results',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: subColor,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'There were no results\nfor "$displayQuery".',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: subColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

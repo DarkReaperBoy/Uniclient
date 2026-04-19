@@ -34,7 +34,6 @@
 ### 2.1 Folder Tabs
 
 ### 2.2 Search Bar
-- [ ] Empty search results: Lottie animation (100px) + descriptive text (S2)
 - [ ] Search tabs: segmented slider (NOT pill chips), 33px strip height (S2)
 - [ ] Search tabs: 9px horizontal padding, 18px minimum inter-label gap (S2)
 - [ ] Search tabs: semiboldTextStyle 14px semibold, labelTop 7px (S2)
