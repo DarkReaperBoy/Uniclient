@@ -13880,6 +13880,98 @@ Everything else (canvas, crop, paint tools, color picker, sticker panel, undo/re
 | Unread green (top-right) | #0dcc39 | `groupCallLive1` |
 | Unread blue (bottom-left) | #0992ef | `groupCallMuted1` |
 
+### 32.17 Privacy Badge — HONEST FINDING: No Public Badge Exists
+
+There is no "public" badge in the story header. `LookupPrivacyBadge()` (`media/stories/media_stories_header.cpp:95-119`) maps only three privacy levels to visual badges; `StoryPrivacy::Public` falls through and returns an empty `PrivacyBadge{}`, resulting in no widget being created. The absence of a badge implicitly signals "public" — this is by design.
+
+**Badge rendering for non-public types** (`media_stories_header.cpp:130-182`):
+- Badge = `UserpicBadge` widget overlaid on userpic, sized to `userpic.size() + storiesBadgeShift(5,4)`
+- Position: bottom-right corner
+- Inner rect: icon size + `storiesBadgePadding(1,1,1,1)`
+- Outline: `storiesBadgeOutline = 2px` white ring via `CompositionMode_Source`
+- Fill: vertical `QLinearGradient` from `bg1` (top) to `bg2` (bottom)
+
+| Privacy | Badge Icon Token | Gradient Colors |
+|---------|-----------------|-----------------|
+| CloseFriends | `storiesBadgeCloseFriends` (green star) | `historyPeer2UserpicBg` → `historyPeer2UserpicBg2` |
+| Contacts | `storiesBadgeContacts` | `historyPeer5UserpicBg` → `historyPeer5UserpicBg2` |
+| SelectedContacts | `storiesBadgeSelectedContacts` | `historyPeer8UserpicBg` → `historyPeer8UserpicBg2` |
+| **Public** | **NONE — no badge rendered** | N/A |
+
+### 32.18 Story Reply Compose — Resolved Layout
+
+The story reply compose bar reuses `ComposeControls` with `storiesComposeControls` style override (`media_view.style:745-833`).
+
+**Compose bar chrome:** `bg: storiesComposeBg` (#2c333d = `groupCallMembersBg`), `radius: 21px` (pill), `padding: margins(1px, 8px, 1px, 6px)`, `fieldLeft: 10px`.
+
+**Input field** (`storiesComposeControls.field` overriding `historyComposeField`):
+- `heightMin: 36px`, `heightMax: 72px`
+- `textMargins: margins(2px, 0px, 2px, 0px)`
+- `textFg: storiesComposeWhiteText` (#ffffff)
+- `textBg: storiesComposeBg` (#2c333d)
+- `placeholderFg/Active/Error: storiesComposeGrayText` (all gray)
+- `border: 0px`, `borderActive: 0px`
+
+**Buttons (all 42×42px):**
+
+| Button | Style | Icon | Ripple |
+|--------|-------|------|--------|
+| Emoji | `storiesAttachEmoji` (from `historyAttachEmoji`) | emoji picker | 40px circle at (1,1) |
+| Attach | `storiesAttach` (from `historyAttach`, overridden to 42×42) | paperclip | 40px circle at (1,1) |
+| Send | `storiesComposeControls.send` inner 42×42 | `chat/input_send_round` in `windowFgActive` | 40px circle at (1,1) |
+| Like | `storiesLike` (from `storiesAttach`) | `chat/input_like` in `storiesComposeGrayIcon` | 40px circle |
+
+**Send icon offset:** `sendIconPosition: point(9px, 9px)`, `sendIconFillPadding: 5px`.
+
+**Placeholder text** (`media_stories_reply.cpp:63-94`): Driven by `PlaceholderText()` — returns `lng_story_reply_ph` ("Reply to story...") for standard, `lng_story_comment_ph` for comments, live countdown for stealth mode, or `lng_message_stars_ph` for paid messages.
+
+**Comments controls:** `commentsShow/commentsShown` 42×42px, `commentsSkip: 8px`, `commentsUnreadSize: 6px` dot at `point(24px, 8px)`.
+
+### 32.19 Views List — HONEST FINDING: No Filter/Sort UI
+
+The story views ("Who Viewed") popup has **no reaction filtering, sorting, or search UI**. It is a flat chronological list.
+
+**Menu style** (`storiesViewsMenu`, `media_view.style:822-831`): fixed `240px` width, `320px` max height, `7px` radius, scroll padding `margins(0, 6, 0, 4)`, item padding `margins(54, 8, 17, 8)`.
+
+**Per-row data** (`media_stories_recent_views.cpp:378-432`): userpic + name + formatted date + action type (Forwarded/Reposted/Viewed) + reaction inline.
+
+**Pagination:** `kAddPerPage = 50`, `kLoadViewsPages = 2` threshold. Placeholder rows shown while loading.
+
+### 32.20 Profile Stories Grid — Resolved Layout
+
+Uses the shared `info/media/` grid. Grid column formula (`info/media/info_media_list_section.cpp:270-280`):
+```
+itemsInRow = (width - itemsLeft*2 + skip) / (infoMediaMinGridSize + skip)
+itemWidth = ((width - itemsLeft*2 + skip) / itemsInRow) - skip
+```
+
+**Resolved constants** (`info/info.style:1239-1244`):
+
+| Token | Value |
+|-------|-------|
+| `infoMediaSkip` | 2px |
+| `infoMediaLeft` | 3px |
+| `infoMediaMinGridSize` | 82px |
+| `infoMediaHeaderHeight` | 28px |
+| `infoMediaHeaderPosition` | point(14px, 6px) |
+| `infoMediaMargin` | margins(0, 6, 0, 2) |
+
+**Worked example (392px panel):** 4 columns, 95px cells, 3px left margin. Thumbnails = square, center-cropped. No ring, badge, or overlay text on grid thumbnails.
+
+**Tab navigation:** `Ui::SubTabs` — "All" tab (album 0), individual album tabs, "Add" tab pinned right.
+
+### 32.21 Reaction Panel Trigger — Gesture Resolution
+
+Two interaction paths on the like/heart button (`media/stories/media_stories_reactions.cpp`):
+
+**1. Left-click (tap) — toggles heart reaction instantly** (`toggleLiked()`, `:1491-1497`): If liked → removes reaction (empty `ReactionId`). If not liked → applies `HeartReactionId()`. No panel opens.
+
+**2. Right-click / long-press — opens reaction selector panel:** Event filter installed via `attachToReactionButton()` (`:1172-1183`) intercepts `QEvent::ContextMenu`. Calls `show(Reactions::Mode::Reaction)`. No custom long-press timer — delegates to Qt platform behavior (desktop right-click, mobile long-press both produce `ContextMenu`).
+
+**Panel animation:** Duration = `defaultPanelAnimation.heightDuration × defaultPopupMenu.showDuration`. Opacity/scale 0→1.
+
+**Panel positioning:** Anchored via `storiesLikeReactionsPosition = point(85px, 30px)` from right edge of controls. Width: dynamic based on `selector.countAppearedWidth(shown)`. Style: `storiesReactionsPan`, `storiesReactionsWidth: 210px` (expandable to 420px).
+
 ---
 
 ## 33. Contacts Screen
@@ -20420,6 +20512,52 @@ When opening a chat with a bot for the first time (`isBotStart()`):
 | `chat_helpers/message_field.cpp` | `TextErrorSendRestriction()`, `PremiumRequiredSendRestriction()`, `BoostsToLiftWriteRestriction()`, `FrozenWriteRestriction()` -- widget factories |
 | `Resources/langs/lang.strings` | All `lng_restricted_send_*`, `lng_slowmode_*`, `lng_frozen_restrict_*`, `lng_forum_topic_closed`, `lng_group_not_accessible` string definitions |
 
+### §47.15 WriteRestricted Bar — Resolved Pixel Dimensions
+
+**`_st.send.inner.height` = 46px.** The `historySend` style defines `inner: IconButton(historyAttach)`, and `historyAttach` defines `height: 46px` (`chat_helpers/chat_helpers.style`). The write restriction bar occupies the same 46px height.
+
+**`st::restrictionLabel` resolved:** `FlatLabel(defaultFlatLabel)` with `minWidth: 12px`, `textFg: placeholderFg` (#999999), `align: align(top)`. Font: `normalFont` = 13px (`lib_ui/ui/basic.style: fsize: 13px`).
+
+**`st::historySendPremiumRequired` — does NOT exist.** The actual style used for the PremiumRequired restriction label is `st->premiumRequired.label`, a field of the `ComposePremiumRequired` struct (`ui/effects/premium.style`). The `premiumRequired` field in `defaultComposeControls` is not explicitly assigned — sub-fields default to `defaultFlatLabel` (13px `normalFont`, `windowFg` #000000).
+
+**`st::frozenRestrictionTitle`:** `FlatLabel(frozenBarTitle)` with `align: align(top)`. Font: `semiboldTextStyle` = 13px semibold. Text color: `attentionButtonFg` = #d14e4e (red). Source: `chat_helpers/chat_helpers.style`.
+
+**`st::frozenRestrictionSubtitle`:** `FlatLabel(frozenBarSubtitle)` with `align: align(top)`. Font: `defaultTextStyle` = 13px normal. Text color: `windowSubTextFg` = #999999. Source: `chat_helpers/chat_helpers.style`.
+
+**`st::historyUnblock`:** `FlatButton(historyComposeButton)` — height 46px, width -32px (auto-width with 32px padding), textTop 14px, font `semiboldFont` (13px semibold). Color overrides: `attentionButtonFg` = #d14e4e (red text). Source: `chat_helpers/chat_helpers.style`.
+
+**`st::historyComposeButton`:** `FlatButton { width: -32px; height: 46px; textTop: 14px; font: semiboldFont; color: windowActiveTextFg; bgColor: historyComposeButtonBg; }` — used for Join Channel, Mute/Unmute, Bot Start buttons.
+
+### §47.16 Forbidden Button — Toast Behavior
+
+Clicking a forbidden Record/Round button does NOT show a toast directly from the button click handler. The toast fires when recording is **attempted** via `_voiceRecordBar->setStartRecordingFilter()` in `ComposeControls`. The filter checks `Data::RestrictionError(peer, ChatRestriction::SendVoiceMessages)` and calls `Data::ShowSendErrorToast(_show, _history->peer, error)`.
+
+**Toast configuration (`ShowSendErrorToast`):**
+- `show->showToast(*error)` with no explicit `.attach` field
+- Attachment: `RectPart::None` (centered horizontally, positioned at bottom with margin)
+- Duration: `kDefaultDuration` = **1500ms**
+- Style: `st::defaultMultilineToast`:
+  - Padding: 19/13/19/12px (top/left/bottom/right via `defaultToast`)
+  - Width: 160–360px (`defaultMultilineToast` override)
+  - Corner radius: 6px
+  - Fade in: 200ms, fade out: 1000ms, slide: 160ms
+  - Margin from edges: 13px all sides
+- Source: `data/data_chat_participant_status.cpp`, `lib_ui/ui/toast/toast.h`, `lib_ui/ui/widgets/widgets.style`
+
+**Forbidden button visual behavior:** Ripple suppressed (`!isDisabled() && !_state.forbidden` guard). Opacity: `kForbiddenOpacity = 0.5`. Cursor: default (non-pointer).
+
+### §47.17 Slowmode Countdown — Resolved Metrics
+
+**`st::normalFont`:** 13px regular weight (`lib_ui/ui/basic.style: fsize: 13px; normalFont: font(fsize)`).
+
+**`st::windowSubTextFg`:** #999999 (`lib_ui/ui/colors.palette`).
+
+**Button rect:** The `SendButton` widget has width/height 44×46px (from `historyAttach` base). The countdown text is drawn within `rect().marginsRemoved(st::historySlowmodeCounterMargins)` = margins(0, 0, 10, 0), yielding an effective 34×46px rect with text centered via `style::al_center`. The 10px right margin shifts the countdown leftward to visually center it relative to the compose area.
+
+**Text format:** `MM:SS` — seconds zero-padded to 2 digits, minutes not padded. Empty string when delay = 0. Source: `ui/controls/send_button.cpp: u"%1:%2"_q.arg(minutes).arg(seconds % 60, 2, 10, QChar('0'))`.
+
+**HONEST UNRESOLVED:** `ComposePremiumRequired` default field values — the `premiumRequired` field in `defaultComposeControls` has no explicit assignment; all sub-fields use default-constructed zero/empty values. The actual PremiumRequired UI is constructed programmatically in `PremiumRequiredSendRestriction()` using `st::historyComposeField` margins.
+
 ---
 
 ## §48 — Drag-and-Drop File Overlay
@@ -20712,6 +20850,64 @@ Multiple highlights queued in `_queue` and processed sequentially.
 | Style constants | `lib_ui/ui/basic.style` (slideDuration, activeFade*) |
 | Chat style constants | `ui/chat/chat.style` (historyScrollDateHideTimeout, historyDateFadeDuration) |
 | Button style constants | `chat_helpers/chat_helpers.style` (historyToDown*, historyUnread*) |
+
+### §49.15 JumpDownButton — Resolved Layout
+
+**Total button dimensions** (`st::historyToDown` TwoIconButton, `chat_helpers/chat_helpers.style`):
+- Width: **52px**, height: **62px**
+- Icon position: `point(0px, 10px)` — `historyToDownPaddingTop: 10px`
+- Ripple area: `point(5px, 15px)`, size **42px** diameter ellipse mask
+
+**Icon layering:**
+1. Bottom: `iconBelow` / `iconBelowOver` — shadow + circle background (`history_down_shadow` + `history_down_circle`)
+2. Middle: ripple animation at (5px, 15px)
+3. Top: `iconAbove` / `iconAboveOver` — arrow icon (`history_down_arrow`)
+
+**Badge rendering** (`ui/controls/jump_down_button.cpp`):
+- Font: `st::historyToDownBadgeFont` = `semiboldFont` = **13px semibold**
+- Circle height: `st::historyToDownBadgeSize` = **22px**
+- Width: `max(textWidth + 2*padding, 22px)` — circle for single digit, pill for multi-digit
+- Position: `PaintUnreadBadge(p, text, width(), 0, st, 4)` — y=0 (top of button, above circle icon), x=width() (52px), allowDigits=4
+- Alignment: `style::al_center`
+- Size ID: `UnreadBadgeSize::HistoryToDown`
+- Text color: `dialogsUnreadFg` (white on active/blue background)
+
+### §49.16 Sticky Date Header — Resolved Badge Dimensions
+
+**`st::msgServiceFont`:** `semiboldFont` = **13px semibold**.
+
+**`st::msgServicePadding`:** `margins(12px, 3px, 12px, 4px)` — 12px horizontal, 3px top, 4px bottom. Total badge height: ~20px (font metrics + padding).
+
+**`st::msgServiceMargin`:** `margins(10px, 10px, 10px, 2px)` — 10px left/right/top, 2px bottom.
+
+**`st::msgServiceBg`:** Theme-dependent (default: semi-transparent dark overlay). Service text uses `msgServiceFg` for text (white in default theme).
+
+**Overlay interaction:** Sticky date header is painted during message paint pass via `paintDates()`. Corner buttons are separate child widgets in a higher z-layer. No explicit collision avoidance — they occupy different screen regions (date header top-center, corner buttons bottom-right).
+
+Source: `ui/chat/chat.style`.
+
+### §49.17 Corner Buttons — Stack Layout Formula
+
+All 4 buttons share 52×62px dimensions (`historyUnreadMentions`, `historyUnreadReactions`, `historyUnreadPollVotes` all inherit from `historyToDown`).
+
+**`st::historyUnreadThingsSkip`:** **4px** (gap between stacked buttons).
+
+**Horizontal positioning:** `st::historyToDownPosition.x()` = **12px** from right edge. Other buttons animate from `-width` (offscreen) to 12px.
+
+**Vertical stacking (from bottom of parent, `updatePositions()` in `history_view_corner_buttons.cpp`):**
+
+| Button | Top position formula (fully shown) | Example (parent=600px) |
+|--------|-----------------------------------|----------------------|
+| Down | `parentH - (62 + 10)` | 528px |
+| Mentions | `parentH - 62 - 10 - (62 + 4) × downShown` | 462px |
+| Reactions | `parentH - 62 - 10 - (62+4)×downShown - (62+4)×mentionsShown` | 396px |
+| PollVotes | `parentH - 62 - 10 - (62+4)×downShown - (62+4)×mentionsShown - (62+4)×reactionsShown` | 330px |
+
+**Total stack height (all 4 visible):** `4×62 + 3×4 + 10 = 270px`.
+
+Each button's vertical shift is independently animated via `anim::interpolate`. When a middle button hides, buttons above smoothly slide down because their shift terms depend on the animated `shown` value of buttons below.
+
+**Additional constants:** `historyToDownShownAfter` = 480px (scroll threshold), `historyToDownDuration` = 150ms, `historyScroll` = 12px wide scrollbar with 3px radius.
 
 ---
 
@@ -21568,6 +21764,38 @@ Chat-level context menu items (right-click on chat in list):
 | Hide message state (in-memory) | `ayu/ayu_state.h`, `ayu_state.cpp` |
 | Data serialization/mapping | `ayu/utils/ayu_mapper.h`, `ayu_mapper.cpp` |
 
+### 52.9 saveForBots — UI Gating (NONE)
+
+The `saveForBots` toggle has **no UI gating**. It remains fully visible and clickable at all times, regardless of whether `saveDeletedMessages` and `saveMessagesHistory` are ON or OFF. In `BuildSpyEssentials()` (`ayu/ui/settings/settings_ayu.cpp`), all three spy toggles use identical `addSettingToggle()` calls with no conditional visibility or enable/disable dependencies. The only visual separation is `addSectionDivider()` between the first two toggles and `saveForBots`.
+
+The gating is purely logical: `isMessageSavable()` returns `false` before reaching the bot check when main toggles are OFF, but the UI does not communicate this dependency. A user can enable `saveForBots` while main toggles are OFF — the setting persists but has no effect until a main toggle is re-enabled.
+
+### 52.10 EditMarkBox — Resolved Dimensions
+
+**Dialog width:** `st::boxWidth` = **320px** (`lib_ui/ui/layers/layers.style`).
+
+**Input field:** Width = `320 - 24 - 0 - 24 = 272px` (boxWidth − boxPadding.left − newGroupInfoPadding.left − boxPadding.right). Style: `st::defaultInputField` (standard single-line input).
+
+**Height:** Dynamic = `contactPadding.top + inputHeight + boxPadding.bottom + contactPadding.bottom = 2 + inputH + 8 + 14 = 24 + inputH`.
+
+**Buttons:** Right: standard `addButton()` (Save/OK, `st::defaultBoxButton`, 34px height). Left: `addLeftButton()` (Reset to default). Resets input to `_defaultValue`.
+
+**No preview** — the dialog contains only a title, text input, and two buttons. No live preview of how the mark appears in message bubbles.
+
+Source: `ayu/ui/boxes/edit_mark_box.h`, `edit_mark_box.cpp`.
+
+### 52.11 Passcode / DB Encryption — NOT ENCRYPTED
+
+The `ayudata.db` SQLite database is **NOT encrypted**, regardless of Telegram's local passcode state. It uses plain `sqlite_orm::make_storage("./tdata/ayudata.db")` with no encryption parameters. No references to SQLCipher, `MTP::AuthKey`, passcode, or `LocalEncryptKey` exist in the AyuGram database code. Anyone with filesystem access can read all preserved deleted messages, edit histories, and read receipts directly.
+
+On corruption, the file is renamed with a timestamp suffix (e.g., `ayudata.db.1700000000`) and recreated empty.
+
+Source: `ayu/data/ayu_database.cpp`, `ayu_database.h`.
+
+### 52.12 Per-Chat Exclusion — DOES NOT EXIST
+
+Anti-recall is strictly global on/off with a single bot filter. `isMessageSavable()` checks exactly two conditions: (1) `saveDeletedMessages` global toggle, (2) if peer is a bot, `saveForBots`. No exclusion list, blacklist, whitelist, per-peer setting, or per-dialog override exists. `AyuSettings` contains no per-chat fields for message saving.
+
 ---
 
 ## 53. Forward Enhancements (AyuGram)
@@ -21774,6 +22002,49 @@ AyuGram introduces a custom message flag (`MessageFlag::AyuNoForwards`, bit 63) 
 | **Icon** | `ayu/ui/ayu_icons.style` (`ayuRepeatMenuIcon`) |
 | **Lang strings** | `Resources/langs/lang.strings` (`ayu_RepeatMessage`, `ayu_AyuForwardStatus*`, `ayu_UnforwardableContextMenuText`) |
 | **AyuNoForwards flags** | `data/data_peer.cpp`, `data_user.cpp`, `data_channel.cpp`, `data_chat.cpp`, `history/history_item.cpp` |
+
+### 53.8 Repeat Message — No Hint Text
+
+The "Repeat Message" menu item has **no tooltip, subtext, or hint**. It is a simple action with label + callback + icon. No `setToolTip()`, no `MenuItemSubtext` wrapper. The Shift-for-no-quote behavior (sends as own without forward header) is entirely undiscoverable from the UI — implemented via a silent `base::IsShiftPressed()` check with no visual indicator.
+
+Source: `ayu/ui/context_menu/context_menu.cpp`, `AddRepeatMessageAction()`.
+
+### 53.9 Download Path — Cross-Reference
+
+AyuForward uses **Telegram's standard download path**, not a custom AyuGram path. Resolution in `pathForSave()` (`ayu/features/forward/ayu_sync.cpp`):
+
+1. `Core::App().settings().downloadPath()` — user-configured in **Settings > Advanced > Download path** (see §17)
+2. Fallback: `File::DefaultDownloadPath(session)` — platform default (typically `~/Downloads/Telegram Desktop/`)
+3. Temp: `session->local().tempDirectory()` — if set to temp directory
+
+**File naming:** Named documents use original filename; voice = `audio_{dc}_{id}.ogg`; round video = `round_{dc}_{id}.mp4`; GIF = `gif_{dc}_{id}.gif`; video = `video_{dc}_{id}.mp4`; photo = `{dc}_{id}.jpg`. Empty path for null/unrecognized media causes early return.
+
+### 53.10 Error States — NONE EXIST
+
+`ForwardState` has exactly four values: `Preparing`, `Downloading`, `Sending`, `Finished`. No `Error`, `Failed`, or `Cancelled` state. All failures resolve silently:
+
+| Failure | Behavior |
+|---------|----------|
+| Network timeout (document) | 15-minute overall loop with 5-minute per-check `TimedCountDownLatch`. Proceeds silently on timeout. |
+| Network timeout (photo) | Single 5-minute wait. Returns silently on timeout. |
+| Incomplete download | File size < expected → silently erased from batch. All files incomplete → item skipped. |
+| File open failure | Logged (`LOG(("failed to open file..."))`) but continues to next item. |
+| User cancellation | `stopRequested = true` → transitions to `Finished`. |
+
+The progress bar always transitions to `Finished` — no visual error indication. Failed downloads result in text-only messages or silently skipped items.
+
+**State cleanup:** Entries never removed from the global `forwardStates` map. Persist in memory as `Finished` until app exit.
+
+### 53.11 Per-Account Scope — PeerId Only (Race Condition)
+
+Forward state is keyed by `PeerId` alone — no session/account ID in the key. Multi-account implications:
+
+- **Single account:** Correct. One active forward per peer.
+- **Multi-account conflict:** Accounts A and B forwarding to the same peer overwrite the same `ForwardState` entry (race condition).
+- **Cross-account visibility:** Account B viewing a peer with account A's active forward will see A's progress bar. Cancel from B cancels A's forward.
+- **`updateBottomBar()`** dispatches via the initiating session, not the viewing session.
+
+This is a design limitation — simultaneous multi-account forwards to the same peer are rare in practice.
 
 ---
 
@@ -22734,6 +23005,129 @@ A trailing skip follows the links section.
 22. "Translate" button (Crowdin)
 23. "Documentation" button (docs.ayugram.one)
 24. Skip
+
+### 54.18 Gap Fills — Resolved Details
+
+#### §54.1a Avatar Corners — Formula Clarification
+
+The interpolation formula uses the named constant, not a magic number: `int(double(corners) / AyuUiSettings::kMaxAvatarCorners * pixelSize / 2.0)` (`ayu/ui/ayu_userpic.cpp`, `ComputeRadius()`). `kMaxAvatarCorners = 23` (`lib_ui/ayu/ayu_ui_settings.h`). Default `_avatarCorners = 23`. The slider has 24 stops (0 to 23) = `kMaxAvatarCorners + 1` positions. Numerically equivalent to `corners / 23 * size / 2` but code uses the named constant.
+
+#### §54.2a Material Switches — Resolved Token Values
+
+**`defaultToggle`** (`lib_ui/ui/widgets/widgets.style`): border=2px, shift=-2px, diameter=14px, width=14px, animPadding=2px, duration=150ms, rippleAreaPadding=8px.
+
+**Fallback constants** (material OFF): `defaultToggleShift`=1px, `defaultToggleDiameter`=16px, `defaultToggleDuration`=`universalDuration`=120ms.
+
+| Property | Material ON (MD3) | Material OFF (iOS) |
+|----------|------------------|-------------------|
+| Shift | -2px (style's `shift`) | 1px (`defaultToggleShift`) |
+| Diameter | 14px (style's `diameter`) | 16px (`defaultToggleDiameter`) |
+| Duration | 150ms (style's `duration`) | 120ms (`universalDuration`) |
+| Easing | `easeOutCubic` | `linear` |
+| AnimPadding | 2px (growing thumb) | no effect |
+| Track size | 32×18px | 36×20px |
+
+Track size formula: `(2*border + diameter + width)` × `(2*border + diameter)`. Growing thumb effect: thumb starts smaller by `animPadding` (2px/side) when untoggled, expands to full `diameter` when toggled. Source: `lib_ui/ui/widgets/checkbox.cpp`.
+
+#### §54.9a AI Editor — ComposeAiBox Modal
+
+Clicking the AI Editor button opens `ComposeAiBox` (`boxes/compose_ai_box.h`, `.cpp`) — a modal for Telegram's server-side Cocoon AI.
+
+**UI structure:**
+1. **Mode tabs** (`ComposeAiModeTabs`): Translate | Style | Fix
+2. **Style tabs** (`Ui::LabeledEmojiScrollTabs`): visible/hidden per mode
+3. **Preview card** (`ComposeAiPreviewCard`): original text (collapsible) + result text with copy button + optional "emojify" checkbox + skeleton loading during API request
+4. **Diff display** (Fix mode): green underline inserts, struck-through + underline replaces, struck-through deletes
+5. **Action button**: "Select Style" (disabled, no style chosen) → "Apply" (results ready) → send button (if `args.send` provided)
+
+**API:** `_session->api().composeWithAi().request()` with `ComposeWithAi::Request` (text, emojify flag, mode params).
+
+**Button icon:** `messageFieldCocoonAiIcon` = 24×24px composite: `chat/ai_letters-20x20` + `chat/ai_star1-20x20` + `chat/ai_star2-20x20` in `menuIconColor` at (2px, 2px). Button = `ComposeAiButton` (`Ui::RippleButton` subclass). Source: `ayu/ui/ayu_icons.style`.
+
+#### §54.10a IconPicker — Resolved Layout
+
+Source: `ayu/ui/components/icon_picker.h`, `icon_picker.cpp`, `ayu/ui/ayu_styles.style`.
+
+**Grid:** `kColumns = 4`. Rows = `ceil(icons.size() / 4)` (12 icons → 3 rows). Cell width = `widget.width() / 4` (~90px at 360px parent).
+
+| Token | Value |
+|-------|-------|
+| `iconPickerIconSize` | 64px |
+| `iconPickerImagePadding` | 4px |
+| `iconPickerSelectedPadding` | 2px |
+| `iconPickerSelectedRounding` | 12px |
+
+Content area per icon: 64+8 = 72px. Selection highlight: 64+4 = 68px with 12px radius.
+
+**12 themes:** `default`, `alt`, `discord`, `spotify`, `extera`, `nothing`, `bard`, `yaplus`, `win95`, `chibi`, `chibi2`, `extera2`.
+
+Icons load via `AyuAssets::loadPreview(iconName)`, cache in `_cachedIcons`. Selection: 200ms `easeOutCubic` opacity transition. No separate preview area — the AyuMain page logo widget serves as live preview.
+
+#### §54.11a channelBottomButton — Fallback Behavior
+
+**Enum** (`ayu/ayu_settings.h`): `Hidden = 0`, `MuteUnmute = 1`, `DiscussWithFallback = 2`.
+
+| Value | Mute/Unmute | Discuss |
+|-------|-------------|---------|
+| `Hidden` | Hidden (`isMuteUnmute()` → false) | Hidden |
+| `MuteUnmute` | Shown | Never shown (`hasDiscussionGroup()` → false) |
+| `DiscussWithFallback` | Shown | Shown ONLY if channel has `HasLink` flag (linked discussion group). No link → hidden (falls back to mute/unmute alone) |
+
+Source: `history/history_widget.cpp:5951` (`isMuteUnmute`), `:5327` (`hasDiscussionGroup`), `:3633` (visibility update).
+
+#### §54.11b HideReactions — Corrected toggledWhenAll Logic
+
+**Correction:** The spec previously said "Parent toggles on when ALL children are unchecked." This is **wrong**. `toggledWhenAll = false` means parent is ON when ANY child is checked (`count != 0`).
+
+The checkbox getters NEGATE the settings: `return !showChannelReactions()`. Checked checkbox = reactions hidden. So: "Hide Reactions" parent shows ON when ANY "hide in X" checkbox is checked. All unchecked = all `show*Reactions` true = reactions visible everywhere = parent OFF.
+
+Compare with "Disable Similar Channels" (§54.14): uses `toggledWhenAll = true` → parent ON only when ALL children checked.
+
+Source: `ayu/ui/settings/settings_chats.cpp`, `settings_ayu_utils.cpp` (`AddInnerToggle`).
+
+#### §54.8a Bots Drawer — Account Reactivity (Static)
+
+Detection requires BOTH `inMainMenu` AND `bot.media` (not just `inMainMenu`):
+```cpp
+bool HasDrawerBots(controller) {
+    for (const auto &bot : controller->session().attachWebView().attachBots()) {
+        if (!bot.inMainMenu || !bot.media) continue;
+        return true;
+    }
+    return false;
+}
+```
+
+The toggle is **statically added during settings page construction** — no reactive show/hide on account switch. Source contains `// todo: maybe iterate through all accounts` confirming this is a known gap. In the drawer itself, `SetupMenuBots` iterates bots from the active account; switching to an account with no bots renders an empty section.
+
+Source: `ayu/ui/settings/settings_appearance.cpp`.
+
+#### §54.14a Translation Provider — Platform Details
+
+| Platform | `IsTranslateProviderAvailable()` | Backend |
+|----------|--------------------------------|---------|
+| **Linux** | `true` if `crow` or `org.kde.CrowTranslate` found in `$PATH` | Crow Translate CLI: `crow -i -b -t <lang>`, stdin→stdout, HTML→plaintext |
+| **Windows** | Always `false` (hardcoded inline) | None — `CreateTranslateProvider()` returns `nullptr` |
+| **macOS** | Depends on Swift 6 availability | Apple Translation framework (macOS 15+) |
+
+Label always shows platform name ("Linux"/"Windows"/"macOS") regardless of availability. On unavailable, settings init resets to `TranslationProvider::Telegram`.
+
+Source: `platform/linux/translate_provider_linux.cpp`, `platform/win/translate_provider_win.h`, `platform/mac/translate_provider_mac.h`.
+
+#### §54.14b Peer ID — Format Examples
+
+Formatting via `IDString()` (`ayu/ui/utils/ayu_profile_values.cpp`):
+
+| Peer type | Telegram API | Bot API |
+|-----------|-------------|---------|
+| User (bare 123456789) | `123456789` | `123456789` |
+| Basic group (bare 987654) | `987654` | `-987654` |
+| Channel (bare 1234567890) | `1234567890` | `-1001234567890` |
+
+**Telegram API:** `getBareID(peer)` — raw 48-bit bare ID, always positive.
+**Bot API:** Users=positive; groups=negated (`-bare`); channels=`-(bare + 1000000000000)` where `kMaxChannelId = -1000000000000`.
+
+`IDValue()` returns `rpl::producer<TextWithEntities>` reacting to `showPeerIdValue()` changes. `Hidden` → empty. Displayed in profile info section. Forum topic IDs use separate overload showing the topic root message ID.
 
 ---
 

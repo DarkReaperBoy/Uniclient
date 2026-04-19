@@ -9,12 +9,12 @@ Operational guide for Claude Code. **Rules and build commands only** — no find
 **STOP. Before doing ANYTHING, read these files in order. Do not skip any.**
 
 1. This file (`CLAUDE.md`) — operational rules (YOU ARE HERE — read every rule)
-2. `todolist.md` — what to do next, top-to-bottom order
+2. `checklist/todolist.md` — what to do next, top-to-bottom order
 3. `SPEC.md` — full architecture and feature spec
 4. `auth/auth.md` — test credentials (bot token, chat IDs)
 5. `research/` — protocol specs, API quirks, debug findings
 
-**Auto-continue rule:** If the user does not give a specific task, read `todolist.md` and continue from the top uncompleted item. No asking, no confirming — just pick up and work.
+**Auto-continue rule:** If the user does not give a specific task, read `checklist/todolist.md` and continue from the top uncompleted item. No asking, no confirming — just pick up and work.
 
 ## Architecture
 
@@ -57,7 +57,7 @@ source auth/auth.md && cd go/tests && go test -v -timeout 300s
 
 ## What To Do
 
-All work is tracked in `todolist.md` — structured top-to-bottom. On context reset, read it and continue from the top uncompleted item. Remove items from `todolist.md` when done. NEVER ask the user what to do next — the answer is in `todolist.md`.
+All work is tracked in `checklist/todolist.md` — structured top-to-bottom. On context reset, read it and continue from the top uncompleted item. Remove items from `checklist/todolist.md` when done. NEVER ask the user what to do next — the answer is in `checklist/todolist.md`.
 
 Steps 1–13 (cores, testing, protobuf bridge) are ALL DONE. Current work: Step 15 — Build GUI (delete old UI, rebuild from scratch). Final step after GUI: docstring every core.
 
@@ -220,7 +220,7 @@ When the user says "add X", follow these steps in order:
 
 When adding a NEW core not listed here: research the official client libraries, find the best Go library or protocol spec, add a row to this table, and create the research file BEFORE writing any code.
 
-- **Build in batches, self-verify, then continue** — Implement a cluster of related features, build, and fully verify them yourself using the automated testing pipeline (screenshots, gesture dispatch, logs). Fix any bugs found before moving on. Log bugs in `checklist/gui.md`. Don't ask "what should I do next" — fix bugs first, then continue from `todolist.md`. The user does NOT need to verify anything — that's your job.
+- **Build in batches, self-verify, then continue** — Implement a cluster of related features, build, and fully verify them yourself using the automated testing pipeline (screenshots, gesture dispatch, logs). Fix any bugs found before moving on. Log bugs in `checklist/gui.md`. Don't ask "what should I do next" — fix bugs first, then continue from `checklist/todolist.md`. The user does NOT need to verify anything — that's your job.
 - **Self-test BEFORE handing to user — MANDATORY, FULLY AUTOMATED** — After implementing a batch, you MUST build, launch, and thoroughly test every feature yourself. You have ZERO excuse to skip testing — everything is automated:
   - **Screenshots:** `flutter_inspect.sh screenshot` — visually verify against AyuGram Desktop spec
   - **Interaction:** `flutter_interact.sh` — tap, right-click, scroll, type, taptext, findtext

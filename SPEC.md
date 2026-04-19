@@ -433,7 +433,7 @@ Research approach, documentation rules, and session management are defined in `C
 
 Implement strictly in this order. Each step has a test gate. Track progress in `checklist/`.
 
-**Phases 0–11 are ALL COMPLETE** (all 10 cores implemented and tested). Current work: Phase 8 (Flutter UI). See `todolist.md` for active items.
+**Phases 0–11 are ALL COMPLETE** (all 10 cores implemented and tested). Current work: Phase 8 (Flutter UI). See `checklist/todolist.md` for active items.
 
 ### Phase 0: Foundation
 1. `flake.nix` — dev shell

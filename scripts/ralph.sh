@@ -151,7 +151,7 @@ If all remaining items seem blocked, commit a note explaining why and exit."
   claude \
     --print \
     --dangerously-skip-permissions \
-    --model claude-opus-4-7 \
+    --model claude-opus-4-6 \
     --effort max \
     --output-format stream-json \
     --verbose \
@@ -187,6 +187,9 @@ If all remaining items seem blocked, commit a note explaining why and exit."
     CONSECUTIVE_FAILURES=0
     log "Progress! $NEW_COMMITS new commit(s). Total: $TOTAL_COMMITS"
     log "Latest: $(git -C "$PROJECT_ROOT" log --oneline -1)"
+    # Kill uniclient after successful push
+    pkill -f "bundle/uniclient" 2>/dev/null || true
+    log "Killed uniclient after push"
   else
     STALL_ITERATIONS=$((STALL_ITERATIONS + 1))
     log "No new commits. Stall count: $STALL_ITERATIONS"

@@ -4,32 +4,9 @@
 
 Top-to-bottom execution order. Remove items when done.
 
-## Step 1: Perfect the UI spec (IN PROGRESS — see `checklist/spec_gaps.md`)
+## Step 1: Perfect the UI spec — ✅ COMPLETE (2026-04-19)
 
-Full end-to-end audit of `research/telegram_desktop_ui.md` complete. Structural work done:
-- ✅ Sections §41/§42/§43 reordered to file order; §45/§46 swapped.
-- ✅ §37 heading HTML entities normalized.
-- ✅ §50 Streamer Mode & Read Toggles (AyuGram) added (was missing entirely).
-- ✅ §56 Appendix A — Resolved Style Constants added.
-- ✅ §57 Appendix B — Dark Theme Color Palette added.
-
-Remaining: fill per-section content gaps documented in `checklist/spec_gaps.md`. Next session should pick one group, spawn 3+ parallel research agents against AyuGram Desktop source, and fill the cited gaps. Commit each section separately.
-
-Progress so far (see `spec_gaps.md` for strike-throughs + per-section completion notes):
-- ✅ §1-§13 core UI group complete (2026-04-18/19)
-- ✅ §32 story composer + §34 conference-call-create box (2026-04-19)
-- ✅ §54 AyuGram Filters semantics + Shadow Ban flow (2026-04-19)
-- ✅ §14-§19 Settings group complete (2026-04-19)
-- ✅ §20-§22 Media Viewer / Create Group/Channel / Forum Topics (2026-04-19)
-- ✅ §23-§26 Scheduled / Keyboard Shortcuts / Theming / Admin Tools (2026-04-19) — §20-§26 batch complete
-- ✅ §27-§29 Passcode / 2FA / Chat Export (2026-04-19)
-- ✅ §30-§34 Bots / Saved Messages / Contacts / Calls (2026-04-19) — §30 bot menu formula + Web App loading + Game button states + UrlAuthBox + Payments; §31 SavedMessagesTagBar + EditTagNameBox + Subsection Tabs width; §33 Stories Row + Country Picker + Edit-Contact Cover; §34 Rate Call (dead-coded) + Active-Call TopBar + Date-Group HONEST FINDING (no headers upstream).
-
-Next-session priority (pick one, dispatch 3 parallel agents):
-1. **§35-§49** — States/Popups/Misc — many small sections, good for a fast cleanup batch.
-2. **§52/§53** — remaining AyuGram extensions (saveForBots gating, deletedMark/editedMark, Repeat Message hint, etc.)
-
-Batch recipe (proven): read current section bounds via grep, dispatch 3 parallel Opus agents each scoped to one section's line range, split the combined diff with `/tmp/split_patch*.py` approach, commit each section separately, push once at the end.
+All per-section content gaps in `research/telegram_desktop_ui.md` have been filled. See `checklist/spec_gaps.md` for full completion notes. Every section §1-§57 now has source-cited pixel-level detail.
 
 ## Step 2: Build the complete GUI checklist (session after Step 1)
 
