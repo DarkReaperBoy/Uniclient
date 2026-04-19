@@ -17106,35 +17106,89 @@ Plus `Qt::WA_MacAlwaysShowToolWindow` and `Qt::WA_OpaquePaintEvent`.
 - Standard corners: `notifyWidth` = **320px**.
 - Top center: `notifyWidth * 1.5` = **480px**.
 
-#### 37.3.4 Size and Layout
+#### 37.3.4 Size and Layout (resolved)
 
-| Element | Position / Size | Style constant |
+All values resolved from `window/window.style:18-67` (AyuGram master). `notificationBg` is the popup body fill — defined in the active palette (`palette.tdesktop-theme`/night variant); see §57 appendix entry. `windowShadowFgFallback` is the 1px outline border tint (also palette-defined).
+
+| Element | Px / Token | Style key (file:line) |
 |---|---|---|
-| **Notification widget** | 320px wide x 80px min height | `notifyWidth` / `notifyMinHeight` |
-| **Userpic** | 62x62px at (9, 9) | `notifyPhotoSize` / `notifyPhotoPos` |
-| **Close button** | 30x30px, top-right at offset (1, 2) from corner | `notifyClose` / `notifyClosePos` |
-| **Title (name)** | Left of userpic + 12px, top 7px | `notifyTextLeft` / `notifyTextTop` |
-| **Message text** | Below title, top 12px + font height | `notifyItemTop` |
-| **Reply button** | Bottom-right, hidden until hover | padding = minHeight - photoPos.y - photoSize |
-| **Border** | 1px on all edges | `notifyBorderWidth` / `notifyBorder` |
-| **Inter-notification gap** | 7px vertical | `notifyDeltaY` |
-| **Edge margin** | 6px horizontal | `notifyDeltaX` |
-| **"Hide All" button** | Same width, 36px tall, below last notification | `notifyHideAllHeight` |
+| **Notification widget** | 320 × 80 (min height) | `notifyWidth` `window.style:40` / `notifyMinHeight` `window.style:41` |
+| **Top-center variant width** | 480 (= 320 × 1.5) | `notifications_manager_default.cpp` (corner == TopCenter branch) |
+| **Userpic** | 62 × 62 at (9, 9) | `notifyPhotoSize` `:21` / `notifyPhotoPos` `:23` |
+| **Native userpic cache size** | 64 × 64 PNG | `notifyMacPhotoSize` `:22` (used for ALL native backends) |
+| **Close button** | 30 × 30, top-right offset (1, 2) from corner; icon at (10, 10) inside; ripple area 20 × 20 at (5, 5) | `notifyClose` `:25-34` / `notifyClosePos` `:24` |
+| **Title (peer name)** | Anchored at userpic right + 12 px, top 7 px | `notifyTextLeft` `:36` / `notifyTextTop` `:37` |
+| **Message text top offset** | 12 px (added to title baseline → message baseline) | `notifyItemTop` `:35` |
+| **Border** | 1 px on all 4 edges, color `windowShadowFgFallback` | `notifyBorderWidth` `:19` / `notifyBorder` `:18` |
+| **Inter-notification vertical gap** | 7 px | `notifyDeltaY` `:43` |
+| **Edge margin (left or right of screen)** | 6 px | `notifyDeltaX` `:42` |
+| **"Hide All" button height** | 36 px (full notify width: 320 px or 480 px) | `notifyHideAllHeight` `:46` |
+| **Reply send button** | 36 × 36; icon `historySendIcon` at point (6, 6); over icon `historySendIconOver` | `notifySendReply` `:60-65` |
+| **Reply input field** | min height 36 / max height 72; text margins (8, 8, 8, 6); placeholder font = `normalFont`; border = 0 (the input has NO drawn border — it sits inside the expanded notification body) | `notifyReplyArea` `:48-59` |
+| **Right fade-out icon** (covers text overflow on right) | `fade_horizontal` icon tinted with `notificationBg` | `notifyFadeRight` `:67` |
 
-**Layout within notification:**
+**Title text:** drawn with `st::semiboldFont`. Single line, elided. Available width = widget width − userpic block (photoPos.x + photoSize + 12 px gap) − close-button area.
+
+**Message text:** drawn with `st::dialogsTextFont`. Up to 2 lines (`2 * dialogsTextFont->height`), elided at line 2. Right edge is masked by `notifyFadeRight` so the elision overlaps a soft fade.
+
+**Reply button (RoundButton):** padding from notification corner = `notifyMinHeight − notifyPhotoPos.y − notifyPhotoSize` = `80 − 9 − 62` = **9 px** inset on the bottom-right, computed in `Notification::Notification()`. Hidden until hover (200 ms fade per `notifyActionsDuration` `:44`).
+
+#### 37.3.4a Reply Input Grow Rules (resolved)
+
+When the user clicks the Reply button, the notification expands its body to host an `Ui::InputField` (`_replyArea`) plus the 36×36 `_replySend` button. Source: `notifications_manager_default.cpp:851-857` for construction, `:578` and `:836-838` for the resize hook, `notifications_manager_default.h:224-225` for the member layout.
+
+**Field construction**
+
+```cpp
+_replyArea = object_ptr<Ui::InputField>(
+    this,
+    st::notifyReplyArea,                              // window.style:48-59
+    Ui::InputField::Mode::MultiLine,                  // multi-line, grows with content
+    tr::lng_message_ph(),
+    QString());
+_replyArea->resize(
+    width() - st::notifySendReply.width - 2 * st::notifyBorderWidth,
+    st::notifyReplyArea.heightMin);                   // 36 px initial
+_replyArea->setMaxLength(MaxMessageSize);
 ```
-+--[border 1px]--------------------------------------+
-|  [Userpic 62x62]  [Title/Name]           [X close] |
-|                    [Message text, 2 lines]          |
-|                                        [Reply btn]  |
-+----------------------------------------------------+
+
+So initial inner width = `notifyWidth − notifySendReply.width − 2 × notifyBorderWidth` = `320 − 36 − 2` = **282 px** (or **442 px** in TopCenter mode).
+
+**Grow rule**
+
+`Ui::InputField` (Mode::MultiLine) measures wrapped text against `style.font` and emits `heightChanges()`. The notification subscribes:
+
+```cpp
+_replyArea->heightChanges() | rpl::start_with_next([=] {
+    replyResized();
+}, _replyArea->lifetime());
 ```
 
-Title text: drawn with `st::semiboldFont`, clipped to available width (widget width minus userpic area minus close button area). Single line, elided.
+`replyResized()` resizes the whole notification:
 
-Message text: drawn with `st::dialogsTextFont`, up to 2 lines of height (`2 * dialogsTextFont->height`), elided at that height.
+```cpp
+changeHeight(st::notifyMinHeight + _replyArea->height() + st::notifyBorderWidth);
+```
 
-When reply field is shown, the notification expands below `notifyMinHeight` with a `Background` widget and an `InputField` (36-72px height) + send button (36x36px).
+So the popup's total height when reply is open is:
+
+```
+H_total = notifyMinHeight + clamp(_replyArea->height(), 36, 72) + notifyBorderWidth
+        = 80 + [36..72] + 1
+        = 117 .. 153 px
+```
+
+**Min / max height**
+
+Hard clamp comes from `notifyReplyArea.heightMin = 36` and `notifyReplyArea.heightMax = 72` (`window.style:51-52`). Above 72 px (i.e. roughly 4 wrapped lines at `defaultTextStyle`'s line height ≈ 16 px after the 8/6 px text margins), the field stops growing and starts internal scrolling — content overflows inside the field rather than pushing the popup taller.
+
+**Send / cancel**
+
+- Submit (Enter, configurable Enter / Ctrl+Enter via global send-key setting): `sendReply()` → `api().sendMessage()` → `unlinkHistory()` then `manager()->startAllHiding()`.
+- Escape: `replyCancel()` (`notifications_manager_default.h:192`) collapses the field; the popup shrinks back to `notifyMinHeight`.
+- The auto-dismiss timer is suspended for the entire lifetime of any visible reply field (any notification with an open `_replyArea` keeps every other notification on screen too — see §37.3.5 hover behavior).
+
+**No draggable handle, no resize grip** — height changes are entirely text-driven. The expansion animation reuses the 150 ms `notifyFastAnim` shift used for stack repositioning (see §37.3.5).
 
 #### 37.3.5 Animation and Timing
 
@@ -17176,9 +17230,41 @@ When reply field is shown, the notification expands below `notifyMinHeight` with
 | **Cancel reply** (Escape) | Dismisses the notification. |
 | **Click "Hide All"** | Calls `manager()->clearAll()` &mdash; removes all notifications and clears queue. |
 
-#### 37.3.7 Maximum Notification Count
+#### 37.3.7 Maximum Notification Count and Stack Overflow Rules (resolved)
 
-Configurable in settings: 1 to `kMaxNotificationsCount` (5). Default: 5. When the visible count exceeds the limit, oldest non-reply notifications are unlinked. New notifications queue in `_queuedNotifications` and show as slots free up.
+**Cap:** `constexpr int kMaxNotificationsCount = 5;` defined at `settings/sections/settings_notifications.cpp:51`. The settings slider exposes 5 sections numbered 1..5 (loop at `:1313-1314`).
+
+**Default:** `_notificationsCount = 3` (`core/core_settings.h:1081`). Earlier audit said 5 — that was the slider MAX; the default at first launch is **3**.
+
+**Containers** (`notifications_manager_default.h:91, 108`):
+- `std::vector<std::unique_ptr<Notification>> _notifications` — currently shown popup widgets.
+- `std::deque<QueuedNotification> _queuedNotifications` — FIFO queue of incoming items waiting for a free slot.
+
+**Overflow algorithm** (`showNextFromQueue()` + `unlinkFromShown()` in `notifications_manager_default.cpp`):
+
+1. New incoming notification is enqueued into `_queuedNotifications`.
+2. `showNextFromQueue()` pops the head and constructs a `Notification` widget IF `_notifications.size() < settings().notificationsCount()`.
+3. If at capacity AND the queue is non-empty, the manager attempts to evict the **oldest non-reply, non-hover** notification:
+   - A notification with an open `_replyArea` is sticky — it cannot be evicted until the user submits or cancels.
+   - A notification with `_mouseOver` true (hover-locked) is also sticky.
+   - If every visible slot is sticky, the new item stays queued indefinitely (no forced replace).
+4. The evicted notification calls `unlinkHistory()`, then `startHidingFast()` (150 ms fade) — slot is reclaimed when fade completes; queue head is re-popped.
+5. The "Hide All" button (`HideAllButton`) is displayed when `count > 1 || !_queuedNotifications.empty()`. It hides via `_hideAll->startHidingFast()` when both conditions become false.
+
+**Stack repositioning** (`moveWidgets()` in `notifications_manager_default.cpp:154-173`):
+
+- Iterates notifications in **reverse** (newest-first index walk).
+- Accumulator: `auto shift = st::notifyDeltaY;` (initial 7 px outer margin from the screen edge).
+- Per-notification increment: `shift += notification->height() + st::notifyDeltaY;` (so each notification adds its own height + 7 px gap).
+- Direction is set per corner (`Direction::Up` for bottom corners, `Direction::Down` for top corners). Final position uses `realShift = -realShift - height` when direction is `Up` (so newest is closest to the corner; older notifications rise / descend away from it).
+- The "Hide All" button is placed at the tail of the stack (`lastShift` after the loop) — so it always sits on the side away from the corner, beyond the oldest visible notification.
+- Movement is animated with `notifyFastAnim` = 150 ms linear (`window.style:39`) for both stack shifts and Hide-All repositioning.
+
+**Screen-bounds clamp:** There is **no client-side scroll** for overflowing notifications. If the accumulated stack height would exceed available screen height, the manager simply stops constructing new widgets (the queue continues to grow). When a slot frees, the next queued item appears in the corner; older queued items remain hidden. There is no "show more" UI.
+
+**Cross-screen behavior:** When the user has multiple monitors selected (`notificationsDisplayChecksum`), the entire stack lives on one chosen screen — notifications never split across displays. Resizing or unplugging the chosen monitor triggers `notificationStartPosition()` recompute and a 150 ms shift animation to the new location.
+
+**Demo mode** (settings preview): `_demoMasterOpacity` (`notifications_manager_default.h:110-111`) cross-fades a single fake notification at 150 ms when the user adjusts notification settings. Demo notifications are NOT enqueued and do not count against the slot cap.
 
 ### 37.4 Notification Content
 
@@ -17419,7 +17505,49 @@ Additional privacy conditions:
 - **Spoiler login codes** (`spoilerLoginCode` flag): When the sender is the Telegram notification user or verify codes user, login code entities are replaced with spoiler characters to prevent code exposure in notification popups.
 - **Reaction sender privacy:** If `api().reactionsNotifySettings().showPreviewsCurrent()` is false, the reactor's name is hidden even when notifications show names.
 
-**Hidden userpic placeholder:** When name/photo is hidden, a scaled-down app logo is drawn at `notifyPhotoSize` (62x62px) in place of the userpic.
+#### 37.12.1 Hidden Userpic Placeholder (resolved)
+
+When privacy mode forces "hide name and photo" (`NotifyView::HideAll`, or passcode-locked, or screen-locked for native), the userpic slot does NOT render the peer's avatar or an `EmptyUserpic` color disc. Instead, the manager paints a scaled-down copy of the **app logo with no surrounding margin**.
+
+Source: `notifications_manager_default.cpp:104-111` (cache build) and `:697-700` (paint call).
+
+**Build (cached once per Manager, lazy):**
+
+```cpp
+_hiddenUserpicPlaceholder = Ui::PixmapFromImage(
+    LogoNoMargin().scaled(
+        st::notifyPhotoSize * ratio,
+        st::notifyPhotoSize * ratio,
+        Qt::IgnoreAspectRatio,
+        Qt::SmoothTransformation));
+```
+
+- Source image: `LogoNoMargin()` — the AyuGram Desktop logo trimmed of surrounding empty space (the same asset used by tray/dock fallbacks, defined in `core/application.cpp`).
+- Target size: `notifyPhotoSize × ratio = 62 × DPR` px (so retina screens get a sharp render).
+- Aspect: `Qt::IgnoreAspectRatio` — the trimmed logo is square, so this is effectively uniform.
+- Filter: `Qt::SmoothTransformation` (bilinear).
+- Stored as a `mutable QPixmap` member (`notifications_manager_default.h:113`); rebuilt only if the `Manager` is recreated (e.g. theme reload).
+
+**Paint:**
+
+```cpp
+if (options.hideNameAndPhoto) {
+    p.drawPixmap(
+        st::notifyPhotoSize.x(), st::notifyPhotoPos.y(),
+        manager()->hiddenUserpicPlaceholder());
+}
+```
+
+So the placeholder occupies the EXACT same 62 × 62 rect at offset (9, 9) that a real userpic would. **There is no rounded clip applied** — the logo bitmap is drawn as-is, square. (Real userpics are pre-rounded by `peer->paintUserpic()`.) This means in HideAll mode the slot is visually a square logo, not a circle.
+
+**Native backends:** The Linux DBus / Windows toast / macOS NSUserNotification backends do NOT use this in-app placeholder. When `forceHideDetails()` is true:
+- DBus omits the image hint entirely (no `image-data` payload).
+- Windows toast XML omits the `<image>` element.
+- macOS leaves `contentImage` nil (the OS substitutes the bundle icon).
+
+So "hidden userpic" looks different across paths:
+- In-app popup: square AyuGram logo at 62 × 62 px.
+- Native: OS chrome icon (Linux daemon-default, Windows app icon, macOS bundle icon).
 
 ### 37.13 Userpic Caching (Native Notifications)
 
@@ -17474,6 +17602,17 @@ Native notification backends need userpic images as files on disk:
 | Reaction dedup window | 1 hour | `kReactionNotificationEach` |
 | macOS system alert | 1000ms | `kSystemAlertDuration` |
 | Userpic cache TTL | 60,000ms | `kNotifyDeletePhotoAfterMs` |
+| Reply field min height | 36 px | `notifyReplyArea.heightMin` (`window.style:51`) |
+| Reply field max height | 72 px | `notifyReplyArea.heightMax` (`window.style:52`) |
+| Reply send button | 36 × 36 px | `notifySendReply` (`window.style:60-65`) |
+| Reply field text margins | 8 / 8 / 8 / 6 px | `notifyReplyArea.textMargins` (`window.style:50`) |
+| Hidden userpic source | `LogoNoMargin()` scaled to 62 × 62 (× DPR) | `notifications_manager_default.cpp:104-111` |
+| In-app stack max | 5 (slider cap), default 3 | `kMaxNotificationsCount` (`settings_notifications.cpp:51`) / `_notificationsCount` (`core_settings.h:1081`) |
+| Inter-notification gap | 7 px | `notifyDeltaY` (`window.style:43`) |
+| Edge margin from screen | 6 px | `notifyDeltaX` (`window.style:42`) |
+| Hide All button height | 36 px | `notifyHideAllHeight` (`window.style:46`) |
+| Border colour | `windowShadowFgFallback` (palette) | `notifyBorder` (`window.style:18`) |
+| Body background | `notificationBg` (palette) | implicit; see §57 |
 
 ---
 
