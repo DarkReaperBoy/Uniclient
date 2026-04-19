@@ -3913,6 +3913,23 @@ On page destruction, auto-saves all pending changes (reorder, additions, removal
 - **Lottie animation**: `"filters"`, **74x74px** (`settingsFilterIconSize`), padded `margins(0, 17, 0, 5)`. Plays once on show.
 - **Description**: "Create folders for different groups of chats and quickly switch between them." — `settingsFilterDividerLabel` style (min width 200px, top-aligned), padded `margins(0, 16, 0, 22)`. Balanced line wrapping enabled.
 
+#### 18.2.1 Divider Label Typography
+
+The `settingsFilterDividerLabel` flat label is shared by the animated-header description and by any divider-attached explanatory label inside the Folders page (e.g. the "Recommended folders" divider footer and the "Show Folder Tags" about text). Full resolution of the style cascade:
+
+| Property | Value | Source |
+|---|---|---|
+| Base chain | `FlatLabel(boxDividerLabel)` → `FlatLabel(defaultFlatLabel)` | `settings/settings.style:317` |
+| `minWidth` | **200px** | `settings/settings.style:318` |
+| `maxHeight` | **0px** (unbounded; grows with content) | `settings/settings.style:319` |
+| `align` | `align(top)` (top-aligned, line wrap balanced) | `settings/settings.style:320` |
+| Font (from `defaultFlatLabel.style` → `defaultTextStyle`) | 13px regular (`normalFont`) | `lib_ui ui/basic.style` (defaultTextStyle.font: normalFont) |
+| `textFg` (from `boxDividerLabel`) | `windowSubTextFg` | `lib_ui ui/widgets/widgets.style:695` |
+| Outer padding (`settingsFilterDividerLabelPadding`) | `margins(0px, 16px, 0px, 22px)` | `settings/settings.style:322` |
+| Default divider-label padding when `settingsFilterDividerLabelPadding` is not used | `margins(22px, 8px, 22px, 16px)` (`defaultBoxDividerLabelPadding`) | `lib_ui ui/widgets/widgets.style:698` |
+
+Note: the visual divider between the "Folders" list and the "Recommended folders" subsection is NOT rendered with a labelled divider style. It is composed by code as `Ui::AddDivider(container)` → `Ui::AddSkip(container, st::defaultVerticalListSkip)` → a plain subsection title ("Recommended folders") rendered with the standard `defaultSubsectionTitle` typography (14px semibold `windowActiveTextFg`, not the `settingsFilterDividerLabel` style). Source: `settings/sections/settings_folders.cpp:916-918`.
+
 ### 18.3 Existing Folders List
 
 Subsection title: "Folders".
@@ -3931,6 +3948,27 @@ Each folder gets a `FilterRowButton` — custom `RippleButton`, row height **52p
 **Row states:** Normal (clickable → opens `EditFilterBox`, hover highlight + ripple), Removed (dimmed at `stickersRowDisabledOpacity`, restore button), Suggested (add button).
 
 **Remove flow:** If folder has chatlist links → confirmation "This will also delete all invite links" (`attentionBoxButton`). If shared chatlist → requests leave suggestions, shows peer-selection dialog. Otherwise → marks removed immediately (deferred API call on page close).
+
+#### 18.3.1 FilterRowButton Metrics & Timings
+
+Exact cascade for the row widget (class `FilterRowButton : public Ui::RippleButton`, `settings/sections/settings_folders.cpp:61-108`):
+
+| Property | Resolved value | Source |
+|---|---|---|
+| Row height | `st::defaultPeerListItem.height` (no override here; the existing **52px** figure in §18.3 matches the inherited `contactsItem`/`peerListBoxItem` default chain; the actual `defaultPeerListItem` base is defined in the `lib_ui` peer-list style module and could not be fetched — see gap note below) | `settings/sections/settings_folders.cpp:241` |
+| Ripple style | `st::defaultRippleAnimation` (standard Desktop ripple — rgb black @ ~7% opacity, ~480ms expand) | `settings/sections/settings_folders.cpp:180` |
+| Hover fill | `st::windowBgOver` drawn across the whole row when `isOver() \|\| isDown()`; NO fade transition — the fill is applied instantly in `paintEvent` | `settings/sections/settings_folders.cpp:287-291` |
+| Pressed darken | Same `windowBgOver` fill (no extra darken — the ripple circle on top provides the pressed feedback) | `settings/sections/settings_folders.cpp:287-292` |
+| Folder icon tint | `st::activeButtonBg` normal → `st::activeButtonBgOver` on hover/press; switched immediately (no crossfade) | `settings/sections/settings_folders.cpp:351-353` |
+| Color dot diameter | `height() / 3` (≈17px for a 52px row) | `settings/sections/settings_folders.cpp:297` |
+| Color dot animation target | `Margins((1 - progress) * w / 2)` — circle grows from 0 to full diameter | `settings/sections/settings_folders.cpp:304` |
+| Tag fade duration (governs the color dot "grow / shrink" per row when Show Folder Tags is toggled) | `st::universalDuration` = **120ms** | `settings/sections/settings_folders.cpp:881`; value in `lib_ui ui/basic.style:131` |
+| Removed-state opacity | `st::stickersRowDisabledOpacity` = **0.4** | `settings/sections/settings_folders.cpp:307`; value in `chat_helpers/chat_helpers.style:425` |
+| Restore / Add button height | **26px** with full radius, from `settingsFilterAddRecommended` | `settings/settings.style:328-332`; inserted at `settings_folders.cpp:183-190` |
+| Remove button (×) position | `moveToRight(right - st::stickersRemoveSkip, (height - rh)/2)` where `right = contactsPadding.right() + contactsCheckPosition.x()` | `settings/sections/settings_folders.cpp:247-255` |
+| Remove button icon | `st::filtersRemove` (based on `notifyClose`) | `settings/sections/settings_folders.cpp:182` |
+
+**Reorder:** the Folders settings page does NOT install a reorder controller on the FilterRowButton list. No drag handles, no drag threshold, and no shift animation apply to *this* page. The row is purely click-to-edit / click-to-remove. Reordering of folder tabs happens only in the sidebar/topbar tab strip widget — see §18.12.1 for those timings.
 
 ### 18.4 Create New Folder Button
 
@@ -3984,6 +4022,39 @@ Chat type rows use gradient circle userpics with white icons:
 
 Footer: "Choose chats and types of chats that will appear in this folder."
 
+#### 18.6.2.1 Chat-Type Toggle Anchoring & Row Metrics
+
+The include/exclude rows (Contacts / Non-Contacts / Groups / Channels / Bots / Muted / Read / Archived / NewChats / ExistingChats) are `TypeRow` instances rendered through the `EditFilterChatsListController` with the `windowFilterSmallList` peer-list style overriding the default item to `windowFilterSmallItem`:
+
+| Property | Value | Source |
+|---|---|---|
+| Item height | **44px** | `window/window.style:285` (`windowFilterSmallItem.height`) |
+| Photo/icon size | **34px** circle | `window/window.style:288` (`photoSize: 34px`) |
+| Photo/icon position | `point(13px, 5px)` from row top-left | `window/window.style:286` |
+| Name position | `point(59px, 14px)` from row top-left — i.e. **12px** horizontal gap between the 34px icon and the text baseline column | `window/window.style:287` |
+| Checkbox radii (selection ring) | `imageRadius: 17px`, `imageSmallRadius: 14px` | `window/window.style:289-292` |
+| Icon rendering | `PaintFilterChatsTypeIcon(p, flag, x, y, outerWidth, photoSize)` — paints the gradient userpic in `historyPeer{N}UserpicBg` and overlays the white flag glyph (`st::windowFilterTypeContacts` / `TypeNonContacts` / `TypeGroups` / `TypeChannels` / `TypeBots` / `TypeNoMuted` / `TypeNoArchived` / `TypeNoRead` / `TypeNewChats` / `TypeExistingChats`, all tinted `historyPeerUserpicFg`) | `boxes/filters/edit_filter_chats_list.cpp:359-368`; icons listed in `window/window.style:312-321` |
+| Anchoring rule | The flag glyph is drawn **centered** inside the 34px gradient circle via `paintUserpicLeft(p, userpic, x, y, outerWidth, size)` — always centered horizontally AND vertically in the photo rect; no inset. The label is left-aligned to `namePosition.x() = 59px` and vertically anchored to `namePosition.y() = 14px` (baseline offset, not center), identical spacing for every flag row regardless of row width. | `boxes/filters/edit_filter_chats_preview.cpp:107-122` |
+| Remove-button row in preview | `windowFilterSmallRemove: IconButton(notifyClose)` right-aligned at `windowFilterSmallRemoveRight = 10px` from the right edge, vertically centered by `(height - remove.height)/2` | `window/window.style:297-299`, `boxes/filters/edit_filter_chats_preview.cpp:81-88` |
+
+#### 18.6.2.2 FilterChatsPreview Scroll Behavior
+
+Despite the "preview strip" framing in earlier notes, `FilterChatsPreview` (class `Ui::RpWidget`, `boxes/filters/edit_filter_chats_preview.cpp:38-211`) is a **vertical stack**, not a horizontal strip:
+
+| Property | Value | Source |
+|---|---|---|
+| Layout axis | Vertical — each flag row and each peer row increments a single `top` counter by `st::windowFilterSmallItem.height` (44px) | `boxes/filters/edit_filter_chats_preview.cpp:82-95` |
+| Row order | All flag rows in `kAllTypes` order (Contacts, NonContacts, Groups, Channels, Bots, NoMuted, NoArchived, NoRead, NewChats, ExistingChats — whichever are set in the filter flags), followed by every chosen peer in selection order | `boxes/filters/edit_filter_chats_preview.cpp:64-75` |
+| Scroll container | None internal — the widget sizes itself via `resizeGetHeight(newWidth)` returning the running `top`, then the enclosing `GenericBox` scroll area handles any overflow | `boxes/filters/edit_filter_chats_preview.cpp:80-96` |
+| Max avatars before overflow badge | **Unlimited** — there is no `+N` overflow chip and no cap. Every selected peer occupies its own 44px row | `boxes/filters/edit_filter_chats_preview.cpp:71-76, 124-186` |
+| Empty state | The widget simply renders zero rows (height 0) when no flags and no peers are set — the parent "Add Chats" button still shows above | `boxes/filters/edit_filter_chats_preview.cpp:80-96` |
+| Avatar size | **34px** circle (inherited from `windowFilterSmallItem.photoSize`) | `window/window.style:288` |
+| Name text color | `contactsNameFg`, font inherited from `windowFilterSmallItem.nameStyle` | `boxes/filters/edit_filter_chats_preview.cpp:105-106, 116` |
+| Text eliding | Name drawn with `drawLeftElided(..., button->x() - nameLeft, width())` — elides to leave clearance for the right-aligned remove button | `boxes/filters/edit_filter_chats_preview.cpp:178-183` |
+| Remove handler | `removeFlag(flag)` / `removePeer(history)` fires a signal to the owning box; local `_removeFlag` / `_removePeer` vector shrinks and `refresh()` resizes | `boxes/filters/edit_filter_chats_preview.cpp:189-203` |
+
+Implication for Flutter: build as a vertical `Column` of 44px rows inside the existing scrollable editor, not a horizontal chip strip.
+
 #### 18.6.3 Excluded Chats Section
 
 Hidden when `chatlist` is true (shared folders can't have exclusions).
@@ -4013,6 +4084,27 @@ Visible when Premium is possible.
 
 Footer: "Choose a color for the folder tag."
 
+#### 18.6.4.1 Color Chip Metrics & Layout
+
+The 8 color buttons are `UserpicBuilder::CircleButton` instances laid out in a single horizontal row inside a `CreateSkipWidget` container (`boxes/filters/edit_filter_box.cpp:714-796`):
+
+| Property | Value | Source |
+|---|---|---|
+| Chip size (both dimensions) | **30px** (`userpicBuilderEmojiAccentColorSize`) | `info/userpic/info_userpic_builder.style:44` |
+| Chip shape | Full circle, filled with `palette(i)` (the currently selected index paints at full opacity) | `boxes/filters/edit_filter_box.cpp:742-754` |
+| Chip spacing | `(row_width - 8*30) / 7` — computed each layout pass so the 8 chips span edge-to-edge inside `boxRowPadding` with equal gaps between centers | `boxes/filters/edit_filter_box.cpp:788-795` |
+| Row outer padding | `st::boxRowPadding` (the standard box row padding — 22px left / 22px right in the defaults) | `boxes/filters/edit_filter_box.cpp:717` |
+| Wrap behavior | **None** — all 8 fit on one row because the row width auto-expands. There is no breakpoint; the spacing formula shrinks to zero before wrapping would ever be needed on the fixed 364px box width | `boxes/filters/edit_filter_box.cpp:788-795` |
+| Selected ring | `button->setSelectedProgress(1.0)` — draws a colored outline ring around the chip; non-selected chips have progress 0 | `boxes/filters/edit_filter_box.cpp:740-744` |
+| Selection animation | Old chip `setSelectedProgress(1 - t)` + new chip `setSelectedProgress(t)`, t over `st::universalDuration` = **120ms**; chip fill color crossfades via `anim::color(c1, c2, t)` | `boxes/filters/edit_filter_box.cpp:767-778` |
+| Tap target | The full **30px** circle is the hit-test region (standard `CircleButton`); no expanded margin | `boxes/filters/edit_filter_box.cpp:736-738` |
+| Color count | `kColorsCount = 8` — indices 0..6 are "real" colors, index 7 = `kNoTag` | `boxes/filters/edit_filter_box.cpp:356-357` |
+| Color palette | `Ui::EmptyUserpic::UserpicColor(i).color2` for i ∈ {0..6}; the returned color is a theme palette entry (`historyPeer1..8UserpicBg` family) — the exact hex varies with the active theme. Default Desktop theme maps these to the same palette the chat list uses for empty userpics. See `ui/empty_userpic.cpp` for the index→palette mapping | `boxes/filters/edit_filter_box.cpp:719-721` |
+| Chip index 7 ("no tag") fill | `st::historyPeerArchiveUserpicBg` (the archive grey) overlaid with `st::windowFilterSmallRemove.icon` painted in `historyPeerUserpicFg` (i.e. a white × on grey) | `boxes/filters/edit_filter_box.cpp:798-813` |
+| Non-Premium click | Overrides `setClickedCallback` to open `ShowPremiumPreviewToBuy(window, PremiumFeature::FilterTags)` instead of applying the color | `boxes/filters/edit_filter_box.cpp:782-786` |
+
+Because the color hex values are palette-indexed (not hard-coded here), Flutter must read them from the active theme's userpic-color table at runtime — do not hard-code.
+
 #### 18.6.5 Shareable Link Section
 
 Title switches between "Share Folder" (no links) and "Invite Links" (has links).
@@ -4024,6 +4116,31 @@ Title switches between "Share Folder" (no links) and "Invite Links" (has links).
 **Context menu**: Copy, Share, QR Code, Name it, Delete.
 
 **Validation on create**: Filter must not have exclusions or rule flags (toast "Can't create links for this folder"). Only channels with invite permission are shareable.
+
+#### 18.6.5.1 inviteLinkList Row Metrics
+
+Rows in the "Invite Links" list use the shared `inviteLinkList` peer-list style, overriding the default item to `inviteLinkListItem`:
+
+| Property | Value | Source |
+|---|---|---|
+| List style base | `PeerList(defaultPeerList)` with `item: inviteLinkListItem` and outer `padding: margins(0px, 4px, 0px, 0px)` | `info/info.style:1184-1187` |
+| Row item base | `PeerListItem(defaultPeerListItem)` | `info/info.style:1173` |
+| Row height | **52px** | `info/info.style:1178` |
+| Icon position | `point(9px, 4px)` from row top-left | `info/info.style:1179` |
+| Name position | `point(60px, 6px)` | `info/info.style:1180` |
+| Status position | `point(60px, 26px)` | `info/info.style:1181` |
+| Icon size | **44px** circle | `info/info.style:1182` |
+| Icon rendering | Colored circle (`Color::Permanent` → `msgFile1Bg` green; revoked → grey) with `inviteLinkIcon` / `inviteLinkRevokedIcon` painted in `mediaviewFileExtFg` (white) at center; a `inviteLinkIconStroke: 2px` ring is drawn around the icon with skip `inviteLinkIconSkip: 7px` between ring and glyph | `info/info.style:1200-1203`, `boxes/filters/edit_filter_links.cpp:959-982` |
+| Button (right side) sub-style | `OutlineButton(defaultPeerListButton)` with `font: normalFont`, `padding: margins(11px, 5px, 11px, 5px)` | `info/info.style:1174-1177` |
+| Three-dots action icon | `inviteLinkThreeDotsIcon` (info/edit/dotsmini in `dialogsMenuIconFg`); hover → `inviteLinkThreeDotsIconOver` | `info/info.style:1102-1103` |
+| Three-dots right margin | `inviteLinkThreeDotsSkip: 12px` from the right edge; vertically centered via `(inviteLinkList.item.height - icon.height)/2 = (52 - icon.height)/2` | `info/info.style:1204`, `boxes/filters/edit_filter_links.cpp:296-302` |
+| Name generator | `LinkRow::generateName()` returns the link title if set; otherwise strips `https://`, `t.me/+`, `t.me/joinchat/` from the URL | `boxes/filters/edit_filter_links.cpp:257-272` |
+| Custom status | `ComputeStatus(data)` — formatted as the localized "{N} chats" / "{N} uses" string | `boxes/filters/edit_filter_links.cpp:248` |
+| Right-action hit area | `rightActionSize = inviteLinkThreeDotsIcon.{width,height}()`; clicks on this area open the context menu (Copy, Share, QR Code, Name it, Delete) — the rest of the row opens the link editor | `boxes/filters/edit_filter_links.cpp:290-313` |
+| Revoked block title padding | `margins(22px, 16px, 10px, 4px)` (`inviteLinkRevokedTitlePadding`) | `info/info.style:1205` |
+| Expiry / subscription margin | `margins(22px, 8px, 22px, 8px)` (`inviteLinkLimitMargin`); subscription icon 18px (`inviteLinkSubscriptionSize`) | `info/info.style:1206-1207` |
+
+The "Create invite link" row sits above the list as a `settingsButtonActive` with icon `settingsFolderShareIcon` (no link exists yet) or `settingsIconAdd` (additional links) — the row height and left padding are inherited from `settingsButtonActive` (see §14 style chain), not from `inviteLinkListItem`.
 
 #### 18.6.6 Validation on Save
 
@@ -4052,6 +4169,33 @@ Normal color: `sideBarIconFg`. Active: `sideBarIconFgActive`.
 
 **Auto-icon selection**: Contacts→Private, Groups→Groups, Channels→Channels, Bots→Bots, NoRead→Unread, NoMuted→Unmuted, mixed→Custom.
 
+#### 18.8.1 Icon Picker Panel Metrics & Behavior
+
+Class `Ui::FilterIconPanel` (`ui/filter_icon_panel.cpp:71-105`) is a detachable popup anchored below the icon-toggle inside the name field. Layout constants:
+
+| Property | Value | Source |
+|---|---|---|
+| Grid columns | **6** (`kIconsPerRow`) | `ui/filter_icon_panel.cpp:26` |
+| Grid rows | **5** (derived: `ceil(30 / 6)` — the `kIcons` array has exactly 30 entries after the commented-out variants Camera, House, Plus, Microbe, Worker, Check, Folders, Poo are skipped) | `ui/filter_icon_panel.cpp:28-67, 108-110` |
+| Cell size | **44×42px** (`windowFilterIconSingle`) | `window/window.style:309` |
+| Inner padding | `margins(10px, 36px, 10px, 8px)` (`windowFilterIconPadding`) — the 36px top reserves room for the header label | `window/window.style:310` |
+| Header text position | `point(18px, 14px)` from the inner origin (`windowFilterIconHeaderPosition`) | `window/window.style:311` |
+| Header font | `st::emojiPanHeaderFont` (from the shared emoji panel style), color `st::emojiPanHeaderFg` | `ui/filter_icon_panel.cpp:123-124` |
+| Panel anchor offset | `point(-2px, -1px)` relative to the toggle (`windwoFilterIconPanelPosition` — note: the typo "windwo" is in the upstream style file) | `window/window.style:308` |
+| Panel background | `st::dialogsBg` with `ImageRoundRadius::Large` corners, drawn via `_innerBg.paint(...)` | `ui/filter_icon_panel.cpp:74, 121-122` |
+| Hover highlight | `st::dialogsBgOver` filled into the cell rect with `StickerHoverCorners` rounding | `ui/filter_icon_panel.cpp:138-143` |
+| Icon tint (normal) | `st::dialogsUnreadBgMuted` | `ui/filter_icon_panel.cpp:150` |
+| Icon tint (hover/pressed) | `st::dialogsUnreadBgMutedOver` | `ui/filter_icon_panel.cpp:149` |
+| Show animation | `Ui::PanelAnimation` with `Origin::TopRight` over `st::emojiPanShowDuration`; opacity fade on hide over `st::emojiPanDuration` | `ui/filter_icon_panel.cpp:375, 387, 361-369` |
+| Hide-after-leave timeout | **300ms** (`kHideTimeoutMs`) after `QEvent::Leave` before the hide-animation starts | `ui/filter_icon_panel.cpp:25, 289-295` |
+| Emoji fallback | **None** — the panel is icon-only. Custom/standard emoji for the folder icon live in the name-field's separate emoji button (`windowFilterNameEmojiPosition = point(-65px, 22px)`) which opens a `TabbedPanel` in `EmojiOnly` mode, completely disjoint from `FilterIconPanel` | `window/window.style:303`; `boxes/filters/edit_filter_box.cpp:247-276` |
+| Search | **None** — the panel has no search field; its 30-icon set is enumerated in `kIcons` and browsed by pointer only | `ui/filter_icon_panel.cpp:28-67` |
+| "Use emoji instead" link | **Not present** in the icon panel. The emoji selector is accessed via the separate emoji button inside the name field; there is no cross-link between the two UIs | `boxes/filters/edit_filter_box.cpp:247-276` |
+| Header text | `tr::lng_filters_icon_header` ("Folder Icon") | `ui/filter_icon_panel.cpp:129` |
+| Icon list (6×5 order) | Cat, Book, Money, Game, Light, Like / Note, Palette, Travel, Sport, Favorite, Study / Airplane, Private, Groups, All, Unread, Bots / Crown, Flower, Home, Love, Mask, Party / Trade, Work, Unmuted, Channels, Custom, Setup | `ui/filter_icon_panel.cpp:29-66` (filtering out commented-out entries) |
+
+Click flow: `mousePress` sets `_pressed = _selected`; on `mouseRelease`, if `pressed == _selected`, fires `_chosen.fire_copy(kIcons[pressed])` and the owning `EditFilterBox` swaps the filter's icon and repaints the toggle.
+
 ### 18.9 Show Link Box (Invite Link Detail)
 
 `PeerListBox` with `LinkController`, style `inviteLinkChatList`.
@@ -4076,6 +4220,19 @@ Normal color: `sideBarIconFg`. Active: `sideBarIconFgActive`.
 - Premium: toggling sends request with 500ms debounce
 - Tag animation: all `FilterRowButton` color dots animate in/out via `universalDuration`
 
+### 18.11.1 Disabled / Hidden Row Status
+
+No inline "Disabled" flag exists on individual folder rows in the upstream Telegram Desktop page — a filter is either present (Normal), marked for removal (Removed, opacity 0.4), or a server suggestion (Suggested). There is no third-party disable gate on the per-row widget.
+
+AyuGram's regex-filter feature set (see §54) exposes three *global* toggles that live in the AyuGram → Filters subsettings page (`ayu/ui/settings/settings_filters.cpp`), NOT on the rows in Settings → Folders:
+- `ayu/filtersEnabledInChats` ("Enable shared filters in chats") — style `settingsButtonNoIcon` with a right-side toggle.
+- `ayu/filtersEnabled` — master on/off for regex filters.
+- `ayu/hideFromBlocked` — style `settingsButtonNoIcon` with a right-side toggle.
+
+Sources: `ayu/ui/settings/settings_filters.cpp:67-99`. These toggles do NOT dim or disable rows in the Settings → Folders list; they only affect whether AyuGram's regex/spam filter processes messages in the currently-open chat. A "disabled filter row" therefore has no visual indicator inside §18 — interaction-blocking and opacity apply only to the **Removed** row state (see §18.3.1).
+
+For the Flutter rebuild: do not render a separate disabled state on folder rows. If a future feature needs one, reuse `stickersRowDisabledOpacity = 0.4` (`chat_helpers/chat_helpers.style:425`) and block `paintRipple` + set `setPointerCursor(false)` + `setDisabled(true)` as `FilterRowButton::setState(Removed)` already does (`settings/sections/settings_folders.cpp:232-233`).
+
 ### 18.12 Tab View Section
 
 Visible only when enough window width for sidebar.
@@ -4083,6 +4240,42 @@ Visible only when enough window width for sidebar.
 Two radio options (`settingsCheckbox` style, `margins(22, 5, 10, 5)`):
 1. "Side panel" — vertical sidebar tabs
 2. "Top bar" — horizontal strip above chat list
+
+#### 18.12.1 Tab-View Threshold & Strip Reordering
+
+The **Tab View** subsection's visibility is gated by `SessionController::enoughSpaceForFilters()`:
+
+```
+widget()->width() >= widget()->minimumWidth() + st::windowFiltersWidth
+```
+
+Source: `window/window_session_controller.cpp:3128-3130`.
+
+Resolved constants:
+
+| Constant | Value | Source |
+|---|---|---|
+| `windowMinWidth` | **380px** | `window/window.style:13` |
+| `windowFiltersWidth` | **72px** (sidebar filter strip width) | `window/window.style:253` |
+| Effective threshold | **≥ 452px** main-window width — below this the "View" subsection's `SlideWrap` collapses and the radio group is not rendered | derived from the two above via `enoughSpaceForFilters()` |
+
+There are three reorder / collapse regimes for the **filter tabs themselves** (not the Folders settings rows):
+
+1. **Sidebar mode** (`chatFiltersHorizontal == false`, window width ≥ 452px): tabs render vertically in a 72px sidebar (`windowFiltersWidth`). Reordering uses a long-press drag on a single tab; there is no wrap/overflow because vertical space simply scrolls.
+2. **Top-bar mode** (`chatFiltersHorizontal == true`): tabs render in a horizontal strip above the chat list via `Ui::ChatsFiltersTabs` + `ChatsFiltersTabsReorder` (`ui/widgets/chat_filters_tabs_strip.cpp`, `ui/widgets/chat_filters_tabs_slider_reorder.cpp`). When total tab width exceeds the strip width, the strip becomes a **horizontal-scroll slider** — it does NOT wrap or collapse to an overflow menu. `ScrollArea` with horizontal bar is the fallback.
+3. **Narrow window** (< 452px): the entire "View" subsection is hidden; tabs fall back to top-bar mode regardless of the saved preference (only the horizontal strip fits).
+
+Reorder timings inside the strip (`chat_filters_tabs_slider_reorder.cpp`):
+
+| Property | Value | Source |
+|---|---|---|
+| Drag threshold | `QApplication::startDragDistance()` (Qt default — typically **10px** desktop, platform-configurable) | `ui/widgets/chat_filters_tabs_slider_reorder.cpp:98-103` |
+| Shift animation duration | `st::slideWrapDuration` = **150ms** | `ui/widgets/chat_filters_tabs_slider_reorder.cpp:298`; value in `lib_ui ui/basic.style:96` |
+| Auto-scroll factor when dragging near edge | `kScrollFactor = 0.05` (fraction of edge-distance per frame) | `ui/widgets/chat_filters_tabs_slider_reorder.cpp:20` |
+| Pinned-interval support | `addPinnedInterval(from, length)` locks a tab range (e.g. the "All chats" fixed tab) from being swapped through | `ui/widgets/chat_filters_tabs_slider_reorder.cpp:78-83, 86-94` |
+| Drag-to-reorder state machine | `{None → Started → finishReordering}` — `Started` entered once the pointer passes `startDragDistance`; the dragged tab is raised via `_layout->setRaised(index)` | `ui/widgets/chat_filters_tabs_slider_reorder.cpp:96-111` |
+
+The Folders *settings* page (§18.3) does not host either mode's reorder — it only lets the user click-edit, remove, restore, or add recommended folders. Actual tab reordering is performed in-place on the live sidebar/top-bar strip.
 
 ### 18.13 Premium Limits
 
