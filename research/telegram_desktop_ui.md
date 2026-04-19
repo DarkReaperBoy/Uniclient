@@ -15534,12 +15534,13 @@ The "Add Filter" option only appears in settings if `filtersEnabled` is true.
 - "View Deleted Messages" -- opens the message history section for the chat.
 - "Jump to Beginning" -- resolves the earliest message via `resolveJumpToDate(2013-08-01)` and scrolls to it.
 - "Open Channel" -- for megagroups with a linked channel, opens the channel.
-- "Shadow Ban" -- toggles shadow-ban for a user/channel (requires filters enabled).
 - "Delete Own Messages" -- batch-deletes all your messages in a group (with confirmation dialog), using paginated `messages.Search` + `messages.DeleteMessages`/`channels.DeleteMessages` with 500ms delays between batches.
 - "Edit History" -- shows revision history for an edited message (only if revisions exist in DB).
 - "Read Until" -- manually marks messages as read up to the selected one (only when ghost mode blocks read receipts).
 - "Burn" -- expires TTL media immediately by calling `messages.ReadMessageContents`.
-- "Create Filter" -- creates a regex filter from selected text (requires filters enabled).
+- "Create Filter" -- creates a regex filter from selected text (requires filters enabled). Opens the `RegexEditBox` with the selected text pre-filled and `showToast = true` (see §54.16 — Filter Edit Box).
+
+> **Note on Shadow Ban placement:** "Shadow Ban" is **NOT** a message-bubble context-menu item. It lives on the **peer / chat-list** right-click menu (right-click a chat in the sidebar, or a peer header) -- see `ayu/ui/context_menu/context_menu.cpp:322-354` and the in-chat-list filler at `window/window_peer_menu.cpp:1811`. See §54.16 -- "Shadow Ban entry point" for the full spec.
 
 ### 54.8 Drawer/Sidebar Customization
 
@@ -15886,6 +15887,359 @@ Below the navigation buttons, if `AyuDatabase::hasPerDialogFilters()` returns tr
 9. Shared Filters navigation button
 10. Shadow Ban navigation button
 11. *(conditional)* Per-dialog filters peer list (divider + `PeerListContent`)
+
+#### Filter Engine Semantics (regex flavor, scope, evaluation order)
+
+Source: `ayu/features/filters/filters_controller.{h,cpp}`, `filters_cache_controller.{h,cpp}`, `filters_utils.{h,cpp}`, `ayu/data/entities.h`. Branch `dev` (canonical; `master` 404s for these paths).
+
+**Regex engine -- ICU 78, NOT Qt.** `filters_controller.h:9,14` `#include "unicode/regex.h"` + `using namespace icu_78;`. Patterns compile via `RegexPattern::compile(UnicodeString::fromUTF8(filter.text), flags, status)` (`filters_cache_controller.cpp:54-58`). Flag set is `UREGEX_MULTILINE` always-on, plus `UREGEX_CASE_INSENSITIVE` only if the per-rule `caseInsensitive` flag is true. Matching uses `pattern->matcher(...)->find()` -- substring "find anywhere" semantics, not `matches` (full-anchor). Compile failures log `"FILTER FAILED: %1"` (`filters_controller.cpp:47`) and silently match=false -- a corrupted regex never crashes, but never filters either.
+
+**Match input -- a synthesized blob, not raw message text.** Built by `FilterUtils::extractAllText` (`filters_utils.cpp:383-410`). For grouped messages it concatenates each grouped item with `\n` separators; otherwise just the single item. Per item (`extractSingle`, `:369-381`):
+- `item->originalText().text` -- message text **or** caption (Telegram stores both as `originalText`).
+- For each `EntityType::Url` / `EntityType::CustomUrl`, the URL string is appended on its own line.
+- For every reply-keyboard button: `<button>{label} {data}</button>\n` is appended.
+- A trailing `\n<type>{N}</type>` where `N` is `typeOfMessage()` (`:264-367`, e.g. `1`=PHOTO, `3`=VIDEO, `13`=STICKER, `17`=POLL, `16`=PHONE_CALL).
+
+**Not in the blob:** sender display name, chat title, forward-from header, reply-quote text. To filter on senders, use Shadow Ban (separate primitive, see below). The forwarded-message *body* is matched (because that's the `originalText` of the forwarded item) but the "Forwarded from X" header is not.
+
+**Filter rule struct** (`entities.h:75-105`):
+
+```cpp
+class RegexFilter {
+    std::vector<char> id;        // 16-byte UUID v4 (variant/version bits set)
+    std::string text;            // ICU regex pattern
+    bool enabled;
+    bool reversed;               // invert match (true = filter messages that DON'T match)
+    bool caseInsensitive;
+    std::optional<ID> dialogId;  // nullopt = shared/global; set = per-dialog rule
+};
+```
+
+**Per-dialog exclusion** (lets a global rule skip one dialog) (`entities.h:107-117`):
+
+```cpp
+class RegexFilterGlobalExclusion {
+    ID fakeId;
+    ID dialogId;
+    std::vector<char> filterId;  // points at a shared RegexFilter
+};
+```
+
+Both stored in SQLite via `AyuDatabase::getAllRegexFilters()` / `getAllFiltersExclusions()`. **No `createdAt`, no `action` field, no scope toggle, no per-rule target chat** -- exactly one action exists: hide.
+
+**Action -- there is no action enum, only "hide".** Implemented at the `HistoryItem::isEmpty()` level (`history/history_item.cpp:4228-4230`):
+
+```cpp
+bool HistoryItem::isEmpty() const {
+    if (isMessageHidden(const_cast<HistoryItem*>(this))) return true;
+    return _text.empty() && !_media && ...;
+}
+```
+
+Treating the item as "empty" cascades through every consumer: render skips it (zero-height element), selection skips it, notifications skip it, media tabs skip it, reply-bar previews go blank. Concrete consumer sites: `history/history_inner_widget.cpp:5227` (selection), `history/view/history_view_list_widget.cpp:1392`, `history/view/history_view_element.cpp:1553` (`isHidden() == true`), `:2190` (skipped during `MessageShot` capture), `:2770,2791` (adjacency walks skip hidden), `history/history_item_components.cpp:541-549,556` (reply-bar `_displaying = displaying && !blocked && !filtered`), `info/media/info_media_provider.cpp:467` (media/files/links tabs), `window/notifications_manager.cpp:432` (`thread->popNotification(notification); return;`).
+
+**Evaluation order** (`filters_controller.cpp:34-81, 125-140`, `isFiltered`/`filtered`):
+
+```
+HistoryItem::isEmpty()                         [history_item.cpp:4228]
+  -> isMessageHidden(item)                     [telegram_helpers.cpp:271]
+      -> AyuState::isHidden(item)              [ayu_state.cpp:29] (manual /hide command)
+      -> FiltersController::filtered(item)     [filters_controller.cpp:125]
+          if (!filtersEnabled)        return false
+          if (item->out())            return false  // never filter your own messages
+          filterBlocked(item):                       // shadow-ban + hideFromBlocked check
+              if from != peer && isBlocked(item) -> TRUE   <- short-circuits regex
+          if (!isEnabled(peer))       return false   // filtersEnabledInChats gate
+          cached = cache.isFiltered(item) -> if hit, return cached
+          regex isFiltered(extractAllText(item, group), dialogId):
+              for p in patternsByDialogId[dialogId]:           // per-dialog FIRST
+                  if matches(p) -> TRUE
+              for p in sharedPatterns:                          // then shared
+                  if p in exclusions[dialogId] continue
+                  if matches(p) -> TRUE
+              return false
+          cache.put(...) ; return res
+```
+
+`matches()` (line 51-56) applies the `reversed` flag: `(!reversed && match) || (reversed && !match)`. Per-dialog rules effectively shadow shared ones (they fire first).
+
+**`filtersEnabledInChats` gate** (`filters_controller.cpp:83-86`):
+
+```cpp
+bool isEnabled(not_null<PeerData*> peer) {
+    return settings.filtersEnabled() &&
+           (settings.filtersEnabledInChats() || peer->isBroadcast());
+}
+```
+
+When OFF (default): regex filters apply only to broadcast channels. Group chats and 1:1 DMs are exempt regardless of rule definitions. When ON: filters apply everywhere. **Important:** this gate is checked AFTER the shadow-ban / blocked check, so shadow-ban and `hideFromBlocked` keep working in DMs/groups even when `filtersEnabledInChats` is off.
+
+**Filter cache lifecycle** (`filters_cache_controller.cpp`):
+- Cache shape: `std::optional<std::vector<HashablePattern>> sharedPatterns` + `patternsByDialogId` + `exclusionsByDialogId` + `filteredMessages` (per-message decision cache keyed by `(peer.id, item.id)`). Mutex-guarded (`:20`).
+- Lazy first fill -- any `getSharedPatterns()` / `getPatternsByDialogId()` / `getExclusionsByDialogId()` call `rebuildCache()` if their optional is empty (`:150-178`).
+- **Explicit rebuild triggers** (only sites that call `rebuildCache()`):
+  - `ayu_settings.cpp:1264-1276` -- `addShadowBan`/`removeShadowBan`.
+  - `ayu/ui/settings/settings_filters.cpp:62,80,97,242` -- toggles for `filtersEnabled`, `filtersEnabledInChats`, `hideFromBlocked`, plus the import action.
+  - `ayu/ui/settings/filters/edit_filter.cpp:211,226` -- save/delete a single filter.
+  - `ayu/ui/settings/filters/settings_filters_list.cpp:121,134,166,186` -- list-UI mutations (toggle enabled, delete, add exclusion).
+  - `ayu/features/filters/filters_utils.cpp:642` -- end of `applyChanges` after JSON import.
+- Each rebuild also clears `filteredMessages` (`:76`).
+- `fireUpdate()` is an `rpl::event_stream<>` (`:26-28`); subscribers are `history/history_widget.cpp:706` (re-runs list update) and `info/info_wrap_widget.cpp:788` (refreshes media tabs).
+- Per-message invalidation: `FiltersCacheController::invalidate(item)` removes the message + grouped siblings; called from `data/data_session.cpp:2750` whenever an item is updated/edited.
+- **Account switch:** no explicit hook -- cache is process-global, but the per-message decision cache key is `(peer.id, item.id)`; new-account items live under different `peer.id` namespaces and naturally miss the cache.
+
+#### AyuFiltersList Screen -- three modes (Shared / Shadow Ban / Per-dialog)
+
+Single section class `Settings::AyuFiltersList` (`ayu/ui/settings/filters/settings_filters_list.h:24-51`), reused for **three modes** dispatched on `Window::SessionController` flags `dialogId` (`std::optional<long long>`) and `shadowBan` (bool). The flags are seeded by the parent landing page before `controller->showSettings(AyuFiltersList::Id())` (`settings_filters.cpp:114-118, 130-135, 204-209`).
+
+**Mode dispatch** (`settings_filters_list.cpp:296-304`, `setupContent`):
+- `shadowBan == true`        -> `initializeShadowBan(_content)`.
+- otherwise                  -> `initializeSharedFilters(_content)`.
+
+**Title bar** (`title()`, `:38-63`):
+- shadow-ban mode -> `tr::ayu_FiltersShadowBan` ("Shadow ban").
+- no `dialogId`   -> `tr::ayu_RegexFiltersShared` ("Shared filters").
+- with `dialogId` -> resolved peer's `topBarNameText()`, **truncated at 18 chars** (left 17 + `…`); fallback when peer not resolved is `tr::ayu_RegexFiltersHeader + " (" + dialogId + ")"`.
+
+**On-close hook** (`checkBeforeClose`, `:77-81`): forces `controller->showExclude = true` and `controller->shadowBan = false` so back-navigation always returns to a clean state.
+
+**Layout container:** `Ui::VerticalLayout` filling the section, `Ui::CreateChild` parented to the section, then `ResizeFitChild` (`:303`). No explicit width -- inherits the Settings section width (~`st::infoDesiredWidth`).
+
+**Shared / per-dialog filter rows** (`initializeSharedFilters`, `:212-263`):
+
+Data sources (`:214-237`):
+- per-dialog list with `showExclude == true` -> `AyuDatabase::getByDialogId(dialogId)` for `filters` plus `AyuDatabase::getExcludedByDialogId(dialogId)` for `exclusions`.
+- shared list -> `AyuDatabase::getShared()`. If entered with `showExclude == false` and `dialogId` set, the shared list is filtered to remove patterns already excluded for that dialog (`:222-235`, equality via `RegexFilter::operator==` comparing id/text/flags/dialogId).
+
+Subsection blocks (rendered conditionally):
+- `tr::ayu_RegexFiltersHeader` ("Filters") block -- only if `filters` non-empty (`:239-246`). Preceded by `AddSkip` (`st::settingsSubsectionTitlePadding.top` ~ 8 px).
+- `tr::ayu_RegexFiltersExcluded` ("Excluded") block -- only if `exclusions` non-empty (`:248-258`). If both blocks render, separated by `AddSectionDivider` (`:250`, full-width hairline).
+- Empty state: `Ui::AddDividerText(container, tr::ayu_RegexFiltersListEmpty())` (`:260-262`) -- a divider with centered explanatory text. **No "Add Filter" FAB** on this screen -- adds happen via the chat composer "Create Filter" context-menu action or via the parent landing page's import. The list screen has **no top-bar action buttons** of its own.
+
+**Filter row widget** (`addNewFilter`, `:83-210`): `Settings::Button` styled `st::settingsButtonNoIcon` (single-line, full row width, ~52 px tall -- standard settings row, see §14). Label = `state->text` with newlines collapsed to spaces (`:88`). When `enabled == false` the label colour is overridden to `st::storiesComposeGrayText` (`:93-95`) -- visually muted.
+
+**Row click -> popup menu** (`defaultClickHandler`, `:97-140`): the entire row is clickable; click opens an `Ui::PopupMenu` styled `st::popupMenuWithIcons` at `QCursor::pos()`. Items in order:
+1. `tr::lng_theme_edit` ("Edit") with `st::menuIconEdit` -> opens `RegexEditBox` (below) for that filter.
+2. `tr::lng_settings_auto_night_disable` ("Disable") if currently enabled, else `tr::lng_sure_enable` ("Enable") (`:115-124`); icon `st::menuIconBlock` / `st::menuIconUnblock`. Toggles `state->enabled`, `AyuDatabase::updateRegexFilter`, then `FiltersCacheController::rebuildCache()` + `fireUpdate()`.
+3. *(separator)*
+4. `tr::lng_theme_delete` ("Delete") with `st::menuIconDelete` (`:128-137`) -- also calls `AyuDatabase::deleteExclusionsByFilterId` to cascade-remove exclusion rows.
+
+**Mode-specific row click overrides:**
+- *Excluded-row click* (`:174-192`, when iterated as part of the "Excluded" block): popup with a single **Delete** action that calls `AyuDatabase::deleteExclusion(dialogId, filter.id)`. Exclusion entries can only be deleted, not edited.
+- *Shared-list-shown-from-dialog click* (`:144-173`, `exclusionsClickHandler`, used when `dialogId.has_value() && showExclude == false`): tapping a row **adds** that shared filter as an exclusion for `dialogId` via `AyuDatabase::addRegexExclusion({dialogId, filter.id})`, then back-navigates by reaching up five `parent()` hops to the wrapping `Info::WrapWidget` and calling `showBackFromStackInternal(SectionShow(anim::type::normal))`. Spec note: this is essentially a "Pick a shared pattern to exclude here" picker.
+
+After each row insertion, `crl::on_main` enqueues `adjustSize()` + `updateGeometry()` on the section (`:203-209`).
+
+#### RegexEditBox -- Single-Filter Edit Form
+
+Returned by `Settings::RegexEditBox(filter*, onDone, dialogId, showToast)` (`edit_filter.h:24-27`), wrapping `Box(RegexEditBuilder, ...)` (`edit_filter.cpp:261-266`). Standard `Ui::GenericBox` (default box width ~320 px).
+
+**Title** (`:136-142`): `tr::ayu_RegexFiltersEdit` ("Edit Filter") if `filter` provided; `tr::ayu_RegexFiltersAdd` ("Add Filter") for new. New filters default `reversed = false`; other booleans inherit the default-constructed `RegexFilter` (false).
+
+**Form fields** (in render order, all added via `box->addRow`):
+1. **Regex input** (`:144-150`): `Ui::InputField`, style `st::windowFilterNameInput` (multi-line wrap-capable input, matches the chat-folder name input from §18.6), `Mode::MultiLine`, placeholder `tr::ayu_RegexFiltersPlaceholder`, padding `st::markdownLinkFieldPadding`. Pre-filled with `data.text` (`:174`). Auto-focused on open (`:253-255`, `setFocusFast()`).
+2. **Inline error label** (`AddError`, `:101-125`): `Ui::SlideWrap<Ui::FlatLabel>` styled `st::settingLocalPasscodeError` with `st::settingsCheckboxPadding`; hidden initially (`anim::type::instant`); auto-hidden on every input change (`anim::type::normal`). Width pinned to `box->width()` (`:257-258`).
+3. **`tr::ayu_EnableExpression`** checkbox ("Enable") -- `Ui::Checkbox` style `st::defaultBoxCheckbox`, padding `st::settingsCheckboxPadding`, bound to `data.enabled` (`:152-158`).
+4. **`tr::ayu_CaseInsensitiveExpression`** checkbox ("Case-insensitive") -- bound to `data.caseInsensitive` (`:159-165`).
+5. **`tr::ayu_ReversedExpression`** checkbox ("Reversed" -- invert match) -- bound to `data.reversed` (`:166-172`).
+
+**No** scope toggle, **no** target-chat selector, **no** action picker. Filters always **hide** matched messages; scope is determined entirely by where the box was opened from (shared vs per-dialog) via the `dialogId` argument.
+
+**Validation** (`validateRegex`, `:57-99`): pattern compiled with `icu::RegexPattern::compile` (no flags). On `U_FAILURE` the error code (e.g. `U_REGEX_RULE_SYNTAX`) is normalised by stripping the `U_REGEX_` prefix, lowercasing, and replacing `_` with space; the offset and ICU pre/post-context strings are appended -- e.g. `Rule syntax at 12 (near: 'foo' -> 'bar')`. Empty pattern silently no-ops (no save, no error label) (`:178-181`).
+
+**Buttons** (`:247-252`):
+- Primary: `tr::lng_settings_save` ("Save") -- runs `saveAndClose`.
+- Secondary: `tr::lng_cancel` ("Cancel") -- `box->closeBox()`.
+- Submit-on-Enter: `regexValue->submits()` also bound to `saveAndClose` (`:246`).
+
+**Save flow** (`saveAndClose`, `:176-244`):
+1. Reject empty text.
+2. Validate pattern; on failure, show error label and abort.
+3. Build a fresh `RegexFilter` from inputs (text, enabled, caseInsensitive, reversed).
+4. If `!showToast && dialogId.has_value()` -> set `newFilter.dialogId = dialogId` (binds the new filter to that dialog).
+5. Reuse existing `id` if editing; otherwise assign 16-byte UUID via `generate_uuid_bytes` (`:37-55`, RFC 4122 v4 variant/version bits at indices 6 and 8).
+6. Close the box, then off-main: `AyuDatabase::addRegexFilter(newFilter)` + `FiltersCacheController::rebuildCache()`, then back on main: invoke `onDone(newFilter)` if set, `FiltersCacheController::fireUpdate()`.
+7. If `showToast` (called from chat composer's "Create Filter" flow): show a `Ui::Toast::Show` with `tr::ayu_RegexFilterBulletinText` (rich text, adaptive). Tapping the toast (`filter` callback, `:221-230`) clears `dialogId` and re-saves -- effectively promoting the per-dialog filter into the shared scope. Code comment at `:231` flags an unfinished follow-up: a custom toast with an explicit "Move to shared" button modelled on `PaidReactionToast`.
+
+#### PerDialogFiltersListController (per-dialog overview rows)
+
+Defined in `ayu/ui/settings/filters/per_dialog_filter.{h,cpp}`. Subclass of `PeerListController`; rows are `PerDialogFiltersListRow : PeerListRow` (`per_dialog_filter.h:23-34`).
+
+**Row construction** (`per_dialog_filter.cpp:25-58`): row id is the raw `dialogId` (signed `long long`); the peer is resolved lazily via `getPeerFromDialogId(peerId.value & PeerId::kChatTypeMask)`.
+- `generateName()` (`:35-41`): if peer resolves, calls `setPeer(from)` then defers to `PeerListRow::generateName()` (standard contact-row name rendering, ~14 px semibold). Fallback when unresolved: `"UNKNOWN (ID: <number>)"`.
+- `generatePaintUserpicCallback(forceRound)` (`:43-58`): when peer resolves, defers to `PeerListRow::generatePaintUserpicCallback` (standard 46×46 userpic at `st::peerListBox` defaults). Fallback paints an `Ui::EmptyUserpic` with letter `"U"` and colour seed `realId % 7` (one of the seven palette accents) via `paintCircle`.
+
+**Population -- non-shadow-ban (per-dialog filter overview on the landing page)** (`prepare`, `:83-127`):
+1. Pulls **all** filters and **all** exclusions from the DB.
+2. Aggregates into `countsByDialogIds[id] = {filters, exclusions}`.
+3. For each entry creates a row whose **status text** is built from `tr::ayu_RegexFiltersAmount` (plural-aware count of filters) and/or `tr::ayu_RegexFiltersExcludedAmount`, separated by `", "` if both present (`:108-118`); attached via `setCustomStatus(status, false)`. Status renders below the name in standard `st::peerListItem` row, ~62 px tall total.
+4. `delegate()->peerListRefreshRows()`. (Sort-by-name commented out at `:124`.)
+
+**Row click -- non-shadow-ban** (`rowClicked`, `:129-161`): resolves the dialog id (custom row -> its own `dialogId()`; "special" peer-list row -> derived from `peer->id()`; else `getDialogIdFromPeer(peer->peer())`), sets `controller->dialogId`, `controller->showExclude = true`, and pushes `AyuFiltersList::Id()` -- i.e. opens the per-dialog version of the list screen.
+
+**Population -- shadow-ban mode** (`prepareShadowBan`, `:72-81`): iterates `AyuSettings::shadowBanIds()` and appends one row per id; **no status text** (count not relevant -- shadow-ban is a flat membership list).
+
+**Row click -- shadow-ban mode** (`:139-157`): opens an `Ui::PopupMenu` (`st::popupMenuWithIcons`) at cursor with a single `tr::lng_theme_delete` ("Delete") action with `st::menuIconDelete`. Action toggles via `AyuSettings::isShadowBanned`/`addShadowBan`/`removeShadowBan` (effectively always remove here, since the row only exists when banned). **No swipe gesture, no long-press, no per-row trash button, no bulk-select, no confirmation popup.** One click on the row, one click on Delete, gone.
+
+**Embedding in AyuFiltersList shadow-ban mode** (`settings_filters_list.cpp:265-294`, `initializeShadowBan`):
+- If `AyuSettings::shadowBanIds().size() > 0`:
+  - `AddSkip` -> `tr::ayu_RegexFiltersHeader` subsection title -> the `PeerListContent` wrapped in `Ui::PaddingWrap` with `QMargins(0, -peerListBox.padding.top, 0, -peerListBox.padding.bottom)` to neutralise the default peer-list-box padding inside a settings section -> `AddSkip`.
+- Empty: `Ui::AddDividerText(container, tr::ayu_RegexFiltersListEmpty())`.
+- Delegate is a `PeerListContentDelegateSimple` created in the section lifetime.
+
+Same `PeerListContent` + `PaddingWrap` pattern is reused on the parent landing for the **per-dialog overview** (`settings_filters.cpp:139-171`, `BuildPerDialog`), but only when `AyuDatabase::hasPerDialogFilters()` returns true.
+
+#### Shadow Ban -- entry point, storage, semantics
+
+**Storage** (`ayu/ayu_settings.h`/`.cpp`):
+- Field: `std::unordered_set<int64> _shadowBanIds;` -- **global per-instance, NOT per-account** (single set across all logged-in accounts).
+- JSON key: `"shadowBanIds"` -- serialized inside the main AyuSettings JSON file (alongside `filtersEnabled`, etc.). `ayu_settings.cpp:1566` write, `:1637` read.
+- Public API: `addShadowBan(int64)` (`:1264-1269`), `removeShadowBan(int64)` (`:1271-1276`), `isShadowBanned(int64) const`, `shadowBanIds() const`.
+- Side effects on add/remove: both call `FiltersCacheController::rebuildCache(); FiltersCacheController::fireUpdate(); save();` -- dialog list and message visibility refresh immediately.
+- ID format: AyuGram's "dialog ID" `int64` encoding (positive user IDs, negative channel IDs) produced by `getDialogIdFromPeer()`.
+
+**Context-menu entry** (`ayu/ui/context_menu/context_menu.cpp:322-354`, declared at `context_menu.h:34-35`):
+
+```cpp
+void AddShadowBanAction(PeerData *peerData, const Window::PeerMenuCallback &addCallback);
+```
+
+Gating (`:325, 329-333`):
+- `peerData` non-null.
+- Peer is User OR Broadcast (i.e. user or channel; **not** groups/megagroups/topics).
+- `AyuSettings::filtersEnabled()` is true.
+- Skip if `user->isSelf()` (cannot shadow-ban Saved Messages).
+
+Item construction (`:346-352`):
+- Label: `tr::ayu_FiltersQuickShadowBan` ("Shadow ban") when not banned; `tr::ayu_FiltersQuickUnshadowBan` ("Unshadow ban") when already banned.
+- Icon: `st::menuIconStealth` (ghost icon) when not banned; `st::menuIconShowInChat` (eye/show icon) when already banned.
+- Click handler: **straight toggle -- no confirmation dialog, no toast, no animation.** Single click flips the state via `addShadowBan` / `removeShadowBan`. Chat list refreshes via the cache `fireUpdate`.
+
+**Wired in** (`window/window_peer_menu.cpp:1772, 1810, 1811`):
+- `AyuUi::AddShadowBanAction(_peer, _addAction)` is invoked in **one** of the two filler branches -- the **peer-list / chat-list right-click flow** -- not in the in-chat top-bar menu. So: right-clicking a chat in the left sidebar shows it; right-clicking inside an open conversation does NOT.
+
+**Semantics -- Shadow Ban vs native Block** (`filters_controller.cpp:88-123`):
+
+```cpp
+bool isBlocked(const not_null<HistoryItem*> item) {
+    return settings.filtersEnabled() && (
+        ((item->from()->isUser() || item->from()->isBroadcast())
+         && settings.isShadowBanned(getDialogIdFromPeer(item->from())))
+        || (settings.hideFromBlocked() && blocked)
+    );
+}
+```
+
+- Shadow-banned messages are **silently filtered locally** -- the message is removed from the rendered list; the chat may still appear in the dialog list but its preview blanks when the last message is from the banned sender (because that message becomes `isEmpty()`). Telegram's native `contacts.block` API is **never called** -- the other party sees normal delivery, completely undetectable.
+- Compare with `hideFromBlocked` (separate AyuGram setting, default off): hides messages from users you've blocked via Telegram's own API -- that one IS detectable to the other party because Telegram tells the blocked user "user has restricted messages to themselves".
+- **Asymmetry vs regex rules** (`filters_controller.cpp:26`): `filterBlocked` only fires when `item->from() != item->history()->peer` -- it triggers in groups/channels/anonymous broadcast contexts where the *sender* is shadow-banned but the *dialog* isn't. The peer-level overload `isBlocked(PeerData*)` (`:116-123`) is consulted by adjacent UI to also drop shadow-banned peers from: "who reacted" lists (`api/api_who_reacted.cpp:450,617,627`), reaction summaries (`history/view/reactions/history_view_reactions.cpp:1015`, `:reactions_list.cpp:145`), "X is typing…" indicators (`history/view/history_view_send_action.cpp:71`), and the comment-avatar replier strip (`history/view/history_view_message.cpp:1679`).
+- **Does NOT** hide the dialog from the dialog list -- there is no `isBlocked(peer)` consult in `dialogs/`.
+
+**Shadow Ban list page entry button** (`settings_filters.cpp:122-138`, `BuildShadowBan`):
+
+```cpp
+builder.addButton({
+    .id     = u"ayu/shadowBanIds"_q,
+    .altIds = { u"ayu/shadowBanList"_q },          // legacy ID alias
+    .title  = tr::ayu_FiltersShadowBan(),          // "Shadow ban"
+    .st     = &st::settingsButtonNoIcon,
+    .onClick = [=] {
+        controller->dialogId    = std::nullopt;
+        controller->showExclude = false;
+        controller->shadowBan   = true;
+        controller->showSettings(AyuFiltersList::Id());
+    },
+});
+```
+
+Plain settings row, no icon, no badge/counter, no chevron -- opens the list page in shadow-ban mode.
+
+#### ImportFiltersBox -- import / export box
+
+**No `ImportFiltersBox` class** -- import/export is a free function `Ui::FillImportFiltersBox(box, bool import)` at `ayu/ui/boxes/import_filters_box.{h,cpp}` (note: under `ui/boxes/`, **not** under `ui/settings/filters/`). Single function services both modes via the `import` flag. Reachable from the AyuFilters section's top-bar overflow menu (`settings_filters.cpp:191-234`):
+- "Select Chat" (`tr::ayu_FiltersMenuSelectChat`, icon `st::menuIconSearch`) -- opens `Window::ShowChooseRecipientBox` constrained to `Bot|Group|Broadcast`.
+- "Import" (`tr::ayu_FiltersMenuImport`, icon `st::menuIconArchive`) -- always shown.
+- "Export" (`tr::ayu_FiltersMenuExport`, icon `st::menuIconUnarchive`) -- only shown if `AyuDatabase::hasFilters()`.
+- "Clear All" (`tr::ayu_FiltersMenuClear`, icon `st::menuIconClear`) -- opens `Ui::MakeConfirmBox` with text `tr::ayu_FiltersClearPopupText` and confirm label `tr::ayu_FiltersClearPopupActionText` to wipe all filters + exclusions.
+
+**Box construction** (`import_filters_box.cpp:28-127`):
+- Style: `st::giveawayGiftCodeBox` -- wide-ish modal reused from the giveaway flow (~`width=380 px`, no top content margin, rounded corners).
+- `setNoContentMargin(true)` + `box->verticalLayout()->resizeToWidth(box->width())`.
+- Title: `tr::ayu_FiltersMenuImport` ("Import filters") or `tr::ayu_FiltersMenuExport` ("Export filters").
+- Top-right close button via `box->addTopButton(st::boxTitleClose, ...)` (`:129`).
+- All content inside an `Ui::OverrideMargins` wrap with vertical padding `st::settingsSendTypeSkip` top and bottom (`:36-43`).
+
+**Mode picker** -- pair of `Ui::Radioenum<bool>` rows in a shared `RadioenumGroup<bool>` defaulting to `false` (clipboard) (`:48-83`):
+- Row 1 (`value = false`): `tr::ayu_FiltersImportClipboard` / `tr::ayu_FiltersExportClipboard` ("Clipboard").
+- Row 2 (`value = true`): `tr::ayu_FiltersImportURL` / `tr::ayu_FiltersExportURL` ("URL").
+- Style: `st::settingsSendType`, padding `st::settingsSendTypePadding`.
+
+**URL input** -- only added in import mode under the URL radio (`:60-80`): wrapped in a `Ui::SlideWrap<Ui::VerticalLayout>` (collapsed initially, animated open when the URL radio is selected via the group's `setChangedCallback`, `:85-90`). Field is `Ui::InputField` with style `st::defaultInputField`, label `"URL"`, padding `st::giveawayGiftCodeBox.buttonPadding`. **Auto-prefill**: if the system clipboard text starts with `"http"`, that value is pre-loaded (`:61-63`).
+
+**Action button** (`:92-127`): single primary button labelled `tr::ayu_FiltersMenuImport` / `tr::ayu_FiltersMenuExport`. Width forcibly resized to `box.width - 2 * st::giveawayGiftCodeBox.buttonPadding.h` via an `rpl` resize handler (`:118-127`). On click:
+- **Import + URL** -> `FilterUtils::importFromLink(URLfield)` -- HTTP GET, parse response as JSON.
+- **Import + Clipboard** -> `FilterUtils::importFromJson(QGuiApplication::clipboard()->text().toUtf8())` -- payload read straight from clipboard.
+- **Export + URL** -> `FilterUtils::publishFilters()` -- POSTs the JSON to `https://dpaste.com/api/v2/` as multipart form (`content` = JSON, `syntax = "json"`, `title = "AyuGram Filters"`); on success copies the returned URL (with `.txt` appended) to the clipboard and shows `tr::lng_stickers_copied` ("Link copied to clipboard"). On failure shows `tr::ayu_FiltersToastFailPublish`.
+- **Export + Clipboard** -> `data = FilterUtils::exportFilters()` returns a JSON `QString`; written to clipboard, `tr::lng_text_copied` ("Copied to clipboard") toast shown.
+
+The box closes immediately after action regardless of success/failure -- the toast is the only feedback. **No file picker, no manual paste textarea, no preview** -- clipboard is read implicitly on click; URL mode is the only manual-entry path.
+
+**File format -- JSON v2** (`filters_utils.cpp:35`, `BACKUP_VERSION = 2`):
+
+```json
+{
+  "version": 2,
+  "filters": [
+    {
+      "id":              "01234567-89ab-cdef-0123-456789abcdef",
+      "text":            "(?i)spam.*",
+      "caseInsensitive": true,
+      "enabled":         true,
+      "reversed":        false,
+      "dialogId":        -1001234567890
+    }
+  ],
+  "exclusions": [
+    { "dialogId": -1001234567890, "filterId": "01234567-89ab-cdef-0123-456789abcdef" }
+  ]
+}
+```
+
+`RegexFilter` serialization (`exportFilters`, `:207-228`): `id` is the 16-byte binary UUID hex-encoded with hyphens at positions 8/13/18/23 (Java UUID format). `text` is the ICU regex pattern. `dialogId` is `int64` for per-chat filters; `null` (`QJsonValue()`) for shared/global. The `prepareChanges` deserializer (`:346-461`) also reads `removeFiltersById`, `removeExclusions`, and a `peers` map (dialog-id -> username for unresolved-peer resolution) -- written by the dpaste publishing pipeline but typically empty in user-exported files.
+
+**Validation** (`importFromJson`, `:130-167`): shallow.
+- Parse-OK + `document.isObject()` check; on failure show `tr::ayu_FiltersToastFailImport` ("Failed to import filters").
+- Empty diff (`changes == ApplyChanges{}` or all fields empty) -> `tr::ayu_FiltersToastFailNoChanges` ("No changes").
+- **No regex-syntax validation at import time** -- invalid ICU regexes are stored as-is and only fail later at match time, where they log and silently match=false.
+- For network import (`importFromLink`, `:37-78`): empty URL -> `tr::ayu_FiltersToastFailFetch`. Network error -> `gotFailure()`. Non-UTF8 / null body -> `tr::ayu_FiltersToastFailImport`.
+
+#### Files referenced (all `Telegram/SourceFiles/` under `dev` branch)
+
+- `ayu/features/filters/filters_controller.{h,cpp}` -- engine, isFiltered, isBlocked, evaluation order
+- `ayu/features/filters/filters_cache_controller.{h,cpp}` -- pattern compile, cache, rebuild triggers, fireUpdate
+- `ayu/features/filters/filters_utils.{h,cpp}` -- extractAllText, typeOfMessage, JSON import/export, dpaste publish, BACKUP_VERSION
+- `ayu/data/entities.h` -- `RegexFilter`, `RegexFilterGlobalExclusion` structs
+- `ayu/ayu_settings.{h,cpp}` -- `_shadowBanIds`, add/remove, JSON serialize, `filtersEnabled`/`filtersEnabledInChats`/`hideFromBlocked`
+- `ayu/ayu_state.{h,cpp}` -- `/hide` manual hide command (separate from filters)
+- `ayu/utils/telegram_helpers.cpp:271-277` -- `isMessageHidden` (joins AyuState + FiltersController)
+- `ayu/ui/context_menu/context_menu.{h,cpp}` -- `AddShadowBanAction` peer-menu item
+- `window/window_peer_menu.cpp:1811` -- shadow-ban menu invocation
+- `ayu/ui/settings/settings_filters.{h,cpp}` -- AyuFilters landing page, top-bar menu
+- `ayu/ui/settings/filters/settings_filters_list.{h,cpp}` -- AyuFiltersList three-mode screen
+- `ayu/ui/settings/filters/edit_filter.{h,cpp}` -- RegexEditBox single-filter form
+- `ayu/ui/settings/filters/per_dialog_filter.{h,cpp}` -- PerDialogFiltersListController, row class, shadow-ban + per-dialog modes
+- `ayu/ui/boxes/import_filters_box.{h,cpp}` -- FillImportFiltersBox free function
+- Consumers: `history/history_item.cpp:4228`, `history/history_inner_widget.cpp:5227`, `history/view/history_view_element.cpp:1553,2190,2770,2791`, `history/view/history_view_list_widget.cpp:1392`, `history/history_item_components.cpp:541-556`, `info/media/info_media_provider.cpp:467`, `window/notifications_manager.cpp:432`, `data/data_session.cpp:2750`, `history/history_widget.cpp:706`, `info/info_wrap_widget.cpp:788`, `api/api_who_reacted.cpp:450,617,627`, `history/view/reactions/history_view_reactions.cpp:1015`, `history/view/reactions/history_view_reactions_list.cpp:145`, `history/view/history_view_send_action.cpp:71`, `history/view/history_view_message.cpp:1679`
+
+#### Key takeaways for re-implementation
+
+1. **Use a PCRE-compatible engine** (Go's `regexp` is RE2 -- different syntax flavor; consider `regexp2` for full PCRE/ICU compatibility). Multiline always on; case-insensitive is a per-rule flag, default off.
+2. **Match input is a synthesized blob:** message/caption text + `\n` + URL entities + `\n<button>label data</button>` per inline button + `\n<type>N</type>`. Sender names and chat titles are out of scope -- that's why shadow-ban exists as a separate primitive.
+3. **One action only: hide.** No tinting, no placeholder, no per-rule action. Make hidden items render zero-height and skip every consumer site (selection, notifications, media tabs, reply previews, reactions, who-viewed, typing, replier strip).
+4. **Shadow-ban is a `set<dialogId>`, not a regex.** Evaluates before the regex cache, on a different code path. Fires only for cross-context appearances of the banned peer (groups, forwards, reactions, repliers). Storage is **global, not per-account**.
+5. **`filtersEnabledInChats` only gates the regex engine.** Shadow-ban and `hideFromBlocked` keep working in DMs/groups regardless.
+6. **Cache rebuild is explicit** at every settings/filter mutation site -- no debounce or watcher pattern. Per-message decision cache cleared whole on every rebuild.
+7. **No file 404s** -- all expected files exist on `dev` and were read end-to-end. `master` branch is stale; cite all paths against `dev`.
 
 ### 54.17 AyuMain Landing Page
 
