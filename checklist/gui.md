@@ -36,18 +36,8 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Send state icons: clock (sending), single check (sent), double check (received), 20px skip (S2)
 
 ### 2.4 Chat Item States
-- [ ] Day default background: #ffffff (S2)
-- [ ] Day hover background: #f1f1f1 (S2)
-- [ ] Day active/selected background: #419fd9, all text white, badges inverted (S2)
-- [ ] Day ripple: #e5e5e5 normal, #2095d0 on active row (S2)
-- [ ] Night hover bg: #202b36 (S2)
-- [ ] Night active/selected bg: #2b5278 (S2)
-- [ ] Night ripple normal: #25313d (S2)
-- [ ] Night ripple active: #315a80 (S2)
-- [ ] Ripple animation: defaultRippleAnimation curve (S2)
 
 ### 2.5 Special Rows
 - [ ] Archived Chats row: 37px height (dialogsImportantBarHeight), NOT 62px (S2)

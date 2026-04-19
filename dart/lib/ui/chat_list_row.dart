@@ -35,8 +35,8 @@ class ChatListRow extends StatelessWidget {
   static const _contentLeft = 68.0; // avatarLeft + avatarSize + gap
   static const _paddingRight = 10.0;
 
-  // Spec §2 "Active/selected": Background #419fd9 (Telegram blue), all text white, badges inverted.
-  static const _activeBg = Color(0xFF419fd9);
+  // Spec §2 exact active/selected bg per theme (computed in build).
+  // Day: #419fd9, Night: #2b5278.
 
   // Spec §2 exact colors.
   static const _nameColorDay = Color(0xFF222222);
@@ -48,6 +48,11 @@ class ChatListRow extends StatelessWidget {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // Spec §2: Active row background differs by theme.
+    final activeBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9);
+    // Spec §2: Day default bg = #ffffff; night uses theme default.
+    final defaultBg = isDark ? null : const Color(0xFFffffff);
+
     // Colors per state — use exact spec hex values for day theme.
     final nameColor = isActive
         ? Colors.white
@@ -58,7 +63,7 @@ class ChatListRow extends StatelessWidget {
     // Use a plain Container (not Material widget) to avoid MD3 surface-tint behavior
     // that washes Material(color: primary) to white in a ColorScheme.dark context.
     return Container(
-      color: isActive ? _activeBg : null,
+      color: isActive ? activeBg : defaultBg,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(
@@ -69,6 +74,9 @@ class ChatListRow extends StatelessWidget {
           hoverColor: isActive
               ? Colors.white.withValues(alpha: 0.08)
               : (isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1)), // Spec §2: night #202b36, day #f1f1f1
+          splashColor: isActive
+              ? (isDark ? const Color(0xFF315a80) : const Color(0xFF2095d0))
+              : (isDark ? const Color(0xFF25313d) : const Color(0xFFe5e5e5)), // Spec §2: ripple colors
           child: _HoverBuilder(
             builder: (_, isHovered) {
               // Spec §2: Unread pill Over and Active color variants.
@@ -83,7 +91,7 @@ class ChatListRow extends StatelessWidget {
                       : (chat.isMuted
                           ? (isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb))
                           : (isDark ? const Color(0xFF40a7e3) : const Color(0xFF40a7e3)));
-              final badgeText = isActive ? _activeBg : Colors.white;
+              final badgeText = isActive ? activeBg : Colors.white;
               return SizedBox(
                 height: _rowHeight,
               child: Padding(
@@ -149,6 +157,13 @@ class ChatListRow extends StatelessWidget {
                               ],
                             ),
                           ),
+                          // Spec §2: Send state icons — 20px skip, only for outgoing messages.
+                          if (chat.lastMsgIsOutgoing && chat.lastMsgText.isNotEmpty)
+                            _SendStateIcon(
+                              status: chat.lastMsgStatus,
+                              isActive: isActive,
+                              isDark: isDark,
+                            ),
                           // Timestamp — spec §2: 13px, #999999 day / white active, 5px skip from right.
                           const SizedBox(width: 5),
                           Text(
@@ -794,6 +809,67 @@ class _ThreeStateBadgeIcon extends StatelessWidget {
       );
     }
     return Icon(icon, size: 18, color: color);
+  }
+}
+
+/// Spec §2: Send state icon — clock (sending), single check (sent), double check (delivered/read).
+/// 20px total width slot. Only shown for outgoing messages.
+/// Colors: historyOutIconFg = #57b84c day / #6bbfff night.
+/// Sending clock: historySendingOutIconFg = #98d292 day / #70a4d2 night.
+class _SendStateIcon extends StatelessWidget {
+  final MsgStatus status;
+  final bool isActive;
+  final bool isDark;
+
+  const _SendStateIcon({
+    required this.status,
+    required this.isActive,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (status == MsgStatus.unknown) return const SizedBox(width: 20);
+
+    final Color iconColor;
+    if (isActive) {
+      iconColor = Colors.white;
+    } else if (status == MsgStatus.sending) {
+      iconColor = isDark ? const Color(0xFF70a4d2) : const Color(0xFF98d292);
+    } else {
+      iconColor = isDark ? const Color(0xFF6bbfff) : const Color(0xFF57b84c);
+    }
+
+    // Spec §2: clock 11x11, single check 13x11, double check 18x11.
+    // Tick offset inside 20px slot: point(2,4).
+    final IconData icon;
+    final double iconSize;
+    switch (status) {
+      case MsgStatus.sending:
+        icon = Icons.access_time;
+        iconSize = 11;
+      case MsgStatus.sent:
+        icon = Icons.check;
+        iconSize = 13;
+      case MsgStatus.delivered:
+      case MsgStatus.read:
+        icon = Icons.done_all;
+        iconSize = 14;
+      case MsgStatus.failed:
+        icon = Icons.error_outline;
+        iconSize = 13;
+      default:
+        return const SizedBox(width: 20);
+    }
+
+    return SizedBox(
+      width: 20,
+      height: 11,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 2),
+        child: Icon(icon, size: iconSize, color: iconColor),
+      ),
+    );
   }
 }
 
