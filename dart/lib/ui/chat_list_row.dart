@@ -12,6 +12,7 @@ class ChatListRow extends StatelessWidget {
   final ChatInfo chat;
   final bool isActive;
   final bool isOnline;
+  final bool isNarrow;
   final String? typingUser;
   final VoidCallback onTap;
   final ValueChanged<Offset>? onSecondaryTap;
@@ -21,6 +22,7 @@ class ChatListRow extends StatelessWidget {
     required this.chat,
     required this.isActive,
     this.isOnline = false,
+    this.isNarrow = false,
     this.typingUser,
     required this.onTap,
     this.onSecondaryTap,
@@ -182,20 +184,22 @@ class ChatListRow extends StatelessWidget {
                             const SizedBox(width: 8),
                             Icon(Icons.push_pin, size: 14, color: mutedColor),
                           ],
-                          // Spec §2: Mention badge — 18x18 icon, 5px gap.
+                          // Spec §2: Mention badge — 18x18 icon (wide), 13x13 in 19x19 circle (narrow).
                           if (chat.unreadMentionCount > 0) ...[
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
                               icon: Icons.alternate_email,
                               color: badgeBg,
+                              isNarrow: isNarrow,
                             ),
                           ],
-                          // Spec §2: Reaction badge — 18x18 icon, 5px gap.
+                          // Spec §2: Reaction badge — 18x18 icon (wide), 13x13 in 19x19 circle (narrow).
                           if (chat.unreadReactionCount > 0) ...[
                             const SizedBox(width: 5),
                             _ThreeStateBadgeIcon(
                               icon: Icons.favorite,
                               color: badgeBg,
+                              isNarrow: isNarrow,
                             ),
                           ],
                         ],
@@ -760,16 +764,35 @@ class _UnreadDot extends StatelessWidget {
   }
 }
 
-/// Spec §2: 18x18 ThreeStateIcon for mention/reaction/poll badges.
-/// Just a colored icon glyph, not a pill.
+/// Spec §2: ThreeStateIcon for mention/reaction/poll badges.
+/// Wide mode: 18x18 colored icon glyph (no pill).
+/// Narrow mode: 13x13 glyph inside a 19x19 unread-bg circle.
 class _ThreeStateBadgeIcon extends StatelessWidget {
   final IconData icon;
   final Color color;
+  final bool isNarrow;
 
-  const _ThreeStateBadgeIcon({required this.icon, required this.color});
+  const _ThreeStateBadgeIcon({
+    required this.icon,
+    required this.color,
+    this.isNarrow = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (isNarrow) {
+      // Spec §2: narrow mode — 13x13 glyph centered inside 19x19 circle.
+      return Container(
+        width: 19,
+        height: 19,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 13, color: Colors.white),
+      );
+    }
     return Icon(icon, size: 18, color: color);
   }
 }

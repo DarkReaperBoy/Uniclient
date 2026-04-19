@@ -473,6 +473,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
                             chat: chat,
                             isActive: isActive,
                             isOnline: chatState.isChatOnline(chat),
+                            isNarrow: widget.collapsed,
                             typingUser: chatState.typingUserFor(chat.chatId),
                             onTap: () => chatState.openChat(chat),
                             onSecondaryTap: (pos) => _showChatContextMenu(context, chat, pos),

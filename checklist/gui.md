@@ -36,7 +36,6 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Narrow mode: 13x13 mention/reaction/poll glyph inside 19x19 circle (S2)
 - [ ] Send state icons: clock (sending), single check (sent), double check (received), 20px skip (S2)
 
 ### 2.4 Chat Item States
