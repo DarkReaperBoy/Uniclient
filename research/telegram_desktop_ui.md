@@ -5030,6 +5030,41 @@ Title bar: 48px height, 16px semibold font.
 
 **Userpic button**: 72x72px, position (24px left, 10px top). Role: ChoosePhoto. Change icon at (21, 23)px. Upload overlay: 24px height, `msgDateImgBgOver`. Progress: 3px line, 8px margin, 500ms animation.
 
+#### 21.2.1 Default userpic origin (before upload)
+
+Source: `ui/controls/userpic_button.cpp`, `ui/empty_userpic.cpp`, `boxes/add_contact_box.cpp` (`GroupInfoBox::prepare`). Before the user picks a photo the button renders an `EmptyUserpic` live-bound to the title text — typing "Friends" instantly paints "F" on a gradient. Pattern parity: §14.5.6.1 account-list avatar fallback.
+
+- **Creation** (`GroupInfoBox::prepare`): `_photo.create(this, ..., Ui::UserpicButton::Role::ChoosePhoto, st::defaultUserpicButton, (_type == Type::Forum) ? Ui::PeerUserpicShape::Forum : Ui::PeerUserpicShape::Auto);`
+- **Frame size**: `_st.photoSize` = **72px** (`st::defaultUserpicButton`). No outline border — the shape IS the frame; origin (24, 10) within the info area (see §21.2 above).
+- **Shape**: ellipse (`p.drawEllipse(0, 0, size, size)`) for non-forum; rounded rect with radius `size * Ui::ForumUserpicRadiusMultiplier()` when `_type == Type::Forum`.
+- **Gradient**: 8 `BgColors` pairs `{ historyPeer1UserpicBg, historyPeer1UserpicBg2 } … { historyPeer8UserpicBg, historyPeer8UserpicBg2 }`. Index picked via `DecideColorIndex(id) → ColorIndexToPaletteIndex(colorIndex)`. For a not-yet-created peer (id=0) the first pair is used. Applied as `QLinearGradient(x, y, x, y + size)` with stops 0→`color1`, 1→`color2` (vertical top→bottom).
+- **Initials fallback** (`EmptyUserpic::fillString`): up to **2** letters, uppercased. First letter = first letter-or-number char (emoji/surrogate pairs skipped). Second letter = one after a space (level 0), else after a hyphen (level 1). Diacritics appended to base letter. Final `_string.toUpper()`.
+- **Font**: `st::historyPeerUserpicFont`, pixel size `(size * 13) / 33` → **28px** at 72px frame.
+- **Centering rule**: `p.drawText(QRect(x, y, size, size), _string, QTextOption(style::al_center))` — both axes centered in the full square frame.
+- **Change-photo overlay**: `_st.changeIcon` painted at `_st.changeIconPosition` = (21, 23). Always visible while `_userpicHasImage == false`. Hover darkens via `st::msgDateImgBg` (with image) or `st::shadowFg` (without). Ripple via `paintRipple()`.
+- **Click** (`Role::ChoosePhoto`): `choosePhotoLocally()` opens a `PopupMenu` — File / Camera (if `CameraBox` available) / Clipboard paste / Emoji builder.
+
+#### 21.2.2 Forum entry — "Enable Topics" toggle
+
+Source: `boxes/peers/edit_peer_info_box.cpp` (`fillManageSection`, `_controls.forumToggle`). The forum toggle is **not** in Step-1 `GroupInfoBox` — it lives in the post-creation **Manage Group** settings (same screen used for editing), appearing only once the group has enough members. Create-wizard flow: create group → open Manage → toggle Topics.
+
+- **Row style**: `st::manageGroupTopicsButton` (button, not radio), icon `&st::menuIconTopics` on the left, `newBadge = true` (small "NEW" badge chip in the row tail). Built via `EditPeerInfoBox::CreateButton(...)`.
+- **Label key**: `tr::lng_forum_topics_switch` ("Topics").
+- **Placement**: inside `fillManageSection()`, positioned **after** history-visibility and **before** color-index rows. The row is a clickable nav (arrow chevron), not an inline toggle — tapping opens a child screen with Tabs/List layout radios plus the enable toggle.
+- **Member-count gate**: minimum members = `AppConfig.forum_upgrade_participants_min`, fallback **200** (`int EnableForumMinMembers(PeerData*)`). Below threshold, the child screen shows `tr::lng_forum_topics_not_enough(lt_count, N)` ("You need at least **200** members to enable topics") and the confirm is disabled.
+- **About text** on the child screen (`windowSubTextFg`):
+  - Enabled + tabs layout: `tr::lng_edit_topics_tabs`
+  - Enabled + list layout: `tr::lng_edit_topics_list`
+  - Disabled: `tr::lng_manage_monoforum_off`
+- **Downstream effect when enabled**: `_savingData.hiddenPreHistory = false` is forced (pre-join history becomes visible — required for topics), then `refreshHistoryVisibility()` re-paints. On Save:
+  ```cpp
+  MTPchannels_ToggleForum(
+      channel->inputChannel(),
+      MTP_bool(*_savingData.forum),
+      MTP_bool(*_savingData.forum && *_savingData.forumTabs))
+  ```
+  First flag toggles forum mode; second toggles tabbed-topics layout (only when forum itself is on). Sidebar chat-list pill updates to forum rendering (see §22).
+
 **Title input**: Position left 99px (72px userpic + 27px gap), top 5px. Width ~217px. Max 128 characters. Emoji suggestions enabled.
 
 **Description** (channels only): `MultiLine`, max 255 chars, max height 116px. Top margin 13px below userpic. Width ~316px.
@@ -5074,9 +5109,47 @@ Public/private choice + username assignment. Width 364px.
 
 Username: min 5, max 32 characters, `[A-Za-z0-9_]` only.
 
+#### 21.4.1 Username validation — debounce, API, error states
+
+Source: `boxes/add_contact_box.cpp` (`SetupChannelBox::check`, `checkFail`), `boxes/peers/edit_peer_common.h`. The check mirrors the §11.3 country-picker pattern (live filter + debounced async lookup + inline status label), but with a network roundtrip.
+
+- **Debounce timeout**: `Ui::EditPeer::kUsernameCheckTimeout = crl::time(200)` → **200 ms** after the last keystroke. Implemented via `_checkTimer.callOnce(Ui::EditPeer::kUsernameCheckTimeout)`. Each new keystroke cancels the pending timer.
+- **Client-side pre-check** (runs before any network call, no debounce needed):
+  - Length < `kMinUsernameLength` (5) → `tr::lng_create_channel_link_too_short` ("Too short, please enter 5 characters or more")
+  - Any char outside `[A-Za-z0-9_]`, or starts with digit → `tr::lng_create_channel_link_bad_symbols` ("Sorry, this link is invalid")
+  - Empty → no label shown (neutral)
+- **API method**: `MTPchannels_CheckUsername(_channel->inputChannel(), MTP_string(link))` — the **channels**-scoped check (not `contacts.checkUsername`, which is for user accounts). Sent via `_api.request(...)`.
+- **Result mapping** (`parseError` + `checkFail`):
+  - `true` → `UsernameResult::Ok` → label `tr::lng_create_channel_link_available` ("**{link}** is available") painted with `p.setPen(st::boxTextFgGood)` (green — same token as the success tick elsewhere).
+  - `false` / `USERNAME_INVALID` / `USERNAME_NOT_MODIFIED`-error → `UsernameResult::Invalid` → `tr::lng_create_channel_link_invalid` ("Sorry, this link is invalid"), red (`st::boxTextFgError`).
+  - `USERNAME_OCCUPIED` → `UsernameResult::Occupied` → `tr::lng_create_channel_link_occupied` ("Sorry, this link is already taken"), red.
+  - `CHANNELS_ADMIN_PUBLIC_TOO_MUCH` → `UsernameResult::ChatsTooMuch` → if `_mustBePublic`, calls `showRevokePublicLinkBoxForEdit()` → opens `PublicLinksLimitBox` (see §21.4.2); otherwise sets `_tooMuchUsernames = true` and force-flips the privacy radio to Private.
+- **Success visual**: there is **no animated tick** in Desktop — just a green text label rendered inline below the input field (no icon). The Flutter port should match: coloured text only, no sprite/tick animation.
+- **Reserved usernames** (e.g. "telegram", "support"): handled server-side — returns `USERNAME_INVALID` → maps to `tr::lng_create_channel_link_invalid`. Desktop does NOT distinguish "reserved" from "invalid" in copy.
+- **Fragment.com link**: NOT present in this box. Desktop's Fragment entry lives only in the user-self-profile username editor (`edit_peer_usernames_list.cpp`), not in the channel create-flow box. For §21 scope: no Fragment link is shown.
+
 **Invite link** (when private): Clickable text, copies to clipboard with toast.
 
 **Too many public usernames**: Auto-switches to private. Trying to go public shows `PublicLinksLimitBox` (premium upsell with revoke list).
+
+#### 21.4.2 PublicLinksLimitBox layout
+
+Source: `boxes/premium_limits_box.cpp` (`PublicLinksLimitBox` + `PublicsController`). Triggered when user hits the N-th public-link cap — either reactively (`CHANNELS_ADMIN_PUBLIC_TOO_MUCH` from `SetupChannelBox`) or proactively (pressing "Save" on a second public channel after already owning the max). Width `boxWideWidth` = **364px**. Layout shares the limits-box pattern with §14.5.6.1 account-limit box (header illustration → bubble row → title → description → scrollable list → CTA).
+
+- **Title**: `tr::lng_links_limit_title` ("Public Link Limit Reached"). Standard box title bar (48px, 16px semibold).
+- **Bubble row** (icon + numeric counter): built via `Ui::Premium::AddBubbleRow()`. Icon `&st::premiumIconLinks` (links-chain glyph). Bubble type selected by `ChooseBubbleType(premiumPossible)` — for non-premium users shows the current/premium counter as `current → premiumLimit`. Numbers are derived from `Data::PremiumLimits(session)`:
+  - `channelsPublicDefault()` — `appConfigLimit("channels_public_limit_default", 10)` → free cap **10** public links.
+  - `channelsPublicPremium()` — `appConfigLimit("channels_public_limit_premium", 20)` → Premium cap **20**.
+- **Description** (below bubble, `windowSubTextFg`): combines two rpl streams joined by a space:
+  - Primary: `tr::lng_links_limit1(lt_count, current, tr::rich)` — "You are owner of **10** public t.me/ links."
+  - Secondary (non-Premium & eligible): `tr::lng_links_limit2(lt_count, premiumLimit, tr::rich)` — "Subscribe to **Telegram Premium** to double the limit to **20** public links."
+  - Secondary (Premium or not eligible): `tr::lng_links_limit2_final` — "Revoke the link from one of the older channels you don't need."
+- **Revoke list** (`PublicsController`, fills the scrollable middle section): each row is a `PeerListRowWithLink`:
+  - Avatar (42px, same as §21.3 contact rows) + peer title (bold) + status line `session->createInternalLink(peer->username())` (e.g. `t.me/foo_channel`, `windowSubTextFg`).
+  - Right-side action link: label `tr::lng_channels_too_much_public_revoke` ("Revoke", styled as a red text-button).
+  - Tap on "Revoke" → `rowRightActionClicked()` → confirmation toast → on confirm, fires `MTPchannels_UpdateUsername(channel, MTP_string(""))` then `MTPchannels_DeactivateAllUsernames(channel)` to release every collectible link on that channel at once.
+- **Premium upsell button** (bottom CTA, only for non-Premium eligible users): label `tr::lng_limits_increase` ("Increase Limit"). Rendered with the standard Premium gradient button style; tapping calls `Settings::ShowPremium(session, LimitsPremiumRef("channels_public"))` which opens the Premium landing page with the links-limit anchor highlighted. Premium / non-eligible users see a plain close button instead.
+- **Completion hook**: on successful revoke, the box is recreated by re-entering `SetupChannelBox` so the user can retry username assignment without re-navigating the whole wizard.
 
 **Buttons**: "Save" + "Skip"/"Cancel".
 
@@ -5091,6 +5164,54 @@ For editing existing group/channel type. Width 364px.
 **Invite link section** (private): Permanent link block with copy/share.
 
 **Additional toggles** (megagroups): "Only Members" send toggle, "Approve New Members" nested toggle, "Restrict Saving Content" toggle.
+
+#### 21.5.1 Group permission-toggle visuals
+
+Source: `boxes/peers/edit_peer_permissions_box.cpp`, `boxes/peers/edit_peer_info_box.cpp`. These rows appear in the post-creation Manage-Group screen (the Edit-Peer-Type box at §21.5 and the broader Permissions box). All follow a consistent pattern — `Ui::SettingsButton` row with right-aligned `Ui::ToggleView` switch — except the slow-mode sub-row which uses a discrete slider. Pattern parity: §14.5.6.1 accounts-list row + badge + icon (same `Settings::AddButtonWithIcon` helper).
+
+**Shared row anatomy** (all toggle rows):
+- Built via `Settings::AddButtonWithIcon()` → produces a horizontal button that spans the full box width.
+- Icon: left-aligned, drawn by `entry.icon` (e.g. `&st::menuIconTopics`).
+- Label: left text, `st::defaultSettingsButton` text colour.
+- Toggle switch: right-aligned at `st.toggleSkip` offset from the right edge. Uses `st.toggle` style (the standard rounded Material-ish switch). When a permission is locked (e.g. disabled for non-admins), `checkView->setLocked(locked.has_value())` paints it in a dimmed/unresponsive state.
+- Separator between rows: `st::lineWidth` horizontal line, centred vertically to the row baseline.
+- Base style: `st::settingsButtonNoIcon` for text-only rows, `st::defaultSettingsButton` for icon rows.
+
+**"Only members can send messages" row**:
+- Style: toggle row (NOT radio). Right-aligned `ToggleView`. No sub-rows.
+- Saved via `saveJoinToWrite()` → `MTPchannels_ToggleJoinToSend`.
+- Description label below: `windowSubTextFg`, small caption explaining the effect.
+
+**"Slow mode" row** — different: expandable section with a discrete slider, NOT a toggle.
+- Control: `Ui::MediaSlider` with `setPseudoDiscrete(kSlowmodeValues, SlowmodeDelayByIndex)`. `kSlowmodeValues = 8` positions.
+- Step values (seconds): **0, 5, 10, 30, 60, 300, 900, 3600**.
+- Slider style: `st::localStorageLimitSlider.seekSize` handle, track margins `st::slowmodeLabelsMargin`.
+- Step labels below slider (rendered as `Ui::LabelSimple` in `st::slowmodeLabel`):
+  - `0` → `tr::lng_rights_slowmode_off` ("Off")
+  - `<60` → `tr::lng_seconds_tiny` format ("5s", "10s", "30s")
+  - `<3600` → `tr::lng_minutes_tiny` format ("1min", "5min", "15min")
+  - `≥3600` → `tr::lng_hours_tiny` format ("1h")
+- Save: `SaveSlowmodeSeconds()` → `MTPchannels_ToggleSlowMode`.
+
+**"Topics" row** (forum enable, see also §21.2.2):
+- Conditional: only rendered when `options.isForum` is true. Built inside a `SlideWrap<VerticalLayout>` so it slides in/out if the forum flag flips while the box is open.
+- Style: `st::manageGroupTopicsButton` (large nav row) with icon `&st::menuIconTopics` and `newBadge = true` ("NEW" pill in tail). See §21.2.2 for the member-threshold + child-screen behaviour.
+- Label key: `tr::lng_rights_group_add_topics` ("Topics" / "Enable Topics" depending on translation).
+- Inside the child screen: inner checkbox toggles inherit `st::settingsCheckbox`.
+
+**"Approve New Members"** (megagroup, joined to "Only Members" via nested slide):
+- Nested toggle beneath "Only Members"; indented via `margins(42, 0, 34, 0)` (matching the 42px label margin from §21.5 privacy labels).
+- Collapses when parent "Only Members" is Off.
+
+**"Restrict Saving Content"** toggle:
+- Standard toggle row, no sub-rows. Flag: `MTPDchannelFull.flags.noforwards`.
+
+Colour tokens summary (applies across all rows in this section):
+- Row background: `st::windowBg`.
+- Label text: `st::windowBoldFg` (bold) for primary label, `st::windowSubTextFg` for description below.
+- Toggle "on" tint: `st::toggleActiveFg`.
+- Locked toggle: dimmed via `setLocked()`.
+- Separator: `st::shadowFg`, 1 `st::lineWidth` tall.
 
 ### 21.6 Complete Flow Sequences
 
