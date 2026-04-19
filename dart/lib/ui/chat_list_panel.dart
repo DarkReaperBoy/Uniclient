@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -342,6 +344,12 @@ class _ChatListPanelState extends State<ChatListPanel> {
             _HorizontalFolderTabs(
               chatState: chatState,
               allUnread: chatState.unreadCountForAccount(appState.activeAccountId),
+            ),
+          // Top Peers strip (spec §2: shown when search focused, no query).
+          if (_searching && _searchController.text.isEmpty)
+            _TopPeersStrip(
+              chats: accountChats,
+              onTap: (chat) => chatState.openChat(chat),
             ),
           // Chat list.
           Expanded(
@@ -965,6 +973,139 @@ class _FolderTabState extends State<_FolderTab> {
   }
 }
 
+
+/// Top Peers strip: horizontal scrollable row of 46px circular avatars.
+/// Shown when search bar is focused but no query text entered (spec §2).
+/// Uses DM chats sorted by recent activity as a proxy for top peers.
+class _TopPeersStrip extends StatelessWidget {
+  final List<ChatInfo> chats;
+  final void Function(ChatInfo) onTap;
+
+  const _TopPeersStrip({required this.chats, required this.onTap});
+
+  static const _avatarSize = 46.0;
+  static const _itemWidth = 66.0; // avatar + horizontal spacing
+  static const _stripHeight = 90.0; // avatar + name + padding
+
+  // 7 colors matching Telegram's peer color scheme.
+  static const _avatarColors = [
+    Color(0xFFe17076),
+    Color(0xFF7bc862),
+    Color(0xFFe5ca77),
+    Color(0xFF65aadd),
+    Color(0xFFa695e7),
+    Color(0xFFee7aae),
+    Color(0xFF6ec9cb),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    // Filter to DM chats only, sort by most recent message.
+    final dmChats = chats
+        .where((c) => c.type == ChatType.dm && !c.isArchived)
+        .toList()
+      ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+
+    // Show up to 20 top peers.
+    final topPeers = dmChats.take(20).toList();
+    if (topPeers.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final nameColor = isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
+
+    return SizedBox(
+      height: _stripHeight,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 7),
+        itemCount: topPeers.length,
+        itemBuilder: (context, index) {
+          final chat = topPeers[index];
+          final colorIndex = chat.chatId.hashCode.abs() % 7;
+          final color = _avatarColors[colorIndex];
+          final initials = _initials(chat.title);
+          final firstName = chat.title.split(RegExp(r'\s+')).first;
+
+          return GestureDetector(
+            onTap: () => onTap(chat),
+            child: SizedBox(
+              width: _itemWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 8),
+                  // Avatar
+                  SizedBox(
+                    width: _avatarSize,
+                    height: _avatarSize,
+                    child: chat.avatarPath.isNotEmpty
+                        ? ClipOval(
+                            child: Image.file(
+                              File(chat.avatarPath),
+                              width: _avatarSize,
+                              height: _avatarSize,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _fallbackAvatar(color, initials),
+                            ),
+                          )
+                        : _fallbackAvatar(color, initials),
+                  ),
+                  const SizedBox(height: 6),
+                  // Name (first name only, truncated)
+                  SizedBox(
+                    width: _itemWidth - 4,
+                    child: Text(
+                      firstName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: nameColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _fallbackAvatar(Color color, String initials) {
+    return Container(
+      width: _avatarSize,
+      height: _avatarSize,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: _avatarSize * 0.38,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  static String _initials(String title) {
+    final t = title.trim();
+    if (t.isEmpty) return '?';
+    final words = t.split(RegExp(r'\s+'));
+    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
+      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+    }
+    return t[0].toUpperCase();
+  }
+}
 
 /// Empty state for chat list.
 class _EmptyState extends StatelessWidget {
