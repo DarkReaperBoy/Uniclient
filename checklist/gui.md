@@ -34,12 +34,9 @@
 ### 2.1 Folder Tabs
 
 ### 2.2 Search Bar
-- [ ] Search bar at top of sidebar with "Search" placeholder (S2)
-- [ ] Search bar padding: 7px each side (S2)
 - [ ] When focused: Top Peers strip (horizontal, 46px avatars) (S2)
 - [ ] When focused: Recent Contacts list (56px rows, 42px avatars) (S2)
 - [ ] When typing: results in three tabs (MyMessages, PublicPosts, ThisPeer) (S2)
-- [ ] Cancel button appears when search active (S2)
 - [ ] Empty search results: Lottie animation (100px) + descriptive text (S2)
 - [ ] Search tabs: segmented slider (NOT pill chips), 33px strip height (S2)
 - [ ] Search tabs: 9px horizontal padding, 18px minimum inter-label gap (S2)
