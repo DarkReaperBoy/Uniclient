@@ -36,13 +36,7 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Stories ring offset outside userpic by 1.5x lineWidth (S2)
-- [ ] Multi-story ring: segments with ~160-unit separators and round caps (S2)
-- [ ] Single-unread story: full ellipse ring (S2)
-- [ ] Unread gradient: topRight->bottomLeft, #0dcc39 green to #0992ef blue (S2)
-- [ ] Read ring: solid dialogsUnreadBgMuted (#bbbbbb day / #3e546a night) (S2)
 - [ ] Read ring opacity: 0.6 (main strip), 1.0 (Info/Mine strips) (S2)
-- [ ] Live-stream ring: solid attentionButtonFg (red) replacing gradient (S2)
 - [ ] Chat-type icon before name: add bot icon (S2)
 - [ ] Verified/scam/fake badges after name (S2)
 - [ ] Typing indicator: animated dots replacing preview text (S2)

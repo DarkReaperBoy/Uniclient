@@ -455,10 +455,13 @@ class _StoriesRingPainter extends CustomPainter {
       // Spec §2: live-stream ring = solid attentionButtonFg (red).
       paint.color = const Color(0xFFe53935);
     } else if (hasUnread) {
-      // Spec §2: unread gradient topRight→bottomLeft, green→blue.
-      // Full gradient is a separate checklist item; use solid Telegram blue
-      // as a spec-accurate visible stand-in for the geometry check.
-      paint.color = const Color(0xFF40a7e3);
+      // Spec §2: unread gradient topRight→bottomLeft, #0dcc39 green→#0992ef blue.
+      // Theme-invariant (same in day and night).
+      paint.shader = const LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
+      ).createShader(Rect.fromCircle(center: center, radius: ringRadius));
     } else {
       // Spec §2: read ring = solid dialogsUnreadBgMuted.
       paint.color = isDark
@@ -470,9 +473,7 @@ class _StoriesRingPainter extends CustomPainter {
       // Spec §2: single story = full ellipse.
       canvas.drawCircle(center, ringRadius, paint);
     } else {
-      // Spec §2: multi-story ring = segments with ~160-unit separators,
-      // round caps. Full segmentation is a separate checklist item;
-      // draw full circle for now (geometry is correct either way).
+      // Spec §2: multi-story ring = segments with ~160-unit separators, round caps.
       _drawSegmentedRing(canvas, center, ringRadius, paint);
     }
   }
