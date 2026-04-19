@@ -1428,8 +1428,15 @@ class _SearchTabsStrip extends StatelessWidget {
         isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final inactiveFg =
         isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
-    final hoverBg =
+    // Spec §2.2: rippleBg = windowBgOver (inactive), rippleBgActive = lightButtonBgOver (active).
+    final hoverInactive =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final splashInactive =
+        isDark ? const Color(0xFF24303D) : const Color(0xFFE5E5E5);
+    final hoverActive =
+        isDark ? const Color(0xFF1D2A39) : const Color(0xFFE3F1FA);
+    final splashActive =
+        isDark ? const Color(0xFF223143) : const Color(0xFFC9E4F6);
 
     return SizedBox(
       height: 33,
@@ -1442,7 +1449,12 @@ class _SearchTabsStrip extends StatelessWidget {
                 isActive: activeTab == entry.tab,
                 activeFg: activeFg,
                 inactiveFg: inactiveFg,
-                hoverBg: hoverBg,
+                hoverColor: activeTab == entry.tab
+                    ? hoverActive
+                    : hoverInactive,
+                splashColor: activeTab == entry.tab
+                    ? splashActive
+                    : splashInactive,
                 onTap: () => onTabChanged(entry.tab),
               ),
             ),
@@ -1452,13 +1464,15 @@ class _SearchTabsStrip extends StatelessWidget {
   }
 }
 
-/// Individual search tab item with underline indicator.
-class _SearchTabItem extends StatefulWidget {
+/// Individual search tab item with underline indicator and Material ripple.
+/// Spec §2.2: rippleBg = windowBgOver (inactive), rippleBgActive = lightButtonBgOver (active).
+class _SearchTabItem extends StatelessWidget {
   final String label;
   final bool isActive;
   final Color activeFg;
   final Color inactiveFg;
-  final Color hoverBg;
+  final Color hoverColor;
+  final Color splashColor;
   final VoidCallback onTap;
 
   const _SearchTabItem({
@@ -1466,87 +1480,77 @@ class _SearchTabItem extends StatefulWidget {
     required this.isActive,
     required this.activeFg,
     required this.inactiveFg,
-    required this.hoverBg,
+    required this.hoverColor,
+    required this.splashColor,
     required this.onTap,
   });
 
   @override
-  State<_SearchTabItem> createState() => _SearchTabItemState();
-}
-
-class _SearchTabItemState extends State<_SearchTabItem> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final textColor =
-        widget.isActive ? widget.activeFg : widget.inactiveFg;
-    final bgColor = _hovered ? widget.hoverBg : Colors.transparent;
+    final textColor = isActive ? activeFg : inactiveFg;
     final textStyle = TextStyle(
       fontSize: 14,
       fontWeight: FontWeight.w600,
       color: textColor,
     );
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Container(
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: hoverColor,
+        splashColor: splashColor,
+        highlightColor: splashColor.withValues(alpha: 0.3),
+        child: SizedBox(
           height: 33,
-          padding: const EdgeInsets.symmetric(horizontal: 9),
-          decoration: BoxDecoration(color: bgColor),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // Measure label width so indicator snaps to it (barSnapToLabel).
-              final tp = TextPainter(
-                text: TextSpan(text: widget.label, style: textStyle),
-                textDirection: TextDirection.ltr,
-              )..layout();
-              final labelWidth = tp.width;
-              final leftOffset =
-                  (constraints.maxWidth - labelWidth) / 2;
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final tp = TextPainter(
+                  text: TextSpan(text: label, style: textStyle),
+                  textDirection: TextDirection.ltr,
+                )..layout();
+                final labelWidth = tp.width;
+                final leftOffset =
+                    (constraints.maxWidth - labelWidth) / 2;
 
-              return Stack(
-                children: [
-                  // Label at labelTop 7px, centered.
-                  Positioned(
-                    top: 7,
-                    left: 0,
-                    right: 0,
-                    child: Text(
-                      widget.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: textStyle,
+                return Stack(
+                  children: [
+                    Positioned(
+                      top: 7,
+                      left: 0,
+                      right: 0,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: textStyle,
+                      ),
                     ),
-                  ),
-                  // Underline indicator: 3px visible at barTop 30px,
-                  // 2px radius, snapped to label width.
-                  Positioned(
-                    bottom: 0,
-                    left: leftOffset,
-                    width: labelWidth,
-                    height: 3,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      decoration: BoxDecoration(
-                        color: widget.isActive
-                            ? widget.activeFg
-                            : Colors.transparent,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(2),
-                          topRight: Radius.circular(2),
+                    Positioned(
+                      bottom: 0,
+                      left: leftOffset,
+                      width: labelWidth,
+                      height: 3,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? activeFg
+                              : Colors.transparent,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(2),
+                            topRight: Radius.circular(2),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              );
-            },
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
