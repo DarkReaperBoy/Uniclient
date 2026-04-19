@@ -1787,37 +1787,85 @@ The only true nested submenu in AyuGram is **Message details** (see below). "Cop
 
 ## 10. Emoji / Sticker / GIF Panels
 
-### Panel Position & Size
+### 10.1 Panel Chrome
 
-Anchors to bottom-right of compose area. Width: 345px fixed. Height: 75% of available vertical, clamped 278-640px. Margins: 10px, corner radius: 8px. Show animation: 200ms expansion from bottom-right. Hide: 200ms opacity fade. Auto-hide 300ms after mouse leaves (3s if context menu open).
+Anchors to bottom-right of compose area. `TabbedPanel` is a separate floating widget rendered via `Ui::PanelAnimation`.
 
-### Tab Bar
+**Resolved tokens** (`chat_helpers/chat_helpers.style`):
+- `emojiPanWidth = 345px` (line 1040).
+- `emojiPanMinHeight = 278px`, `emojiPanMaxHeight = 640px` (lines 1041-1042) — vertical clamp.
+- `emojiPanMargins = margins(10px, 10px, 10px, 10px)` (line 1037) — outer drop-shadow region.
+- `emojiPanRadius = 8px` (line 1045) — corner radius.
+- `emojiPanShowDuration = 200ms`, `emojiPanSlideDuration = 200ms` (lines 1044, 1046).
 
-Three text labels: "Emoji", "Stickers", "GIFs" (optional "Masks"). Switching: 200ms slide animation with pixmap crossfade.
+**Height formula.** Not `75% fixed` — computed at `TabbedPanel::updateContentHeight()` against `emojiPanHeightRatio` style token × available window height, then clamped into `[emojiPanMinHeight, emojiPanMaxHeight]`.
 
-### Emoji Tab
+**Auto-hide** (`chat_helpers/tabbed_panel.cpp:23-24`): `kHideTimeoutMs = 300` (mouse-leave), `kDelayedHideTimeoutMs = 3000` (context menu open / interaction deferred). The `_hideTimer` fires `hideAnimated()` which runs the `PanelAnimation` reverse with same 200ms show duration.
 
-Search row: 33px tall, search icon + input + category icons. Category footer: 8 icons (Recent, Smileys, Nature, Food, Activities, Travel, Objects, Symbols), each 30px wide.
+**Background/shadow.** `_shadow.paint()` in `tabbed_panel.cpp` draws Ui::BoxShadow around the rounded-rect content. Background fill = `emojiPanBg` (theme token; day = `windowBg` white, night = `windowBg` dark slate — no distinct panel tint in AyuGram's palette files).
 
-Grid: columns = `floor(innerWidth / 37px)` (~8 columns). Cell: `singleWidth x (singleWidth - 2)px`. Section headers: 33px, semibold. Hover: rounded rect background.
+### 10.2 Tab Bar
 
-Skin-tone selector: long-press (500ms), floating popup with base + 5 variants. Custom emoji packs as additional sections with "Add"/"Unlock" buttons. Collapsed sets show 3 rows + "+N" badge.
+Three text labels (Emoji / Stickers / GIFs, optional Masks on legacy clients). Switching driven by `TabbedSelector::switchTab()`.
 
-### Sticker Tab
+**Animation.** Both old and new tabs captured as `QPixmap` via `grabForAnimation()`; `_a_slide.start(..., 0., 1., st::emojiPanSlideDuration = 200ms, anim::linear)` runs a linear-interpolated horizontal translate + alpha crossfade. The **slide direction** is derived from tab index delta (right tab→left tab slides left-to-right, vice versa).
 
-Columns: `floor(width / 64px)` (~5 columns). Cell: square ~64x64px. Render: Lottie (TGS), WEBM, or static WebP. Footer: horizontally scrollable pack icons. Sections: "Recent" (capped at 20) + installed packs (semibold header). Featured/trending with "Add" button (26px). Context menu: Fave/Unfave, View Set. Search: 400ms debounced server query.
+**Tabs slider.** `Ui::SettingsSlider` subclass; section headers use `st::emojiTabs` bar style — tab labels in `st::semiboldFont` at panel tint. Active section underline uses theme `activeLineFg`. No separate tab-strip height constant: the slider sizes to its content.
 
-### GIF Tab
+### 10.3 Emoji Tab
 
-Masonry/waterfall layout. Padding: 9px/5px/3px/9px, 3px gap. Rows of uniform height with variable aspect ratios (true masonry). Powered by `@gif` inline bot. Saved GIFs as default; search switches to inline results. Category shortcuts in footer (emoji-based). Context menu: Save/Delete GIF.
+**Category footer.** 8 categories (Recent, Smileys, Nature, Food, Activities, Travel, Objects, Symbols) — constants in `chat_helpers/emoji_list_widget.cpp` section header data. Each category icon drawn via `Lottie::IconFromJson` or static PNG at `st::emojiCategoryIcon` size; selection fills `activeFg` behind icon.
 
-### Inline Emoji Suggestions
+**Grid.** Columns calculated by `EmojiListWidget::columnsCount()`: `(panelWidth - 2·padding) / singleSize`. Cell size ≈ 37-42px depending on theme DPR.
 
-When typing `:text`, dropdown above cursor. Horizontally scrollable, 40px per item, 240px scrolled width, 8px fade padding. Selecting replaces the `:text` token.
+**Skin-tone popup** (`emoji_list_widget.cpp:47`): `kColorPickerDelay = 500ms` — long-press timer threshold. Floating popup anchors above the held emoji, showing base + 5 Fitzpatrick variants. **Popup chrome** uses `emojiColorsPadding = 8px` (inter-variant gap) and `emojiColorsSep = 1px` (separator between base emoji and variants) (`chat_helpers.style:1115-1116`). Selection persists per-emoji in `Core::App().settings()`.
 
-### Inline Sticker Suggestions
+**Custom emoji packs.** Additional sections appended after standard categories, with pack title header + grid. Locked packs show an "Unlock" button (premium gate); public free packs show "Add". Collapsed sets surface 3 rows + `"+N"` overflow badge.
 
-When typing Unicode emoji, sticker popup above input. Server query for matching stickers. Click sends.
+### 10.4 Sticker Tab / Pack Footer
+
+**Grid.** `StickersListWidget` columns computed by panel width vs `st::stickerPanSize` (line 833) — `stickerPanSize.width() = stickerPanWidthMin` (typically 64px). `stickerPanPadding = 11px` (line 835) around the grid.
+
+**Footer** (`stickers_list_footer.cpp`, `.h:238`): `kVisibleIconsCount = 8` — horizontally scrollable strip of pack icons. Active pack highlighted by `_selectionBg` (Ui::RoundRect with rounded corners in `emojiPanRadius` region). Scroll-to-pack animation uses `stickerIconMove = 400ms` (line 844) — horizontal drift when user clicks a footer icon OR when grid auto-scrolls into a new section (`_iconsAnimation` with easeOutCubic).
+
+**Sections.** "Recent" (server-capped at 20 stickers) + installed packs (semibold header). Featured/trending packs show inline "Add" button (`Ui::RoundButton`, `st::stickersTrendingAdd ≈ 26px` tall).
+
+**Search row.** 400ms server-query debounce — `InputField` + `Timer` gated by `kSearchRequestDelay` in `stickers_list_widget.cpp`. Empty-state shows recent popular packs; results live-update as query narrows.
+
+**Context menu.** `Fave / Unfave`, `View Set`. For custom emoji packs: also `Copy Link`.
+
+### 10.5 GIF Tab (Masonry)
+
+**Padding** (`chat_helpers.style:1155`): `gifsPadding = margins(9px, 5px, 3px, 9px)` (L/T/R/B).
+
+**Setup** (`gifs_list_widget.cpp`): `_mosaic.setPadding(st::gifsPadding + QMargins(-st::emojiPanRadius, _search->height(), 0, 0))` — left padding negated by panel radius, top padding extended by search bar height. Inter-item skip `inlineResultsSkip = 3px` (line 1191) on both axes.
+
+**Layout algorithm.** `Ui::Mosaic::Parts::Mosaic` (in `lib_ui/ui/effects/mosaic.cpp`) runs **line-packing, NOT true masonry**: each GIF reports intrinsic width at a common row height, mosaic fills each row until next item won't fit, then wraps. Row height stays uniform within one row but varies between rows based on tallest aspect. Items never downscaled below their intrinsic ratio.
+
+**Sources.** Default = saved GIFs (user's `@gif` favorites). Typing a query switches to inline `@gif` bot results. Category shortcuts in footer are emoji tokens (cat, heart, dance, etc.).
+
+**Context menu.** `Save GIF` / `Delete GIF`. Saved GIFs persist per-account via MTProto `messages.getSavedGifs`.
+
+### 10.6 Inline Suggestions (Field Autocomplete)
+
+Separate widget (`chat_helpers/field_autocomplete.cpp`) — NOT part of TabbedPanel. Appears anchored above the compose field when the user types `@`, `/`, `:text`, `#hashtag`, or an emoji sequence.
+
+**Row height.** `mentionHeight = 40px` (`chat_helpers.style:1131`). Max visible rows = `4.5 × mentionHeight` → **panel height cap ≈ 180px** (`field_autocomplete.cpp:813`), scrolls beyond.
+
+**Emoji suggestions** (`:text` trigger). Horizontally scrollable row — server-side emoji match; each cell ≈ 40px square; 8px fade padding at ends of scroll viewport; selected emoji replaces the `:text` token in-place.
+
+**Sticker suggestions** (Unicode emoji trigger). Cell width = `stickerPanSize.width() / 2` (halved for preview strip); server query on change; click sends immediately.
+
+**Inline bot results** (`inline_results_widget.cpp:13`): `kInlineBotRequestDelay = 400ms` — debounce before querying the inline bot. Results span dropdown width, use same mosaic row-packing as GIF tab (`Ui::Mosaic`). Arrow keys / Tab navigate; Enter picks.
+
+**Mentions / hashtags / commands.** No network debounce — filtered client-side from known participants/history/bot-command lists. Row = 40px avatar + name + subtitle.
+
+### 10.7 Additional Findings
+
+- **No "Masks" tab in default tdesktop/AyuGram** — legacy mask-stickers code paths exist but default compose UI omits the tab. Shown only when `masksOnly()` flag set on the selector.
+- **Power-save gating.** When `PowerSaving::kEmojiPanel` is on, panel show/hide animation skips (instant toggle). Grid animated emoji still repaint but at reduced frame budget.
+- **Context-menu teardown.** Right-click inside the panel opens a menu; while open, the `kDelayedHideTimeoutMs = 3000ms` window extends — otherwise the panel would dismiss while the menu is up.
+- **AyuGram additions.** Per `ayu/ui/tabbed_panel_ayu.cpp` (scan result, not verbatim), AyuGram adds per-pack "Hide" toggle in the sticker-pack context menu — upstream tdesktop has no equivalent.
 
 ---
 
