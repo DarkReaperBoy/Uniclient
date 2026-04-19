@@ -26,7 +26,6 @@
 ### 1.5 Linux Titlebar
 
 ### 1.6 Animations
-- [ ] Column width change animation: easeOutCirc, ~150-200ms (S1)
 - [ ] Section transition animation: horizontal slide with crossfade (S1)
 - [ ] Menu expand/collapse animation: slideWrapDuration (S1)
 

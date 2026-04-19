@@ -34,6 +34,7 @@ class _UniClientShellState extends State<UniClientShell> {
   // Whether dialogs column is collapsed to avatar-only mode (spec §1: below 130px).
   bool _dialogsCollapsed = false;
   bool _layoutLoaded = false;
+  bool _isDragging = false;
 
   // Spec §1 column constants (window.style:20-24).
   static const _dialogsMin = 260.0;
@@ -205,7 +206,9 @@ class _UniClientShellState extends State<UniClientShell> {
           ),
         if (showFilters) _ColumnShadow(isDark: isDark),
         // Dialogs column.
-        SizedBox(
+        AnimatedContainer(
+          duration: _isDragging ? Duration.zero : const Duration(milliseconds: 180),
+          curve: Curves.easeOutCirc,
           width: dialogsWidth,
           child: ChatListPanel(
             showHamburger: !showFilters,
@@ -217,6 +220,8 @@ class _UniClientShellState extends State<UniClientShell> {
         // Resize handle + shadow separator.
         _ColumnShadow(isDark: isDark),
         _ResizeHandle(
+          onDragStart: () => setState(() => _isDragging = true),
+          onDragEnd: () => setState(() => _isDragging = false),
           onDrag: (dx) {
             setState(() {
               final raw = (bodyWidth * _dialogsWidthRatio + dx);
@@ -277,11 +282,6 @@ class _UniClientShellState extends State<UniClientShell> {
       dw = dw.clamp(_dialogsMin, _dialogsMax);
     }
 
-    // Chat gets all remaining width (always >= 380px).
-    final chatWidth = bodyWidth - dw - tw;
-    // Spec §1: Wide chat mode at 880px — center message bubble column.
-    final wideChatMode = chatWidth >= _wideChatThreshold;
-
     return Row(
       children: [
         // Filters sidebar (when folders exist).
@@ -291,7 +291,9 @@ class _UniClientShellState extends State<UniClientShell> {
           ),
         if (showFilters) _ColumnShadow(isDark: isDark),
         // Dialogs column.
-        SizedBox(
+        AnimatedContainer(
+          duration: _isDragging ? Duration.zero : const Duration(milliseconds: 180),
+          curve: Curves.easeOutCirc,
           width: dw,
           child: ChatListPanel(
             showHamburger: !showFilters,
@@ -303,6 +305,8 @@ class _UniClientShellState extends State<UniClientShell> {
         // Dialogs-chat shadow separator + resize handle.
         _ColumnShadow(isDark: isDark),
         _ResizeHandle(
+          onDragStart: () => setState(() => _isDragging = true),
+          onDragEnd: () => setState(() => _isDragging = false),
           onDrag: (dx) {
             setState(() {
               final raw = dw + dx;
@@ -316,22 +320,29 @@ class _UniClientShellState extends State<UniClientShell> {
             });
           },
         ),
-        // Chat column.
-        SizedBox(
-          width: chatWidth,
-          child: chatState.activeChat != null
-              ? ChatView(
-                  showBackButton: false,
-                  onToggleInfo: () => setState(() => _infoOpen = !_infoOpen),
-                  wideChatMode: wideChatMode,
-                )
-              : _EmptyChatPlaceholder(),
+        // Chat column (Expanded absorbs remaining space, avoiding overflow
+        // from shadow/handle pixels and enabling smooth column animations).
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final wideChat = constraints.maxWidth >= _wideChatThreshold;
+              return chatState.activeChat != null
+                  ? ChatView(
+                      showBackButton: false,
+                      onToggleInfo: () => setState(() => _infoOpen = !_infoOpen),
+                      wideChatMode: wideChat,
+                    )
+                  : _EmptyChatPlaceholder();
+            },
+          ),
         ),
         // Chat-info shadow separator.
         if (_infoOpen && chatState.activeChat != null) ...[
           _ColumnShadow(isDark: isDark),
           // Info panel with resize handle.
           _ResizeHandle(
+            onDragStart: () => setState(() => _isDragging = true),
+            onDragEnd: () => setState(() => _isDragging = false),
             onDrag: (dx) {
               setState(() {
                 // Dragging right = shrinking third column.
@@ -340,7 +351,9 @@ class _UniClientShellState extends State<UniClientShell> {
               });
             },
           ),
-          SizedBox(
+          AnimatedContainer(
+            duration: _isDragging ? Duration.zero : const Duration(milliseconds: 180),
+            curve: Curves.easeOutCirc,
             width: tw,
             child: InfoPanel(
               onClose: () => setState(() => _infoOpen = false),
@@ -393,13 +406,17 @@ class _ColumnShadow extends StatelessWidget {
 /// Drag handle between columns (invisible 4px hit target, no visual).
 class _ResizeHandle extends StatelessWidget {
   final void Function(double dx) onDrag;
+  final VoidCallback? onDragStart;
+  final VoidCallback? onDragEnd;
 
-  const _ResizeHandle({required this.onDrag});
+  const _ResizeHandle({required this.onDrag, this.onDragStart, this.onDragEnd});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      onHorizontalDragStart: onDragStart != null ? (_) => onDragStart!() : null,
       onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
+      onHorizontalDragEnd: onDragEnd != null ? (_) => onDragEnd!() : null,
       child: MouseRegion(
         cursor: SystemMouseCursors.resizeColumn,
         child: const SizedBox(width: 4),
