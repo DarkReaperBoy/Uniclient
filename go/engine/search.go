@@ -88,7 +88,7 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
-		        c.is_verified, c.is_scam, c.is_fake
+		        c.unread_mark, c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 WHERE c.title LIKE '%' || ? || '%'

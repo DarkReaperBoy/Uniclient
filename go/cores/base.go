@@ -158,7 +158,10 @@ type Dialog struct {
 	IsArchived    bool       `json:"is_archived"`
 	MemberCount   int        `json:"member_count,omitempty"`
 	ParentID      string     `json:"parent_id,omitempty"` // for topics: the parent group ID
-	IsVerified    bool       `json:"is_verified,omitempty"`
+	UnreadMark          bool `json:"unread_mark,omitempty"`
+	UnreadMentionCount  int  `json:"unread_mention_count,omitempty"`
+	UnreadReactionCount int  `json:"unread_reaction_count,omitempty"`
+	IsVerified          bool `json:"is_verified,omitempty"`
 	IsScam        bool       `json:"is_scam,omitempty"`
 	IsFake        bool       `json:"is_fake,omitempty"`
 	Platform      string     `json:"platform"`

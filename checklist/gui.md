@@ -36,10 +36,6 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Unread dot (when unreadMark set without counter): filled ellipse, 19x19 slot (S2)
-- [ ] Mention/reaction/poll badges: 18x18 ThreeStateIcon, not pill (S2)
-- [ ] Badge icon color: dialogsUnreadBg unmuted / dialogsUnreadBgMuted muted (S2)
-- [ ] Badge gap: 5px between subsequent badges (S2)
 - [ ] Narrow mode: 13x13 mention/reaction/poll glyph inside 19x19 circle (S2)
 - [ ] Send state icons: clock (sending), single check (sent), double check (received), 20px skip (S2)
 

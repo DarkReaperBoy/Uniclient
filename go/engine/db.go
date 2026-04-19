@@ -107,6 +107,8 @@ var migrations = []func(*sql.Tx) error{
 	migrateV4,
 	migrateV5,
 	migrateV6,
+	migrateV7,
+	migrateV8,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -393,6 +395,30 @@ func migrateV6(tx *sql.Tx) error {
 	}
 	if !columnExists(tx, "chats", "last_msg_thumb_b64") {
 		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_thumb_b64 TEXT`); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// migrateV7 adds unread_mark column to chats table.
+func migrateV7(tx *sql.Tx) error {
+	if columnExists(tx, "chats", "unread_mark") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN unread_mark INTEGER NOT NULL DEFAULT 0`)
+	return err
+}
+
+// migrateV8 adds unread_mention_count and unread_reaction_count columns to chats table.
+func migrateV8(tx *sql.Tx) error {
+	if !columnExists(tx, "chats", "unread_mention_count") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN unread_mention_count INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "chats", "unread_reaction_count") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN unread_reaction_count INTEGER NOT NULL DEFAULT 0`); err != nil {
 			return err
 		}
 	}

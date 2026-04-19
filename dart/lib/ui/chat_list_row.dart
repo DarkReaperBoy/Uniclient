@@ -167,7 +167,7 @@ class ChatListRow extends StatelessWidget {
                           Expanded(
                             child: _buildPreview(nameColor!, mutedColor!),
                           ),
-                          // Unread badge or pin icon.
+                          // Unread badge, unread dot, or pin icon.
                           if (chat.unreadCount > 0) ...[
                             const SizedBox(width: 8),
                             _UnreadBadge(
@@ -175,9 +175,28 @@ class ChatListRow extends StatelessWidget {
                               bgColor: badgeBg,
                               textColor: badgeText,
                             ),
+                          ] else if (chat.isUnreadMark) ...[
+                            const SizedBox(width: 8),
+                            _UnreadDot(bgColor: badgeBg),
                           ] else if (chat.isPinned) ...[
                             const SizedBox(width: 8),
                             Icon(Icons.push_pin, size: 14, color: mutedColor),
+                          ],
+                          // Spec §2: Mention badge — 18x18 icon, 5px gap.
+                          if (chat.unreadMentionCount > 0) ...[
+                            const SizedBox(width: 5),
+                            _ThreeStateBadgeIcon(
+                              icon: Icons.alternate_email,
+                              color: badgeBg,
+                            ),
+                          ],
+                          // Spec §2: Reaction badge — 18x18 icon, 5px gap.
+                          if (chat.unreadReactionCount > 0) ...[
+                            const SizedBox(width: 5),
+                            _ThreeStateBadgeIcon(
+                              icon: Icons.favorite,
+                              color: badgeBg,
+                            ),
                           ],
                         ],
                       ),
@@ -712,6 +731,46 @@ class _UnreadBadge extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Spec §2: Unread dot when unreadMark set without counter.
+/// 8px filled ellipse centered in 19x19 slot, same bg colors as the pill.
+class _UnreadDot extends StatelessWidget {
+  final Color bgColor;
+
+  const _UnreadDot({required this.bgColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 19,
+      height: 19,
+      child: Center(
+        child: Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: bgColor,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Spec §2: 18x18 ThreeStateIcon for mention/reaction/poll badges.
+/// Just a colored icon glyph, not a pill.
+class _ThreeStateBadgeIcon extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+
+  const _ThreeStateBadgeIcon({required this.icon, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Icon(icon, size: 18, color: color);
   }
 }
 

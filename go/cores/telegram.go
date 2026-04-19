@@ -9813,9 +9813,12 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 		}
 
 		dialog := Dialog{
-			UnreadCount: dlg.UnreadCount,
-			IsPinned:    dlg.Pinned,
-			Platform:    tgPlatform,
+			UnreadCount:         dlg.UnreadCount,
+			UnreadMark:          dlg.UnreadMark,
+			UnreadMentionCount:  dlg.UnreadMentionsCount,
+			UnreadReactionCount: dlg.UnreadReactionsCount,
+			IsPinned:            dlg.Pinned,
+			Platform:            tgPlatform,
 		}
 
 		switch p := dlg.Peer.(type) {

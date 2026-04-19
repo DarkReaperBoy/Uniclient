@@ -31,8 +31,11 @@ type ChatInfo struct {
 	DraftText    string `json:"draft_text,omitempty"`
 	MemberCount  int    `json:"member_count,omitempty"`
 	ParentID     string `json:"parent_id,omitempty"`
-	IsBot        bool   `json:"is_bot"`
-	IsVerified   bool   `json:"is_verified"`
+	IsBot               bool `json:"is_bot"`
+	UnreadMark          bool `json:"unread_mark"`
+	UnreadMentionCount  int  `json:"unread_mention_count"`
+	UnreadReactionCount int  `json:"unread_reaction_count"`
+	IsVerified          bool `json:"is_verified"`
 	IsScam       bool   `json:"is_scam"`
 	IsFake       bool   `json:"is_fake"`
 }
@@ -65,6 +68,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
+		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
@@ -94,6 +98,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
+		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
@@ -116,7 +121,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		var lastMsgTime sql.NullInt64
 		var memberCount sql.NullInt64
 		var isMuted, isPinned, isArchived, lastMsgIsOutgoing, isBot int
-		var isVerified, isScam, isFake int
+		var unreadMark, isVerified, isScam, isFake int
 
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
@@ -124,6 +129,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&lastMsgIsOutgoing, &c.LastMsgMediaType, &lastMsgThumbB64,
 			&c.UnreadCount, &isMuted, &isPinned, &isArchived,
 			&draftText, &memberCount, &parentID, &isBot,
+			&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 			&isVerified, &isScam, &isFake,
 		); err != nil {
 			return chats, err
@@ -147,6 +153,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		}
 		c.ParentID = parentID.String
 		c.IsBot = isBot == 1
+		c.UnreadMark = unreadMark == 1
 		c.IsVerified = isVerified == 1
 		c.IsScam = isScam == 1
 		c.IsFake = isFake == 1
@@ -188,8 +195,9 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		                     last_msg_media_type, last_msg_thumb_b64,
 		                     unread_count, is_muted, is_pinned,
 		                     is_archived, member_count, parent_id,
+		                     unread_mark, unread_mention_count, unread_reaction_count,
 		                     is_verified, is_scam, is_fake, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
 		     type = excluded.type,
 		     title = excluded.title,
@@ -206,6 +214,9 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     is_archived = excluded.is_archived,
 		     member_count = excluded.member_count,
 		     parent_id = excluded.parent_id,
+		     unread_mark = excluded.unread_mark,
+		     unread_mention_count = excluded.unread_mention_count,
+		     unread_reaction_count = excluded.unread_reaction_count,
 		     is_verified = excluded.is_verified,
 		     is_scam = excluded.is_scam,
 		     is_fake = excluded.is_fake,
@@ -214,6 +225,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgMediaType, lastMsgThumbB64,
 		d.UnreadCount, boolToInt(d.IsMuted), boolToInt(d.IsPinned),
 		boolToInt(d.IsArchived), d.MemberCount, d.ParentID,
+		boolToInt(d.UnreadMark), d.UnreadMentionCount, d.UnreadReactionCount,
 		boolToInt(d.IsVerified), boolToInt(d.IsScam), boolToInt(d.IsFake), now)
 	if err != nil {
 		return err
@@ -440,6 +452,7 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
+		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
@@ -565,6 +578,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
+		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
@@ -575,7 +589,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	var lastMsgThumbB64 sql.NullString
 	var lastMsgTime, memberCount sql.NullInt64
 	var isMuted, isPinned, isArchived, lastMsgIsOutgoing, isBot int
-	var isVerified, isScam, isFake int
+	var unreadMark, isVerified, isScam, isFake int
 
 	err := row.Scan(
 		&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
@@ -583,6 +597,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		&lastMsgIsOutgoing, &c.LastMsgMediaType, &lastMsgThumbB64,
 		&c.UnreadCount, &isMuted, &isPinned, &isArchived,
 		&draftText, &memberCount, &parentID, &isBot,
+		&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 		&isVerified, &isScam, &isFake,
 	)
 	if err != nil {
@@ -607,6 +622,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	}
 	c.ParentID = parentID.String
 	c.IsBot = isBot == 1
+	c.UnreadMark = unreadMark == 1
 	c.IsVerified = isVerified == 1
 	c.IsScam = isScam == 1
 	c.IsFake = isFake == 1
