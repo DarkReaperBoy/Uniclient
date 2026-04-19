@@ -12511,6 +12511,176 @@ Saved messages support a reaction-based tagging system. Users attach emoji react
 
 ### 31.7 Tag-Based Search & Filtering
 
+#### 31.7a SavedMessagesTagBar Widget (SearchTags)
+
+The horizontal tag strip that appears above the saved-messages sublist / message list when the user is inside Saved Messages. It shows one chip per `MyTagInfo` with custom title + count, and clicking a chip applies a reaction-tag filter to the search. Source: `dialogs/dialogs_search_tags.cpp/h`, style definitions in `dialogs.style`.
+
+**Class:** `Dialogs::SearchTags` — a text-based widget (NOT a `QWidget`; it paints into its parent and exposes `paint()`, `height()`, `widthChanges()` signals). Constructed with `(owner, rpl::producer<vector<Data::Reaction>>, vector<ReactionId> preselected)` at `dialogs_search_tags.cpp:86-113`.
+
+**Tag struct** (`dialogs_search_tags.cpp:74-84`):
+
+```cpp
+struct Tag {
+    Data::ReactionId id;
+    std::unique_ptr<Ui::Text::CustomEmoji> custom;
+    QString text;                  // "title + count" composed via ComposeText()
+    int textWidth = 0;             // = reactionInlineTagFont->width(text)
+    mutable QImage image;          // cached raster for static emoji
+    QRect geometry;                // chip rect inside the bar
+    ClickHandlerPtr link;
+    bool selected = false;
+    bool promo = false;            // shown to non-premium users ("Unlock Tags")
+};
+```
+
+**Label composition** (`ComposeText`, lines 33-42): `title` + space + decimal count, then `TextUtilities::SingleLine()` strips newlines. If title is empty, just the count. If count is 0, just the title.
+
+**Chip visual (one tag = one pill with notched tail).** Each chip is rendered from a pre-computed background raster (`InlineList::PrepareTagBg(tagBg, dotBg)`) produced by the shared reactions-inline renderer. Geometry tokens (from `chat.style` lines 1235-1249):
+
+| Token | Value | Role |
+|-------|-------|------|
+| `reactionInlinePadding` | `margins(5, 2, 7, 2)` | Chip content padding |
+| `reactionInlineSize` | **18px** | Chip height (emoji-row baseline) |
+| `reactionInlineImage` | **32px** | Custom emoji source size (scaled down to fit 18px) |
+| `reactionInlineTagFont` | **font(12px)** | Tag label/count font |
+| `reactionInlineTagSkip` | **6px** | Gap between emoji and label |
+| `reactionInlineTagLeftRadius` | **6px** | Rounded corners on left side |
+| `reactionInlineTagRightRadius` | **3px** | Slight radius on right-side notch tip |
+| `reactionInlineTagArrow` | **5px** | Pointed tail width on right (price-tag shape) |
+| `reactionInlineTagDot` | **5px** | Small punched-out hole inside tail |
+| `reactionInlineTagDotSkip` | **2px** | Dot inset from tail |
+| `reactionInlineTagNamePosition` | `point(26, 2)` | Text baseline when emoji present |
+| `reactionInlineTagPromoPosition` | `point(20, 2)` | Text baseline for promo (unlock) chip |
+
+Chips are **18px tall** (matches `reactionInlineSize`). Width is computed in `layout()` (lines 191-235) as `xbase + tag.textWidth` where `xbase` is taken from the pre-rendered background image's width. For promo chips, width is `xbase + max(0, textWidth - dialogsSearchTagPromoLeft - dialogsSearchTagPromoRight)` (reduces because the arrow icon takes the left slot) — `dialogsSearchTagPromoLeft=6px`, `dialogsSearchTagPromoRight=1px` (`dialogs.style:763-764`).
+
+**Row layout** (lines 191-235):
+- Horizontal skip between chips: `dialogsSearchTagSkip.x()` = **8px** (`dialogs.style:752`).
+- Vertical skip between rows when wrapping: `dialogsSearchTagSkip.y()` = **4px**.
+- Bottom margin of the whole bar: `dialogsSearchTagBottom` = **10px** (`dialogs.style:753`).
+- Wrapping rule: `if (x > 0 && x + width > _width)` → move to next row: `x = 0; y += ybase + skip.y();`.
+- Total widget height = `y + ybase + dialogsSearchTagBottom` (line 174), or **0** if no tags.
+
+**Colors** (`validateBg()`, lines 346-366):
+- Selected chip bg: `dialogsBgActive` (theme active-row blue).
+- Normal chip bg: `dialogsBgOver` (theme hover gray).
+- Promo chip bg: distinct (passed `promo=true` to `PrepareTagBg`), uses premium accent.
+- Label color: active uses `dialogsNameFgActive`, normal uses `windowSubTextFg`.
+- The "dot hole" on the tail is painted transparent (`st::transparent->c`) so the window background shows through.
+- Rounding: right-side corners are NOT rounded (tag tail shape uses `RoundLarge | RoundSkipTopRight | RoundSkipBottomRight`).
+
+**Click-to-filter** (lines 122-142):
+- Left-click: toggles selection; without Shift held, clears all other selections first (single-select). With Shift held, adds to multi-selection set. Fires `_selectedChanges` signal → search system rebuilds the query via `SearchTagToQuery()` and re-runs the search.
+- Right-click: fires `_menuRequests` with the `ReactionId`; consumer (dialogs widget) opens context menu with "Edit tag name" (`AddEditTagAction` from `history_view_context_menu.cpp:2268`) and "Filter by tag" / "Remove tag".
+- Non-premium users clicking any chip triggers `MakePromoLink()` → opens `ShowPremiumPreviewBox(PremiumFeature::TagsForMessages)` (lines 44-53).
+
+**Sorting & reorder:** `fill()` (lines 117-189) takes the server-provided list verbatim (sorted by count descending on the server via `Reactions::incrementMyTag` maintaining count order). **There is no drag-reorder in SearchTags** — the rank is purely count-derived. The only user-driven reordering is via `renameTag` (which doesn't change rank) or by using/unusing the tag (which changes the underlying count).
+
+**Animations:** No slide or fade animations on selection change. `_repaintRequests.fire({})` triggers a full repaint immediately. The only animated element inside a chip is the custom-emoji playback (subject to `PowerSaving::kEmojiChat` pause).
+
+**Empty state:**
+- If no tags AND not a premium-preview context: widget height = 0, bar is invisible (lines 176-178, 194-197).
+- If non-premium user with no tags: a single promo chip is pushed with text from `tr::lng_add_tag_button` / `tr::lng_unlock_tags` (lines 163-171).
+
+**Additional text (promo hint, below chips):** `FillAdditionalText()` (lines 55-70) composes one of `tr::lng_add_tag_phrase_long` / `tr::lng_add_tag_phrase` (whichever fits in `_width`) and paints it under the chip row using `dialogsSearchTagPromo` text style. Includes an inline arrow icon `dialogsSearchTagArrow` ("dialogs/mini_arrow", padding `margins(-6, 3, 0, 0)`, `dialogs.style:756-759`).
+
+*HONEST GAP: Hit-testing code (`lookupHandler()`) is not shown here — needs verification of per-chip QRect storage. The `geometry` field is set during paint iteration; confirm whether hit test uses it directly.*
+
+#### 31.7b EditTagNameBox (Rename Tag Dialog)
+
+Telegram Desktop does **not** expose a dedicated `EditTagNameBox` class; the "rename tag" box is assembled inline by the free function `EditTagBox(GenericBox*, SessionController*, ReactionId)` in `history/view/history_view_context_menu.cpp:1627-1717`. It is opened via `AddEditTagAction` (lines 2268-2280) which is appended to the right-click context menu both on a tag chip (SearchTags menu request) and on a reaction in the message reactions popup.
+
+**Entry point:**
+
+```cpp
+void AddEditTagAction(
+        not_null<Ui::PopupMenu*> menu,
+        const Data::ReactionId &id,
+        not_null<Window::SessionController*> controller) {
+    const auto editLabel = owner->reactions().myTagTitle(id).isEmpty()
+        ? tr::lng_context_tag_add_name(tr::now)  // "Add tag name"
+        : tr::lng_context_tag_edit_name(tr::now); // "Edit tag name"
+    menu->addAction(editLabel, [=] {
+        controller->show(Box(EditTagBox, controller, id));
+    }, &st::menuIconTagRename);
+}
+```
+
+Menu icon: `menuIconTagRename` (a pencil/tag composite glyph).
+
+**Box title** (line 1634-1637): conditional on whether the tag already has a title:
+- No title: `tr::lng_context_tag_add_name` → "Add tag name"
+- Existing title: `tr::lng_context_tag_edit_name` → "Edit tag name"
+
+**Body layout** (top to bottom):
+
+1. **About label** (`FlatLabel`, line 1638-1641): `tr::lng_edit_tag_about` — explanatory text (≈ "Tag names are visible only to you. Use them to organize your saved messages."). Style: `st::editTagAbout` (defined in `history_view.style`; typically `defaultFlatLabel` with centered text and subtle color).
+2. **InputField with inline emoji preview** (lines 1642-1682): the tag's emoji renders inside the field's left margin, NOT as a separate widget.
+   - Style: `st::editTagField` — inherits from standard box input field; left padding enlarged so the emoji (at `x=0, y=textMargins.top()`) doesn't overlap typed text.
+   - Placeholder: `tr::lng_edit_tag_name` ("Tag name")
+   - Initial value: `owner->reactions().myTagTitle(id)` (empty string if untitled).
+   - **Max length:** `field->setMaxLength(kTagNameLimit * 2)` where `kTagNameLimit = 12` (line 24). The field accepts up to **24 UTF-16 code units** at the widget level (allows surrogate pairs, composing characters), but validation clamps to **12 "characters"** on submit.
+   - **Inline emoji paint** (lines 1648-1675): a custom `paintRequest` handler draws either an animated custom emoji (`Ui::Text::CustomEmoji` created via `customEmojiManager().create(customId)`) at `(0, textMargins.top())`, paused when window inactive or `PowerSaving::kEmojiChat` active; OR a static reaction bitmap at `reactionInlineSize` (**18px**), centered via `skip = (reactionInlineSize - reactionInlineImage)/2` = `(18-32)/2 = -7px` (the 32px raster is drawn overflowing the 18px slot, clipped).
+   - **Length-limit badge** (line 1684): `Ui::AddLengthLimitLabel(field, kTagNameLimit)` attaches the standard "N / 12" right-aligned remaining-chars indicator that turns red when over.
+3. **Buttons** (lines 1712-1716):
+   - Primary: `tr::lng_settings_save` ("Save") → `save` callback.
+   - Secondary: `tr::lng_cancel` ("Cancel") → `box->closeBox()`.
+
+**Validation & submit** (lines 1698-1710):
+
+```cpp
+const auto save = [=] {
+    const auto text = field->getLastText();
+    if (text.size() > kTagNameLimit) {   // > 12 chars
+        field->showError();              // red shake animation
+        return;
+    }
+    controller->session().data().reactions().renameTag(id, text);
+    box->closeBox();
+};
+field->submits() | rpl::on_next(save, field->lifetime());  // Enter key
+box->addButton(tr::lng_settings_save(), save);
+```
+
+- **No empty-string check**: submitting an empty name is allowed; it clears the title (renameTag with empty string removes the user-assigned title, reverting to "no label, count only").
+- Enter key = Save (via `submits()` signal).
+- Escape = Cancel (standard `GenericBox` behavior; not explicit in code).
+- On successful save, `renameTag(id, text)` updates the local `MyTagInfo.title`, emits `myTagRenamed()` (so every open SearchTags widget and EditTagBox instance refreshes), and schedules a server sync (`MTPmessages_UpdateSavedReactionTag`). No confirmation toast — the box just closes.
+
+**Focus & keyboard:**
+- `box->setFocusCallback([=] { field->setFocusFast(); })` — field focused instantly when the box opens (no focus animation delay).
+- No Tab cycling needed — field is the only focusable body control.
+
+**Box width:** uses `GenericBox` default (no explicit `box->setWidth()`), which resolves to `st::boxWideWidth` = **320px** via the standard box style.
+
+**Animation:** Standard `Ui::Box` open/close fade+scale from `Ui::LayerWidget` (no custom animation). `field->showError()` triggers a horizontal shake animation on the field (the stock InputField error visual, ~300ms).
+
+**i18n keys used:**
+- `lng_context_tag_add_name` — "Add tag name" (menu + box title)
+- `lng_context_tag_edit_name` — "Edit tag name" (menu + box title)
+- `lng_edit_tag_about` — about line
+- `lng_edit_tag_name` — placeholder
+- `lng_settings_save` — primary button
+- `lng_cancel` — secondary button
+
+**Related context-menu entries** (from `ShowTagMenu`, `history_view_context_menu.cpp` ~2314-2352):
+- `lng_context_filter_by_tag` — "Filter by this tag" (applies SearchTag filter to current view)
+- `lng_context_remove_tag` — "Remove tag" (removes the reaction from the message)
+- Rename entry via `AddEditTagAction` (above)
+
+**Constants:**
+
+| Name | Value | Source |
+|------|-------|--------|
+| `kTagNameLimit` | **12** | `history_view_context_menu.cpp:24` |
+| `field->setMaxLength` argument | **24** (= 12 × 2) | line 1645 |
+| `reactionInlineSize` (emoji preview) | **18px** | `chat.style:1236` |
+| `reactionInlineImage` (raster source) | **32px** | `chat.style:1237` |
+
+*HONEST GAP: The exact pixel values inside `st::editTagField` and `st::editTagAbout` were not located in a public style file in this pass — they are defined in `history_view.style` (fetch returned 404 at the expected URL; may live under a different path in this tree). Confirmed referenced but dimensions unverified. Assume standard box input field (`defaultInputField`) proportions until the style file is located.*
+
+#### 31.7c Query Encoding
+
 Tags integrate with the search system through query string encoding. When a user selects a tag to filter by, it's converted to a search query that the message search API understands.
 
 **Conversion functions** (in `data_message_reaction_id.cpp`):
@@ -12560,6 +12730,144 @@ Constructor accepts: `SessionController`, parent widget, list widget factory, sc
 **Event filtering:** Installs `QObject::eventFilter` to detect mouse clicks and hover states, coordinating selector visibility with user engagement. Uses weak pointers for lifecycle safety and deferred deletion during animations.
 
 ### 31.9 Subsection Tabs (Saved Messages Mode)
+
+#### 31.9a Subsection Tabs Width Computation & Overflow
+
+The subsection tabs strip uses two underlying widgets depending on mode: `Ui::HorizontalSlider` (Top/Bottom) and `Ui::VerticalSlider` (Left), both subclasses of `Ui::SubsectionSlider`. Each tab is a `HorizontalButton` or `VerticalButton` whose width/height is computed per-label. Source: `history/view/history_view_subsection_tabs.cpp`, `ui/controls/subsection_tabs_slider.cpp`, styles in `chat.style:1896-...`.
+
+**Host container geometry** (`setupHorizontal`, `history_view_subsection_tabs.cpp:108-135`):
+- Strip height (Top and Bottom modes) = `std::max(toggle->height(), slider->height())` = `max(36, 36)` = **36px**, since both `chatTabsToggle.height` and `chatTabsSlider.height` are 36px (`chat.style:1898, 1911`).
+- Toggle button area: `chatTabsToggle.width` = **64px** on the leading edge. Toggle icon: `top_bar_profile-flip_horizontal` tinted `menuIconFg` / `menuIconFgOver`. Ripple: `emptyRippleAnimation` (no ripple — click feedback is icon color swap only).
+- Scroll area occupies the remainder: `scroll->setGeometry(togglew, 0, size.width() - togglew, height)` where `togglew = 64px` (line 128).
+- Bottom shadow: `shadow->setGeometry(togglew, 0, st::lineWidth, height)` — **1px** hairline (`chat.style:133`). Note: in Top mode shadow is on bottom of strip, in Bottom mode on top; positioning handled by orientation flag.
+
+**Vertical (Left) mode** (`setupVertical`, lines 151-165):
+- Strip width = `std::max(toggle->width(), slider->width())` = **64px** (toggle 64 wide, slider inherits from `chatTabsVertical.width: 64px`).
+- Each vertical tab (`VerticalButton`): fixed **50px** tall (`chatTabsVertical.baseHeight: 50px`), centered 28px userpic/emoji at `userpicTop: 8px`, text label below at `nameTop: 42px`, text width bounded to `nameWidth: 54px` with 10px font (`nameStyle: TextStyle(defaultTextStyle) { font: font(10px) }`).
+- Active indicator: left-edge bar `barStroke: 8px` wide, `barRadius: 4px`, color `sliderBgActive`, with `duration: 150` ms selection animation.
+
+**Horizontal tab width formula** (`HorizontalButton::updateSize`, `subsection_tabs_slider.cpp:280-320`):
+
+```cpp
+auto width = _st.strictSkip + _text.maxWidth();
+
+if (state.unread) {
+    const auto counter = FormatUnreadCounter(state.unreadCounter, false, false);
+    const auto badge = CountUnreadBadgeSize(counter, st);
+    width += badge.width() + st.padding;
+}
+if (state.mention || state.reaction) {
+    st.sizeId = state.mention
+        ? UnreadBadgeSize::Dialogs
+        : UnreadBadgeSize::ReactionInDialogs;
+    const auto badge = CountUnreadBadgeSize(QString(), st);
+    width += badge.width() + st.padding + st::dialogsUnreadPadding;
+}
+resize(width, _st.height);  // _st.height = 36
+```
+
+Where `_st` is `chatTabsSlider` (SettingsSlider):
+- `strictSkip` = **18px** (`chat.style:1919`) → this is the TOTAL horizontal padding around the label (9px left + 9px right is the conceptual split, but it's applied once as a single additive constant in the formula; the slider's internal paint centers text in `width - strictSkip` range).
+- `_text.maxWidth()` = pixel width of the tab label measured with `labelStyle: semiboldTextStyle` (the app's semibold 13px font).
+- Unread badge append: `CountUnreadBadgeSize(counter).width() + dialogsUnreadPadding` (typically adds 16-28px for 1-3 digit counters, +5px padding).
+- Mention/reaction icon: appends ~22px for the @ or ❤ glyph badge.
+
+**Label source per subsection type** (`history_view_subsection_tabs.cpp:430-465`):
+- Forum topic tab: `item.name` set from `thread->chatListName()` (full topic title, typically ≤ 32 chars server-limited; no client-side truncation — the slider's horizontal scroll handles overflow).
+- **Saved sublist tab: `peer->shortName()`** (line 462). For users, this is the first name only; for channels/groups, the full title (they have no "short" form). No ellipsization.
+- "All / main history" fallback: `tr::lng_filters_all_short(tr::now)` ("All").
+
+**Icon prefix in horizontal sublist tabs:** Each sublist tab in `Top`/`Bottom` mode renders a small custom-emoji thumbnail of the peer userpic to the left of the label. The emoji is built via `Ui::DynamicImage` wrapping the peer avatar, embedded as a `CustomEmoji` token inside the label's marked text — so the icon width is accounted for inside `_text.maxWidth()`, not added separately.
+
+**Vertical layout tabs** use JUST the short name as text (no embedded emoji — the userpic is drawn separately above the text at `userpicTop: 8px, userpicSize: 28px`). The name text field is fixed at `nameWidth: 54px` and will wrap / ellipsize (Qt default) if `shortName()` exceeds 54px at the 10px font.
+
+**Overflow & scrolling** (`setupHorizontal`, lines 119-126). Horizontal scroll uses `Ui::ScrollArea` with style `chatTabsScroll` — `barHidden: true` (no visible scrollbar). Wheel-Y → scroll-X redirection:
+
+```cpp
+scroll->setCustomWheelProcess([=](not_null<QWheelEvent*> e) {
+    const auto pixelDelta = e->pixelDelta();
+    const auto angleDelta = e->angleDelta();
+    if (std::abs(pixelDelta.x()) + std::abs(angleDelta.x())) {
+        return false;   // horizontal wheel passes through
+    }
+    const auto y = pixelDelta.y() ? pixelDelta.y() : angleDelta.y();
+    scroll->scrollToX(scroll->scrollLeft() - y);
+    return true;
+});
+```
+
+No momentum / smoothing — 1 wheel tick = 1 mouse delta unit horizontal shift.
+
+**Scroll-to-active logic** (`requestShown`, lines 240-267):
+
+```cpp
+const auto add = std::min(full - tab, tab) / 2;
+```
+
+where `full` is the viewport size (scroll width in horizontal mode) and `tab` is the active tab's extent:
+- If active tab's start < current scroll position → scroll to `request.ymin - add` (shifts the active tab off the left edge by `add` px so preceding tab is partly visible as a hint).
+- If active tab's end > scroll position + viewport → scroll to `min(request.ymin, request.ymax - full)`.
+- Otherwise no scroll (active tab already fully visible).
+
+This gives a "half-tab-peek" affordance on both sides when scrolling into a new tab.
+
+**Dynamic slice expansion** (lines 286-290):
+
+```cpp
+const auto needMore = (scrollMax <= 3 * full && _afterAvailable > 0);
+if (needMore) {
+    _beforeLimit *= 2;
+    _afterLimit *= 2;
+}
+```
+
+- Initial window: `kDefaultLimit = 12` tabs before active + 12 after (line 21).
+- When the scroll range (`scrollMax`) collapses to ≤ 3× the viewport AND more tabs are available server-side, both limits double (12 → 24 → 48 → …).
+- This triggers a `refreshAroundMiddle()` call which fetches more sublists via `MTPmessages_GetSavedDialogs` and re-paints. The result: infinite horizontal tab strip that auto-loads as user pans.
+
+**Active-tab indicator** (`chatTabsSlider`, `chat.style:1909-1925`):
+- Horizontal mode: `barTop: 33px` (3px from bottom of 36px strip), `barStroke: 6px` tall, `barRadius: 2px`, `barFg: transparent`, `barSnapToLabel: true`.
+  - `transparent` fg + `barSnapToLabel` means the indicator bar itself is invisible; the "active" state is communicated purely by text color change (`labelFg: windowSubTextFg` → `labelFgActive: lightButtonFg`) plus `rippleBgActive: lightButtonBgOver` on press.
+  - Active font remains `semiboldTextStyle` (no weight change; only color).
+- Vertical mode: 8px bar on left edge, `sliderBgActive` color, 150ms animation.
+
+**Ripple & hover:** `rippleBg: windowBgOver`, `rippleBgActive: lightButtonBgOver`, `ripple: defaultRippleAnimation` (standard material-style expanding circle, ~150ms decay). `rippleBottomSkip: 1px` so the ripple doesn't overlap the bottom shadow.
+
+**Reorder** (pinned sublists only, `history_view_subsection_tabs.cpp` referenced `ApplyReorder()`): drag a pinned tab horizontally; on drop, `ApplyReorder()` validates range and calls `savePinnedOrder()` → `MTPmessages_ReorderPinnedSavedDialogs`. Non-pinned tabs cannot be reordered — their position is timestamp-driven.
+
+**Context menu:** Right-click on any tab → `Window::FillDialogsEntryMenu(..., SubsectionTabsMenu)` — same menu items as the dialogs sidebar (Pin, Mute, Mark as Read, Delete, etc.), because a sublist IS a `Data::Thread`.
+
+**Toggle button behavior:** Clicking `chatTabsToggle` flips the strip between Horizontal (Top/Bottom) and Vertical (Left) layout. The flip is instant (no cross-fade in current code — widget is destroyed and rebuilt in the alternate orientation). User preference is persisted via session settings.
+
+**Dimensions summary:**
+
+| Token | Value | Description |
+|-------|-------|-------------|
+| `chatTabsToggle.width` | **64px** | Toggle icon button width |
+| `chatTabsToggle.height` | **36px** | Toggle icon button height |
+| `chatTabsSlider.height` | **36px** | Horizontal tab strip height |
+| `chatTabsSlider.strictSkip` | **18px** | Added padding per tab (label additive) |
+| `chatTabsSlider.barTop` | **33px** | Active-indicator bar y-offset |
+| `chatTabsSlider.barStroke` | **6px** | Active-indicator bar thickness |
+| `chatTabsSlider.barRadius` | **2px** | Active-indicator bar corner radius |
+| `chatTabsSlider.labelTop` | **9px** | Label y-offset inside 36px button |
+| `chatTabsVertical.width` | **64px** | Vertical tab strip width |
+| `chatTabsVertical.baseHeight` | **50px** | Vertical tab height per item |
+| `chatTabsVertical.userpicSize` | **28px** | Vertical tab avatar diameter |
+| `chatTabsVertical.userpicTop` | **8px** | Avatar y-offset |
+| `chatTabsVertical.nameTop` | **42px** | Name label y-offset |
+| `chatTabsVertical.nameWidth` | **54px** | Name label max width |
+| `chatTabsVertical.nameStyle.font` | **10px** | Name font size (vertical only) |
+| `chatTabsVertical.barStroke` | **8px** | Active-edge bar width |
+| `chatTabsVertical.barRadius` | **4px** | Active-edge bar corner radius |
+| `chatTabsVertical.duration` | **150ms** | Selection animation |
+| `lineWidth` (shadow) | **1px** | Strip edge shadow |
+| `kDefaultLimit` | **12** | Initial tabs before/after active |
+| Auto-expand trigger | `scrollMax ≤ 3 × viewport` | Doubles both limits |
+
+*HONEST GAP: The exact height of `slider->height()` in horizontal mode was inferred from `chatTabsSlider.height: 36px`. Verified via `widget->resize(width, std::max(toggle->height(), slider->height()))`. Unit-size computation for tabs containing BOTH an emoji prefix AND an unread badge was not explicitly disassembled — the emoji goes inside `_text` (so counted in `maxWidth`) while the badge is appended afterward; total = `strictSkip + _text.maxWidth() + badgeWidth + padding`. The visual ordering (emoji | label | badge) is inferred from standard `HorizontalButton` paint — not directly confirmed from the paint loop in this pass.*
+
+#### 31.9b Subsection Tabs Overview
 
 When viewing saved messages sublists, the subsection tabs system (`history_view_subsection_tabs.cpp`) provides tabbed navigation across sublists, similar to forum topic tabs.
 
