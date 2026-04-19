@@ -13,13 +13,22 @@ Full end-to-end audit of `research/telegram_desktop_ui.md` complete. Structural 
 - ✅ §56 Appendix A — Resolved Style Constants added.
 - ✅ §57 Appendix B — Dark Theme Color Palette added.
 
-Remaining: fill per-section content gaps documented in `checklist/spec_gaps.md`. Next session should pick one group (§1-13, §14-19, §20-26, §27-34, §35-49, or §51-55), spawn 3+ parallel research agents against AyuGram Desktop source, and fill the cited line-numbered gaps. Commit each group separately.
+Remaining: fill per-section content gaps documented in `checklist/spec_gaps.md`. Next session should pick one group, spawn 3+ parallel research agents against AyuGram Desktop source, and fill the cited gaps. Commit each section separately.
 
-Priority order for next session:
-1. §1-13 (core UI) — highest-impact since left panel + message list are the first surfaces users see.
-2. §32 story composer + §34 conference-call-create box — these are critical missing subsections (not just detail gaps).
-3. §54 AyuGram Filters semantics + Shadow Ban flow — signature features with zero current coverage.
-4. Everything else.
+Progress so far (see `spec_gaps.md` for strike-throughs + per-section completion notes):
+- ✅ §1-§13 core UI group complete (2026-04-18/19)
+- ✅ §32 story composer + §34 conference-call-create box (2026-04-19)
+- ✅ §54 AyuGram Filters semantics + Shadow Ban flow (2026-04-19)
+- ✅ §14-§19 Settings group complete (2026-04-19)
+- ✅ §20-§22 Media Viewer / Create Group/Channel / Forum Topics (2026-04-19)
+
+Next-session priority (pick one, dispatch 3 parallel agents):
+1. **§23-§26** — Scheduled Messages, Keyboard Shortcuts, Theming, Admin Tools (biggest remaining user-facing group; §25 theming + §26 admin are the heaviest).
+2. **§27-§34** — Passcode, 2FA, Chat Export, Bots, Saved Messages, §32/§33/§34 remainder (story composer already done — only gaps left in §32; §33 contacts + §34 calls).
+3. **§35-§49** — States/Popups/Misc — many small sections, good for a fast cleanup batch.
+4. **§52/§53** — remaining AyuGram extensions (saveForBots gating, deletedMark/editedMark, Repeat Message hint, etc.)
+
+Batch recipe (proven): read current section bounds via grep, dispatch 3 parallel Opus agents each scoped to one section's line range, split the combined diff with `/tmp/split_patch*.py` approach, commit each section separately, push once at the end.
 
 ## Step 2: Build the complete GUI checklist (session after Step 1)
 
