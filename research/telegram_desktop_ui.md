@@ -15332,18 +15332,23 @@ Every empty, loading, and error state in Telegram Desktop, traced to source file
 
 **When:** User has no conversations yet (contacts loaded, but no dialogs).
 
-**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4307-4361
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp:4307–4361`
 
-**Visual layout:**
-- Centered vertically in the dialogs column (offset for bottom button)
-- **Lottie animation** `no_chats.tgs` (`Telegram/Resources/animations/no_chats.tgs`) at top, rendered at `normalBoxLottieSize`, plays once on display
-- Skip below animation
-- **Text label:** `"You have no\nconversations yet."` (`lng_no_conversations`) -- styled with `dialogEmptyButtonLabel`
-- **Action button** at bottom of column: `"New Message"` (`lng_no_conversations_button`) -- styled with `dialogEmptyButton`, offset from bottom by `dialogEmptyButtonSkip`
-- Button opens the Contacts box (`PrepareContactsBox`)
-- Below the Lottie animation, a subtitle section shows contacts already on Telegram with label `"Your contacts on Telegram"` (`lng_no_conversations_subtitle`)
+**Visual layout (resolved):**
+- Centered vertically in the dialogs column, offset for bottom button.
+- **Lottie animation** `no_chats.tgs` (`Telegram/Resources/animations/no_chats.tgs`) rendered at `normalBoxLottieSize` = **120×120 px** (`boxes.style:1226`), plays once on display.
+- Skip below animation.
+- **Text label:** `"You have no\nconversations yet."` (`lng_no_conversations`)
+  - Style `dialogEmptyButtonLabel` (`dialogs.style:184–190`): FlatLabel(defaultFlatLabel), `minWidth: 32px`, `align: top`, `textFg: windowFg`, font = `font(boxFontSize semibold)` (semibold weight at boxFontSize ≈ **14 px**).
+- **Action button** anchored at column bottom: `"New Message"` (`lng_no_conversations_button`)
+  - Style `dialogEmptyButton` (`dialogs.style:181–182`): RoundButton(defaultActiveButton) — inherits defaultActiveButton geometry (no overrides).
+  - Bottom padding = `dialogEmptyButtonSkip` = **12 px** (`dialogs.style:183`).
+  - Click → opens Contacts box (`PrepareContactsBox`).
+- Below the Lottie, subtitle section with label `"Your contacts on Telegram"` (`lng_no_conversations_subtitle`).
 
-**State enum:** `EmptyState::NoContacts` (set when `!_filterId && data->contactsLoaded().current()` and shown list is empty)
+**Colors (day / night):** Label uses `windowFg`; button uses `defaultActiveButton` palette. **Unresolved (palette).**
+
+**State enum:** `EmptyState::NoContacts` (set when `!_filterId && data->contactsLoaded().current()` and shown list is empty).
 
 ---
 
@@ -15351,15 +15356,18 @@ Every empty, loading, and error state in Telegram Desktop, traced to source file
 
 **When:** A folder/filter is selected but no chats match it.
 
-**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4268-4305
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp:4268–4305`
 
 **Text:** `"No chats currently belong to this folder."` (`lng_no_chats_filter`)
 
-**Action link:** `"Edit"` (`lng_filters_context_edit`) -- inline link in the label, opens the folder editor
+**Action link:** `"Edit"` (`lng_filters_context_edit`) — inline link, opens folder editor.
 
-**Visual:** Centered `dialogsEmptyLabel` styled FlatLabel, no icon/animation. Appears only in `WidgetState::Default`, hidden during search.
+**Visual:** Centered FlatLabel styled with `dialogsEmptyLabel` (`dialogs.style:176–180`):
+FlatLabel(defaultFlatLabel), `minWidth: 32px`, `align: top`, `textFg: windowSubTextFg`.
+Inherits font from `defaultFlatLabel` (≈ **13 px** normal). No icon/animation. Appears only
+in `WidgetState::Default`, hidden during search.
 
-**State enum:** `EmptyState::EmptyFolder` (set when `_filterId > 0 && data->chatsList()->loaded()` and shown list is empty)
+**State enum:** `EmptyState::EmptyFolder` (set when `_filterId > 0 && data->chatsList()->loaded()` and shown list is empty).
 
 ---
 
@@ -15367,27 +15375,29 @@ Every empty, loading, and error state in Telegram Desktop, traced to source file
 
 **When:** A forum group has no topics created yet.
 
-**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4268-4305
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp:4268–4305`
 
 **Text:** `"No topics currently created in this group."` (`lng_forum_no_topics`)
 
-**Action link:** `"Create topic"` (`lng_forum_create_topic`) -- opens `NewForumTopicBox`
+**Action link:** `"Create topic"` (`lng_forum_create_topic`) — opens `NewForumTopicBox`.
 
-**State enum:** `EmptyState::EmptyForum`
+**Visual:** Same `dialogsEmptyLabel` style as §35.2 (`textFg: windowSubTextFg`, defaultFlatLabel font, `minWidth: 32px`, `align: top`).
+
+**State enum:** `EmptyState::EmptyForum`.
 
 ---
 
 ### 35.4 Empty Saved Sublists
 
-**When:** Saved Messages is opened but user hasn't saved messages from other chats.
+**When:** Saved Messages opened but user hasn't saved messages from other chats.
 
-**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4274-4275
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp:4274–4275`
 
 **Text:** `"You can save messages from other chats here."` (`lng_no_saved_sublists`)
 
-**No action link.** No icon. Centered label only.
+**Visual:** `dialogsEmptyLabel` (see §35.2 for resolved values). No action link. No icon. Centered.
 
-**State enum:** `EmptyState::EmptySavedSublists`
+**State enum:** `EmptyState::EmptySavedSublists`.
 
 ---
 
@@ -15395,67 +15405,97 @@ Every empty, loading, and error state in Telegram Desktop, traced to source file
 
 **When:** Dialogs are being loaded (initial sync or folder switch).
 
-**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 4215-4225, `Telegram/SourceFiles/ui/effects/loading_element.cpp`
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp:4215–4225`,
+`Telegram/SourceFiles/ui/effects/loading_element.cpp:68–129`
 
-**Text:** `"Loading..."` (`lng_contacts_loading`)
+**Text fallback:** `"Loading..."` (`lng_contacts_loading`).
 
-**Visual:** Skeleton loading rows created via `CreateLoadingDialogRowWidget()`:
-- 2 placeholder rows by default
-- Each row is a ghost version of a dialog row: circular avatar placeholder (ellipse at `photoPosition`, `photoSize`), name bar (60px rounded rect at `namePosition`), status bar (100px rounded rect at `statusPosition`)
-- Placeholder shapes use `windowBgOver` color on `dialogsBg` background
-- **Glare animation:** A horizontal gradient shimmer sweeps left-to-right across the skeleton rows, 1000ms slide + 1000ms pause cycle. Gradient goes from base color -> lighter center -> base color. Width equals widget width.
-- Rows are positioned at `searchedOffset()` in the dialogs list
-- Shown when `(_searchLoading || _searchWaiting) && empty`
+**Skeleton row geometry (resolved from `loading_element.cpp:68–110`):**
+- `photoPosition = QPoint(st.padding.left(), st.padding.top())` from the underlying `style::DialogRow`.
+- `photoSize = st.photoSize` (matches the live row's avatar size).
+- `namePosition = QPoint(st.nameLeft, st.nameTop)`.
+- `statusPosition = QPoint(st.textLeft, st.textTop)`.
+- Row height = `st.height` (real DialogRow height, so skeleton aligns 1:1 with loaded rows).
+- **Avatar placeholder:** filled ellipse of diameter `photoSize` at `photoPosition`, color `windowBgOver` (or `button.textBgOver` in some peer-list variants).
+- **Name bar:** rounded rect at `namePosition`, **width 60 px** (`loading_element.cpp:107`),
+  height = `st::semiboldTextStyle.font->ascent` (`loading_element.cpp:106`).
+- **Status bar:** rounded rect at `statusPosition`, **width 100 px** (`loading_element.cpp:108`),
+  height = `st::defaultTextStyle.font->ascent` (`loading_element.cpp:110`).
+- Last-line width is randomised per row: `width/4 + random(width/2)` so successive skeleton rows look organic.
+- Row count: 2 by default (constant in caller).
+- Background: `st::dialogsBg->c` (`loading_element.cpp:129`).
 
-**State enum:** `EmptyState::Loading`
+**Glare animation (`loading_element.cpp:125–126`):**
+- `kTimeout = 1000 ms` (pause), `kDuration = 1000 ms` (sweep) → 2-second cycle.
+- Implemented via `Ui::GlareEffect` with a tiled pixmap; horizontal gradient sweeps left → right
+  across each row. Gradient width equals widget width; gradient stop colors are generated
+  internally by `_glare.validate()` (no explicit hex stops in source — they are derived from
+  the row's base color).
+- RTL: entire painting is mirrored when an RTL locale is active (handled by `loading_element.cpp` paint path).
+
+Rows are positioned at `searchedOffset()` in the dialogs list. Shown when `(_searchLoading || _searchWaiting) && empty`.
+
+**Colors (day / night):** `windowBgOver`, `windowSubTextFg`, `dialogsBg`. **Unresolved (palette).**
+
+**State enum:** `EmptyState::Loading`.
 
 ---
 
 ### 35.6 No Chat Selected ("Select a chat to start messaging")
 
-**When:** No chat is open in the center column.
+**When:** No chat is open in the centre column.
 
-**Source:** `Telegram/SourceFiles/history/history_widget.cpp` lines 10174-10202
+**Source:** `Telegram/SourceFiles/history/history_widget.cpp:10174–10202`
 
 **Text:** `"Select a chat to start messaging"` (`lng_willbe_history`)
 
-**Visual:**
-- Service message bubble (rounded rect with semi-transparent background, painted via `ServiceMessagePainter::PaintBubble`)
-- Text in `msgServiceFont`, colored with `msgServiceFg`
-- Horizontally centered in the chat column
-- Vertically centered in the available area (above the compose field area)
-- Bubble width = text width + `msgPadding.left()` + `msgPadding.right()`
-- Bubble height = font height + `msgServicePadding.top()` + `msgServicePadding.bottom()`
+**Visual (resolved against `ui/chat/chat.style`):**
+- Service-message bubble painted by `ServiceMessagePainter::PaintBubble`.
+- Font: `msgServiceFont` = `semiboldFont` (`chat.style:10`) — semibold at default font size (≈ **13 px**).
+- Foreground: `msgServiceFg` (referenced at `chat.style` for many service icons; literal hex **Unresolved (palette)**).
+- Bubble inner padding: `msgServicePadding` = **margins(12 px, 3 px, 12 px, 4 px)** (`chat.style:27`).
+- Outer text padding for bubble width: `msgPadding` = **margins(11 px, 8 px, 11 px, 8 px)** (`chat.style:19`).
+- Bubble width = `text width + msgPadding.left() + msgPadding.right()` = text width + 22 px.
+- Bubble height = `font height + msgServicePadding.top() + msgServicePadding.bottom()` = font height + 7 px.
+- Horizontally centred in the chat column; vertically centred in the area above the compose field.
 
 ---
 
 ### 35.7 Empty Search Results
 
-**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp` lines 156-219, `Telegram/SourceFiles/dialogs/ui/chat_search_empty.cpp`
+**Source:** `Telegram/SourceFiles/dialogs/dialogs_inner_widget.cpp:156–219`,
+`Telegram/SourceFiles/dialogs/ui/chat_search_empty.cpp`
+
+**Resolved layout constants (`dialogs.style:753–756`):**
+- `recentPeersEmptySize` = **100 px** (square Lottie box).
+- `recentPeersEmptyMargin` = **margins(10 px, 10 px, 10 px, 10 px)**.
+- `recentPeersEmptySkip` = **10 px** (gap between icon and label text).
+- `recentPeersEmptyHeightMin` = **220 px** (minimum widget height).
+- `defaultPeerListAbout`: **Unresolved (style)** — defined in lib_ui or upstream `boxes/peer_list_box.style` not present in AyuGram repo at master; likely `FlatLabel { textFg: windowSubTextFg; align: center; minWidth: ~240 px }`. Confirm next session.
 
 #### 35.7.1 Search Waiting (empty query)
 
-**When:** Search bar is focused but no query entered yet.
+**When:** Search bar focused, no query entered.
 
-**Icon:** Lottie animation `search.tgs` (`Telegram/Resources/animations/search.tgs`), rendered at `recentPeersEmptySize`
+**Icon:** Lottie `search.tgs` (`Telegram/Resources/animations/search.tgs`), rendered into a **100×100 px** box (`recentPeersEmptySize`).
 
-**Text:** `"Search for messages"` (`lng_dlg_search_for_messages`)
+**Text:** `"Search for messages"` (`lng_dlg_search_for_messages`).
 
-**Hashtag variant:** If query starts with `#` but rest is empty: `"Enter a hashtag to find messages containing it."` (`lng_search_tab_by_hashtag`)
+**Hashtag variant:** if query starts with `#` but rest is empty: `"Enter a hashtag to find messages containing it."` (`lng_search_tab_by_hashtag`).
 
 #### 35.7.2 No Results Found
 
 **When:** Search completed with no matches.
 
-**Icon:** Lottie animation `noresults.tgs` (`Telegram/Resources/animations/noresults.tgs`)
+**Icon:** Lottie `noresults.tgs` (`Telegram/Resources/animations/noresults.tgs`) at **100×100 px**.
 
 **Text (multi-line):**
-1. **Bold:** `"No Results"` (`lng_search_tab_no_results`)
-2. `"There were no results for \"{query}\"."` (`lng_search_tab_no_results_text`) -- query truncated to `kQueryPreviewLimit` chars with ellipsis
-3. If searching in a specific chat type filter (not "All"): link `"Search in All Messages"` (`lng_search_tab_try_in_all`) -- clicking resets `ChatTypeFilter` to `All`
-4. If hashtag search: `"Try another hashtag."` (`lng_search_tab_no_results_retry`)
+1. **Bold:** `"No Results"` (`lng_search_tab_no_results`).
+2. `"There were no results for \"{query}\"."` (`lng_search_tab_no_results_text`) — query truncated to `kQueryPreviewLimit` chars (constant defined inline in `chat_search_empty.cpp`; not exposed in style files; commonly **18** in upstream tdesktop, **Unresolved exact value next session**) with ellipsis.
+3. If a chat-type filter is active and not "All": link `"Search in All Messages"` (`lng_search_tab_try_in_all`) — clicking resets `ChatTypeFilter` to `All`.
+4. If hashtag search: `"Try another hashtag."` (`lng_search_tab_no_results_retry`).
 
-**Layout:** Icon at 1/3 height vertically, text below icon with `recentPeersEmptySkip` gap. Label uses `defaultPeerListAbout` style. Margin: `recentPeersEmptyMargin`. Minimum height: `recentPeersEmptyHeightMin`.
+**Layout:** Icon at 1/3 of available height; label below icon with **10 px** gap (`recentPeersEmptySkip`). Outer margins **10 px** all sides (`recentPeersEmptyMargin`). Minimum widget height **220 px** (`recentPeersEmptyHeightMin`). Label uses `defaultPeerListAbout`.
 
 ---
 
@@ -15485,14 +15525,32 @@ Every empty, loading, and error state in Telegram Desktop, traced to source file
 
 ### 35.10 Empty Shared Media Tabs
 
-**Source:** `Telegram/SourceFiles/info/media/info_media_empty_widget.cpp`
+**Source:** `Telegram/SourceFiles/info/media/info_media_empty_widget.cpp` (geometry),
+`Telegram/SourceFiles/info/info.style:1596–1609` (style tokens).
 
-**Layout:**
-- Icon centered horizontally, positioned at 1/3 height of available area
-- Text label below icon (`infoEmptyLabel` style, width constrained by `infoEmptyLabelSkip` margins)
-- When loading: no icon, just `"Loading..."` (`lng_contacts_loading`) centered with `normalFont` in `windowSubTextFg`
+**Resolved style constants:**
+| Token | Value | Source |
+|---|---|---|
+| `infoEmptyFg` | `windowSubTextFg` | `info.style:1596` |
+| `infoEmptyPhoto` | icon `info/info_media_photo_empty` tinted `infoEmptyFg` | `info.style:1597` |
+| `infoEmptyVideo` | icon `info/info_media_video_empty` tinted `infoEmptyFg` | `info.style:1598` |
+| `infoEmptyAudio` | icon `info/info_media_audio_empty` tinted `infoEmptyFg` | `info.style:1599` |
+| `infoEmptyFile` | icon `info/info_media_file_empty` tinted `infoEmptyFg` | `info.style:1600` |
+| `infoEmptyVoice` | icon `info/info_media_voice_empty` tinted `infoEmptyFg` | `info.style:1601` |
+| `infoEmptyLink` | icon `info/info_media_link_empty` tinted `infoEmptyFg` | `info.style:1602` |
+| `infoEmptyIconTop` | **120 px** (vertical reserve for icon area) | `info.style:1603` |
+| `infoEmptyLabelTop` | **40 px** (vertical reserve for label area) | `info.style:1604` |
+| `infoEmptyLabelSkip` | **20 px** (horizontal padding on each side of label) | `info.style:1605` |
+| `infoEmptyLabel` | FlatLabel, `minWidth: 220 px`, `textFg: windowSubTextFg`, `align: center` | `info.style:1606–1609` |
 
-**Per-type icons and text:**
+**Geometry (`info_media_empty_widget.cpp:18–86`):**
+- Widget computes natural height as `iconTop + infoEmptyIconTop` where `iconTop = (fullHeight/3) - (iconHeight/2)` — so the icon is anchored such that its centre sits at **1/3 of the available height**.
+- In `paintEvent` the icon is drawn at `y = height() - infoEmptyIconTop` (i.e. **120 px from bottom**).
+- In `resizeGetHeight` the label is placed at `labelTop = _height - infoEmptyLabelTop` (= **40 px from the widget bottom**), horizontally centred: `labelLeft = (newWidth - text.width) / 2`.
+- Label width is constrained: `labelWidth = newWidth - 2 * infoEmptyLabelSkip` (= newWidth − 40 px).
+- Loading-state label uses `normalFont` (≈ **13 px**) coloured `windowSubTextFg`; icon is omitted.
+
+**Per-type icons and text (unchanged from previous spec):**
 
 | Media Type | Icon (PNG) | Empty Text | Search Empty Text |
 |---|---|---|---|
@@ -15504,7 +15562,9 @@ Every empty, loading, and error state in Telegram Desktop, traced to source file
 | Links | `infoEmptyLink` (`info_media_link_empty.png`) | `"No shared links here yet"` | `"No shared links found"` |
 | Voice/Round | `infoEmptyVoice` (`info_media_voice_empty.png`) | `"No voice messages here yet"` | (same) |
 
-Icon assets at `Telegram/Resources/icons/info/info_media_*_empty.png` (with @2x, @3x variants).
+Icon assets at `Telegram/Resources/icons/info/info_media_*_empty.png` (with @2x, @3x variants). Native PNG dimensions are the icon's render size; tint is `windowSubTextFg`.
+
+**Colors (day / night):** `windowSubTextFg`. **Unresolved (palette).**
 
 ---
 
@@ -15562,7 +15622,7 @@ Icon assets at `Telegram/Resources/icons/info/info_media_*_empty.png` (with @2x,
 
 ### 35.15 "No Messages Yet" in New Chats (Chat Intro)
 
-**Source:** `Telegram/SourceFiles/history/view/history_view_about_view.cpp` lines 246-305
+**Source:** `Telegram/SourceFiles/history/view/history_view_about_view.cpp:246–305`
 
 **When:** A private chat has no messages yet. Business accounts can customize this.
 
@@ -15570,12 +15630,14 @@ Icon assets at `Telegram/Resources/icons/info/info_media_*_empty.png` (with @2x,
 - **Title (bold):** `"No messages here yet..."` (`lng_chat_intro_default_title`)
 - **Description:** `"Send a message or click on the greeting below"` (`lng_chat_intro_default_message`)
 
-**Visual:**
-- Service message style bubble (semi-transparent background, same as service messages)
-- Title in bold, with `chatIntroTitleMargin`
-- Description below with `chatIntroMargin`
-- **Sticker:** Random "hello" sticker from the premium hello sticker set, rendered at `chatIntroStickerSize`. Clickable -- sends the sticker as a message.
-- Entire thing is a `MediaGeneric` item in the message list
+**Resolved style constants (`ui/chat/chat.style:783–787`):**
+- `chatIntroStickerSize` = **96 px** (square sticker render box).
+- `chatIntroWidth` = **224 px** (max content width inside the bubble).
+- `chatIntroTitleMargin` = **margins(11 px, 16 px, 11 px, 4 px)**.
+- `chatIntroMargin` = **margins(11 px, 0 px, 11 px, 0 px)** (description text).
+- `chatIntroStickerPadding` = **margins(10 px, 8 px, 10 px, 16 px)**.
+
+**Visual:** Service-message style bubble (semi-transparent, see §35.6). Title in bold; description below at default font. Sticker rendered at **96×96 px**, clickable → sends sticker. Entire thing is a `MediaGeneric` item in the message list.
 
 **Business custom intro:** Title and description can be customized by the account owner, plus a custom sticker choice.
 
@@ -15583,7 +15645,7 @@ Icon assets at `Telegram/Resources/icons/info/info_media_*_empty.png` (with @2x,
 
 ### 35.16 New Group Created (Empty Group Chat)
 
-**Source:** `Telegram/SourceFiles/history/view/history_view_service_message.cpp` lines 892-904, 916-1000
+**Source:** `Telegram/SourceFiles/history/view/history_view_service_message.cpp:892–904, 916–1000`
 
 **When:** User just created a new group and it has no messages.
 
@@ -15596,7 +15658,14 @@ Icon assets at `Telegram/Resources/icons/info/info_media_*_empty.png` (with @2x,
   - `"Public links such as t.me/title"` (`lng_group_about3`)
   - `"Admins with different rights"` (`lng_group_about4`)
 
-**Layout:** Bubble width = max of header/text/bullet widths + padding (`historyGroupAboutPadding`). Bullets indented by `historyGroupAboutBulletSkip`. Spacing: `historyGroupAboutHeaderSkip` after header, `historyGroupAboutTextSkip` after text, `historyGroupAboutSkip` between bullets. Text colored `msgServiceFg`, max 3 lines per item.
+**Resolved style constants (`ui/chat/chat.style:573–577`):**
+- `historyGroupAboutPadding` = **margins(24 px, 16 px, 24 px, 16 px)**.
+- `historyGroupAboutBulletSkip` = **16 px** (bullet indent from text margin).
+- `historyGroupAboutHeaderSkip` = **10 px** (gap after the bold header).
+- `historyGroupAboutTextSkip` = **10 px** (gap after the "Groups can have:" subtext).
+- `historyGroupAboutSkip` = **8 px** (gap between bullet items).
+
+**Layout:** Bubble width = max(header, subtext, bullet widths) + horizontal padding (24 + 24 = 48 px). Text colored `msgServiceFg`. Max 3 lines per bullet item.
 
 ---
 
@@ -15670,33 +15739,59 @@ Used as the default `searchNoResultsText` for member lists, ban lists, admin lis
 
 ### 35.22 Connection State Widget ("Connecting...")
 
-**Source:** `Telegram/SourceFiles/window/window_connecting_widget.cpp`, `window_connecting_widget.h`
+**Source:** `Telegram/SourceFiles/window/window_connecting_widget.cpp`,
+`Telegram/SourceFiles/window/window.style:140–157`.
 
-**States:** `Connected`, `Connecting`, `Waiting`
+**States:** `Connected`, `Connecting`, `Waiting`.
+
+**Constants (`window_connecting_widget.cpp`):**
+- `kConnectingStateDelay` = **1000 ms** (line 27) — minimum time MTP must be in
+  `Connecting`/`Disconnected` before the pill appears.
+- `kMinimalWaitingStateDuration` = **4000 ms** (line 29) — `Waiting` countdown shows only
+  when retry is at least this far out.
+- `connectingDuration` = **150 ms** (`window.style:157`) — fade and width-morph animation
+  duration on every state transition (`window_connecting_widget.cpp:269, 280, 335`).
+
+**Pill geometry (resolved):**
+- `connectingMargin` = **margins(2 px, 2 px, 2 px, 2 px)** (`window.style:147`) — outer
+  margin against the window edges.
+- `connectingTextPadding` = **margins(18 px, 11 px, 18 px, 0 px)** (`window.style:148`) —
+  padding around the inline text (e.g. "Connecting...", "Reconnect in N s...").
+- `connectingRetryLink` padding = **margins(6 px, 11 px, 6 px, 0 px)** (`window.style:154–156`);
+  LinkButton(defaultLinkButton).
+- `connectingRadial`: `InfiniteRadialAnimation` with `color: menuIconFg`, `thickness: 2 px`,
+  `size: 20×20 px` (`window.style:149–153`).
+- Pill is composed of three icons: `connectingLeft` (rounded left cap), `connectingBody` (fill,
+  width-stretches with text), `connectingRight` (rounded right cap), tinted `windowBg`
+  (`window.style:140–145`). Drop-shadow icons `connecting{Left,Body,Right}Shadow` use
+  `windowShadowFg`. **Native icon dimensions:** the SVG/PNG assets in
+  `Telegram/Resources/icons/connecting_*.png` define the pill height — `st::connectingLeft.height()`
+  is referenced as the geometric baseline (`window_connecting_widget.cpp:343`). Approx height
+  **≈ 30 px** (matches `connectingTextPadding.top + radial.size + bottom margin`); confirm by
+  inspecting the PNG @1x next session — **Unresolved (asset) — direct-clone PNG dimensions next session**.
+- Pill height = `st::connectingLeft.height()`; pill width animates between content widths.
+
+**Window placement (`window_connecting_widget.cpp:213–219`):**
+- Anchored to **bottom-left** of the main window: `moveToLeft(0, ...)`.
+- Vertical position interpolates between `height - connectingMargin.top()` (hidden) and
+  `height - widget.height() - skip` (visible) over `connectingDuration` ms.
+
+**Proxy icon position (`window_connecting_widget.cpp:418–422`):**
+- Right-anchored inside the pill: `moveToRight(xShift, yShift)`.
+- `yShift = (height - proxyIcon.height) / 2` (vertically centred).
+- `xShift = (height - proxyIcon.width) / 2` (right-margin equal to half the leftover height — gives a square hit-target).
+- Icons: `connectingProxyOff` tinted `menuIconFg`, `connectingProxyOn` tinted `windowBgActive` (`window.style:158–159`).
 
 #### Connecting State
 
-**Trigger:** MTP state is `ConnectingState` or `DisconnectedState`, persists for at least `kConnectingStateDelay` before showing.
-
-**Visual:**
-- Bottom-left pill widget overlaid on the main window, above the bottom skip area
-- Rounded left cap (`connectingLeft` icon), body fill (`connectingBody`), rounded right cap (`connectingRight` icon)
-- Drop shadows: `connectingLeftShadow`, `connectingBodyShadow`, `connectingRightShadow`
-- **Animated progress indicator** (circular spinner child widget `Progress`), always visible when not Connected
-- **Text (on hover):** `"Connecting..."` (`lng_connecting`) -- only shown when cursor is over the widget
-- **Text (no hover):** Empty -- just the spinner and proxy icon
-- **Proxy icon:** Shield icon shown when proxy is enabled, toggles visual state
-- Clicking the widget opens the Proxies settings box
+**Visual:** spinner (20×20 px radial, `menuIconFg`) always visible. Text `"Connecting..."` (`lng_connecting`) only on hover. Click opens Proxies settings box.
 
 #### Waiting State (Reconnect countdown)
 
-**Trigger:** MTP state negative (seconds until retry), beyond `kMinimalWaitingStateDuration`
-
-**Text:** `"Reconnect in {count} s..."` (`lng_reconnecting`) -- countdown timer
-
-**Retry button:** `"Try now"` (`lng_reconnecting_try_now`) -- styled with `connectingRetryLink`
-
-**Layout:** Text + retry link side by side in the pill, with padding from `connectingTextPadding`
+**Trigger:** MTP state negative (seconds until retry), beyond `kMinimalWaitingStateDuration` (4000 ms).
+**Text:** `"Reconnect in {count} s..."` (`lng_reconnecting`) — countdown.
+**Retry button:** `"Try now"` (`lng_reconnecting_try_now`) — `connectingRetryLink` style.
+**Layout:** text + retry link side-by-side inside the pill, each with their own padding tokens above.
 
 #### Proxy-specific connection states
 
@@ -15709,12 +15804,14 @@ Used as the default `searchNoResultsText` for member lists, ban lists, admin lis
 
 #### Visibility rules
 
-- Hidden when `Connected` and no proxy enabled
-- Hidden when `updateReady` is true (update banner takes priority)
-- Hidden when window is not exposed
-- Hidden when `_forceHidden` is set
-- Fade animation on show/hide (`connectingDuration`)
-- Content width animates smoothly on text changes
+- Hidden when `Connected` and no proxy enabled.
+- Hidden when `updateReady` (update banner takes priority).
+- Hidden when window is not exposed.
+- Hidden when `_forceHidden` is set.
+- Fade animation on show/hide over `connectingDuration` (150 ms).
+- Content width animates smoothly on text changes (same 150 ms).
+
+**Colors (day / night):** pill body = `windowBg`; shadow = `windowShadowFg`; spinner / proxy-off = `menuIconFg`; proxy-on = `windowBgActive`. **Unresolved (palette).**
 
 ---
 
@@ -15732,7 +15829,17 @@ Used as the default `searchNoResultsText` for member lists, ban lists, admin lis
 
 ### 35.24 File Download States
 
-**Source:** `Telegram/SourceFiles/history/view/media/history_view_file.cpp` lines 69-86, `history_view_document.cpp` lines 1521-1591
+**Source:** `Telegram/SourceFiles/history/view/media/history_view_file.cpp:69–86`,
+`history_view_document.cpp:1521–1591`,
+`Telegram/SourceFiles/ui/text/format_values.h` (sentinels),
+`Telegram/SourceFiles/ui/chat/chat.style:349, 513` (radial line widths).
+
+**Resolved radial style constants:**
+- `msgFileRadialLine` = **3 px** (`chat.style:349`) — file-bubble radial arc thickness.
+- `historyAudioRadialLine` = **2 px** (`chat.style:513`) — audio-bubble radial arc thickness.
+- `historyFileRadialFg`, `historyFileThumbRadialFg` — color tokens; literal hex
+  **Unresolved (palette)**, but referenced as the arc tint for file-attachment progress and for
+  the photo/video overlay progress respectively.
 
 File status sizes are sentinel values defined in `Telegram/SourceFiles/ui/text/format_values.h`:
 - `FileStatusSizeReady` = `0xFFFFFFF0` -- file available for download
@@ -15897,33 +16004,48 @@ No user-visible error text -- the viewer silently falls back to showing the down
 
 ### 35.33 Skeleton Animation (Label Loading)
 
-**Source:** `Telegram/SourceFiles/ui/effects/skeleton_animation.cpp`
+**Source:** `Telegram/SourceFiles/ui/effects/skeleton_animation.cpp:9–13, 73–85`
 
-**Used for:** FlatLabel loading placeholders (e.g., profile info loading, credits loading)
+**Resolved constants (lines 9–13):**
+- `kSlideDuration` = **1000 ms** — gradient sweep duration.
+- `kWaitDuration` = **1000 ms** — pause between sweeps.
+- `kFullDuration` = **2000 ms** (sum, internal use).
+- `kBaseAlpha` = **0.5** — placeholder rectangle alpha multiplier on `windowSubTextFg`.
+- `kGradientAlpha` = **0.2** — peak alpha at the gradient centre on `windowSubTextFg`.
 
-**Visual:**
-- Rounded rectangles drawn over each text line of the label
-- Rectangle height = font ascent, corner radius = height/2
-- Base color: `windowSubTextFg` at 50% alpha (`kBaseAlpha = 0.5`)
-- **Shimmer gradient:** Horizontal linear gradient sweeps across every 2 seconds (1s slide + 1s pause). Center of gradient uses `windowSubTextFg` at 20% alpha (`kGradientAlpha = 0.2`), creating a "shine" effect.
-- Width per line matches the actual text layout widths from `countLineWidths()`
+**Geometry (lines 73–85):**
+- `thickness = st.style.font->height / 2` (rectangle vertical thickness = half of the line's font height).
+- `radius = thickness / 2.0` (corner radius = half thickness; renders as fully-rounded pill).
+- `rectTop = lineTop + (lineHeight - thickness) / 2.0` (vertically centred within each text line).
+- Width per line = real text-layout widths from `countLineWidths()`.
+
+**Used for:** FlatLabel loading placeholders (profile info loading, credits loading, etc.).
 
 ---
 
 ### 35.34 Dialog Row Loading Skeleton
 
-**Source:** `Telegram/SourceFiles/ui/effects/loading_element.cpp`
+**Source:** `Telegram/SourceFiles/ui/effects/loading_element.cpp:68–129`
 
-**Used for:** Chat list loading, peer list loading, search loading
+(Same resolved values already inlined in §35.5 above.) Expanded summary kept here for cross-reference:
 
-**Visual (per skeleton row):**
-- Circular avatar placeholder: ellipse at `photoPosition`, diameter = `photoSize`, filled with `windowBgOver` (or `button.textBgOver`)
-- Name bar: rounded rect at `namePosition`, width 60px, height = semibold font ascent
-- Status bar: rounded rect at `statusPosition`, width 100px, height = default font ascent
-- Row height matches the real `DialogRow.height`
-- **Glare effect:** Same sweeping shimmer as skeleton animation -- horizontal gradient (width = widget width) slides left to right, 1s timeout + 1s duration cycle. Uses `GlareEffect` with a tiled pixmap.
-- Last line width randomized: `width/4 + random(width/2)`
-- RTL support: entire painting is mirrored when RTL locale active
+| Property | Value | Source |
+|---|---|---|
+| Avatar diameter | `st.photoSize` from underlying `style::DialogRow` | `loading_element.cpp:75` |
+| Avatar position | `(st.padding.left(), st.padding.top())` | `loading_element.cpp:69` |
+| Name bar width | **60 px** | `loading_element.cpp:107` |
+| Name bar height | `st::semiboldTextStyle.font->ascent` | `loading_element.cpp:106` |
+| Name bar position | `(st.nameLeft, st.nameTop)` | `loading_element.cpp:71` |
+| Status bar width | **100 px** (last-line randomised: `width/4 + random(width/2)`) | `loading_element.cpp:108` |
+| Status bar height | `st::defaultTextStyle.font->ascent` | `loading_element.cpp:110` |
+| Status bar position | `(st.textLeft, st.textTop)` | `loading_element.cpp:73` |
+| Row height | `st.height` (matches real DialogRow) | `loading_element.cpp:76` |
+| Glare slide duration | **1000 ms** (`kDuration`) | `loading_element.cpp:126` |
+| Glare pause | **1000 ms** (`kTimeout`) | `loading_element.cpp:125` |
+| Background | `st::dialogsBg->c` | `loading_element.cpp:129` |
+| RTL | Painting mirrored when RTL locale active | (handled inline) |
+
+Glare gradient stops are derived in-code by `_glare.validate()` (no explicit hex stops in source); base color is the placeholder fill (`windowBgOver` at `kBaseAlpha = 0.5`), centre is brightened toward `windowSubTextFg` at `kGradientAlpha = 0.2` — matches the skeleton-animation behaviour of §35.33.
 
 ---
 
@@ -16009,36 +16131,60 @@ No user-visible error text -- the viewer silently falls back to showing the down
 
 ---
 
-### 35.43 Key Style Constants
+### 35.43 Key Style Constants — Resolved
 
-| Constant | Value / Usage |
-|---|---|
-| `dialogsEmptyLabel` | Style for empty folder/forum text in dialogs |
-| `dialogEmptyButtonLabel` | Style for "You have no conversations" text |
-| `dialogEmptyButton` | Style for "New Message" button |
-| `dialogEmptyButtonSkip` | Bottom padding for the new message button |
-| `recentPeersEmptySize` | Size of Lottie icon in search empty states |
-| `recentPeersEmptyHeightMin` | Minimum height for search empty widget |
-| `recentPeersEmptySkip` | Gap between icon and text in search empty |
-| `recentPeersEmptyMargin` | Outer margin for search empty content |
-| `infoEmptyLabel` | Style for shared media empty text |
-| `infoEmptyIconTop` | Vertical offset for shared media empty icons |
-| `infoEmptyLabelTop` | Vertical offset for shared media empty label |
-| `infoEmptyLabelSkip` | Horizontal margin for shared media empty label |
-| `stickersEmpty` | Icon for empty sticker search |
-| `emojiEmpty` | Icon for empty emoji search |
-| `connectingDuration` | Animation duration for connection state transitions |
-| `connectingTextPadding` | Padding around connection state text |
-| `connectingMargin` | Outer margin of the connection state pill |
-| `normalBoxLottieSize` | Size for Lottie in dialog boxes |
-| `msgServiceFont` | Font for service messages (including "Select a chat") |
-| `msgServiceFg` | Foreground color for service messages |
-| `msgServicePadding` | Padding inside service message bubbles |
-| `noContactsColor` | Text color for "no saved GIFs" etc. |
-| `msgFileRadialLine` | Line width for file download radial progress |
-| `historyAudioRadialLine` | Line width for audio download radial progress |
-| `historyFileRadialFg` | Color of file download progress arc |
-| `historyFileThumbRadialFg` | Color of thumbnail overlay progress arc |
+| Constant | Resolved value (px / ms / token) | Source |
+|---|---|---|
+| `dialogsEmptyLabel` | FlatLabel(defaultFlatLabel) `minWidth: 32, align: top, textFg: windowSubTextFg` | `dialogs.style:176–180` |
+| `dialogEmptyButtonLabel` | FlatLabel(defaultFlatLabel) `minWidth: 32, align: top, textFg: windowFg, font: boxFontSize semibold` | `dialogs.style:184–190` |
+| `dialogEmptyButton` | RoundButton(defaultActiveButton) | `dialogs.style:181–182` |
+| `dialogEmptyButtonSkip` | **12 px** | `dialogs.style:183` |
+| `recentPeersEmptySize` | **100 px** | `dialogs.style:753` |
+| `recentPeersEmptyMargin` | **margins(10, 10, 10, 10)** | `dialogs.style:754` |
+| `recentPeersEmptyHeightMin` | **220 px** | `dialogs.style:755` |
+| `recentPeersEmptySkip` | **10 px** | `dialogs.style:756` |
+| `infoEmptyFg` | `windowSubTextFg` | `info.style:1596` |
+| `infoEmptyIconTop` | **120 px** | `info.style:1603` |
+| `infoEmptyLabelTop` | **40 px** | `info.style:1604` |
+| `infoEmptyLabelSkip` | **20 px** | `info.style:1605` |
+| `infoEmptyLabel` | FlatLabel `minWidth: 220, textFg: windowSubTextFg` | `info.style:1606–1609` |
+| `connectingMargin` | **margins(2, 2, 2, 2)** | `window.style:147` |
+| `connectingTextPadding` | **margins(18, 11, 18, 0)** | `window.style:148` |
+| `connectingRadial` | size 20×20, thickness 2 px, color `menuIconFg` | `window.style:149–153` |
+| `connectingRetryLink` | LinkButton(defaultLinkButton) padding `margins(6, 11, 6, 0)` | `window.style:154–156` |
+| `connectingDuration` | **150 ms** | `window.style:157` |
+| `connectingLeft/Body/Right` | icons tinted `windowBg`; height = native PNG height (≈ 30 px, **Unresolved (asset)**) | `window.style:140–145` |
+| `connecting{Left,Body,Right}Shadow` | drop-shadow icons tinted `windowShadowFg` | `window.style:140–144` |
+| `connectingProxyOff/On` | icons tinted `menuIconFg` / `windowBgActive` | `window.style:158–159` |
+| `normalBoxLottieSize` | **120×120 px** | `boxes.style:1226` |
+| `msgServiceFont` | `semiboldFont` (≈ 13 px semibold) | `chat.style:10` |
+| `msgServiceFg` | color token (literal hex **Unresolved (palette)**) | `chat.style` (referenced) |
+| `msgServicePadding` | **margins(12, 3, 12, 4)** | `chat.style:27` |
+| `msgPadding` | **margins(11, 8, 11, 8)** | `chat.style:19` |
+| `msgFileRadialLine` | **3 px** | `chat.style:349` |
+| `historyAudioRadialLine` | **2 px** | `chat.style:513` |
+| `historyFileRadialFg` | color token (**Unresolved (palette)**) | upstream tdesktop palette |
+| `historyFileThumbRadialFg` | color token (**Unresolved (palette)**) | upstream tdesktop palette |
+| `historyGroupAboutPadding` | **margins(24, 16, 24, 16)** | `chat.style:573` |
+| `historyGroupAboutBulletSkip` | **16 px** | `chat.style:574` |
+| `historyGroupAboutHeaderSkip` | **10 px** | `chat.style:575` |
+| `historyGroupAboutTextSkip` | **10 px** | `chat.style:576` |
+| `historyGroupAboutSkip` | **8 px** | `chat.style:577` |
+| `chatIntroStickerSize` | **96 px** | `chat.style:783` |
+| `chatIntroWidth` | **224 px** | `chat.style:784` |
+| `chatIntroTitleMargin` | **margins(11, 16, 11, 4)** | `chat.style:785` |
+| `chatIntroMargin` | **margins(11, 0, 11, 0)** | `chat.style:786` |
+| `chatIntroStickerPadding` | **margins(10, 8, 10, 16)** | `chat.style:787` |
+| `defaultPeerListAbout` | **Unresolved (style)** — defined in lib_ui submodule, not in AyuGram master tree |
+| `noContactsColor` | color token (**Unresolved (palette)**) | upstream tdesktop palette |
+| `stickersEmpty`, `emojiEmpty` | icon assets only, native PNG dimensions; tint colour **Unresolved (palette)** | upstream tdesktop |
+| `windowBgOver`, `windowSubTextFg`, `windowFg`, `dialogsBg`, `windowShadowFg`, `menuIconFg`, `windowBgActive` | day/night hex values **Unresolved (palette)** — populate from upstream `Telegram/Resources/colors.palette` next session |
+
+**Unresolved items left for next session:**
+1. `Telegram/Resources/colors.palette` is not in the AyuGram master mirror; pull it from upstream `telegramdesktop/tdesktop` to resolve all day/night hex values for the tokens above.
+2. `defaultPeerListAbout` style — defined in `lib_ui` submodule (separate repo); confirm `minWidth`, `textFg`, `align`, font.
+3. Native PNG dimensions of `connecting_left.png`, `connecting_body.png`, `connecting_right.png` — to lock the pill height precisely (estimated ≈ 30 px).
+4. `kQueryPreviewLimit` exact value — defined inline in `chat_search_empty.cpp`; common upstream value is **18**, confirm by reading the .cpp directly.
 
 ---
 
