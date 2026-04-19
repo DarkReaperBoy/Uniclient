@@ -34,23 +34,28 @@ class ChatListRow extends StatelessWidget {
   // Spec §2 "Active/selected": Background #419fd9 (Telegram blue), all text white, badges inverted.
   static const _activeBg = Color(0xFF419fd9);
 
+  // Spec §2 exact colors.
+  static const _nameColorDay = Color(0xFF222222);
+  static const _mutedColorDay = Color(0xFF999999);
+  static const _timestampColorDay = Color(0xFF999999);
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    // Colors per state.
+    // Colors per state — use exact spec hex values for day theme.
     final nameColor = isActive
         ? Colors.white
-        : theme.textTheme.bodyLarge?.color;
+        : (isDark ? theme.textTheme.bodyLarge?.color : _nameColorDay);
     final mutedColor = isActive
-        ? Colors.white70
-        : theme.textTheme.bodySmall?.color;
+        ? Colors.white
+        : (isDark ? theme.textTheme.bodySmall?.color : _mutedColorDay);
     final badgeBg = isActive
         ? Colors.white
         : (chat.isMuted
-            ? (isDark ? const Color(0xFF5c6573) : const Color(0xFFbbbbbb))
-            : theme.colorScheme.primary);
+            ? (isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb)) // Spec §2: muted badge
+            : (isDark ? const Color(0xFF40a7e3) : const Color(0xFF40a7e3))); // Spec §2: windowBgActive
     final badgeText = isActive
         ? _activeBg
         : Colors.white;
@@ -68,7 +73,7 @@ class ChatListRow extends StatelessWidget {
               : (details) => onSecondaryTap!(details.globalPosition),
           hoverColor: isActive
               ? Colors.white.withValues(alpha: 0.08)
-              : (isDark ? const Color(0xFF1e2430) : const Color(0xFFF1F1F1)),
+              : (isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1)), // Spec §2: night #202b36, day #f1f1f1
           child: SizedBox(
             height: _rowHeight,
           child: Padding(
@@ -119,15 +124,16 @@ class ChatListRow extends StatelessWidget {
                               ],
                             ),
                           ),
-                          // Timestamp. Per-chat last-message send/delivery/read
-                          // state is not piped through the engine yet, so the
-                          // sent/delivered/read tick icon is intentionally absent
-                          // (CLAUDE.md ZERO placeholders rule). Add it back when
-                          // ChatInfo carries the real status.
-                          const SizedBox(width: 8),
+                          // Timestamp — spec §2: 13px, #999999 day / white active, 5px skip from right.
+                          const SizedBox(width: 5),
                           Text(
                             _formatTime(chat.lastMsgTime),
-                            style: TextStyle(fontSize: 12, color: mutedColor),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isActive
+                                  ? Colors.white
+                                  : (isDark ? theme.textTheme.bodySmall?.color : _timestampColorDay),
+                            ),
                           ),
                         ],
                       ),
@@ -305,9 +311,9 @@ class _ChatAvatar extends StatelessWidget {
               width: dotSize,
               height: dotSize,
               decoration: BoxDecoration(
-                color: const Color(0xFF4dcd5e),
+                color: const Color(0xFF4dc920), // Spec §2: #4dc920 green
                 shape: BoxShape.circle,
-                border: Border.all(color: bgColor, width: 2),
+                border: Border.all(color: bgColor, width: 3), // Spec §2: 3px white stroke
               ),
             ),
           ),
@@ -370,23 +376,27 @@ class _UnreadBadge extends StatelessWidget {
     required this.textColor,
   });
 
+  // Spec §2: 19px height, 5px horizontal padding, min-width = 19px (circle for single digit),
+  // fully round ends (radius = height/2 = 9.5), 12px bold font, text vertically centered.
   @override
   Widget build(BuildContext context) {
-    final text = count > 999 ? '999+' : count.toString();
+    final text = count > 999 ? '..${count % 1000}' : count.toString();
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      constraints: const BoxConstraints(minWidth: 20),
+      height: 19,
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      constraints: const BoxConstraints(minWidth: 19),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(9.5),
       ),
       alignment: Alignment.center,
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.bold,
           color: textColor,
+          height: 1.0,
         ),
       ),
     );
