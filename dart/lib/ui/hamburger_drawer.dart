@@ -70,6 +70,13 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       appState.updateTheme(dark ? 'dark' : 'light');
                     },
                   ),
+                  if (Platform.isLinux)
+                    _SystemFrameToggle(
+                      enabled: appState.nativeWindowFrame,
+                      onChanged: (value) {
+                        appState.setNativeWindowFrame(value);
+                      },
+                    ),
                 ],
               ),
             ),
@@ -368,6 +375,29 @@ class _NightModeToggle extends StatelessWidget {
       dense: true,
       trailing: Switch(
         value: isDark,
+        onChanged: onChanged,
+      ),
+    );
+  }
+}
+
+/// System window frame toggle (Linux only).
+/// Spec §1: _nativeWindowFrame defaults to false. When enabled, the custom
+/// client-side titlebar is hidden and GTK shows native window decorations.
+class _SystemFrameToggle extends StatelessWidget {
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _SystemFrameToggle({required this.enabled, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.desktop_windows, size: 22),
+      title: const Text('System Window Frame'),
+      dense: true,
+      trailing: Switch(
+        value: enabled,
         onChanged: onChanged,
       ),
     );
