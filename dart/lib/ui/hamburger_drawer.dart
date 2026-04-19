@@ -41,19 +41,28 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
               expanded: _accountsExpanded,
               onToggle: () => setState(() => _accountsExpanded = !_accountsExpanded),
             ),
-            // Account list (collapsible).
-            if (_accountsExpanded)
-              _AccountList(
-                accounts: appState.accounts,
-                activeAccountId: appState.activeAccountId,
-                connStates: appState.connStates,
-                onSelect: (id) {
-                  appState.setActiveAccountId(id);
-                  context.read<ChatState>().switchAccount(id);
-                  setState(() => _accountsExpanded = false);
-                },
-                onAddAccount: () => _showAddAccountDialog(context, appState),
+            // Account list (collapsible) — slideWrapDuration animation (spec §1).
+            ClipRect(
+              child: AnimatedSize(
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCirc,
+                alignment: Alignment.topCenter,
+                child: _accountsExpanded
+                    ? _AccountList(
+                        accounts: appState.accounts,
+                        activeAccountId: appState.activeAccountId,
+                        connStates: appState.connStates,
+                        onSelect: (id) {
+                          appState.setActiveAccountId(id);
+                          context.read<ChatState>().switchAccount(id);
+                          setState(() => _accountsExpanded = false);
+                        },
+                        onAddAccount: () =>
+                            _showAddAccountDialog(context, appState),
+                      )
+                    : const SizedBox.shrink(),
               ),
+            ),
             const Divider(height: 1),
             // Menu items. Placeholder entries (My Profile, New Group, New
             // Channel, Contacts, Calls, Saved Messages, Settings) previously
@@ -200,7 +209,8 @@ class _ProfileCover extends StatelessWidget {
               IconButton(
                 icon: AnimatedRotation(
                   turns: expanded ? 0.5 : 0.0,
-                  duration: const Duration(milliseconds: 200),
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOutCirc,
                   child: const Icon(Icons.expand_more, size: 22),
                 ),
                 onPressed: onToggle,

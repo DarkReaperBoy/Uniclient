@@ -26,7 +26,6 @@
 ### 1.5 Linux Titlebar
 
 ### 1.6 Animations
-- [ ] Menu expand/collapse animation: slideWrapDuration (S1)
 
 ---
 
