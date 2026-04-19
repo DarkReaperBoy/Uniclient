@@ -29,6 +29,7 @@ type ChatInfo struct {
 	DraftText    string `json:"draft_text,omitempty"`
 	MemberCount  int    `json:"member_count,omitempty"`
 	ParentID     string `json:"parent_id,omitempty"`
+	IsBot        bool   `json:"is_bot"`
 }
 
 // chatTypeToInt converts cores.ChatType to DB integer.
@@ -53,14 +54,16 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		limit = 50
 	}
 	rows, err := e.db.Query(
-		`SELECT account_id, chat_id, type, title, avatar_path,
-		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
-		        last_msg_is_outgoing,
-		        unread_count, is_muted, is_pinned, is_archived,
-		        draft_text, member_count, parent_id
-		 FROM chats
-		 WHERE is_archived = 0
-		 ORDER BY is_pinned DESC, last_msg_time DESC
+		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
+		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+		        c.last_msg_is_outgoing,
+		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+		        c.draft_text, c.member_count, c.parent_id,
+		        COALESCE(u.is_bot, 0)
+		 FROM chats c
+		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+		 WHERE c.is_archived = 0
+		 ORDER BY c.is_pinned DESC, c.last_msg_time DESC
 		 LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, err
@@ -79,14 +82,16 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		archivedInt = 1
 	}
 	rows, err := e.db.Query(
-		`SELECT account_id, chat_id, type, title, avatar_path,
-		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
-		        last_msg_is_outgoing,
-		        unread_count, is_muted, is_pinned, is_archived,
-		        draft_text, member_count, parent_id
-		 FROM chats
-		 WHERE account_id = ? AND is_archived = ?
-		 ORDER BY is_pinned DESC, last_msg_time DESC
+		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
+		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+		        c.last_msg_is_outgoing,
+		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+		        c.draft_text, c.member_count, c.parent_id,
+		        COALESCE(u.is_bot, 0)
+		 FROM chats c
+		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+		 WHERE c.account_id = ? AND c.is_archived = ?
+		 ORDER BY c.is_pinned DESC, c.last_msg_time DESC
 		 LIMIT ? OFFSET ?`, accountID, archivedInt, limit, offset)
 	if err != nil {
 		return nil, err
@@ -102,14 +107,14 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		var avatarPath, lastMsgID, lastMsgText, lastMsgSender, draftText, parentID sql.NullString
 		var lastMsgTime sql.NullInt64
 		var memberCount sql.NullInt64
-		var isMuted, isPinned, isArchived, lastMsgIsOutgoing int
+		var isMuted, isPinned, isArchived, lastMsgIsOutgoing, isBot int
 
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
 			&lastMsgIsOutgoing,
 			&c.UnreadCount, &isMuted, &isPinned, &isArchived,
-			&draftText, &memberCount, &parentID,
+			&draftText, &memberCount, &parentID, &isBot,
 		); err != nil {
 			return chats, err
 		}
@@ -130,6 +135,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			c.MemberCount = int(memberCount.Int64)
 		}
 		c.ParentID = parentID.String
+		c.IsBot = isBot == 1
 
 		chats = append(chats, c)
 	}
@@ -386,14 +392,16 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
 
 	// Return from DB to get the fully populated ChatInfo structs.
 	rows, err := e.db.Query(
-		`SELECT account_id, chat_id, type, title, avatar_path,
-		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
-		        last_msg_is_outgoing,
-		        unread_count, is_muted, is_pinned, is_archived,
-		        draft_text, member_count, parent_id
-		 FROM chats
-		 WHERE account_id = ? AND parent_id = ?
-		 ORDER BY title ASC`, accountID, chatID)
+		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
+		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+		        c.last_msg_is_outgoing,
+		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+		        c.draft_text, c.member_count, c.parent_id,
+		        COALESCE(u.is_bot, 0)
+		 FROM chats c
+		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+		 WHERE c.account_id = ? AND c.parent_id = ?
+		 ORDER BY c.title ASC`, accountID, chatID)
 	if err != nil {
 		return nil, err
 	}
@@ -508,24 +516,27 @@ func (e *Engine) DeleteFolder(accountID, folderID string) error {
 // emitChatUpdate reads the current chat state from DB and emits an update event.
 func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	row := e.db.QueryRow(
-		`SELECT account_id, chat_id, type, title, avatar_path,
-		        last_msg_id, last_msg_text, last_msg_time, last_msg_sender,
-		        last_msg_is_outgoing,
-		        unread_count, is_muted, is_pinned, is_archived,
-		        draft_text, member_count, parent_id
-		 FROM chats WHERE account_id = ? AND chat_id = ?`, accountID, chatID)
+		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
+		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
+		        c.last_msg_is_outgoing,
+		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+		        c.draft_text, c.member_count, c.parent_id,
+		        COALESCE(u.is_bot, 0)
+		 FROM chats c
+		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
+		 WHERE c.account_id = ? AND c.chat_id = ?`, accountID, chatID)
 
 	var c ChatInfo
 	var avatarPath, lastMsgID, lastMsgText, lastMsgSender, draftText, parentID sql.NullString
 	var lastMsgTime, memberCount sql.NullInt64
-	var isMuted, isPinned, isArchived, lastMsgIsOutgoing int
+	var isMuted, isPinned, isArchived, lastMsgIsOutgoing, isBot int
 
 	err := row.Scan(
 		&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 		&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
 		&lastMsgIsOutgoing,
 		&c.UnreadCount, &isMuted, &isPinned, &isArchived,
-		&draftText, &memberCount, &parentID,
+		&draftText, &memberCount, &parentID, &isBot,
 	)
 	if err != nil {
 		return
@@ -547,6 +558,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		c.MemberCount = int(memberCount.Int64)
 	}
 	c.ParentID = parentID.String
+	c.IsBot = isBot == 1
 
 	e.emitEvent(EventChatUpdated, accountID, ChatUpdatedEvent{Chat: c})
 }

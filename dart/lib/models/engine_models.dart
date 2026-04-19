@@ -184,6 +184,7 @@ class ChatInfo {
   final int storyCount;
   final bool hasUnreadStory;
   final bool isLiveStream;
+  final bool isBot;
 
   const ChatInfo({
     required this.accountId,
@@ -207,6 +208,7 @@ class ChatInfo {
     this.storyCount = 0,
     this.hasUnreadStory = false,
     this.isLiveStream = false,
+    this.isBot = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -231,6 +233,7 @@ class ChatInfo {
     storyCount: j['story_count'] as int? ?? 0,
     hasUnreadStory: j['has_unread_story'] as bool? ?? false,
     isLiveStream: j['is_live_stream'] as bool? ?? false,
+    isBot: j['is_bot'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.

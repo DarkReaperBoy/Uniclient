@@ -232,12 +232,15 @@ class ChatListRow extends StatelessWidget {
     );
   }
 
-  IconData? get _typeIcon => switch (chat.type) {
-    ChatType.channel => Icons.campaign,
-    ChatType.group => Icons.group,
-    ChatType.topic => Icons.forum,
-    _ => null,
-  };
+  IconData? get _typeIcon {
+    if (chat.isBot) return Icons.smart_toy;
+    return switch (chat.type) {
+      ChatType.channel => Icons.campaign,
+      ChatType.group => Icons.group,
+      ChatType.topic => Icons.forum,
+      _ => null,
+    };
+  }
 
   static String _formatTime(int timestampMs) {
     if (timestampMs == 0) return '';

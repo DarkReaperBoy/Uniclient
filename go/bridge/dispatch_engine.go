@@ -657,6 +657,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		DraftText:    sanitizeUTF8(c.DraftText),
 		MemberCount:  int32(c.MemberCount),
 		ParentId:     c.ParentID,
+		IsBot:        c.IsBot,
 	}
 }
 

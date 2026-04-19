@@ -162,6 +162,7 @@ message EngineChatInfo {
   string draft_text      = 14;
   int32  member_count    = 15;
   string parent_id       = 16;
+  bool   is_bot          = 18;
 }
 
 message EngineGetChatListRequest {
