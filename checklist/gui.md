@@ -34,12 +34,6 @@
 ### 2.1 Folder Tabs
 
 ### 2.2 Search Bar
-- [ ] Search tabs: segmented slider (NOT pill chips), 33px strip height (S2)
-- [ ] Search tabs: 9px horizontal padding, 18px minimum inter-label gap (S2)
-- [ ] Search tabs: semiboldTextStyle 14px semibold, labelTop 7px (S2)
-- [ ] Search tabs: inactive fg windowSubTextFg, active fg lightButtonFg (S2)
-- [ ] Search tabs: 6px underline indicator, 2px radius, at barTop 30px (S2)
-- [ ] Search tabs: indicator snaps to label width (S2)
 - [ ] Search tabs: hover ripple windowBgOver, active-segment ripple lightButtonBgOver (S2)
 - [ ] Sub-filters under My Messages: popup menu from 38px row (not chip row) (S2)
 - [ ] Sub-filter row: photo 28px, left padding 10px, name top 9px, dropdown arrow top 15px (S2)

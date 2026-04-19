@@ -1482,6 +1482,11 @@ class _SearchTabItemState extends State<_SearchTabItem> {
     final textColor =
         widget.isActive ? widget.activeFg : widget.inactiveFg;
     final bgColor = _hovered ? widget.hoverBg : Colors.transparent;
+    final textStyle = TextStyle(
+      fontSize: 14,
+      fontWeight: FontWeight.w600,
+      color: textColor,
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1493,39 +1498,55 @@ class _SearchTabItemState extends State<_SearchTabItem> {
           height: 33,
           padding: const EdgeInsets.symmetric(horizontal: 9),
           decoration: BoxDecoration(color: bgColor),
-          child: Column(
-            children: [
-              // Label at labelTop 7px.
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 7),
-                  child: Text(
-                    widget.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: textColor,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // Measure label width so indicator snaps to it (barSnapToLabel).
+              final tp = TextPainter(
+                text: TextSpan(text: widget.label, style: textStyle),
+                textDirection: TextDirection.ltr,
+              )..layout();
+              final labelWidth = tp.width;
+              final leftOffset =
+                  (constraints.maxWidth - labelWidth) / 2;
+
+              return Stack(
+                children: [
+                  // Label at labelTop 7px, centered.
+                  Positioned(
+                    top: 7,
+                    left: 0,
+                    right: 0,
+                    child: Text(
+                      widget.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: textStyle,
                     ),
                   ),
-                ),
-              ),
-              // Spec: 6px underline indicator, 2px radius, at barTop 30px.
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                height: 3,
-                decoration: BoxDecoration(
-                  color: widget.isActive
-                      ? widget.activeFg
-                      : Colors.transparent,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(2),
-                    topRight: Radius.circular(2),
+                  // Underline indicator: 3px visible at barTop 30px,
+                  // 2px radius, snapped to label width.
+                  Positioned(
+                    bottom: 0,
+                    left: leftOffset,
+                    width: labelWidth,
+                    height: 3,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      decoration: BoxDecoration(
+                        color: widget.isActive
+                            ? widget.activeFg
+                            : Colors.transparent,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(2),
+                          topRight: Radius.circular(2),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       ),
