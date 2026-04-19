@@ -34,7 +34,6 @@
 ### 2.1 Folder Tabs
 
 ### 2.2 Search Bar
-- [ ] When focused: Recent Contacts list (56px rows, 42px avatars) (S2)
 - [ ] When typing: results in three tabs (MyMessages, PublicPosts, ThisPeer) (S2)
 - [ ] Empty search results: Lottie animation (100px) + descriptive text (S2)
 - [ ] Search tabs: segmented slider (NOT pill chips), 33px strip height (S2)

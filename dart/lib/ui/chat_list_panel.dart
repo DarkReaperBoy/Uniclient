@@ -351,27 +351,34 @@ class _ChatListPanelState extends State<ChatListPanel> {
               chats: accountChats,
               onTap: (chat) => chatState.openChat(chat),
             ),
-          // Chat list.
+          // Chat list / Recent Contacts (spec §2.2: recent contacts shown
+          // when search focused with empty query, below Top Peers strip).
           Expanded(
-            child: nonArchived.isEmpty
-                ? _EmptyState(searching: _searching)
-                : ListView.builder(
-                    itemCount: nonArchived.length,
-                    itemBuilder: (context, index) {
-                      final chat = nonArchived[index];
-                      final isActive =
-                          chatState.activeChat?.chatId == chat.chatId &&
-                          chatState.activeChat?.accountId == chat.accountId;
-                      return ChatListRow(
-                        chat: chat,
-                        isActive: isActive,
-                        isOnline: chatState.isChatOnline(chat),
-                        typingUser: chatState.typingUserFor(chat.chatId),
-                        onTap: () => chatState.openChat(chat),
-                        onSecondaryTap: (pos) => _showChatContextMenu(context, chat, pos),
-                      );
-                    },
-                  ),
+            child: _searching && _searchController.text.isEmpty
+                ? _RecentContactsList(
+                    chats: accountChats,
+                    onTap: (chat) => chatState.openChat(chat),
+                    chatState: chatState,
+                  )
+                : nonArchived.isEmpty
+                    ? _EmptyState(searching: _searching)
+                    : ListView.builder(
+                        itemCount: nonArchived.length,
+                        itemBuilder: (context, index) {
+                          final chat = nonArchived[index];
+                          final isActive =
+                              chatState.activeChat?.chatId == chat.chatId &&
+                              chatState.activeChat?.accountId == chat.accountId;
+                          return ChatListRow(
+                            chat: chat,
+                            isActive: isActive,
+                            isOnline: chatState.isChatOnline(chat),
+                            typingUser: chatState.typingUserFor(chat.chatId),
+                            onTap: () => chatState.openChat(chat),
+                            onSecondaryTap: (pos) => _showChatContextMenu(context, chat, pos),
+                          );
+                        },
+                      ),
           ),
         ],
       ),
@@ -1104,6 +1111,232 @@ class _TopPeersStrip extends StatelessWidget {
       return '${words[0][0]}${words[1][0]}'.toUpperCase();
     }
     return t[0].toUpperCase();
+  }
+}
+
+/// Recent Contacts list: vertical list of recent DM contacts shown below the
+/// Top Peers strip when search bar is focused with no query (spec §2.2).
+/// Rows: 56px height, 42px avatar at (16,7), name at (74,9), status at (74,30).
+class _RecentContactsList extends StatelessWidget {
+  final List<ChatInfo> chats;
+  final void Function(ChatInfo) onTap;
+  final ChatState chatState;
+
+  const _RecentContactsList({
+    required this.chats,
+    required this.onTap,
+    required this.chatState,
+  });
+
+  static const _rowHeight = 56.0;
+  static const _avatarSize = 42.0;
+
+  static const _avatarColors = [
+    Color(0xFFe17076),
+    Color(0xFF7bc862),
+    Color(0xFFe5ca77),
+    Color(0xFF65aadd),
+    Color(0xFFa695e7),
+    Color(0xFFee7aae),
+    Color(0xFF6ec9cb),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final dmChats = chats
+        .where((c) => c.type == ChatType.dm && !c.isArchived)
+        .toList()
+      ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+    final recent = dmChats.take(30).toList();
+    if (recent.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final nameFg = isDark ? const Color(0xFFe0e0e0) : const Color(0xFF222222);
+    final statusFg =
+        isDark ? const Color(0xFF8a8a8a) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+
+    return ListView.builder(
+      itemCount: recent.length,
+      itemExtent: _rowHeight,
+      itemBuilder: (context, index) {
+        final chat = recent[index];
+        final colorIndex = chat.chatId.hashCode.abs() % 7;
+        final color = _avatarColors[colorIndex];
+        final initials = _initials(chat.title);
+        final isOnline = chatState.isChatOnline(chat);
+
+        return _RecentContactRow(
+          chat: chat,
+          avatarColor: color,
+          initials: initials,
+          isOnline: isOnline,
+          nameFg: nameFg,
+          statusFg: statusFg,
+          hoverBg: hoverBg,
+          onTap: () => onTap(chat),
+        );
+      },
+    );
+  }
+
+  static String _initials(String title) {
+    final t = title.trim();
+    if (t.isEmpty) return '?';
+    final words = t.split(RegExp(r'\s+'));
+    if (words.length >= 2 && words[0].isNotEmpty && words[1].isNotEmpty) {
+      return '${words[0][0]}${words[1][0]}'.toUpperCase();
+    }
+    return t[0].toUpperCase();
+  }
+}
+
+class _RecentContactRow extends StatefulWidget {
+  final ChatInfo chat;
+  final Color avatarColor;
+  final String initials;
+  final bool isOnline;
+  final Color nameFg;
+  final Color statusFg;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _RecentContactRow({
+    required this.chat,
+    required this.avatarColor,
+    required this.initials,
+    required this.isOnline,
+    required this.nameFg,
+    required this.statusFg,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  State<_RecentContactRow> createState() => _RecentContactRowState();
+}
+
+class _RecentContactRowState extends State<_RecentContactRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: _RecentContactsList._rowHeight,
+          color: _hovered ? widget.hoverBg : Colors.transparent,
+          child: Stack(
+            children: [
+              // Avatar at (16, 7)
+              Positioned(
+                left: 16,
+                top: 7,
+                child: SizedBox(
+                  width: _RecentContactsList._avatarSize,
+                  height: _RecentContactsList._avatarSize,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      widget.chat.avatarPath.isNotEmpty
+                          ? ClipOval(
+                              child: Image.file(
+                                File(widget.chat.avatarPath),
+                                width: _RecentContactsList._avatarSize,
+                                height: _RecentContactsList._avatarSize,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) =>
+                                    _fallbackAvatar(),
+                              ),
+                            )
+                          : _fallbackAvatar(),
+                      if (widget.isOnline)
+                        Positioned(
+                          right: -1,
+                          bottom: -1,
+                          child: Container(
+                            width: 12,
+                            height: 12,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4dc920),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: _hovered
+                                    ? widget.hoverBg
+                                    : surfaceColor,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // Name at (74, 9)
+              Positioned(
+                left: 74,
+                top: 9,
+                right: 16,
+                child: Text(
+                  widget.chat.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: widget.nameFg,
+                  ),
+                ),
+              ),
+              // Status at (74, 30)
+              Positioned(
+                left: 74,
+                top: 30,
+                right: 16,
+                child: Text(
+                  widget.isOnline ? 'online' : 'last seen recently',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: widget.isOnline
+                        ? const Color(0xFF4dc920)
+                        : widget.statusFg,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _fallbackAvatar() {
+    return Container(
+      width: _RecentContactsList._avatarSize,
+      height: _RecentContactsList._avatarSize,
+      decoration: BoxDecoration(
+        color: widget.avatarColor,
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        widget.initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: _RecentContactsList._avatarSize * 0.38,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
   }
 }
 
