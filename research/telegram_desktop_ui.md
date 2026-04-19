@@ -18422,30 +18422,130 @@ Source: `input_field.cpp:1690-1698` (`MarkdownActionsNotes`), `input_field.cpp:5
 
 ### 41.6 Edit Link Dialog (EditLinkBox)
 
-Opened by Ctrl+K or the context menu "Create link" / "Edit link" action. A `GenericBox` dialog with:
+Opened by Ctrl+K or the context menu "Create link" / "Edit link" action. A `Ui::GenericBox` dialog. Source: `chat_helpers/message_field.cpp:138-282` (`EditLinkBox`), `input_field.cpp:4917-4982` (`commitMarkdownLinkEdit`).
 
-1. **Text field** — `InputField` (single-line), placeholder "Text", pre-filled with the selected text. Has emoji suggestions and spellcheck enabled.
-2. **URL field** — `InputField` (single-line), placeholder "URL", pre-filled with:
-   - The existing link URL if editing, OR
-   - The clipboard contents if it starts with a known protocol (`http://`, `https://`, etc.), OR
-   - Empty otherwise.
-3. **Create/Save button** — Validates both fields. URL is validated via `qthelp::validate_url`. If text is empty, shows error on text field. If URL is invalid/empty, shows error on URL field.
-4. **Cancel button** — Closes the dialog.
+#### 41.6.1 Box Geometry (resolved)
 
-Submitting either field (Enter key) triggers the create/save action. The link text and URL are committed to the input field via `commitMarkdownLinkEdit`, which inserts the text with the URL stored as a tag property. Links are rendered with `linkFg` color.
+| Element | Px / Token | Style key (file:line) |
+|---|---|---|
+| **Box width** | 320 px | `boxWidth` `lib_ui/ui/layers/layers.style:117` (called via `box->setWidth(st::boxWidth)` `message_field.cpp:236`) |
+| **Title** | "Create Link" or "Edit Link" (toggled by `url->getLastText().isEmpty()`) — uses standard `boxTitle` (48 px tall, 24 px left padding); `boxTitleFont` = `semiboldFont` 14 px | `boxTitleHeight` / `boxTitlePosition` `layers.style:81-82`; assignment `message_field.cpp:230-232` |
+| **Inner content layout** | `box->verticalLayout()` resized to width `boxWidth` (= 320 px) and moved to `(0, 0)` | `message_field.cpp:234-235` |
+| **Field padding (per row)** | `margins(22px, 0px, 22px, 10px)` (left 22, top 0, right 22, bottom 10) — applied to BOTH text-field row AND url-field placeholder row | `markdownLinkFieldPadding` `boxes.style:708` (added at `message_field.cpp:163` and `:175`) |
+| **Inner field width** | `boxWidth − leftPad − rightPad` = `320 − 22 − 22` = **276 px** | derived |
+| **Submit / Cancel buttons** | `defaultBox.button` = `defaultBoxButton` (height 34 px, padding `margins(6px, 10px, 10px, 10px)`); right-aligned | `defaultBox.buttonHeight` / `buttonPadding` `layers.style:124-128` |
 
-Source: `chat_helpers/message_field.cpp:138-230` (`EditLinkBox`), `input_field.cpp:4917-4982` (`commitMarkdownLinkEdit`).
+#### 41.6.2 Text Field
 
-### 41.7 Code Block Language Dialog
+`Ui::InputField` constructed with style `st::defaultInputField` (or caller-supplied `fieldStyle`), `Mode::SingleLine`, placeholder `tr::lng_formatting_link_text()` ("Text"), pre-filled with `startText` (the user's selection). Source: `message_field.cpp:156-163`.
 
-When clicking on a code block's language label area (the top of a `kTagPre` block), `editPreLanguage` is called, which opens `EditCodeLanguageBox`:
+| Property of `defaultInputField` | Value | Source |
+|---|---|---|
+| `textBg` / `textBgActive` | `windowBg` | `widgets.style:1042-1043` |
+| `textFg` | `windowFg` | `:1044` |
+| `textMargins` | `margins(0px, 28px, 0px, 4px)` | `:1045` |
+| `placeholderFg` / Active / Error | `windowSubTextFg` / `windowActiveTextFg` / `attentionButtonFg` | `:1048-1050` |
+| `placeholderScale` | `0.9` (animates from inline → top-left) | `:1053` |
+| `placeholderShift` | `-20px` (vertical shift on focus) | `:1054` |
+| `placeholderFont` | `font(semibold 14px)` | `:1055` |
+| `duration` (placeholder transition) | `150 ms` | `:1056` |
+| `borderFg` / Active / Error | `inputBorderFg` / `activeLineFg` / `activeLineFgError` | `:1058-1060` |
+| `border` / `borderActive` | `1 px` / `2 px` | `:1062-1063` |
+| `borderRadius` | `0 px` (square underline-style border) | `:1064` |
+| `style` | `boxTextStyle` (font 14 px) | `:1067` |
+| `heightMin` / `heightMax` | `55 px` / `148 px` | `:1071-1072` |
+| `widthMin` | `64 px` | `:1073` |
 
-1. **Title** — "Code Language"
-2. **Description label** — "Language for syntax highlighting."
-3. **Language field** — `InputField` (single-line), placeholder "Auto-Detect", pre-filled with current language. Max length enforced with a length limit label. Only `[a-zA-Z0-9+-]` characters accepted.
-4. **Save/Cancel buttons**.
+So in EditLinkBox the text field is **276 px wide × 55 px tall** (Mode::SingleLine never grows past `heightMin`).
 
-Source: `chat_helpers/message_field.cpp:284-327`, `input_field.cpp:2524-2541`.
+After construction:
+- `text->setInstantReplaces(Ui::InstantReplaces::Default())` — enables typo replacement (`message_field.cpp:164`).
+- Emoji suggestions attached via `Ui::Emoji::SuggestionsController::Init` (`:168-171`).
+- Spellcheck attached via `InitSpellchecker` (`:172`).
+
+#### 41.6.3 URL Field
+
+`Ui::InputField` constructed with the same style `fieldSt`, default Mode (single-line, no Mode override = defaults to multi-line internally but constrained by `defaultInputField.heightMax = 148 px`), placeholder `tr::lng_formatting_link_url()` ("URL"), pre-filled with `link` (existing URL, else clipboard if it starts with `http://`, `https://`, `tonsite://` — else empty). Source: `message_field.cpp:184-194`, protocol list `kLinkProtocols` `message_field.cpp:81-85`.
+
+The URL field is NOT added to the vertical layout directly. Instead, an empty `Ui::RpWidget` placeholder is added with the same `markdownLinkFieldPadding` (`message_field.cpp:174-176`), and the URL field is `AttachParentChild`'d on top of it (`:189`). This lets the placeholder reserve vertical space inside the layout while the actual `InputField` is positioned freely. Subscribers (`message_field.cpp:194-201`):
+
+- URL field's `heightValue()` → resizes the placeholder to match height (so the layout grows as the URL field grows).
+- placeholder's `widthValue()` → resizes the URL field to match the placeholder's content width (= 276 px).
+
+Width = **276 px** (same as text field). Height = `defaultInputField.heightMin` (55 px) initially, can grow to `heightMax` (148 px) for very long URLs.
+
+#### 41.6.4 Submit / Validation
+
+`submit` lambda (`message_field.cpp:202-217`):
+- Reads `text->getTextWithTags()` and `url->getLastText()`.
+- URL is run through the caller-supplied `validate` callback (defaults to `qthelp::validate_url`).
+- Empty text → `text->showError()` (border turns to `borderFgError`/`activeLineFgError`); empty/invalid URL → `url->showError()`.
+- On success, calls `callback(linkText, linkUrl)` and `box->closeBox()`.
+
+Enter behaviour (`message_field.cpp:219-228`):
+- Pressing Enter in **text field** → moves focus to URL field (`url->setFocusFast()`).
+- Pressing Enter in **URL field** → if text is empty, focuses text field; else triggers `submit`.
+
+Tab cycling between fields with full-selection clearing (`message_field.cpp:255-282`).
+
+#### 41.6.5 Buttons
+
+| Button | Label | Action |
+|---|---|---|
+| Primary (right) | `tr::lng_formatting_link_create()` ("Save" / "Create") | `submit` lambda |
+| Secondary (right) | `tr::lng_cancel()` ("Cancel") | `box->closeBox()` |
+
+Source: `message_field.cpp:233-234` (`box->addButton`).
+
+After saving, the link is committed to the parent input field via `commitMarkdownLinkEdit`, which inserts the text and stores the URL string as the tag value (rendered with `linkFg` colour).
+
+### 41.7 Code Block Language Dialog (EditCodeLanguageBox)
+
+When clicking on a `kTagPre` block's "language" header strip (`historyTextStyle.pre.header` = 20 px, see §41.13), `editPreLanguage` is called, which opens `EditCodeLanguageBox` (a `Ui::GenericBox`). Source: `chat_helpers/message_field.cpp:284-327`, `input_field.cpp:2524-2541`.
+
+#### 41.7.1 Box Geometry & Strings (resolved)
+
+| Element | Value / Token | Source |
+|---|---|---|
+| **Box width** | Inherited from `defaultBox` — width is determined automatically by `box->addRow` content (uses `boxRowPadding` 24 px L/R). For the standard label + single field, the box auto-sizes to the FlatLabel's natural width (capped by `boxWidth` 320 px). | `defaultBox` `lib_ui/ui/layers/layers.style:122-130`; no explicit `setWidth` in `EditCodeLanguageBox` |
+| **Row padding** | `margins(24px, 0px, 24px, 0px)` (24 px L/R) | `boxRowPadding` `layers.style:87` (default for `box->addRow`) |
+| **Title** | `tr::lng_formatting_code_title()` → "Code Language" | `message_field.cpp:289` |
+| **Description label** | `tr::lng_formatting_code_language()` → "Language for syntax highlighting." rendered with `st::settingsAddReplyLabel` (= `FlatLabel(defaultFlatLabel)` with `minWidth: 256px`) | `message_field.cpp:290-293`; style `settings.style:686-688` |
+| **Language field** | `Ui::InputField` styled with `st::settingsAddReplyField`, placeholder `tr::lng_formatting_code_auto()` → "Auto-Detect", pre-filled with `now.trimmed()` (current language) | `message_field.cpp:294-298` |
+
+#### 41.7.2 Language Field Style — `settingsAddReplyField` (resolved)
+
+Inherits from `defaultInputField` (see §41.6.2) and overrides:
+
+| Property | Value | Source |
+|---|---|---|
+| `textBg` | `transparent` | `settings.style:690` |
+| `textMargins` | `margins(0px, 10px, 32px, 2px)` (32 px right gap reserved for the length-limit counter) | `:691` |
+| `placeholderFg` / Active / Error | `placeholderFg` / `placeholderFgActive` / `placeholderFgActive` | `:692-694` |
+| `placeholderMargins` | `margins(2px, 0px, 2px, 0px)` | `:695` |
+| `placeholderScale` | `0.` (no animated scale — placeholder stays inline and fades on type) | `:696` |
+| `heightMin` | **36 px** (overrides default 55 px) | `:697` |
+
+Inherited from `defaultInputField`: `border 1px / borderActive 2px`, `borderRadius 0`, `style boxTextStyle` (14 px font), `heightMax 148 px`, `widthMin 64 px`.
+
+#### 41.7.3 Length Limit & Validation
+
+| Constraint | Value | Source |
+|---|---|---|
+| **`field->setMaxLength(...)`** | `kCodeLanguageLimit = 32` characters | constant `message_field.cpp:79`, applied `:305` |
+| **`Ui::AddLengthLimitLabel(field, 32)`** | Adds a small counter inside the field's right `textMargins` gap (32 px reserved) showing `chars_left` once approaching the limit | `:307` |
+| **Allowed character regex** | `^[a-zA-Z0-9\+\-]*$` — only ASCII letters, digits, `+`, `-`. Validated on submit; on mismatch the field shows an error border. | `:310-311` |
+| **Initial behaviour** | `field->selectAll()` on open — full content selected so typing replaces it immediately | `:303` |
+| **Auto-focus** | `box->setFocusCallback` → `field->setFocusFast()` | `:299-301` |
+
+#### 41.7.4 Buttons
+
+| Button | Label | Source |
+|---|---|---|
+| Primary (right) | `tr::lng_settings_save()` ("Save") | `message_field.cpp:323` |
+| Secondary (right) | `tr::lng_cancel()` ("Cancel") | `:324` |
+
+On save: the trimmed language string is passed to the `save` callback. If the regex check fails, `field->showError()` is called and the box stays open.
 
 ### 41.8 Keyboard Shortcuts — Complete List
 
@@ -18522,21 +18622,84 @@ The context menu is dismissed by:
 
 ### 41.13 Visual Rendering of Formatted Text in Compose Field
 
-Formatted text is rendered live in the compose `QTextEdit` with visual feedback:
+Formatted text is rendered live in the compose `QTextEdit` with visual feedback. Inline formats map directly to `QTextCharFormat` weights/decorations (`input_field.cpp:897-914`). Block-level formats (blockquote, pre/code-block) use `Ui::Text::QuoteStyle` and are painted by the renderer using the historyTextStyle definition shown below.
 
 | Format | Visual in compose field |
 |---|---|
-| Bold | Bold font weight |
+| Bold | Bold font weight (`QFont::Bold`) |
 | Italic | Italic font style |
 | Underline | Underline text decoration |
 | Strikethrough | Strikeout text decoration |
-| Monospace/Code | Monospace font family + `monoFg` text color |
-| Code block | Monospace font + `monoFg` color + block background with colored side bar |
+| Monospace/Code | Monospace font family (`semiboldFont` family fallback → `monospace`) + `monoFg` text colour |
+| Code block (`kTagPre`) | Monospace font + `monoFg` colour + `historyTextStyle.pre` quote box (see 41.13.1) |
 | Spoiler | Animated sparkle/shimmer overlay (`FieldSpoilerOverlay`) hiding the text |
-| Link | `linkFg` text color (typically blue) |
-| Blockquote | Block background with colored vertical bar on the left, collapsible |
+| Link | `linkFg` text colour (typically blue) |
+| Blockquote (`kTagBlockquote`) | `historyTextStyle.blockquote` quote box with left rule + mini-quote icon (see 41.13.1) |
 
-Source: `input_field.cpp:897-914` (format to `QTextCharFormat` mapping).
+Source for inline mapping: `input_field.cpp:897-914`. Source for block QuoteStyle painting: `lib_ui/ui/text/text_renderer.cpp` (paints `block.quote()` using `style.blockquote` / `style.pre`).
+
+#### 41.13.1 Blockquote & Pre Bar — Resolved Dimensions
+
+`Ui::Text::QuoteStyle` struct (lib_ui/ui/basic.style:22-39):
+
+```
+QuoteStyle {
+    padding: margins;       // inner content padding
+    verticalSkip: pixels;   // extra outer gap above/below the quote box
+    header: pixels;         // height of the language/header strip (pre only)
+    headerPosition: point;
+    icon: icon;             // top-right mini-icon (mini_quote / mini_copy)
+    iconPosition: point;
+    expand: icon;           // chevron when collapsed (blockquote only)
+    expandPosition: point;
+    collapse: icon;         // chevron when expanded
+    collapsePosition: point;
+    outline: pixels;        // LEFT RULE WIDTH (the colored bar)
+    outlineShift: pixels;   // vertical shift of the rule
+    radius: pixels;         // corner radius of the quote box
+    scrollable: bool;       // pre uses true (horizontal scroll for long lines)
+}
+```
+
+Base `historyQuoteStyle` (`chat_helpers/chat_helpers.style:1107-1113`):
+
+| Field | Value | Notes |
+|---|---|---|
+| `padding` | `margins(10px, 2px, 4px, 2px)` | content inset (left 10, top 2, right 4, bottom 2) |
+| `verticalSkip` | `4 px` | gap above + below the quote block |
+| **`outline`** | **`3 px`** | **the coloured LEFT RULE width — same value used for blockquote AND pre** |
+| `outlineShift` | `2 px` | rule's vertical inset from the quote box top/bottom |
+| `radius` | `5 px` | corner radius (rounded outer + rule corners) |
+
+`historyTextStyle.blockquote` (extends historyQuoteStyle, `chat_helpers.style:1115-1123`):
+
+| Field | Value | Notes |
+|---|---|---|
+| `padding` | `margins(10px, 2px, 20px, 2px)` | overrides base — adds extra **20 px right padding** to clear the mini-quote icon |
+| `icon` | `chat/mini_quote` tinted `windowFg` | top-right corner glyph |
+| `iconPosition` | `point(4px, 4px)` | offset from top-right corner |
+| `expand` | `intro_country_dropdown` chevron tinted `windowFg` | shown when blockquote is collapsed |
+| `expandPosition` | `point(6px, 4px)` | from top-right |
+| `collapse` | same icon `flip_vertical` | shown when expanded |
+| `collapsePosition` | `point(6px, 4px)` | from top-right |
+
+`historyTextStyle.pre` (extends historyQuoteStyle, `chat_helpers.style:1124-1131`):
+
+| Field | Value | Notes |
+|---|---|---|
+| `header` | `20 px` | height of the language-name strip at the top of a code block |
+| `headerPosition` | `point(10px, 2px)` | language label is drawn at (10, 2) inside the header strip |
+| `scrollable` | `true` | code blocks scroll horizontally for long lines |
+| `icon` | `chat/mini_copy` tinted `windowFg` | top-right copy glyph |
+| `iconPosition` | `point(4px, 2px)` | offset from top-right |
+
+(Inherits the 3 px outline / 5 px radius / 4 px verticalSkip from the base.)
+
+**Background colours** are pulled from the active palette per direction (in/out bubble): `msgInBgQuote` / `msgOutBgQuote` for blockquotes, `msgInBgCode` / `msgOutBgCode` for pre blocks. The outline rule uses `historyQuoteOutline*` (palette-defined; see §57). All values are resolved by `Ui::ChatStyle::cached*Colors()` at paint time.
+
+**Compose field caveat**: the compose `historyComposeField` (`chat_helpers.style:1133`) sets `style: historyTextStyle`, so the SAME quote/pre dimensions and icons apply when the user types a blockquote or code block in the input area — there is no separate "compose-only" QuoteStyle. Background uses `historyComposeAreaBg` instead of bubble-specific colours.
+
+Source: `input_field.cpp:897-914` (inline format map), `chat_helpers.style:1107-1131` (QuoteStyle), `lib_ui/ui/basic.style:22-39` (QuoteStyle struct).
 
 ### 41.14 Source File Locations
 
