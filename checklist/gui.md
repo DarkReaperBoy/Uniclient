@@ -26,7 +26,6 @@
 ### 1.5 Linux Titlebar
 
 ### 1.6 Animations
-- [ ] Section transition animation: horizontal slide with crossfade (S1)
 - [ ] Menu expand/collapse animation: slideWrapDuration (S1)
 
 ---

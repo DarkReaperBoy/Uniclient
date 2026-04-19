@@ -35,6 +35,9 @@ class _UniClientShellState extends State<UniClientShell> {
   bool _dialogsCollapsed = false;
   bool _layoutLoaded = false;
   bool _isDragging = false;
+  // One-column section transition direction tracking (spec §1: horizontal slide + crossfade).
+  bool _navForward = true;
+  bool _hadActiveChat = false;
 
   // Spec §1 column constants (window.style:20-24).
   static const _dialogsMin = 260.0;
@@ -97,6 +100,13 @@ class _UniClientShellState extends State<UniClientShell> {
     final appState = context.watch<AppState>();
     final authState = context.watch<AuthState>();
     final chatState = context.watch<ChatState>();
+
+    // Track navigation direction for one-column section transitions.
+    final hasChat = chatState.activeChat != null;
+    if (hasChat != _hadActiveChat) {
+      _navForward = hasChat;
+      _hadActiveChat = hasChat;
+    }
 
     // Load layout prefs once configDir becomes available.
     if (!_layoutLoaded && appState.configDir.isNotEmpty) {
@@ -172,17 +182,55 @@ class _UniClientShellState extends State<UniClientShell> {
     }
   }
 
-  /// Single panel: show either chat list or chat view, with slide navigation.
+  /// Single panel: show either chat list or chat view, with section transition
+  /// animation (spec §1: horizontal slide with content snapshot crossfade).
   Widget _buildOneColumn(BuildContext context, ChatState chatState) {
-    if (chatState.activeChat != null) {
-      return ChatView(
-        onBack: () => chatState.closeChat(),
-        showBackButton: true,
-      );
-    }
-    return ChatListPanel(
-      onOpenDrawer: () => Scaffold.of(context).openDrawer(),
-      showHamburger: true,
+    final showChat = chatState.activeChat != null;
+    final forward = _navForward;
+
+    return ClipRect(
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        layoutBuilder: (currentChild, previousChildren) {
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              ...previousChildren,
+              if (currentChild != null) currentChild,
+            ],
+          );
+        },
+        transitionBuilder: (child, animation) {
+          final isIncoming =
+              child.key == ValueKey(showChat ? 'chat' : 'chatlist');
+          final beginOffset = isIncoming
+              ? Offset(forward ? 1.0 : -1.0, 0)
+              : Offset(forward ? -0.3 : 0.3, 0);
+          final curved = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          );
+          return SlideTransition(
+            position: Tween<Offset>(begin: beginOffset, end: Offset.zero)
+                .animate(curved),
+            child: FadeTransition(
+              opacity: curved,
+              child: child,
+            ),
+          );
+        },
+        child: showChat
+            ? ChatView(
+                key: const ValueKey('chat'),
+                onBack: () => chatState.closeChat(),
+                showBackButton: true,
+              )
+            : ChatListPanel(
+                key: const ValueKey('chatlist'),
+                onOpenDrawer: () => Scaffold.of(context).openDrawer(),
+                showHamburger: true,
+              ),
+      ),
     );
   }
 
