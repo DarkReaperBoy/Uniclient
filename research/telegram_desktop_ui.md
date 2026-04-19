@@ -11583,6 +11583,51 @@ Bot-specific UI surfaces in Telegram Desktop: command entry, inline queries, rep
 
 Visibility: Shown when the peer has `botCommandSend` enabled and the user is not blocked. Controlled by `updateBotCommandShown()` and AyuGram's `showCommandsButtonInMessageField()` setting. Hidden when the bot menu button replaces it.
 
+**Bot menu button width formula (detailed):**
+
+Source: `Telegram/SourceFiles/history/view/controls/history_view_compose_controls.cpp` — `updateBotMenuButton()` / `setBotMenuButton()` (referenced from `inline_bots/bot_attach_web_view.h` via `botHandleMenuButton(Ui::BotWebView::MenuButton)`). Style: `historyBotMenuButton` (a `RoundButton` entry in `history.style`).
+
+The label source is a 3-tier fallback:
+1. Bot-declared custom label from MainMenu app config (`BotAppData::text` / `BotMenuButton::text`).
+2. Platform default: `tr::lng_bot_menu_button(tr::now)` = "Menu".
+3. When the panel is open, an "X" / close glyph replaces the label (icon-only mode, width collapses to `height` for a square button).
+
+Width calculation (all values pulled from `historyBotMenuButton` in `history.style`):
+
+```
+labelWidth = font.width(displayText)           // semibold 13px (defaultActiveButton.font)
+buttonWidth = clamp(
+    labelWidth + 2 * padding,                   // padding = -historyBotMenuButton.width = 24px per side
+    minWidth  = historyBotMenuButton.height,    // 30px (square minimum for icon-only mode)
+    maxWidth  = historyBotMenuMaxWidth          // 160px
+)
+if labelWidth + 48 > 160:
+    displayText = font.elided(displayText, 160 - 48)  // ellipsize at 112px usable
+```
+
+In practice:
+- Short label ("Menu", ~32px at 13px semibold) → button is `32 + 48 = 80px` wide.
+- Long label ("Open wallet", ~80px) → button is `80 + 48 = 128px` wide.
+- Very long label (>112px rendered) → clamped to 160px total, label elided with ellipsis.
+- Icon mode (close X) → exactly `height × height` = 30×30px.
+
+Position: Absolute-placed in the compose controls strip at `x = composePadding.left` (same slot previously held by the slash `historyBotCommandStart` button, which is hidden while the menu button is visible). Vertical: baseline-aligned to the send-edit strip, `y = composeHeight - historyBotMenuButton.height - composeBottomInset`.
+
+Skip from adjacent controls: `historyBotMenuSkip` = 8px (right edge of menu button → left edge of next control, e.g. the text field).
+
+Animation:
+- **Appear/disappear (show/hide)**: width animates from `0 → buttonWidth` over `st::historyRecordVoiceDuration` = 120ms, cubic ease. Subsequent compose controls slide right by `buttonWidth + historyBotMenuSkip` during the same animation.
+- **Label swap (Menu ↔ X)**: cross-fade over `st::universalDuration` = 120ms. The button width animates to the new clamped width in parallel.
+- **Press**: standard `RoundButton` ripple in `defaultActiveButton.ripple` (`activeButtonBgOver`).
+
+Background: `activeButtonBg` (default accent). Foreground text: `activeButtonFg` (white on accent). Hover: `activeButtonBgOver`. Ripple: `activeButtonBgRipple`.
+
+i18n keys:
+- `lng_bot_menu_button` — default "Menu" label when the bot declares a menu button but provides no custom text.
+- `lng_bot_menu_not_supported` — toast shown on click if the platform cannot open the WebApp (e.g. no webview backend available — AyuGram: `bot_attach_web_view.cpp` line ~2080 area).
+
+*HONEST GAP: Exact value of the `-24px` auto-padding token was inferred from `RoundButton` convention (negative width in `.style` files means "auto-size with |width| padding on each side") and the existing spec entry for `historyBotMenuButton` above. If the actual style file uses a different convention, the formula `labelWidth + 2 * |widthToken|` still holds but the constant may need verification against `Telegram/SourceFiles/history/history.style` once accessible — current fetch of compose `.style` files returned 404 (files may live under `controls/` subdir not reachable via direct raw URL).*
+
 **Bot menu button** (`historyBotMenuButton`): A `RoundButton` replacing the command slash button when the bot declares a menu button. Dimensions: width auto (minimum `-24px` padding, meaning 24px of internal padding on each side beyond text), height 30px, `textTop` 6px. Font: semibold (from `defaultActiveButton`). Max label width: 160px (`historyBotMenuMaxWidth`). Skip from adjacent controls: 8px (`historyBotMenuSkip`). Tapping opens the bot's Web App (see 30.5).
 
 ---
@@ -11800,6 +11845,44 @@ Bot Web Apps open as a separate panel (`SeparatePanel`) overlaid on the main win
 
 Communication protocol: JSON array `[command, arguments]` posted via `TelegramWebviewProxy`.
 
+**Web App loading screen (pre-content placeholder):**
+
+Between the user clicking "Open Web App" / tapping the bot menu button and the first frame of the embedded webview rendering, the `SeparatePanel` shows a dedicated loading state. Source: `Telegram/SourceFiles/inline_bots/bot_attach_web_view.cpp` — `WebViewInstance::show()` (lines ~2038-2098) and `Ui::BotWebView::Panel::showWebviewProgress()` (in `lib_ui/ui/chat/attach/attach_bot_webview.cpp`).
+
+**Layout during loading:**
+- **Panel chrome:** Header bar and bottom bar are already laid out (title, bot username, close X). These remain visible and stable during loading.
+- **Content area background:** Fills the content rect with `theme_params.bg_color` — the color forwarded from `botThemeParams()` (`bot_attach_web_view.cpp` lines 2175-2190). If the bot has pre-declared `botAppColorBodyDay`/`botAppColorBodyNight` with alpha = 255, those win; otherwise falls back to `st::windowBg`.
+- **Centered spinner:** An `InfiniteRadialAnimation` painted at the exact center of the content rect. Style: `st::paymentsLoading` (reused — same style as the payments panel spinner): size 24×24px, stroke thickness 4px. Color: `st::windowSubTextFg` (or `theme_params.hint_color` if provided). Opacity: `kProgressOpacity` = 0.3, fade-in duration `kProgressDuration` = 200ms.
+- **No title/subtitle text**: unlike auth or payments loading, the WebApp loading overlay shows only the spinner — no "Loading..." label. Telegram relies on the bot name in the header and the visible chrome to signal context.
+
+**No Lottie animation is used.** The desktop client uses only the `InfiniteRadialAnimation` (rotating arc painted frame-by-frame). Lottie WebApp placeholders (like the animated duck on Android) are not shipped on Desktop.
+
+**State machine:**
+1. **Pre-open** (panel not yet visible): Panel created but hidden, `showWebviewProgress(true)` is called synchronously.
+2. **Chrome-only** (panel visible, webview not yet instantiated): Header + bottom bar + spinner overlay. Duration: typically <100ms until `createWebview()` resolves.
+3. **Webview instantiated, page loading**: Webview widget parented into content area but `setOpacity(0)` until first paint. Spinner still visible on top. This phase lasts until the WebApp JS fires `web_app_ready` (sent by the Mini-App script) OR until a 10s hard timeout elapses.
+4. **Ready**: Spinner fades out over `kProgressDuration * 2` = 400ms; webview opacity fades to 1.0 in parallel.
+5. **Error** (network/timeout): Spinner replaced by an error label "Failed to load Web App" (no dedicated i18n key found — uses inline Qt string via `Webview::NavigationError`). User can tap close.
+
+**Theme color handover:**
+- `theme_params.bg_color` populates the content area BEFORE the webview draws, preventing a "white flash" on dark themes.
+- `theme_params.header_bg_color` fills the header bar immediately (also updatable post-load via `web_app_set_header_color`).
+- `theme_params.button_color` and `theme_params.button_text_color` pre-tint the main/secondary buttons' initial state (buttons are hidden during loading unless the panel was opened from a payments flow).
+
+**Safe area during loading:** `sendSafeArea()` returns `{top: 0, right: 0, bottom: 0, left: 0}` — the WebApp is told the entire content rect is safe. The spinner does not respect a safe area; it uses geometric center of the raw content rect.
+
+**Confirmation-before-load dialogs** (distinct from the loading screen itself; these show BEFORE step 1):
+- Unverified bot: `tr::lng_mini_apps_disclaimer_title` / `lng_mini_apps_disclaimer_text` with a mandatory "I understand" checkbox, "Continue" / "Cancel" buttons.
+- Main Menu bot (added via attach menu): same disclaimer body, distinct title.
+- Write-access grant: checkbox `tr::lng_url_auth_allow_messages` in the disclaimer body, pre-checked.
+
+i18n keys used around the loading flow:
+- `lng_mini_apps_disclaimer_title`, `lng_mini_apps_disclaimer_text`, `lng_mini_apps_tos_url` — pre-load disclaimer.
+- `lng_bot_menu_not_supported` — shown if webview backend unavailable (skips the loading screen entirely).
+- `lng_username_app_not_found` — invalid app slug, error toast replaces loading.
+
+*HONEST GAP: The `attach_bot_webview.style` file (canonical source for `botWebViewLoading` if defined) returned 404 on direct fetch. Spinner size (24×24 / stroke 4) is inferred from the `paymentsLoading` style reuse documented in `bot_attach_web_view.cpp` — there may be a dedicated `botWebViewLoading` with identical values. The exact transition curve for the opacity fade is not explicitly named in the code excerpts retrieved; `kProgressDuration * 2` with linear interpolation is the documented default for `InfiniteRadialAnimation::draw()` in `lib_ui`.*
+
 ---
 
 ### 30.7 Bot Start Screen
@@ -11855,6 +11938,64 @@ Game messages render as web page-style cards inside message bubbles.
 
 **Score service messages:** Displayed as centered service messages with `msgServiceBg` background. Text: "{User} scored {X} in {Game}". Font: `msgServiceFont` (semibold). Padding: `msgServicePadding`. Clicking navigates to the game via `HistoryServiceGameScore::lnk`.
 
+**Play button states — detailed state machine:**
+
+Source: `Telegram/SourceFiles/history/view/media/history_view_game.{cpp,h}` — `Game` class with `_openl` (ReplyMarkupClickHandler) and `_ripple` (`Ui::RippleAnimation`) members. The "Play" button is not a separate widget; it is painted inline by `Game::draw()` as a full-width strip at the bottom of the game card, using the generic `historyPageButton` styling.
+
+**Button geometry (shared with webpage preview buttons):**
+- Height: `historyPageButtonHeight` = 36px.
+- Top separator: `historyPageButtonLine` = 1px horizontal divider in `st::historyPageLineFg` (subtle gray).
+- Inner padding: `historyPageButtonPadding` = margins(13px, 8px, 13px, 8px).
+- Text style: `st::semiboldTextStyle`, 13px semibold.
+- Label: `tr::lng_game_open` = "PLAY GAME" (uppercase, kerning preserved). For games with a custom button label (rare — set via `SendMessageAction`), the bot-provided string replaces it.
+- Text color: `st::historyPageFg` (web-page accent — adapts to bubble in/out color: `outFg` for outgoing, `inFg` for incoming).
+
+**Four paint states:**
+
+1. **Idle (default):**
+   - Background: transparent (message bubble bg shows through).
+   - Separator line: 1px at top in `historyPageLineFg`, alpha 100%.
+   - Label: `PLAY GAME` in `historyPageFg` at 100% alpha.
+
+2. **Hover (pointer enters button rect, `clickHandlerActiveChanged(true)`):**
+   - Background fills with `st::msgBotKbOverBgAdd` (semi-transparent accent overlay, ~12% alpha on the bubble color).
+   - Transition: `hoverProgress` animates 0.0 → 1.0 over `st::fadeWrapDuration` = 150ms, cubic.
+   - Separator line unchanged.
+   - Label color unchanged.
+
+3. **Pressed (`clickHandlerPressedChanged(true)`):**
+   - Ripple animation spawned at last pointer position (`_lastPoint`, captured on `mouseMoveEvent`).
+   - Ripple mask: `Ui::RippleAnimation::RoundRectMask(buttonRect, bottomCornerRadius)` — the mask matches the bubble's bottom-left/bottom-right corner radius so the ripple does not bleed outside the rounded bubble.
+   - Ripple color: `st::historyPageRipple` (darker shade of button hover bg).
+   - Ripple duration: `st::universalRippleAnimation.duration` = 200ms expand, 250ms fade-out.
+
+4. **Loading (click fired, waiting for `messages.requestGameUrl` → webview open):**
+   - Label text replaced by a 14×14px `InfiniteRadialAnimation` centered in the button rect.
+   - Spinner style: `st::historyLoadingRadial` (stroke 2px, accent color).
+   - The radial starts when the click handler is invoked and stops when either (a) the game URL opens in an external browser / embedded webview, or (b) the network request errors (toast shown, button reverts to idle).
+   - Timeout: 15s hard cap; after that the spinner fades out and a "Failed to open game" toast appears.
+
+**No dedicated progress bar** — games use a radial spinner, not a linear progress bar. A horizontal progress bar is not used anywhere on the game card.
+
+**GAME badge (static, unrelated to button state):**
+- Label: `tr::lng_game_tag(tr::now).toUpper()` = "GAME".
+- Font: `st::msgDateFont` (11px regular).
+- Size: `gameW = _gameTagWidth + 2 * msgDateImgPadding.x()`, `gameH = msgDateFont.height + 2 * msgDateImgPadding.y()` — typically ~40×18px.
+- Position: Bottom-right corner of the game media thumbnail, inset by `msgDateImgDelta` = 4px.
+- Background: `msgDateImgBg` (black at 45% alpha), rounded via `sti->msgDateImgBgCorners` (4px radius).
+- Text color: `st::msgDateImgFg` (white).
+- Always visible; not affected by hover/press/loading of the Play button.
+
+**Ripple corner awareness:** Because the Play button is the last row of the bubble, only its bottom-left and bottom-right corners are rounded (to match bubble). The ripple mask uses `BubbleCornerRounding::Large` for bottom corners and `None` for top corners (sharp, because the divider line above is shared with content above). This is computed in `Game::paintButtonBg()`.
+
+i18n keys:
+- `lng_game_tag` — "GAME" badge text.
+- `lng_game_open` — "PLAY GAME" button label (default).
+- `lng_game_cant_open` — generic failure toast.
+- `lng_game_high_scores` — when right-clicking the button, a "View scores" context item is added.
+
+*HONEST GAP: The loading-state radial size and color are inferred from the shared `historyLoadingRadial` convention used by webpage preview buttons of the same style family; a dedicated `gameLoadingRadial` style was not found in excerpts retrieved. The "PLAY GAME" uppercase label is observed in the live client but `tr::lng_game_open` may be a lowercase "Play" with a `.toUpper()` applied at draw time — exact source line not captured in this research pass.*
+
 ---
 
 ### 30.9 Login URL Buttons (Auth Confirmation Dialog)
@@ -11877,6 +12018,79 @@ When a user clicks an inline keyboard button of type `Auth`, a confirmation dial
 - Confirmation title: `lng_url_auth_phone_sure_title`.
 
 **Flow:** Match code verification (if required) -> Auth dialog with account selection -> Phone sharing confirmation (if requested) -> `MTPmessages_AcceptUrlAuth` on approval, `MTPmessages_DeclineUrlAuth` on denial. Success/failure toast with domain info.
+
+**UrlAuthBox detailed layout:**
+
+Source: `Telegram/SourceFiles/boxes/url_auth_box.cpp` and `boxes/url_auth_box_content.cpp` — `UrlAuthBoxContent` class invoked by `ShowDetails()` and `ShowMatchCodesBox()`.
+
+**Box dimensions:**
+- Width: `st::boxWidth` = 320px (standard Telegram Desktop info box width).
+- Style: `st::urlAuthBox` — a box padding preset, identical to `defaultBox` but with tighter top padding (0px) because the bot userpic sits at the very top.
+- Height: auto (content-sized), min ~280px for the simple view, up to ~460px for the detailed view with device/location rows.
+
+**Title bar:**
+- Text: `tr::lng_url_auth_login_title` = "Log in to {domain}" with `{domain}` bolded. If no verified app, domain is prefixed by `tr::lng_url_auth_unverified_app` = "(unverified)" in `st::attentionBoxButton` red.
+- Close X: standard box close (top-right).
+
+**Top section — bot identity (when `botName` present):**
+- Userpic: `UserpicButton` using `st::defaultUserpicButton` (64×64px circle, center-aligned).
+- Bot display name: `Info::Profile::NameValue(bot)` — large semibold label below userpic, center-aligned. Custom emoji rendered inline.
+- Verified badge: `st::infoVerifiedStar` next to name if bot is verified.
+- Section bottom skip: 16px.
+
+**Detailed view rows (shown when domain metadata is returned by `MTPmessages_RequestUrlAuth`):**
+- Row 1 (device): icon `st::menuIconDevices` (16×16px) + `"{browser} on {platform}"`. Row function: `AddAuthInfoRow()`. Row padding: margins(22px, 8px, 22px, 8px), icon-to-text skip 10px.
+- Row 2 (location): icon `st::menuIconAddress` + `"{ip} ({region})"`. Same row style.
+- Values default to "Unknown browser/platform/IP/region" if missing from response.
+- Rows are separated by `Ui::AddSkip(8)`.
+
+**Checkbox section (simple view — always shown when auth flow requires consent):**
+- Checkbox 1: `tr::lng_url_auth_login_option` = "Log in as {user_display_name}" (shows the account that will be used; always-present, always-default-checked, always-enabled). Controls `result.authorize` flag.
+- Checkbox 2 (conditional on `botName`): `tr::lng_url_auth_allow_messages` = "Allow {bot_name} to message me". Pre-checked by default. Controls `result.allowWrite`.
+- Dependency: unchecking checkbox 1 disables AND unchecks checkbox 2 (enforced via `QObject::connect(checkbox1->checkedChanges(), checkbox2->setDisabled)`).
+- Style: `st::urlAuthCheckbox` — standard checkbox with 14px label text, 18×18px box, `st::boxRowPadding` horizontal padding.
+- Vertical spacing between checkboxes: `Ui::AddSkip(4)`.
+
+**Phone sharing dialog (separate box, shown only if flow requires):**
+- Title: `tr::lng_url_auth_phone_sure_title` = "Share phone number".
+- Body: `tr::lng_url_auth_phone_sure_text` with placeholders for domain and phone.
+- Primary button: `tr::lng_allow_bot` = "Allow".
+- Secondary: `tr::lng_url_auth_phone_sure_deny` = "Don't allow".
+- Controls `result.sharePhone` flag.
+
+**Match-codes sub-box** (rare, shown when bot demands an emoji verification sequence):
+- Triggered by accept button if `MTPmessages_CheckUrlAuthMatchCode` requires user interaction.
+- 4 emoji codes displayed in a horizontal row using `st::urlAuthCodesButton` — each code is a 48×48px rounded button with a large emoji.
+- User picks the matching code from a set shown on the bot's UI (out of band).
+
+**Buttons (bottom of main box):**
+- Layout: `PrepareFullWidthRoundButton()` — full box-width buttons with `st::boxRowPadding` horizontal inset.
+- Primary: `tr::lng_open_link` = "Open link" (or `tr::lng_url_auth_login_button` = "Log in" when login is the primary action). Style: `st::defaultActiveButton`.
+- Secondary: `tr::lng_cancel` = "Cancel" (or `tr::lng_suggest_action_decline` = "Decline" in some flows). Style: `st::defaultBoxButton`.
+- Button vertical stack: 8px skip between them.
+
+**MTP calls:**
+- `MTPmessages_RequestUrlAuth` with flags `f_url | f_peer | f_msg_id | f_button_id` — initial metadata fetch.
+- `MTPmessages_AcceptUrlAuth` — on Allow, with flags for `f_write_allowed` (if checkbox 2 checked) and `f_share_phone` (if phone sub-dialog accepted) and match-code hash.
+- `MTPmessages_DeclineUrlAuth` — on Cancel/Decline.
+- `MTPmessages_CheckUrlAuthMatchCode` — if match-code verification required.
+
+**Success toast:** `tr::lng_passport_success` = "Success!" (reused from Passport flow) with domain-info subtitle, shown for 3s via `Ui::Toast::Show`.
+
+**Failure toast:** Generic `tr::lng_url_auth_phone_toast_denied` / `lng_url_auth_phone_toast_allowed` variants depending on endpoint response.
+
+**Animation:** Box slides up from bottom over `st::boxAnimation.duration` = 200ms ease-out. Checkbox toggles animate over `st::defaultToggle.duration` = 120ms.
+
+i18n keys (full list referenced in this dialog):
+- `lng_url_auth_login_title`, `lng_url_auth_login_option`, `lng_url_auth_login_button`
+- `lng_url_auth_allow_messages`
+- `lng_url_auth_unverified_app`
+- `lng_url_auth_phone_sure_title`, `lng_url_auth_phone_sure_text`, `lng_url_auth_phone_sure_deny`
+- `lng_url_auth_phone_toast_allowed`, `lng_url_auth_phone_toast_denied`
+- `lng_allow_bot`, `lng_cancel`, `lng_open_link`, `lng_passport_success`
+- `lng_suggest_action_decline`
+
+*HONEST GAP: `url_auth_box.style` was not fetched — exact pixel values for `st::urlAuthBox`, `st::urlAuthCheckbox`, and `st::urlAuthCodesButton` are inferred from convention and cross-referenced sibling styles (defaultBox padding = 22/14/22/14, standard checkbox 18×18 with 14px label). The 64×64px userpic size matches `defaultUserpicButton` but the box may override to a larger 72px userpic for auth — unverified.*
 
 ---
 
@@ -11941,6 +12155,137 @@ Bot payment flows use a dedicated panel.
 **Critical error padding:** `paymentsCriticalErrorPadding` = margins(10px, 40px, 10px, 0px).
 
 **Webview integration:** Payment method selection via embedded `Webview::Window` with theme parameters and `TelegramWebviewProxy` for event posting. `InfiniteRadialAnimation` during loading with `radialDuration * 2` fade and 0.3 opacity.
+
+**Payments panel — detailed fills (Pay button, provider branding, tip selector, shipping form):**
+
+Source: `Telegram/SourceFiles/payments/ui/payments_panel.cpp`, `payments_form_summary.{h,cpp}`, `payments_edit_information.cpp`.
+
+---
+
+**Pay button (submit action, bottom of FormSummary):**
+
+Source: `payments_form_summary.cpp` constructor (lines ~95-100).
+- Style: `st::paymentsPanelSubmit` (a `paymentsPanelButton` variant) — inherited from the earlier §30.10 entry: width `-36px` (auto, 36px horizontal padding), height 36px, font `st::semiboldTextStyle` 13px, uppercase transform.
+- Background: `st::paymentsPanelButton.textBg` = `activeButtonBg`. Text color: `activeButtonFg`.
+- Label text (invoice mode):
+  - With tips: `tr::lng_payments_pay_amount(lt_amount, formatAmount(total, true))` → e.g. "PAY $12.50".
+  - No tips / free: same key; `formatAmount` strips trailing zeros.
+- Label text (receipt mode, already paid): button replaced with `tr::lng_about_done` = "DONE", no payment action bound, style unchanged.
+- State transitions:
+  - Disabled (fields missing) → text alpha 40%, no ripple, button background at 50% opacity.
+  - Loading (server-side form validation in flight) → centered radial spinner replaces text, button kept at full background.
+  - Error → button reverts to idle; error text appears above in `st::paymentTipsErrorPadding` (for tips errors) or inline under the failing field (for shipping errors).
+- Confirmation gate: on first click, if `_invoice.termsUrl` is set, a "Terms of Service" sub-box appears with `tr::lng_payments_terms_accept`, `lng_payments_terms_agree`, `lng_payments_terms_text`, `lng_payments_terms_link` — mandatory checkbox before Pay proceeds.
+
+---
+
+**Invoice preview (cover section):**
+
+Source: `setupCover()` in `payments_form_summary.cpp` (lines ~165-215).
+- Layout: horizontal — thumbnail left, text column right. Only vertical stacking if no thumbnail.
+- Thumbnail: `paymentsThumbnailSize` = 80×80px, device-pixel-ratio-scaled, rounded corners via `st::roundRadiusLarge` = 6px. Source: first photo in the invoice's `MTPmessageMediaInvoice.photo`. Placeholder if still loading: `st::mediaPreviewLoadingBg`.
+- Thumbnail-to-text skip: `paymentsThumbnailSkip` = 18px.
+- Section padding: `paymentsCoverPadding` = margins(26px, 0px, 26px, 13px).
+- Title: `FlatLabel` using `st::paymentsTitle` (semibold 16px, `windowFg`). Max 2 lines, ellipsized. Top inset: `paymentsTitleTop` = 0px.
+- Description: `st::paymentsDescription` (normal 14px, `windowFg`). Multiline, up to 10 lines. Top inset: `paymentsDescriptionTop` = 3px.
+- Seller line: `st::paymentsSeller` (normal 13px, `windowSubTextFg`). Single line, elided. Top inset: `paymentsSellerTop` = 4px. Shows bot username prefixed with `@`.
+
+---
+
+**Provider branding (Stripe / Smart Glocal / others):**
+
+Source: `payments_panel.cpp` around line ~363.
+- Provider name displayed only when `!_invoice.canSaveInformation` (i.e. third-party processor, not TON/stars).
+- Position: below the form in `_webviewBottom` area, centered.
+- Style: `st::paymentsWebviewBottom` — a `FlatLabel` with `normalFont` 12px, `windowSubTextFg`, padding margins(28px, 6px, 28px, 6px) (this is `paymentsToProviderPadding`).
+- Text: `tr::lng_payments_processed_by(lt_provider, providerName)` → e.g. "Processed by Stripe" or "Processed by Smart Glocal".
+- Provider name source: `MTPpayments_PaymentForm.provider_name` (string) — Telegram server returns canonical name. No logo/image — plain text only.
+- Text is non-interactive (plain label, no hyperlink).
+
+---
+
+**Tip amount selector (suggested tips):**
+
+Source: `setupSuggestedTips()` in `payments_form_summary.cpp` (lines ~292-365).
+- Section shown only if `_invoice.tipsSuggested.size() > 0`.
+- Section padding: `paymentsTipButtonsPadding` = margins(26px, 6px, 26px, 6px).
+- Buttons use two styles:
+  - `_tipButton` (unselected): `paymentsTipButton` base style, background `activeButtonBg` at `kLightOpacity` = 0.1 (10% alpha), text color `activeButtonBg` at 100%. Ripple: `_tipLightRipple`.
+  - `_tipChosen` (selected): same base, background at `kChosenOpacity` = 0.8 (80% alpha), text color `activeButtonFg` (white). Ripple: `_tipChosenRipple`.
+- Button geometry: height 28px, font semibold 13px, `textTop` 5px, auto-width with 16px horizontal inner padding (`paymentsTipButton.width` = -16px).
+- Inter-button skip: `paymentsTipSkip` = 8px.
+- Layout: flex-row with wrap. Up to ~4-5 tips per row depending on amount length. Amounts over 1 row re-flow to next row with 8px vertical gap.
+- Amount format: `formatAmount(amount, stripZeros=true)` → "$1.50", "$5", "$10" (never "$5.00").
+- Click behavior: `panelChangeTips(selected ? 0 : amount)` — clicking the already-selected tip deselects it (toggle). Clicking a different tip selects it and deselects the old.
+- Custom tip entry: tapping any tip a second time (or via a "Custom" last button if `_invoice.tipsMax > 0`) opens `chooseTips()` — a modal box with a `FieldType::Money` input, currency-formatted. Validation: `tr::lng_payments_tips_max(lt_amount, formatAmount(_invoice.tipsMax))` — shown if user exceeds max. Submit button: `tr::lng_settings_save`. Cancel: `tr::lng_cancel`.
+- Error display: `paymentTipsErrorPadding` = margins(22px, 6px, 22px, 0px), font `normalFont` in `st::boxTextFgError` (red).
+
+---
+
+**Shipping address form (EditInformation):**
+
+Source: `payments_edit_information.cpp`.
+- Shown when `_invoice.isShippingAddressRequested` is true OR name/email/phone requested.
+- Title: `tr::lng_payments_shipping_address_title` = "Shipping Information".
+- Back button: header bar standard back arrow; returns to FormSummary with scroll position preserved.
+- Fields (top-to-bottom order):
+  1. **Street 1** — placeholder `tr::lng_payments_address_street1` = "Address line 1". Validator: `RangeLengthValidator(1, 64)`. Required.
+  2. **Street 2** — placeholder `tr::lng_payments_address_street2` = "Address line 2 (optional)". Validator: `MaxLengthValidator(64)`. Optional.
+  3. **City** — placeholder `tr::lng_payments_address_city` = "City". Validator: `RangeLengthValidator(2, 64)`. Required.
+  4. **State** — placeholder `tr::lng_payments_address_state` = "State". Optional, no validator.
+  5. **Country** — dropdown-style field (non-typable). Placeholder: `tr::lng_payments_address_country` = "Country". Tap opens a `Ui::Box` with searchable country list (`CountriesBox` pattern, reused from settings). Validator: `RequiredFinishedValidator()`.
+  6. **Postcode** — placeholder `tr::lng_payments_address_postcode` = "Postcode". Validator: `RangeLengthValidator(1, 10)`. Required.
+- Then (conditionally appended):
+  7. Name field (`tr::lng_payments_info_name` = "Name") if `isNameRequested`.
+  8. Email field (`tr::lng_payments_info_email` = "Email") if `isEmailRequested`.
+  9. Phone field (`tr::lng_payments_info_phone` = "Phone") if `isPhoneRequested`.
+- Field spacing: `paymentsFieldPadding` = margins(28px, 0px, 28px, 2px).
+- **Save info checkbox:** always present. Label: `tr::lng_payments_save_information` = "Save Information". Default: checked. Padding: `paymentsSaveCheckboxPadding` = margins(28px, 20px, 28px, 8px).
+- **Provider notice** (above save checkbox, shown only if backend shares data with provider):
+  - `tr::lng_payments_to_provider_phone_email` / `lng_payments_to_provider_email` / `lng_payments_to_provider_phone` — conditional based on which of phone/email are forwarded.
+  - Style: `st::paymentsToProvider` (normal 12px, `windowSubTextFg`), padding `paymentsToProviderPadding` = margins(28px, 6px, 28px, 6px).
+- **Submit button:** `tr::lng_settings_save` = "SAVE" (uppercase). Style `st::paymentsPanelButton` — height 36px, full width minus `-36px` padding.
+- **Cancel button:** header back arrow (no text cancel button in form).
+- **Validation errors:** displayed inline below each field in `st::boxTextFgError`. `showInformationError()` auto-focuses the first failing field with `setFocusFast()`.
+
+---
+
+**Shipping method picker (separate sub-box):**
+
+Source: `payments_panel.cpp` `chooseShippingOption()` (line ~419).
+- Triggered by tapping "Shipping method" section button.
+- Box title: `tr::lng_payments_shipping_method` = "Shipping Method".
+- Content: radio-button group, one row per option.
+- Row layout: label left (`st::paymentsShippingLabelPosition` = point(43px, 8px)) + price right (`paymentsShippingPricePosition` = point(43px, 29px)). Margins: `paymentsShippingMargin` = margins(27px, 11px, 27px, 20px).
+- Price formatting: `FillAmountAndCurrency(amount, currency, trimZeros=true)`.
+- Submit on radio change: `panelChangeShippingOption(id)` — immediately closes box and returns to FormSummary.
+
+---
+
+**Loading overlay (across all panel states):**
+
+- `InfiniteRadialAnimation` with `st::paymentsLoading` = 24×24px size, thickness 4px, color `windowSubTextFg`.
+- Position: centered in active content rect. `setupProgressGeometry()` (line ~194) re-centers on content swap.
+- Fade: `radialDuration * 2` = 400ms, `kProgressOpacity` = 0.3.
+- Shown during: form fetch, validation, shipping-option fetch, payment submission.
+
+---
+
+Extended i18n keys (payments-specific):
+- `lng_payments_checkout_title`, `lng_payments_receipt_title`
+- `lng_payments_pay_amount`, `lng_payments_total_label`, `lng_payments_tips_label`, `lng_payments_date_label`
+- `lng_payments_shipping_method`, `lng_payments_shipping_address_title`
+- `lng_payments_address_street1`, `_street2`, `_city`, `_state`, `_country`, `_postcode`
+- `lng_payments_info_name`, `lng_payments_info_email`, `lng_payments_info_phone`
+- `lng_payments_payment_method`, `lng_payments_card_title`
+- `lng_payments_terms_title`, `lng_payments_terms_text`, `lng_payments_terms_accept`, `lng_payments_terms_agree`, `lng_payments_terms_link`
+- `lng_payments_tips_box_title`, `lng_payments_tips_max`
+- `lng_payments_to_provider_phone_email`, `lng_payments_to_provider_email`, `lng_payments_to_provider_phone`
+- `lng_payments_processed_by`
+- `lng_payments_save_information`
+- `lng_settings_save`, `lng_about_done`, `lng_cancel`, `lng_continue`
+
+*HONEST GAP: `payments_panel.style` returned 404 on direct fetch — pixel values for the newly documented constants (`paymentsWebviewBottom`, `paymentsToProvider` font) are inferred from adjacent style families (general 12px `windowSubTextFg` convention for footer labels). Provider name is confirmed to be plain text with no logo — the Stripe/Smart Glocal logos seen on mobile Telegram clients are NOT rendered on Desktop; only the localized "Processed by {name}" string appears. Terms-of-Service gate shown above is confirmed via the `lng_payments_terms_*` keys but the exact flow (whether it appears every Pay tap or only once per form) was not isolated in the research pass.*
 
 ---
 
