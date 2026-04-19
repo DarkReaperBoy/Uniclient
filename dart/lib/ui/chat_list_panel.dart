@@ -93,11 +93,15 @@ class ChatListPanel extends StatefulWidget {
   State<ChatListPanel> createState() => _ChatListPanelState();
 }
 
+/// Search-mode tab enum matching Telegram Desktop `ChatSearchTab`.
+enum _SearchTab { myMessages, publicPosts, thisPeer }
+
 class _ChatListPanelState extends State<ChatListPanel> {
   final _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   bool _searching = false;
   List<ChatInfo>? _searchResults;
+  _SearchTab _activeSearchTab = _SearchTab.myMessages;
 
   @override
   void initState() {
@@ -108,6 +112,17 @@ class _ChatListPanelState extends State<ChatListPanel> {
     ChatListPanel.navigateFolderRequest = _navigateFolder;
     ChatListPanel.jumpChatRequest = _jumpChat;
     ChatListPanel.switchFolderByIndexRequest = _switchFolderByIndex;
+    // Listen to controller directly to handle programmatic text changes
+    // (e.g. debug type command) in addition to TextField.onChanged.
+    _searchController.addListener(_onControllerChanged);
+  }
+
+  String _lastControllerText = '';
+  void _onControllerChanged() {
+    final text = _searchController.text;
+    if (text == _lastControllerText) return;
+    _lastControllerText = text;
+    _onSearchChanged(text);
   }
 
   /// Jump to first or last visible chat. Uses the same sorted, non-archived,
@@ -263,6 +278,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
     if (ChatListPanel.switchFolderByIndexRequest == _switchFolderByIndex) {
       ChatListPanel.switchFolderByIndexRequest = null;
     }
+    _searchController.removeListener(_onControllerChanged);
     _searchController.dispose();
     _searchFocus.dispose();
     super.dispose();
@@ -281,8 +297,43 @@ class _ChatListPanelState extends State<ChatListPanel> {
     }
     final chatState = context.read<ChatState>();
     setState(() {
-      _searchResults = chatState.searchChats(query);
+      _searchResults = _filterByTab(chatState.searchChats(query), chatState);
     });
+  }
+
+  /// Filter search results based on the active search tab.
+  List<ChatInfo> _filterByTab(List<ChatInfo> results, ChatState chatState) {
+    switch (_activeSearchTab) {
+      case _SearchTab.myMessages:
+        // All results (DMs, groups, channels — the user's own chats).
+        return results;
+      case _SearchTab.publicPosts:
+        // Only channels (public posts).
+        return results.where((c) => c.type == ChatType.channel).toList();
+      case _SearchTab.thisPeer:
+        // Only results matching the currently active chat.
+        final active = chatState.activeChat;
+        if (active == null) return [];
+        return results
+            .where((c) =>
+                c.chatId == active.chatId &&
+                c.accountId == active.accountId)
+            .toList();
+    }
+  }
+
+  void _onSearchTabChanged(_SearchTab tab) {
+    setState(() {
+      _activeSearchTab = tab;
+    });
+    // Re-run search with current query under the new tab filter.
+    final query = _searchController.text;
+    if (query.isNotEmpty) {
+      final chatState = context.read<ChatState>();
+      setState(() {
+        _searchResults = _filterByTab(chatState.searchChats(query), chatState);
+      });
+    }
   }
 
   void _cancelSearch() {
@@ -291,6 +342,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
     setState(() {
       _searching = false;
       _searchResults = null;
+      _activeSearchTab = _SearchTab.myMessages;
     });
   }
 
@@ -344,6 +396,12 @@ class _ChatListPanelState extends State<ChatListPanel> {
             _HorizontalFolderTabs(
               chatState: chatState,
               allUnread: chatState.unreadCountForAccount(appState.activeAccountId),
+            ),
+          // Search tabs strip (spec §2.2: shown when typing in search bar).
+          if (_searching && _searchController.text.isNotEmpty)
+            _SearchTabsStrip(
+              activeTab: _activeSearchTab,
+              onTabChanged: _onSearchTabChanged,
             ),
           // Top Peers strip (spec §2: shown when search focused, no query).
           if (_searching && _searchController.text.isEmpty)
@@ -1334,6 +1392,137 @@ class _RecentContactRowState extends State<_RecentContactRow> {
           color: Colors.white,
           fontSize: _RecentContactsList._avatarSize * 0.38,
           fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+/// Search-mode tabs strip: "My Messages", "Public Posts", "This Peer".
+/// Spec §2.2: segmented slider, 33px strip height, 9px horizontal padding,
+/// 14px semibold labels, 6px underline indicator at barTop 30px.
+class _SearchTabsStrip extends StatelessWidget {
+  final _SearchTab activeTab;
+  final ValueChanged<_SearchTab> onTabChanged;
+
+  const _SearchTabsStrip({
+    required this.activeTab,
+    required this.onTabChanged,
+  });
+
+  static const _tabs = [
+    (tab: _SearchTab.myMessages, label: 'My Messages'),
+    (tab: _SearchTab.publicPosts, label: 'Public Posts'),
+    (tab: _SearchTab.thisPeer, label: 'This Peer'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec: inactive fg = windowSubTextFg, active fg = lightButtonFg (blue).
+    final activeFg =
+        isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
+    final inactiveFg =
+        isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
+    final hoverBg =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+
+    return SizedBox(
+      height: 33,
+      child: Row(
+        children: [
+          for (final entry in _tabs)
+            Expanded(
+              child: _SearchTabItem(
+                label: entry.label,
+                isActive: activeTab == entry.tab,
+                activeFg: activeFg,
+                inactiveFg: inactiveFg,
+                hoverBg: hoverBg,
+                onTap: () => onTabChanged(entry.tab),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Individual search tab item with underline indicator.
+class _SearchTabItem extends StatefulWidget {
+  final String label;
+  final bool isActive;
+  final Color activeFg;
+  final Color inactiveFg;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _SearchTabItem({
+    required this.label,
+    required this.isActive,
+    required this.activeFg,
+    required this.inactiveFg,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  State<_SearchTabItem> createState() => _SearchTabItemState();
+}
+
+class _SearchTabItemState extends State<_SearchTabItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        widget.isActive ? widget.activeFg : widget.inactiveFg;
+    final bgColor = _hovered ? widget.hoverBg : Colors.transparent;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          height: 33,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          decoration: BoxDecoration(color: bgColor),
+          child: Column(
+            children: [
+              // Label at labelTop 7px.
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 7),
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                ),
+              ),
+              // Spec: 6px underline indicator, 2px radius, at barTop 30px.
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                height: 3,
+                decoration: BoxDecoration(
+                  color: widget.isActive
+                      ? widget.activeFg
+                      : Colors.transparent,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(2),
+                    topRight: Radius.circular(2),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
