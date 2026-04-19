@@ -512,8 +512,18 @@ class _HorizontalFolderTabs extends StatefulWidget {
 
 class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     with TickerProviderStateMixin {
-  TabController? _tabController;
-  final GlobalKey _firstTabKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
+
+  // Drag reorder state (spec §2: drag threshold 10px, shift anim 150ms).
+  // Uses raw Listener events to avoid gesture arena conflicts with the
+  // SingleChildScrollView's HorizontalDragGestureRecognizer.
+  int? _dragIndex; // tab index being dragged (null = not tracking)
+  int? _dragPointer; // pointer ID we're tracking
+  double _dragOffset = 0; // horizontal pixel offset of the dragged tab
+  Offset? _dragStart; // pointer-down position to measure threshold
+  bool _dragActive = false; // true once threshold exceeded
+
+  final List<GlobalKey> _tabKeys = [];
 
   int get _tabCount => widget.chatState.folders.length + 1;
 
@@ -527,39 +537,33 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   @override
   void initState() {
     super.initState();
-    _syncController();
+    _syncTabKeys();
   }
 
-  void _syncController() {
-    final count = _tabCount;
-    final target = _activeIndex.clamp(0, count - 1);
-    if (_tabController != null && _tabController!.length == count) {
-      if (_tabController!.index != target) {
-        _tabController!.animateTo(target);
-      }
-      return;
+  void _syncTabKeys() {
+    while (_tabKeys.length < _tabCount) {
+      _tabKeys.add(GlobalKey());
     }
-    _tabController?.dispose();
-    _tabController = TabController(
-      length: count,
-      vsync: this,
-      initialIndex: target,
-    );
+    if (_tabKeys.length > _tabCount) {
+      _tabKeys.removeRange(_tabCount, _tabKeys.length);
+    }
   }
 
   @override
   void didUpdateWidget(covariant _HorizontalFolderTabs oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _syncController();
+    _syncTabKeys();
+    if (_dragActive || _dragIndex != null) _cancelDrag();
   }
 
   @override
   void dispose() {
-    _tabController?.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
   void _onTabTapped(int index) {
+    if (_dragActive) return;
     if (index == 0) {
       widget.chatState.setActiveFolder(null);
     } else {
@@ -570,17 +574,132 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     }
   }
 
-  /// Spec §2: redirect vertical mouse-wheel to horizontal scroll on the
-  /// folder tab strip. If horizontal delta is already present (trackpad
-  /// swipe), let it pass through to the internal horizontal scrollable.
+  // --- Drag reorder via raw Listener events ---
+
+  /// Determine which tab index a global position falls on, or -1.
+  int _hitTestTab(Offset globalPos) {
+    for (var i = 0; i < _tabKeys.length; i++) {
+      final box =
+          _tabKeys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null) continue;
+      final local = box.globalToLocal(globalPos);
+      if (box.size.contains(local)) return i;
+    }
+    return -1;
+  }
+
+  void _onPointerDown(PointerDownEvent event) {
+    if (event.buttons != kPrimaryButton) return;
+    final tabIdx = _hitTestTab(event.position);
+    // Index 0 = "All Chats" — pinned, cannot be dragged (spec: addPinnedInterval)
+    if (tabIdx <= 0) return;
+    _dragPointer = event.pointer;
+    _dragIndex = tabIdx;
+    _dragStart = event.position;
+    _dragOffset = 0;
+    _dragActive = false;
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    if (_dragPointer != event.pointer || _dragIndex == null) return;
+    final dx = event.position.dx - _dragStart!.dx;
+    // Spec §2: drag threshold = 10px (startDragDistance)
+    if (!_dragActive && dx.abs() < 10) return;
+    if (!_dragActive) {
+      _dragActive = true;
+    }
+    setState(() => _dragOffset = dx);
+    _autoScrollDuringDrag(event.position);
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (_dragPointer != event.pointer) return;
+    if (_dragActive && _dragIndex != null) {
+      final targetIndex = _computeDropIndex();
+      if (targetIndex != null && targetIndex != _dragIndex!) {
+        final oldFolderIdx = _dragIndex! - 1;
+        var newFolderIdx = targetIndex - 1;
+        if (newFolderIdx < 0) newFolderIdx = 0;
+        widget.chatState.reorderFolders(oldFolderIdx, newFolderIdx);
+      }
+    }
+    _cancelDrag();
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) {
+    if (_dragPointer == event.pointer) _cancelDrag();
+  }
+
+  void _cancelDrag() {
+    setState(() {
+      _dragIndex = null;
+      _dragPointer = null;
+      _dragOffset = 0;
+      _dragStart = null;
+      _dragActive = false;
+    });
+  }
+
+  int? _computeDropIndex() {
+    if (_dragIndex == null) return null;
+    final positions = <double>[];
+    for (var i = 0; i < _tabKeys.length; i++) {
+      final box =
+          _tabKeys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null) return null;
+      positions.add(box.localToGlobal(Offset(box.size.width / 2, 0)).dx);
+    }
+    final draggedBox =
+        _tabKeys[_dragIndex!].currentContext?.findRenderObject() as RenderBox?;
+    if (draggedBox == null) return null;
+    final draggedCenter =
+        draggedBox.localToGlobal(Offset(draggedBox.size.width / 2, 0)).dx +
+            _dragOffset;
+    // Find nearest valid slot (skip index 0 = pinned "All Chats")
+    int target = _dragIndex!;
+    for (var i = 1; i < positions.length; i++) {
+      if (i == _dragIndex!) continue;
+      if (i < _dragIndex! && draggedCenter < positions[i]) {
+        target = i;
+        break;
+      }
+      if (i > _dragIndex! && draggedCenter > positions[i]) {
+        target = i;
+      }
+    }
+    return target;
+  }
+
+  void _autoScrollDuringDrag(Offset globalPos) {
+    if (!_scrollController.hasClients) return;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final local = box.globalToLocal(globalPos);
+    final width = box.size.width;
+    const edgeZone = 40.0;
+    // Spec §2: kScrollFactor = 0.05
+    const scrollFactor = 0.05;
+    if (local.dx < edgeZone) {
+      final dist = edgeZone - local.dx;
+      _scrollController.jumpTo(
+        (_scrollController.offset - dist * scrollFactor)
+            .clamp(0.0, _scrollController.position.maxScrollExtent),
+      );
+    } else if (local.dx > width - edgeZone) {
+      final dist = local.dx - (width - edgeZone);
+      _scrollController.jumpTo(
+        (_scrollController.offset + dist * scrollFactor)
+            .clamp(0.0, _scrollController.position.maxScrollExtent),
+      );
+    }
+  }
+
+  /// Spec §2: redirect vertical mouse-wheel to horizontal scroll.
   void _handlePointerSignal(PointerSignalEvent event) {
     if (event is PointerScrollEvent) {
       if (event.scrollDelta.dx.abs() > 0 || event.scrollDelta.dy == 0) return;
-      final ctx = _firstTabKey.currentContext;
-      if (ctx == null) return;
-      final scrollable = Scrollable.maybeOf(ctx);
-      if (scrollable == null) return;
-      final position = scrollable.position;
+      if (!_scrollController.hasClients) return;
+      final position = _scrollController.position;
       position.jumpTo(
         (position.pixels + event.scrollDelta.dy).clamp(
           position.minScrollExtent,
@@ -590,65 +709,105 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     }
   }
 
+  /// Compute how much a non-dragged tab should shift to make room.
+  double _computeShiftForTab(int tabIndex) {
+    if (_dragIndex == null || !_dragActive) return 0;
+    final draggedBox =
+        _tabKeys[_dragIndex!].currentContext?.findRenderObject() as RenderBox?;
+    if (draggedBox == null) return 0;
+    final draggedWidth = draggedBox.size.width;
+    final draggedCenter =
+        draggedBox.localToGlobal(Offset(draggedWidth / 2, 0)).dx + _dragOffset;
+    final thisBox =
+        _tabKeys[tabIndex].currentContext?.findRenderObject() as RenderBox?;
+    if (thisBox == null) return 0;
+    final thisCenter =
+        thisBox.localToGlobal(Offset(thisBox.size.width / 2, 0)).dx;
+
+    if (_dragIndex! < tabIndex && draggedCenter > thisCenter) {
+      return -draggedWidth;
+    }
+    if (_dragIndex! > tabIndex && tabIndex > 0 && draggedCenter < thisCenter) {
+      return draggedWidth;
+    }
+    return 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    // Spec §2: active fg = lightButtonFg, inactive fg = windowSubTextFg
     final activeColor =
         isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final inactiveColor =
         isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
-    // Spec §2: hover bg = windowBgOver
     final hoverColor =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
 
+    _syncTabKeys();
+    final folders = widget.chatState.folders;
+    final tabCount = _tabCount;
+
+    // Freeze scroll while dragging so pointer events control the tab, not the
+    // scroll view (spec: drag and scroll are mutually exclusive).
+    final physics = _dragActive
+        ? const NeverScrollableScrollPhysics()
+        : const ClampingScrollPhysics();
+
     return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
       onPointerSignal: _handlePointerSignal,
       child: SizedBox(
         height: 33,
         child: Material(
           type: MaterialType.transparency,
-          child: TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            scrollDirection: Axis.horizontal,
+            physics: physics,
             padding: const EdgeInsets.symmetric(horizontal: 9),
-            labelPadding: const EdgeInsets.symmetric(horizontal: 9),
-            labelColor: activeColor,
-            unselectedLabelColor: inactiveColor,
-            labelStyle:
-                const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            unselectedLabelStyle:
-                const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            indicator: _FolderTabIndicator(color: activeColor),
-            indicatorSize: TabBarIndicatorSize.label,
-            dividerColor: Colors.transparent,
-            splashFactory: InkRipple.splashFactory,
-            overlayColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.hovered) ||
-                  states.contains(WidgetState.pressed)) {
-                return hoverColor;
-              }
-              return Colors.transparent;
-            }),
-            onTap: _onTabTapped,
-            tabs: [
-              KeyedSubtree(
-                key: _firstTabKey,
-                child: GestureDetector(
-                  onSecondaryTapUp: (d) => _showTabContextMenu(context, d.globalPosition, null),
-                  child: _buildTab('All', widget.allUnread),
-                ),
-              ),
-              ...widget.chatState.folders.map(
-                (f) => GestureDetector(
-                  onSecondaryTapUp: (d) => _showTabContextMenu(context, d.globalPosition, f),
-                  child: _buildTab(
-                      f.name, widget.chatState.unreadCountForFolder(f.id)),
-                ),
-              ),
-            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(tabCount, (i) {
+                final isActive = i == _activeIndex;
+                final isAllChats = i == 0;
+                final folder = isAllChats ? null : folders[i - 1];
+                final label = isAllChats ? 'All' : folder!.name;
+                final unread = isAllChats
+                    ? widget.allUnread
+                    : widget.chatState.unreadCountForFolder(folder!.id);
+                final isDragged = _dragActive && _dragIndex == i;
+                double shiftX = 0;
+                if (_dragActive && _dragIndex != null && i != _dragIndex!) {
+                  shiftX = _computeShiftForTab(i);
+                }
+
+                return AnimatedContainer(
+                  duration: _dragActive
+                      ? const Duration(milliseconds: 150)
+                      : Duration.zero,
+                  transform: Matrix4.translationValues(
+                    isDragged ? _dragOffset : shiftX, 0,
+                    isDragged ? 1 : 0,
+                  ),
+                  child: _FolderTab(
+                    key: _tabKeys[i],
+                    label: label,
+                    unread: unread,
+                    isActive: isActive,
+                    activeColor: activeColor,
+                    inactiveColor: inactiveColor,
+                    hoverColor: hoverColor,
+                    isDragged: isDragged,
+                    onTap: () => _onTabTapped(i),
+                    onSecondaryTapUp: (pos) =>
+                        _showTabContextMenu(context, pos, folder),
+                  ),
+                );
+              }),
+            ),
           ),
         ),
       ),
@@ -656,9 +815,8 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   }
 
   /// Spec §2: right-click context menu on folder tabs.
-  /// For a specific folder: Edit Folder, Delete Folder, Edit Folders.
-  /// For "All Chats" (folder == null): only Edit Folders.
-  void _showTabContextMenu(BuildContext context, Offset globalPosition, FolderInfo? folder) {
+  void _showTabContextMenu(
+      BuildContext context, Offset globalPosition, FolderInfo? folder) {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     final appState = context.read<AppState>();
 
@@ -692,73 +850,121 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
       }
     });
   }
+}
 
-  Widget _buildTab(String label, int unread) {
-    return Tab(
-      height: 33,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(label),
-          if (unread > 0) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: const Color(0xFF40A7E3),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                unread > 999 ? '999+' : '$unread',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
+/// Individual folder tab widget.
+class _FolderTab extends StatefulWidget {
+  final String label;
+  final int unread;
+  final bool isActive;
+  final Color activeColor;
+  final Color inactiveColor;
+  final Color hoverColor;
+  final bool isDragged;
+  final VoidCallback onTap;
+  final void Function(Offset globalPosition) onSecondaryTapUp;
+
+  const _FolderTab({
+    super.key,
+    required this.label,
+    required this.unread,
+    required this.isActive,
+    required this.activeColor,
+    required this.inactiveColor,
+    required this.hoverColor,
+    required this.isDragged,
+    required this.onTap,
+    required this.onSecondaryTapUp,
+  });
+
+  @override
+  State<_FolderTab> createState() => _FolderTabState();
+}
+
+class _FolderTabState extends State<_FolderTab> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor =
+        widget.isActive ? widget.activeColor : widget.inactiveColor;
+    final bgColor = _hovered ? widget.hoverColor : Colors.transparent;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        onSecondaryTapUp: (d) => widget.onSecondaryTapUp(d.globalPosition),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: widget.isDragged ? 0.7 : 1.0,
+          child: Container(
+            height: 33,
+            padding: const EdgeInsets.symmetric(horizontal: 9),
+            decoration: BoxDecoration(color: bgColor),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.label,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                        ),
+                        if (widget.unread > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF40A7E3),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              widget.unread > 999 ? '999+' : '${widget.unread}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                // Spec §2: 3px underline indicator with 2px top radius
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: widget.isActive
+                        ? widget.activeColor
+                        : Colors.transparent,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(2),
+                      topRight: Radius.circular(2),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
-        ],
+          ),
+        ),
       ),
     );
   }
 }
 
-/// Spec §2: rounded underline indicator for folder tabs — 3px tall,
-/// 2px top corner radius, painted at the bottom of the tab.
-class _FolderTabIndicator extends Decoration {
-  final Color color;
-  const _FolderTabIndicator({required this.color});
-
-  @override
-  BoxPainter createBoxPainter([VoidCallback? onChanged]) {
-    return _FolderTabIndicatorPainter(color: color);
-  }
-}
-
-class _FolderTabIndicatorPainter extends BoxPainter {
-  final Color color;
-  _FolderTabIndicatorPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
-    final size = configuration.size!;
-    final rect = Rect.fromLTWH(
-      offset.dx,
-      offset.dy + size.height - 3,
-      size.width,
-      3,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndCorners(
-        rect,
-        topLeft: const Radius.circular(2),
-        topRight: const Radius.circular(2),
-      ),
-      Paint()..color = color,
-    );
-  }
-}
 
 /// Empty state for chat list.
 class _EmptyState extends StatelessWidget {

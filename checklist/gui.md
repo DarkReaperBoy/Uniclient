@@ -32,7 +32,6 @@
 ## 2. Chat List Sidebar
 
 ### 2.1 Folder Tabs
-- [ ] Horizontal tab strip: drag reorder (S2)
 
 ### 2.2 Search Bar
 - [ ] Search bar at top of sidebar with "Search" placeholder (S2)
