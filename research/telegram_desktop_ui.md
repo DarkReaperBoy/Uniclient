@@ -16199,9 +16199,23 @@ All dialogs in Telegram Desktop inherit from one of two base classes: `BoxConten
 2. **Content area** -- scrollable (`boxScroll` = `defaultSolidScroll`). Padded by `boxRowPadding` (24px left/right). `boxLabel` style: `boxLabelStyle` with 22px line height. `boxPadding` margins around text.
 3. **Button row** -- at bottom. Padding: `st::Box::buttonPadding`. Height: `st::Box::buttonHeight`. Buttons from right to left: primary confirm, then cancel. Left button slot available. `buttonWide` flag stretches buttons to full width. Default button style: `defaultBoxButton` (30px min width, 34px height, 7px textTop, 14px semibold font).
 
-**Box dimensions**: default width = `st::boxWidth` (320px). Wide box = `st::boxWideWidth` (364px). Max height = calculated from content + title + buttons. Corner radius: `boxRadius` (6px). Background: `boxBg` color. Shadow: `boxRoundShadow` (8px radius round shadow).
+**Box dimensions** (`lib_ui/ui/layers/layers.style:71–77`):
+- `boxWidth` = **320 px**
+- `boxWideWidth` = **364 px**
+- `boxPadding` = `margins(24px, 14px, 24px, 8px)` (left/top/right/bottom)
+- `boxMaxListHeight` = **492 px**
+- `boxLittleSkip` = **10 px**, `boxMediumSkip` = **20 px**
+- `boxRadius` = **8 px** (corrected — earlier draft said 6px; canonical token is 8px in current `layers.style`)
+- Background: `boxBg` (palette).
+- Shadow: `boxRoundShadow` → `roundShadowRadius8px` (`layers.style:73`). The underlying `roundShadowRadius8px` is declared in `lib_ui/ui/widgets/widgets.style` but not surfaced in fetched content — **UNRESOLVED** for next session: extend, blur, color, opacity.
 
-**Animation**: `boxDuration` = 200ms. Boxes appear with a combined opacity fade + scale from ~97% to 100%. The `LayerStackWidget::BackgroundWidget` dims the background with a semi-transparent overlay that animates in parallel. Closing reverses the animation. Source: `Telegram/lib_ui/ui/layers/layers.style`, `Telegram/lib_ui/ui/layers/layer_widget.cpp`.
+**Animation** (`lib_ui/ui/layers/layer_widget.cpp:163–192`, `lib_ui/ui/layers/layers.style:24`):
+- Duration: `boxDuration` = **200 ms** for all four show animations (`_a_shown`, `_a_mainMenuShown`, `_a_specialLayerShown`, `_a_layerShown`).
+- Easing: **`anim::easeOutCirc`** for the master `_a_shown` (background dim + side panel); the layer/box-specific animations use the default linear interpolation supplied by `anim::value` (no easing argument passed at `layer_widget.cpp:181`/`192`).
+- Opacity tween: linear from **0.0 → 1.0** on show, **1.0 → 0.0** on hide.
+- **Scale**: the source no longer applies a scale tween to the box itself (the prior 97 %→100 % phrasing in this spec is **not present** in the current `lib_ui` `_a_*Shown` calls — only opacity is interpolated). HONEST GAP: if AyuGram has reintroduced scale via a delegate override, the override path was not located this session — flag for re-verification.
+- Background dim: painted from `st::layerBg` whose alpha is read at `layer_widget.cpp:~310` via `st::layerBg->c.alphaF()`. The numeric alpha is defined in palette (not in fetched style files) — **UNRESOLVED**.
+- `LayerStackWidget::BackgroundWidget` cross-fades in parallel with the box; closing reverses the same easing/duration.
 
 **Keyboard handling** (common to all boxes):
 - `Escape` closes the box (unless `_closeByEscape = false`)
@@ -16352,73 +16366,167 @@ Radio-button selection dialog. Source: `Telegram/SourceFiles/ui/boxes/single_cho
 - Custom option shows a `TimeInput` widget inline
 - Single "OK" button
 
+#### 36.5.1 Generic PopupMenu Style (non-context-menu)
+
+`Ui::PopupMenu` defaults (`lib_ui/ui/widgets/widgets.style:1054–1063`,
+`lib_ui/ui/widgets/popup_menu.cpp:39,40,45,320,336`).
+This is the *infrastructure* baseline used by every dropdown / inline picker
+that is not the chat-list/message context menu (those overrides are §9.1):
+
+| Token | Value | Notes |
+|-------|-------|-------|
+| `defaultPopupMenu.radius` | **8 px** | rounded panel |
+| `defaultPopupMenu.duration` | **150 ms** | hide opacity tween |
+| `defaultPopupMenu.showDuration` | **200 ms** | reveal animation |
+| `defaultPopupMenu.scrollPadding` | `margins(0, 8px, 0, 8px)` | top/bottom slack inside scroll area |
+| `defaultPopupMenu.maxHeight` | **0 px** (= unbounded, capped by screen) | — |
+| `defaultPopupMenu.shadow` | `defaultBoxShadow` (5 px blur, offset (0,1), opacity 0.25) | composited fallback uses `windowShadowFgFallback` |
+| `defaultPopupMenu.animation` | `defaultPanelAnimation` (start width 0.5 / 60 % phase, start height 0.3 / 90 % phase, start opacity 0.2 / 30 % phase) | clip-reveal driver |
+
+**Embedded `defaultMenu`** (item rows, same file `widgets.style:1031–1053`):
+
+| Token | Value |
+|-------|-------|
+| `itemPadding` | `margins(17px, 8px, 17px, 7px)` |
+| `itemRightSkip` | **6 px** (gap before shortcut/toggle) |
+| `widthMin` | **156 px** |
+| `widthMax` | **300 px** |
+| `separator` | `margins(0, 5px, 0, 5px)` × **1 px** stroke |
+| `ripple.show` | **650 ms**, `ripple.hide` = **200 ms** |
+| `skip` | **0 px** between adjacent items |
+| `itemIconPosition` | `(0, 0)` |
+
+Day/night: `windowBg` / `windowBgOver` (item bg), `windowFg` / `windowFgOver`
+(text), `menuFgDisabled` (greyed). All resolved from palette at runtime.
+
+Cross-ref: §9.1 documents the chat-list/message context-menu *overrides*
+(custom widths, icon placement, ripple). This subsection is the underlying
+default everything else inherits.
+
 ### 36.6 Date/Time Picker
 
-Three distinct picker components:
+Three distinct picker components.
 
-**CalendarBox** (`ui/boxes/calendar_box.h`):
-- Full calendar month view in a scrollable area
-- Navigation arrows (previous/next month) as `IconButton`s
-- Title showing current month/year
-- Day cells clickable; highlighted date marked
-- `minDate`/`maxDate` constraints
-- Selection mode (range selection via `allowsSelection`)
-- Floating date header on scroll
-- Tooltip on nav buttons for quick jump
-- Jump-after-delay feature on long press of nav buttons
-- Keyboard: arrow keys to navigate, Enter to select
-- Optional per-date dynamic images (profile photos on calendar)
+#### 36.6.1 CalendarBox
 
-**ChooseDateTimeBox** (`ui/boxes/choose_date_time.h`, `choose_date_time.cpp`):
-- Width: `st::boxWideWidth` (364px)
-- Layout: date field (readonly, opens CalendarBox on focus) + "at" label + time input
-- Date field: `scheduleDateField` style, width `scheduleDateWidth`
-- Time field: `TimeInput` with `scheduleTimeField` style, width `scheduleTimeWidth`
-- "at" label: `scheduleAtLabel` style
-- Content height: `scheduleHeight`
-- Date field supports mouse wheel to increment/decrement days
-- Time input fires `submitRequests` on Enter
-- Buttons: configurable submit text + "Cancel"
-- Optional description text below the picker
-- Repeat period dropdown: Never, Daily, Weekly, Biweekly, Monthly, Every 3/6 months, Yearly (as PopupMenu from a link label)
+Source: `Telegram/SourceFiles/ui/boxes/calendar_box.cpp`.
+Default style: `defaultCalendarSizes` + `calendarTitle*` family
+(`Telegram/SourceFiles/boxes/boxes.style:1459–1542`).
 
-**Schedule message box** (`history_view_schedule_box.h`):
-- Wraps `ChooseDateTimeBox` with send menu integration
-- "Send when online" option for user chats
-- Minimum schedule: 10 seconds from now
-- Maximum: 1 year from now
-- Top button for additional options (silent send, etc.)
+| Token | Value | Source |
+|-------|-------|--------|
+| Box width | `boxWideWidth` = **364 px** (pulled into `defaultCalendarSizes.width`) | `boxes.style:1505` |
+| Cell size | `size(48px, 40px)` (W × H) | `boxes.style:1502` |
+| `cellInner` | **34 px** (highlight circle / hit-target diameter) | `boxes.style:1503` |
+| Day-row header height (`daysHeight`) | **40 px** | `boxes.style:1504` |
+| Padding | `margins(14px, 0, 14px, 0)` | `boxes.style:1506` |
+| Title bar height (`calendarTitleHeight`) | `boxTitleHeight` = **48 px** | `boxes.style:1459` |
+| Title font (`calendarTitleFont`) | `boxTitleFont` = **16 px semibold** | `boxes.style:1497` |
+| Day font (`calendarDaysFont`) | `normalFont` (system default ~13 px) | `boxes.style:1499` |
+| Nav icon size | derived from `calendarPrevious.icon.width()` (typically 24 px) | `calendar_box.cpp:1090` |
+| Highlight circle radius | `cellInner / 2` = **17 px** | `calendar_box.cpp:658` |
+| Month-selector triangle | `lineWidth × 6` = **6 px** baseline | `calendar_box.cpp:750` |
+| Scroll area | `calendarScroll` (`deltat`/`deltab` = 3 px, width 8 px) | `boxes.style:1508–1514` |
+| Color set | `defaultCalendarColors` (16 fields, palette-bound) | `boxes.style:1527–1542` |
 
-**TimePickerBox** (`ui/boxes/time_picker_box.h`, `time_picker_box.cpp`):
-- Drum/wheel picker (iOS-style) using `VerticalDrumPicker`
-- Content height: `historyMessagesTTLPickerHeight`
-- Item height: `historyMessagesTTLPickerItemHeight`
-- Active area bounded by two horizontal lines (`activeLineFg`)
-- Mouse drag, wheel, and keyboard support (Up/Down arrows)
-- Default time values: 15min, 30min, 1h, 2h, 3h, 4h, 8h, 12h, 1d, 2d, 3d, 1w, 2w, 1mo, 2mo, 3mo
+Behaviour: nav arrows (`IconButton`) jump month; long-press triggers
+fast-jump after delay; arrow keys navigate days, Enter selects; per-date
+dynamic images (e.g. profile photos) supported via injection callback.
+
+#### 36.6.2 ChooseDateTimeBox
+
+Source: `Telegram/SourceFiles/ui/boxes/choose_date_time.cpp`.
+Style tokens at `boxes.style:1722–1748`.
+
+| Token | Value |
+|-------|-------|
+| Box width | `boxWideWidth` = **364 px** |
+| `scheduleHeight` | **95 px** (content row height) |
+| `scheduleDateTop` | **38 px** |
+| `scheduleAtTop` | **42 px** (vertical centre of "at" label) |
+| `scheduleDateWidth` | **136 px** |
+| `scheduleTimeWidth` | **72 px** |
+| `scheduleAtSkip` | **24 px** (horizontal margin around "at" label) |
+| `scheduleDateField.heightMin` | **30 px**, text margins `(2, 0, 2, 0)` |
+| `scheduleTimeField.heightMin` | **28 px**, placeholder font **14 px** |
+| `scheduleAtLabel` | `defaultFlatLabel` |
+| `scheduleTimeSeparator` | font **14 px** (the `:` between hh and mm) |
+| Repeat-period dropdown lock icon | `scheduleRepeatDropdownLock` (premium_lock IconEmoji) |
+| Repeat-period dropdown arrow | `scheduleRepeatDropdownArrow` (dropdown arrow IconEmoji) |
+
+Layout (left → right): `[ Date field 136px ] [ "at" label, ±24px slack ] [ Time field 72px ]`
+within the standard `boxPadding` 24 px gutters.
+
+Date field opens a CalendarBox on focus; mouse wheel ± days. Time field
+fires `submitRequests` on Enter. Optional description text + repeat-period
+PopupMenu (Never/Daily/Weekly/Biweekly/Monthly/3M/6M/Yearly) attached
+beneath via `Ui::PopupMenu` defaults (see §36.5.1).
+
+#### 36.6.3 Schedule Message Box
+
+Wraps `ChooseDateTimeBox`:
+- "Send when online" extra option for user chats.
+- Min schedule = **10 s** from now; max = **1 year** from now.
+- Top-right send-menu button (silent send, etc.).
+
+#### 36.6.4 TimePickerBox (drum / wheel)
+
+Source: `Telegram/SourceFiles/ui/boxes/time_picker_box.cpp`.
+
+- Container height: `historyMessagesTTLPickerHeight` (token referenced at
+  `time_picker_box.cpp:54`, defined in `style_chat_helpers.h` /
+  `style_layers.h` per file:16–17 — **UNRESOLVED**, not located in fetched
+  `chat.style`; flag for next session).
+- Item height: `historyMessagesTTLPickerItemHeight` (`time_picker_box.cpp:57`)
+  — **UNRESOLVED** in fetched content.
+- Active band bounded by two horizontal `activeLineFg` lines
+  (`time_picker_box.cpp:80`); border width `defaultInputField.borderActive`.
+- Body font: `boxTextFont` (`time_picker_box.cpp:49`).
+- `DefaultTimePickerValues()` (`time_picker_box.cpp:21–37`) returns 16 entries
+  in seconds — **15 m, 30 m, 1 h, 2 h, 3 h, 4 h, 8 h, 12 h, 1 d, 2 d, 3 d,
+  1 w, 2 w, 1 mo, 2 mo, 3 mo** (i.e. 900 s → 8 035 200 s).
+- Input: mouse drag, mouse wheel, Up/Down arrows.
 
 ### 36.7 Color Picker (`ColorEditor`)
 
-Full-featured color editor for theming. Source: `Telegram/SourceFiles/ui/widgets/color_editor.h`, `color_editor.cpp`.
+Source: `Telegram/SourceFiles/ui/widgets/color_editor.cpp`.
 
 **Modes**: `RGBA` and `HSL`.
 
 **Components**:
-- **Picker** -- 2D gradient square. Click/drag to select saturation + brightness/lightness. Custom crosshair cursor (16px diameter circle, white outline + black inner). In RGBA mode: 4-corner gradient. In HSL mode: dedicated palette.
-- **Hue slider** -- vertical bar for hue selection (0-360)
-- **Opacity slider** -- vertical bar for alpha (0-255), shown only in RGBA mode
-- **Lightness slider** -- in HSL mode
-- **HSB fields** -- 3 numeric inputs: Hue (0-360), Saturation (0-100%), Brightness/Lightness (0-100%)
-- **RGB fields** -- 3 numeric inputs: Red, Green, Blue (0-255)
-- **Result field** -- hex color code input (#RRGGBB or #AARRGGBB)
-- **Color swatches** -- current color rect and new color rect side by side
+- **Picker** — 2 D gradient square (`colorPickerSize` × `colorPickerSize`). Click/drag selects saturation × brightness/lightness. Custom crosshair cursor: **16 px diameter**, **1 px** stroke (hardcoded `style::ConvertScale(16)` / `style::ConvertScale(1)` at `color_editor.cpp:79–80` — note: HiDPI-scaled, NOT a style token).
+- **Hue slider** — vertical bar of width `colorSliderWidth`, padded by `colorSliderSkip` on each edge (`color_editor.cpp:248–268`).
+- **Opacity slider** — same geometry, RGBA mode only.
+- **Lightness slider** — same geometry, HSL mode only.
+- **HSB fields** — 3 numeric inputs: H (0–360), S (0–100), B/L (0–100).
+- **RGB fields** — 3 numeric inputs: R, G, B (0–255).
+- **Result field** — hex `#RRGGBB` or `#AARRGGBB`.
+- **Color swatches** — current vs. new, side by side, each `colorSampleSize.width × colorSampleSize.height` (`color_editor.cpp:1063–1064`).
 
-**Features**:
-- Bidirectional sync: changing any control updates all others
-- Lightness limits (`setLightnessLimits`) for constrained editing
-- Submit on Enter key
-- `colorValue()` reactive producer for live preview
-- Palette invalidation on hue changes triggers repaint
+**Layout spacing** (`color_editor.cpp:250–251, 1063–1093`):
+
+| Token (referenced) | Role | Resolved value |
+|--------------------|------|----------------|
+| `colorPickerSize` | square edge of 2D gradient | **UNRESOLVED** — not in fetched `widgets.style` / `boxes.style` / `themes.style`. Flag for next-session direct clone of the AyuGram tree. |
+| `colorSliderWidth` | vertical slider thickness | **UNRESOLVED** (same source) |
+| `colorSliderSkip` | padding inside slider track | **UNRESOLVED** |
+| `colorSampleSize` | swatch box (W × H) | **UNRESOLVED** |
+| `colorEditWidth` | combined-controls panel width | **UNRESOLVED** |
+| `colorEditSkip` | gap between picker / sliders / fields | **UNRESOLVED** |
+| `colorFieldSkip` | gap between numeric fields | **UNRESOLVED** |
+| `colorPickerMarkRadius` | mark circle radius on slider | **UNRESOLVED** |
+| `colorPickerMarkLine` | mark stroke width | **UNRESOLVED** |
+| Crosshair circle | picker selection indicator | **16 px diameter, 1 px stroke** (hardcoded, not token) |
+| `lightnessMin` / `lightnessMax` | HSL clamp default | **0 / 255** (`color_editor.h:92–93`) |
+
+**Behaviour**:
+- Bidirectional sync: any control updates all others.
+- `setLightnessLimits(min, max)` constrains HSL editing.
+- Submit on Enter.
+- `colorValue()` reactive producer for live preview.
+- Palette invalidation on hue change triggers full repaint.
+
+HONEST GAP: every `colorPicker*` / `colorSlider*` / `colorSample*` / `colorEdit*` / `colorField*` token requires direct AyuGram clone next session — they are referenced in `color_editor.cpp` but the defining `.style` file was not located via WebFetch (404 on `window/themes/window_theme.style`, `boxes/peers/edit_peer_color_box.style`).
 
 ### 36.8 File Picker (Native OS Dialogs)
 
@@ -16449,28 +16557,49 @@ All are **async** -- they take callbacks, not blocking returns. The `OpenResult`
 
 ### 36.9 Toast / Snackbar Notifications
 
-Brief overlay messages. Source: `Telegram/lib_ui/ui/toast/toast.h`, `toast.cpp`, `toast_widget.h`, `toast_widget.cpp`.
+Brief overlay messages. Source:
+`lib_ui/ui/toast/toast.h`, `toast.cpp`, `toast_widget.h`, `toast_widget.cpp`.
 
 **Config struct**:
-- `title` -- bold title text (optional)
-- `text` -- body text with entities
-- `icon` / `iconLottie` / `iconContent` -- optional icon (static, Lottie animation, or custom widget)
-- `iconAlign` -- left (default), right, top, or bottom
-- `duration` -- display time, default `kDefaultDuration` = 1500ms
-- `infinite` -- ignore duration, stays until manually hidden
-- `dark` -- dark background mode
-- `adaptive` -- auto-size to content width
-- `st` -- style reference (default: `defaultMultilineToast` for multiline, `defaultToast` for single line)
-- `attach` -- edge attachment: None (centered), Left, Top, Right, Bottom
-- `singleline` -- force single line, truncate with ellipsis
+- `title`, `text`, `icon` / `iconLottie` / `iconContent`, `iconAlign`, `duration`, `infinite`, `dark`, `adaptive`, `st`, `attach`, `singleline`.
+
+**Resolved style — `defaultToast`** (`lib_ui/ui/widgets/widgets.style:1309–1318`):
+
+| Field | Value |
+|-------|-------|
+| `padding` | `margins(19px, 13px, 19px, 12px)` (L, T, R, B) |
+| `margin` | `margins(13px, 13px, 13px, 13px)` (outer screen offset) |
+| `maxWidth` | **480 px** |
+| `radius` | **6 px** |
+| `durationFadeIn` | **200 ms** |
+| `durationFadeOut` | **1000 ms** |
+| `durationSlide` | **160 ms** |
+| `style` | `defaultTextStyle` |
+| `palette` | `defaultToastPalette` (text colors) |
+
+**`defaultMultilineToast`** (`widgets.style:1320–1323`) — inherits `defaultToast` plus:
+
+| Field | Value |
+|-------|-------|
+| `minWidth` | **160 px** |
+| `maxWidth` | **360 px** |
+
+**Default duration** (`toast.cpp:37` reading `kDefaultDuration`): **1500 ms** (constant defined in `toast.h`).
 
 **Animation**:
-- **Centered (attach=None)**: Opacity fade in (`durationFadeIn` from style) / fade out (`durationFadeOut`). Painted via proxy image when partially transparent.
-- **Edge-attached**: Slide in/out (`durationSlide` from style) from the attached edge. Position interpolated from off-screen to `margin` offset.
+- **Centered (`attach=None`)**: opacity fade in (200 ms) / fade out (1000 ms). When partially transparent, painted via a proxy image to preserve rounded-rect anti-aliasing.
+- **Edge-attached (Left/Top/Right/Bottom)**: slide in/out **160 ms** from the attached edge; position interpolated from off-screen origin to the `margin` offset above. `addToAttachSide` reactive producer can shift the toast (used for FAB-aware positioning).
 
-**Visual**: Rounded rectangle background (`toastBg` color), corner radius from `st->radius`. Text in `toastFg`. Content wrapped in `Content` widget with icon + body layout. Icon can be positioned left/right/top/bottom with configurable padding (`defaultToastIconPadding`).
+**Visual**:
+- Rounded rect background `toastBg` (palette), corner radius **6 px**.
+- Text color `toastFg`.
+- Shadow: **none defined** in `defaultToast` — relies on solid bg over whatever it overlays (no separate `shadow` field in the struct).
+- Icon padding fallback: `defaultToastIconPadding` (token, **UNRESOLVED** numeric — not surfaced in fetched files, but exists per `toast_widget.cpp:194`).
 
-**Positioning**: Centered in parent widget (or offset from attached edge). Respects `margin` from style. `addToAttachSide` producer can dynamically shift the toast.
+**Positioning**:
+- Centered in parent widget (or `margin`-offset from attached edge).
+- Respects `margin = 13 px` on all sides.
+- Multiline: width clamped to **160–360 px**; single-line: clamped to `maxWidth` 480 px.
 
 **Common toast messages** (all showing briefly after an action):
 
@@ -16631,37 +16760,62 @@ From `Filler::fillChatsListActions()`:
 
 ### 36.11 Tooltip Popups
 
-Two tooltip systems. Source: `Telegram/lib_ui/ui/widgets/tooltip.h`, `tooltip.cpp`.
+Two tooltip systems. Source: `lib_ui/ui/widgets/tooltip.cpp`,
+`lib_ui/ui/widgets/widgets.style`.
 
-**Standard Tooltip** (`Ui::Tooltip`):
-- Singleton pattern -- `Tooltip::Show(delay, shower)` / `Tooltip::Hide()`
-- Shower interface: `tooltipText()`, `tooltipPos()`, `tooltipWindowActive()`
-- Custom style via `tooltipSt()` override
-- Delay timer before showing (default from style)
-- Hide-by-leave timer for mouse exit
-- Event filter tracks mouse movement to reposition
-- Uses transparency if compositing available
-- Simple text rendering via `Text::String`
-- Installed on any widget via `Ui::InstallTooltip(widget, textFn, st)` helper
+**Standard Tooltip — `Ui::Tooltip`** (`defaultTooltip`,
+`widgets.style:1137–1148`):
 
-**Important Tooltip** (`Ui::ImportantTooltip`):
-- Arrow-pointed tooltip (like speech bubble)
-- Points at a `QRect area` with configurable preferred side (`RectParts`: Top, Bottom, Left, Right)
-- Arrow drawn as a small triangle on the appropriate edge
-- Show/hide animation via `Animations::Simple`
-- `toggleAnimated(bool)` -- animate show/hide
-- `toggleFast(bool)` -- instant show/hide
-- `hideAfter(crl::time)` -- auto-hide timer
-- Content is any `RpWidget` (typically `FlatLabel`)
-- Custom positioning via `countPosition` callback
+| Field | Value |
+|-------|-------|
+| `textBg` | `tooltipBg` (palette) |
+| `textFg` | `tooltipFg` |
+| `textBorder` | `tooltipBorderFg` |
+| `textStyle` | `defaultTextStyle` |
+| `textPadding` | `margins(5px, 2px, 5px, 2px)` |
+| `shift` | `point(-20px, 20px)` (default offset from cursor) |
+| `skip` | **10 px** (clearance from edge) |
+| `widthMax` | **800 px** |
+| `linesMax` | **12** |
+| Show delay | **1000 ms** (`tooltip.cpp:292`, `_showTimer.callOnce(1000)`) |
+| Hide-by-leave delay | **10 ms** (`tooltip.cpp:59`) |
+| Corner radius (compositing on) | `roundRadiusSmall` (`tooltip.cpp:111`) |
+| Shadow | **disabled** — `Qt::NoDropShadowWindowHint` at `tooltip.cpp:48` |
 
-**Nice Tooltip** helper (`Ui::MakeNiceTooltipLabel`):
-- Creates a `FlatLabel` with automatic width finding (`FindNiceTooltipWidth`) that minimizes wasted space
-- Used for rich-text tooltips
+Singleton pattern: `Tooltip::Show(delay, shower)` / `Tooltip::Hide()`.
+Shower interface: `tooltipText()`, `tooltipPos()`, `tooltipWindowActive()`.
+Installed on any widget via `Ui::InstallTooltip(widget, textFn, st)`.
 
-**Tooltip with Close** (`Ui::MakeTooltipWithClose`):
-- Content + close button
-- Custom padding and label style
+**Important Tooltip — `Ui::ImportantTooltip`** (`defaultImportantTooltip`,
+`widgets.style:1150–1160`):
+
+| Field | Value |
+|-------|-------|
+| `bg` | `importantTooltipBg` (palette) |
+| `margin` | `margins(4px, 4px, 4px, 4px)` (around content + arrow) |
+| `padding` | `margins(10px, 3px, 10px, 5px)` |
+| `radius` | **4 px** |
+| `arrow` | **4 px** — half-width and full-height of triangle |
+| `arrowSkipMin` | **24 px** (min clearance from rect edge) |
+| `arrowSkip` | **66 px** (preferred horizontal arrow offset) |
+| `shift` | **12 px** (overall shift relative to target rect) |
+| `duration` | **200 ms** show/hide animation |
+
+**Arrow geometry** (`tooltip.cpp:152, 156–157, 171–179`): triangle bounding
+box = `QSize(arrow * 2, arrow)` = **8 × 4 px**. Drawn on whichever edge
+points at the target `QRect area`; preferred side passed via `RectParts`
+(Top, Bottom, Left, Right). Horizontal arrow position is clamped by
+`arrowSkipMin` (24 px) and biased toward `arrowSkip` (66 px) from the
+nearest rect edge.
+
+Show/hide via `Animations::Simple` driving opacity. APIs:
+`toggleAnimated(bool)`, `toggleFast(bool)`, `hideAfter(crl::time)`.
+Content is any `RpWidget` (usually `FlatLabel`); custom positioning via
+`countPosition` callback.
+
+**Helpers**:
+- `Ui::MakeNiceTooltipLabel` — `FlatLabel` with `FindNiceTooltipWidth` for minimum-waste rectangle.
+- `Ui::MakeTooltipWithClose` — body + close button, custom paddings.
 
 ### 36.12 Permission Request Dialogs
 
@@ -16763,24 +16917,56 @@ Button order: **right-aligned**, primary button rightmost, cancel to its left. L
 
 | Property | Value | Source |
 |----------|-------|--------|
-| Box animation duration | 200ms | `boxDuration` in `layers.style` |
-| Box corner radius | 6px | `boxRadius` |
-| Box title font | 16px semibold | `boxTitleFont` |
-| Box title height | 48px | `boxTitleHeight` |
-| Box title position | (24px, 13px) | `boxTitlePosition` |
-| Box content padding | 24px left/right | `boxRowPadding` |
-| Box button font | 14px semibold | `defaultBoxButtonTextStyle` |
-| Box button height | 34px | `defaultBoxButton.height` |
-| Box button min-width | 30px (negative = min padding) | `defaultBoxButton.width` |
-| Box width (standard) | 320px | `boxWidth` |
-| Box width (wide) | 364px | `boxWideWidth` |
-| Toast default duration | 1500ms | `kDefaultDuration` |
-| Toast background color | `toastBg` | palette |
-| Toast text color | `toastFg` | palette |
-| PopupMenu animation | PanelAnimation (clip-reveal + opacity) | `popup_menu.cpp` |
-| Tooltip show delay | configurable per style | `style::Tooltip` |
+| Box show/hide animation | **200 ms**, opacity 0→1 (linear), no scale tween in current source | `lib_ui/ui/layers/layer_widget.cpp:163–192`, `layers.style:24` |
+| Master layer easing | `anim::easeOutCirc` (background dim + side panel) | `layer_widget.cpp:169` |
+| Box corner radius | **8 px** | `layers.style:25` (`boxRadius`) |
+| Box shadow | `boxRoundShadow` → `roundShadowRadius8px` (numeric extend/blur **UNRESOLVED**) | `layers.style:73` |
+| Box title font | **16 px semibold** | `boxTitleFont` |
+| Box title height | **48 px** | `boxTitleHeight` |
+| Box title position | (24 px, 13 px) | `boxTitlePosition` |
+| Box content padding | `margins(24px, 14px, 24px, 8px)` | `boxPadding`, `layers.style:73` |
+| Box button font | **14 px semibold** | `defaultBoxButtonTextStyle` |
+| Box button height | **34 px** | `defaultBoxButton.height` |
+| Box width (standard) | **320 px** | `boxWidth` |
+| Box width (wide) | **364 px** | `boxWideWidth` |
+| Toast default duration | **1500 ms** | `kDefaultDuration`, `toast.h` |
+| Toast fade-in / fade-out | **200 ms** / **1000 ms** | `defaultToast`, `widgets.style:1316–1317` |
+| Toast slide | **160 ms** | `defaultToast.durationSlide` |
+| Toast radius | **6 px** | `defaultToast.radius` |
+| Toast padding | `margins(19, 13, 19, 12)` | `defaultToast.padding` |
+| Toast max width (single) | **480 px** | `defaultToast.maxWidth` |
+| Toast multiline width | **160–360 px** | `defaultMultilineToast.minWidth/maxWidth` |
+| PopupMenu radius | **8 px** | `defaultPopupMenu.radius` |
+| PopupMenu show / hide animation | **200 ms** / **150 ms** | `defaultPopupMenu.showDuration` / `.duration` |
+| PopupMenu animation curve | `defaultPanelAnimation` (clip-reveal width 0.5/0.6, height 0.3/0.9, opacity 0.2/0.3) | `widgets.style:1054–1063` |
+| PopupMenu shadow | `defaultBoxShadow` (5 px blur, offset (0,1), opacity 0.25) | same |
+| Menu item padding | `margins(17, 8, 17, 7)` | `defaultMenu.itemPadding` |
+| Menu width clamp | **156 – 300 px** | `defaultMenu.widthMin/widthMax` |
+| Menu separator | `margins(0, 5, 0, 5)` × **1 px** stroke | `defaultMenu.separator` |
+| Tooltip show delay | **1000 ms** | `tooltip.cpp:292` |
+| Tooltip hide-by-leave | **10 ms** | `tooltip.cpp:59` |
+| Tooltip text padding | `margins(5, 2, 5, 2)` | `defaultTooltip.textPadding` |
+| Tooltip max width / lines | **800 px** / **12 lines** | `defaultTooltip` |
+| ImportantTooltip arrow | triangle **8 × 4 px** (arrow=4) | `tooltip.cpp:152`, `defaultImportantTooltip.arrow` |
+| ImportantTooltip radius | **4 px** | `defaultImportantTooltip.radius` |
+| ImportantTooltip animation | **200 ms** | `defaultImportantTooltip.duration` |
+| Calendar cell | **48 × 40 px** (inner highlight 34 px) | `defaultCalendarSizes`, `boxes.style:1502–1503` |
+| Calendar days header | **40 px** | `daysHeight`, `boxes.style:1504` |
+| Calendar title height | **48 px** | `calendarTitleHeight` |
+| Schedule box height | **95 px** | `scheduleHeight`, `boxes.style:1722` |
+| Schedule date / time field width | **136 px** / **72 px** | `scheduleDateWidth/scheduleTimeWidth` |
+| Schedule date field min height | **30 px** | `scheduleDateField.heightMin` |
+| Schedule time field min height / font | **28 px** / **14 px** | `scheduleTimeField` |
 | Calendar day click | instant selection + close | `calendar_box.cpp` |
 | Delete dialog Enter safety | disabled for history clear | `delete_messages_box.cpp:517` |
+
+**Unresolved for next session (direct AyuGram clone needed):**
+1. `roundShadowRadius8px` numeric extend/blur/color/opacity (referenced `layers.style:73`).
+2. `st::layerBg` palette alpha for background dim.
+3. Whether the box itself has a residual scale tween via delegate hooks.
+4. All `colorPicker*` / `colorSlider*` / `colorSample*` / `colorEdit*` / `colorField*` numeric tokens (`.style` file 404'd via WebFetch).
+5. `historyMessagesTTLPickerHeight` / `historyMessagesTTLPickerItemHeight` (referenced `time_picker_box.cpp:54,57`).
+6. `defaultToastIconPadding` numeric value (referenced `toast_widget.cpp:194`).
 
 ---
 
