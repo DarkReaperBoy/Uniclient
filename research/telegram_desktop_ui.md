@@ -2691,6 +2691,21 @@ Flash/bounce label varies: Windows → "Flash the taskbar icon", macOS → "Boun
 
 **Volume slider** (below "Allow sound"): `MediaSlider` in `SlideWrap`, visible when sound enabled. 100 positions (1–100%), percentage label in `windowActiveTextFg`. Dragging plays notification sound preview. Slider: `settingsScale` (15x15px seek thumb), padding `settingsBigScalePadding` (21px left/right, 7px top, 4px bottom).
 
+#### 15.2.1 Global Master-Volume Slider (detailed)
+
+Injected via `Ui::AddRingtonesVolumeSlider` inside the Global Notifications builder, immediately after the three toggle rows, with subtitle `lng_settings_master_volume_notifications` ("Volume"). source: settings/sections/settings_notifications.cpp:1034-1054.
+
+- **Outer wrap**: `Ui::SlideWrap<VerticalLayout>`. Toggled on the combined predicate `notifications().volumeSupportedValue() && toggleOn` with `anim::type::normal` (~150ms). If the active notifications backend does not support per-sound volume, the wrap stays collapsed even while Allow-Sound is ON. source: data/notify/data_peer_notify_volume.cpp:77-85.
+- **Subsection title** above the slider: `AddSubsectionTitle`, 14px semibold `windowActiveTextFg`, localized key `lng_settings_master_volume_notifications`. source: data/notify/data_peer_notify_volume.cpp:87.
+- **Slider widget**: `Settings::MakeSliderWithLabel` — horizontal `MediaSlider` (`settingsScale`) plus a trailing right-aligned `FlatLabel` (`settingsScaleLabel`). Horizontal gap between track and label is `normalFont->spacew * 2` (≈8px). Label column reserves the width of `"100%"` (≈28px at default system font). source: data/notify/data_peer_notify_volume.cpp:88-94.
+- **Orientation**: horizontal. **Thumb**: 15x15 px seek handle (`defaultContinuousSlider` palette). source: settings/settings.style:67-69.
+- **Step model**: `setPseudoDiscrete(100, index -> index+1, current, updateLabel, saveVolume)` — exactly **100 discrete steps**, integer values 1..100. There is no step 0; muted state is expressed by toggling Allow-Sound OFF, not by dragging to zero. source: data/notify/data_peer_notify_volume.cpp:106-113.
+- **Label format**: plain `QString::number(volume) + '%'`, e.g. `"100%"`. Not a 0-10 scale. Label text colour `windowActiveTextFg`. Updated live on every committed step. source: data/notify/data_peer_notify_volume.cpp:102-103, settings/settings.style:70-72.
+- **Live preview on drag**: each committed step invokes `saveVolume(volume)` which calls `Core::App().notifications().playSound(session, 0, volume/100.)`, so the default tone replays at the new level as the user drags. source: settings/sections/settings_notifications.cpp:1045-1051.
+- **Default value**: `Core::App().settings().notificationsVolume()`, falling back to `100` when unset. source: settings/sections/settings_notifications.cpp:1040-1043.
+- **Row padding**: slider container added with `st::settingsBigScalePadding` = margins(21, 7, 21, 4). source: settings/settings.style:61.
+- **Persistence**: `setNotificationsVolume(volume)` then `saveSettingsDelayed()` — flushed by the debounced settings writer, not per-step. source: settings/sections/settings_notifications.cpp:1050-1051.
+
 ### 15.3 Notification Preview (Name & Text Checkboxes)
 
 Displayed in `SlideWrap` based on `desktopNotify` state. When off, plain divider shown instead.
@@ -2728,6 +2743,16 @@ Each row: left portion (clickable → sub-page) with icon + label + status subti
 
 **Toggle with exceptions**: Confirmation dialog appears: "Please note that N chat(s) are listed as exceptions and won't be affected." with "OK" and "View exceptions" buttons.
 
+#### 15.4.1 Intra-Row Separator (split-toggle divider)
+
+The thin vertical bar that sits between the clickable label area and the right-hand toggle area inside every split row (`SetupSplitToggle`) is an in-row child `Ui::RpWidget`, not a row-level `AddDivider`. source: settings/sections/settings_notifications.cpp:134-154.
+
+- **Geometry**: width = `st::lineWidth` (1px hairline). Height = `st.height - 2 * st.toggle.border`, where `st = settingsNotificationType` (40px button height) — separator is 2 * toggle-border shorter than the row. Centered vertically: `y = row.y + (row.height - separatorHeight) / 2`. source: settings/sections/settings_notifications.cpp:140, 149-153.
+- **Horizontal position**: placed at `toggle.x - st::lineWidth`, i.e. flush against the left edge of the 70px `rightsButtonToggleWidth` toggle area. source: settings/sections/settings_notifications.cpp:143-150.
+- **Colour**: `st.textBgOver` of the `settingsNotificationType` button (hover background over `settingsButton`), painted via `fillRect`. Matches the subtle button-hover tint from the palette rather than a dedicated divider colour. source: settings/sections/settings_notifications.cpp:136-139.
+- **Inter-row divider**: between distinct rows (Private / Groups / Channels / Reactions) there is **no horizontal stroke** — rows stack directly, with the 4/4px top/bottom padding of `settingsNotificationType.padding` providing breathing room. The visible separator is the 1px vertical hairline above, not a row divider. source: settings/settings.style:543-546.
+- **Section dividers** between the per-type block and the surrounding Events / Badge / Advanced blocks use `Ui::AddDivider` + `Ui::AddSkip(st::settingsCheckboxesSkip)` pairs elsewhere in the page. source: settings/sections/settings_notifications.cpp:1515-1517, 1586-1588.
+
 ### 15.5 Per-Type Sub-Page
 
 #### 15.5.1 Enable / Sound / Tone Controls
@@ -2736,6 +2761,24 @@ Each row: left portion (clickable → sub-page) with icon + label + status subti
 - **"Sound"** — `SlideWrap`, visible when notifications enabled. Toggle.
 - **"Notification tone"** — nested `SlideWrap`, visible when sound enabled. Right label shows tone name. Opens Ringtones Box.
 - **Volume slider** — per-type, 1–100%.
+
+##### 15.5.1.1 Tone Row (detailed)
+
+The Tone row is a `SettingsButton` built by `AddButtonWithLabel`, not a dropdown — it behaves like a navigation row that opens the Ringtones Box. source: settings/sections/settings_notifications_type.cpp:502-507.
+
+- **Layout**: left icon `menuIconSoundOn` (speaker), bold label `lng_notification_tone` ("Notification tone") on the left, current-selection preview as a right-aligned secondary label, no explicit chevron glyph — whole row is clickable. Style: `settingsButton` (60px left padding). source: settings/sections/settings_notifications_type.cpp:502-507.
+- **Right label content**: the current tone's filename as resolved by `ExtractRingtoneName(document)` (file extension stripped). For the default tone the right label reads `lng_ringtones_box_default(tr::now)` ("Default"). Label is reactively updated on every `defaultUpdates` fire and on every `session->api().ringtones().listUpdates()` — so renaming or removing a chosen custom tone re-resolves the label. source: settings/sections/settings_notifications_type.cpp:479-500, boxes/ringtones_box.cpp:93-114.
+- **Click action**: opens `Box(RingtonesBox, ...)` seeded with the current tone id and the per-type `DefaultRingtonesVolumeController`. There is no play-on-select on the row itself; playback happens when a radio is selected inside the Ringtones Box. source: settings/sections/settings_notifications_type.cpp:550-557.
+- **Wrap**: the Tone row sits inside a nested `SlideWrap` bound to the Sound toggle (`toneWrap->toggleOn(sound->toggledValue())`), which is itself inside a `SlideWrap` bound to the Enable-notifications toggle. Collapsing Sound hides Tone + per-type Volume together. source: settings/sections/settings_notifications_type.cpp:472-477.
+
+##### 15.5.1.2 Per-Type Volume Slider (detailed)
+
+Added after the Tone row via `Ui::AddRingtonesVolumeSlider` with subtitle `VolumeSubtitle(type)` — localized per type: `lng_notification_volume_private_chats` / `lng_notification_volume_groups` / `lng_notification_volume_channel`. source: settings/sections/settings_notifications_type.cpp:383-390, 513-529.
+
+- **Same widget family** as the global slider (§15.2.1): horizontal `MediaSlider` (`settingsScale`, 15x15 thumb) with trailing `FlatLabel` showing `N + '%'`, 100 pseudo-discrete steps (1..100), `settingsBigScalePadding` = margins(21, 7, 21, 4). source: data/notify/data_peer_notify_volume.cpp:88-114, settings/settings.style:61, 67-69.
+- **Live preview on drag** (per-type specific): `saveVolume` here calls `Core::App().notifications().playSound(session, toneValue().id, 0.01 * volume)` — playing the currently selected per-type tone (not the global default) at the new level while dragging. source: settings/sections/settings_notifications_type.cpp:521-527.
+- **Default**: `session->settings().ringtoneVolume(defaultNotify)`, fallback `100` when unset. Persistence via `setRingtoneVolume(defaultNotify, volume)` + `saveSettingsDelayed()`. source: data/notify/data_peer_notify_volume.cpp:27-40.
+- **Visibility**: slider lives inside the tone wrap (`toneInner`), so it is shown only when both Enable-notifications and Sound are ON, and when the notifications backend reports `volumeSupportedValue() == true`. source: settings/sections/settings_notifications_type.cpp:513-529, data/notify/data_peer_notify_volume.cpp:77-85.
 
 #### 15.5.2 Exceptions List
 
@@ -2763,6 +2806,44 @@ Each row: left portion (clickable → sub-page) with icon + label + status subti
 - **Volume slider** (conditional): Shown when volume controller provided. Hidden for "No sound".
 - **Footer**: "Right click on any short voice note or MP3 file in chat and select 'Save for Notifications'."
 - **Buttons**: "Save" / "Cancel".
+
+#### 15.6.1 Ringtones Box Layout (detailed)
+
+`RingtonesBox(GenericBox*, Session*, NotifySound selected, save, VolumeController)` builds as a `VerticalLayout` inside a `GenericBox`. Final width set via `box->setWidth(st::boxWideWidth)` = **364px**. source: boxes/ringtones_box.cpp:116-124, 369, desktop-app/lib_ui layers.style:117-118.
+
+**Row composition (top to bottom):**
+
+1. **Subsection title** — `AddSubsectionTitle(container, lng_ringtones_box_cloud_subtitle)` — 14px semibold `windowActiveTextFg`. source: boxes/ringtones_box.cpp:234-236.
+2. **Fixed radio rows** (always present):
+   - `"Default"` (value `kDefaultValue = -1`) — `Ui::Radiobutton`, `defaultCheckbox` style, padding = `boxPadding` with `top = boxPadding.bottom()`. Click callback plays the default notification sound at the current override volume (`playSound(session, 0, volumeOverride())`). source: boxes/ringtones_box.cpp:51, 126-127, 168-176, 239-243.
+   - `"No sound"` (value `kNoSoundValue = -2`) — same `Radiobutton`, no click playback callback. Selecting this row hides the in-box volume slider via the `toggleOn` mapping `value != kNoSoundValue`. source: boxes/ringtones_box.cpp:52, 244-248, 354-356.
+3. **Custom tones list** — a child `VerticalLayout` named `custom`, rebuilt on every `session->api().ringtones().listUpdates()` and on successful upload (`uploadDones`). Each tone is added as a `Radiobutton` whose label is `ExtractRingtoneName(document)` (filename without extension; falls back to `"Voice message " + date` or `"Audio file " + date` if filename is empty). source: boxes/ringtones_box.cpp:93-114, 250-286.
+4. **Play on select** — clicking a custom radio triggers `playSound(session, media->owner()->id, volumeOverride())` if the document is already loaded. Unloaded documents simply select the radio without playback. source: boxes/ringtones_box.cpp:183-191.
+5. **Right-click → Delete** — every custom row installs an event filter on the radio that opens a `Ui::PopupMenu` (`popupMenuWithIcons` style) with a single `lng_box_delete` action + `menuIconDelete`; confirming calls `session->api().ringtones().remove(id)`. Default/No-sound rows do not get this menu. source: boxes/ringtones_box.cpp:192-209.
+6. **Upload Sound button** — `Settings::CreateButtonWithIcon(container, lng_ringtones_box_upload_button, ringtonesBoxButton, {&settingsIconAdd, IconType::Round, &windowBgActive})`. Click is delayed by `ringtonesBoxButton.ripple.hideDuration` then opens a file dialog filtered to `"Audio files (*.mp3)"` (`lng_ringtones_box_upload_choose`). On choice the file is read, MIME sniffed from the path (or data) and passed to `session->api().ringtones().upload(name, mime, content)`. source: boxes/ringtones_box.cpp:288-337.
+7. **In-box volume slider** (conditional) — `AddRingtonesVolumeSlider` with subtitle `lng_ringtones_box_volume` and the `VolumeController` argument. Toggled visible on `group->value() != kNoSoundValue` (i.e. hidden whenever "No sound" is currently selected). Dragging plays the *currently selected* radio's document at the new level (0 for Default, the media id otherwise). Final confirmed volume is saved via `volumeController.saveVolume(state->presavedVolume)` when the box's Save button is clicked. source: boxes/ringtones_box.cpp:339-362, 377-379.
+8. **Skip** `st::ringtonesBoxSkip` = **7px**. source: boxes/boxes.style:1025.
+9. **Footer** — `Ui::AddDividerText(container, lng_ringtones_box_about)` — the "Right click on any short voice note or MP3 file..." text.
+10. **Skip** another 7px (`ringtonesBoxSkip`). source: boxes/ringtones_box.cpp:364-367.
+11. **Buttons** — `addButton(lng_settings_save, ...)` (primary) + `addButton(lng_cancel, ...)` (secondary). Save: if the picked radio is `kDefaultValue` → saves `NotifySound()`; if `kNoSoundValue` → `NotifySound{.none = true}`; otherwise → `NotifySound{.id = document_id}`, plus commits any drag-adjusted volume before closing. source: boxes/ringtones_box.cpp:370-383.
+
+**Upload button style (`ringtonesBoxButton`)** — `SettingsButton(defaultSettingsButton)` override: text colour `lightButtonFg` / `lightButtonFgOver` (accent), padding margins(56, 10, 22, 8), `iconLeft: 25px`. source: boxes/boxes.style:1019-1024.
+
+**Loading / rebuild state** — on each list update the `rebuild` lambda deletes all child widgets of the `custom` layout and re-adds one row per id from `ringtones().list()`. If the previously-chosen custom button disappeared (e.g. removed remotely), the group falls back to `kDefaultValue` and `defaultButton->finishAnimating()` is called. There is no spinner widget — the UI simply renders whatever the cached list currently contains; `session->api().ringtones().requestList()` is fired on box open and the list updates the view asynchronously. source: boxes/ringtones_box.cpp:253-286.
+
+**Upload progress / errors** — the box subscribes to `ringtones().uploadFails` and shows an `Ui::MakeInformBox` for each specific error code:
+- `RINGTONE_DURATION_TOO_LONG` → `lng_ringtones_error_max_duration` parameterised by `FormatMuteFor(maxDuration())`.
+- `RINGTONE_SIZE_TOO_BIG` → `lng_ringtones_error_max_size` parameterised by `FormatSizeText(maxSize())` (and the Upload callback itself also pre-checks the size and shows the same box before sending bytes).
+- `RINGTONE_MIME_INVALID` → `lng_edit_media_invalid_file`.
+
+There is no inline per-row progress bar; upload success simply refreshes the list and selects the newly uploaded id. source: boxes/ringtones_box.cpp:212-232, 279-286, 320-329.
+
+**Server-config limits** (defaults used when `appConfig` values are unset):
+- `ringtone_size_max` — max upload size, default `100 * 1024` bytes = **100 KB**. source: api/api_ringtones.cpp:187-191.
+- `ringtone_saved_count_max` — max cloud ringtones retained per account, default **100**. source: api/api_ringtones.cpp:193-197.
+- `ringtone_duration_max` — max duration, default **5 seconds** (stored as ms via `crl::time(1000) * config`). source: api/api_ringtones.cpp:199-203.
+
+**Row height / audio engine** — `AudioCreator` attaches the audio device on box open and schedules detach on close with a 250 ms (`kNoDetachTimeout`) polling timer to stop detaching while a preview is actively playing. source: boxes/ringtones_box.cpp:53, 55-89.
 
 ### 15.7 Reactions Sub-Page
 
@@ -2816,9 +2897,29 @@ When native OFF, advanced controls appear:
 
 - **"Respect system Focus mode"** — toggle, suppresses notifications during Windows Focus Assist.
 
+##### 15.11.1.1 Focus Mode Toggle (detailed)
+
+Rendered **only on Windows** (`Platform::IsWindows()`), as the first child of the non-native "advanced" slide-wrap. Style: `settingsButtonNoIcon` (no left icon slot, 22px flat padding). Toggle label: `lng_settings_skip_in_focus`. source: settings/sections/settings_notifications.cpp:1493-1511.
+
+- **Setting**: `Core::App().settings().skipToastsInFocus()` / `setSkipToastsInFocus(checked)`. Initial toggle state is seeded from the current setting.
+- **Side effects on toggle ON**: `saveSettingsDelayed()`; if `Platform::Notifications::SkipToastForCustom()` returns true for the current backend, `notifySettingsChanged(ChangeType::DesktopEnabled)` is fired to force the manager to re-arm with the new skip-in-focus rule. On toggle OFF only `saveSettingsDelayed()` runs. source: settings/sections/settings_notifications.cpp:1500-1511.
+- **macOS / Linux**: the toggle is not added. On macOS, Do-Not-Disturb is honoured by the native `UNUserNotificationCenter` backend itself (no in-app toggle). On Linux, suppression is deferred to the desktop notification daemon (`NotificationsManagerLinux` uses dbus `org.freedesktop.Notifications` — see `platform/linux/notifications_manager_linux.cpp`). Flagged: exact Linux dbus inhibition hook not cited here — not present in the settings UI surface.
+
 #### 15.11.2 Multi-Display Selector
 
 Shown when multiple monitors detected. Radio buttons: "Default" + one per display ("{name} ({width}×{height})").
+
+##### 15.11.2.1 Multi-Display Selector (detailed)
+
+Rendered only when `QGuiApplication::screens().size() > 1`, preceded by `Ui::AddSkip(settingsCheckboxesSkip) + AddDivider + AddSkip + AddSubsectionTitle(lng_settings_notifications_display)`. source: settings/sections/settings_notifications.cpp:1513-1521.
+
+- **Control type**: a single `Ui::RadiobuttonGroup` with one `Ui::Radiobutton` per option (not a dropdown or a drawn monitor layout). Rows use `settingsSendType` style with `settingsSendTypePadding`. source: settings/sections/settings_notifications.cpp:1534-1563.
+- **Rows**:
+  - Row 0: `"Default"` (`lng_settings_notifications_display_default`), value = `kDefaultDisplayIndex` — restores the system-default output by writing `notificationsDisplayChecksum = 0`. source: settings/sections/settings_notifications.cpp:1537-1544, 1566-1570.
+  - Rows 1..N: one per screen, value = screen index. Label is built as `"{ScreenDisplayLabel} (WxH)"` where the "x" is `QChar(0x00D7)` (multiplication sign) and `W`, `H` are `screen->geometry().width()` / `height()`. If `ScreenDisplayLabel` is empty the label falls back to `"Display (WxH)"`. source: settings/sections/settings_notifications.cpp:1546-1564.
+- **Selection persistence**: writing selects by **checksum of the screen name** (`Platform::ScreenNameChecksum`) — the checksum is stable across monitor reorderings, so reconnect/rearrange preserves the chosen monitor when possible. The currently-saved checksum is matched against each screen to pick the initial `currentIndex`. source: settings/sections/settings_notifications.cpp:1522-1535, 1571-1583.
+- **Side-effects on change**: `setNotificationsDisplayChecksum(...)` → `saveSettings()` (synchronous, not the delayed variant) → `notifySettingsChanged(ChangeType::Corner)` to re-anchor the in-app notifier. source: settings/sections/settings_notifications.cpp:1565-1583.
+- **No drawn outline-rectangle monitor picker exists for display selection** — the outline-rectangle monitor widget in §15.11.3 is strictly a corner picker for a single screen; it does not enumerate displays. Platform differences in monitor enumeration are handled inside `Platform::ScreenDisplayLabel` / `ScreenNameChecksum` (per-OS forks in platform_notifications_manager implementations). Flagged: exact macOS vs Windows vs Linux label wording differences not cited here — implementations live in `platform/{mac,win,linux}/notifications_manager_*`.
 
 #### 15.11.3 Notification Position
 
@@ -2828,9 +2929,62 @@ Interactive **monitor widget** (280x160px screen area, `notificationsBoxScreenBg
 - **Hover**: Spawns actual desktop sample notification windows (320x80px) at the corresponding screen corner with app logo, title, sample text, close button.
 - **Click**: Selects corner. Default: BottomRight.
 
+##### 15.11.3.1 Monitor Widget (detailed rendering + interaction)
+
+Implemented as `Settings::NotificationsCount` (`public Ui::RpWidget`) built with `object_ptr<NotificationsCount>(advancedWrap, controller)`. It is preceded by `AddSkip(settingsCheckboxesSkip) + AddDivider + AddSkip + AddSubsectionTitle(lng_settings_notifications_position) + AddSkip(settingsCheckboxesSkip)`. source: settings/sections/settings_notifications.cpp:1586-1595, settings/sections/settings_notifications.cpp:326-338.
+
+**Overall geometry** (`paintEvent` + `resizeGetHeight`):
+
+- **Container widget height** is fixed to `st::notificationsBoxMonitor.height()` (the height of the "monitor" frame icon). `getContentLeft() = (width() - st::notificationsBoxMonitor.width()) / 2` — the monitor icon is centred horizontally across the full row. source: settings/sections/settings_notifications.cpp:415-432.
+- **Inner screen rect** (`getScreenRect`): `QRect((width - st::notificationsBoxScreenSize.width())/2, st::notificationsBoxScreenTop, 280, 160)` — the active picker area is a 280×160 box, centred horizontally and offset 10px from the top of the widget. source: settings/sections/settings_notifications.cpp:419-427, boxes/boxes.style:267-268.
+- **Background**: `fillRect(screenRect, st::notificationsBoxScreenBg)` — flat fill with the palette's `notificationsBoxScreenBg` colour (monitor "screen" backdrop). source: settings/sections/settings_notifications.cpp:346-351.
+- **Monitor frame**: drawn by `st::notificationsBoxMonitor.paint(p, contentLeft, 0, width())` — a single `icon {{ "monitor", notificationsBoxMonitorFg }}` glyph that visually wraps the 280×160 screen rect into a monitor bezel. It is NOT scaled per-display and does not draw real-world monitor proportions; it is a fixed stylised frame. source: settings/sections/settings_notifications.cpp:353-354, boxes/boxes.style:266.
+
+**Sample notification bars** (the miniature preview rectangles inside the screen rect):
+
+- **Size**: `notificationSampleSize = size(64px, 16px)`. source: boxes/boxes.style:276.
+- **Corner sample pixmap**: `_notificationSampleSmall`, a rounded 64×16 pixmap prepared once in `prepareNotificationSampleSmall`. source: settings/sections/settings_notifications.cpp:336, 434-472.
+- **Four side corners** (TopLeft / TopRight / BottomLeft / BottomRight) drawn by iterating `corner = 0..3` with `IsLeftCorner` / `IsTopCorner` predicates:
+  - `sampleLeft = isLeft ? (screenRect.x + notificationsSampleSkip) : (screenRect.x + screenRect.w - notificationsSampleSkip - 64)` — 5px inset from the respective side. source: settings/sections/settings_notifications.cpp:358-361, boxes/boxes.style:270.
+  - `sampleTop = isTop ? (screenRect.y + notificationsSampleTopSkip) : (screenRect.y + screenRect.h - notificationsSampleBottomSkip - 16)` — 5px inset top or bottom. source: boxes/boxes.style:271-272.
+- **Chosen corner**: up to `kMaxNotificationsCount = 5` bars stacked vertically, each separated by `notificationsSampleMargin = 2px`. Bars `i < _oldCount` fade to opacity 1.0, bars `i >= _oldCount` fade to 0.0; each bar has an independent `Ui::Animations::Simple` started with duration `st::notifyFastAnim = 150ms` when the count changes. source: settings/sections/settings_notifications.cpp:362-370, settings_notifications_common.h:37, boxes/boxes.style:273, 275, window/window.style:52.
+- **Non-chosen corners**: one bar drawn at `notificationSampleOpacity = 0.5`. source: settings/sections/settings_notifications.cpp:371-375, boxes/boxes.style:275.
+- **TopCenter corner** (the fifth, value 4): drawn separately — `sampleLeft = screenRect.x + screenRect.width/2 - 32`, `sampleTop = screenRect.y + 5`. Same rules: chosen → up to 5 stacked bars with per-bar fade; non-chosen → 1 bar at 0.5 opacity. source: settings/sections/settings_notifications.cpp:378-394.
+
+**Corner hit-testing** (`mouseMoveEvent`): the screen rect is split into a 3×3 grid; four corners and the top-center third are live hit regions, each sized `cornerWidth = screenRect.w/3 ≈ 93px`, `cornerHeight = screenRect.h/3 ≈ 53px`. The center and bottom-center third are inert. `setOverCorner(ScreenCorner::...)` fires on each transition and sets the cursor to `style::cur_pointer`. source: settings/sections/settings_notifications.cpp:540-562, 568-582.
+
+**Desktop sample windows** (the big "real" preview notifications spawned over the user's actual desktop while a corner is hot):
+
+- **Size**: `notifyWidth = 320px` × `notifyMinHeight = 80px`. Userpic 62px (`notifyPhotoSize`). source: window/window.style:31, 53-54.
+- **Placement** is computed in *real desktop coordinates* via `Window::Notifications::NotificationDisplayRect(&_controller->window())`, offset by `notifyDeltaX = 6px` / `notifyDeltaY = 7px` from the corresponding real-screen corner. Stacked bars are offset by `(notifyMinHeight + notifyDeltaY) = 87px` per slot, growing downwards for top corners and upwards for bottom corners. TopCenter centres horizontally on the chosen screen. source: settings/sections/settings_notifications.cpp:592-609, window/window.style:55-56.
+- **Count**: spawn up to `_oldCount` SampleWidget windows per hot corner; if the user later re-hovers the same corner and more are needed, missing ones are fast-shown, surplus ones are fast-hidden. source: settings/sections/settings_notifications.cpp:585-614.
+- **Leaving**: `leaveEventHook` / `clearOverCorner()` hides all spawned samples fast and emits `ChangeType::DemoIsHidden`. source: settings/sections/settings_notifications.cpp:564-566, 617-630.
+- **Selection commit**: on `mouseReleaseEvent`, if the mouse is over the same corner it went down on and that corner differs from `_chosenCorner`, the corner is adopted, `setNotificationsCorner(corner)` is persisted via `saveSettingsDelayed()` and `ChangeType::Corner` is emitted. source: settings/sections/settings_notifications.cpp:632-653.
+- **Default**: `Core::Settings::_notificationsCorner = ScreenCorner::BottomRight`. source: core/core_settings.h (ScreenCorner default).
+
+**No visible labels** are drawn on the monitor widget itself (the corner rectangles are not annotated with text). The monitor is a stylised single-screen picker, not a multi-monitor map — see §15.11.2.1 for how multiple physical displays are selected.
+
+##### 15.11.3.2 Notification Corner Selector (summary)
+
+The five `ScreenCorner` enum values (`TopLeft`, `TopCenter`, `TopRight`, `BottomRight`, `BottomLeft`) are mapped by static helpers:
+- `IsLeftCorner`: TopLeft / BottomLeft / **TopCenter** (important — TopCenter is treated as "left" for RTL/anchor math).
+- `IsTopCorner`: TopLeft / TopRight / TopCenter.
+- `IsTopCenterCorner`: TopCenter only.
+
+source: core/core_settings.h (`IsLeftCorner` / `IsTopCorner` / `IsTopCenterCorner`).
+
 #### 15.11.4 Notification Count
 
 Discrete slider with 5 positions (1–5). Selecting a count animates sample bars in monitor widget. Default: 3.
+
+##### 15.11.4.1 Notification Count Slider (detailed)
+
+Not a dropdown — a segmented `Ui::SettingsSlider` (tab-style picker, `settingsSlider` palette) mounted below the monitor widget with `Ui::AddSubsectionTitle(lng_settings_notifications_count)` above it and `settingsBigScalePadding` around it. source: settings/sections/settings_notifications.cpp:1597-1611.
+
+- **Sections**: exactly `kMaxNotificationsCount = 5` sections, labelled with plain digit strings `"1"`, `"2"`, `"3"`, `"4"`, `"5"` via `countSlider->addSection(QString::number(i + 1))`. source: settings/sections/settings_notifications.cpp:1603-1605, settings_notifications_common.h:37.
+- **Style**: `settingsSlider` = `SettingsSlider(defaultSettingsSlider)` with `barFg = windowBgOver`, `labelFg = windowSubTextFg`, `labelFgActive = windowActiveTextFg`. source: settings/settings.style:62-66.
+- **Default**: `CurrentNotificationsCount()` = `qBound(1, settings().notificationsCount(), kMaxNotificationsCount)`. Active section is set via `setActiveSectionFast(CurrentNotificationsCount() - 1)`. source: settings/sections/settings_notifications.cpp:72-77, 1606.
+- **On change**: `sectionActivated(section)` calls `position->setCount(section + 1)`, which (a) animates sample bars in the monitor widget via per-bar `Ui::Animations::Simple` over `notifyFastAnim = 150ms`, (b) persists `setNotificationsCount(count)` + `saveSettingsDelayed()`, (c) emits `ChangeType::MaxCount` so the live notifier adjusts its stack depth. source: settings/sections/settings_notifications.cpp:397-413, 1607-1610.
 
 ### 15.12 Animations and Transitions
 
