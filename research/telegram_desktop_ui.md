@@ -8708,6 +8708,444 @@ Toggle within the group edit screen. Admin log records boolean state changes (`a
 | `kDefaultChargeStars` | `10` | Default paid message stars |
 | `kThresholdOffset` | `1000` | Supergroup convert threshold |
 
+### 26.12 Gap Fills (session 2026-04-19)
+
+Twelve pending §26 gaps resolved against `AyuGram/AyuGramDesktop/dev` source.
+
+#### 26.12.1 Direct-Messages star input UI
+
+**Source:** `boxes/peers/edit_peer_info_box.cpp:1384-1408, 1512-1532, 1599-1607`, `boxes/edit_privacy_box.cpp:1010-1178`.
+
+The paid-DMs / "Direct Messages" row on the channel edit screen is built by `Controller::fillDirectMessagesButton()`. The entry point is a standard settings row (`Settings::AddButtonWithIcon`, icon `menuIconChats`) whose right-side value updates reactively. The **right-side value label** has three states:
+
+| State | tr key | Display |
+|---|---|---|
+| Off (feature disabled) | `tr::lng_manage_monoforum_off(tr::marked)` | "Off" (italic gray) |
+| Free (DMs allowed, zero stars) | `tr::lng_manage_monoforum_free(tr::marked)` | "Free" |
+| Priced | `Lang::FormatCreditsAmountDecimal(CreditsAmount{ starsPerMessage })` | star icon + N |
+
+Button label: `tr::lng_manage_monoforum()`. `_starsPerDirectMessageSavedValue = rpl::variable<int>(perMessage)` (:1391) holds the current value with `-1` = "disabled".
+
+Tapping the row invokes `showEditDirectMessagesBox()` (edit_peer_info_box.cpp:1599-1607), which opens `EditDirectMessagesPriceBox` in `boxes/edit_privacy_box.cpp:1089-1178`:
+
+- Line 1090: `box->setWidth(st::boxWideWidth)`
+- Lottie animation for "direct_messages" at the top
+- Title: `tr::lng_manage_monoforum()` (:1091)
+- Descriptive divider above the toggle: `tr::lng_manage_monoforum_about()` (:1097)
+- **Master toggle** labelled `tr::lng_manage_monoforum_allow()` (:1103) — enables/disables paid DMs
+- When toggle is ON: `SetupChargeSlider(inner, channel, savedValue, channel->session().appConfig().paidMessageChannelStarsDefault(), /*allowZero=*/true)` (:1117)
+- Share-link subtitle: `tr::lng_manage_monoforum_link_subtitle()` (:1120)
+- Lines 1121-1137: builds a `?direct` deep link with Copy / Share / QR buttons
+- Save callback (:1173): `callback(toggle->toggled() ? *result : std::optional<int>())`
+
+**`SetupChargeSlider` (edit_privacy_box.cpp:1010-1078)** is a **MediaSliderWheelless** discrete slider, NOT a freeform NumberInput:
+
+- `constexpr auto kDefaultPrivateMessagesPrice = 10` (:1012)
+- Min stars = `1` (when `allowZero=false`) or `0` (when `allowZero=true`)
+- Max stars = `peer->session().appConfig().paidMessageStarsMax()` (server-provided)
+- Values vector is **non-linear**: single steps 1…100, tens 100…1000, hundreds 1000…max (:1023-1038)
+- Slider: `MakeChargeStarsSlider(container, &st::settingsScale, &st::settingsScaleLabel, ...)` (:1047)
+- Below slider: commission percentage label + estimated USD amount via `Ui::FillAmountAndCurrency(dollars, u"USD"_q)` using `appConfig.starsWithdrawRate()` (:1057-1078)
+
+**Correction to prior §26.2.5:** `kDefaultChargeStars = 10` refers to paid-**group-messages** (`edit_peer_permissions_box.cpp:34`), NOT channel DMs. Channel DMs use `kDefaultPrivateMessagesPrice = 10` + server `paidMessageChannelStarsDefault` (differ).
+
+#### 26.12.2 Permission dependency graph
+
+**Source:** `boxes/peers/edit_peer_permissions_box.cpp:280-310` (the `Dependencies(ChatRestrictions)` function).
+
+The dependency graph is a list of directed pairs `{A, B}` meaning "if A is allowed, B must also be allowed" — i.e. toggling B OFF force-toggles A OFF. The template `ApplyDependencies` (:163-203) applies them bidirectionally.
+
+```
+{ Flag::SendGifs,         Flag::SendStickers    },
+{ Flag::SendStickers,     Flag::SendGifs        },
+{ Flag::SendGames,        Flag::SendStickers    },
+{ Flag::SendStickers,     Flag::SendGames       },
+{ Flag::SendInline,       Flag::SendStickers    },
+{ Flag::SendStickers,     Flag::SendInline      },
+{ Flag::EmbedLinks,       Flag::SendOther       },
+{ Flag::SendStickers,     Flag::ViewMessages    },
+{ Flag::SendGifs,         Flag::ViewMessages    },
+{ Flag::SendGames,        Flag::ViewMessages    },
+{ Flag::SendInline,       Flag::ViewMessages    },
+{ Flag::SendPolls,        Flag::ViewMessages    },
+{ Flag::SendPhotos,       Flag::ViewMessages    },
+{ Flag::SendVideos,       Flag::ViewMessages    },
+{ Flag::SendVideoMessages,Flag::ViewMessages    },
+{ Flag::SendMusic,        Flag::ViewMessages    },
+{ Flag::SendVoiceMessages,Flag::ViewMessages    },
+{ Flag::SendFiles,        Flag::ViewMessages    },
+{ Flag::SendOther,        Flag::ViewMessages    },
+```
+
+**Tree view (parent ← child meaning "disabling parent disables child"):**
+
+```
+ViewMessages   (root — if OFF, every send permission OFF)
+├── SendPhotos
+├── SendVideos
+├── SendVideoMessages
+├── SendMusic
+├── SendVoiceMessages
+├── SendFiles
+├── SendPolls
+├── SendOther (text)           ← EmbedLinks depends on this
+│   └── EmbedLinks
+├── SendStickers  ⇄  SendGifs  ⇄  SendGames  ⇄  SendInline
+                                                 (mutually linked — toggling any one toggles all four)
+```
+
+**Stickers/GIFs/Games/Inline form a bidirectional equivalence class** — toggling ANY of them ON or OFF propagates to all four. The UI surface shows only SendStickers (labelled "Send stickers & GIFs") as a single row; the other three flags are internal.
+
+**Locked / ungrantable permissions:** Clicking a permission the current admin cannot grant shows a toast lasting `kForceDisableTooltipDuration = 3 * crl::time(1000) = 3000ms` (:33).
+
+#### 26.12.3 ManageDirect definition
+
+**Source:** `boxes/peers/edit_participant_box.cpp:296` (in channel admin rights default set).
+
+`ManageDirect` is a **ChatAdminRight flag**, not a separate management surface. Appears exactly once in `edit_participant_box.cpp:296` inside the channel default admin rights list. It is included in **Section 4 — Meta** of the Channel admin rights list (see §26.4.3), rendered as a standard `rightsButton` toggle row alongside `InviteByLinkOrAdd`, `ManageCall`, `AddAdmins`, `BanUsers`.
+
+**There is NO separate `ManagePeerBox` or `ManageDirectBox`** in this fork — the directory listing for `Telegram/SourceFiles/boxes/peers/` (57 files) contains no `manage_peer_box.cpp` or `manage_direct_box.cpp`. All "manage" surfaces are folded into `edit_peer_info_box.cpp` + per-feature boxes.
+
+**What ManageDirect grants:** the right for a channel admin to edit the channel's paid-DM price and the master toggle described in 26.12.1. Admin log events for DM-price changes are rolled into the generic channel-settings-change path (no dedicated `lng_admin_log_direct_*` key exists in `history_admin_log_item.cpp`).
+
+**Correction:** Prior §26.4.3 ManageDirect row is correct. Add footnote: "ManageDirect = permission to edit channel DM pricing (see 26.12.1). No separate screen."
+
+#### 26.12.4 Transfer-ownership flow
+
+**Source:** `boxes/peers/edit_participant_box.cpp:622-630` (entry), `boxes/peers/channel_ownership_transfer.cpp` (flow body), `:557, 616-625` (prerequisites).
+
+**Step 1 — "Transfer Ownership" button appears only when:**
+- Current admin rights selection equals `AdminRightsForOwnershipTransfer(options)` (edit_participant_box.cpp:557), i.e., ALL transferable admin rights are granted on the target user.
+- Target user is not the creator already and current user is the creator (`canTransferOwnership()` at :616-625).
+
+Button is wrapped in `SlideWrap`; visible only when conditions are met.
+
+**Step 2 — Click dispatches `EditAdminBox::transferOwnership()` (:622-630):**
+
+```cpp
+void EditAdminBox::transferOwnership() {
+    _ownershipTransfer = std::make_unique<ChannelOwnershipTransfer>(
+        peer(),
+        user(),
+        uiShow(),
+        [](std::shared_ptr<Ui::Show> show) { show->hideLayer(); });
+    _ownershipTransfer->start();
+}
+```
+
+**Step 3 — `ChannelOwnershipTransfer::start()`** does a **dry-run `MTPmessages_EditChatCreator`** with `MTP_inputCheckPasswordEmpty()`. The intentional error tells the client which prompt to show next.
+
+**Step 4 — Box dispatched by error type:**
+
+| Error type | Box shown | tr key |
+|---|---|---|
+| `PASSWORD_HASH_INVALID` (needs pwd) | `MakeConfirmBox` → then `PasscodeBox` | `lng_rights_transfer_about` → `lng_rights_transfer_password_title`, `lng_rights_transfer_password_description`, `lng_passcode_submit` |
+| `PASSWORD_MISSING` | Error box | `lng_rights_transfer_check_about` / `lng_rights_transfer_check_about_channel` |
+| `SESSION_TOO_FRESH_X` / `PASSWORD_TOO_FRESH_X` | Error box | (per-error texts in `lng_rights_transfer_check_about*`) |
+| `CHANNELS_TOO_MUCH` | Error box | `lng_channels_too_much_public_other` / `lng_channels_too_much_located_other` |
+| `ADMINS_TOO_MUCH` | Error box | `lng_error_admin_limit` / `lng_error_admin_limit_channel` |
+| Target user privacy blocks it | Error box | `lng_channel_not_accessible` / `lng_group_not_accessible` |
+| Success (dry run passed) | `MakeConfirmBox` with `lng_rights_transfer_sure` confirm text | `lng_rights_transfer_about` (bold group name + bold target short name) |
+
+**Step 5 — Confirm box text:**
+
+```cpp
+text = tr::lng_rights_transfer_about(
+    tr::now,
+    lt_group, tr::bold(_peer->name()),
+    lt_user,  tr::bold(_selectedUser->shortName()),
+    tr::rich),
+confirmText = tr::lng_rights_transfer_sure(),
+```
+
+**Step 6 — `PasscodeBox` (2FA):** title `tr::lng_rights_transfer_password_title`, prompt label `tr::lng_rights_transfer_password_description`, submit `tr::lng_passcode_submit`.
+
+**Step 7 — Success:** Real `MTPmessages_EditChatCreator` with SRP-hashed password. On success, a toast via `_show->toastParent()`:
+
+- Groups: `tr::lng_rights_transfer_done_group(tr::now, lt_user, <name>)`
+- Channels: `tr::lng_rights_transfer_done_channel(tr::now, lt_user, <name>)`
+
+The EditAdminBox is then closed via the `hideLayer` callback.
+
+**Unresolved for direct-clone:** `lng_rights_transfer_done_title` / `lng_rights_transfer_done_about` keys do NOT exist in this fork's `channel_ownership_transfer.cpp`. Success is a toast, not a dedicated "done" box.
+
+#### 26.12.5 Admin log quoted bubble
+
+**Source:** `history/admin_log/history_admin_log_item.cpp:126-176` (PrepareLogMessage), `:595, 627, 652, 1145` (createItem with `MessageFlag::AdminLogEntry`); `history/admin_log/history_admin_log_inner.cpp:29-30`.
+
+**Quoted messages are rendered as FULL chat bubbles**, not stripped-down blurbs. `PrepareLogMessage(MTPMessage, TimeId newDate)` reconstructs the MTPMessage with select flags stripped, then calls `history->createItem(...)` with `MessageFlag::AdminLogEntry`. The resulting widget renders through the normal `HistoryView::Message` or `HistoryView::ServiceMessage` path.
+
+**Flags removed from regular messages when re-rendering in the log (:162-175):**
+```
+f_out, f_post, f_saved_peer_id, f_reply_to, f_replies, f_edit_date,
+f_grouped_id, f_views, f_forwards, f_restriction_reason, f_ttl_period,
+f_factcheck, f_report_delivery_until_date, f_suggested_post,
+f_summary_from_language
+```
+
+**Consequences for rendering:**
+- Bubble has **no "edited" label**, no view count, no forward count, no reply-thread bar, no TTL timer.
+- Bubble has the **normal avatar** (taken from the message's from-id), normal attachment media.
+- Reactions are server-side on the original; the log's stripped copy does not render them.
+- Albums (grouped media) collapse to single messages because `f_grouped_id` is stripped.
+
+**Position:** Bubble is laid out immediately below the italic action-description line. Uses standard `msgMargin` and participates in `historyPaddingBottom` spacing.
+
+**Deleted messages use the same code path** — `PrepareLogMessage` reconstructs the message from log event data, then the bubble is rendered as if it still existed. This is why admin logs can render deleted content.
+
+**Service events** (banned, promoted, toggled-X) render as bare service-message text without a quoted bubble — the italic description IS the whole entry.
+
+#### 26.12.6 Admin log event table
+
+**Source:** `history/admin_log/history_admin_log_item.cpp` (handler table); `history/admin_log/history_admin_log_filter.cpp:24-57` (filter flags).
+
+Complete event-type → handler → tr key matrix (**51 distinct Action types**):
+
+| Action (channelAdminLogEvent) | Handler fn | tr::lng_admin_log_* keys |
+|---|---|---|
+| ChangeTitle | createChangeTitle | `action_changed_title` (generic), `changed_title_channel` |
+| ChangeAbout | createChangeAbout | `removed_description_group` / `changed_description_group` / `removed_description_channel` / `changed_description_channel` / `previous_description` |
+| ChangeUsername | createChangeUsername | `removed_link_group` / `changed_link_group` / `removed_link_channel` / `changed_link_channel` / `previous_link` |
+| ChangeUsernames | createChangeUsernames | `reordered_link_group` / `reordered_link_channel` / `previous_links_order` / `activated_link` / `deactivated_link` |
+| ChangePhoto | createChangePhoto | `changed_photo_group` / `changed_photo_channel` / `removed_photo_group` / `removed_photo_channel` |
+| ToggleInvites | createToggleInvites | `invites_enabled` / `invites_disabled` |
+| ToggleSignatures | createToggleSignatures | `signatures_enabled` / `signatures_disabled` |
+| ToggleSignatureProfiles | createToggleSignatureProfiles | `signature_profiles_enabled` / `signature_profiles_disabled` |
+| UpdatePinned | createUpdatePinned | `pinned_message` / `unpinned_message` |
+| EditMessage | createEditMessage | `edited_message` / `edited_media_and_removed_caption` / `edited_media_and_caption` / `edited_media` / `removed_caption` / `edited_caption` / `previous_caption` / `previous_message` |
+| DeleteMessage | createDeleteMessage | `deleted_message` |
+| ParticipantJoin | createParticipantJoin | `participant_joined` / `participant_joined_channel` |
+| ParticipantLeave | createParticipantLeave | `participant_left` / `participant_left_channel` |
+| ParticipantInvite | createParticipantInvite | (via `GenerateParticipantChangeText`) |
+| ParticipantToggleBan | createParticipantToggleBan | `banned` / `banned_until` / `restricted_until` / `unbanned` / `restricted` / `restricted_forever` |
+| ParticipantToggleAdmin | createParticipantToggleAdmin | `promoted` + admin-rights detail keys |
+| ParticipantEditRank | createParticipantEditRank | `removed_own_rank` / `set_own_rank` / `changed_own_rank_from` / `removed_rank` / `set_rank` / `changed_rank_from` |
+| ChangeStickerSet | createChangeStickerSet | `removed_stickers_group` / `changed_stickers_group` / `changed_stickers_set` |
+| ChangeEmojiStickerSet | createChangeEmojiSet | `removed_emoji_group` / `changed_emoji_group` / `changed_emoji_set` |
+| TogglePreHistoryHidden | createTogglePreHistoryHidden | `history_made_hidden` / `history_made_visible` |
+| DefaultBannedRights | createDefaultBannedRights | `changed_default_permissions` |
+| StopPoll | createStopPoll | `stopped_poll` |
+| ChangeLinkedChat | createChangeLinkedChat | `removed_linked_chat` / `removed_linked_channel` / `changed_linked_chat` / `changed_linked_channel` |
+| ChangeLocation | createChangeLocation | `changed_location_chat` / `removed_location_chat` |
+| ToggleSlowMode | createToggleSlowMode | `changed_slow_mode` / `removed_slow_mode` |
+| StartGroupCall | createStartGroupCall | `started_group_call_channel` / `started_group_call` |
+| DiscardGroupCall | createDiscardGroupCall | `discarded_group_call_channel` / `discarded_group_call` |
+| ParticipantMute | createParticipantMute | `muted_participant_channel` / `muted_participant` |
+| ParticipantUnmute | createParticipantUnmute | `unmuted_participant_channel` / `unmuted_participant` |
+| ToggleGroupCallSetting | createToggleGroupCallSetting | `disallowed_unmute_self_channel` / `disallowed_unmute_self` / `allowed_unmute_self_channel` / `allowed_unmute_self` |
+| ParticipantJoinByInvite | createParticipantJoinByInvite | `participant_joined_by_filter_link` (+`_channel`) / `participant_joined_by_link` (+`_channel`) |
+| ParticipantJoinByRequest | createParticipantJoinByRequest | `participant_approved_by_request` (+`_channel`) / `participant_approved_by_link` (+`_channel`) |
+| ExportedInviteDelete | createExportedInviteDelete | `delete_invite_link` |
+| ExportedInviteRevoke | createExportedInviteRevoke | `revoke_invite_link` |
+| ExportedInviteEdit | createExportedInviteEdit | `edited_invite_link` / `invite_link_label` / `invite_link_expire_date` / `invite_link_usage_limit` / `invite_link_request_needed` / `invite_link_request_not_needed` |
+| ParticipantVolume | createParticipantVolume | `participant_volume_channel` / `participant_volume` |
+| ChangeHistoryTTL | createChangeHistoryTTL | `messages_ttl_set` / `messages_ttl_removed` / `messages_ttl_changed` |
+| ToggleNoForwards | createToggleNoForwards | `forwards_disabled` / `forwards_enabled` |
+| SendMessage | createSendMessage | `sent_message` |
+| ChangeAvailableReactions | createChangeAvailableReactions | `reactions_disabled` / `reactions_updated` / `reactions_allowed_all` / `reactions_allowed_official` |
+| ToggleForum | createToggleForum | `topics_enabled` / `topics_disabled` |
+| CreateTopic | createCreateTopic | `topics_created` |
+| EditTopic | createEditTopic | `topics_changed` / `topics_closed` / `topics_reopened` / `topics_hidden` / `topics_unhidden` |
+| DeleteTopic | createDeleteTopic | `topics_deleted` |
+| PinTopic | createPinTopic | `topics_pinned` / `topics_unpinned` |
+| ToggleAntiSpam | createToggleAntiSpam | `antispam_enabled` / `antispam_disabled` |
+| ChangePeerColor | createChangePeerColor | `change_color` / `set_background_emoji` / `removed_background_emoji` / `change_background_emoji` |
+| ChangeProfilePeerColor | createChangeProfilePeerColor | `change_profile_color_group` / `change_profile_color` / `set_profile_background_emoji_group` / `set_profile_background_emoji` / `removed_profile_background_emoji_group` / `removed_profile_background_emoji` / `change_profile_background_emoji_group` / `change_profile_background_emoji` |
+| ChangeWallpaper | createChangeWallpaper | `change_wallpaper` |
+| ChangeEmojiStatus | createChangeEmojiStatus | `set_status_until` / `set_status` / `removed_status` / `change_status_until` / `change_status` |
+| ParticipantSubExtend | createParticipantSubExtend | `subscription_extend` |
+| ToggleAutotranslation | createToggleAutotranslation | `autotranslate_enabled` / `autotranslate_disabled` |
+
+**Filter chips → event flag mapping** (from `history_admin_log_filter.cpp:24-57`) maps these 51 event types into 13 checkbox entries (already documented in existing §26.5.7).
+
+**No per-event icons** in `history_admin_log_item.cpp`. Events are pure text (italic action description + optional quoted bubble). Only visuals: admin's avatar on the quoted bubble and the italicised "who did what" line.
+
+#### 26.12.7 Progress arc intervals
+
+**Source:** `history/admin_log/history_admin_log_inner.cpp:1248, 1411-1425, 628`; absence of loading spinner confirmed by full-file search.
+
+**There is NO circular progress indicator in the admin log.** No `InfiniteRadialAnimation`, no loading spinner, no stroke/radius/period constants in `history_admin_log_inner.cpp`. Pagination is asynchronous but silent — if the server hasn't responded yet, the viewport doesn't show new content.
+
+**The only animated element is the floating date badge:**
+- `_scrollDateOpacity` fade animation (:628): `from → to` over `st::historyDateFadeDuration`
+- Shown for 1000ms after scroll-inactivity, then fades out
+- Rendered via `HistoryView::ServiceMessagePainter::PaintDate()` (:1350-1369)
+
+**For invite links (separate surface, §26.6), progress arcs DO exist:** rounded-cap arc on the circular icon perimeter, `arcSpan = fullLength * (1 - progress)`, timer updates every `~1/720th` of expiration duration. Stroke: `inviteLinkIconStroke`, skip: `inviteLinkIconSkip`, 6 color states (permanent/expiring/expire-soon/expired/revoked/subscription) — already documented in §26.6.2.
+
+**Unresolved for direct-clone:** exact pixel values of `inviteLinkIconStroke` / `inviteLinkIconSkip` live in `styles/style_info.h` (not fetched).
+
+#### 26.12.8 Invite link pickers
+
+**Source:** `boxes/peers/edit_peer_invite_link.cpp`, `boxes/peers/edit_peer_invite_links.cpp`.
+
+**Lifetime constants (edit_peer_invite_link.cpp):**
+```cpp
+constexpr auto kPeriod = 3600 * 24 * 30;  // default expire: 30 days
+constexpr auto kTestModePeriod = 300;     // 5 minutes in test mode
+```
+
+**Form fields in `EditLinkBox()` / `CreateInviteLinkBox`:**
+
+| Field | Widget | Constraints | Header |
+|---|---|---|---|
+| Label | Ui::InputField | max 32 chars (server cap) | "Link Name" |
+| Expire After | RadioButton group | Never / 1h / 1d / 7d / Custom | "Expire After" |
+| Usage Limit | RadioButton group | Unlimited / 1 / 10 / 100 / Custom | "Usage Limit" |
+| Request Approval | Toggle | On → hides usage-limit via `SlideWrap` | — |
+| Subscription Credits | NumberInput | channel subscription links only, read-only when locked | — |
+
+Expire-option values: `Never=kMaxLimit (UINT_MAX)`, `1h=3600s`, `1d=86400s`, `7d=604800s`, `Custom→date picker`.
+Usage-option values: `Unlimited=kMaxLimit`, `1`, `10`, `100`, `Custom→numeric input`.
+
+**Link list tr keys:**
+- `tr::lng_group_invite_joined_status()` — "N joined"
+- `tr::lng_group_invite_created_by()` — "Created by @admin"
+- `tr::lng_group_invite_no_joined()` — empty state below link detail
+
+**Return struct** (`Ui::InviteLinkFields`): `{ link, label, expireDate, usageLimit, subscriptionCredits, requestApproval, isGroup, isPublic }`.
+
+**Unresolved for direct-clone:** exact row heights (`inviteLinkList.item.height`), photo sizes, `inviteLinkCreateIconSize`, `inviteLinkCreateSkip`, `inviteLinkThreeDotsIcon.width()/.height()`, `inviteLinkThreeDotsSkip`, `inviteLinkIconStroke`, `inviteLinkIconSkip`, `inviteLinkRevokedTitlePadding`, `inviteLinkQrPixel` — defined in `styles/style_info.h` (not fetched).
+
+#### 26.12.9 Empty-state roles
+
+**Source:** `boxes/peers/edit_participants_box.cpp:1153, 1313`; `history/admin_log/history_admin_log_inner.cpp:1411-1425`.
+
+**Admin-log empty state** (:1411-1425):
+```cpp
+auto text = tr::semibold((hasSearch || hasFilter)
+    ? tr::lng_admin_log_no_results_title(tr::now)
+    : tr::lng_admin_log_no_events_title(tr::now));
+```
+Rendered inside a service-message bubble (`PaintBubble`) at `(width-260)/2 × (height-H)/3`, width `260px`, padding `10,12,10,12`, color `msgServiceFg`. **No Lottie, no icon.**
+
+**Admin/member/restricted/kicked lists** (`edit_participants_box.cpp`):
+- :1153: `setSearchNoResultsText(tr::lng_blocked_list_not_found(tr::now))` — search returns zero rows.
+- :1313: `setDescriptionText(tr::lng_blocked_list_not_found(tr::now))` — list is empty.
+- **Same single tr key** reused for all four roles. Text is set as the list description; there is **no Lottie animation, no illustration, no icon** — just a centred single line of gray text.
+
+**Empty-state table:**
+
+| Surface | Lottie | Title | Body | Icon size |
+|---|---|---|---|---|
+| Admin log (no events) | None | `lng_admin_log_no_events_title` | — | — |
+| Admin log (filter/search empty) | None | `lng_admin_log_no_results_title` | — | — |
+| Admins tab | None | `lng_blocked_list_not_found` | — | — |
+| Members tab | None | `lng_blocked_list_not_found` | — | — |
+| Restricted tab | None | `lng_blocked_list_not_found` | — | — |
+| Kicked/Banned tab | None | `lng_blocked_list_not_found` | — | — |
+| Invite-link detail (no joiners) | None | `lng_group_invite_no_joined` | — | — |
+
+**Correction:** Reject any pre-existing spec reference to per-list Lottie empty-states — AyuGram has none for admin surfaces.
+
+#### 26.12.10 Additional pixel dims / constants
+
+Additions and corrections to the §26.11 Pixel Dimensions Summary table:
+
+| Token | Value | Source |
+|---|---|---|
+| `kDefaultPrivateMessagesPrice` | `10` | `edit_privacy_box.cpp:1012` |
+| `kPeriod` (invite default expire) | `3600 * 24 * 30` = 2,592,000s | `edit_peer_invite_link.cpp` |
+| `kTestModePeriod` | `300s` | `edit_peer_invite_link.cpp` |
+| `kEventsFirstPage` | `20` | `history_admin_log_inner.cpp:37` |
+| `kEventsPerPage` | `50` | `history_admin_log_inner.cpp:38` |
+| `kWideScale` (send button transition) | `5` | `ui/controls/send_button.cpp` |
+| `kForbiddenOpacity` (send btn) | `0.5` | `ui/controls/send_button.cpp` |
+| `megagroupSizeMax` | `10000` | `mtproto/mtproto_config.h:14` |
+| `AntiSpam min members` | `100` (configurable via `telegram_antispam_group_size_min`) | `menu/menu_antispam_validator.cpp:13-16` |
+| `historyAdminLogEmptyWidth` | `260px` | `history_admin_log_inner.cpp:1411` |
+| `historyAdminLogEmptyPadding` | `10,12,10,12` | ibid. |
+| Empty-bubble vertical anchor | `(height - H) / 3` from top | ibid. |
+
+**Unresolved for direct-clone (need `styles/style_info.h`):** `inviteLinkList.item.height`, `inviteLinkList.item.photoSize`, `inviteLinkCreate.*`, `inviteLinkIconSkip`, `inviteLinkIconStroke`, `inviteLinkThreeDots*`, `inviteLinkQrPixel`, `inviteLinkRevokedTitlePadding`.
+
+#### 26.12.11 Slowmode send-button countdown
+
+**Source:** `ui/controls/send_button.cpp:337-342` (paintSlowmode), :60-66 (text formatter), `setState` slowmode branch; `history/view/controls/history_view_compose_controls.cpp` (state wiring).
+
+**Visual:** The send button's icon is **replaced entirely** by centered "m:ss" text when the button type is `Type::Slowmode`. There is no numeric overlay on top of the send icon and no separate timer label — the text takes over the whole button rect (minus margins).
+
+**Paint code (:337-342):**
+```cpp
+void SendButton::paintSlowmode(QPainter &p) {
+    p.setFont(st::normalFont);
+    p.setPen(st::windowSubTextFg);
+    p.drawText(
+        rect().marginsRemoved(st::historySlowmodeCounterMargins),
+        _slowmodeDelayText,
+        style::al_center);
+}
+```
+
+- Font: `st::normalFont` (default UI regular, ~13px on Linux)
+- Color: `st::windowSubTextFg` (muted gray; same as placeholder text)
+- Alignment: `style::al_center` (horizontal + vertical center)
+- Margins inside button: `st::historySlowmodeCounterMargins`
+
+**Text format (:60-66):**
+```cpp
+_slowmodeDelayText = seconds
+    ? u"%1:%2"_q.arg(minutes).arg(seconds % 60, 2, 10, QChar('0'))
+    : QString();
+```
+- `minutes = seconds / 60` (integer division; can exceed 60 for >1h cooldowns)
+- `seconds % 60`, zero-padded to 2 digits with `QChar('0')`
+- Examples: `4:59`, `0:03`, `12:00`
+- When `seconds == 0`, text becomes empty and button reverts to `Type::Send` / `Type::Cancel`
+
+**State wiring (compose_controls.cpp):**
+```cpp
+const auto delay = (type != Type::Cancel && type != Type::Save)
+    ? _slowmodeSecondsLeft.current() : 0;
+_send->setState({
+    .type = type,
+    .fillBgOverride = ...,
+    .slowmodeDelay = delay,
+    .starsToSend = shownStarsPerMessage(),
+    .forbidden = forbidden,
+});
+```
+
+**NO radial animation, NO ticking arc** — `send_button.cpp` has no radial/progress animation references. The number updates once per second because `_slowmodeSecondsLeft` is a `rpl::variable<int>` ticked by a 1-second timer in compose_controls.
+
+#### 26.12.12 Anti-spam threshold
+
+**Source:** `menu/menu_antispam_validator.cpp:13-16, 58-69, 76, 84, 99`; `mtproto/mtproto_config.h:14`.
+
+**Threshold comes from server app config, NOT a hardcoded constant:**
+
+```cpp
+// menu_antispam_validator.cpp:13-16
+int EnableAntiSpamMinMembers() {
+    return session().appConfig().get<int>(
+        "telegram_antispam_group_size_min"_q, 100);
+}
+```
+
+- Config key: `telegram_antispam_group_size_min`
+- Fallback default: `100`
+- Production value commonly `100`, can be raised server-side without client update.
+
+**UI surface (:58-69):** A `Ui::SlideWrap<Ui::VerticalLayout>` containing:
+1. Skip element (top spacing).
+2. Toggle button via `EditPeerInfoBox::CreateButton()` labelled `tr::lng_manage_peer_antispam()` (:76).
+3. Divider text below the toggle:
+   - When group is large enough: `tr::lng_manage_peer_antispam_about()` (:84)
+   - When group is too small: `tr::lng_manage_peer_antispam_not_enough()` (:99)
+
+**Visibility rule:** The toggle row slides in (`SlideWrap`) only when:
+- Peer is a megagroup (supergroup)
+- Current user is the creator OR has admin rights
+- `megagroup->participantsCount() >= EnableAntiSpamMinMembers()`
+
+When the group is below threshold, the toggle is still visible but **disabled**, and the below-toggle divider shows the `antispam_not_enough` message.
+
+**Admin-log recording:** Toggling anti-spam emits `ToggleAntiSpam` events, rendered via keys `lng_admin_log_antispam_enabled` / `lng_admin_log_antispam_disabled` (see 26.12.6 table).
+
+**Correction to §26.10 (lines 8645-8656):** Replace "Requires supergroup with sufficient member count" with:
+
+> Requires supergroup with `participantsCount() >= appConfig[telegram_antispam_group_size_min]` (default fallback `100`). Toggle row is always shown to creators/admins; when the group is below threshold, the toggle is disabled and the divider text reads `lng_manage_peer_antispam_not_enough`.
+
 
 ## 27. Passcode Lock Screen
 
