@@ -786,6 +786,241 @@ Files in grouped "blocks" for album layout. Controls: compress toggle, group tog
 
 ---
 
+### 7.1 Compose strip — resolved dimensions (day + night)
+
+Strip is assembled by `ComposeControls` (new path: scheduled/replies/business) and legacy `HistoryWidget`. Both consume tokens from `chat_helpers/chat_helpers.style`. All pixel values are logical pixels (scaled by Qt DPR).
+
+**Field metrics (`chat_helpers.style:1138-1156`):**
+- `historyComposeField.heightMin = 36px`, `heightMax = 72px` (InputField itself).
+- `historyComposeFieldMaxHeight = 224px` (scrollable cap, via `ComposeControls::computeMaxFieldHeight()`).
+- `historyComposeFieldFadeHeight = 6px` (top/bottom fade mask on scroll).
+- `historySendPadding = 9px`, `historySendRight = 2px` (vertical/horizontal strip insets).
+- No visible outline: `border: 0; borderActive: 0`. Min strip height ≈ `36 + 2×9 = 54`px (upstream comment reads `historyMinHeight: 56px`).
+
+**Slot metrics.** Every slot (paperclip, emoji toggle, bot-keyboard, scheduled, silent, TTL, record-delete, replace-media, etc.) inherits `historyAttach = IconButton{width: 44, height: 46, ripple: 40×40 at (2,3)}` (`chat_helpers.style:1158-1395`). Send button slot: `historySendSize = size(44, 46)` (`:1276`). Emoji toggle wraps `historyAttachEmojiInner` in a 20×20 circle ring (`historyEmojiCircle`, line 1.5; `:1198-1263`).
+
+**Reply/edit/forward header bar (`chat_helpers.style:1010-1033`):**
+- `historyReplyHeight = 49px`, `historyReplySkip = 53px` (left inset for icon column).
+- Bar icon 22×22 at `historyReplyIconPosition = point(7, 7)`.
+- `historyReplyCancel` (X): 49×49, ripple 40×40 at (4,4).
+
+**Fallback compose button** (Unblock / Start bot / Discuss / Report spam): `historyComposeButton.height = 46, textTop = 14, font = semiboldFont(13)` (`:910-928`). `historyUnblock` repaints `attentionButtonFg` (red; `:948-951`). `historyContactStatusButton` = 49px variant.
+
+**Scroll-to-bottom fab** (`:1063-1105`): `historyToDown` `52×62px` TwoIconButton, ripple ellipse `42×42` at (5,15), anchor `point(12, 10)` from bottom-right. Shows after `historyToDownShownAfter = 480px` with `historyToDownDuration = 150ms` fade. Badge `historyToDownBadgeSize = 22px`, font `semiboldFont`. Stacked siblings (`historyUnreadMentions`, `historyUnreadReactions`, `historyUnreadPollVotes`) separated by `historyUnreadThingsSkip = 4px`.
+
+**Palette (day / night).** Strip bg = `historyComposeAreaBg` (day `#ffffff` / night `#212121`) per `defaultComposeControls.bg` (`:1536`). Fg = `historyComposeAreaFg` (day `#000000` / night `#ffffff`). Icon: `historyComposeIconFg` / `…Over` (day `#a0acb6` / `#639ac6`). Voice-record red: `historyRecordVoiceFgInactive = attentionButtonFg`. Reply-cancel: `historyReplyCancelFg` / `…Over`. `defaultComposeControls` has `radius: 0px` and padding `margins(historySendRight, historySendPadding, historySendRight, historySendPadding) = (2,9,2,9)` (`:1535-1555`) — no rounded corners on desktop.
+
+**Horizontal layout** (`history_widget.cpp:6494`, mirrored `history_view_compose_controls.cpp:3462-3463`):
+```
+(_botMenu.button) (_attachToggle|_replaceMedia) (_sendAs) ---- _inlineResults ------ _tabbedPanel ------ _fieldBarCancel
+(_attachDocument|_attachPhoto) _field (_ttlInfo) (_scheduled) (_silent|_botCommandStart) _tabbedSelectorToggle _send
+```
+
+### 7.2 Attach-menu reality check
+
+**Desktop does NOT show a mobile-style "Photo/Video/File/Poll/Contact/Location" popup on paperclip-click.** `HistoryWidget::chooseAttach` (`history_widget.cpp:5576-5630`) and the `ComposeControls` variant (`history_widget.cpp:480-486`) fire `FileDialog::GetOpenPaths(AllOrImagesFilter(), tr::lng_choose_files)` directly — a **native OS picker**. Post-pick mode selection happens in `SendFilesBox` (§7.7).
+
+**What does popup on the paperclip:**
+- **Attach-bots menu** — if user has registered attach-bots: `_attachBotsMenu` is event-filter-installed on `_attachToggle` (`history_view_compose_controls.cpp:3817`, `history_widget.cpp:3078-3081`). Hover/click shows it before native picker fires. First entry ("Default") falls through to `chooseAttach()` (`:3170`); other entries open Web Apps.
+
+**Send-menu popup** (long-press / right-click / arrow on the Send button) — `SendMenu::FillSendMenu` (`menu/menu_send.cpp:719-826`):
+
+| Order | tr:: key | Icon | Condition |
+|---|---|---|---|
+| 1 | `lng_send_silent_message` / `ayu_SendWithSound` **[AyuGram]** | `menuMute` / `menuUnmute` | `type != Disabled && != Reminder` |
+| 2 | `lng_schedule_message` / `lng_reminder_message` (Saved) | `menuSchedule` | `type != SilentOnly` |
+| 3 | `lng_scheduled_send_until_online` | `menuWhenOnline` | `type == ScheduledToUser` |
+| 4 | *(separator)* | — | if any below follow |
+| 5 | `lng_send_high_quality` (check) | `menuQualityHigh` | `details.photoQuality != None` |
+| 6 | `lng_context_spoiler_effect` (check) | `menuSpoiler` | `details.spoiler != None` |
+| 7 | `lng_caption_move_up/down` | `menuAbove/Below` | `details.caption != None` |
+| 8 | `lng_context_make_paid` / `lng_context_change_price` | `menuPrice` | `details.price.has_value()` |
+
+Followed by `AttachSendMenuEffect(…)` (`:827+`) which appends the Premium emoji-effect picker for user DMs.
+
+**[AyuGram fork]** `send_files_box.cpp:1136-1161` — single-image SendFilesBox adds `ayu_SendAsSticker` in the top-right 3-dots menu (repacks PNG→WebP, re-sends as sticker).
+
+**Popup origin / animation.** `Ui::PopupMenu` with `setForcedOrigin(PanelAnimation::Origin::TopRight)` — anchors top-right, drops down-left (`send_files_box.cpp:1124`). Default PanelAnimation scale+fade (**150ms**, `anim::easeOutCirc`).
+
+**Giveaway / Gift.** Gift is a dedicated sidebar IconButton `historyGiftToUser` (icon `chat/input_gift`, `chat_helpers.style:1224-1227`) when `canSendGift` is true — NOT a dropdown entry. **Giveaway has no compose-strip surface on desktop** (no match for `giveaway` in compose code); lives under channel boost/earn screens.
+
+### 7.3 Send button — states, morph, timing
+
+**Declaration** `ui/controls/send_button.h:26-118`. State enum (`:33-42`):
+```
+enum class Type { Send, Schedule, Save, Record, Round, Cancel, Slowmode, EditPrice };
+```
+Plus flags `slowmodeDelay`, `starsToSend`, `forbidden`, `fillBgOverride`.
+
+**Selection logic** (`history_view_compose_controls.cpp:3382-3399`, `ComposeControls::computeSendButtonType`):
+1. Editing → `Save` (icon `chat/input_save`, style `historyEditSaveIcon`).
+2. Else `_isInlineBot` → `Cancel` (X).
+3. Else `showRecordButton()` (field empty, voice not disabled) → `Round` if `Core::App().settings().recordVideoMessages() && both audio+video devices`; else `Record`.
+4. Else editing stars-per-message → `EditPrice`.
+5. Else `_mode == Normal` → `Send`, else → `Schedule`.
+
+`forbidden: true` layers in when peer restricts voice/video (`updateSendButtonType()`, `:3417-3453`). Forbidden paints icon at `kForbiddenOpacity = 0.5` (`send_button.cpp:28`).
+
+**Cross-fade morph** (between any non-voice/round states — `send_button.cpp:41-148`):
+- Capture `_contentFrom = grabContent()`, resize, capture `_contentTo`.
+- Animate `_stateChangeAnimation` 0→1 over **`universalDuration = 120ms`** (`lib_ui/ui/basic.style:131`).
+- `paintEvent` (`:156-224`): outgoing glyph fades out with opacity `1 − changed` while **scaling up to `kWideScale = 5×`** (`:25`); incoming glyph fades in from 5× scale down to 1×. Linear interpolation — reads as a "bloom swap."
+
+**Voice↔Round (Lottie swap)** — short-circuits the cross-fade. `isVoiceRoundTransition(from,to)` tests `{Record, Round}` either way (`send_button.cpp:48-66`). Plays `_voiceRoundIcons[kVoiceToRoundIndex]` or `[kRoundToVoiceIndex]` — the "microphone rolls into camera" Lottie (frame cap `historyRecordFrameIndex: 30` at `chat_helpers.style:1458`). Non-active icon rewound on swap (`:128-133`). Toggle preference persisted as `settings().recordVideoMessages()`.
+
+**Slow-mode timer state.** `slowmodeDelay > 0` → paints `M:SS` countdown, cursor disabled (`:144`). Template `send_button.cpp:68-72`.
+
+**Stars-to-send chip.** Widens to a pill with star-count + icon. Built from `_starsToSendText` (`:74-83`). Style struct `SendButton.stars` in `chat_helpers.style:1428-1433` (RoundButton, `height: 28px`, inset `6px` right).
+
+**Ripple shape switches** via `currentRippleShape()` returning `InnerEllipse/SendEllipse/StarsRoundRect/ScheduleEllipse`. On change, `RippleButton::finishAnimating()` prevents leaked ripples (`:86-90`).
+
+### 7.4 Voice-record bar
+
+File: `history/view/controls/history_view_voice_record_bar.cpp` (~3439 lines; NOT `compose_voice_record_bar.cpp` — that's the ntgcalls harness).
+
+**Blob radii (audio-level driven, `chat_helpers.style:1319-1324`):**
+
+| Layer | Min radius | Max radius |
+|---|---|---|
+| Main (inner) | `historyRecordMainBlobMinRadius = 23px` | `…MaxRadius = 37px` |
+| Major (middle) | `43px` | `50px` |
+| Minor (outer) | `40px` | `47px` |
+
+Red signal dot: `historyRecordSignalRadius = 5px` (`:1311`).
+
+**Timer / cancel / text (`chat_helpers.style:1314-1332`):**
+- `historyRecordFont = font(13)` — timer + "Slide to cancel" hint.
+- `historyRecordDurationSkip = 12px`, fg = `historyComposeAreaFg` (primary text).
+- `historyRecordTextWidthForWrap = 210px`, margins `left=15, right=25`.
+- Cancel button width `historyRecordCancelButtonWidth = 100px`, fg `lightButtonFg`.
+- Cancel text is **horizontally centered at runtime** (`_cancel->moveToLeft((size.width() − _cancel->width()) / 2, 0)`, `:2268`) — not a fixed pixel slide.
+
+**Duration limits:**
+- `kAudioVoiceMaxLength = 100 × 60` seconds, encoded as `kMaxSamples = kDefaultFrequency * 100 * 60` (`:65-67`).
+- `kMinSamples = kDefaultFrequency / 5` (0.2s — shorter is rejected).
+- Timer precision: `kPrecision = 10` (one decimal).
+
+**Lock widget** (two-state pill above send button — `chat_helpers.style:1335-1380`):
+- `historyRecordLockSize = size(75, 133)`.
+- `historyRecordLockPosition = point(1, 22)` (right=1, top=22 above bar).
+- Pull-rotate angle `kLockArcAngle = 15°` (`:73`) — visual "click shut" when drag distance reaches lock.
+- Body 14×17, padlock arc 4px, line `2px × 3px skip × 2px width`.
+- Show/hide duration = `historyRecordLockShowDuration = 150ms` (= `historyToDownDuration`).
+- Vertical travel driven by `_showLockAnimation` (`:2168-2188`). `lockFromBottom=true` is the standard compose strip.
+
+**Two interaction modes:**
+1. **Hold-to-record** — pointer-down arms `_startTimer` (`:2117`); release before it fires (~<200ms) cancels and pops "Hold to record" tooltip. Release after records → listen preview.
+2. **Tap-lock** — drag up to the lock, recording continues hands-free. Send button morphs to stop-square (`historyRecordStopIconWidth = 12px`, `:1343`). `_cancel->requestPaintProgress(lockToStopProgress)` fades cancel text out (`:2286-2288`). Locked state shows `tr::lng_record_cancel` as a separate center-bar button (`:2467`). AyuGram's "voice-once" variant (`voice_lock/audio_once_bg`, `:1304-1308`) auto-sends on unlock.
+
+**Video-record (round-message) mode.** Triggered when Send is `Type::Round`. Gated by `_recordAvailability = VideoAndAudio` (`history_view_compose_controls.cpp:3390-3394`). Round-video lock icon `voice_lock/input_round_s` (`:1354`). Cancel-confirm uses `lng_record_lock_cancel_sure_round` vs `…_sure` (`:3382-3385`).
+
+**TTL ("voice once").** `historyRecordTTLLineWidth = 2px` (`:1317`) — thin ring on lock when armed. `_ttlButton` geometry supports `RightLeft` slide-in + `RightTopStatic` (`:2190-2224`).
+
+### 7.5 Bot keyboards — reply vs inline
+
+**Reply keyboard (sticky, below the field).** Widget `ChatHelpers::BotKeyboard` inside `_kbScroll` (`Ui::ScrollArea`). Construction `history_widget.cpp:328-329`.
+- Scroll style `botKbScroll = defaultSolidScroll` — visible semi-opaque thumb, no autohide (`chat.style:416`).
+- **Row height:** `botKbButton.height = 38px, textTop = 9, margin = 10, padding = 10` (`chat.style:400-408`). Ripple color `botKbDownBg`.
+- **Tiny variant** (when too many rows): `botKbTinyButton.height = 25px, margin = 4, padding = 3, textTop = 2` (`:409-415`).
+- Text style `botKbStyle = TextStyle{font: font(15, semibold)}` (`:397-399`).
+- Expand/collapse `botKbDuration = 200ms` (`:396`).
+
+**Sticky + scrollable.** `history_widget.cpp:6484-6491`:
+```
+maxKeyboardHeight = computeMaxFieldHeight() - fieldHeight();
+_keyboard->resizeToWidth(width(), maxKeyboardHeight);
+keyboardHeight = qMin(_keyboard->height(), maxKeyboardHeight);
+_kbScroll->setGeometryToLeft(0, bottom, width(), keyboardHeight);
+```
+Natural height unless it exceeds remaining compose real-estate; then inner scroll engages. History viewport subtracts `_kbScroll->height()` (`:7461, :8767`).
+
+**Toggle buttons.** `_botKeyboardShow` (`chat_helpers.style:1202-1205`) and `_botKeyboardHide` (`:1206-1209`) both inherit `historyAttach` (44×46). Click handler at `history_widget.cpp:614-615`. Selection driven by `_keyboard->hasMarkup/persistent/forceReply` and `_history->lastKeyboardHiddenId` (`:6210-6309`).
+
+**Dismiss.** Reply keyboards with `singleUse()` flag auto-hide after a tap (`:5756, :5782`); the source message id lands in `_history->lastKeyboardHiddenId` (`:6232`). No explicit X — only the `_botKeyboardHide` icon-button.
+
+**Inline keyboard (under a message).** `msgBotKbButton = BotKeyboardButton{margin: 2, padding: 10, height: 36, textTop: 8, ripple: defaultRippleAnimation}` (`chat.style:386-392`). Link-type icons: `msgBotKbUrlIcon` (↗), `msgBotKbSwitchPmIcon`, `msgBotKbPaymentIcon` (card), `msgBotKbWebviewIcon`, `msgBotKbCopyIcon` — icon-text padding `msgBotKbIconPadding = 4px` (`:380-385`). Colors `msgBotKbBg/DownBg/IconFg` (palette-driven).
+
+### 7.6 Drag-drop overlay
+
+File: `history/history_drag_area.cpp` (~438 lines). Style tokens `chat_helpers.style:1599-1606`:
+
+| Token | Value |
+|---|---|
+| `dragFont` | `font(27, semibold)` |
+| `dragSubfont` | `font(19, semibold)` |
+| `dragColor` | `windowSubTextFg` (resting, not-hovered) |
+| `dragDropColor` | `windowActiveTextFg` (accent blue, hovered) |
+| `dragMargin` | `margins(0, 10, 0, 10)` |
+| `dragPadding` | `margins(20, 10, 20, 10)` |
+| `dragHeight` | `72px` |
+
+**Visual.** Text pen interpolates `dragColor ↔ dragDropColor` via `_a_in.value(_in ? 1 : 0)` (`history_drag_area.cpp:338-341`). Background drawn as `Ui::FillRoundRect(p, inner, st::boxBg, Ui::BoxCorners)` with `boxRoundShadow` drop shadow (`:335-336`) — a **rounded card, NOT a full-screen color wash**.
+
+**Five drop-state modes (`history_drag_area.h:DragState`, dispatched by `Storage::ComputeMimeDataState`, `:194-196`):**
+
+| State | Document card | Photo card |
+|---|---|---|
+| `None` | — | — |
+| `Files` | `lng_drag_files_here` / `lng_drag_to_send_files` | hidden |
+| `PhotoFiles` | `lng_drag_images_here` / `lng_drag_to_send_no_compression` | `lng_drag_photos_here` / `lng_drag_to_send_quick` |
+| `MediaFiles` | `lng_drag_files_here` / `lng_drag_to_send_files` | `lng_drag_media_here` / `lng_drag_to_send_media` |
+| `Image` | hidden | `lng_drag_images_here` / `lng_drag_to_send_quick` |
+
+Two cards: `attachDragDocument` and `attachDragPhoto`. Either fills container (`resizeToFull()`, `:92/111`) or they split vertically (doc top / photo bottom, `:95-109`) for `PhotoFiles`/`MediaFiles`.
+
+**Animation.** Opacity 0↔1 over `st::boxDuration` (`:399-427`). A `_cache` `QPixmap` is grabbed on transition start (`GrabWidget(this, rect() − dragPadding + boxRoundShadow.extend)`, `:393-395`) so the fade animates one raster. Accept/reject: `dragEnterEvent → IgnoreAction+accept` (`:189-203`), `dropEvent → CopyAction+accept+hideFast` (`:209-218`). `hideSubtext` flag (caller-driven) suppresses secondary description in narrow contexts.
+
+### 7.7 SendFilesBox — the real mode-picker
+
+File: `boxes/send_files_box.cpp` (~2471 lines). Driven by `defaultComposeFiles` (`chat_helpers.style:1477-1493`).
+
+**Outer frame (`boxes.style:409-411`):**
+- Preview width `sendMediaPreviewSize = 308px`.
+- Image height cap `sendMediaPreviewHeightMax = 1280`.
+- Row gap `sendMediaRowSkip = 10px`.
+- Top-right 3-dots `defaultComposeFilesMenu` = 48×54, icon `title_menu_dots`, ripple 42×42 at (1,6) (`chat_helpers.style:1460-1471`).
+
+**Caption field.** `defaultComposeFilesField` = `InputField(defaultInputField){textMargins: margins(1, 26, 31, 4), heightMax: 158px, style: historyTextStyle}` (`:1472-1476`). Min inherited ~36; max **158px** (≈7 lines at 20px), then scrolls. Inline emoji button `boxAttachEmoji` (30×30, transparent bg, `:1264-1272`) at `boxAttachEmojiTop = 20px` from field top. Visibility via `updateCaptionVisibility()` (`:1217-1228`): shown iff `_list.canAddCaption(way.sendImagesAsPhotos())`. `_invertCaption` flag swaps caption above/below via send-menu `CaptionUp/Down` (§7.2).
+
+**Send-way checkboxes (`:1661-1672`):**
+- `_groupFiles` — "Group as album" (visible iff `hasGroupOption(onlyOne)`, `:1758`).
+- `_sendImagesAsPhotos` — "Compress images" (checked = compressed). Label varies by count: `"Compress images"` / `"Compress all N images"` (`:1761`). Visible iff `hasSendLargePhotosOption(...)`.
+- Vertical spacing `st::boxPhotoCompressedSkip` (`:2133-2134, :2206-2207`).
+- Toggling fires `Ui::PostponeCall` to regenerate preview + re-check limits (`:1680-1720`); limit violation reverts the toggle (`:1691, 1707`).
+
+**Thumbnail grid = `AlbumPreview`** (one per contiguous block). Block = run of photos/videos; music & plain files = single-item blocks. `Ui::MaxAlbumItems() = 10` (`:1252`). Right-click per-item context menu (`:1466-1573`):
+
+| Entry | Condition |
+|---|---|
+| `lng_attach_replace` (Replace) | always |
+| `lng_context_draw` (Edit photo) | photo + send-as-photo mode |
+| `lng_rename_file` (Rename) | `canEditFileData` |
+| `lng_context_upload_edit_caption` (Edit caption) | `canEditFileData` |
+| `lng_context_spoiler_effect` (Spoiler ✓) | `!hasPrice() && sendImagesAsPhotos()` |
+| `lng_context_edit_cover` (Edit video cover) | `isVideoFile() && (isBroadcast || isSelf)` |
+| `lng_context_clear_cover` (Clear cover) | `videoCover != nullptr` |
+
+**Bottom buttons (`refreshButtons()`, `:910-945`):**
+- **Send** = `RoundButton` `lng_send_button` (normal) or `lng_create_group_next` (group-create import). Paid peer → label overridden with `PaidSendButtonText(_messagesCount * perMessage)` (`:920-924`). Long-press → same `SendMenu::SetupMenuAndShortcuts` as compose (§7.2).
+- **Cancel** = `lng_cancel`.
+- **`_addFile`** (left) = `lng_stickers_featured_add` ("Add") — secondary file picker, delayed by `historyAttach.ripple.hideDuration` so ripple finishes before OS dialog steals focus.
+- **Top-right 3-dots** — carries same send-menu + **[AyuGram]** "Send as sticker" for single images (`:1114-1166`). Anchors `PanelAnimation::Origin::TopRight`.
+
+**Auto-selected send mode (`initSendWay()`, `:1168-1215`):**
+1. Start from `settings().sendFilesWay()`.
+2. Force `groupFiles = true` on `OnlyOne` conflict (`:1173-1175`).
+3. Honor `_list.overrideSendImagesAsPhotos` (false = file-mode, true = photo-mode).
+4. If `checkWithWay(..., silent=true)` fails, flip `sendImagesAsPhotos` and retry.
+5. Each change regenerates preview + re-lays box (`:1196-1214`).
+
+**Compression toggle visual.** Pure checkbox — no standalone glyph-mode switch. Mode indication = whole-grid cross-fade (preview rebuilds as thumbs vs file rows via `generatePreviewFrom(0) + _inner->resizeToWidth(boxWideWidth)`, `:1205-1206`). **Differs from mobile clients** — flag for UX parity review.
+
+**Spoiler checkbox.** Not a top-level toggle; set **per-item** via context menu (`lng_context_spoiler_effect`). Bulk toggle available through top-right menu's spoiler entry (`menu_send.cpp:794-804`, `SpoilerOn/Off`).
+
+**[AyuGram fork] Sticker repack (`:1136-1161`).** Top-right `ayu_SendAsSticker` for single images — re-encodes to WebP, rebuilds `_list` as sticker, `overrideSendImagesAsPhotos = false`, immediate `send({}, false)`.
+
+---
+
 ## 8. Info / Details Panel (Third Column)
 
 ### Dimensions & Behavior
@@ -840,6 +1075,295 @@ All values are live streams -- name, phone, bio, member count, notifications upd
 ### State Persistence
 
 Memento system saves: scroll position, search query, active media tab, navigation stack.
+
+---
+
+### 8.1 Cover compression math — scroll-driven TopBar shrink
+
+**Locating the real "cover."** `info/profile/info_profile_cover.cpp` is only 233 lines and contains forum-topic icon widgets (`TopicIconView/Button`) — NOT the profile cover. The actual cover (avatar + name + status + round action buttons) is class **`Info::Profile::TopBar`** in `info/profile/info_profile_top_bar.cpp` (~2447 lines). Shrink animation is driven by helper `Info::FlexibleScrollHelper` in `info/info_flexible_scroll.cpp`.
+
+**Tokens (`info/info.style`):**
+
+| Token | Value | Line |
+|---|---|---|
+| `infoLayerTopBarHeight` | `56px` | `:600` |
+| `infoProfileTopBarHeightMax` | `180 + 56 = 236px` | `:686` |
+| `infoProfileTopBarNoActionsHeightMax` | `236 − 52 = 184px` | `:903` |
+| `infoProfileTopBarTitleTop` | `113px` | `:687` |
+| `infoProfileTopBarStatusTop` | `134px` | `:688` |
+| `infoProfileTopBarPhotoTop` | `24px` | `:689` |
+| `infoProfileTopBarPhotoSize` | `80px` | `:692` |
+| `infoProfileTopBarPhotoBgShift` | `55px` (has-actions) | `:690` |
+| `infoProfileTopBarPhotoBgNoActionsShift` | `30px` | `:691` |
+| `infoProfileTopBarActionButtonSize` | `52px` (round button side) | `:889` |
+| `infoProfileTopBarActionButtonsPadding` | `margins(18, 0, 18, 16)` | `:895` |
+| `infoProfileTopBarActionButtonsHeight` | `52 + 16 = 68px` | `:896` |
+| `infoProfileTopBarActionButtonsSpace` | `10px` | `:897` |
+| `infoProfileTopBarStep2` | `236 − 56 = 180px` | `:899` |
+| `infoProfileTopBarStep1` | `180 − 68 = 112px` | `:900` |
+
+**Snap-scroll model.** TopBar does NOT interpolate continuously — it snaps to three resting heights driven by `FlexibleScrollHelper`:
+- **`0`** — fully expanded (236px).
+- **`step1` ≈ 112px** — action-button row collapsed, compact hero with name+status.
+- **`step2` ≈ 180px** — fully collapsed to 56px titlebar.
+
+Between rests it eases with `anim::easeOutQuint` over `kScrollStepTime = 260ms` (`info_flexible_scroll.cpp:49, 58-72`).
+
+**Wheel handler (`info_flexible_scroll.cpp:228-337`).** On `|angleDelta| == 120`:
+```
+step1 = (pinnedToTop->maxHeight < infoProfileTopBarHeightMax)
+        ? (infoProfileTopBarStep2 + lineWidth)
+        : infoProfileTopBarStep1;
+step2 = infoProfileTopBarStep2;
+
+nextStep = (diff > 0)                        // scrolling down
+    ? (prev == 0 ? step1 : prev == step1 ? step2 : -1)
+    : (target < step1 ? 0 : target < step2 ? step1 : -1);
+```
+Direction reversal mid-animation re-bases via `_timeOffset` instead of restarting (`:265-298`).
+
+**Height application (`applyScrollToPinnedLayout`, `:344-354`):**
+```
+current = pinnedToTop->maxHeight − pinnedToTop->minHeight − scrollTop;
+_inner->moveToLeft(0, min(0, current));
+pinnedToTop->resize(width, max(current + minHeight, 0));
+```
+At `scrollTop = 0`: bar = `max = 236`. At `scrollTop ≥ max−min = 180`: clamps to `min = 56`. Inner list translates up by `min(0, current)` to slide under the bar.
+
+**Alternative path.** `setupScrollHandling` (`:75-208`) gated by `base::options::toggle kAlternativeScrollProcessing` (`:21-25`) — same math off `_scroll->scrollTopValue()`. Default is wheel-filter.
+
+**Action-row collapse** (`TopBar::setupActions`, `info_profile_top_bar.cpp:556-571`):
+```
+ratio = size.height() / (infoProfileTopBarActionButtonsHeight + infoLayerTopBarHeight);
+resultHeight = (ratio >= 1.) ? 52
+             : (ratio <= 0.5) ? 0
+             : int(52 * (ratio - 0.5) / 0.5);
+```
+Buttons shrink linearly 52→0 past the 50% mark, vanish entirely in the bottom half.
+
+**Per-button paint** (`TopBarActionButton::paintEvent`, `info_profile_top_bar_action_button.cpp:109-178`):
+- Opacity = `height / ActionButtonSize` (linear fade).
+- Icon scales via `(progress − 0.4) / 0.6` clamped ≥ 0 — holds full size to 40%, then scales with button.
+- Text scales with `max(0.4, progress)`.
+
+**Gradient offset** (`TopBar::paintEvent`, `:1298-1317`): has-actions → shifted up by 55px; no-actions → 30px.
+
+**Back/title fade** via `FadeWrap<IconButton>` with `infoTopBarScale = 0.7`, `infoTopBarDuration = 150ms` (`info.style:595-596`, used at `info_profile_top_bar.cpp:1385`).
+
+**Reimplementation summary.** Bar height = `clamp(max − scrollTop, 56, 236)`. Action-row height = `clamp(52 × (ratio − 0.5) / 0.5, 0, 52)` where `ratio = barHeight / 124`. Snap points {0, 112, 180}, `easeOutQuint`, 260ms.
+
+### 8.2 Action-button row under the cover
+
+**Two different surfaces — don't conflate.** The horizontal round-button row sitting DIRECTLY BELOW THE AVATAR is `TopBar::setupActions` (`info_profile_top_bar.cpp:505-720+`), each button a `TopBarActionButton` (rounded-rect bg at `boxRadius`, centered Lottie/static icon, small label underneath). A SEPARATE vertical `ActionsFiller` in `info_profile_actions.cpp` renders the stacked profile rows (Share Contact, Edit Contact, Block/Report, Join/Leave Channel — settings-button style, rendered below shared-media) — that's `AddActionButton` (`:1381-1388`), `SetupActions` (`:2449-2455`), share/edit (`:1995-2028`), join/leave (`:2034-2055`), report (`:2118-2128`).
+
+**Container.** `Ui::HorizontalFitContainer` with `infoProfileTopBarActionButtonsSpace = 10px` (`:515-517`). Equal-flex width (distributes remaining after 18px left + 18px right padding). All buttons share `ActionButtonSize = 52px` height; width container-computed.
+
+**Max 3 primary; rest overflow to "More".** Hard cap at `:518-520`:
+```cpp
+const auto chechMax = [&, max = 3] { return buttons.size() >= max; };
+```
+If exceeded, OR if `wrap == Wrap::Side` (third-column persistent mode always uses More), `addMore()` builds a 4th button with `infoProfileTopBarActionMore` opening a full `PopupMenu` via `showTopBarMenu → fillTopBarMenu → Window::FillDialogsEntryMenu{ section: Section::Profile }` (`:521-541, 1415-1441`).
+
+**Button roster by peer type** (insertion order in `setupActions`):
+
+| Button | Condition | Style | Line |
+|---|---|---|---|
+| Message | `peer->isUser()` | `infoProfileTopBarActionMessage` | `:575-587` |
+| Join | `!sublist && !topic && channel && !channel->amIn()` | `…ActionJoin` | `:588-598` |
+| Message (channel) | `peer->monoforumBroadcast()` | `…ActionMessage` | `:599-610` |
+| Mute / Unmute (toggle) | `!peer->isSelf()` | `…ActionMute/Unmute` — Lottie crossfade `profile_muting`/`profile_unmuting` | `:611-665` |
+| Call (audio) | user && !sharedMediaInfo && !inaccessible && callsStatus != Disabled | `…ActionCall` | `:670-679` |
+| Discuss | `channel->discussionLink()` is megagroup | `…ActionMessage` (reused icon) | `:682-697` |
+| Manage/Edit | `topic->canEdit() \| EditPeerInfoBox::Available(peer)` | `…ActionManage` | `:700+` |
+| Leave / Gift / Report | (truncated past :720 in fetched range) | `…ActionLeave/Gift/Report` | — |
+| More… | cap exceeded OR `wrap == Side` | `…ActionMore` | `:529-541` |
+
+Strings use `tr::lng_profile_action_short_*` (message/mute/unmute/call/join/channel/discuss/more).
+
+**Mute toggle.** `TopBarActionButton::convertToToggle` (`info_profile_top_bar_action_button.cpp:53-81`) stores `_offIcon/_onIcon/_offLottie/_onLottie`. State change plays Lottie forward; at last frame swaps `_icon` to new static and resets Lottie.
+
+**Right-click on mute = mute menu** (`:637-659`): `notifications->setAcceptBoth()` then `MuteMenu::SetupMuteMenu` — right-click (or left-click when currently muted) opens duration menu; left-click of muted bell unmutes directly.
+
+**Icon tokens (`info.style:329-340`):** `infoProfileTopBarActionMessage`, `…Mute`, `…Unmute`, `…Call`, `…Gift`, `…Join`, `…Report`, `…Leave`, `…More`, `…Manage`. Each is `lottieName` or `style::icon`, rendered at `infoProfileTopBarActionButtonIconSize = 23px` (`info.style:890`), text underneath in `…ButtonFont = font(11px)` (`:894`).
+
+**Theming.** Buttons observe `_edgeColor.value()` via `rpl::map(mapActionStyle)` with a `TopBarActionButtonStyle{bgColor, fgColor, shadowColor}` (`:548-554`). Collectible status / channel color profile → `_hasGradientBg = true` (`paintEvent :1295-1341`), buttons switch to `Ui::CreateTopBgGradient`-matched palette. Fallback: `windowBg` + `windowBoldFg`. If contrast vs `boxTitleCloseFg` < `kMinContrast`, back/close switch to `infoTopBar*ColoredBack/Close` (`:1373-1376`, `info.style:625-668`).
+
+### 8.3 Shared-media navigation (there is NO horizontal tab strip)
+
+**Key design truth.** AyuGram/tdesktop's Info panel has **no Photos/Videos/Files horizontal tab bar** below the cover (unlike mobile clients). Shared media is a tree of full-screen sub-sections reached by `_controller->showSection(...)`, pushed onto `WrapWidget::_historyStack`, popped by back button (`info_wrap_widget.cpp:182-194, 279-284`).
+
+**Media type roster (`info/media/info_media_widget.cpp:34-47`, `SharedMediaTitle`):**
+
+| `Storage::SharedMediaType` | Title string |
+|---|---|
+| `Photo` | `lng_media_type_photos` |
+| `GIF` | `lng_media_type_gifs` |
+| `Video` | `lng_media_type_videos` |
+| `MusicFile` | `lng_media_type_songs` |
+| `File` | `lng_media_type_files` |
+| `RoundVoiceFile` | `lng_media_type_audios` |
+| `Link` | `lng_media_type_links` |
+| `RoundFile` | `lng_media_type_rounds` |
+| `Poll` | `lng_media_type_polls` |
+
+Stories-aggregate "PhotoVideo" label: `lng_stories_row_count` (`:44`).
+
+**Vertical type-button stack** (Saved-Messages shared-info view only, gated by `peer->sharedMediaInfo() && _isStackBottom`, `info_media_inner_widget.cpp:47-52`). Built in `createTypeButtons` (`:69-119`):
+```cpp
+addMediaButton(Type::Photo,          st::infoIconMediaPhoto);
+addMediaButton(Type::Video,          st::infoIconMediaVideo);
+addMediaButton(Type::File,           st::infoIconMediaFile);
+addMediaButton(Type::MusicFile,      st::infoIconMediaAudio);
+addMediaButton(Type::Link,           st::infoIconMediaLink);
+addMediaButton(Type::RoundVoiceFile, st::infoIconMediaVoice);
+addMediaButton(Type::GIF,            st::infoIconMediaGif);
+```
+Seven rows in this order; each hidden when count = 0 (`tracker.atLeastOneShownValue()`, `:117`). Style: `infoSharedMediaButton` = `infoProfileButton` (`info.style:1040`). Bottom skip `infoSharedMediaBottomSkip = 12px`.
+
+**Normal profile entries** (not Saved-Messages variant) are equivalent rows in `info_profile_inner_widget` — same icon tokens, same order, plus conditional rows for: Common Groups (user), Similar Channels (channel), Gifts, Stories, Saved dialogs/Sublists, Polls, Global media, Channel statistics, Downloads, Reactions list, Requests list, Userpic archive. Each first-class Info sub-section with own Memento/Controller (`info/similar_peers/`, `info/peer_gifts/`, `info/stories/`, `info/saved/`, `info/polls/`, `info/global_media/`, `info/channel_statistics/`, `info/common_groups/`, `info/downloads/`, `info/reactions_list/`, `info/requests_list/`, `info/userpic/`).
+
+**Icon tokens (`info.style:627-666`):** `infoIconInformation`, `infoIconAddMember`, `infoIconBotBalance`, `infoIconNotifications`, `infoIconMediaPhoto`, `…Video`, `…Gif`, `…File`, `…Audio`, `…Link`, `…Group`, `…Channel`, `…Bot`, `…Voice`, `…Poll`, `…Stories`, `…Saved`, `…StoriesArchive`, `…StoriesRecent`, `…Gifts`, `infoIconEmojiStatusAccess`.
+
+**Sub-tab style** (used inside sections, NOT in main Info — stories-archive tab switcher, gift-category chips): `defaultSubTabs: SubTabs { bg: windowBg; }` (`info.style:55-57`). SubTabs widget from `ui/widgets/sub_tabs.h`; active-indicator thickness in `ui/widgets/sub_tabs.style`.
+
+**[AyuGram delta]** `info/info_top_bar.cpp:358-419` — `setStories` is gated by AyuGram settings (upstream unconditional). Storage-archive icons (`info.style:329-332, 397-400`) used when managing stories.
+
+**In-section search.** TopBar reuses `SearchFieldRow infoMediaSearch { height: 44, padding: margins(8,6,8,6), field: defaultMultiSelectSearchField, fieldIcon: box_search, fieldIconSkip: 36, fieldCancel: defaultMultiSelectSearchCancel, fieldCancelSkip: 40 }` (`info.style:71-82`). Layer variant `infoLayerMediaSearch` = 46px with larger cross `stroke: 1.5, minScale: 0.3` (`:85-105`). Activated via `_topBar->createSearchView(...)` (`info_wrap_widget.cpp:165-175`).
+
+### 8.4 Members row / list
+
+**File:** `info/profile/info_profile_members.cpp` (host widget). Row drawing in `info_profile_members_controllers.cpp` (`MemberListRow : PeerListRow`).
+
+**Container (`infoMembersList: PeerList(defaultPeerList)`, `info.style:562-577, 1009`):**
+```
+item: PeerListItem(defaultPeerListItem) {
+    photoPosition:  point(18, 6);     // avatar 18 from left, 6 from top
+    namePosition:   point(79, 11);    // name baseline
+    statusPosition: point(79, 31);    // status line
+    checkbox: RoundImageCheckbox(defaultPeerListCheckbox) {
+        selectExtendTwice: 1px;
+        imageRadius: 21px;             // avatar diameter = 42
+        imageSmallRadius: 19px;        // shrinks to 38 when check is present
+        check: RoundCheckbox(defaultPeerListCheck) {
+            size: 0px;                  // no visible check — selection handled elsewhere
+        }
+    }
+    nameFgChecked: contactsNameFg;
+}
+```
+Row height inherited from `defaultPeerListItem` (~52px). 18 + 42 + 19 ≈ 79 confirms **19px gap** between avatar right-edge and name left-edge.
+
+**Header + add/search icons** (`info.style:1008, 1018, 1023-1029`): `infoMembersHeader = 56px`. `infoMembersButton { width: 38, height: 38, ripple circle 38 }`. Two icon buttons — `infoMembersAddMember` (icon `info/info_add_member`) + `infoMembersSearch` (icon `info/info_search`), both `windowBoldFg`. Layout in `Members::updateHeaderControlsGeometry` (`info_profile_members.cpp:197-260`): header at `infoProfileSkip` from top, 38px tall; `_addMember` right-aligned; `_search` left of `_addMember`, spaced by `infoMembersSearch.width` when both visible; title at `infoBlockHeaderPosition` with width = available − addMember width.
+
+**Inline search-field is currently commented out** (`info_profile_members.cpp:203-221, 235-243` are `//`-commented) — preserved as animation design. Member search happens through the Info top-bar search instead.
+
+**Admin / Creator tags (`info_profile_members_controllers.cpp:93-98`):**
+```cpp
+} else if (_type.rights == Rights::Creator) {
+    _tagMode = TagMode::AdminPill;
+    _tagText = tr::lng_owner_badge(tr::now);   // "owner"
+} else if (_type.rights == Rights::Admin) {
+    _tagMode = TagMode::AdminPill;
+    _tagText = tr::lng_admin_badge(tr::now);   // "admin"
+}
+```
+Pill padding: `memberTagPillPadding: margins(5, -1, 5, 0)` (`info.style:914`).
+
+**Right-action area (`:88-103`)** — tag pill OR remove-cross, max width:
+```cpp
+QSize MemberListRow::rightActionSize() const {
+    const auto w = std::max(tagSize().width(), removeSize().width());
+    return (w > 0) ? QSize(w, st::defaultPeerListItem.height) : QSize();
+}
+```
+
+**No explicit online-dot.** Unlike the sidebar dialogs list, Info's member rows communicate online state via:
+- `statusText` ("online"/"last seen recently") from `Ui::FormatLastSeen`.
+- Stories outline around avatar (`setStoriesShown(true)`, `info_profile_members.cpp:153`) — unread-stories ring is the "live" affordance.
+
+**No online/offline divider** — megagroup controller sorts online-then-alpha but presents flat (no header row).
+
+**Context menu.** `PeerListController::rowContextMenu` (truncated beyond fetch): standard View Profile, Send Message, Promote/Demote admin, Restrict, Remove, Ban, Copy Username/ID — promote/demote gated by `isGroupAdmin()`.
+
+**Per-view style override (`:152-153`):**
+```cpp
+_listController->setStyleOverrides(&st::infoMembersList);
+_listController->setStoriesShown(true);
+```
+
+**Bottom skip `membersMarginBottom`** — if list shorter, widget collapses to zero (`:175-179`).
+
+### 8.5 Grid columns formula — photos / videos / gifts
+
+**Column count is computed per-resize**, not declared, in `ListWidget::resizeGetHeight` (`info/media/info_media_list_widget.cpp`) against `infoMediaMinGridSize = 82px` (`info.style:1006`).
+
+**Tokens (`info.style:1000-1006`):**
+```
+infoMediaHeaderStyle    = semiboldTextStyle;
+infoMediaHeaderHeight   = 28px;                     // date header row
+infoMediaHeaderPosition = point(14, 6);             // baseline of date text
+infoMediaSkip           = 2px;                      // gap between cells
+infoMediaLeft           = 3px;                      // left/right grid padding
+infoMediaMargin         = margins(0, 6, 0, 2);      // around a grid row
+infoMediaMinGridSize    = 82px;                     // minimum cell side
+```
+
+**Per-thumb layout** (`overview/overview_layout.cpp:207-212, 398-403`):
+```cpp
+int32 Photo::resizeGetHeight(int32 width) {
+    width = qMin(width, _maxw);
+    if (_width != width) { _width = width; _height = _story ? qRound(_width * kStoryRatio) : _width; }
+    ...
+}
+int32 Video::resizeGetHeight(int32 width) {  /* same math */ }
+```
+Cells are **square** for photos/videos; **9:16** (via `kStoryRatio`) for Stories grids.
+
+**Effective formula:**
+```
+contentWidth = listWidth − 2 × infoMediaLeft = listWidth − 6
+columns      = max(1, floor((contentWidth + infoMediaSkip) / (infoMediaMinGridSize + infoMediaSkip)))
+             = max(1, floor((listWidth − 4) / 84))
+cellSide     = floor((contentWidth − (columns−1) × infoMediaSkip) / columns)
+             = floor((listWidth − 6 − 2(columns−1)) / columns)
+```
+
+Approximate columns at common widths:
+
+| List width | Columns |
+|---:|---:|
+| 336px (layer / narrow) | 4 |
+| 420px | 4-5 |
+| 480px (default 3rd col) | 5 |
+| 600px | 7 |
+| 800px | 9 |
+| 1000px | 11 |
+
+**Date headers** inside grid use `infoMediaHeaderStyle` (bold-semibold) at 28px, text offset `(14, 6)` — separators between month-groups, do NOT participate in column math.
+
+**Stories grid.** Same formula, `_story = true` → 9:16 cells, same column count, taller rows.
+
+**Gifts grid** (`info/peer_gifts/`). Same `infoMediaMinGridSize`/`infoMediaMargin` basis, but `peer_gifts.style` overrides aspect for gift-card (emoji top + price pill bottom) layout.
+
+**Empty-state placement.** `MediaEmpty` widget shown below list when `listHeight ≤ _emptyHeightThreshold` (default 0, bumps to `st::semiboldFont->height` during jump-to-message loading; `info_media_inner_widget.cpp:206-223, recountHeight`).
+
+### 8.6 Info panel — additional findings
+
+- **Cover gradient** (collectible status OR color profile ≥2 bg colors) — `TopBar::paintEvent :1295-1341` fills whole bar with `Ui::CreateTopBgGradient(QSize(width, maxHeight), ...)` offset up by `PhotoBgShift (55px)` if actions shown, else `…NoActionsShift (30px)`. Cached as `_cachedGradient`; `_cachedClipPath` rounds the rect in `wrap == Wrap::Layer`.
+- **Animated emoji-status pattern** behind avatar — `TopBar::setupAnimatedPattern` / `paintAnimatedPattern` (`:1509, 1518+`) when `_patternEmojiId` is set (Premium status).
+- **Pinned-to-top gifts row** — `setupPinnedToTopGifts`/`calculateGiftPosition`/`paintPinnedToTopGifts` (`:1623-1883`). Six slots around avatar: `infoProfileTopBarGiftSize = 20px`, `…GiftLeft = point(15, 13)`, plus TopLeft/BottomLeft/Right/TopRight/BottomRight (`info.style:695-700+`).
+- **Story ring outline** on cover avatar — `setupStoryOutline`/`updateStoryOutline`/`paintStoryOutline` (`:1886-1991`). Userpic paints first; ring on top.
+- **"Show my last seen" pill** — `setupShowLastSeen` (`:1451-1507`). When viewer has hidden their own last-seen, small RoundButton `lastSeenPosition: point(3, 58)` offers to reveal — height 18, font 12, `textFg: windowSubTextFg`, TopBar offset `infoProfileTopBarLastSeenSkip: point(8, 1)` (`info.style:693`).
+- **Stars-rating badge** — `starsRatingLeft: 107, starsRatingTop: 57` (`info.style:340-341`) right of name/status for rated channels/bots. Wired through `setupStatusWithRating` (`:2020`).
+- **Unique-badge tooltip** — `setupUniqueBadgeTooltip` (`:952-978`) / `hideBadgeTooltip` (`:979-996`). Click on verified/premium/emoji-status badge → explanatory tooltip. Badge widget in `info_profile_badge.{h,cpp}`.
+- **Channel subtitle** — line under channel name ("N subscribers" / "N members, M online"). Via `infoProfileStatus: FlatLabel(defaultFlatLabel) { maxHeight: 18px; textFg: windowSubTextFg }` (`info.style:328-331`), updated by `TopBar::updateStatusPosition` (`:1165-1210`) + `setOnlineCount` (`:1005-1009`) observing live `rpl::producer<int>`.
+- **Bot About + Commands** — rendered below cover via `infoProfileButton` rows in `DetailsFiller`. Bio uses `infoProfileBioLabel`. Commands list: help/settings/privacy as three `AddActionButton` bound to `/command` click.
+- **Business Hours / Location / Birthday / Personal Channel** — all in `DetailsFiller`. **[AyuGram]** ID row unconditional (upstream: debug-mode only).
+- **Gift-card rendering / Peer Gifts tab** — `info/peer_gifts/`. Reached via `infoIconMediaGifts` row (`info.style:660+`). Uses §8.5 grid math with `peer_gifts.style` override to taller gift-card aspect.
+- **TopBar animation tokens** — `infoTopBarScale: 0.7; infoTopBarDuration: 150` (`info.style:595-596`). `FadeWrap` for Back button + any fade-on-wrap affordances.
+- **Layer-mode differences** — `infoLayerTopMinimal: 20, infoLayerTopMaximal: 40` (top whitespace above layer titlebar). `infoLayerTopBar` height 56, `bg: boxBg`, `radius: boxRadius` (`info.style:682-701`). `TopBarStyle(wrap)` (`info_wrap_widget.cpp:70-80`): `Layer → infoLayerTopBar`, else `infoTopBar`.
+- **`Wrap` enum:** `Narrow` (single-column — back always shown), `Side` (third-column permanent — forced More), `Layer` (popup box — rounds top edges via `setRoundEdges(true)`, `:1371`), `Search`, `StoryAlbumEdit`.
+- **Music mini-player hook** — `info/profile/info_profile_music_button.{cpp,h}`. `infoMusicButtonPadding: margins(12, 8, 24, 8)`, `…Performer` sublabel, `…Title` bold label, `…Bottom: 8, …Line: 2` (`info.style:900-912`). Quick-jump to source message when peer has an audio track playing.
 
 ---
 
@@ -901,6 +1425,363 @@ Full-screen overlay: search/filter bar (multi-select input), chat filter tabs (f
 ### Delete Confirmation
 
 "Delete for me" (always) + "Delete for everyone" (gated by message age, ownership, permissions). Additional checkboxes: Ban User, Report Spam, Delete All from User (moderation). Revoke preference remembered.
+
+---
+
+### 9.1 Context-menu chrome (PopupMenu dimensions + animations)
+
+Live in upstream `desktop-app/lib_ui` submodule, inherited verbatim by AyuGram. Files: `ui/widgets/widgets.style` (schemas + tokens), `ui/widgets/menu/menu_action.cpp` (item metrics), `ui/widgets/popup_menu.cpp` (timing). Message context menus site-of-use: `history/view/history_view_context_menu.cpp:1527-1530` (`Ui::PopupMenu(list, st::popupMenuWithIcons)`).
+
+**Numbers (from `defaultMenu` / `defaultPopupMenu` / `menuWithIcons` / `popupMenuWithIcons`):**
+
+| Token | Value | Source |
+|---|---|---|
+| Corner radius | **8px** | `widgets.style:1003` |
+| Open (slide+fade-in) | **200ms**, `anim::sineInOut` | `:1005` · `popup_menu.cpp:706,1295` |
+| Close (fade-out) | **150ms** | `:1004` |
+| Scroll padding (rounded box inner T/B) | `0,8,0,8` default / `0,5,0,5` icons variant | `:998` / `:1711` |
+| Min / max popup width | **156 / 300px** | `:988-989` |
+| `maxHeight` | `0` → unbounded (screen-clamped) | `:999` |
+| Item font | `normalFont = font(13)` | `basic.style:51-52` |
+| Item padding (no icon) | `margins(17, 8, 17, 7)` → **height ≈ 28px** | `:977` + formula `menu_action.cpp:62-64` |
+| Item padding (with icon) | `margins(54, 8, 17, 8)` → **height ≈ 29px** | `:1697-1698` |
+| `itemIconPosition` | `point(15, 5)` — icon top-left inside padding | `:1697` |
+| Icon size | **20×20** logical (from `menu_icons.style` ICONs); slot ≈ 22px | derived `:1697-1698` |
+| Icon→text gap | `54 − 15 = 39px` icon-origin→text-origin; effective ≈ **17px** after icon | derived |
+| `itemRightSkip` | **6px** (before submenu arrow / shortcut) | `:978` |
+| Submenu arrow | `menu/submenu_arrow` tinted `windowBoldFg`, centered `(h − arrowH)/2` | `:953` · `menu_action.cpp:131` |
+| Separator | **1px** with `margins(0,5,0,5)` (slot 11px) | `:960-964` |
+| Separator color | `menuSeparatorFg` → day `#f1f1f1` / night `#232f39` | `day-blue:72` / `night:49` |
+| Ripple | `defaultRippleAnimation{color: windowBgRipple; showDuration: 650; hideDuration: 200}` | `:711-715` |
+| Ripple color | `windowBgRipple` → day `#e5e5e5` / night `#24303d` | `day-blue:27` / `night:4` |
+| Shadow | `defaultBoxShadow { blurRadius: 5; offset: (0, 1); opacity: 0.25 }` (PNG round_shadow_box) | `:921-925` · `popup_menu.cpp:196` |
+| Shadow fallback | `windowShadowFgFallback` → day `#f1f1f1` / night `#17212b` | `:995` · `day-blue:37` / `night:14` |
+
+**Open/close easing.** `PanelAnimation` (`:939-951`) drives reveal: width 0.5→1.0 over `0.6` of duration, height 0.3→1.0 over `0.9`, opacity 0.2→1.0 over `0.3`, plus a top-fade `(startFadeTop: 0; fadeHeight: 0.2; fadeOpacity: 1.0; fadeBg: menuBg)`. Total clock = 200ms. Submenu swap `anim::sineInOut` over same 200ms (`popup_menu.cpp:1295`).
+
+**Bg/hover palette** (`defaultMenu.itemBg: windowBg`, `itemBgOver: windowBgOver`, `:968-969`):
+
+| Token | Day (`day-blue:24-27`) | Night (`night:1-4, 42-44`) |
+|---|---|---|
+| `windowBg` / `menuBg` | `#ffffff` | `#17212b` |
+| `windowBgOver` | `#f1f1f1` | `#232e3c` |
+| `windowBgRipple` | `#e5e5e5` | `#24303d` / `#1f2934` |
+| `windowFg` (text) | `#000000` | `#f5f5f5` |
+| `menuIconFg` (resting) | `#999999` | `#6c7883` |
+| `menuIconFgOver` (hover) | `#8a8a8a` | `#dcdcdc` |
+| `menuSeparatorFg` | `#f1f1f1` | `#232f39` |
+
+(Night's raw `menuBgOver: #ffffff` appears unused — real hover uses `windowBgOver` via `defaultMenu.itemBgOver`.) No AyuGram override of popup chrome.
+
+### 9.2 Attention-style items (Delete / Leave / Report / Block)
+
+**Tokens (`widgets.style:1691-1692, 1702-1709`):**
+```
+menuIconColor:          windowBoldFg;          // day #222222 / night #e9e8e8
+menuIconAttentionColor: attentionButtonFg;     // day #d14e4e / night #ec3942
+
+menuWithIconsAttention: Menu(menuWithIcons) {
+    itemFg:     attentionButtonFg;     // #d14e4e / #ec3942
+    itemFgOver: attentionButtonFgOver; // identical
+}
+```
+
+**Behavior in practice.** Attention items in the standard message context menu are tinted at the **icon level** — call sites (`AddDeleteMessageAction :927 → Ui::DeleteMessageContextAction`, `AddReportAction :987` with `menuIconReport`) pass a pre-red icon defined in `menu_icons.style` that already references `menuIconAttentionColor`. The **text stays `windowFg`** for single attention items in `menuWithIcons`. Full red-text only applies when the whole menu switches to `menuWithIconsAttention` (e.g. Leave-group confirmation submenu). Default UX: **red icon, normal-colored text**. Confirmation box button uses `st::attentionBoxButton` (red fill) — see §9.5.
+
+Related (but distinct) token: `boxTextFgError` — day `#d84d4d` / night `#dc3d3d` (`day-blue:111, night:101`) — inline error labels in boxes (e.g. rejected username), NOT menu items.
+
+### 9.3 Reaction strip / quick-reactions selector
+
+**Strip geometry (`chat_helpers.style:814-820`):**
+```
+reactStripExtend:      margins(21, 49, 39, 0)    // bubble margin around strip
+reactStripHeight:      40 px
+reactStripSize:        32 px                      // row slot per reaction
+reactStripMinWidth:    60 px                      // collapsed min
+reactStripImage:       26 px                      // emoji render size inside slot
+reactStripSkip:        7 px                       // padding + inter-item gap
+reactStripBubbleRight: 20 px                      // distance from bubble right
+```
+Centered vertically: `_skipy = (40 − 32)/2 = 4px` (`reactions_selector.cpp:296`).
+
+**Per-message corner reaction button** (the heart/plus hovering over a bubble — `chat.style:887-902`):
+```
+reactionCornerSize:               size(36, 32)     // pill
+reactionCornerCenter:             point(7, -9)     // anchor on bubble corner
+reactionCornerImage:              22 px            // emoji render
+reactionCornerShadow:             margins(4, 8, 4, 8)
+reactionCornerActiveAreaPadding:  margins(10, 10, 10, 10)
+reactionCornerAddedHeightMax:     100 px           // max stack dropdown
+reactionCornerSkip:               -4 px
+reactionExpandedSkip:             2 px
+reactionGradientStart:            8 px
+reactionGradientSize:             24 px
+reactionGradientFadeSize:         24 px
+reactionAppearStartSkip:          2 px
+reactionMainAppearShift:          20 px            // vertical travel on appear
+reactionCollapseFadeThreshold:    40 px
+reactionFlyUp:                    50 px            // "fly up then fade" on pick
+```
+
+**Animation timings (`history_view_reactions_button.cpp:36-45`):**
+```
+kToggleDuration           = 120 ms   // rest ↔ shown
+kActivateDuration         = 150 ms   // press feedback
+kExpandDuration           = 300 ms   // strip → full selector
+kCollapseDuration         = 250 ms   // full selector → strip
+kButtonShowDelay          = 300 ms   // hover latency before floating button appears
+kButtonExpandDelay        = 25 ms
+kButtonHideDelay          = 300 ms
+kButtonExpandedHideDelay  = 0 ms
+kRefreshListDelay         = 100 ms
+```
+`history_view_reactions_selector.cpp:51-56`:
+```
+kExpandDuration           = 300 ms
+kScaleDuration            = 120 ms
+kFullDuration             = 420 ms    // Expand + Scale
+kExpandDelay              = 40 ms
+kDefaultColumns           = 8         // visible quick reactions before "+" overflow
+kMinNonTransparentColumns = 7         // below → opaque bg
+```
+`history_view_reactions_strip.cpp:24-27`:
+```
+kSizeForDownscale   = 96     // emoji rendered at 96 then downscaled
+kEmojiCacheIndex    = 0
+kHoverScale         = 1.24   // per-icon hover pop
+kHoverScaleDuration = 200 ms
+```
+
+**Summary.** Floating strip fades/bounces in after **300ms hover delay**, then `kToggleDuration = 120ms`. Per-icon hover pop to **1.24×** over 200ms. Clicking the **"+" overflow** (`Strip::AddedButton::Expand`, `reactions_selector.cpp:339-341`) expands into full picker in **420ms combined** — morphs 40px strip into multi-row grid. Premium animated emoji via `StripEmoji` (`:58-66`) wrapping `Ui::Text::CustomEmoji`, fed cached main-reaction frames from `reactions_strip.cpp:29-42` (`AnimatedIcon` + `DocumentIconFrameGenerator`). Full picker sheet = emoji-pan container `reactPanelEmojiPan = EmojiPan(userpicBuilderEmojiPan) { searchMargin: margins(1, 10, 2, 6) }` (`chat_helpers.style:831-833`).
+
+**Inline reaction counter (under a message, `chat.style:881-885`):**
+```
+reactionInfoSize:      15 px
+reactionInfoImage:     30 px    // 2× retina, downscaled
+reactionInfoSkip:       3 px
+reactionInfoDigitSkip:  6 px
+reactionInfoBetween:    3 px
+```
+
+**[AyuGram delta]** `reactions_selector.cpp:43-45` adds `#include "ayu/ui/context_menu/context_menu.h"` + `#include "ayu/ayu_settings.h"` — geometry and timings are upstream-identical.
+
+### 9.4 Forward dialog (ShareBox / ChooseRecipientBox)
+
+**Layout tokens (`boxes.style:228-264`):**
+```
+shareRowsTop:          12 px           // above first recipient row
+shareRowHeight:        108 px          // per row (avatar + name)
+sharePhotoTop:         6 px
+shareNameTop:          6 px
+shareColumnSkip:       6 px
+shareActivateDuration: 150 ms          // row activate ripple
+shareScrollDuration:   300 ms          // scroll-to selected recipient
+
+shareBoxListItem:
+    nameStyle.font: font(11px)
+    nameFg:        windowFg
+    nameFgChecked: windowActiveTextFg   // blue when selected
+    checkbox.imageRadius:      28 px
+    checkbox.imageSmallRadius: 24 px    // avatar shrinks when checked to expose ring
+
+shareBoxList.bg: boxBg                  // white day / #17212b night
+
+shareComment: InputField(defaultInputField) {
+    textMargins:  margins(8, 8, 8, 6)
+    heightMin:    36 px
+    heightMax:    72 px                 // 2 lines max
+    placeholderScale: 0.                // no floating label
+    border:       0                     // borderless
+}
+shareCommentPadding: margins(5, 5, 5, 5)
+```
+
+**Behavior.**
+- **Multi-select visual** — each row = `shareBoxListItem` with `RoundImageCheckbox`. Selected row shows blue ring (`nameFgChecked: windowActiveTextFg`), avatar shrinks 28→24px image-radius (`:237-240`).
+- **Comment field** — hidden until a recipient is selected (`share_box.cpp:238` — `_comment->hide(anim::type::instant)`), then slides in. Placeholder `tr::lng_photos_comment()` (`:223`). Positioned at `_comment->moveToLeft(0, h − bottom − comment)` (`:247`).
+- **Search field** — top of box, from `_descriptor.st.multiSelect` (`:211-214`). Focus lands on search by default; jumps to comment once visible (`:485-491`).
+- **3-dot menu** (`showMenu :547-611`) uses `st::popupMenuWithIcons`:
+  1. Forward options (`Ui::FillForwardOptions` `:572-576`) — two checkmark toggles (`Menu::ItemWithCheck`, `:556-569`): "Show sender's name" and "Show caption". Visibility gated by `_descriptor.forwardOptions.show / sendersCount / captionsCount`.
+  2. Separator (`_menu->addSeparator()`, `:578`).
+  3. **Schedule** (`SendMenu::FillSendMenu`, `:601-605`) — opens `HistoryView::PrepareScheduleBox` on click (`:591-598`).
+  4. Send-as silent / without-sound / whenOnline — from the same `FillSendMenu`.
+- **Anchor** — `_menu->setForcedVerticalOrigin(VerticalOrigin::Bottom)` (`:600`) — opens **upward** from 3-dots.
+- **Send buttons** — primary `tr::lng_share_confirm` ("Send" / "Forward"). `setAcceptBoth()` so right-click opens same menu (`:617-625`).
+
+**"Forward as copy" toggle** — not a separate toggle; it's **both** Forward-options checkboxes unchecked (no sender, no caption). State in `Ui::ForwardOptions` (`_forwardOptions`, `:575`). AyuGram additionally short-circuits via `AyuForward::intelligentForward` / `…forwardMessages` for its "Repeat message" action (`ayu_context_menu.cpp:761-769`) — not used by the share dialog itself.
+
+### 9.5 Delete-messages confirmation box
+
+File: `boxes/delete_messages_box.cpp`. Four constructors (`:39-91`):
+
+1. `(HistoryItem*, suggestModerateActions)` — single, optional moderate panel (ban + delete-all + report spam). Call site: `history_view_context_menu.cpp:916`.
+2. `(Main::Session*, MessageIdsList&&)` — bulk selection (`:860-862, 898-900`).
+3. `(PeerData*, firstDay, lastDay)` — delete by date.
+4. `(PeerData*, justClear)` — clear-history vs leave-group/channel.
+
+**Body-text matrix (`:93-296`)** — title implicit, body IS the question, always through `tr::rich`:
+
+```
+--- wipe peer history, by-date range (:104-121) ---
+single day : lng_sure_delete_by_date_one   { date }
+multi day  : lng_sure_delete_by_date_many  { days: "N days" }
+button     : attentionBoxButton
+
+--- wipe peer history, just clear (:123-143) ---
+channel (non-supergroup): lng_sure_delete_channel_history { channel }
+self                    : lng_sure_delete_saved_messages
+user                    : lng_sure_delete_history         { contact }
+group/supergroup        : lng_sure_delete_group_history   { group }
+button: attentionBoxButton
+
+--- leave / delete-and-exit (:144-164) ---
+self            : lng_sure_delete_saved_messages
+user            : lng_sure_delete_history               { contact }
+chat            : lng_sure_delete_and_exit              { group }
+megagroup       : lng_sure_leave_group
+channel (other) : lng_sure_leave_channel
+button text becomes `lng_box_leave` unless revoked
+button: attentionBoxButton
+
+--- moderate panel (:189-235) ---
+title body: lng_selected_delete_sure_this
+checkboxes (in order, shown only when applicable):
+  - lng_ban_user                        -> _banUser     (default unchecked)
+  - lng_report_spam                     -> _reportSpam  (default unchecked, ALWAYS shown in moderate mode)
+  - lng_delete_all_from_user { user: <bold firstName> }
+                                        -> _deleteAll   (default unchecked)
+Delete button gets " (N)" suffix when _deleteAll checked — live via MessagesSearch.total (:218-234).
+
+--- plain bulk-delete (:236-296) ---
+1 msg, music  : lng_selected_remove_saved_music
+1 msg, normal : lng_selected_delete_sure_this
+N msgs        : lng_selected_delete_sure { count: N }
+
+Also-delete-for-X checkbox ("Also delete for <firstName>" / "Unsend my messages"):
+  - single user peer, fully revocable : lng_delete_for_other_check    { user: <firstName> }  (:404-408)
+  - group/channel, fully revocable    : lng_delete_for_everyone_check                        (:410)
+  - partial: only my outgoing         : lng_delete_for_other_my                              (:447)
+Default: settings().rememberedDeleteMessageOnlyForYou() inverted (:246-247).
+If user toggles off-default → nested "Remember" checkbox (_revokeRemember) appears.
+
+Hint lines appended below body:
+  megagroup : lng_delete_for_everyone_hint { count }
+  chat      : lng_delete_for_me_chat_hint  { count }
+  user (non-self, non-inaccessible) : lng_delete_for_me_hint { count }
+```
+
+**Layout.**
+```
+Width:   boxWidth
+Padding: boxPadding
+Skips (moderate branch): boxMediumSkip before first checkbox, boxLittleSkip between ban↔report↔deleteAll
+        (revoke branch):  boxMediumSkip before revoke checkbox
+Label:    boxLabel
+Checkbox: defaultBoxCheckbox
+Auto-delete link (clear-history only): boxLinkButton (:311)
+```
+
+**Buttons (`:318-326`):**
+```
+canDelete  : [ deleteText (animated rpl::variable) ] [ lng_cancel ]   style = attentionBoxButton (red fill)
+!canDelete : [ lng_about_done ]                                        // acknowledgement only
+```
+`deleteText` animates between `lng_box_delete` and `lng_box_leave` as revoke toggles (`:177-180`); gains `" (N)"` suffix in moderate-delete-all mode.
+
+### 9.6 Item ordering, selection mode, copy group, Saved extras, AyuGram additions
+
+File: `history/view/history_view_context_menu.cpp`.
+
+**Canonical item order** — built in two passes by `FillContextMenuItems` (`:1345`) → `AddMessageActions` (`:1054`).
+
+**Pass 1 — top actions** (emitted inline in `FillContextMenuItems:1370-1490`):
+
+1. Reply — `AddReplyToMessageAction` (`:1370, :616-731`), `lng_context_reply_msg` (`:648`)
+2. Voice-message timecode — `Menu::AddTimecodeAction` (`:1383`)
+3. Todo-list action — `AddTodoListAction` (`:1397`)
+4. Copy selected — `lng_context_copy_selected` / `…_items` (`:1403-1404`), icon `menuIconCopy`
+5. Copy text of this message — `lng_context_copy_text` (`:1450, :1462`)
+6. Translate — `lng_context_translate` (`:1473, :1484`)
+7. Copy link (of a clicked URL/handler) — `AddCopyLinkAction` (`:1082-1097, :1489`)
+
+**Pass 2 — `AddMessageActions` (`:1054-1080`):**
+```
+8.  AyuUi::AddHistoryAction           // "Edits history" — if settings-enabled
+9.  AyuUi::AddHideMessageAction       // "Hide this message" — AyuGram only
+10. AyuUi::AddUserMessagesAction      // "Show user's messages" — AyuGram only
+11. AyuUi::AddRepeatMessageAction     // "Repeat message" (resend) — AyuGram only
+12. AyuUi::AddMessageDetailsAction    // "Message details" submenu — AyuGram only
+13. AddPostLinkAction                 // "Copy post link" / "Copy message link"
+14. AddForwardAction                  // "Forward" / "Forward selected"
+15. AddSendNowAction                  // scheduled-only
+16. AddDeleteAction                   // "Delete" / "Delete selected"
+17. AddDownloadFilesAction            // multi-select with media
+18. AddReportAction                   // "Report" (red icon)
+19. AddSelectionAction                // "Clear selection" or "Select"
+20. AddRescheduleAction               // scheduled-only
+21. AyuUi::AddReadUntilAction         // AyuGram only
+22. AyuUi::AddBurnAction              // AyuGram only — for self-destructing media
+```
+
+**Pass 3 — post-actions (`:1492-1513`):**
+```
+23. AddEmojiPacksAction               // emoji sticker-pack origin
+24. AddSelectRestrictionAction        // grey "Select" stub when blocked
+25. WhoReactedAction / MaybeAddWhenEditedForwardedAction  // bottom "who read/when sent/edited" footer
+```
+
+**`AddTopMessageActions` (`:1043-1052`)** — used by peer-menu elsewhere, NOT the main message menu: `AddGoToMessageAction` (`lng_context_to_msg, :831`), `AddViewRepliesAction`, `AddEditMessageAction` (`lng_context_edit_msg, :746`), `AddFactcheckAction`, `AddPinMessageAction` (`lng_context_pin_msg / _unpin_msg, :810`).
+
+**Selection-mode top-bar menu.** Entering via `AddSelectMessageAction` (`:1006-1031`, `lng_context_select_msg`, `menuIconSelect`). Top-bar's `showMoreMenu` composes the subset of `AddMessageActions` operating on `selectedItems` (passing `request.overSelection = true`): `AddForwardSelectedAction` (`:379-435`), `AddSendNowSelectedAction` (`:445-483`), `AddDeleteSelectedAction` (`:845-869`), `AddDownloadFilesAction` (`:944-958`), `AddClearSelectionAction` (`:993-1004`). All operations gate via `ranges::all_of(canForward/canDelete/...)`.
+
+**"Copy" is NOT a submenu.** Flat siblings at top level:
+- `lng_context_copy_text` — copy message text (`:1450`)
+- `lng_context_copy_image` — copy as image (`:202`, `menuIconCopy`, `AddPhotoActions`)
+- `lng_context_copy_post_link` / `…_copy_message_link` — copy message link (`:365-366`, `menuIconLink`)
+- `lng_context_copy_selected` — multi-select copy (`:1403`)
+- Link-handler copy — `AddCopyLinkAction` (`:1082-1097`)
+- `AddCopyFilename` — for documents (`:340-343`)
+
+The only true nested submenu in AyuGram is **Message details** (see below). "Copy Info" submenu referenced in this repo's commit `15f1db2` is a **downstream uniclient feature**, not upstream AyuGram — grep for `CopyInfo`/`copy_info`/`lng_profile_copy` across AyuGram returns no hits.
+
+**Saved-Messages tag menu (`:2046-2099`).** `ShowTagMenu` (`st::popupMenuExpandedSeparator`):
+```
+[tag_filter]  lng_context_filter_by_tag               → menuIconTagFilter
+[tag_rename]  lng_context_tag_add_name / edit_name
+              (AddEditTagAction)                      → menuIconTagRename
++ AddTagPackAction                                     (emoji-pack origin if custom-emoji tag)
+```
+"Pin to top" exists in the sidebar chat-row context menu (peer menu), NOT in the message menu.
+
+**[AyuGram additions]** `ayu/ui/context_menu/context_menu.cpp` — all gated by `AyuSettings::getInstance().show*InContextMenu()`:
+
+- `AddHistoryAction` (`:383-407`) — "Edits history" — only when message has edit record + `AyuMessages::hasRevisions(item)`. Opens full-panel `MessageHistory::SectionMemento`. Icon `ayuEditsHistoryIcon`.
+- `AddHideMessageAction` (`:409-435`) — "Hide message" — locally destroys via `current->destroy() + AyuState::hide(current)`; skips Saved Messages. Icon `menuIconClear`.
+- `AddUserMessagesAction` (`:437-464`) — "User's messages" — chats/megagroups only; opens `controller->searchInChat(key, item->from())`. Icon `menuIconTTL`.
+- `AddMessageDetailsAction` (`:466-675`) — **the ONE nested submenu**. Via `Ui::Menu::CreateAddActionCallback` → `Window::PeerMenuCallback::Args{ .fillSubmenu = ... }` (`:531-537`). Two-line `Ui::ContextActionWithSubText` rows (label + value):
+  - Views count (`ayu_MessageDetailsViewsPC`, `menuIconShowInChat`)
+  - Shares count (`ayu_MessageDetailsSharesPC`, `menuIconViewReplies`)
+  - Message ID, date, edit date, forwarded date, forward origin
+  - For media: mime, size, name, resolution, DC
+  - Sticker-sets: `Ui::ContextActionStickerAuthor` (`:653-667`)
+  - Icon `menuIconInfo`.
+- `AddRepeatMessageAction` (`:677-777`) — re-sends. Shift = no-quote send (`useNoQuote :709`); Replies view forces no-quote. Forwarded originals use `AyuForward::intelligentForward`. Icon `ayuRepeatMenuIcon`.
+- `AddReadUntilAction` (`:779-815`) — "Read until here" — bypasses `ghost.sendReadMessages()`; manually fires `MTPchannels_ReadMessageContents` / `MTPmessages_ReadMessageContents`. Icon `menuIconShowInChat`.
+- `AddBurnAction` (`:817-840`) — "Expire media now" — TTL media only; fires `MTPmessages_ReadMessageContents` to trigger countdown. Icon `menuIconTTLAny`.
+- `AddCreateFilterAction` (`:842+`) — "Create regex filter from selection" — AyuGram filters; gated by `filtersEnabled()`.
+
+### 9.7 Summary — AyuGram vs upstream tdesktop deltas
+
+| Area | Upstream `tdesktop/dev` | AyuGram `dev` |
+|---|---|---|
+| `popupMenuWithIcons` chrome | From `lib_ui` submodule | Identical (no override) |
+| `attentionButtonFg` etc. | `#d14e4e` / `#ec3942` | Identical |
+| Reactions strip/button constants | From `chat_helpers.style`, `chat.style`, `reactions_*.cpp` | Identical (only `#include "ayu/..."` added) |
+| ShareBox | Upstream | Identical (uses `AyuForward` downstream in `AddRepeatMessageAction`, not in share box) |
+| DeleteMessagesBox | Upstream | Identical |
+| Message context menu order | Reply → copy/translate/link → Forward → Delete → Select → extras | **+5 pre-Forward** (History, Hide, User-messages, Repeat, Details) + **2 post-Select** (ReadUntil, Burn), opt-in via `AyuSettings::show*InContextMenu()` |
+| "Message details" submenu | — | Nested submenu with views/shares/ID/date/media metadata via `Ui::ContextActionWithSubText` |
+| Edit-history viewer | — | `MessageHistory::SectionMemento` opened from `AddHistoryAction` |
 
 ---
 
