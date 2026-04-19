@@ -1981,55 +1981,121 @@ Flagged for next research pass — needs direct access to files that returned 40
 
 ## 12. Calls UI
 
-### Incoming Call
+### 12.1 1-on-1 Call Panel
 
-Panel opens with `WaitingIncoming` state. Center: userpic (160px circle), caller name (21px semibold), "Incoming call..." status. Bottom: **Decline** (red), **Answer** (green, pulsing outer ripple ring tracking ringtone peak audio level at 135-degree angle). Background: gradient from caller's profile photo colors.
+**Window** (`calls/calls.style`):
+- Default size `callWidth × callHeight = 720 × 540`.
+- Minimum `callWidthMin × callHeightMin = 380 × 520`.
+- `Ui::Window::setMinimumSize({callWidthMin, callHeightMin})` enforced in `calls_panel.cpp`.
 
-### Active Call (Audio)
+**Incoming state.** Opens with `WaitingIncoming`. Centred: userpic (160px circle), caller name (21px semibold), status "Incoming call…". Bottom: **Decline** (red), **Answer** (green with animated outer ripple ring — ripple radius tracks ringtone peak audio level, anchored at 135°). Background: gradient sampled from caller's profile-photo dominant colours.
 
-Center: userpic, name, duration timer (mm:ss, updates every second). Bottom bar (150ms transition): **Screencast**, **Camera**, **Hangup** (red, center, "End Call"), **Mute** (toggles between mic icon and red muted icon), **Add People**.
+**Active audio call.** Centre: userpic, name, duration timer (mm:ss, 1-Hz tick). Bottom button-row order: **Screencast** · **Camera** · **Hangup** (red, centred, label "End Call") · **Mute** (mic ↔ red muted-mic icon) · **Add People**. Row crossfades with 150ms when states change.
 
-**Signal quality:** 4 vertical bars (2px wide, 1px radius, 2px spacing, 4-10px tall). Inactive bars at 50% opacity.
+**Remote pills.** "*[User] muted their microphone*" tooltip; low-battery indicator uses identical pill style.
 
-**Encryption fingerprint:** Emoji row at top.
+**Controls auto-hide.** 5000ms in fullscreen (`kHideControlsTimeout`, `calls_group_panel.cpp`), 2000ms on mouse-leave; mouse movement restores.
 
-**Remote mute pill:** "[User] muted their microphone" tooltip. Low battery indicator similarly.
+### 12.2 Signal Bars
 
-Controls auto-hide after 5s in fullscreen (2s on mouse-leave), reappear on mouse movement.
+**Geometry** (`calls.style`):
+- `kSignalBarCount = 4`.
+- `callSignalBarWidth = 2px`, `callSignalBarMinHeight = 4px`, max bar height = 10px, `callSignalBarSkip = 2px`, `callSignalBarRadius = 1px`.
+- Bar `i` height = `min + (max − min) × (i / (count − 1))` → heights **4, 6, 8, 10 px** from left to right.
 
-### Video Call
+**Colors.** Active bar at theme `callBarFg`, full opacity. Inactive bar at `_st.inactiveOpacity = 0.5` (same colour, half alpha).
 
-Remote video fills main area (aspect-ratio fill). Userpic/name/status hidden when video active.
+**State machine** (`calls_signal_bars.cpp`). `count(q)` maps signal-quality integer [0..100] → [0..4] active bars. `changed()` triggers a `QWidget::update()`; stops once `kSignalBarFinished` reached. No interpolation — bars snap to the new count on repaint.
 
-**Self-view PIP:** `VideoBubble`, 160x110px default. Draggable, snaps to corners (12px padding from edges). Mirrored horizontally by default (unflips during screen-share).
+### 12.3 Encryption Fingerprint
 
-Pre-connect: outgoing preview centered (360x120 min to 1620x540 max based on window height).
+**Metrics** (`calls_emoji_fingerprint.cpp`):
+- `kEmojiInFingerprint = 4` — emoji count displayed at rest.
+- `kEmojiInCarousel = 10` — emojis cycled through during the reveal animation before snapping to the 4 final ones.
+- `kStartTimeShift = 50ms` — stagger between adjacent emoji carousels (carousel `i` starts `i × 50ms` after carousel 0).
+- `kCarouselOneDuration = 100ms` — per-emoji hop in the carousel → total reveal ≈ `4×50 + 10×100 = 1200ms`.
+- `kTooltipShowTimeoutMs = 1000ms` — hover delay before the "Call is end-to-end encrypted with …" tooltip appears.
 
-Camera button: active (camera icon) / muted (crossed camera). Corner device-selector arrow for switching cameras/audio devices.
+**Mapping.** `ComputeEmojiIndex()` converts the 8-byte SHA-256 fingerprint (paired with `g_a`) into indices over a 658-emoji Unicode table. Deterministic: same fingerprint → same emoji sequence on both peers.
 
-### Group Call
+**Row chrome.** Emoji row sits in a rounded container with radius = `height/2` (pill), embedded next to the signal bars via `CreateFingerprintAndSignalBars()`. Exact `callFingerprintSize` / `callFingerprintSkip` / `callFingerprintSpacing` tokens NOT present in `calls.style` — widget sizes from glyph metrics at runtime.
 
-Two modes: **narrow** (380px, list-only) and **wide** (960x580px+, video grid).
+### 12.4 Video Call / PIP
 
-Title bar: group name, optional recording dot (6px red circle), participant count subtitle, menu toggle.
+**Remote video.** Fills main area with `Qt::KeepAspectRatio` crop; userpic/name/status hidden while the remote stream is live.
 
-**Members list:** Per-participant state: speaking = animated blob ring (green glow, 27-29px radius, pulsating on audio level), muted = crossed mic icon, raised hand = hand icon.
+**Self-view `VideoBubble`.** Default `160 × 110` px. `DragMode::SnapToCorners` in `calls_video_bubble.cpp` — snap targets: `TopLeft`, `TopRight`, `BottomLeft`, `BottomRight` (default anchor = `BottomRight`). **No explicit snap-distance threshold**: on mouse-release, the bubble picks the nearest of the 4 corners (Euclidean centre distance) and animates to the 12px-inset rest position. No drag momentum — travel time = `st::universalDuration (≈ 120ms)` with `anim::easeOutCirc`. Mirror default ON (flipped horizontally); toggled OFF during local screen-share.
 
-**Mute button:** Large Lottie-animated (36x36 icon, 42px bg circle). Green (unmuted) <-> gray (muted) with blob animations.
+**Pre-connect outgoing preview.** Centred, scales between `callOutgoingPreviewMin = 360×120` and `callOutgoingPreviewMax = 1620×540` based on window height — formula `size = min + (max − min) × (h − hMin) / (hDefault − hMin)`.
 
-**Bottom bar:** Settings (gear), Video (camera toggle), Screen Share, Hangup (red leave).
+**Camera button.** Active = camera glyph; disabled = crossed-out camera; tiny corner chevron opens device-selector menu for camera / mic switch.
 
-**Wide mode:** Video tile grid with participant name overlays, pin/unpin toggles, shadow gradients.
+### 12.5 Group Call — Narrow / Wide
 
-**Minimized bar (TopBar):** 38px height atop chat window. Group name, duration, participant userpics (28px, 8px overlap), mute toggle, hangup. Animated gradient background (green=active, gray=muted, purple=force-muted).
+**Width threshold** (`calls.style`): `groupCallWideModeWidthMin = 600px` (NOT 960 — earlier versions of the spec had it wrong). `updateMode()` in `calls_group_panel.cpp` selects wide when `rtmp() || (hasVideoWithFrames() && widget()->width() >= 600)`; everything below is narrow.
 
-### Screen Sharing
+**Narrow mode.** Single column — participants list + bottom controls; width practical floor = `380px` matching 1-on-1 call minimum.
 
-Source chooser modal: thumbnails (235x165px, 2px h-spacing, 10px v-spacing) with live previews + title labels. Optional "Share audio" checkbox. During sharing: Screencast button highlighted, PIP shows shared screen (mirroring disabled).
+**Wide mode.** Video viewport + members sidebar. Transition animation uses `st::slideWrapDuration` token (referenced in `calls_group_panel.cpp`; numeric value lives in a style file not retrieved this pass — typical value ~150-200ms).
 
-### Post-Call Rating
+**Title bar.** Group name, participant count subtitle, menu toggle. Recording state adds a 6px red dot with `kRecordingAnimationDuration = 1200ms` opacity-breathing loop.
 
-5 star icons (36x36px, 24px h-padding). Unselected: `windowSubTextFg`. Selected: `lightButtonFg`. Comment input below (max 135px height). Submits 1-5 rating + comment string.
+### 12.6 Speaker Blob Animation
+
+**Radii** (`calls.style`):
+- `groupCallRowBlobMinRadius = 27px`.
+- `groupCallRowBlobMaxRadius = 29px`.
+
+**Dual-blob system** (`calls/group/calls_group_members_row.cpp`):
+- **Minor blob** inner, scale factor `0.545`, 6 vertices.
+- **Major blob** outer, scale factor `0.605`, 8 vertices.
+- Both blobs share the same min/max radius envelope but use different vertex counts for the organic flicker.
+
+**Level → radius.** `setLevel(normalisedFloat)` drives interpolation between min and max radii over `kLevelDuration = 215ms` (= `100 + 500 × 0.23` per source comment). WebRTC provides the raw audio level; no client-side RMS smoothing beyond the 215ms envelope.
+
+**Userpic scaling.** `userpicScale = kUserpicMinScale (0.8) + (1 − 0.8) × level` → userpic pulses between 80% and 100% size with the voice level. `kWideScale = 5` used for the centred wide-mode userpic (scaled up for the large avatar tile).
+
+### 12.7 Mute Button (Big)
+
+Large animated action button — 36×36 Lottie icon inside a 42px-diameter circle. Three states: **green** (unmuted), **gray** (muted), **purple** (force-muted by admin). Each state change plays a dedicated Lottie segment; blob ring surrounding the circle pulses with `kLevelDuration = 215ms` same envelope as participant blobs.
+
+### 12.8 Minimised TopBar
+
+**Height.** `callBarHeight = 38px` (`calls.style`).
+
+**Contents.** Group name, mm:ss duration, participant userpic strip (each 28px, 8px overlap via `groupCallTopBarUserpics`), mute toggle, hangup (red).
+
+**Gradient state machine** (`calls/calls_top_bar.cpp`). Two-stop gradients:
+- **Active (unmuted)**: `groupCallLive1 → groupCallLive2` (greens).
+- **Muted by self**: `groupCallMuted1 → groupCallMuted2` (grays).
+- **Connecting**: solid `callBarBgMuted`.
+- **Force-muted (admin)**: three-stop `groupCallForceMutedBar1/2/3` (purples).
+
+Hex values for these tokens resolve to theme palette — NOT extracted in this pass (need `colors.palette` sweep; flagged for next session).
+
+**Transition.** `_switchStateAnimation` over `|toState − fromState| × universalDuration` — gradient sweeps across the bar width during the switch, mute-icon cross-line interpolates simultaneously.
+
+### 12.9 Screen-Share Source Chooser
+
+**Status: `calls/calls_choose_source_box.cpp` returned 404 on every branch attempted (dev / main / master).** File exists in the repo directory listing but is not publicly accessible via the raw-content endpoint. Flagged for a next-session clone-based research pass.
+
+Known from cross-references in other call files:
+- Dual-tab layout: "Windows" (individual window thumbnails) vs "Full Screen" (per-monitor thumbnails).
+- Thumb geometry from prior spec: 235×165px, 2px horizontal gap, 10px vertical gap.
+- Optional "Share audio" checkbox (desktop-audio capture, Linux-gated by PipeWire availability).
+- Modal uses standard `Ui::BoxContent` chrome.
+
+### 12.10 Rating Dialog
+
+**Status: `calls/calls_rate_call_box.cpp` returned 404.** Same situation as 12.9.
+
+Known from prior spec + `callRatingStarSize` / `callRatingStarSkip` tokens NOT found in `calls.style`:
+- 5 star icons (prior spec reports 36×36 with 24px horizontal padding — unverified this pass).
+- Unselected colour `windowSubTextFg`, selected `lightButtonFg`.
+- Comment input below, max height 135px.
+- Submit payload = (rating 1-5, comment string) → MTProto `phone.setCallRating`.
+
+Flagged for verification with direct repo clone next session.
 
 ---
 
