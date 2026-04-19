@@ -178,6 +178,24 @@ class ChatState extends ChangeNotifier {
     return chatsForFolder(folderId).fold(0, (sum, c) => sum + c.unreadCount);
   }
 
+  /// Whether ALL unreads in a folder are from muted chats.
+  /// Returns true if every chat with unreads is muted (badge should be gray).
+  /// Returns false if any chat with unreads is unmuted (badge should be blue).
+  bool isFolderUnreadAllMuted(String? folderId) {
+    final folderChats = chatsForFolder(folderId);
+    return folderChats
+        .where((c) => c.unreadCount > 0)
+        .every((c) => c.isMuted);
+  }
+
+  /// Whether ALL unreads for an account are from muted chats.
+  bool isAccountUnreadAllMuted(String accountId) {
+    if (accountId.isEmpty) return true;
+    return _chats
+        .where((c) => c.accountId == accountId && !c.isArchived && c.unreadCount > 0)
+        .every((c) => c.isMuted);
+  }
+
   // ── Actions ──
 
   /// Set the active folder filter.

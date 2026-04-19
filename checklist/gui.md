@@ -32,7 +32,6 @@
 ## 2. Chat List Sidebar
 
 ### 2.1 Folder Tabs
-- [ ] Unread badges per tab (muted vs unmuted color) (S2)
 - [ ] Horizontal tab strip mode when vertical sidebar off (S2)
 - [ ] Horizontal tab strip: scrollable row below search bar (S2)
 - [ ] Horizontal tab strip: sliding underline indicator on active tab (S2)

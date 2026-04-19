@@ -50,6 +50,7 @@ class FilterColumn extends StatelessWidget {
             label: 'All',
             isActive: activeFolderId == null,
             unreadCount: allUnread,
+            unreadAllMuted: chatState.isAccountUnreadAllMuted(appState.activeAccountId),
             onTap: () => chatState.setActiveFolder(null),
           ),
           const SizedBox(height: 4),
@@ -72,6 +73,7 @@ class FilterColumn extends StatelessWidget {
               itemBuilder: (context, index) {
                 final folder = folders[index];
                 final unread = chatState.unreadCountForFolder(folder.id);
+                final allMuted = chatState.isFolderUnreadAllMuted(folder.id);
                 return ReorderableDelayedDragStartListener(
                   key: ValueKey(folder.id),
                   index: index,
@@ -82,6 +84,7 @@ class FilterColumn extends StatelessWidget {
                       label: _shortenLabel(folder.name),
                       isActive: activeFolderId == folder.id,
                       unreadCount: unread,
+                      unreadAllMuted: allMuted,
                       onTap: () => chatState.setActiveFolder(
                         activeFolderId == folder.id ? null : folder.id,
                       ),
@@ -132,6 +135,7 @@ class _FolderTab extends StatelessWidget {
   final String label;
   final bool isActive;
   final int unreadCount;
+  final bool unreadAllMuted;
   final VoidCallback onTap;
 
   const _FolderTab({
@@ -139,6 +143,7 @@ class _FolderTab extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.unreadCount,
+    this.unreadAllMuted = false,
     required this.onTap,
   });
 
@@ -174,7 +179,8 @@ class _FolderTab extends StatelessWidget {
                     size: 24,
                     color: isActive ? activeColor : inactiveColor,
                   ),
-                  // Unread badge.
+                  // Unread badge: blue (#40a7e3) for unmuted, gray for all-muted.
+                  // Spec: muted = #bbbbbb (day) / #3e546a (night).
                   if (unreadCount > 0)
                     Positioned(
                       right: -8,
@@ -182,7 +188,11 @@ class _FolderTab extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
+                          color: unreadAllMuted
+                              ? (theme.brightness == Brightness.dark
+                                  ? const Color(0xFF3E546A)
+                                  : const Color(0xFFBBBBBB))
+                              : const Color(0xFF40A7E3),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         constraints: const BoxConstraints(minWidth: 16, minHeight: 14),
