@@ -533,6 +533,16 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "DeleteFolder":
+		var req pb.EngineDeleteFolderRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.DeleteFolder(req.AccountId, req.FolderId); err != nil {
+			return nil, err
+		}
+		return nil, nil
+
 	// ── Config ──
 
 	case "GetConfig":

@@ -223,6 +223,15 @@ class EngineService {
     return resp.folders.map(_folderInfoFromProto).toList();
   }
 
+  /// Delete a folder by its ID. The underlying core handles the platform-
+  /// specific API call (Telegram uses filter ID, Bale/Rubika use their IDs).
+  Future<void> deleteFolder(String accountId, String folderId) async {
+    final req = epb.EngineDeleteFolderRequest()
+      ..accountId = accountId
+      ..folderId = folderId;
+    await _callAsync('__engine', 'DeleteFolder', req.writeToBuffer());
+  }
+
   // ── Members ──
 
   Future<List<MemberInfo>> getChatMembers(String accountId, String chatId, {int limit = 50, int offset = 0}) async {

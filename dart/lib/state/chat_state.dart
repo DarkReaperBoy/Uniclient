@@ -204,6 +204,23 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Delete a folder by its ID. Resets active folder to "All" if the deleted
+  /// folder was active, then reloads the folder list from the engine.
+  Future<void> deleteFolder(String accountId, String folderId) async {
+    try {
+      await _engine.deleteFolder(accountId, folderId);
+    } catch (_) {
+      // Engine error — folder might already be gone; still refresh.
+    }
+    if (_activeFolderId == folderId) {
+      _activeFolderId = null;
+    }
+    _folders.removeWhere((f) => f.id == folderId);
+    notifyListeners();
+    // Reload from server to stay in sync.
+    await loadFoldersForAccount(accountId);
+  }
+
   /// Reorder folders locally (drag-and-drop in folder sidebar).
   void reorderFolders(int oldIndex, int newIndex) {
     if (oldIndex < 0 || oldIndex >= _folders.length) return;

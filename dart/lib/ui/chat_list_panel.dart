@@ -636,17 +636,61 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
             tabs: [
               KeyedSubtree(
                 key: _firstTabKey,
-                child: _buildTab('All', widget.allUnread),
+                child: GestureDetector(
+                  onSecondaryTapUp: (d) => _showTabContextMenu(context, d.globalPosition, null),
+                  child: _buildTab('All', widget.allUnread),
+                ),
               ),
               ...widget.chatState.folders.map(
-                (f) => _buildTab(
-                    f.name, widget.chatState.unreadCountForFolder(f.id)),
+                (f) => GestureDetector(
+                  onSecondaryTapUp: (d) => _showTabContextMenu(context, d.globalPosition, f),
+                  child: _buildTab(
+                      f.name, widget.chatState.unreadCountForFolder(f.id)),
+                ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Spec §2: right-click context menu on folder tabs.
+  /// For a specific folder: Edit Folder, Delete Folder, Edit Folders.
+  /// For "All Chats" (folder == null): only Edit Folders.
+  void _showTabContextMenu(BuildContext context, Offset globalPosition, FolderInfo? folder) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final appState = context.read<AppState>();
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromRect(
+        globalPosition & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        if (folder != null) ...[
+          const PopupMenuItem(value: 'edit', child: Text('Edit Folder')),
+          const PopupMenuItem(value: 'delete', child: Text('Delete Folder')),
+          const PopupMenuDivider(),
+        ],
+        const PopupMenuItem(value: 'setup', child: Text('Edit Folders')),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'edit':
+          // TODO: open folder editor when folder settings UI is built
+          break;
+        case 'delete':
+          if (folder != null) {
+            widget.chatState.deleteFolder(appState.activeAccountId, folder.id);
+          }
+        case 'setup':
+          // TODO: open folder settings page when settings UI is built
+          break;
+      }
+    });
   }
 
   Widget _buildTab(String label, int unread) {

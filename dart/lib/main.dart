@@ -17,6 +17,7 @@ import 'theme/theme.dart';
 import 'ui/chat_list_panel.dart';
 import 'ui/chat_view.dart';
 import 'ui/shell.dart';
+import 'ui/titlebar.dart';
 import 'utils/debug.dart';
 import 'utils/system_tray.dart';
 
@@ -768,7 +769,11 @@ class _UniClientAppState extends State<UniClientApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: appState.themeMode,
-      home: CallbackShortcuts(
+      home: Column(
+        children: [
+          if (Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
+          Expanded(
+            child: CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
           // Telegram Desktop spec §24.4: Ctrl+F opens search in current context.
           // We focus the chat list search field.
@@ -888,6 +893,9 @@ class _UniClientAppState extends State<UniClientApp> {
               () => ChatView.requestCycleReply(-1),
         },
         child: const UniClientShell(),
+      ),
+          ),
+        ],
       ),
     );
   }

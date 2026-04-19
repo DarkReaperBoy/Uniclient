@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
@@ -20,6 +21,7 @@ class AppState extends ChangeNotifier {
   String? _initError;
 
   String _configDir = '';
+  bool _nativeWindowFrame = false;
   final List<StreamSubscription<dynamic>> _subs = [];
 
   /// Callback for showing connection-state notifications (set by UI layer).
@@ -50,6 +52,8 @@ class AppState extends ChangeNotifier {
   /// The currently active account (null if no accounts exist).
   AccountInfo? get activeAccount =>
       _accounts.where((a) => a.id == _activeAccountId).firstOrNull;
+
+  bool get nativeWindowFrame => _nativeWindowFrame;
 
   ThemeMode get themeMode => switch (_config.theme) {
     'light' => ThemeMode.light,
@@ -122,6 +126,13 @@ class AppState extends ChangeNotifier {
       _accounts = _engine.listAccounts();
       _config = _engine.getConfig();
       _ensureActiveAccount();
+      // Load window prefs (native frame toggle) before marking initialized.
+      _loadWindowPrefs();
+      if (_nativeWindowFrame && Platform.isLinux) {
+        try {
+          await _windowChannel.invokeMethod('setDecorated', true);
+        } catch (_) {}
+      }
       _initialized = true;
       Debug.log('APP', 'Engine initialized, ${_accounts.length} accounts');
       notifyListeners();
@@ -197,6 +208,47 @@ class AppState extends ChangeNotifier {
     _engine.updateConfig(theme: theme);
     _config = _engine.getConfig();
     notifyListeners();
+  }
+
+  static const _windowChannel = MethodChannel('com.uniclient.app/window');
+
+  /// Toggle between native system window frame and client-side custom titlebar.
+  /// Spec §1: _nativeWindowFrame defaults to false; toggled via Settings → Advanced.
+  Future<void> setNativeWindowFrame(bool value) async {
+    if (_nativeWindowFrame == value) return;
+    _nativeWindowFrame = value;
+    // Tell GTK to add/remove window decorations.
+    if (Platform.isLinux) {
+      try {
+        await _windowChannel.invokeMethod('setDecorated', value);
+      } catch (_) {}
+    }
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  String get _windowPrefsPath =>
+      _configDir.isEmpty ? '' : '$_configDir/window_prefs.json';
+
+  void _loadWindowPrefs() {
+    final path = _windowPrefsPath;
+    if (path.isEmpty) return;
+    try {
+      final file = File(path);
+      if (!file.existsSync()) return;
+      final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      _nativeWindowFrame = data['nativeWindowFrame'] as bool? ?? false;
+    } catch (_) {}
+  }
+
+  void _saveWindowPrefs() {
+    final path = _windowPrefsPath;
+    if (path.isEmpty) return;
+    try {
+      File(path).writeAsStringSync(jsonEncode({
+        'nativeWindowFrame': _nativeWindowFrame,
+      }));
+    } catch (_) {}
   }
 
   static String _platformLabel(String platform) => switch (platform.toLowerCase()) {

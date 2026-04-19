@@ -532,6 +532,17 @@ message EngineGetFoldersResponse {
   repeated EngineFolderInfo folders = 1;
 }
 
+message EngineDeleteFolderRequest {
+  string account_id = 1;
+  string folder_id  = 2;
+}
+
+message EngineEditFolderRequest {
+  string account_id = 1;
+  string folder_id  = 2;
+  string title      = 3;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Pinned Messages
 // ═══════════════════════════════════════════════════════════════════════

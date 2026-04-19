@@ -5925,6 +5925,147 @@ class EngineGetFoldersResponse extends $pb.GeneratedMessage {
   $core.List<EngineFolderInfo> get folders => $_getList(0);
 }
 
+class EngineDeleteFolderRequest extends $pb.GeneratedMessage {
+  factory EngineDeleteFolderRequest({
+    $core.String? accountId,
+    $core.String? folderId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (folderId != null) {
+      $result.folderId = folderId;
+    }
+    return $result;
+  }
+  EngineDeleteFolderRequest._() : super();
+  factory EngineDeleteFolderRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineDeleteFolderRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineDeleteFolderRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'folderId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineDeleteFolderRequest clone() => EngineDeleteFolderRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineDeleteFolderRequest copyWith(void Function(EngineDeleteFolderRequest) updates) => super.copyWith((message) => updates(message as EngineDeleteFolderRequest)) as EngineDeleteFolderRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineDeleteFolderRequest create() => EngineDeleteFolderRequest._();
+  EngineDeleteFolderRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineDeleteFolderRequest> createRepeated() => $pb.PbList<EngineDeleteFolderRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineDeleteFolderRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineDeleteFolderRequest>(create);
+  static EngineDeleteFolderRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get folderId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set folderId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasFolderId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFolderId() => clearField(2);
+}
+
+class EngineEditFolderRequest extends $pb.GeneratedMessage {
+  factory EngineEditFolderRequest({
+    $core.String? accountId,
+    $core.String? folderId,
+    $core.String? title,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (folderId != null) {
+      $result.folderId = folderId;
+    }
+    if (title != null) {
+      $result.title = title;
+    }
+    return $result;
+  }
+  EngineEditFolderRequest._() : super();
+  factory EngineEditFolderRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineEditFolderRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineEditFolderRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'folderId')
+    ..aOS(3, _omitFieldNames ? '' : 'title')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineEditFolderRequest clone() => EngineEditFolderRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineEditFolderRequest copyWith(void Function(EngineEditFolderRequest) updates) => super.copyWith((message) => updates(message as EngineEditFolderRequest)) as EngineEditFolderRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineEditFolderRequest create() => EngineEditFolderRequest._();
+  EngineEditFolderRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineEditFolderRequest> createRepeated() => $pb.PbList<EngineEditFolderRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineEditFolderRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineEditFolderRequest>(create);
+  static EngineEditFolderRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get folderId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set folderId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasFolderId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFolderId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get title => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set title($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasTitle() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTitle() => clearField(3);
+}
 
 class EngineGetPinnedMessagesRequest extends $pb.GeneratedMessage {
   factory EngineGetPinnedMessagesRequest({
@@ -5950,9 +6091,15 @@ class EngineGetPinnedMessagesRequest extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
-  @$core.Deprecated('Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineGetPinnedMessagesRequest clone() => EngineGetPinnedMessagesRequest()..mergeFromMessage(this);
-  @$core.Deprecated('Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineGetPinnedMessagesRequest copyWith(void Function(EngineGetPinnedMessagesRequest) updates) => super.copyWith((message) => updates(message as EngineGetPinnedMessagesRequest)) as EngineGetPinnedMessagesRequest;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6003,9 +6150,15 @@ class EngineGetPinnedMessagesResponse extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
-  @$core.Deprecated('Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineGetPinnedMessagesResponse clone() => EngineGetPinnedMessagesResponse()..mergeFromMessage(this);
-  @$core.Deprecated('Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineGetPinnedMessagesResponse copyWith(void Function(EngineGetPinnedMessagesResponse) updates) => super.copyWith((message) => updates(message as EngineGetPinnedMessagesResponse)) as EngineGetPinnedMessagesResponse;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6021,6 +6174,7 @@ class EngineGetPinnedMessagesResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   $core.List<EngineCachedMessage> get messages => $_getList(0);
 }
+
 
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

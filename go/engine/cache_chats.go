@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"uniclient/cores"
@@ -459,6 +460,49 @@ func (e *Engine) GetFolders(accountID string) ([]FolderInfo, error) {
 		}
 	}
 	return result, nil
+}
+
+// DeleteFolder deletes a chat folder via the underlying core.
+func (e *Engine) DeleteFolder(accountID, folderID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+
+	// Try string-ID deleter first (Rubika).
+	type folderDeleterStr interface {
+		DeleteFolder(folderID string) error
+	}
+	if fd, ok := acc.Core.(folderDeleterStr); ok {
+		return fd.DeleteFolder(folderID)
+	}
+
+	// Try int-ID deleter (Telegram).
+	type folderDeleterInt interface {
+		DeleteFolder(filterID int) error
+	}
+	if fd, ok := acc.Core.(folderDeleterInt); ok {
+		id, err := strconv.Atoi(folderID)
+		if err != nil {
+			return fmt.Errorf("invalid folder ID %q for int-based core: %w", folderID, err)
+		}
+		return fd.DeleteFolder(id)
+	}
+
+	// Try int64-ID deleter (Bale).
+	type folderDeleterInt64 interface {
+		DeleteFolder(folderID int64) (map[string]interface{}, error)
+	}
+	if fd, ok := acc.Core.(folderDeleterInt64); ok {
+		id, err := strconv.ParseInt(folderID, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid folder ID %q for int64-based core: %w", folderID, err)
+		}
+		_, err = fd.DeleteFolder(id)
+		return err
+	}
+
+	return fmt.Errorf("core does not support folder deletion")
 }
 
 // emitChatUpdate reads the current chat state from DB and emits an update event.

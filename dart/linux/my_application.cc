@@ -360,7 +360,7 @@ static void my_application_activate(GApplication* application) {
   gtk_window_set_decorated(window, FALSE);
 
   // Spec §1: Default 800x600, large-screen default 1024x768, minimum 380x480.
-  int def_w = 800, def_h = 600;
+  int def_w = 600, def_h = 600;
   GdkDisplay* display = gdk_display_get_default();
   if (display) {
     GdkMonitor* monitor = gdk_display_get_primary_monitor(display);
@@ -369,7 +369,7 @@ static void my_application_activate(GApplication* application) {
       GdkRectangle workarea;
       gdk_monitor_get_workarea(monitor, &workarea);
       if (workarea.width >= 1280 && workarea.height >= 800) {
-        def_w = 1024;
+        def_w = 600;
         def_h = 768;
       }
     }

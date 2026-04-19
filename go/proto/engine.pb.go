@@ -4467,6 +4467,118 @@ func (x *EngineGetFoldersResponse) GetFolders() []*EngineFolderInfo {
 	return nil
 }
 
+type EngineDeleteFolderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	FolderId      string                 `protobuf:"bytes,2,opt,name=folder_id,json=folderId,proto3" json:"folder_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineDeleteFolderRequest) Reset() {
+	*x = EngineDeleteFolderRequest{}
+	mi := &file_proto_engine_proto_msgTypes[66]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineDeleteFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineDeleteFolderRequest) ProtoMessage() {}
+
+func (x *EngineDeleteFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[66]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineDeleteFolderRequest.ProtoReflect.Descriptor instead.
+func (*EngineDeleteFolderRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{66}
+}
+
+func (x *EngineDeleteFolderRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineDeleteFolderRequest) GetFolderId() string {
+	if x != nil {
+		return x.FolderId
+	}
+	return ""
+}
+
+type EngineEditFolderRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	FolderId      string                 `protobuf:"bytes,2,opt,name=folder_id,json=folderId,proto3" json:"folder_id,omitempty"`
+	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineEditFolderRequest) Reset() {
+	*x = EngineEditFolderRequest{}
+	mi := &file_proto_engine_proto_msgTypes[67]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineEditFolderRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineEditFolderRequest) ProtoMessage() {}
+
+func (x *EngineEditFolderRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[67]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineEditFolderRequest.ProtoReflect.Descriptor instead.
+func (*EngineEditFolderRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{67}
+}
+
+func (x *EngineEditFolderRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineEditFolderRequest) GetFolderId() string {
+	if x != nil {
+		return x.FolderId
+	}
+	return ""
+}
+
+func (x *EngineEditFolderRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
 type EngineGetPinnedMessagesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -4477,7 +4589,7 @@ type EngineGetPinnedMessagesRequest struct {
 
 func (x *EngineGetPinnedMessagesRequest) Reset() {
 	*x = EngineGetPinnedMessagesRequest{}
-	mi := &file_proto_engine_proto_msgTypes[66]
+	mi := &file_proto_engine_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4489,7 +4601,7 @@ func (x *EngineGetPinnedMessagesRequest) String() string {
 func (*EngineGetPinnedMessagesRequest) ProtoMessage() {}
 
 func (x *EngineGetPinnedMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[66]
+	mi := &file_proto_engine_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4502,7 +4614,7 @@ func (x *EngineGetPinnedMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetPinnedMessagesRequest.ProtoReflect.Descriptor instead.
 func (*EngineGetPinnedMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{66}
+	return file_proto_engine_proto_rawDescGZIP(), []int{68}
 }
 
 func (x *EngineGetPinnedMessagesRequest) GetAccountId() string {
@@ -4528,7 +4640,7 @@ type EngineGetPinnedMessagesResponse struct {
 
 func (x *EngineGetPinnedMessagesResponse) Reset() {
 	*x = EngineGetPinnedMessagesResponse{}
-	mi := &file_proto_engine_proto_msgTypes[67]
+	mi := &file_proto_engine_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4540,7 +4652,7 @@ func (x *EngineGetPinnedMessagesResponse) String() string {
 func (*EngineGetPinnedMessagesResponse) ProtoMessage() {}
 
 func (x *EngineGetPinnedMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_engine_proto_msgTypes[67]
+	mi := &file_proto_engine_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4553,7 +4665,7 @@ func (x *EngineGetPinnedMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EngineGetPinnedMessagesResponse.ProtoReflect.Descriptor instead.
 func (*EngineGetPinnedMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_proto_engine_proto_rawDescGZIP(), []int{67}
+	return file_proto_engine_proto_rawDescGZIP(), []int{69}
 }
 
 func (x *EngineGetPinnedMessagesResponse) GetMessages() []*EngineCachedMessage {
@@ -4969,7 +5081,16 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"Q\n" +
 	"\x18EngineGetFoldersResponse\x125\n" +
-	"\afolders\x18\x01 \x03(\v2\x1b.uniclient.EngineFolderInfoR\afolders\"X\n" +
+	"\afolders\x18\x01 \x03(\v2\x1b.uniclient.EngineFolderInfoR\afolders\"W\n" +
+	"\x19EngineDeleteFolderRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1b\n" +
+	"\tfolder_id\x18\x02 \x01(\tR\bfolderId\"k\n" +
+	"\x17EngineEditFolderRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1b\n" +
+	"\tfolder_id\x18\x02 \x01(\tR\bfolderId\x12\x14\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\"X\n" +
 	"\x1eEngineGetPinnedMessagesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -4989,7 +5110,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 70)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -5057,8 +5178,10 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineFolderInfo)(nil),                // 63: uniclient.EngineFolderInfo
 	(*EngineGetFoldersRequest)(nil),         // 64: uniclient.EngineGetFoldersRequest
 	(*EngineGetFoldersResponse)(nil),        // 65: uniclient.EngineGetFoldersResponse
-	(*EngineGetPinnedMessagesRequest)(nil),  // 66: uniclient.EngineGetPinnedMessagesRequest
-	(*EngineGetPinnedMessagesResponse)(nil), // 67: uniclient.EngineGetPinnedMessagesResponse
+	(*EngineDeleteFolderRequest)(nil),       // 66: uniclient.EngineDeleteFolderRequest
+	(*EngineEditFolderRequest)(nil),         // 67: uniclient.EngineEditFolderRequest
+	(*EngineGetPinnedMessagesRequest)(nil),  // 68: uniclient.EngineGetPinnedMessagesRequest
+	(*EngineGetPinnedMessagesResponse)(nil), // 69: uniclient.EngineGetPinnedMessagesResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -5092,7 +5215,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   68,
+			NumMessages:   70,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
