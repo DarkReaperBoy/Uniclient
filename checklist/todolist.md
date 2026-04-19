@@ -21,12 +21,12 @@ Progress so far (see `spec_gaps.md` for strike-throughs + per-section completion
 - ✅ §54 AyuGram Filters semantics + Shadow Ban flow (2026-04-19)
 - ✅ §14-§19 Settings group complete (2026-04-19)
 - ✅ §20-§22 Media Viewer / Create Group/Channel / Forum Topics (2026-04-19)
+- ✅ §23-§26 Scheduled / Keyboard Shortcuts / Theming / Admin Tools (2026-04-19) — §20-§26 batch complete
 
 Next-session priority (pick one, dispatch 3 parallel agents):
-1. **§23-§26** — Scheduled Messages, Keyboard Shortcuts, Theming, Admin Tools (biggest remaining user-facing group; §25 theming + §26 admin are the heaviest).
-2. **§27-§34** — Passcode, 2FA, Chat Export, Bots, Saved Messages, §32/§33/§34 remainder (story composer already done — only gaps left in §32; §33 contacts + §34 calls).
-3. **§35-§49** — States/Popups/Misc — many small sections, good for a fast cleanup batch.
-4. **§52/§53** — remaining AyuGram extensions (saveForBots gating, deletedMark/editedMark, Repeat Message hint, etc.)
+1. **§27-§34** — Passcode, 2FA, Chat Export, Bots, Saved Messages, §32/§33/§34 remainder (story composer already done — only gaps left in §32; §33 contacts + §34 calls).
+2. **§35-§49** — States/Popups/Misc — many small sections, good for a fast cleanup batch.
+3. **§52/§53** — remaining AyuGram extensions (saveForBots gating, deletedMark/editedMark, Repeat Message hint, etc.)
 
 Batch recipe (proven): read current section bounds via grep, dispatch 3 parallel Opus agents each scoped to one section's line range, split the combined diff with `/tmp/split_patch*.py` approach, commit each section separately, push once at the end.
 
