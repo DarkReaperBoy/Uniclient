@@ -36,7 +36,6 @@
 ### 2.2 Search Bar
 
 ### 2.3 Chat List Rows
-- [ ] Verified/scam/fake badges after name (S2)
 - [ ] Typing indicator: animated dots replacing preview text (S2)
 - [ ] Mini media previews: 16px thumbnails in preview (S2)
 - [ ] Unread pill Over and Active color variants (S2)
