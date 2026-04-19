@@ -1871,57 +1871,111 @@ Separate widget (`chat_helpers/field_autocomplete.cpp`) — NOT part of TabbedPa
 
 ## 11. Authentication / Login Flow
 
-### Architecture
+### 11.1 Architecture
 
-Step stack managed by `Intro::Widget`. Each screen = `Step` subclass sharing `Data` struct (phone, phoneHash, codeLength, callStatus, pwdState, termsLock). Navigation: `goNext`/`goBack`/`goReplace` with slide/cover animations.
+Step stack managed by `Intro::Widget`. Each screen = `Step` subclass sharing a `Data` struct (phone, phoneHash, codeLength, callStatus, pwdState, termsLock). Navigation: `goNext` / `goBack` / `goReplace` with slide/cover animations.
 
-Persistent bottom bar: `_next` RoundButton (300x42px, 6px radius), `_back` IconButton, `_changeLanguage` LinkButton, `_settings` button, optional `_resetAccount` button.
+Persistent bottom bar: `_next` RoundButton, `_back` IconButton, `_changeLanguage` LinkButton, `_settings` button, optional `_resetAccount` button.
 
-### Screen 1: QR Code Login (default entry)
+### 11.2 `_next` Button — States & Transitions
 
-QR code centered at `introQrTop`. Max QR size: 180px, 8px rounded background padding. Telegram logo at center (44px circle, blue #40A7E3, paper plane icon). Radial spinner while waiting for token. Cross-fade on new QR arrival.
+**Geometry** (`intro/intro.style:76-79`):
+- `introNextButton.width = 300px`
+- `introNextButton.height = 42px`
+- `introNextButton.radius = 6px`
+- `introNextButton.textTop = 11px`
 
-Below QR: title "Log in to Telegram by QR Code". Three numbered instruction steps: (1) Open Telegram on phone, (2) Go to Settings > Devices > Link Desktop Device, (3) Point phone at screen. Step numbers bold, positioned left.
+**Positioning.** Base Y = `introNextTop = 266px` (line 24). During slide-in, Y interpolates from `introNextTop + introNextSlide (200px)` up to `introNextTop`, driven by `shownAmount`:
+```
+y = anim::interpolate(nextTop + introNextSlide, nextTop, shownAmount)
+```
+Visibility toggle uses `FadeWrap<Ui::RoundButton>::toggle(visible, anim::type::normal)` — 150ms linear fade (RoundButton's default).
 
-Below: "Log in by phone number" link. Optional passkey login link. Token auto-refreshes on expiry. Next button hidden.
+**Text.** Bound via `getStep()->nextButtonText()`, reactive rpl stream — text changes recompute the button width within the 300px cap. Button text changes do NOT animate; the new label draws atomically on the next paint tick.
 
-### Screen 2: Phone Number Entry
+**Busy/loading.** No spinner overlay on the button itself. Loading state is surfaced via per-step UI (QR radial spinner in `intro_qr.cpp`, password poll-timer cursor on the field). Submit flood → `_nextButton->setDisabled(true)` until server responds.
 
-Three inputs: country picker dropdown, country code (64px, "+XX"), phone part (remaining). 300px total width.
+**Error.** `_next` stays visible; the failing field gets the shake + red border (see §11.5).
 
-"Log in via QR code" link as alternative. Next button: "Next".
+### 11.3 QR Code Screen
 
-Validation: phone > 1 digit. Errors: "PHONE_NUMBER_INVALID" inline, "PHONE_NUMBER_BANNED" dialog, flood warning. 1-second poll timer while request pending.
+**Geometry** (`intro.style:55-69`):
+- `introQrMaxSize = 180px` — largest QR dimension; smaller QRs center within.
+- `introQrBackgroundSkip = 12px` — white-card padding around the QR matrix (the "quiet zone", exceeding the 4-module QR-spec minimum).
+- `introQrBackgroundRadius = 8px` — rounded white card.
+- `introQrCenterSize = 44px` — blue logo disc at matrix centre (Telegram plane glyph over `#40A7E3` fill — hex literal `0x40, 0xA7, 0xE3` in `intro_qr.cpp`).
 
-### Screen 3: OTP Code Entry
+**Radial spinner.** Shown while waiting for token. `Ui::InfiniteRadialAnimation` sized to `introQrMaxSize`, `radialLine = 1-2px` stroke, colour = `QrActiveColor()` returning `#40A7E3`. Opacity fades with `(1 - shown)` as the QR bitmap appears.
 
-Custom `CodeInput` with individual digit cells. Each cell: rounded rectangle, `windowBgOver` background. Focused: `windowActiveTextFg` border. Cell height: 50px, width: 40px (0.8x height), border: 4px, spacing: 10px. Font: 20px.
+**Token lifecycle.** `intro_qr.cpp` generates via `Qr::Encode()` at `Qr::Redundancy::Quartile` (~25% error correction). On server-delivered refresh, the new matrix crossfades over the old one; no slide.
 
-Digit entry animation: fade in + slide up (20% cell height). Deletion: scale down + fade out. Error: shake animation + red borders.
+**Screen layout.** Centred QR + 3 numbered instruction lines (bold step number, regular instruction). "Log in by phone number" link below. `_next` hidden on this screen.
 
-Arrow keys/Home/End navigate cells. Backspace deletes + moves left. Paste auto-fills + auto-submits when complete.
+### 11.4 Phone Number Screen
 
-Below input: call countdown ("Telegram will call you in X:XX" / "Calling..."). "Didn't get the code?" link for alternative delivery.
+**Inputs** (`intro.style:42-43`):
+- `introCountry.width = 300px`, `heightMin = 61px` — country picker row, widest of the three fields.
+- Country code field: fixed `64px` wide, prefixed "+", digit-only mask.
+- Phone body field: remaining `300 - 64 ≈ 236px`, digit-only mask with space separator per country pattern.
 
-### Screen 4: 2FA Password
+**Country picker popup.** Widget lives in `boxes/country_select_box.cpp` (not retrievable via WebFetch in this pass — flagged for next session). Confirmed via references in `intro/intro_phone.cpp`: uses `Ui::MultiSelect` on top for search filter + scrollable row list below. Each row = flag glyph (emoji-rendered) + country name + `+XX` code; row height inherits from default list style.
 
-`PasswordInput` field, 300px wide. Hint label: "Hint: {hint}" (if set). "Forgot password?" link below.
+**Validation.** Phone-body length > 1 digit required. Error states:
+- `PHONE_NUMBER_INVALID` → inline error label under phone field, field shake.
+- `PHONE_NUMBER_BANNED` → modal dialog with support-email link.
+- Flood → inline warning + countdown.
 
-Submit: SRP hash computation + `auth.checkPassword`. Errors: "Wrong password" + select all + error highlight. "Forgot password" -> recovery code mode.
+### 11.5 OTP Code Screen
 
-**Recovery mode:** Hides password field, shows code input. "Recovery code sent to {email_pattern}". If no recovery email: info box + "Reset account" button.
+**Cell geometry** (`intro.style:49-52`, `intro_code_input.cpp`):
+- `introCodeDigitHeight = 50px`; width = height × `kWidthRatio (0.8) = 40px`.
+- `introCodeDigitBorderWidth = 4px` — outer ring on focused/error.
+- `introCodeDigitSkip = 10px` — inter-cell gap.
+- `introCodeDigitFont = 20px` — digit glyph.
 
-### Screen 5: Registration (New Account)
+**Colors.** Background = `windowBgOver`; unfocused border = `windowBgRipple`; focused border = `windowActiveTextFg`; error border = `activeLineFgError` (shared theme token — not resolved in `intro.style` nor in fetched `colors.palette` via this pass; flagged).
 
-`UserpicButton` for avatar (right edge at `introPhotoTop`). First name + Last name input fields. RTL languages: swap field order.
+**Entry animation.** New digit fades in + slides up by `kSlideDistanceRatio (0.2) × cellHeight = 10px` (`intro_code_input.cpp`). Deletion: scale-down + fade-out. Both use `universalDuration` (default 120ms) at linear easing.
 
-Title: "Your Name". Description: "Enter your name and add a profile photo". Terms acceptance dialog if required. Next button: "Start Messaging".
+**Error shake.** Delegated to `InputField::DefaultShakeCallback` (lives in `ui/widgets/fields/input_field.cpp`; not retrievable in this pass — needs verification of shake amplitude/duration next session). Triggered by `showError()` on wrong code entry.
 
-### Animations
+**Keyboard.** Arrow/Home/End navigate cells; Backspace deletes digit + moves left; Paste auto-fills + submits when complete. Each cell is its own focus target.
 
-**Cover animation** (QR <-> phone): Gradient cover (208px, with icons + app logo) slides vertically. Title/description crossfade with `easeOutCirc`. Content snapshots fade. Duration: `introCoverDuration`.
+**Call countdown row.** Below input — "Telegram will call you in X:XX" → "Calling..." when the voice fallback timer elapses. "Didn't get the code?" link offers alternate delivery (SMS, email, other session).
 
-**Slide animation** (between non-cover steps): Bitmap snapshots, horizontal slide over `introSlideDuration`. Clipped to prevent overflow.
+### 11.6 2FA Password Screen
+
+**Layout** (`intro.style:46`): `introPasswordTop = 74px`. `PasswordInput` field `300px` wide. Hint label renders as `"Hint: {hint}"` only when the user configured a hint.
+
+**Submit.** SRP hash computed client-side, `auth.checkPassword` MTProto call. On error: `showError()` on `_pwdField` triggers the shared shake + red border + automatic `selectAll()` (so the next keystroke replaces the wrong password). Hex of the error color not sourced in this pass — uses `activeLineFgError` theme token.
+
+**Recovery.** "Forgot password?" link swaps the UI into recovery-code mode: password field hides, code input appears, copy reads `"Recovery code sent to {email_pattern}"`. If no recovery email was set, an info box opens with a "Reset account" button (7-day reset timer on server).
+
+### 11.7 Registration Screen
+
+**Avatar** (`intro.style:5`): `introPhotoTop = 10px`. `UserpicButton` in `ChoosePhoto` role — inherits size from `st::defaultUserpicButton` (not in intro.style; needs cross-reference to `ui/userpic_button.cpp` next session). Tap opens system photo picker; server crop-upload happens after file chosen (no in-app crop dialog in signup flow).
+
+**Name fields.** First name + Last name, each `300px` wide, stacked vertically. RTL (Arabic/Farsi/Hebrew) swaps order — last-name first.
+
+**Copy.** Title "Your Name". Description "Enter your name and add a profile photo". Terms acceptance dialog gates submit when server sets `termsLock`. Next button text: "Start Messaging".
+
+### 11.8 Inter-Screen Animations
+
+**Cover animation** (QR ↔ phone). `intro_step.cpp` renders the 208-px-tall gradient cover (`introCoverHeight`, line 6).
+- Gradient: vertical linear `anim::color(introCoverTopBg, introCoverBottomBg, y/realHeight)` — exact hex values for `introCoverTopBg`/`introCoverBottomBg` NOT in `intro.style`; defined in theme palette files (typical Telegram blue sweep `~#0088cc → ~#0066aa` day; muted dark slate night).
+- Logo placement: `planeLeft = (w − iconWidth)/2 − introCoverIconLeft (50px)`; `planeTop = introCoverIconTop (46px)`.
+- Slide easing: `anim::easeOutCirc` when `hasCover()` (the QR/phone boundary), `anim::linear` otherwise.
+- Title/description crossfade: `Ui::FlatLabel::CrossFade()` over `introCoverDuration = 200ms` (line 48).
+
+**Slide animation** (non-cover transitions, e.g. phone → code → password). Old + new step captured as `QPixmap`; horizontal translate over `introCoverDuration = 200ms` with clipping to prevent overflow. Direction derived from `goNext` vs `goBack`.
+
+### 11.9 Outstanding Gaps
+
+Flagged for next research pass — needs direct access to files that returned 404 via WebFetch in this session:
+- `ui/widgets/fields/input_field.cpp` — `DefaultShakeCallback` amplitude / duration / cycle-count.
+- `boxes/country_select_box.cpp` — row height, flag-icon size, search-filter debounce.
+- `colors.palette` for `activeLineFgError` hex (both themes) and `introCoverTopBg` / `introCoverBottomBg` hex.
+- `ui/userpic_button.cpp` — `defaultUserpicButton` size + hit-area + placeholder icon.
 
 ---
 
