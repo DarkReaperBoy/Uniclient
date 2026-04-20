@@ -128,6 +128,19 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         Navigator.of(context).pop();
                       },
                     ),
+                    // §3.3 / §54.8a: Menu Bots rows (dynamic per-bot).
+                    // Each attach-menu bot with inMainMenu + bot.media gets
+                    // its own row. Uses same mainMenuButton styling.
+                    for (final bot in appState.menuBots)
+                      _MenuRow(
+                        icon: Icons.smart_toy,
+                        label: bot.name,
+                        iconPath: bot.iconPath,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          // TODO: open bot's web app when engine supports it
+                        },
+                      ),
                     // §3.3: PlainShadow divider below My Profile/Bots block
                     // with 6px mainMenuSkip padding top and bottom.
                     Padding(
@@ -1003,12 +1016,14 @@ class _MenuRow extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final Widget? trailing;
+  final String? iconPath; // optional file-based icon (for menu bots)
 
   const _MenuRow({
     required this.icon,
     required this.label,
     required this.onTap,
     this.trailing,
+    this.iconPath,
   });
 
   @override
@@ -1043,7 +1058,21 @@ class _MenuRow extends StatelessWidget {
         child: Row(
           children: [
             // Spec §3.3: 24x24 icon at 21px horizontal.
-            Icon(icon, size: 24, color: iconColor),
+            // Menu bots use file-based icons when available.
+            if (iconPath != null && iconPath!.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.file(
+                  File(iconPath!),
+                  width: 24,
+                  height: 24,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      Icon(icon, size: 24, color: iconColor),
+                ),
+              )
+            else
+              Icon(icon, size: 24, color: iconColor),
             // Gap from icon to label: 61 - 21 - 24 = 16px.
             const SizedBox(width: 16),
             Expanded(

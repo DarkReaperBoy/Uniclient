@@ -54,7 +54,6 @@
 ### 3.2 Account Section (collapsible)
 
 ### 3.3 Menu Items
-- [ ] Menu Bots rows (dynamic per-bot) (S3)
 - [ ] New Group row with menuIconGroups (S3)
 - [ ] New Channel row with menuIconChannel (S3)
 - [ ] Contacts row with menuIconUserShow (S3)

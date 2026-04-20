@@ -624,6 +624,25 @@ class MemberInfo {
           : userId;
 }
 
+// ── Menu Bot (attach-menu bot with inMainMenu + media) ──
+class MenuBotInfo {
+  final String id;
+  final String name;
+  final String iconPath; // local path to bot's menu icon, or empty
+
+  const MenuBotInfo({
+    required this.id,
+    this.name = '',
+    this.iconPath = '',
+  });
+
+  factory MenuBotInfo.fromJson(Map<String, dynamic> j) => MenuBotInfo(
+    id: j['id'] as String? ?? '',
+    name: j['name'] as String? ?? '',
+    iconPath: j['icon_path'] as String? ?? '',
+  );
+}
+
 // ── App config ──
 class AppConfig {
   final String theme;

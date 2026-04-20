@@ -30,6 +30,10 @@ class AppState extends ChangeNotifier {
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
 
+  /// Spec §3.3 / §54.8a: Menu bots per account (attach-menu bots with
+  /// inMainMenu + bot.media). Keyed by account ID.
+  final Map<String, List<MenuBotInfo>> _menuBots = {};
+
   /// Spec §2.7: Configurable swipe action for chat list rows.
   /// Values: "mute", "pin", "read", "archive", "delete". Default: "archive".
   String _swipeAction = 'archive';
@@ -90,6 +94,17 @@ class AppState extends ChangeNotifier {
     if (_mainMenuAccountsShown == value) return;
     _mainMenuAccountsShown = value;
     _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  /// Spec §3.3: Menu bots for the active account. Empty when no bots
+  /// have inMainMenu + media set, or engine hasn't provided data yet.
+  List<MenuBotInfo> get menuBots =>
+      _menuBots[_activeAccountId] ?? const [];
+
+  /// Update menu bots for an account (called by engine event handler).
+  void setMenuBots(String accountId, List<MenuBotInfo> bots) {
+    _menuBots[accountId] = bots;
     notifyListeners();
   }
 
