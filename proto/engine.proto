@@ -33,6 +33,8 @@ message AccountInfo {
   int32  conn_state   = 6;
   bool   is_verified  = 7;
   bool   is_premium   = 8;
+  string phone        = 9;
+  string username     = 10;
 }
 
 // --- Init ---

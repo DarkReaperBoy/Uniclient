@@ -19,6 +19,8 @@ type AccountInfo struct {
 	ID          string `json:"id"`
 	Platform    string `json:"platform"`
 	DisplayName string `json:"display_name"`
+	Phone       string `json:"phone,omitempty"`
+	Username    string `json:"username,omitempty"`
 	AvatarPath  string `json:"avatar_path"`
 	SortOrder   int    `json:"sort_order"`
 	ConnState   int    `json:"conn_state"`
@@ -132,6 +134,8 @@ func (e *Engine) ListAccounts() []AccountInfo {
 			ID:          acc.ID,
 			Platform:    acc.Platform,
 			DisplayName: acc.DisplayName,
+			Phone:       acc.Phone,
+			Username:    acc.Username,
 			SortOrder:   acc.SortOrder,
 			ConnState:   int(acc.ConnState),
 			IsVerified:  acc.IsVerified,

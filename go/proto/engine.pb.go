@@ -102,6 +102,8 @@ type AccountInfo struct {
 	ConnState     int32                  `protobuf:"varint,6,opt,name=conn_state,json=connState,proto3" json:"conn_state,omitempty"`
 	IsVerified    bool                   `protobuf:"varint,7,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
 	IsPremium     bool                   `protobuf:"varint,8,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
+	Phone         string                 `protobuf:"bytes,9,opt,name=phone,proto3" json:"phone,omitempty"`
+	Username      string                 `protobuf:"bytes,10,opt,name=username,proto3" json:"username,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -190,6 +192,20 @@ func (x *AccountInfo) GetIsPremium() bool {
 		return x.IsPremium
 	}
 	return false
+}
+
+func (x *AccountInfo) GetPhone() string {
+	if x != nil {
+		return x.Phone
+	}
+	return ""
+}
+
+func (x *AccountInfo) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
 }
 
 type EngineInitRequest struct {
@@ -4717,7 +4733,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x02 \x01(\tR\taccountId\x12!\n" +
 	"\ftimestamp_ms\x18\x03 \x01(\x03R\vtimestampMs\x12\x1b\n" +
-	"\tdata_json\x18\x04 \x01(\fR\bdataJson\"\xbb\x01\n" +
+	"\tdata_json\x18\x04 \x01(\fR\bdataJson\"\xad\x02\n" +
 	"\vAccountInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1a\n" +
 	"\bplatform\x18\x02 \x01(\tR\bplatform\x12!\n" +
@@ -4727,7 +4743,14 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"sort_order\x18\x05 \x01(\x05R\tsortOrder\x12\x1d\n" +
 	"\n" +
-	"conn_state\x18\x06 \x01(\x05R\tconnState\"\x99\x01\n" +
+	"conn_state\x18\x06 \x01(\x05R\tconnState\x12\x1f\n" +
+	"\vis_verified\x18\a \x01(\bR\n" +
+	"isVerified\x12\x1d\n" +
+	"\n" +
+	"is_premium\x18\b \x01(\bR\tisPremium\x12\x14\n" +
+	"\x05phone\x18\t \x01(\tR\x05phone\x12\x1a\n" +
+	"\busername\x18\n" +
+	" \x01(\tR\busername\"\x99\x01\n" +
 	"\x11EngineInitRequest\x12\x1d\n" +
 	"\n" +
 	"config_dir\x18\x01 \x01(\tR\tconfigDir\x12\x1b\n" +

@@ -50,7 +50,6 @@
 ## 3. Hamburger Menu
 
 ### 3.1 Profile Area / Cover
-- [ ] Status content: phone when present, else "Set Emoji Status" link (S3)
 - [ ] Account-list toggle chevron: 6x6px, 3px strokes, at (30, 30) from top-right (S3)
 - [ ] Chevron rotation animation between up/down (S3)
 - [ ] Chevron only shown when 2+ accounts exist (S3)

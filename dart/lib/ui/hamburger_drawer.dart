@@ -269,12 +269,13 @@ class _ProfileCover extends StatelessWidget {
           ),
           // Status line at left 26, top 103 (spec §3).
           // Font: defaultFlatLabel 13px body, color: windowSubTextFg.
+          // Content: phone when present, else "Set Emoji Status" link.
           Positioned(
             left: 26,
             top: 103,
             right: 50,
             child: Text(
-              _platformLabel(account?.platform ?? ''),
+              _statusText(account),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -303,6 +304,12 @@ class _ProfileCover extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  static String _statusText(AccountInfo? account) {
+    if (account == null) return '';
+    if (account.phone.isNotEmpty) return account.phone;
+    return 'Set Emoji Status';
   }
 
   Widget _initials(String name, ThemeData theme) {

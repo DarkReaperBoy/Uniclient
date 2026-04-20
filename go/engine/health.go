@@ -116,6 +116,8 @@ func (e *Engine) ConnectAccount(accountID string) error {
 			if a, ok := e.accounts[accountID]; ok {
 				a.IsVerified = profile.IsVerified
 				a.IsPremium = profile.IsPremium
+				a.Phone = profile.Phone
+				a.Username = profile.Username
 			}
 			e.accountsMu.Unlock()
 			e.emitAccountList()

@@ -116,6 +116,8 @@ class AccountInfo extends $pb.GeneratedMessage {
     $core.int? connState,
     $core.bool? isVerified,
     $core.bool? isPremium,
+    $core.String? phone,
+    $core.String? username,
   }) {
     final $result = create();
     if (id != null) {
@@ -142,6 +144,12 @@ class AccountInfo extends $pb.GeneratedMessage {
     if (isPremium != null) {
       $result.isPremium = isPremium;
     }
+    if (phone != null) {
+      $result.phone = phone;
+    }
+    if (username != null) {
+      $result.username = username;
+    }
     return $result;
   }
   AccountInfo._() : super();
@@ -157,6 +165,8 @@ class AccountInfo extends $pb.GeneratedMessage {
     ..a<$core.int>(6, _omitFieldNames ? '' : 'connState', $pb.PbFieldType.O3)
     ..aOB(7, _omitFieldNames ? '' : 'isVerified')
     ..aOB(8, _omitFieldNames ? '' : 'isPremium')
+    ..aOS(9, _omitFieldNames ? '' : 'phone')
+    ..aOS(10, _omitFieldNames ? '' : 'username')
     ..hasRequiredFields = false
   ;
 
@@ -252,6 +262,24 @@ class AccountInfo extends $pb.GeneratedMessage {
   $core.bool hasIsPremium() => $_has(7);
   @$pb.TagNumber(8)
   void clearIsPremium() => clearField(8);
+
+  @$pb.TagNumber(9)
+  $core.String get phone => $_getSZ(8);
+  @$pb.TagNumber(9)
+  set phone($core.String v) { $_setString(8, v); }
+  @$pb.TagNumber(9)
+  $core.bool hasPhone() => $_has(8);
+  @$pb.TagNumber(9)
+  void clearPhone() => clearField(9);
+
+  @$pb.TagNumber(10)
+  $core.String get username => $_getSZ(9);
+  @$pb.TagNumber(10)
+  set username($core.String v) { $_setString(9, v); }
+  @$pb.TagNumber(10)
+  $core.bool hasUsername() => $_has(9);
+  @$pb.TagNumber(10)
+  void clearUsername() => clearField(10);
 }
 
 class EngineInitRequest extends $pb.GeneratedMessage {

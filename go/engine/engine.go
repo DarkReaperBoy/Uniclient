@@ -29,6 +29,8 @@ type Account struct {
 	ID          string
 	Platform    string
 	DisplayName string
+	Phone       string
+	Username    string
 	Core        cores.Core
 	ConnState   ConnState
 	SortOrder   int

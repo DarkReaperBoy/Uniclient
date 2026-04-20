@@ -167,10 +167,12 @@ func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *authFlow) {
 	if flow.state.DisplayName != "" {
 		acc.DisplayName = flow.state.DisplayName
 	}
-	// Fetch self-profile for verified/premium badges.
+	// Fetch self-profile for verified/premium badges, phone and username.
 	if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
 		acc.IsVerified = profile.IsVerified
 		acc.IsPremium = profile.IsPremium
+		acc.Phone = profile.Phone
+		acc.Username = profile.Username
 	}
 	e.accountsMu.Unlock()
 

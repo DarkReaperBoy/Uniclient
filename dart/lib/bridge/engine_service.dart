@@ -717,6 +717,8 @@ class EngineService {
     id: p.id,
     platform: p.platform,
     displayName: _safeStr(p.displayName),
+    phone: p.phone,
+    username: _safeStr(p.username),
     avatarPath: p.avatarPath,
     sortOrder: p.sortOrder,
     connState: ConnState.values[p.connState.clamp(0, ConnState.values.length - 1)],

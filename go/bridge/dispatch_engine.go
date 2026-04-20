@@ -70,6 +70,8 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				Id:          a.ID,
 				Platform:    a.Platform,
 				DisplayName: a.DisplayName,
+				Phone:       a.Phone,
+				Username:    a.Username,
 				AvatarPath:  a.AvatarPath,
 				SortOrder:   int32(a.SortOrder),
 				ConnState:   int32(a.ConnState),

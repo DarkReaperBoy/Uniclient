@@ -61,6 +61,8 @@ class AccountInfo {
   final String id;
   final String platform;
   final String displayName;
+  final String phone;
+  final String username;
   final String avatarPath;
   final int sortOrder;
   final ConnState connState;
@@ -71,6 +73,8 @@ class AccountInfo {
     required this.id,
     required this.platform,
     this.displayName = '',
+    this.phone = '',
+    this.username = '',
     this.avatarPath = '',
     this.sortOrder = 0,
     this.connState = ConnState.disconnected,
@@ -82,6 +86,8 @@ class AccountInfo {
     id: j['id'] as String? ?? '',
     platform: j['platform'] as String? ?? '',
     displayName: j['display_name'] as String? ?? '',
+    phone: j['phone'] as String? ?? '',
+    username: j['username'] as String? ?? '',
     avatarPath: j['avatar_path'] as String? ?? '',
     sortOrder: j['sort_order'] as int? ?? 0,
     connState: ConnState.values[(j['conn_state'] as int? ?? 0).clamp(0, ConnState.values.length - 1)],
