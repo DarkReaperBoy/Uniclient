@@ -54,12 +54,31 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
             ),
             // Spec §3: entire menu below cover is a single defaultSolidScroll
             // ScrollArea. Accounts extend the layout; the scroll bar takes over.
+            // Colors: scrollBarBg day #00000053 / night #ffffff53,
+            //         scrollBarBgOver day #0000007a / night #ffffff7a.
             Expanded(
-              child: Scrollbar(
-                thumbVisibility: true,
-                thickness: 6,
-                radius: const Radius.circular(3),
-                child: ListView(
+              child: ScrollbarTheme(
+                data: ScrollbarThemeData(
+                  thumbVisibility: WidgetStateProperty.all(true),
+                  thumbColor: WidgetStateProperty.resolveWith((states) {
+                    final hovered = states.contains(WidgetState.hovered) ||
+                        states.contains(WidgetState.dragged);
+                    if (isDark) {
+                      return hovered
+                          ? const Color(0x7affffff)
+                          : const Color(0x53ffffff);
+                    }
+                    return hovered
+                        ? const Color(0x7a000000)
+                        : const Color(0x53000000);
+                  }),
+                  thickness: WidgetStateProperty.all(6.0),
+                  radius: const Radius.circular(3),
+                ),
+                child: Scrollbar(
+                  thumbVisibility: true,
+                  interactive: true,
+                  child: ListView(
                   padding: EdgeInsets.zero,
                   children: [
                     // Account list (collapsible) — SlideWrap toggled by
@@ -272,7 +291,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       ),
                     // §3.6: Footer — product name + version/about links.
                     const _FooterSection(),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
