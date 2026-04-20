@@ -1218,22 +1218,31 @@ class _WarningBadge extends StatelessWidget {
 }
 
 /// Pill-shaped unread count badge.
+/// Spec §2.3: `allowDigits` controls `..N` truncation from `PaintUnreadBadge`.
+/// When `allowDigits > 0` and digit count > `allowDigits + 1`, text becomes
+/// `..` + last `allowDigits` digits (e.g. allowDigits=1 → `..3` for 123).
+/// Default 0 = no truncation (standard dialog rows). Jump-down uses 4.
 class _UnreadBadge extends StatelessWidget {
   final int count;
   final Color bgColor;
   final Color textColor;
+  final int allowDigits;
 
   const _UnreadBadge({
     required this.count,
     required this.bgColor,
     required this.textColor,
+    this.allowDigits = 0,
   });
 
   // Spec §2: 19px height, 5px horizontal padding, min-width = 19px (circle for single digit),
   // fully round ends (radius = height/2 = 9.5), 12px bold font, text vertically centered.
   @override
   Widget build(BuildContext context) {
-    final text = count > 999 ? '..${count % 1000}' : count.toString();
+    final raw = count.toString();
+    final text = (allowDigits > 0 && raw.length > allowDigits + 1)
+        ? '..${raw.substring(raw.length - allowDigits)}'
+        : raw;
     return Container(
       height: 19,
       padding: const EdgeInsets.symmetric(horizontal: 5),
