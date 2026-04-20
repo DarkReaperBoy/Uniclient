@@ -50,9 +50,6 @@
 ## 3. Hamburger Menu
 
 ### 3.1 Profile Area / Cover
-- [ ] Panel width: 274px (S3)
-- [ ] Cover area height: 134px (S3)
-- [ ] 1px PlainShadow separator at bottom of cover (S3)
 - [ ] Avatar: 48x48px circular userpic at left 24px / top 20px (S3)
 - [ ] Avatar clickable: toggles account list (S3)
 - [ ] Display name: left 26px, top 84px, semiboldFont 13px, windowBoldFg color (S3)
@@ -66,8 +63,6 @@
 
 ### 3.2 Account Section (collapsible)
 - [ ] Accounts in SlideWrap toggled by mainMenuAccountsShownValue (S3)
-- [ ] Bottom PlainShadow separator when account section open (S3)
-- [ ] 6px vertical spacer above and below (S3)
 - [ ] Account row: SettingsButton, padding 61px left, 11px top, 20px right, 9px bottom (S3)
 - [ ] Account row font: semiboldTextStyle 13px semibold (S3)
 - [ ] Account row icon-left: 23px (S3)

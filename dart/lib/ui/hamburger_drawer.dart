@@ -41,29 +41,50 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
               expanded: _accountsExpanded,
               onToggle: () => setState(() => _accountsExpanded = !_accountsExpanded),
             ),
+            // 1px PlainShadow at bottom of cover (spec §3: shadowFg).
+            Container(
+              height: 1,
+              color: isDark
+                  ? const Color(0x5604080e)
+                  : const Color(0x18000000),
+            ),
             // Account list (collapsible) — slideWrapDuration animation (spec §1).
+            // 6px spacers above/below per spec §3 (mainMenuSkip).
             ClipRect(
               child: AnimatedSize(
                 duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutCirc,
                 alignment: Alignment.topCenter,
                 child: _accountsExpanded
-                    ? _AccountList(
-                        accounts: appState.accounts,
-                        activeAccountId: appState.activeAccountId,
-                        connStates: appState.connStates,
-                        onSelect: (id) {
-                          appState.setActiveAccountId(id);
-                          context.read<ChatState>().switchAccount(id);
-                          setState(() => _accountsExpanded = false);
-                        },
-                        onAddAccount: () =>
-                            _showAddAccountDialog(context, appState),
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const SizedBox(height: 6),
+                          _AccountList(
+                            accounts: appState.accounts,
+                            activeAccountId: appState.activeAccountId,
+                            connStates: appState.connStates,
+                            onSelect: (id) {
+                              appState.setActiveAccountId(id);
+                              context.read<ChatState>().switchAccount(id);
+                              setState(() => _accountsExpanded = false);
+                            },
+                            onAddAccount: () =>
+                                _showAddAccountDialog(context, appState),
+                          ),
+                          const SizedBox(height: 6),
+                          // PlainShadow below accounts when open (spec §3).
+                          Container(
+                            height: 1,
+                            color: isDark
+                                ? const Color(0x5604080e)
+                                : const Color(0x18000000),
+                          ),
+                        ],
                       )
                     : const SizedBox.shrink(),
               ),
             ),
-            const Divider(height: 1),
             // Menu items. Placeholder entries (My Profile, New Group, New
             // Channel, Contacts, Calls, Saved Messages, Settings) previously
             // rendered with empty onTap callbacks were removed per CLAUDE.md's
