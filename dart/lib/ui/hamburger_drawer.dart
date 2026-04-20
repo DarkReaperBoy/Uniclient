@@ -65,6 +65,11 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                             activeAccountId: appState.activeAccountId,
                             chatState: context.watch<ChatState>(),
                             onSelect: (id) {
+                              if (id == appState.activeAccountId) {
+                                // Spec §3.2: clicking active account closes drawer.
+                                Navigator.of(context).pop();
+                                return;
+                              }
                               appState.setActiveAccountId(id);
                               context.read<ChatState>().switchAccount(id);
                               appState.setMainMenuAccountsShown(false);

@@ -52,7 +52,6 @@
 ### 3.1 Profile Area / Cover
 
 ### 3.2 Account Section (collapsible)
-- [ ] Active account click: closes drawer (S3)
 - [ ] Account right-click context menu: New Window, Copy Phone, Activate, Mark-As-Read, Log Out (S3)
 - [ ] Max accounts: 100 (premium 200) (S3)
 - [ ] Scrollable accounts via ScrollArea (S3)
