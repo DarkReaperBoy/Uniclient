@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
@@ -73,6 +74,18 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                               appState.setActiveAccountId(id);
                               context.read<ChatState>().switchAccount(id);
                               appState.setMainMenuAccountsShown(false);
+                            },
+                            onActivate: (id) {
+                              appState.setActiveAccountId(id);
+                              context.read<ChatState>().switchAccount(id);
+                              appState.setMainMenuAccountsShown(false);
+                            },
+                            onMarkAsRead: (id) {
+                              context.read<ChatState>().markAllChatsReadForAccount(id);
+                            },
+                            onLogOut: (id) {
+                              Navigator.of(context).pop(); // close drawer
+                              appState.removeAccount(id);
                             },
                             onAddAccount: () =>
                                 _showAddAccountDialog(context, appState),
@@ -389,6 +402,9 @@ class _AccountList extends StatelessWidget {
   final String activeAccountId;
   final ChatState chatState;
   final void Function(String id) onSelect;
+  final void Function(String id) onActivate;
+  final void Function(String id) onMarkAsRead;
+  final void Function(String id) onLogOut;
   final VoidCallback onAddAccount;
 
   const _AccountList({
@@ -396,6 +412,9 @@ class _AccountList extends StatelessWidget {
     required this.activeAccountId,
     required this.chatState,
     required this.onSelect,
+    required this.onActivate,
+    required this.onMarkAsRead,
+    required this.onLogOut,
     required this.onAddAccount,
   });
 
@@ -439,6 +458,9 @@ class _AccountList extends StatelessWidget {
                 labelColor: labelColor,
                 hoverBg: hoverBg,
                 onTap: () => onSelect(account.id),
+                onActivate: () => onActivate(account.id),
+                onMarkAsRead: () => onMarkAsRead(account.id),
+                onLogOut: () => onLogOut(account.id),
               ),
             // Add Account button (separate checklist item — keeping simple for now).
             InkWell(
@@ -498,6 +520,9 @@ class _AccountRow extends StatelessWidget {
   final Color labelColor;
   final Color hoverBg;
   final VoidCallback onTap;
+  final VoidCallback onActivate;
+  final VoidCallback onMarkAsRead;
+  final VoidCallback onLogOut;
 
   const _AccountRow({
     required this.account,
@@ -507,15 +532,130 @@ class _AccountRow extends StatelessWidget {
     required this.labelColor,
     required this.hoverBg,
     required this.onTap,
+    required this.onActivate,
+    required this.onMarkAsRead,
+    required this.onLogOut,
   });
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec §9.1: menuBg, windowBgOver, windowFg, menuSeparatorFg.
+    final menuBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final hoverColor = isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final textColor = isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final iconColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+    final attentionColor = isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
+
+    final items = <PopupMenuEntry<String>>[];
+
+    // Spec §3.2: "Copy Phone" — always shown.
+    if (account.phone.isNotEmpty) {
+      items.add(_ContextMenuItem(
+        value: 'copy_phone',
+        icon: Icons.copy,
+        label: 'Copy Phone',
+        textColor: textColor,
+        iconColor: iconColor,
+        hoverColor: hoverColor,
+      ));
+    }
+
+    // Spec §3.2: "Activate" — only if inactive.
+    if (!isActive) {
+      items.add(_ContextMenuItem(
+        value: 'activate',
+        icon: Icons.check_circle_outline,
+        label: 'Activate',
+        textColor: textColor,
+        iconColor: iconColor,
+        hoverColor: hoverColor,
+      ));
+    }
+
+    // Spec §3.2: "Mark as Read" — always shown.
+    items.add(_ContextMenuItem(
+      value: 'mark_read',
+      icon: Icons.done_all,
+      label: 'Mark as Read',
+      textColor: textColor,
+      iconColor: iconColor,
+      hoverColor: hoverColor,
+    ));
+
+    // Spec §3.2: "Log Out" — always shown, attention (red) style.
+    items.add(_ContextMenuItem(
+      value: 'log_out',
+      icon: Icons.logout,
+      label: 'Log Out',
+      textColor: attentionColor,
+      iconColor: attentionColor,
+      hoverColor: hoverColor,
+    ));
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx, position.dy, position.dx, position.dy,
+      ),
+      color: menuBg,
+      elevation: 5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: items,
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'copy_phone':
+          Clipboard.setData(ClipboardData(text: account.phone));
+        case 'activate':
+          onActivate();
+        case 'mark_read':
+          onMarkAsRead();
+        case 'log_out':
+          _confirmLogOut(context);
+      }
+    });
+  }
+
+  void _confirmLogOut(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final attentionColor = isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log Out'),
+        content: Text(
+          'Are you sure you want to log out of ${account.displayName.isNotEmpty ? account.displayName : account.phone}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              onLogOut();
+            },
+            style: TextButton.styleFrom(foregroundColor: attentionColor),
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return InkWell(
-      onTap: onTap,
-      hoverColor: hoverBg,
-      splashColor: hoverBg.withValues(alpha: 0.5),
+    return GestureDetector(
+      onSecondaryTapUp: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      onLongPressStart: (details) =>
+          _showContextMenu(context, details.globalPosition),
+      child: InkWell(
+        onTap: onTap,
+        hoverColor: hoverBg,
+        splashColor: hoverBg.withValues(alpha: 0.5),
       child: Padding(
         // Spec §3.2: margins(61px, 11px, 20px, 9px).
         // Left 61px is composed of: 23px iconLeft + 36px avatar + 2px gap.
@@ -584,6 +724,66 @@ class _AccountRow extends StatelessWidget {
             ],
           ],
         ),
+      ),
+      ),
+    );
+  }
+}
+
+/// Spec §9.1-styled context menu item with icon.
+class _ContextMenuItem extends PopupMenuItem<String> {
+  _ContextMenuItem({
+    required String value,
+    required IconData icon,
+    required String label,
+    required Color textColor,
+    required Color iconColor,
+    required Color hoverColor,
+  }) : super(
+    value: value,
+    // Spec §9.1: item padding with icon margins(54, 8, 17, 8), height ~29px.
+    height: 29,
+    padding: EdgeInsets.zero,
+    child: _ContextMenuItemBody(
+      icon: icon,
+      label: label,
+      textColor: textColor,
+      iconColor: iconColor,
+    ),
+  );
+}
+
+class _ContextMenuItemBody extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color textColor;
+  final Color iconColor;
+
+  const _ContextMenuItemBody({
+    required this.icon,
+    required this.label,
+    required this.textColor,
+    required this.iconColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      // Spec §9.1: item padding with icon margins(54, 8, 17, 8).
+      padding: const EdgeInsets.only(left: 15, top: 8, right: 17, bottom: 8),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: iconColor),
+          const SizedBox(width: 17),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: textColor,
+            ),
+          ),
+        ],
       ),
     );
   }

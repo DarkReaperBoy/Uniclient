@@ -535,6 +535,17 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  /// Mark all chats for an account as read (spec §3.2: "Mark-As-Read" context menu).
+  void markAllChatsReadForAccount(String accountId) {
+    final accountChats = _chats.where(
+      (c) => c.accountId == accountId && c.unreadCount > 0,
+    );
+    for (final chat in accountChats) {
+      _engine.markChatRead(accountId, chat.chatId, '');
+    }
+    loadChats();
+  }
+
   // ── Search ──
 
   List<SearchResult> searchMessages(String query, {String accountId = ''}) {
