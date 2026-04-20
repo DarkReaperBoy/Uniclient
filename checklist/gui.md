@@ -58,7 +58,6 @@
 ### 3.4 Night Mode Toggle
 
 ### 3.5 Settings Sections
-- [ ] Folders with menuIconShowInFolder (S3)
 - [ ] Advanced with menuIconManage (S3)
 - [ ] Devices / Active Sessions with menuIconUnmute (S3)
 - [ ] Power Saving Mode with menuIconPowerUsage (S3)

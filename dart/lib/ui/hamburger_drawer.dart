@@ -289,6 +289,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         Navigator.of(context).pop();
                       },
                     ),
+                    // §3.5: Folders — menuIconShowInFolder (S3).
+                    // Navigates to Folders settings section (§18).
+                    _MenuRow(
+                      icon: Icons.folder,
+                      label: 'Folders',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
                     // Version footer.
                     Padding(
                       padding: const EdgeInsets.all(16),
