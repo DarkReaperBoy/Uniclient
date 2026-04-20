@@ -101,7 +101,8 @@ enum _SearchTab { myMessages, publicPosts, thisPeer }
 /// Filters search results by chat type under the My Messages tab.
 enum _MyMsgSubFilter { all, private_, groups, channels }
 
-class _ChatListPanelState extends State<ChatListPanel> {
+class _ChatListPanelState extends State<ChatListPanel>
+    with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   bool _searching = false;
@@ -109,6 +110,8 @@ class _ChatListPanelState extends State<ChatListPanel> {
   List<ChatInfo>? _searchResults;
   _SearchTab _activeSearchTab = _SearchTab.myMessages;
   _MyMsgSubFilter _myMsgSubFilter = _MyMsgSubFilter.all;
+  late final AnimationController _archiveAnimCtrl;
+  late final Animation<double> _archiveAnim;
 
   @override
   void initState() {
@@ -122,6 +125,28 @@ class _ChatListPanelState extends State<ChatListPanel> {
     // Listen to controller directly to handle programmatic text changes
     // (e.g. debug type command) in addition to TextField.onChanged.
     _searchController.addListener(_onControllerChanged);
+    _archiveAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _archiveAnim = CurvedAnimation(
+      parent: _archiveAnimCtrl,
+      curve: Curves.easeInOut,
+    );
+    _archiveAnimCtrl.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed && _showArchived) {
+        setState(() => _showArchived = false);
+      }
+    });
+  }
+
+  void _toggleArchived() {
+    if (!_showArchived) {
+      setState(() => _showArchived = true);
+      _archiveAnimCtrl.forward();
+    } else if (!_archiveAnimCtrl.isAnimating) {
+      _archiveAnimCtrl.reverse();
+    }
   }
 
   String _lastControllerText = '';
@@ -285,6 +310,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
     if (ChatListPanel.switchFolderByIndexRequest == _switchFolderByIndex) {
       ChatListPanel.switchFolderByIndexRequest = null;
     }
+    _archiveAnimCtrl.dispose();
     _searchController.removeListener(_onControllerChanged);
     _searchController.dispose();
     _searchFocus.dispose();
@@ -483,7 +509,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
                               unreadCount: archivedUnread,
                               isNarrow: widget.collapsed,
                               isExpanded: _showArchived,
-                              onTap: () => setState(() => _showArchived = !_showArchived),
+                              onTap: _toggleArchived,
                               archivedChats: archived,
                             );
                           }
@@ -492,15 +518,26 @@ class _ChatListPanelState extends State<ChatListPanel> {
                           final isActive =
                               chatState.activeChat?.chatId == chat.chatId &&
                               chatState.activeChat?.accountId == chat.accountId;
-                          return ChatListRow(
-                            chat: chat,
-                            isActive: isActive,
-                            isOnline: chatState.isChatOnline(chat),
-                            isNarrow: widget.collapsed,
-                            typingUser: chatState.typingUserFor(chat.chatId),
-                            onTap: () => chatState.openChat(chat),
-                            onSecondaryTap: (pos) => _showChatContextMenu(context, chat, pos),
+                          final row = SwipeableChatRow(
+                            child: ChatListRow(
+                              chat: chat,
+                              isActive: isActive,
+                              isOnline: chatState.isChatOnline(chat),
+                              isNarrow: widget.collapsed,
+                              typingUser: chatState.typingUserFor(chat.chatId),
+                              onTap: () => chatState.openChat(chat),
+                              onSecondaryTap: (pos) => _showChatContextMenu(context, chat, pos),
+                            ),
                           );
+                          // Archived chats animate expand/collapse ~200ms (spec §2.5).
+                          if (_showArchived && hasArchived && chatIndex < archived.length) {
+                            return SizeTransition(
+                              sizeFactor: _archiveAnim,
+                              axisAlignment: -1.0,
+                              child: row,
+                            );
+                          }
+                          return row;
                         },
                       ),
           ),

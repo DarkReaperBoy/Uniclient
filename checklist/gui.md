@@ -44,7 +44,6 @@
 ### 2.6 Sorting
 
 ### 2.7 Swipe & Drag
-- [ ] Swipe quick action: 50px base threshold, auto-scaled by DPI (S2)
 - [ ] Swipe progress interpolation 0-1 against threshold (S2)
 - [ ] Swipe max ratio 1.5 (commits after ~75px) (S2)
 - [ ] Swipe slowdown factor 0.2 (rubberband feel near threshold) (S2)

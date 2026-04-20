@@ -345,6 +345,98 @@ class ChatListRow extends StatelessWidget {
   ];
 }
 
+/// Spec §2.7: Swipe quick action wrapper for chat list rows.
+/// Adds horizontal drag gesture with 50px base threshold (logical px, DPI-independent).
+class SwipeableChatRow extends StatefulWidget {
+  final Widget child;
+
+  const SwipeableChatRow({super.key, required this.child});
+
+  /// Spec §2.7: Base swipe threshold in logical pixels.
+  /// Auto-scaled by DPI via Flutter's logical pixel system.
+  static const kThresholdWidth = 50.0;
+
+  @override
+  State<SwipeableChatRow> createState() => _SwipeableChatRowState();
+}
+
+class _SwipeableChatRowState extends State<SwipeableChatRow>
+    with SingleTickerProviderStateMixin {
+  double _swipeOffset = 0.0;
+  late final AnimationController _resetController;
+  double _resetFrom = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _resetController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    )..addListener(() {
+        setState(() {
+          _swipeOffset = _resetFrom * (1.0 - _resetController.value);
+        });
+      });
+  }
+
+  @override
+  void dispose() {
+    _resetController.dispose();
+    super.dispose();
+  }
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    if (_resetController.isAnimating) return;
+    setState(() {
+      // Only allow right-swipe (positive offset).
+      _swipeOffset = math.max(0.0, _swipeOffset + details.delta.dx);
+    });
+  }
+
+  void _onDragEnd(DragEndDetails details) {
+    _resetFrom = _swipeOffset;
+    _resetController.forward(from: 0.0);
+  }
+
+  void _onDragCancel() {
+    if (_swipeOffset > 0) {
+      _resetFrom = _swipeOffset;
+      _resetController.forward(from: 0.0);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_swipeOffset == 0.0 && !_resetController.isAnimating) {
+      return GestureDetector(
+        onHorizontalDragUpdate: _onDragUpdate,
+        onHorizontalDragEnd: _onDragEnd,
+        onHorizontalDragCancel: _onDragCancel,
+        child: widget.child,
+      );
+    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec §2.7: Default action area = windowBgActive (Telegram blue).
+    final actionBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF40a7e3);
+    return GestureDetector(
+      onHorizontalDragUpdate: _onDragUpdate,
+      onHorizontalDragEnd: _onDragEnd,
+      onHorizontalDragCancel: _onDragCancel,
+      child: ClipRect(
+        child: Stack(
+          children: [
+            Positioned.fill(child: ColoredBox(color: actionBg)),
+            Transform.translate(
+              offset: Offset(_swipeOffset, 0),
+              child: widget.child,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Circular avatar with fallback color + initials + online dot + stories ring.
 /// Spec §2: stories ring has two geometry modes:
 ///   full/expanded: photo 42px, unread line 2px, read line 1px
