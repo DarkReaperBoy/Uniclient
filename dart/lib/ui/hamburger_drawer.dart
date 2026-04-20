@@ -214,10 +214,17 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         // TODO: open settings screen
                       },
                     ),
-                    _NightModeToggle(
-                      isDark: isDark,
-                      onChanged: (dark) {
-                        appState.updateTheme(dark ? 'dark' : 'light');
+                    _MenuRow(
+                      icon: Icons.nightlight_round,
+                      label: 'Night Mode',
+                      trailing: _InlineToggle(
+                        value: isDark,
+                        onChanged: (dark) {
+                          appState.updateTheme(dark ? 'dark' : 'light');
+                        },
+                      ),
+                      onTap: () {
+                        appState.updateTheme(!isDark ? 'dark' : 'light');
                       },
                     ),
                     if (Platform.isLinux)
@@ -1161,25 +1168,45 @@ class _MenuRow extends StatelessWidget {
   }
 }
 
-/// Night mode inline toggle.
-class _NightModeToggle extends StatelessWidget {
-  final bool isDark;
+/// Small inline toggle matching Telegram Desktop's menu item toggle.
+/// Spec §3: pill track + circle thumb, animates on toggle.
+class _InlineToggle extends StatelessWidget {
+  final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _NightModeToggle({required this.isDark, required this.onChanged});
+  const _InlineToggle({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: Icon(
-        isDark ? Icons.dark_mode : Icons.light_mode,
-        size: 22,
-      ),
-      title: const Text('Night Mode'),
-      dense: true,
-      trailing: Switch(
-        value: isDark,
-        onChanged: onChanged,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // On: mainMenuCoverBg (windowBgActive).
+    final onColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+    // Off: windowSubTextFg.
+    final offColor = isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 36,
+        height: 20,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: value ? onColor : offColor,
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 150),
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 16,
+            height: 16,
+            margin: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+            ),
+          ),
+        ),
       ),
     );
   }
