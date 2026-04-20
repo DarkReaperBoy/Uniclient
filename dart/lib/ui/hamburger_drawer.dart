@@ -179,6 +179,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         // TODO: open contacts screen
                       },
                     ),
+                    // §3.3: Calls row (item 6) — menuIconPhone.
+                    _MenuRow(
+                      icon: Icons.phone,
+                      label: 'Calls',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        // TODO: open calls screen
+                      },
+                    ),
                     _NightModeToggle(
                       isDark: isDark,
                       onChanged: (dark) {
