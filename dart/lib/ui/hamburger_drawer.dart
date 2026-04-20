@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -470,7 +471,7 @@ class _AccountList extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: accounts.length,
           onReorder: onReorder,
-          buildDefaultDragHandles: true,
+          buildDefaultDragHandles: false,
           proxyDecorator: (child, index, animation) {
             return Material(
               elevation: 6 * animation.value,
@@ -482,22 +483,27 @@ class _AccountList extends StatelessWidget {
           },
           itemBuilder: (context, index) {
             final account = accounts[index];
-            return _AccountRow(
+            return _ReorderDragListener(
               key: ValueKey(account.id),
-              account: account,
-              isActive: account.id == activeAccountId,
-              unreadCount: chatState.unreadCountForAccount(account.id),
-              unreadAllMuted: chatState.isAccountUnreadAllMuted(account.id),
-              labelColor: labelColor,
-              hoverBg: hoverBg,
-              onTap: () => onSelect(account.id),
-              onActivate: () => onActivate(account.id),
-              onMarkAsRead: () => onMarkAsRead(account.id),
-              onLogOut: () => onLogOut(account.id),
+              index: index,
+              child: _AccountRow(
+                account: account,
+                isActive: account.id == activeAccountId,
+                unreadCount: chatState.unreadCountForAccount(account.id),
+                unreadAllMuted: chatState.isAccountUnreadAllMuted(account.id),
+                labelColor: labelColor,
+                hoverBg: hoverBg,
+                onTap: () => onSelect(account.id),
+                onActivate: () => onActivate(account.id),
+                onMarkAsRead: () => onMarkAsRead(account.id),
+                onLogOut: () => onLogOut(account.id),
+              ),
             );
           },
         ),
-        // Add Account button (separate checklist item — keeping simple for now).
+        // Spec §3.2: "Add Account" button — last row, settingsIconAdd in
+        // windowBgActive, label in windowBoldFg. mainMenuAddAccountButton
+        // style (iconLeft 23px, same row padding as account rows).
         InkWell(
           onTap: onAddAccount,
           hoverColor: hoverBg,
@@ -506,30 +512,28 @@ class _AccountList extends StatelessWidget {
             padding: const EdgeInsets.only(top: 11, bottom: 9, right: 20),
             child: Row(
               children: [
-                const SizedBox(width: 23),
+                const SizedBox(width: 23), // iconLeft: 23px
                 SizedBox(
                   width: 36,
                   height: 36,
                   child: Center(
                     child: Icon(
                       Icons.add,
-                      size: 20,
+                      size: 24, // settingsIconAdd: 24x24 standard icon
                       color: isDark
                           ? const Color(0xFF5288C1)
-                          : const Color(0xFF40A7E3),
+                          : const Color(0xFF40A7E3), // windowBgActive
                     ),
                   ),
                 ),
-                const SizedBox(width: 2),
+                const SizedBox(width: 2), // 23 + 36 + 2 = 61px text start
                 Expanded(
                   child: Text(
                     'Add Account',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? const Color(0xFF5288C1)
-                          : const Color(0xFF40A7E3),
+                      color: labelColor, // windowBoldFg (same as account rows)
                     ),
                   ),
                 ),
@@ -928,5 +932,80 @@ class _SystemFrameToggle extends StatelessWidget {
         onChanged: onChanged,
       ),
     );
+  }
+}
+
+/// Wraps an account row to enable drag-to-reorder without visible handles.
+/// Matches Telegram Desktop's VerticalLayoutReorder: press anywhere on the row
+/// and drag >10px vertically to start reordering. Tap, right-click, and long-
+/// press gestures pass through to the child's GestureDetector/InkWell normally.
+class _ReorderDragListener extends StatelessWidget {
+  final int index;
+  final Widget child;
+
+  const _ReorderDragListener({
+    super.key,
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (event) {
+        // Only start drag tracking for primary button (left-click / touch).
+        if (event.kind == PointerDeviceKind.mouse &&
+            event.buttons != kPrimaryButton) {
+          return;
+        }
+        final list = SliverReorderableList.maybeOf(context);
+        list?.startItemDragReorder(
+          index: index,
+          event: event,
+          recognizer: _ThresholdDragRecognizer(debugOwner: this),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+/// Drag recognizer that only accepts after 10px vertical pointer movement.
+/// Matches Telegram Desktop's startDragDistance (Qt default ~10px).
+/// Below the threshold: the recognizer stays pending, allowing tap and long-
+/// press recognizers to win the gesture arena instead.
+class _ThresholdDragRecognizer extends MultiDragGestureRecognizer {
+  _ThresholdDragRecognizer({required super.debugOwner});
+
+  @override
+  MultiDragPointerState createNewPointerState(PointerDownEvent event) {
+    return _ThresholdPointerState(event.position, event.kind, gestureSettings);
+  }
+
+  @override
+  String get debugDescription => 'threshold multi drag';
+}
+
+class _ThresholdPointerState extends MultiDragPointerState {
+  /// Spec: Telegram Desktop uses startDragDistance() ≈ 10px.
+  static const double _kThreshold = 10.0;
+
+  _ThresholdPointerState(
+    Offset initialPosition,
+    PointerDeviceKind kind,
+    DeviceGestureSettings? gestureSettings,
+  ) : super(initialPosition, kind, gestureSettings);
+
+  @override
+  void checkForResolutionAfterMove() {
+    assert(pendingDelta != null);
+    if (pendingDelta!.dy.abs() > _kThreshold) {
+      resolve(GestureDisposition.accepted);
+    }
+  }
+
+  @override
+  void accepted(GestureMultiDragStartCallback starter) {
+    starter(initialPosition);
   }
 }
