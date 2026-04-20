@@ -141,6 +141,8 @@ type User struct {
 	IsBot       bool   `json:"is_bot"`
 	IsOnline    bool   `json:"is_online"`
 	LastSeen    *time.Time `json:"last_seen,omitempty"`
+	IsVerified  bool   `json:"is_verified,omitempty"`
+	IsPremium   bool   `json:"is_premium,omitempty"`
 	Platform    string `json:"platform"`
 }
 

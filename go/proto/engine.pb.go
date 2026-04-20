@@ -100,6 +100,8 @@ type AccountInfo struct {
 	AvatarPath    string                 `protobuf:"bytes,4,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
 	SortOrder     int32                  `protobuf:"varint,5,opt,name=sort_order,json=sortOrder,proto3" json:"sort_order,omitempty"`
 	ConnState     int32                  `protobuf:"varint,6,opt,name=conn_state,json=connState,proto3" json:"conn_state,omitempty"`
+	IsVerified    bool                   `protobuf:"varint,7,opt,name=is_verified,json=isVerified,proto3" json:"is_verified,omitempty"`
+	IsPremium     bool                   `protobuf:"varint,8,opt,name=is_premium,json=isPremium,proto3" json:"is_premium,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -174,6 +176,20 @@ func (x *AccountInfo) GetConnState() int32 {
 		return x.ConnState
 	}
 	return 0
+}
+
+func (x *AccountInfo) GetIsVerified() bool {
+	if x != nil {
+		return x.IsVerified
+	}
+	return false
+}
+
+func (x *AccountInfo) GetIsPremium() bool {
+	if x != nil {
+		return x.IsPremium
+	}
+	return false
 }
 
 type EngineInitRequest struct {

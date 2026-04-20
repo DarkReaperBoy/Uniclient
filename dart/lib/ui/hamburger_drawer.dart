@@ -229,21 +229,41 @@ class _ProfileCover extends StatelessWidget {
           ),
           // Display name at left 26, top 84 (spec §3).
           // Font: semiboldFont 13px, color: windowBoldFg.
+          // Optional premium/verified badge follows with semiboldFont spacew gap.
           Positioned(
             left: 26,
             top: 84,
             right: 50,
-            child: Text(
-              account?.displayName.isNotEmpty == true
-                  ? account!.displayName
-                  : _platformLabel(account?.platform ?? ''),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: theme.colorScheme.onSurface,
-              ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    account?.displayName.isNotEmpty == true
+                        ? account!.displayName
+                        : _platformLabel(account?.platform ?? ''),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                if (account?.isVerified == true || account?.isPremium == true) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    account?.isPremium == true
+                        ? Icons.workspace_premium
+                        : Icons.verified,
+                    size: 16,
+                    color: account?.isPremium == true
+                        ? const Color(0xFF7B68EE)
+                        : const Color(0xFF1DA1F2),
+                  ),
+                ],
+              ],
             ),
           ),
           // Status line at left 26, top 103 (spec §3).

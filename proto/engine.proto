@@ -31,6 +31,8 @@ message AccountInfo {
   string avatar_path  = 4;
   int32  sort_order   = 5;
   int32  conn_state   = 6;
+  bool   is_verified  = 7;
+  bool   is_premium   = 8;
 }
 
 // --- Init ---

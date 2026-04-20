@@ -720,6 +720,8 @@ class EngineService {
     avatarPath: p.avatarPath,
     sortOrder: p.sortOrder,
     connState: ConnState.values[p.connState.clamp(0, ConnState.values.length - 1)],
+    isVerified: p.isVerified,
+    isPremium: p.isPremium,
   );
 
   static AuthStateData _authStateFromProto(epb.EngineAuthState p) => AuthStateData(

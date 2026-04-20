@@ -32,6 +32,8 @@ type Account struct {
 	Core        cores.Core
 	ConnState   ConnState
 	SortOrder   int
+	IsVerified  bool
+	IsPremium   bool
 
 	// reconnect state
 	reconnect  reconnectState

@@ -9629,6 +9629,8 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		DisplayName: strings.TrimSpace(user.FirstName + " " + user.LastName),
 		Phone:       user.Phone,
 		IsBot:       user.Bot,
+		IsVerified:  user.Verified,
+		IsPremium:   user.Premium,
 		Platform:    tgPlatform,
 	}
 
@@ -9825,7 +9827,10 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 		case *tg.PeerUser:
 			dialog.ID = strconv.FormatInt(p.UserID, 10)
 			dialog.Type = ChatTypeDM
-			if user, ok := userMap[p.UserID]; ok {
+			if p.UserID == t.selfID {
+				// Self-chat = Saved Messages (spec §31.1).
+				dialog.Title = "Saved Messages"
+			} else if user, ok := userMap[p.UserID]; ok {
 				dialog.Title = strings.TrimSpace(user.FirstName + " " + user.LastName)
 				dialog.IsVerified = user.Verified
 				dialog.IsScam = user.Scam

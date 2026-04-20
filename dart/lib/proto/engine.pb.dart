@@ -114,6 +114,8 @@ class AccountInfo extends $pb.GeneratedMessage {
     $core.String? avatarPath,
     $core.int? sortOrder,
     $core.int? connState,
+    $core.bool? isVerified,
+    $core.bool? isPremium,
   }) {
     final $result = create();
     if (id != null) {
@@ -134,6 +136,12 @@ class AccountInfo extends $pb.GeneratedMessage {
     if (connState != null) {
       $result.connState = connState;
     }
+    if (isVerified != null) {
+      $result.isVerified = isVerified;
+    }
+    if (isPremium != null) {
+      $result.isPremium = isPremium;
+    }
     return $result;
   }
   AccountInfo._() : super();
@@ -147,6 +155,8 @@ class AccountInfo extends $pb.GeneratedMessage {
     ..aOS(4, _omitFieldNames ? '' : 'avatarPath')
     ..a<$core.int>(5, _omitFieldNames ? '' : 'sortOrder', $pb.PbFieldType.O3)
     ..a<$core.int>(6, _omitFieldNames ? '' : 'connState', $pb.PbFieldType.O3)
+    ..aOB(7, _omitFieldNames ? '' : 'isVerified')
+    ..aOB(8, _omitFieldNames ? '' : 'isPremium')
     ..hasRequiredFields = false
   ;
 
@@ -224,6 +234,24 @@ class AccountInfo extends $pb.GeneratedMessage {
   $core.bool hasConnState() => $_has(5);
   @$pb.TagNumber(6)
   void clearConnState() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get isVerified => $_getBF(6);
+  @$pb.TagNumber(7)
+  set isVerified($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasIsVerified() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearIsVerified() => clearField(7);
+
+  @$pb.TagNumber(8)
+  $core.bool get isPremium => $_getBF(7);
+  @$pb.TagNumber(8)
+  set isPremium($core.bool v) { $_setBool(7, v); }
+  @$pb.TagNumber(8)
+  $core.bool hasIsPremium() => $_has(7);
+  @$pb.TagNumber(8)
+  void clearIsPremium() => clearField(8);
 }
 
 class EngineInitRequest extends $pb.GeneratedMessage {

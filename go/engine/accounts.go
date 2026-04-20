@@ -22,6 +22,8 @@ type AccountInfo struct {
 	AvatarPath  string `json:"avatar_path"`
 	SortOrder   int    `json:"sort_order"`
 	ConnState   int    `json:"conn_state"`
+	IsVerified  bool   `json:"is_verified"`
+	IsPremium   bool   `json:"is_premium"`
 }
 
 // generateAccountID creates an ID like "tg_a1b2c3d4" (platform prefix + 8 random hex).
@@ -132,6 +134,8 @@ func (e *Engine) ListAccounts() []AccountInfo {
 			DisplayName: acc.DisplayName,
 			SortOrder:   acc.SortOrder,
 			ConnState:   int(acc.ConnState),
+			IsVerified:  acc.IsVerified,
+			IsPremium:   acc.IsPremium,
 		})
 	}
 

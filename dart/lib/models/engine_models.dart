@@ -64,6 +64,8 @@ class AccountInfo {
   final String avatarPath;
   final int sortOrder;
   final ConnState connState;
+  final bool isVerified;
+  final bool isPremium;
 
   const AccountInfo({
     required this.id,
@@ -72,6 +74,8 @@ class AccountInfo {
     this.avatarPath = '',
     this.sortOrder = 0,
     this.connState = ConnState.disconnected,
+    this.isVerified = false,
+    this.isPremium = false,
   });
 
   factory AccountInfo.fromJson(Map<String, dynamic> j) => AccountInfo(
@@ -81,6 +85,8 @@ class AccountInfo {
     avatarPath: j['avatar_path'] as String? ?? '',
     sortOrder: j['sort_order'] as int? ?? 0,
     connState: ConnState.values[(j['conn_state'] as int? ?? 0).clamp(0, ConnState.values.length - 1)],
+    isVerified: j['is_verified'] as bool? ?? false,
+    isPremium: j['is_premium'] as bool? ?? false,
   );
 }
 

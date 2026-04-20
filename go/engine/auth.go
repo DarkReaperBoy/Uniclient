@@ -167,6 +167,11 @@ func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *authFlow) {
 	if flow.state.DisplayName != "" {
 		acc.DisplayName = flow.state.DisplayName
 	}
+	// Fetch self-profile for verified/premium badges.
+	if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
+		acc.IsVerified = profile.IsVerified
+		acc.IsPremium = profile.IsPremium
+	}
 	e.accountsMu.Unlock()
 
 	// Update DB.

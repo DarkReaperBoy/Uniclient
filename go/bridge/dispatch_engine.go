@@ -73,6 +73,8 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 				AvatarPath:  a.AvatarPath,
 				SortOrder:   int32(a.SortOrder),
 				ConnState:   int32(a.ConnState),
+				IsVerified:  a.IsVerified,
+				IsPremium:   a.IsPremium,
 			})
 		}
 		return proto.Marshal(resp)

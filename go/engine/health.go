@@ -100,7 +100,7 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	e.setConnState(accountID, ConnConnected)
 	e.emitConnState(accountID, ConnConnected, "")
 
-	// Update display name from profile.
+	// Update display name and badge flags from profile.
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
@@ -112,6 +112,13 @@ func (e *Engine) ConnectAccount(accountID string) error {
 			if name != "" {
 				e.UpdateAccountDisplay(accountID, name, "")
 			}
+			e.accountsMu.Lock()
+			if a, ok := e.accounts[accountID]; ok {
+				a.IsVerified = profile.IsVerified
+				a.IsPremium = profile.IsPremium
+			}
+			e.accountsMu.Unlock()
+			e.emitAccountList()
 		}
 	}()
 
