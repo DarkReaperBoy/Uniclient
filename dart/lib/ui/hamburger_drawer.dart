@@ -104,6 +104,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                                         _showAddAccountDialog(
                                             context, appState,
                                             testMode: true),
+                                    canAddAccount: appState.canAddAccount,
                                     onReorder: appState.reorderAccounts,
                                   ),
                                   const SizedBox(height: 6),
@@ -428,6 +429,7 @@ class _AccountList extends StatelessWidget {
   final void Function(String id) onLogOut;
   final VoidCallback onAddAccount;
   final VoidCallback onAddAccountTest;
+  final bool canAddAccount;
   final void Function(int oldIndex, int newIndex) onReorder;
 
   const _AccountList({
@@ -440,6 +442,7 @@ class _AccountList extends StatelessWidget {
     required this.onLogOut,
     required this.onAddAccount,
     required this.onAddAccountTest,
+    required this.canAddAccount,
     required this.onReorder,
   });
 
@@ -565,7 +568,8 @@ class _AccountList extends StatelessWidget {
         // style (iconLeft 23px, same row padding as account rows).
         // Ctrl+click = new window; normal click = add account dialog.
         // Right-click = context menu (Production vs Test server).
-        GestureDetector(
+        // Auto-hides once account count reaches kPremiumMaxAccounts (spec §3.2).
+        if (canAddAccount) GestureDetector(
           onSecondaryTapUp: (details) {
             _showAddAccountContextMenu(
                 context, details.globalPosition, isDark);

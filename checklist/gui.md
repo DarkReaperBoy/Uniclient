@@ -52,7 +52,6 @@
 ### 3.1 Profile Area / Cover
 
 ### 3.2 Account Section (collapsible)
-- [ ] Add Account auto-hides at max account count (S3)
 
 ### 3.3 Menu Items
 - [ ] My Profile row with menuIconProfile (S3)
