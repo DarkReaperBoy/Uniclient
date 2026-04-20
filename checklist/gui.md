@@ -58,7 +58,6 @@
 ### 3.4 Night Mode Toggle
 
 ### 3.5 Settings Sections
-- [ ] My Account with menuIconProfile (S3)
 - [ ] Notifications with menuIconNotifications (S3)
 - [ ] Privacy and Security with menuIconLock (S3)
 - [ ] Chat Settings with menuIconChatBubble (S3)

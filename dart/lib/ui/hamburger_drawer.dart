@@ -244,6 +244,26 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           appState.setNativeWindowFrame(value);
                         },
                       ),
+                    // §3.5: PlainShadow divider before settings sections.
+                    // 6px mainMenuSkip padding top and bottom.
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Container(
+                        height: 1,
+                        color: isDark
+                            ? const Color(0x5604080e)
+                            : const Color(0x18000000),
+                      ),
+                    ),
+                    // §3.5: My Account — menuIconProfile (person silhouette).
+                    // Navigates to Information/Edit Profile section (§14.5).
+                    _MenuRow(
+                      icon: Icons.person,
+                      label: 'My Account',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
                     // Version footer.
                     Padding(
                       padding: const EdgeInsets.all(16),
