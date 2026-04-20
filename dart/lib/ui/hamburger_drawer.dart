@@ -510,18 +510,35 @@ class _AccountRow extends StatelessWidget {
           children: [
             const SizedBox(width: 23), // iconLeft: 23px
             // Avatar: 26px photo (radius 13) + 5px padding each side = 36x36.
+            // Active account: 2px stroke ring in windowBgActive (spec §3.2).
             SizedBox(
               width: 36,
               height: 36,
               child: Center(
-                child: CircleAvatar(
-                  radius: 13,
-                  backgroundColor:
-                      theme.colorScheme.primary.withValues(alpha: 0.3),
-                  child: Icon(
-                    _AccountList.platformIcons[account.platform] ?? Icons.chat,
-                    size: 14,
-                    color: theme.colorScheme.primary,
+                child: Container(
+                  decoration: isActive
+                      ? BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: theme.brightness == Brightness.dark
+                                ? const Color(0xFF5288C1)
+                                : const Color(0xFF40A7E3),
+                            width: 2,
+                          ),
+                        )
+                      : null,
+                  padding: isActive
+                      ? const EdgeInsets.all(2)
+                      : EdgeInsets.zero,
+                  child: CircleAvatar(
+                    radius: 13,
+                    backgroundColor:
+                        theme.colorScheme.primary.withValues(alpha: 0.3),
+                    child: Icon(
+                      _AccountList.platformIcons[account.platform] ?? Icons.chat,
+                      size: 14,
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                 ),
               ),
@@ -541,8 +558,6 @@ class _AccountRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (isActive)
-              Icon(Icons.check, size: 16, color: theme.colorScheme.primary),
           ],
         ),
       ),
