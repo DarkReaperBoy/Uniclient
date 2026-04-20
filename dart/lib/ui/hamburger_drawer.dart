@@ -443,23 +443,14 @@ class _ProfileCover extends StatelessWidget {
               ],
             ),
           ),
-          // Status line at left 26, top 103 (spec §3).
-          // Font: defaultFlatLabel 13px body, color: windowSubTextFg.
-          // Content: phone when present, else "Set Emoji Status" link.
+          // Status line at left 26, top 103 (spec §3.1).
+          // Phone: plain text, windowSubTextFg (white 70%).
+          // "Set Emoji Status": link-styled (full white + underline), tappable.
           Positioned(
             left: 26,
             top: 103,
             right: 50,
-            child: Text(
-              _statusText(account),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w400,
-                color: Colors.white.withValues(alpha: 0.7),
-              ),
-            ),
+            child: _buildStatusLine(context, account),
           ),
           // Account-list toggle chevron at (30,30) from top-right.
           // Spec §3: 6×6px chevron, 3px strokes. Only shown when 2+ accounts.
@@ -494,10 +485,58 @@ class _ProfileCover extends StatelessWidget {
     );
   }
 
-  static String _statusText(AccountInfo? account) {
-    if (account == null) return '';
-    if (account.phone.isNotEmpty) return account.phone;
-    return 'Set Emoji Status';
+  Widget _buildStatusLine(BuildContext context, AccountInfo? account) {
+    if (account == null) return const SizedBox.shrink();
+    // Phone number: plain subdued text (windowSubTextFg).
+    if (account.phone.isNotEmpty) {
+      return Text(
+        account.phone,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
+          color: Colors.white.withValues(alpha: 0.7),
+        ),
+      );
+    }
+    // "Set Emoji Status": link-styled (spec §3.1 — FlatLabel link entity).
+    // Full-opacity white + underline distinguishes from plain subdued text.
+    // Tap navigates to Settings (profile/status configuration).
+    return GestureDetector(
+      onTap: () {
+        final appState = context.read<AppState>();
+        final chatSt = context.read<ChatState>();
+        final authSt = context.read<AuthState>();
+        Navigator.of(context).pop();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ChangeNotifierProvider.value(
+              value: appState,
+              child: ChangeNotifierProvider.value(
+                value: chatSt,
+                child: ChangeNotifierProvider.value(
+                  value: authSt,
+                  child: const SettingsScreen(),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+      child: const Text(
+        'Set Emoji Status',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
+          decoration: TextDecoration.underline,
+          decorationColor: Color(0xB3FFFFFF), // white 70%
+        ),
+      ),
+    );
   }
 
   Widget _initials(String name, ThemeData theme) {
