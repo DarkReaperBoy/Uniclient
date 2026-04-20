@@ -27,6 +27,7 @@ class AppState extends ChangeNotifier {
   String _configDir = '';
   bool _nativeWindowFrame = false;
   bool _mainMenuAccountsShown = false;
+  List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
 
   /// Spec §2.7: Configurable swipe action for chat list rows.
@@ -50,7 +51,18 @@ class AppState extends ChangeNotifier {
 
   // ── Getters ──
 
-  List<AccountInfo> get accounts => _accounts;
+  List<AccountInfo> get accounts {
+    if (_accountOrder.isEmpty) return _accounts;
+    final ordered = <AccountInfo>[];
+    for (final id in _accountOrder) {
+      final a = _accounts.where((x) => x.id == id).firstOrNull;
+      if (a != null) ordered.add(a);
+    }
+    for (final a in _accounts) {
+      if (!_accountOrder.contains(a.id)) ordered.add(a);
+    }
+    return ordered;
+  }
   Map<String, ConnState> get connStates => _connStates;
   String get activeAccountId => _activeAccountId;
   String get configDir => _configDir;
@@ -241,6 +253,21 @@ class AppState extends ChangeNotifier {
     _engine.removeAccount(accountId);
     _accounts = _engine.listAccounts();
     _connStates.remove(accountId);
+    _accountOrder.remove(accountId);
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  /// Spec §3.2: drag-to-reorder accounts. Persists new order.
+  void reorderAccounts(int oldIndex, int newIndex) {
+    final ordered = accounts.toList();
+    if (oldIndex < 0 || oldIndex >= ordered.length) return;
+    if (newIndex < 0 || newIndex > ordered.length) return;
+    if (oldIndex < newIndex) newIndex--;
+    final item = ordered.removeAt(oldIndex);
+    ordered.insert(newIndex, item);
+    _accountOrder = ordered.map((a) => a.id).toList();
+    _saveWindowPrefs();
     notifyListeners();
   }
 
@@ -279,6 +306,8 @@ class AppState extends ChangeNotifier {
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       _nativeWindowFrame = data['nativeWindowFrame'] as bool? ?? false;
       _mainMenuAccountsShown = data['mainMenuAccountsShown'] as bool? ?? false;
+      final order = data['accountOrder'] as List<dynamic>?;
+      if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
   }
 
@@ -289,6 +318,7 @@ class AppState extends ChangeNotifier {
       File(path).writeAsStringSync(jsonEncode({
         'nativeWindowFrame': _nativeWindowFrame,
         'mainMenuAccountsShown': _mainMenuAccountsShown,
+        'accountOrder': _accountOrder,
       }));
     } catch (_) {}
   }

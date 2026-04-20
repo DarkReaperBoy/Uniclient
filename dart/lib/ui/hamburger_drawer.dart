@@ -99,6 +99,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                                     },
                                     onAddAccount: () =>
                                         _showAddAccountDialog(context, appState),
+                                    onReorder: appState.reorderAccounts,
                                   ),
                                   const SizedBox(height: 6),
                                   // PlainShadow below accounts when open (spec §3).
@@ -410,6 +411,7 @@ class _ChevronPainter extends CustomPainter {
 
 /// Expandable account list for switching accounts.
 /// Spec §3.2: each row is a SettingsButton with mainMenuButton styling.
+/// Supports drag-to-reorder via ReorderableListView.
 class _AccountList extends StatelessWidget {
   final List<AccountInfo> accounts;
   final String activeAccountId;
@@ -419,6 +421,7 @@ class _AccountList extends StatelessWidget {
   final void Function(String id) onMarkAsRead;
   final void Function(String id) onLogOut;
   final VoidCallback onAddAccount;
+  final void Function(int oldIndex, int newIndex) onReorder;
 
   const _AccountList({
     required this.accounts,
@@ -429,6 +432,7 @@ class _AccountList extends StatelessWidget {
     required this.onMarkAsRead,
     required this.onLogOut,
     required this.onAddAccount,
+    required this.onReorder,
   });
 
   static const platformIcons = <String, IconData>{
@@ -457,24 +461,42 @@ class _AccountList extends StatelessWidget {
         : const Color(0xFFF1F1F1);
 
     // Spec §3.2: accounts expand naturally within the parent ScrollArea.
-    // No internal scroll or max height — the drawer's single ScrollArea
-    // handles overflow when many accounts are present.
+    // Drag-to-reorder via ReorderableListView (spec: VerticalLayoutReorder).
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (final account in accounts)
-          _AccountRow(
-            account: account,
-            isActive: account.id == activeAccountId,
-            unreadCount: chatState.unreadCountForAccount(account.id),
-            unreadAllMuted: chatState.isAccountUnreadAllMuted(account.id),
-            labelColor: labelColor,
-            hoverBg: hoverBg,
-            onTap: () => onSelect(account.id),
-            onActivate: () => onActivate(account.id),
-            onMarkAsRead: () => onMarkAsRead(account.id),
-            onLogOut: () => onLogOut(account.id),
-          ),
+        ReorderableListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: accounts.length,
+          onReorder: onReorder,
+          buildDefaultDragHandles: true,
+          proxyDecorator: (child, index, animation) {
+            return Material(
+              elevation: 6 * animation.value,
+              color: isDark
+                  ? const Color(0xFF232E3C)
+                  : const Color(0xFFF1F1F1),
+              child: child,
+            );
+          },
+          itemBuilder: (context, index) {
+            final account = accounts[index];
+            return _AccountRow(
+              key: ValueKey(account.id),
+              account: account,
+              isActive: account.id == activeAccountId,
+              unreadCount: chatState.unreadCountForAccount(account.id),
+              unreadAllMuted: chatState.isAccountUnreadAllMuted(account.id),
+              labelColor: labelColor,
+              hoverBg: hoverBg,
+              onTap: () => onSelect(account.id),
+              onActivate: () => onActivate(account.id),
+              onMarkAsRead: () => onMarkAsRead(account.id),
+              onLogOut: () => onLogOut(account.id),
+            );
+          },
+        ),
         // Add Account button (separate checklist item — keeping simple for now).
         InkWell(
           onTap: onAddAccount,
@@ -536,6 +558,7 @@ class _AccountRow extends StatelessWidget {
   final VoidCallback onLogOut;
 
   const _AccountRow({
+    super.key,
     required this.account,
     required this.isActive,
     required this.unreadCount,
