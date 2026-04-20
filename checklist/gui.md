@@ -44,7 +44,6 @@
 ### 2.6 Sorting
 
 ### 2.7 Swipe & Drag
-- [ ] Below-threshold release: spring-back animation ~200ms (S2)
 - [ ] Revealed action: Lottie icon 20px, 80px ripple area (S2)
 - [ ] Revealed action label: 13px semibold below icon, auto-shrinks to min 5px (S2)
 - [ ] Revealed action text color: premiumButtonFg (white) (S2)

@@ -435,17 +435,23 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
 
   void _onDragEnd(DragEndDetails details) {
     // Spec §2.7: If past threshold, commit the action.
-    if (_swipeProgress >= 1.0) {
+    final pastThreshold = _swipeProgress >= 1.0;
+    if (pastThreshold) {
       _committed = true;
       widget.onAction?.call();
     }
     _thresholdCrossed = false;
-    // Spec §2.7: Spring back with speed ratio 0.35 px/ms — duration proportional
-    // to current offset so longer swipes take longer to return.
     _resetFrom = _swipeOffset;
-    final durationMs = (_swipeOffset / SwipeableChatRow.kSwipeBackSpeed)
-        .round()
-        .clamp(50, 600);
+    // Spec §2.7: Below-threshold release uses fixed ~200ms spring-back.
+    // Above-threshold (committed) uses speed ratio 0.35 px/ms for proportional return.
+    final int durationMs;
+    if (pastThreshold) {
+      durationMs = (_swipeOffset / SwipeableChatRow.kSwipeBackSpeed)
+          .round()
+          .clamp(50, 600);
+    } else {
+      durationMs = 200;
+    }
     _resetController.duration = Duration(milliseconds: durationMs);
     _resetController.forward(from: 0.0).then((_) {
       _committed = false;
@@ -456,10 +462,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     _thresholdCrossed = false;
     if (_swipeOffset > 0) {
       _resetFrom = _swipeOffset;
-      final durationMs = (_swipeOffset / SwipeableChatRow.kSwipeBackSpeed)
-          .round()
-          .clamp(50, 600);
-      _resetController.duration = Duration(milliseconds: durationMs);
+      // Spec §2.7: Cancel is always below-threshold — fixed ~200ms spring-back.
+      _resetController.duration = const Duration(milliseconds: 200);
       _resetController.forward(from: 0.0);
     }
   }
