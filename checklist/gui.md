@@ -73,7 +73,6 @@ clicks "Settings" in the drawer. Ralph incorrectly added them to the drawer on
 ## 4. Chat Header / Top Bar
 
 ### 4.1 Dimensions & Background
-- [ ] Divider hidden during one-column slide transitions (S4)
 
 ### 4.2 Left-to-Right Layout
 - [ ] Back button: visible in single-column or forum topic/sublist (S4)

@@ -74,6 +74,9 @@ class ChatView extends StatefulWidget {
   /// Spec §1: Wide chat mode (chat width >= 880px) centers the message bubble
   /// column within the chat area.
   final bool wideChatMode;
+  /// Spec §4.1: hide the 1px divider below the top bar during one-column
+  /// slide transitions. Re-shown after the transition completes.
+  final bool hideTopBarDivider;
 
   const ChatView({
     super.key,
@@ -81,6 +84,7 @@ class ChatView extends StatefulWidget {
     this.onBack,
     this.onToggleInfo,
     this.wideChatMode = false,
+    this.hideTopBarDivider = false,
   });
 
   @override
@@ -660,6 +664,7 @@ class _ChatViewState extends State<ChatView> {
                 sourceChatId: chat.chatId,
                 messageIds: _selectedMsgIds.toList(),
               ),
+              hideDivider: widget.hideTopBarDivider,
             )
           else
             _ChatTopBar(
@@ -671,6 +676,7 @@ class _ChatViewState extends State<ChatView> {
               onBack: widget.onBack,
               onToggleInfo: widget.onToggleInfo,
               moreVertKey: _moreVertKey,
+              hideDivider: widget.hideTopBarDivider,
             ),
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty)
@@ -774,6 +780,8 @@ class _ChatTopBar extends StatelessWidget {
   /// §24.4 `show_chat_menu`) can anchor the menu at the same pixel
   /// position as clicking the button.
   final Key? moreVertKey;
+  /// Spec §4.1: hide the bottom divider during one-column slide transitions.
+  final bool hideDivider;
 
   const _ChatTopBar({
     required this.chat,
@@ -784,6 +792,7 @@ class _ChatTopBar extends StatelessWidget {
     this.onBack,
     this.onToggleInfo,
     this.moreVertKey,
+    this.hideDivider = false,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -901,7 +910,8 @@ class _ChatTopBar extends StatelessWidget {
       height: 54, // topBarHeight per spec §4.1
       decoration: BoxDecoration(
         color: topBarBg,
-        border: Border(
+        // Spec §4.1: divider hidden during one-column slide transitions.
+        border: hideDivider ? null : Border(
           bottom: BorderSide(color: shadowFg, width: 1),
         ),
       ),
@@ -1300,6 +1310,8 @@ class _SelectionBar extends StatelessWidget {
 
   /// Spec §2.7: Drag data for forward drag-and-drop.
   final ForwardDragData? forwardDragData;
+  /// Spec §4.1: hide the bottom divider during one-column slide transitions.
+  final bool hideDivider;
 
   const _SelectionBar({
     required this.count,
@@ -1308,6 +1320,7 @@ class _SelectionBar extends StatelessWidget {
     required this.onCopy,
     required this.onForward,
     this.forwardDragData,
+    this.hideDivider = false,
   });
 
   @override
@@ -1362,7 +1375,8 @@ class _SelectionBar extends StatelessWidget {
       height: 54, // topBarHeight per spec §4.1
       decoration: BoxDecoration(
         color: topBarBg,
-        border: Border(
+        // Spec §4.1: divider hidden during one-column slide transitions.
+        border: hideDivider ? null : Border(
           bottom: BorderSide(color: shadowFg, width: 1),
         ),
       ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -38,6 +39,9 @@ class _UniClientShellState extends State<UniClientShell> {
   // One-column section transition direction tracking (spec §1: horizontal slide + crossfade).
   bool _navForward = true;
   bool _hadActiveChat = false;
+  // Spec §4.1: top-bar divider hidden during one-column slide transitions.
+  bool _oneColumnAnimating = false;
+  Timer? _oneColumnTimer;
 
   // Spec §1 column constants (window.style:20-24).
   static const _dialogsMin = 260.0;
@@ -89,6 +93,12 @@ class _UniClientShellState extends State<UniClientShell> {
     }
   }
 
+  @override
+  void dispose() {
+    _oneColumnTimer?.cancel();
+    super.dispose();
+  }
+
   LayoutMode _layoutMode(double bodyWidth) {
     if (bodyWidth < _oneColumnBreak) return LayoutMode.oneColumn;
     if (bodyWidth >= _threeColumnBreak && _infoOpen) return LayoutMode.threeColumn;
@@ -106,6 +116,12 @@ class _UniClientShellState extends State<UniClientShell> {
     if (hasChat != _hadActiveChat) {
       _navForward = hasChat;
       _hadActiveChat = hasChat;
+      // Spec §4.1: hide top-bar divider during one-column slide transition.
+      _oneColumnAnimating = true;
+      _oneColumnTimer?.cancel();
+      _oneColumnTimer = Timer(const Duration(milliseconds: 200), () {
+        if (mounted) setState(() => _oneColumnAnimating = false);
+      });
     }
 
     // Load layout prefs once configDir becomes available.
@@ -163,7 +179,6 @@ class _UniClientShellState extends State<UniClientShell> {
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-          drawer: mode == LayoutMode.oneColumn ? const HamburgerDrawer() : null,
           body: _buildLayout(context, mode, bodyWidth, windowWidth, showFilters, chatState),
         );
       },
@@ -224,10 +239,11 @@ class _UniClientShellState extends State<UniClientShell> {
                 key: const ValueKey('chat'),
                 onBack: () => chatState.closeChat(),
                 showBackButton: true,
+                hideTopBarDivider: _oneColumnAnimating,
               )
             : ChatListPanel(
                 key: const ValueKey('chatlist'),
-                onOpenDrawer: () => Scaffold.of(context).openDrawer(),
+                onOpenDrawer: () => _openDrawer(context),
                 showHamburger: true,
               ),
       ),
