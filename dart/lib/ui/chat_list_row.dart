@@ -366,6 +366,10 @@ class SwipeableChatRow extends StatefulWidget {
   /// actual speed, giving a rubberband feel.
   static const kSwipeSlow = 0.2;
 
+  /// Spec §2.7: Swipe-back speed ratio after release (px per ms).
+  /// Determines spring-back animation duration: offset / kSwipeBackSpeed.
+  static const kSwipeBackSpeed = 0.35;
+
   @override
   State<SwipeableChatRow> createState() => _SwipeableChatRowState();
 }
@@ -422,8 +426,13 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
       _committed = true;
       widget.onAction?.call();
     }
-    // Spring back in both cases.
+    // Spec §2.7: Spring back with speed ratio 0.35 px/ms — duration proportional
+    // to current offset so longer swipes take longer to return.
     _resetFrom = _swipeOffset;
+    final durationMs = (_swipeOffset / SwipeableChatRow.kSwipeBackSpeed)
+        .round()
+        .clamp(50, 600);
+    _resetController.duration = Duration(milliseconds: durationMs);
     _resetController.forward(from: 0.0).then((_) {
       _committed = false;
     });
@@ -432,6 +441,10 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   void _onDragCancel() {
     if (_swipeOffset > 0) {
       _resetFrom = _swipeOffset;
+      final durationMs = (_swipeOffset / SwipeableChatRow.kSwipeBackSpeed)
+          .round()
+          .clamp(50, 600);
+      _resetController.duration = Duration(milliseconds: durationMs);
       _resetController.forward(from: 0.0);
     }
   }

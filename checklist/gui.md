@@ -44,7 +44,6 @@
 ### 2.6 Sorting
 
 ### 2.7 Swipe & Drag
-- [ ] Swipe-back speed ratio 0.35 after release (S2)
 - [ ] Haptic feedback on threshold crossing (S2)
 - [ ] Below-threshold release: spring-back animation ~200ms (S2)
 - [ ] Revealed action: Lottie icon 20px, 80px ripple area (S2)
