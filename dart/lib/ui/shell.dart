@@ -528,12 +528,13 @@ class _ResizeHandle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onHorizontalDragStart: onDragStart != null ? (_) => onDragStart!() : null,
       onHorizontalDragUpdate: (details) => onDrag(details.delta.dx),
       onHorizontalDragEnd: onDragEnd != null ? (_) => onDragEnd!() : null,
       child: MouseRegion(
         cursor: SystemMouseCursors.resizeColumn,
-        child: const SizedBox(width: 4),
+        child: const SizedBox(width: 4, height: double.infinity),
       ),
     );
   }

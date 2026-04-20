@@ -25,7 +25,7 @@
 - [x] Wide chat mode at 880px chat width — DONE in `shell.dart` `_wideChatThreshold`
 - [x] OneColumn horizontal slide + crossfade section transition (FromLeft/FromRight, 200ms easeOutCubic) — DONE in `shell.dart` `_buildOneColumn()`
 - [x] Layout prefs persisted/loaded (dialogsWidthRatio, thirdColumnWidth, dialogsCollapsed) — DONE in `shell.dart` `_loadLayoutPrefs/_saveLayoutPrefs`
-- [ ] Third column resize handle (chat→info separator) — spec §1 (partially done: resize handle exists but is placed before info panel; should be between chat and info columns)
+- [x] Third column resize handle (chat→info separator) — DONE: fixed hit-testing (HitTestBehavior.opaque + height:infinity on SizedBox)
 
 ### §1.5 Linux Titlebar
 <!-- spec: research/telegram_desktop_ui.md §1 Linux Titlebar -->
