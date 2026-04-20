@@ -161,6 +161,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         // TODO: open new group creation flow
                       },
                     ),
+                    // §3.3: New Channel row (item 4).
+                    _MenuRow(
+                      icon: Icons.campaign,
+                      label: 'New Channel',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        // TODO: open new channel creation flow
+                      },
+                    ),
                     _NightModeToggle(
                       isDark: isDark,
                       onChanged: (dark) {
