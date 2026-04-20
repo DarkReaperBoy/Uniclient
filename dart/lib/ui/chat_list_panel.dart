@@ -2018,9 +2018,10 @@ class _RecentContactRowState extends State<_RecentContactRow> {
 }
 
 /// Search-mode tabs strip: "My Messages", "Public Posts", "This Peer".
-/// Spec §2.2: segmented slider, 33px strip height, 9px horizontal padding,
-/// 14px semibold labels, 6px underline indicator at barTop 30px.
-class _SearchTabsStrip extends StatelessWidget {
+/// Spec §2.2: SettingsSlider — 33px strip, 9px padding, 18px strictSkip,
+/// 14px semibold labels, sliding underline indicator (barTop 30, barStroke 6,
+/// barRadius 2, barSnapToLabel true, 150ms easeOutCubic animation).
+class _SearchTabsStrip extends StatefulWidget {
   final _SearchTab activeTab;
   final ValueChanged<_SearchTab> onTabChanged;
 
@@ -2036,14 +2037,115 @@ class _SearchTabsStrip extends StatelessWidget {
   ];
 
   @override
+  State<_SearchTabsStrip> createState() => _SearchTabsStripState();
+}
+
+class _SearchTabsStripState extends State<_SearchTabsStrip>
+    with SingleTickerProviderStateMixin {
+  final _rowKey = GlobalKey();
+  final _labelKeys = List.generate(3, (_) => GlobalKey());
+
+  late final AnimationController _indicatorCtrl;
+  late final CurvedAnimation _curvedIndicator;
+  Tween<double> _leftTween = Tween(begin: 0, end: 0);
+  Tween<double> _widthTween = Tween(begin: 0, end: 0);
+  bool _indicatorInitialized = false;
+
+  int get _activeIndex =>
+      _SearchTabsStrip._tabs.indexWhere((e) => e.tab == widget.activeTab);
+
+  @override
+  void initState() {
+    super.initState();
+    _indicatorCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    )..addListener(() => setState(() {}));
+    _curvedIndicator = CurvedAnimation(
+      parent: _indicatorCtrl,
+      curve: Curves.easeOutCubic,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateIndicatorPosition(animate: false);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _SearchTabsStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateIndicatorPosition(animate: _indicatorInitialized);
+    });
+  }
+
+  @override
+  void dispose() {
+    _curvedIndicator.dispose();
+    _indicatorCtrl.dispose();
+    super.dispose();
+  }
+
+  void _updateIndicatorPosition({bool animate = true}) {
+    final ai = _activeIndex;
+    if (ai < 0 || ai >= _labelKeys.length) return;
+    final labelBox =
+        _labelKeys[ai].currentContext?.findRenderObject() as RenderBox?;
+    final rowBox = _rowKey.currentContext?.findRenderObject() as RenderBox?;
+    if (labelBox == null || rowBox == null) return;
+
+    final labelOffset =
+        labelBox.localToGlobal(Offset.zero) - rowBox.localToGlobal(Offset.zero);
+    final targetLeft = labelOffset.dx;
+    final targetWidth = labelBox.size.width;
+
+    if (!animate || !_indicatorInitialized) {
+      _leftTween = Tween(begin: targetLeft, end: targetLeft);
+      _widthTween = Tween(begin: targetWidth, end: targetWidth);
+      _indicatorCtrl.value = 1.0;
+      _indicatorInitialized = true;
+      return;
+    }
+
+    final curLeft = _leftTween.evaluate(_curvedIndicator);
+    final curWidth = _widthTween.evaluate(_curvedIndicator);
+    if ((curLeft - targetLeft).abs() < 0.5 &&
+        (curWidth - targetWidth).abs() < 0.5) {
+      return;
+    }
+    _leftTween = Tween(begin: curLeft, end: targetLeft);
+    _widthTween = Tween(begin: curWidth, end: targetWidth);
+    _indicatorCtrl.forward(from: 0);
+  }
+
+  Widget _buildIndicator(Color color) {
+    final left = _leftTween.evaluate(_curvedIndicator);
+    final width = _widthTween.evaluate(_curvedIndicator);
+    if (width <= 0) return const SizedBox.shrink();
+    return Positioned(
+      left: left,
+      top: 30, // barTop: 30px (spec §2.2)
+      child: IgnorePointer(
+        child: Container(
+          width: width,
+          height: 6, // barStroke: 6px
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2), // barRadius: 2px
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec: inactive fg = windowSubTextFg, active fg = lightButtonFg (blue).
     final activeFg =
         isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final inactiveFg =
         isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
-    // Spec §2.2: rippleBg = windowBgOver (inactive), rippleBgActive = lightButtonBgOver (active).
     final hoverInactive =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
     final splashInactive =
@@ -2055,34 +2157,50 @@ class _SearchTabsStrip extends StatelessWidget {
 
     return SizedBox(
       height: 33,
-      child: Row(
-        children: [
-          for (final entry in _tabs)
-            Expanded(
-              child: _SearchTabItem(
-                label: entry.label,
-                isActive: activeTab == entry.tab,
-                activeFg: activeFg,
-                inactiveFg: inactiveFg,
-                hoverColor: activeTab == entry.tab
-                    ? hoverActive
-                    : hoverInactive,
-                splashColor: activeTab == entry.tab
-                    ? splashActive
-                    : splashInactive,
-                onTap: () => onTabChanged(entry.tab),
-              ),
+      child: Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          clipBehavior: Clip.hardEdge,
+          children: [
+            Row(
+              key: _rowKey,
+              children: [
+                for (var i = 0; i < _SearchTabsStrip._tabs.length; i++)
+                  Expanded(
+                    child: _SearchTabItem(
+                      label: _SearchTabsStrip._tabs[i].label,
+                      labelKey: _labelKeys[i],
+                      isActive: widget.activeTab == _SearchTabsStrip._tabs[i].tab,
+                      activeFg: activeFg,
+                      inactiveFg: inactiveFg,
+                      hoverColor:
+                          widget.activeTab == _SearchTabsStrip._tabs[i].tab
+                              ? hoverActive
+                              : hoverInactive,
+                      splashColor:
+                          widget.activeTab == _SearchTabsStrip._tabs[i].tab
+                              ? splashActive
+                              : splashInactive,
+                      onTap: () =>
+                          widget.onTabChanged(_SearchTabsStrip._tabs[i].tab),
+                    ),
+                  ),
+              ],
             ),
-        ],
+            if (_indicatorInitialized) _buildIndicator(activeFg),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Individual search tab item with underline indicator and Material ripple.
-/// Spec §2.2: rippleBg = windowBgOver (inactive), rippleBgActive = lightButtonBgOver (active).
+/// Individual search tab item with Material ripple (underline managed by parent).
+/// Spec §2.2: 14px semibold, labelTop 7px, 9px horizontal cell padding
+/// (enforces 18px strictSkip between adjacent labels).
 class _SearchTabItem extends StatelessWidget {
   final String label;
+  final GlobalKey labelKey;
   final bool isActive;
   final Color activeFg;
   final Color inactiveFg;
@@ -2092,6 +2210,7 @@ class _SearchTabItem extends StatelessWidget {
 
   const _SearchTabItem({
     required this.label,
+    required this.labelKey,
     required this.isActive,
     required this.activeFg,
     required this.inactiveFg,
@@ -2103,68 +2222,27 @@ class _SearchTabItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textColor = isActive ? activeFg : inactiveFg;
-    final textStyle = TextStyle(
-      fontSize: 14,
-      fontWeight: FontWeight.w600,
-      color: textColor,
-    );
-
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: onTap,
-        hoverColor: hoverColor,
-        splashColor: splashColor,
-        highlightColor: splashColor.withValues(alpha: 0.3),
-        child: SizedBox(
-          height: 33,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 9),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final tp = TextPainter(
-                  text: TextSpan(text: label, style: textStyle),
-                  textDirection: TextDirection.ltr,
-                )..layout();
-                final labelWidth = tp.width;
-                final leftOffset =
-                    (constraints.maxWidth - labelWidth) / 2;
-
-                return Stack(
-                  children: [
-                    Positioned(
-                      top: 7,
-                      left: 0,
-                      right: 0,
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: textStyle,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      left: leftOffset,
-                      width: labelWidth,
-                      height: 3,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? activeFg
-                              : Colors.transparent,
-                          borderRadius: const BorderRadius.only(
-                            topLeft: Radius.circular(2),
-                            topRight: Radius.circular(2),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                );
-              },
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverColor,
+      splashColor: splashColor,
+      highlightColor: splashColor.withValues(alpha: 0.3),
+      child: SizedBox(
+        height: 33,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 7), // labelTop: 7px
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: Text(
+              key: labelKey,
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
             ),
           ),
         ),

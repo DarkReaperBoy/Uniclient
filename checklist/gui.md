@@ -69,7 +69,6 @@
 - [x] Focused: Top Peers strip (horizontal, 46px avatars) + Recent Contacts below — DONE in `chat_list_panel.dart`
 - [x] Typing: search results in three tabs (My Messages, Public Posts, This Peer) — DONE in `chat_list_panel.dart` `_SearchTabsStrip`
 - [x] Cancel button appears when searching — DONE in `chat_list_panel.dart`
-- [ ] Search tabs: `dialogsSearchTabs` `SettingsSlider` — 33px strip, 9px padding, 18px `strictSkip`, 14px semibold labels, underline indicator (same as folder tabs) — spec §2.2 (current impl uses custom `_SearchTabsStrip`; needs exact metrics)
 - [ ] Sub-filters under My Messages (Private/Groups/Channels): `ChatSearchIn` popup from 38px-tall row (`dialogsSearchInHeight`), photo 28px, left padding 10px, name top 9px, dropdown arrow top 15px — spec §2.2 (current impl uses `_SearchSubFilterRow` inline row; needs to match the popup-from-row design)
 - [ ] Divider bar 28px (`searchedBarHeight`), normalFont, left padding 14px — spec §2.2
 - [ ] Empty results: Lottie animation 100px + descriptive text — spec §2.2 (currently shows `_EmptyState` text only)
