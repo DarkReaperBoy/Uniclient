@@ -162,7 +162,6 @@
 - [x] Menu Bots rows: dynamic per-bot entries with file-based icons — DONE
 - [x] Saved Messages → opens self-chat — DONE
 - [x] Settings → opens `SettingsScreen` (§14) — DONE
-- [ ] New Group → opens group creation flow (§21) — spec §3.3
 - [ ] New Channel → opens channel creation flow — spec §3.3
 - [ ] Contacts → opens contacts screen — spec §3.3
 - [ ] Calls → opens calls screen — spec §3.3
@@ -220,7 +219,6 @@
 - [ ] Subtitle font: `dialogsTextFont` — spec §4.2
 - [ ] DM subtitle: "online" green `#3BA55C` (done) + "last seen [time]" formatted per §1.4 — spec §4.2 (online done; last-seen format needs verification across all `kind` variants)
 - [ ] Group subtitle: "X members, Y online" — spec §4.2 (currently shows "X members" only; "Y online" missing)
-- [ ] Channel subtitle: "X subscribers" — spec §4.2 (shows member count but label doesn't say "subscribers")
 
 ### §4.3 Right-Side Buttons
 <!-- spec: research/telegram_desktop_ui.md §4 Right-Side Buttons -->
@@ -232,7 +230,6 @@
 - [ ] Menu toggle: 44px width override, icon at `(16, 17)` — spec §4.3
 - [ ] Menu toggle additional items: New Window, View Profile, Clear History, Delete Chat — spec §4.3
 - [ ] Info toggle: active color `windowActiveTextFg` (blue) when info panel open — spec §4.3 (currently no active state on icon)
-- [ ] Info toggle hidden in single-column — spec §4.3 (currently always shown)
 - [ ] Call button: `top_bar_call` icon, 1:1 DMs only — spec §4.3 (not implemented)
 - [ ] Call button right-click: audio/video call submenu — spec §4.3
 - [ ] Group call button: `top_bar_group_call` icon for groups/channels — spec §4.3 (not implemented)

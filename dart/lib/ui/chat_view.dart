@@ -897,7 +897,9 @@ class _ChatTopBar extends StatelessWidget {
     } else if (chat.type == ChatType.dm) {
       subtitle = _formatLastSeen(lastSeen);
     } else if (chat.memberCount > 0) {
-      subtitle = '${chat.memberCount} members';
+      subtitle = chat.type == ChatType.channel
+          ? '${chat.memberCount} subscribers'
+          : '${chat.memberCount} members';
     } else {
       subtitle = '';
     }
