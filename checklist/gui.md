@@ -149,7 +149,6 @@
 - [x] Add Account right-click: Production vs Test server context menu — DONE
 - [x] Ctrl+click Add Account → new window — DONE
 - [x] Max accounts raised to 100/200 (AyuGram limits) — DONE in `app_state.dart`
-- [ ] "New Window" option in inactive account context menu — spec §3.2 (currently only Activate/CopyPhone/MarkRead/LogOut; New Window missing)
 - [ ] Log-out confirmation dialog matches spec style (currently uses `AlertDialog` which is close) — spec §3.2
 
 ### §3.3 Menu Items

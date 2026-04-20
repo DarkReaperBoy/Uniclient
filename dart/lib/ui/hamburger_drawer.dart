@@ -872,6 +872,18 @@ class _AccountRow extends StatelessWidget {
 
     final items = <PopupMenuEntry<String>>[];
 
+    // Spec §3.2: "New Window" — only if inactive.
+    if (!isActive) {
+      items.add(_ContextMenuItem(
+        value: 'new_window',
+        icon: Icons.open_in_new,
+        label: 'New Window',
+        textColor: textColor,
+        iconColor: iconColor,
+        hoverColor: hoverColor,
+      ));
+    }
+
     // Spec §3.2: "Copy Phone" — always shown.
     if (account.phone.isNotEmpty) {
       items.add(_ContextMenuItem(
@@ -928,6 +940,13 @@ class _AccountRow extends StatelessWidget {
     ).then((value) {
       if (value == null) return;
       switch (value) {
+        case 'new_window':
+          // Spec §3.2: launch new app window for this account.
+          Process.start(
+            Platform.resolvedExecutable,
+            [],
+            mode: ProcessStartMode.detached,
+          );
         case 'copy_phone':
           Clipboard.setData(ClipboardData(text: account.phone));
         case 'activate':
