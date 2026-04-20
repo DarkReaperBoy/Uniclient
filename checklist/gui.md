@@ -61,7 +61,6 @@
 <!-- spec: research/telegram_desktop_ui.md §2 Folder Tabs -->
 
 - [x] Horizontal `_HorizontalFolderTabs` strip shown when vertical sidebar off and folders exist — DONE in `chat_list_panel.dart`
-- [ ] `rippleBottomSkip: 0px` — spec §2.1
 
 ### §2.2 Search Bar
 <!-- spec: research/telegram_desktop_ui.md §2 Search Bar -->
