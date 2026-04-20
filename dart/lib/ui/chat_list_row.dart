@@ -348,8 +348,16 @@ class ChatListRow extends StatelessWidget {
     final showSender = chat.lastMsgSender.isNotEmpty &&
         (chat.type == ChatType.group || chat.type == ChatType.channel);
 
-    // Spec §2: Mini media previews — 16px thumbnail before preview text.
-    final hasThumb = chat.lastMsgMediaType > 0 && chat.lastMsgThumbB64.isNotEmpty;
+    // Spec §2.3: Mini media previews — 16px thumbnail or media-type icon
+    // before preview text. Strip the engine's emoji prefix when showing a
+    // visual indicator (thumbnail image or icon) to avoid redundancy.
+    final hasMedia = chat.lastMsgMediaType > 0;
+    final hasThumb = hasMedia && chat.lastMsgThumbB64.isNotEmpty;
+
+    // Strip leading emoji prefix from engine text when we show a visual indicator.
+    final previewText = hasMedia
+        ? _stripMediaEmoji(chat.lastMsgText)
+        : chat.lastMsgText;
 
     final textWidget = Text.rich(
       TextSpan(children: [
@@ -362,7 +370,7 @@ class ChatListRow extends StatelessWidget {
             ),
           ),
         TextSpan(
-          text: chat.lastMsgText,
+          text: previewText,
           style: TextStyle(fontSize: 13, color: mutedColor),
         ),
       ]),
@@ -370,24 +378,69 @@ class ChatListRow extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
     );
 
-    if (!hasThumb) return textWidget;
-
-    return Row(
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: Image.memory(
-            base64Decode(chat.lastMsgThumbB64),
-            width: 16,
-            height: 16,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const SizedBox(width: 16, height: 16),
+    // Case 1: base64 thumbnail available — show 16px image.
+    if (hasThumb) {
+      return Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: Image.memory(
+              base64Decode(chat.lastMsgThumbB64),
+              width: 16,
+              height: 16,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => const SizedBox(width: 16, height: 16),
+            ),
           ),
-        ),
-        const SizedBox(width: 4),
-        Expanded(child: textWidget),
-      ],
-    );
+          const SizedBox(width: 4),
+          Expanded(child: textWidget),
+        ],
+      );
+    }
+
+    // Case 2: media type known but no thumbnail — show 16px media-type icon.
+    final iconData = _mediaTypeIcon(chat.lastMsgMediaType);
+    if (iconData != null) {
+      return Row(
+        children: [
+          Icon(iconData, size: 16, color: mutedColor),
+          const SizedBox(width: 4),
+          Expanded(child: textWidget),
+        ],
+      );
+    }
+
+    // Case 3: plain text message.
+    return textWidget;
+  }
+
+  /// Spec §2.3: Media-type icon for chat list preview when no thumbnail.
+  /// Maps engine media type int (go/engine/db.go) to Material icon.
+  static IconData? _mediaTypeIcon(int mediaType) {
+    return switch (mediaType) {
+      1 => Icons.photo_camera,    // MediaImage
+      2 => Icons.videocam,        // MediaVideo
+      3 => Icons.music_note,      // MediaAudio
+      4 => Icons.mic,             // MediaVoice
+      5 => Icons.videocam,        // MediaVideoNote
+      6 => Icons.emoji_emotions,  // MediaSticker
+      7 => Icons.gif_box,         // MediaGIF
+      8 => Icons.attach_file,     // MediaFile
+      _ => null,
+    };
+  }
+
+  /// Strip leading emoji + space prefix that the engine prepends
+  /// (e.g. "📷 Photo" → "Photo", "🎙 Voice message" → "Voice message").
+  /// Only strips if the first rune is outside ASCII (i.e. an emoji)
+  /// and is followed by a space.
+  static String _stripMediaEmoji(String text) {
+    if (text.isEmpty) return text;
+    final runes = text.runes.toList();
+    if (runes.length >= 2 && runes[0] > 0xFF && runes[1] == 0x20) {
+      return String.fromCharCodes(runes.sublist(2));
+    }
+    return text;
   }
 
   IconData? get _typeIcon {

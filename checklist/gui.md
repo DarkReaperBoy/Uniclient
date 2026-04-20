@@ -81,7 +81,6 @@
 - [x] Message preview at x=68px y=34px, normal 13px, `#999999` / white active — DONE in `chat_list_row.dart`
 - [x] Sender name prefix in service color `#168acd`; "Draft:" prefix in red `#dd4b39` — DONE in `chat_list_row.dart`
 - [x] Typing indicator replaces message preview — DONE in `chat_list_row.dart`
-- [ ] Mini media previews: 16px thumbnails in preview line — spec §2.3
 
 ### §2.4 Chat Item States
 <!-- spec: research/telegram_desktop_ui.md §2 Chat Item States -->
