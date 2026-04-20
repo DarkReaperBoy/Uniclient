@@ -11,6 +11,7 @@ import '../state/auth_state.dart';
 import 'confirm_box.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart' show isSavedMessages;
+import 'my_profile_page.dart';
 import 'settings_screen.dart';
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
@@ -147,7 +148,23 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       icon: Icons.person,
                       label: 'My Profile',
                       onTap: () {
+                        final chatSt = context.read<ChatState>();
+                        final authSt = context.read<AuthState>();
                         Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChangeNotifierProvider.value(
+                              value: appState,
+                              child: ChangeNotifierProvider.value(
+                                value: chatSt,
+                                child: ChangeNotifierProvider.value(
+                                  value: authSt,
+                                  child: const MyProfilePage(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
                     // §3.3 / §54.8a: Menu Bots rows (dynamic per-bot).

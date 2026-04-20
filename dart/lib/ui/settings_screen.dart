@@ -7,6 +7,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'advanced_settings_screen.dart';
 import 'confirm_box.dart';
+import 'my_profile_page.dart';
 
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
 /// Scrollable panel with profile header at top, then settings navigation rows.
@@ -62,7 +63,14 @@ class SettingsScreen extends StatelessWidget {
             onSelected: (value) {
               switch (value) {
                 case 'edit_profile':
-                  // TODO: navigate to edit profile
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ChangeNotifierProvider.value(
+                        value: appState,
+                        child: const MyProfilePage(),
+                      ),
+                    ),
+                  );
                   break;
                 case 'log_out':
                   _confirmLogOut(context, appState, account);
@@ -110,13 +118,22 @@ class SettingsScreen extends StatelessWidget {
           // Divider below profile.
           Container(height: 8, color: dividerColor),
           // §14.3: Navigation buttons.
-          // My Account (§14.3 item 2).
+          // My Account (§14.3 item 2) → navigates to Edit Profile (§14.5).
           _SettingsRow(
             icon: Icons.person,
             iconBg: const Color(0xFF5E97F6),
             label: 'My Account',
             isDark: isDark,
-            onTap: () {},
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ChangeNotifierProvider.value(
+                    value: appState,
+                    child: const MyProfilePage(),
+                  ),
+                ),
+              );
+            },
           ),
           // Notifications and Sounds (§14.3 item 3).
           _SettingsRow(

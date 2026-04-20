@@ -162,7 +162,6 @@
 - [x] Menu Bots rows: dynamic per-bot entries with file-based icons — DONE
 - [x] Saved Messages → opens self-chat — DONE
 - [x] Settings → opens `SettingsScreen` (§14) — DONE
-- [ ] My Profile → opens profile page (currently just closes drawer; profile page not built) — spec §3.3
 - [ ] New Group → opens group creation flow (§21) — spec §3.3
 - [ ] New Channel → opens channel creation flow — spec §3.3
 - [ ] Contacts → opens contacts screen — spec §3.3
