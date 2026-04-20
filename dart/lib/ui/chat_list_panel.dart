@@ -2322,34 +2322,41 @@ class _SearchSubFilterRow extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.only(left: 10),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Photo placeholder / icon (28px).
-                    SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: Icon(
-                        _activeIcon,
-                        size: 20,
-                        color: labelColor,
+                    // Photo placeholder / icon (spec: photo 28px, vertically centered).
+                    Padding(
+                      padding: const EdgeInsets.only(top: 5), // (38 - 28) / 2
+                      child: SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: Icon(
+                          _activeIcon,
+                          size: 20,
+                          color: labelColor,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Filter label (spec: name top 9px — centered in 38px row).
+                    // Filter label (spec: name top 9px from row top).
                     Expanded(
-                      child: Text(
-                        _activeLabel,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: labelColor,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 9),
+                        child: Text(
+                          _activeLabel,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: labelColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     // Dropdown arrow (spec: dropdown arrow top 15px).
                     Padding(
-                      padding: const EdgeInsets.only(right: 14),
+                      padding: const EdgeInsets.only(top: 15, right: 14),
                       child: Icon(
                         Icons.arrow_drop_down,
                         size: 20,
