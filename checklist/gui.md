@@ -73,9 +73,6 @@ clicks "Settings" in the drawer. Ralph incorrectly added them to the drawer on
 ## 4. Chat Header / Top Bar
 
 ### 4.1 Dimensions & Background
-- [ ] Fixed height: 54px (topBarHeight) (S4)
-- [ ] Background: topBarBg (day #ffffff, night #17212b) (S4)
-- [ ] 1px PlainShadow divider below bar (shadowFg color) (S4)
 - [ ] Divider hidden during one-column slide transitions (S4)
 
 ### 4.2 Left-to-Right Layout

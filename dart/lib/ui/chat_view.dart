@@ -891,12 +891,18 @@ class _ChatTopBar extends StatelessWidget {
       subtitle = '';
     }
 
+    final isDark = theme.brightness == Brightness.dark;
+    // Spec §4.1: topBarBg = windowBg. Day #ffffff, night #17212b.
+    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    // Spec §4.1: shadowFg divider. Day #00000018 (~9% black), night #04080e56 (~34%).
+    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+
     return Container(
-      height: 54,
+      height: 54, // topBarHeight per spec §4.1
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: topBarBg,
         border: Border(
-          bottom: BorderSide(color: theme.dividerColor, width: 1),
+          bottom: BorderSide(color: shadowFg, width: 1),
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -1308,6 +1314,9 @@ class _SelectionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    // Spec §4.1: match top bar colors in selection mode.
+    final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
+    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
 
     // Spec §2.7: Drag feedback widget — small badge showing forward count.
     Widget forwardButton = IconButton(
@@ -1350,11 +1359,11 @@ class _SelectionBar extends StatelessWidget {
     }
 
     return Container(
-      height: 54,
+      height: 54, // topBarHeight per spec §4.1
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: topBarBg,
         border: Border(
-          bottom: BorderSide(color: theme.dividerColor, width: 1),
+          bottom: BorderSide(color: shadowFg, width: 1),
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
