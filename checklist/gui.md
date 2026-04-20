@@ -57,24 +57,16 @@
 
 ### 3.4 Night Mode Toggle
 
-### 3.5 Settings Sections
-- [ ] Devices / Active Sessions with menuIconUnmute (S3)
-- [ ] Power Saving Mode with menuIconPowerUsage (S3)
-- [ ] Language with dynamic label (S3)
+### 3.5 Settings Sections — REFERENCE ONLY, DO NOT ADD TO DRAWER
+**WARNING: The "Settings Sections" table in §3 of the spec is a REFERENCE LIST
+of what the Settings PAGE (§14) contains. These items do NOT go in the hamburger
+drawer. They belong in `settings_screen.dart` (§14), which opens when the user
+clicks "Settings" in the drawer. Ralph incorrectly added them to the drawer on
+2026-04-20 — that was wrong and has been fixed. DO NOT repeat this mistake.**
+- [x] Settings row in drawer opens SettingsScreen (§14) — DONE
+- See §14 checklist below for Settings page items (My Account, Notifications, etc.)
 
 ### 3.6 Footer
-- [ ] Footer container at bottom of scroll area, min height 80px (S3)
-- [ ] Top line: product name/website link at left 25px (S3)
-- [ ] Top line font: semiboldFont 13px semibold, windowSubTextFg color (S3)
-- [ ] Top line link color: windowSubTextFg (NOT blue-tinted) (S3)
-- [ ] Top line vertical position: height - 38px - label.height (S3)
-- [ ] Bottom line: version + "About" link at left 25px (S3)
-- [ ] Bottom line font: 13px regular, windowSubTextFg color (S3)
-- [ ] Bottom line vertical position: height - 17px - label.height (S3)
-- [ ] Version format: "Version X.Y.Z" with alpha/beta/arch/debug modifiers (S3)
-- [ ] "About" link: opens AboutBox (S3)
-- [ ] Version link: opens changelog channel (S3)
-- [ ] Tooltip on version hover: "Build date: {date}" (S3)
 
 ---
 
@@ -1254,11 +1246,16 @@
 
 ## 14. Settings -- General & My Account
 
+**NOTE: Settings screen lives in `dart/lib/ui/settings_screen.dart`. It is a
+SEPARATE page opened from the hamburger drawer's "Settings" row. Settings items
+(My Account, Notifications, etc.) are NEVER in the hamburger drawer itself — see
+§3.5 warning above.**
+
 ### 14.1 Opening Settings
-- [ ] Settings reached via hamburger menu item "Settings" (§14.1)
-- [ ] Pushes Main settings section as full-height inner panel (§14.1)
-- [ ] Top bar: back arrow (infoTopBarBack) + title "Settings" (§14.1)
-- [ ] Three-dot overflow menu: Add Account, Edit Profile, Log Out (§14.1)
+- [x] Settings reached via hamburger menu item "Settings" (§14.1) — DONE (settings_screen.dart)
+- [x] Pushes Main settings section as full-height inner panel (§14.1) — DONE
+- [x] Top bar: back arrow (infoTopBarBack) + title "Settings" (§14.1) — DONE
+- [x] Three-dot overflow menu: Edit Profile, Log Out (§14.1) — DONE (skeleton)
 - [ ] Add Account: hidden at max accounts (10 Premium, 3 free), icon menuIconAddAccount (§14.1)
 - [ ] Edit Profile: navigates to My Account/Information section, icon menuIconEdit, hidden in support mode (§14.1)
 - [ ] Log Out: confirmation dialog (lng_sure_logout), attentionBoxButton (red), icon menuIconLeaveAttention (§14.1)

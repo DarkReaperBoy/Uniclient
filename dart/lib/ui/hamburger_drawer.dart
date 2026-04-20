@@ -10,6 +10,7 @@ import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart' show isSavedMessages;
+import 'settings_screen.dart';
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
 /// Shows active account profile at top, collapsible account switcher,
@@ -206,12 +207,26 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       },
                     ),
                     // §3.3: Settings row (item 8) — menuIconSettings.
+                    // Opens the Settings page (§14) as a full-height panel.
                     _MenuRow(
                       icon: Icons.settings,
                       label: 'Settings',
                       onTap: () {
                         Navigator.of(context).pop();
-                        // TODO: open settings screen
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChangeNotifierProvider.value(
+                              value: appState,
+                              child: ChangeNotifierProvider.value(
+                                value: context.read<ChatState>(),
+                                child: ChangeNotifierProvider.value(
+                                  value: context.read<AuthState>(),
+                                  child: const SettingsScreen(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
                     _MenuRow(
@@ -238,83 +253,21 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         },
                       ),
                     if (Platform.isLinux)
-                      _SystemFrameToggle(
-                        enabled: appState.nativeWindowFrame,
-                        onChanged: (value) {
-                          appState.setNativeWindowFrame(value);
+                      _MenuRow(
+                        icon: Icons.desktop_windows,
+                        label: 'System Frame',
+                        trailing: _InlineToggle(
+                          value: appState.nativeWindowFrame,
+                          onChanged: (value) {
+                            appState.setNativeWindowFrame(value);
+                          },
+                        ),
+                        onTap: () {
+                          appState.setNativeWindowFrame(!appState.nativeWindowFrame);
                         },
                       ),
-                    // §3.5: PlainShadow divider before settings sections.
-                    // 6px mainMenuSkip padding top and bottom.
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Container(
-                        height: 1,
-                        color: isDark
-                            ? const Color(0x5604080e)
-                            : const Color(0x18000000),
-                      ),
-                    ),
-                    // §3.5: My Account — menuIconProfile (person silhouette).
-                    // Navigates to Information/Edit Profile section (§14.5).
-                    _MenuRow(
-                      icon: Icons.person,
-                      label: 'My Account',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    // §3.5: Notifications — menuIconNotifications (S3).
-                    _MenuRow(
-                      icon: Icons.notifications,
-                      label: 'Notifications',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    // §3.5: Privacy and Security — menuIconLock (S3).
-                    _MenuRow(
-                      icon: Icons.lock,
-                      label: 'Privacy and Security',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    // §3.5: Chat Settings — menuIconChatBubble (S3).
-                    // Navigates to Chat Settings section (§14.6).
-                    _MenuRow(
-                      icon: Icons.chat_bubble,
-                      label: 'Chat Settings',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    // §3.5: Folders — menuIconShowInFolder (S3).
-                    // Navigates to Folders settings section (§18).
-                    _MenuRow(
-                      icon: Icons.folder,
-                      label: 'Folders',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    // §3.5: Advanced — menuIconManage (S3).
-                    // Navigates to Advanced settings section (§14.7).
-                    _MenuRow(
-                      icon: Icons.tune,
-                      label: 'Advanced',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    // Version footer.
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'UniClient v0.1.0',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                    ),
+                    // §3.6: Footer — product name + version/about links.
+                    const _FooterSection(),
                   ],
                 ),
               ),
@@ -1285,29 +1238,6 @@ class _InlineToggle extends StatelessWidget {
   }
 }
 
-/// System window frame toggle (Linux only).
-/// Spec §1: _nativeWindowFrame defaults to false. When enabled, the custom
-/// client-side titlebar is hidden and GTK shows native window decorations.
-class _SystemFrameToggle extends StatelessWidget {
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  const _SystemFrameToggle({required this.enabled, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: const Icon(Icons.desktop_windows, size: 22),
-      title: const Text('System Window Frame'),
-      dense: true,
-      trailing: Switch(
-        value: enabled,
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-
 /// Wraps an account row to enable drag-to-reorder without visible handles.
 /// Matches Telegram Desktop's VerticalLayoutReorder: press anywhere on the row
 /// and drag >10px vertically to start reordering. Tap, right-click, and long-
@@ -1380,5 +1310,159 @@ class _ThresholdPointerState extends MultiDragPointerState {
   @override
   void accepted(GestureMultiDragStartCallback starter) {
     starter(initialPosition);
+  }
+}
+
+/// §3.6: Footer at bottom of drawer scroll area.
+/// Two stacked lines at left 25px:
+/// - Top: product name (semibold 13px, windowSubTextFg)
+/// - Bottom: "Version X.Y.Z – About" (regular 13px, windowSubTextFg)
+/// Min height 80px. Tooltip on version: "Build date: {date}".
+class _FooterSection extends StatelessWidget {
+  const _FooterSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // §3.6: windowSubTextFg for both lines and links (NOT blue-tinted).
+    final subTextFg = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 80),
+      child: Container(
+        alignment: Alignment.bottomLeft,
+        // §3.6: mainMenuFooterLeft 25px. Bottom positions:
+        // top line bottom at 38px from widget bottom,
+        // bottom line bottom at 17px from widget bottom.
+        // With ~16px text height: bottom padding 17px, inter-line gap ~5px.
+        padding: const EdgeInsets.only(left: 25, bottom: 17),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // §3.6 top line: product name / website link.
+            // semiboldFont 13px, windowSubTextFg. Link same color.
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => _openUrl(
+                    'https://github.com/DarkReaperBoy/uniclient'),
+                child: Text(
+                  'UniClient',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: subTextFg,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            // §3.6 bottom line: version + about link.
+            // defaultTextStyle 13px regular, windowSubTextFg.
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Version link with tooltip "Build date: {date}".
+                Tooltip(
+                  message: 'Build date: 2026-04-20',
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: () => _openUrl(
+                          'https://github.com/DarkReaperBoy/uniclient/releases'),
+                      child: Text(
+                        'Version 0.1.0 alpha',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w400,
+                          color: subTextFg,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Text(
+                  ' – ',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
+                    color: subTextFg,
+                  ),
+                ),
+                // "About" link → opens AboutBox.
+                MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () => _showAboutBox(context),
+                    child: Text(
+                      'About',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w400,
+                        color: subTextFg,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static void _openUrl(String url) {
+    Process.run('xdg-open', [url]);
+  }
+
+  static void _showAboutBox(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subTextFg = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('UniClient'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Version 0.1.0 alpha'),
+            const SizedBox(height: 8),
+            Text(
+              'Unified multi-platform messaging client.',
+              style: TextStyle(color: subTextFg),
+            ),
+            const SizedBox(height: 16),
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => _openUrl(
+                    'https://github.com/DarkReaperBoy/uniclient'),
+                child: Text(
+                  'github.com/DarkReaperBoy/uniclient',
+                  style: TextStyle(
+                    color: isDark
+                        ? const Color(0xFF5288C1)
+                        : const Color(0xFF40A7E3),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 }
