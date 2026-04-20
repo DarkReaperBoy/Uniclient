@@ -280,6 +280,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         Navigator.of(context).pop();
                       },
                     ),
+                    // §3.5: Chat Settings — menuIconChatBubble (S3).
+                    // Navigates to Chat Settings section (§14.6).
+                    _MenuRow(
+                      icon: Icons.chat_bubble,
+                      label: 'Chat Settings',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
                     // Version footer.
                     Padding(
                       padding: const EdgeInsets.all(16),
