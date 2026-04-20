@@ -192,36 +192,39 @@ class _ProfileCover extends StatelessWidget {
           Positioned(
             left: 24,
             top: 20,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: theme.colorScheme.primary,
-                  backgroundImage: account?.avatarPath.isNotEmpty == true
-                      ? FileImage(File(account!.avatarPath))
-                      : null,
-                  child: account?.avatarPath.isNotEmpty != true
-                      ? _initials(account?.displayName ?? '?', theme)
-                      : null,
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 14,
-                    height: 14,
-                    decoration: BoxDecoration(
-                      color: connColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                        width: 2,
+            child: GestureDetector(
+              onTap: onToggle,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: theme.colorScheme.primary,
+                    backgroundImage: account?.avatarPath.isNotEmpty == true
+                        ? FileImage(File(account!.avatarPath))
+                        : null,
+                    child: account?.avatarPath.isNotEmpty != true
+                        ? _initials(account?.displayName ?? '?', theme)
+                        : null,
+                  ),
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 14,
+                      height: 14,
+                      decoration: BoxDecoration(
+                        color: connColor,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                          width: 2,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           // Display name at left 26, top 84 (spec §3).
