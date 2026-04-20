@@ -272,6 +272,14 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         Navigator.of(context).pop();
                       },
                     ),
+                    // §3.5: Privacy and Security — menuIconLock (S3).
+                    _MenuRow(
+                      icon: Icons.lock,
+                      label: 'Privacy and Security',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
                     // Version footer.
                     Padding(
                       padding: const EdgeInsets.all(16),

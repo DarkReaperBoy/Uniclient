@@ -58,7 +58,6 @@
 ### 3.4 Night Mode Toggle
 
 ### 3.5 Settings Sections
-- [ ] Privacy and Security with menuIconLock (S3)
 - [ ] Chat Settings with menuIconChatBubble (S3)
 - [ ] Folders with menuIconShowInFolder (S3)
 - [ ] Advanced with menuIconManage (S3)
