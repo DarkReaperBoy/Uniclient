@@ -63,6 +63,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           _AccountList(
                             accounts: appState.accounts,
                             activeAccountId: appState.activeAccountId,
+                            chatState: context.watch<ChatState>(),
                             onSelect: (id) {
                               appState.setActiveAccountId(id);
                               context.read<ChatState>().switchAccount(id);
@@ -381,12 +382,14 @@ class _ChevronPainter extends CustomPainter {
 class _AccountList extends StatelessWidget {
   final List<AccountInfo> accounts;
   final String activeAccountId;
+  final ChatState chatState;
   final void Function(String id) onSelect;
   final VoidCallback onAddAccount;
 
   const _AccountList({
     required this.accounts,
     required this.activeAccountId,
+    required this.chatState,
     required this.onSelect,
     required this.onAddAccount,
   });
@@ -426,6 +429,7 @@ class _AccountList extends StatelessWidget {
               _AccountRow(
                 account: account,
                 isActive: account.id == activeAccountId,
+                unreadCount: chatState.unreadCountForAccount(account.id),
                 labelColor: labelColor,
                 hoverBg: hoverBg,
                 onTap: () => onSelect(account.id),
@@ -483,6 +487,7 @@ class _AccountList extends StatelessWidget {
 class _AccountRow extends StatelessWidget {
   final AccountInfo account;
   final bool isActive;
+  final int unreadCount;
   final Color labelColor;
   final Color hoverBg;
   final VoidCallback onTap;
@@ -490,6 +495,7 @@ class _AccountRow extends StatelessWidget {
   const _AccountRow({
     required this.account,
     required this.isActive,
+    required this.unreadCount,
     required this.labelColor,
     required this.hoverBg,
     required this.onTap,
@@ -558,10 +564,70 @@ class _AccountRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            // Unread badge: spec §3.2 — mainMenuBadgeFont 11px bold,
+            // mainMenuBadgeSize 18px. Hidden when 0. Trailing spacing 2px.
+            if (unreadCount > 0) ...[
+              const SizedBox(width: 2),
+              _AccountUnreadBadge(
+                count: unreadCount,
+                isDark: theme.brightness == Brightness.dark,
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+}
+
+/// Unread badge for account rows in the hamburger menu.
+/// Spec §3.2: mainMenuBadgeFont 11px bold, mainMenuBadgeSize 18px.
+/// Uses Lang::FormatCountToShort style (e.g. "1K" for 1000+).
+class _AccountUnreadBadge extends StatelessWidget {
+  final int count;
+  final bool isDark;
+
+  const _AccountUnreadBadge({
+    required this.count,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Spec §3.2: mainMenuBadgeSize 18px height, mainMenuBadgeFont 11px bold.
+    // Badge bg: dialogsUnreadBg (active) day #40a7e3 / night #5288c1.
+    // Badge text: windowFgActive #ffffff.
+    final bgColor = isDark
+        ? const Color(0xFF5288C1)
+        : const Color(0xFF40A7E3);
+
+    return Container(
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      constraints: const BoxConstraints(minWidth: 18),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        _formatCountShort(count),
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
+
+  /// Format count in short form like Telegram Desktop's FormatCountToShort.
+  static String _formatCountShort(int count) {
+    if (count < 1000) return count.toString();
+    if (count < 100000) return '${(count / 1000).toStringAsFixed(count % 1000 == 0 ? 0 : 1)}K';
+    if (count < 1000000) return '${count ~/ 1000}K';
+    return '${(count / 1000000).toStringAsFixed(count % 1000000 == 0 ? 0 : 1)}M';
   }
 }
 

@@ -52,7 +52,6 @@
 ### 3.1 Profile Area / Cover
 
 ### 3.2 Account Section (collapsible)
-- [ ] Account unread badge: 11px bold font, 18px size (S3)
 - [ ] Account unread badge: respects muted state, hidden when 0 (S3)
 - [ ] Active account click: closes drawer (S3)
 - [ ] Account right-click context menu: New Window, Copy Phone, Activate, Mark-As-Read, Log Out (S3)
