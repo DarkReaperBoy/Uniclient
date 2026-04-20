@@ -17,8 +17,6 @@
 
 ## Bugs (fix first, verify with automated interaction)
 
-- [ ] Swipe spring-back uses DEBUG 5000ms duration in both branches (chat_list_row.dart ~line 534-537) — should be 200ms below-threshold and proportional above-threshold
-
 ---
 
 # GUI Implementation Checklist -- Sections 1-7

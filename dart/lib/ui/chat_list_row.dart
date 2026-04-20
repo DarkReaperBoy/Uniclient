@@ -558,9 +558,11 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     // Above-threshold (committed) uses speed ratio 0.35 px/ms for proportional return.
     final int durationMs;
     if (pastThreshold) {
-      durationMs = 5000; // DEBUG: slow spring-back for visual testing
+      // Spec §2.7: speed ratio 0.35 px/ms → duration = offset / 0.35
+      durationMs = (_swipeOffset / 0.35).round().clamp(100, 600);
     } else {
-      durationMs = 5000; // DEBUG: slow spring-back for visual testing
+      // Spec §2.7: fixed 200ms spring-back for below-threshold release
+      durationMs = 200;
     }
     _resetController.duration = Duration(milliseconds: durationMs);
     _resetController.forward(from: 0.0).then((_) {
