@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -886,8 +887,9 @@ class _ChatTopBar extends StatelessWidget {
     // Subtitle: typing, online status, member count, or last seen.
     String subtitle;
     Color? subtitleColor;
-    if (typingUser != null) {
-      subtitle = '$typingUser is typing...';
+    final bool isTyping = typingUser != null;
+    if (isTyping) {
+      subtitle = ''; // rendered via _TopBarTypingDots widget instead
       subtitleColor = theme.colorScheme.primary;
     } else if (chat.type == ChatType.dm && isOnline) {
       subtitle = 'online';
@@ -960,7 +962,12 @@ class _ChatTopBar extends StatelessWidget {
                               ],
                             ],
                           ),
-                          if (subtitle.isNotEmpty)
+                          if (isTyping)
+                            _TopBarTypingDots(
+                              userName: typingUser!,
+                              color: subtitleColor ?? theme.colorScheme.primary,
+                            )
+                          else if (subtitle.isNotEmpty)
                             Text(
                               subtitle,
                               maxLines: 1,
@@ -992,6 +999,81 @@ class _ChatTopBar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Spec §4.2: Animated typing indicator for the top bar subtitle.
+/// Shows "UserName is typing" with three bouncing dots.
+class _TopBarTypingDots extends StatefulWidget {
+  final String userName;
+  final Color color;
+
+  const _TopBarTypingDots({required this.userName, required this.color});
+
+  @override
+  State<_TopBarTypingDots> createState() => _TopBarTypingDotsState();
+}
+
+class _TopBarTypingDotsState extends State<_TopBarTypingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: widget.color,
+    );
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            '${widget.userName} is typing',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style,
+          ),
+        ),
+        const SizedBox(width: 1),
+        AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(3, (i) {
+                final phase = (_controller.value + i / 3.0) * 2 * math.pi;
+                final dy = -2.5 * math.max(0.0, math.sin(phase));
+                return Padding(
+                  padding: const EdgeInsets.only(left: 1),
+                  child: Transform.translate(
+                    offset: Offset(0, dy),
+                    child: Text(
+                      '.',
+                      style: style?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                );
+              }),
+            );
+          },
+        ),
+      ],
     );
   }
 }

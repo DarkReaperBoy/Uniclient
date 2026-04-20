@@ -69,7 +69,6 @@
 - [x] Focused: Top Peers strip (horizontal, 46px avatars) + Recent Contacts below — DONE in `chat_list_panel.dart`
 - [x] Typing: search results in three tabs (My Messages, Public Posts, This Peer) — DONE in `chat_list_panel.dart` `_SearchTabsStrip`
 - [x] Cancel button appears when searching — DONE in `chat_list_panel.dart`
-- [ ] Empty results: Lottie animation 100px + descriptive text — spec §2.2 (currently shows `_EmptyState` text only)
 
 ### §2.3 Chat List Rows
 <!-- spec: research/telegram_desktop_ui.md §2 Chat List Rows -->
@@ -82,43 +81,23 @@
 - [x] Message preview at x=68px y=34px, normal 13px, `#999999` / white active — DONE in `chat_list_row.dart`
 - [x] Sender name prefix in service color `#168acd`; "Draft:" prefix in red `#dd4b39` — DONE in `chat_list_row.dart`
 - [x] Typing indicator replaces message preview — DONE in `chat_list_row.dart`
-- [ ] Unread counter pill: 19px height, 5px horizontal padding, min-width = 19px (perfect circle for single digit), fully-round ends (radius = height/2), 12px bold font — spec §2.3 (current impl uses `BorderRadius.circular(9)` which is correct, but need to verify min-width = 19px enforced for single-digit counts)
-- [ ] Unread badge colors: unmuted = `dialogsUnreadBg` `#40a7e3` day / accent blue night; muted = `#bbbbbb` day / `#3e546a` night; `*Over` and `*Active` variants — spec §2.3 (partially done; active-row badge color variants not implemented)
 - [ ] `..N` truncation when count exceeds `allowDigits + 1` — spec §2.3
-- [ ] Unread dot (unread mark, no counter): filled ellipse `unreadMarkDiameter` centered in 19×19 slot — spec §2.3
-- [ ] Mention/reaction/poll badges: 18×18 `ThreeStateIcon` glyph (NOT pill), icon color = `dialogsUnreadBg` unmuted / muted — spec §2.3
-- [ ] Narrow sidebar: mention/reaction/poll use 13×13 glyph inside 19×19 unread-bg circle — spec §2.3
 - [ ] Stories ring: full mode — photo 42px, unread line 2px, read line 1px; small mode — 21px photo, 1.5px unread, no read line — spec §2.3
 - [ ] Stories ring unread gradient: `groupCallLive1` (#0dcc39) → `groupCallMuted1` (#0992ef), topRight→bottomLeft — spec §2.3
 - [ ] Stories ring read: solid `dialogsUnreadBgMuted` at 0.6 opacity — spec §2.3
 - [ ] Live-stream ring: solid `attentionButtonFg` red instead of gradient — spec §2.3
-- [ ] Chat-type icon before name (bot/channel/forum/group, 3px skip) — spec §2.3
-- [ ] Mute icon after name (4px skip) — spec §2.3
-- [ ] Verified/scam badges after name — spec §2.3
-- [ ] Timestamp formats: "12:30" (today), "Yesterday", "Mon" (this week), "Jan 15" (older) — spec §2.3 (partially done; verify all cases)
 - [ ] Mini media previews: 16px thumbnails in preview line — spec §2.3
-- [ ] Pin icon: right side at textTop when no unreads — spec §2.3
-- [ ] Send state icons: clock/single-check/double-check at 20px skip — spec §2.3
 
 ### §2.4 Chat Item States
 <!-- spec: research/telegram_desktop_ui.md §2 Chat Item States -->
 
 - [x] Day: default `#ffffff`, hover `#f1f1f1`, active `#419fd9` (text white) — DONE in `chat_list_row.dart`
 - [x] Night: hover `#202b36`, active `#2b5278` — DONE in `chat_list_row.dart`
-- [ ] Ripple: day normal `#e5e5e5`, day active-row `#2095d0`; night normal `#25313d`, night active-row `#315a80` — spec §2.4 (current impl uses `hoverColor` but not distinct ripple colors from spec)
-- [ ] `defaultRippleAnimation` curve — no custom opacity (spec §2.4)
-- [ ] Night unread-on-active-row: `dialogsUnreadBgActive` = white; muted-on-active = `#7aa3ca`; on-hover = `#4082bc`; muted-on-hover = `#4d5762` — spec §2.4 (not implemented; badges always use base palette)
 
 ### §2.5 Special Rows
 <!-- spec: research/telegram_desktop_ui.md §2 Special Rows -->
 
 - [x] Archived Chats row exists (collapsed row above chat list) — DONE in `chat_list_panel.dart` `_ArchivedChatsRow`
-- [ ] Archive row: fixed height 37px (`dialogsImportantBarHeight`), NOT 62px — spec §2.5 (needs verification; `_ArchivedChatsRow` height may not be exactly 37px)
-- [ ] Wide sidebar archive row: text label at 18px left padding, 14px semibold `semiboldFont`, `dialogsNameFg` color — spec §2.5
-- [ ] Narrow sidebar archive row: stacked-userpic composite centered at 19px width, no text — spec §2.5
-- [ ] Archive unread badge: ALWAYS muted/gray regardless of actual mute state — spec §2.5
-- [ ] Archive expand/collapse: `Ui::Animations::Simple` ~200ms (`universalDuration`) — spec §2.5 (currently uses `AnimationController` 200ms; should be close)
-- [ ] Saved Messages row: bookmark-icon userpic (no avatar photo) — spec §2.5
 
 ### §2.6 Sorting
 <!-- spec: research/telegram_desktop_ui.md §2 Sorting -->
@@ -203,7 +182,6 @@
 - [ ] New Channel → opens channel creation flow — spec §3.3
 - [ ] Contacts → opens contacts screen — spec §3.3
 - [ ] Calls → opens calls screen — spec §3.3
-- [ ] No divider between individual non-Profile rows (flush list) — spec §3.3 (currently no dividers between rows, correct)
 
 ### §3.4 Night Mode Toggle
 <!-- spec: research/telegram_desktop_ui.md §3 Night Mode Toggle -->
@@ -225,7 +203,6 @@
 - [x] Bottom line: "Version X – About" (regular 13px), two link regions — DONE
 - [x] Version tooltip "Build date: {date}" — DONE
 - [x] "About" link opens AboutBox dialog — DONE
-- [ ] Version link opens changelog/releases URL — DONE (already opens GitHub releases)
 - [ ] Build-time `__DATE__` value injected at compile time — spec §3.6 (currently hardcoded "2026-04-20"; should be set from build system)
 - [ ] Version string: append " alpha N" / " beta" / " DEBUG" modifiers as appropriate — spec §3.6 (currently hardcoded "Version 0.1.0 alpha")
 
@@ -260,7 +237,6 @@
 - [ ] DM subtitle: "online" green `#3BA55C` (done) + "last seen [time]" formatted per §1.4 — spec §4.2 (online done; last-seen format needs verification across all `kind` variants)
 - [ ] Group subtitle: "X members, Y online" — spec §4.2 (currently shows "X members" only; "Y online" missing)
 - [ ] Channel subtitle: "X subscribers" — spec §4.2 (shows member count but label doesn't say "subscribers")
-- [ ] Typing indicator: animated dots replacing subtitle — spec §4.2 (currently shows static text "X is typing..."; needs animated dots)
 
 ### §4.3 Right-Side Buttons
 <!-- spec: research/telegram_desktop_ui.md §4 Right-Side Buttons -->
