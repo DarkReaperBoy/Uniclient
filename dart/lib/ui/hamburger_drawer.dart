@@ -19,13 +19,12 @@ class HamburgerDrawer extends StatefulWidget {
 }
 
 class _HamburgerDrawerState extends State<HamburgerDrawer> {
-  bool _accountsExpanded = false;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final appState = context.watch<AppState>();
     final isDark = theme.brightness == Brightness.dark;
+    final accountsExpanded = appState.mainMenuAccountsShown;
 
     return Container(
       width: 274,
@@ -38,8 +37,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
             _ProfileCover(
               account: appState.activeAccount,
               connState: appState.connStateFor(appState.activeAccountId),
-              expanded: _accountsExpanded,
-              onToggle: () => setState(() => _accountsExpanded = !_accountsExpanded),
+              expanded: accountsExpanded,
+              onToggle: () => appState.setMainMenuAccountsShown(!accountsExpanded),
               accountCount: appState.accounts.length,
             ),
             // 1px PlainShadow at bottom of cover (spec §3: shadowFg).
@@ -49,14 +48,14 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                   ? const Color(0x5604080e)
                   : const Color(0x18000000),
             ),
-            // Account list (collapsible) — slideWrapDuration animation (spec §1).
-            // 6px spacers above/below per spec §3 (mainMenuSkip).
+            // Account list (collapsible) — SlideWrap toggled by
+            // mainMenuAccountsShownValue (spec §3.2). 6px mainMenuSkip spacers.
             ClipRect(
               child: AnimatedSize(
                 duration: const Duration(milliseconds: 150),
                 curve: Curves.easeOutCirc,
                 alignment: Alignment.topCenter,
-                child: _accountsExpanded
+                child: accountsExpanded
                     ? Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -68,7 +67,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                             onSelect: (id) {
                               appState.setActiveAccountId(id);
                               context.read<ChatState>().switchAccount(id);
-                              setState(() => _accountsExpanded = false);
+                              appState.setMainMenuAccountsShown(false);
                             },
                             onAddAccount: () =>
                                 _showAddAccountDialog(context, appState),

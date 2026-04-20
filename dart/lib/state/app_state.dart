@@ -22,6 +22,7 @@ class AppState extends ChangeNotifier {
 
   String _configDir = '';
   bool _nativeWindowFrame = false;
+  bool _mainMenuAccountsShown = false;
   final List<StreamSubscription<dynamic>> _subs = [];
 
   /// Spec §2.7: Configurable swipe action for chat list rows.
@@ -58,6 +59,16 @@ class AppState extends ChangeNotifier {
       _accounts.where((a) => a.id == _activeAccountId).firstOrNull;
 
   bool get nativeWindowFrame => _nativeWindowFrame;
+
+  /// Spec §3.2: persisted toggle for account list in hamburger menu.
+  bool get mainMenuAccountsShown => _mainMenuAccountsShown;
+
+  void setMainMenuAccountsShown(bool value) {
+    if (_mainMenuAccountsShown == value) return;
+    _mainMenuAccountsShown = value;
+    _saveWindowPrefs();
+    notifyListeners();
+  }
 
   String get swipeAction => _swipeAction;
   set swipeAction(String value) {
@@ -250,6 +261,7 @@ class AppState extends ChangeNotifier {
       if (!file.existsSync()) return;
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       _nativeWindowFrame = data['nativeWindowFrame'] as bool? ?? false;
+      _mainMenuAccountsShown = data['mainMenuAccountsShown'] as bool? ?? false;
     } catch (_) {}
   }
 
@@ -259,6 +271,7 @@ class AppState extends ChangeNotifier {
     try {
       File(path).writeAsStringSync(jsonEncode({
         'nativeWindowFrame': _nativeWindowFrame,
+        'mainMenuAccountsShown': _mainMenuAccountsShown,
       }));
     } catch (_) {}
   }

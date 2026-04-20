@@ -52,7 +52,6 @@
 ### 3.1 Profile Area / Cover
 
 ### 3.2 Account Section (collapsible)
-- [ ] Accounts in SlideWrap toggled by mainMenuAccountsShownValue (S3)
 - [ ] Account row: SettingsButton, padding 61px left, 11px top, 20px right, 9px bottom (S3)
 - [ ] Account row font: semiboldTextStyle 13px semibold (S3)
 - [ ] Account row icon-left: 23px (S3)
