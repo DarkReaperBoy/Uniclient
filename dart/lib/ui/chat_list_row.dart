@@ -350,11 +350,17 @@ class ChatListRow extends StatelessWidget {
 class SwipeableChatRow extends StatefulWidget {
   final Widget child;
 
-  const SwipeableChatRow({super.key, required this.child});
+  /// Called when swipe exceeds threshold and is released (action commits).
+  final VoidCallback? onAction;
+
+  const SwipeableChatRow({super.key, required this.child, this.onAction});
 
   /// Spec §2.7: Base swipe threshold in logical pixels.
   /// Auto-scaled by DPI via Flutter's logical pixel system.
   static const kThresholdWidth = 50.0;
+
+  /// Spec §2.7: Max clamped ratio — swipe commits after kThresholdWidth * kMaxRatio (~75px).
+  static const kMaxRatio = 1.5;
 
   @override
   State<SwipeableChatRow> createState() => _SwipeableChatRowState();
@@ -365,11 +371,16 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   double _swipeOffset = 0.0;
   late final AnimationController _resetController;
   double _resetFrom = 0.0;
+  bool _committed = false;
 
   /// Spec §2.7: Swipe progress normalized 0-1 against threshold.
   /// 0 = no swipe, 1 = threshold reached (50px).
   double get _swipeProgress =>
       (_swipeOffset / SwipeableChatRow.kThresholdWidth).clamp(0.0, 1.0);
+
+  /// Spec §2.7: Max swipe distance in logical pixels (threshold * max ratio).
+  double get _maxSwipeOffset =>
+      SwipeableChatRow.kThresholdWidth * SwipeableChatRow.kMaxRatio;
 
   @override
   void initState() {
@@ -393,14 +404,23 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   void _onDragUpdate(DragUpdateDetails details) {
     if (_resetController.isAnimating) return;
     setState(() {
-      // Only allow right-swipe (positive offset).
-      _swipeOffset = math.max(0.0, _swipeOffset + details.delta.dx);
+      // Only allow right-swipe (positive offset), clamped at max ratio.
+      _swipeOffset = (_swipeOffset + details.delta.dx)
+          .clamp(0.0, _maxSwipeOffset);
     });
   }
 
   void _onDragEnd(DragEndDetails details) {
+    // Spec §2.7: If past threshold, commit the action.
+    if (_swipeProgress >= 1.0) {
+      _committed = true;
+      widget.onAction?.call();
+    }
+    // Spring back in both cases.
     _resetFrom = _swipeOffset;
-    _resetController.forward(from: 0.0);
+    _resetController.forward(from: 0.0).then((_) {
+      _committed = false;
+    });
   }
 
   void _onDragCancel() {
