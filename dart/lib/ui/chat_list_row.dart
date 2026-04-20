@@ -122,6 +122,56 @@ class ChatListRow extends StatelessWidget {
                           ? (isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb))
                           : (isDark ? const Color(0xFF40a7e3) : const Color(0xFF40a7e3)));
               final badgeText = isActive ? activeBg : Colors.white;
+
+              // Spec §1: Collapsed/avatar-only mode — 72px column shows only
+              // the centered avatar with compact unread overlay, no text.
+              if (isNarrow) {
+                return SizedBox(
+                  height: _rowHeight,
+                  child: Center(
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        _ChatAvatar(
+                          chat: chat,
+                          size: _avatarSize,
+                          isOnline: isOnline,
+                          minified: true,
+                        ),
+                        // Unread count badge at bottom-right of avatar.
+                        if (chat.unreadCount > 0)
+                          Positioned(
+                            right: -4,
+                            bottom: -4,
+                            child: _UnreadBadge(
+                              count: chat.unreadCount,
+                              bgColor: badgeBg,
+                              textColor: badgeText,
+                            ),
+                          )
+                        else if (chat.isUnreadMark)
+                          Positioned(
+                            right: -2,
+                            bottom: -2,
+                            child: _UnreadDot(bgColor: badgeBg),
+                          ),
+                        // Mention badge at top-right of avatar.
+                        if (chat.unreadMentionCount > 0)
+                          Positioned(
+                            right: -4,
+                            top: -4,
+                            child: _ThreeStateBadgeIcon(
+                              icon: Icons.alternate_email,
+                              color: badgeBg,
+                              isNarrow: true,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+
               return SizedBox(
                 height: _rowHeight,
               child: Padding(

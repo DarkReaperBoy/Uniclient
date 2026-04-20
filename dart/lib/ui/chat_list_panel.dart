@@ -519,43 +519,46 @@ class _ChatListPanelState extends State<ChatListPanel>
       ),
       child: Column(
         children: [
-          // Search bar.
-          _SearchBar(
-            controller: _searchController,
-            focusNode: _searchFocus,
-            showHamburger: widget.showHamburger,
-            searching: _searching,
-            onOpenDrawer: widget.onOpenDrawer,
-            onFocused: () => setState(() => _searching = true),
-            onChanged: _onSearchChanged,
-            onCancel: _cancelSearch,
-          ),
-          // Horizontal folder tabs (when active account has folders and vertical sidebar is hidden).
-          if (chatState.hasFolders && !widget.filterSidebarVisible && !_searching)
-            _HorizontalFolderTabs(
-              chatState: chatState,
-              allUnread: chatState.unreadCountForAccount(appState.activeAccountId),
+          // Spec §1: Hide search bar and folder tabs in collapsed avatar-only mode.
+          if (!widget.collapsed) ...[
+            // Search bar.
+            _SearchBar(
+              controller: _searchController,
+              focusNode: _searchFocus,
+              showHamburger: widget.showHamburger,
+              searching: _searching,
+              onOpenDrawer: widget.onOpenDrawer,
+              onFocused: () => setState(() => _searching = true),
+              onChanged: _onSearchChanged,
+              onCancel: _cancelSearch,
             ),
-          // Search tabs strip (spec §2.2: shown when typing in search bar).
-          if (_searching && _searchController.text.isNotEmpty)
-            _SearchTabsStrip(
-              activeTab: _activeSearchTab,
-              onTabChanged: _onSearchTabChanged,
-            ),
-          // Sub-filter row under My Messages (spec §2.2: ChatSearchIn popup).
-          if (_searching &&
-              _searchController.text.isNotEmpty &&
-              _activeSearchTab == _SearchTab.myMessages)
-            _SearchSubFilterRow(
-              activeFilter: _myMsgSubFilter,
-              onFilterChanged: _onSubFilterChanged,
-            ),
-          // Top Peers strip (spec §2: shown when search focused, no query).
-          if (_searching && _searchController.text.isEmpty)
-            _TopPeersStrip(
-              chats: accountChats,
-              onTap: (chat) => chatState.openChat(chat),
-            ),
+            // Horizontal folder tabs (when active account has folders and vertical sidebar is hidden).
+            if (chatState.hasFolders && !widget.filterSidebarVisible && !_searching)
+              _HorizontalFolderTabs(
+                chatState: chatState,
+                allUnread: chatState.unreadCountForAccount(appState.activeAccountId),
+              ),
+            // Search tabs strip (spec §2.2: shown when typing in search bar).
+            if (_searching && _searchController.text.isNotEmpty)
+              _SearchTabsStrip(
+                activeTab: _activeSearchTab,
+                onTabChanged: _onSearchTabChanged,
+              ),
+            // Sub-filter row under My Messages (spec §2.2: ChatSearchIn popup).
+            if (_searching &&
+                _searchController.text.isNotEmpty &&
+                _activeSearchTab == _SearchTab.myMessages)
+              _SearchSubFilterRow(
+                activeFilter: _myMsgSubFilter,
+                onFilterChanged: _onSubFilterChanged,
+              ),
+            // Top Peers strip (spec §2: shown when search focused, no query).
+            if (_searching && _searchController.text.isEmpty)
+              _TopPeersStrip(
+                chats: accountChats,
+                onTap: (chat) => chatState.openChat(chat),
+              ),
+          ],
           // Chat list / Recent Contacts (spec §2.2: recent contacts shown
           // when search focused with empty query, below Top Peers strip).
           Expanded(
