@@ -143,6 +143,17 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
   }
 
   void _showAddAccountDialog(BuildContext context, AppState appState) {
+    // Spec §3.2: enforce max accounts limit.
+    if (!appState.canAddAccount) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Maximum account limit reached (${appState.maxAccountLimit})',
+          ),
+        ),
+      );
+      return;
+    }
     final authState = context.read<AuthState>();
     showDialog(
       context: context,

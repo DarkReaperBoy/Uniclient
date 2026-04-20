@@ -13,6 +13,10 @@ import '../utils/debug.dart';
 class AppState extends ChangeNotifier {
   final EngineService _engine;
 
+  /// Spec §3.2: max accounts 100 (AyuGram), 200 for premium.
+  static const kMaxAccounts = 100;
+  static const kPremiumMaxAccounts = 200;
+
   List<AccountInfo> _accounts = [];
   final Map<String, ConnState> _connStates = {};
   String _activeAccountId = ''; // currently viewed account (always set when accounts exist)
@@ -57,6 +61,13 @@ class AppState extends ChangeNotifier {
   /// The currently active account (null if no accounts exist).
   AccountInfo? get activeAccount =>
       _accounts.where((a) => a.id == _activeAccountId).firstOrNull;
+
+  /// Spec §3.2: account limit — 200 if any account is premium, else 100.
+  int get maxAccountLimit =>
+      _accounts.any((a) => a.isPremium) ? kPremiumMaxAccounts : kMaxAccounts;
+
+  /// Whether a new account can be added (under the limit).
+  bool get canAddAccount => _accounts.length < maxAccountLimit;
 
   bool get nativeWindowFrame => _nativeWindowFrame;
 
@@ -206,6 +217,12 @@ class AppState extends ChangeNotifier {
   }
 
   String addAccount(String platform) {
+    // Spec §3.2: enforce max accounts limit.
+    if (!canAddAccount) {
+      final limit = maxAccountLimit;
+      Debug.log('APP', 'Cannot add account: at limit ($limit)');
+      throw StateError('Maximum account limit reached ($limit)');
+    }
     Debug.log('APP', 'Adding account: $platform');
     try {
       final id = _engine.addAccount(platform);
@@ -302,6 +319,10 @@ class AppState extends ChangeNotifier {
       if (action == 'add') {
         final platform = cmd['platform'] as String? ?? '';
         if (platform.isEmpty) return;
+        if (!canAddAccount) {
+          Debug.log('APP', 'CLI add rejected: at account limit ($maxAccountLimit)');
+          return;
+        }
         Debug.log('APP', 'CLI command: add $platform');
         final id = addAccount(platform);
         onAddAccount?.call(id, platform);

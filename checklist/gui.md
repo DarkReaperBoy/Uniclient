@@ -52,7 +52,6 @@
 ### 3.1 Profile Area / Cover
 
 ### 3.2 Account Section (collapsible)
-- [ ] Max accounts: 100 (premium 200) (S3)
 - [ ] Scrollable accounts via ScrollArea (S3)
 - [ ] Drag-to-reorder accounts (S3)
 - [ ] "Add Account" button: last row, settingsIconAdd, windowBgActive (S3)
