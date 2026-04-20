@@ -26,7 +26,8 @@ class UniClientShell extends StatefulWidget {
   State<UniClientShell> createState() => _UniClientShellState();
 }
 
-class _UniClientShellState extends State<UniClientShell> {
+class _UniClientShellState extends State<UniClientShell>
+    with SingleTickerProviderStateMixin {
   // Dialogs column width ratio (0.0-1.0 of body width), persisted to layout.json.
   double _dialogsWidthRatio = 0.33;
   bool _infoOpen = false;
@@ -42,6 +43,9 @@ class _UniClientShellState extends State<UniClientShell> {
   // Spec §4.1: top-bar divider hidden during one-column slide transitions.
   bool _oneColumnAnimating = false;
   Timer? _oneColumnTimer;
+  // Spec §1: third column open/close animation. Shadow stays until dismissed.
+  late final AnimationController _thirdColumnAnim;
+  late final Animation<double> _thirdColumnCurved;
 
   // Spec §1 column constants (window.style:20-24).
   static const _dialogsMin = 260.0;
@@ -94,14 +98,51 @@ class _UniClientShellState extends State<UniClientShell> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _thirdColumnAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 180),
+    )..addStatusListener((status) {
+        if (status == AnimationStatus.dismissed) {
+          setState(() {}); // Remove third column widgets from tree.
+        }
+      });
+    _thirdColumnCurved = CurvedAnimation(
+      parent: _thirdColumnAnim,
+      curve: Curves.easeOutCirc,
+    );
+  }
+
+  @override
   void dispose() {
+    _thirdColumnAnim.dispose();
     _oneColumnTimer?.cancel();
     super.dispose();
   }
 
+  void _toggleInfo() {
+    setState(() {
+      _infoOpen = !_infoOpen;
+      if (_infoOpen) {
+        _thirdColumnAnim.forward();
+      } else {
+        _thirdColumnAnim.reverse();
+      }
+    });
+  }
+
+  void _closeInfo() {
+    if (!_infoOpen) return;
+    setState(() {
+      _infoOpen = false;
+      _thirdColumnAnim.reverse();
+    });
+  }
+
   LayoutMode _layoutMode(double bodyWidth) {
     if (bodyWidth < _oneColumnBreak) return LayoutMode.oneColumn;
-    if (bodyWidth >= _threeColumnBreak && _infoOpen) return LayoutMode.threeColumn;
+    if (bodyWidth >= _threeColumnBreak && (_infoOpen || !_thirdColumnAnim.isDismissed)) return LayoutMode.threeColumn;
     return LayoutMode.twoColumn;
   }
 
@@ -306,7 +347,7 @@ class _UniClientShellState extends State<UniClientShell> {
           child: chatState.activeChat != null
               ? ChatView(
                   showBackButton: false,
-                  onToggleInfo: () => setState(() => _infoOpen = !_infoOpen),
+                  onToggleInfo: _toggleInfo,
                 )
               : _EmptyChatPlaceholder(),
         ),
@@ -393,34 +434,43 @@ class _UniClientShellState extends State<UniClientShell> {
               return chatState.activeChat != null
                   ? ChatView(
                       showBackButton: false,
-                      onToggleInfo: () => setState(() => _infoOpen = !_infoOpen),
+                      onToggleInfo: _toggleInfo,
                       wideChatMode: wideChat,
                     )
                   : _EmptyChatPlaceholder();
             },
           ),
         ),
-        // Chat-info shadow separator.
-        if (_infoOpen && chatState.activeChat != null) ...[
+        // Chat-info shadow separator. Stays visible during close animation,
+        // removed when animation reaches dismissed state (spec §1 _thirdShadow).
+        if (!_thirdColumnAnim.isDismissed && chatState.activeChat != null) ...[
           _ColumnShadow(isDark: isDark),
-          // Info panel with resize handle.
-          _ResizeHandle(
-            onDragStart: () => setState(() => _isDragging = true),
-            onDragEnd: () => setState(() => _isDragging = false),
-            onDrag: (dx) {
-              setState(() {
-                // Dragging right = shrinking third column.
-                _thirdColumnWidth = (tw - dx).clamp(_thirdMin, _thirdMax);
-                _saveLayoutPrefs();
-              });
+          // Resize handle only while info is open (not during close animation).
+          if (_infoOpen)
+            _ResizeHandle(
+              onDragStart: () => setState(() => _isDragging = true),
+              onDragEnd: () => setState(() => _isDragging = false),
+              onDrag: (dx) {
+                setState(() {
+                  _thirdColumnWidth = (tw - dx).clamp(_thirdMin, _thirdMax);
+                  _saveLayoutPrefs();
+                });
+              },
+            ),
+          AnimatedBuilder(
+            animation: _thirdColumnCurved,
+            builder: (context, child) {
+              return ClipRect(
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  widthFactor: _thirdColumnCurved.value,
+                  child: child,
+                ),
+              );
             },
-          ),
-          AnimatedContainer(
-            duration: _isDragging ? Duration.zero : const Duration(milliseconds: 180),
-            curve: Curves.easeOutCirc,
-            width: tw,
-            child: InfoPanel(
-              onClose: () => setState(() => _infoOpen = false),
+            child: SizedBox(
+              width: tw,
+              child: InfoPanel(onClose: _closeInfo),
             ),
           ),
         ],
