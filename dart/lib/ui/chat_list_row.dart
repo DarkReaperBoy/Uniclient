@@ -366,6 +366,11 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   late final AnimationController _resetController;
   double _resetFrom = 0.0;
 
+  /// Spec §2.7: Swipe progress normalized 0-1 against threshold.
+  /// 0 = no swipe, 1 = threshold reached (50px).
+  double get _swipeProgress =>
+      (_swipeOffset / SwipeableChatRow.kThresholdWidth).clamp(0.0, 1.0);
+
   @override
   void initState() {
     super.initState();
@@ -418,6 +423,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     // Spec §2.7: Default action area = windowBgActive (Telegram blue).
     final actionBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF40a7e3);
+    final progress = _swipeProgress;
     return GestureDetector(
       onHorizontalDragUpdate: _onDragUpdate,
       onHorizontalDragEnd: _onDragEnd,
@@ -425,7 +431,31 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
       child: ClipRect(
         child: Stack(
           children: [
-            Positioned.fill(child: ColoredBox(color: actionBg)),
+            // Spec §2.7: Action area fades in with swipe progress.
+            Positioned.fill(
+              child: Opacity(
+                opacity: progress,
+                child: ColoredBox(color: actionBg),
+              ),
+            ),
+            // Spec §2.7: Action icon scales in based on progress.
+            if (progress > 0.1)
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                width: _swipeOffset,
+                child: Center(
+                  child: Transform.scale(
+                    scale: Curves.easeOut.transform(progress),
+                    child: Icon(
+                      Icons.archive_outlined,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
             Transform.translate(
               offset: Offset(_swipeOffset, 0),
               child: widget.child,
