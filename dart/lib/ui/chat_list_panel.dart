@@ -1128,6 +1128,15 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   bool _dragActive = false; // true once threshold exceeded
 
   final List<GlobalKey> _tabKeys = [];
+  final List<GlobalKey> _labelKeys = []; // for barSnapToLabel measurement
+
+  // Sliding underline indicator (spec §2.1: barStroke 6px, barRadius 2px, barTop 30px)
+  final GlobalKey _rowKey = GlobalKey();
+  late final AnimationController _indicatorCtrl;
+  late final CurvedAnimation _curvedIndicator;
+  Tween<double> _leftTween = Tween(begin: 0, end: 0);
+  Tween<double> _widthTween = Tween(begin: 0, end: 0);
+  bool _indicatorInitialized = false;
 
   int get _tabCount => widget.chatState.folders.length + 1;
 
@@ -1142,6 +1151,18 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   void initState() {
     super.initState();
     _syncTabKeys();
+    _indicatorCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    )..addListener(() => setState(() {}));
+    _curvedIndicator = CurvedAnimation(
+      parent: _indicatorCtrl,
+      curve: Curves.easeOutCubic,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateIndicatorPosition(animate: false);
+    });
   }
 
   void _syncTabKeys() {
@@ -1151,6 +1172,12 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     if (_tabKeys.length > _tabCount) {
       _tabKeys.removeRange(_tabCount, _tabKeys.length);
     }
+    while (_labelKeys.length < _tabCount) {
+      _labelKeys.add(GlobalKey());
+    }
+    if (_labelKeys.length > _tabCount) {
+      _labelKeys.removeRange(_tabCount, _labelKeys.length);
+    }
   }
 
   @override
@@ -1158,10 +1185,16 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     super.didUpdateWidget(oldWidget);
     _syncTabKeys();
     if (_dragActive || _dragIndex != null) _cancelDrag();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateIndicatorPosition(animate: _indicatorInitialized);
+    });
   }
 
   @override
   void dispose() {
+    _curvedIndicator.dispose();
+    _indicatorCtrl.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -1313,6 +1346,60 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
     }
   }
 
+  /// Update sliding indicator position. [animate] = false for initial snap.
+  void _updateIndicatorPosition({bool animate = true}) {
+    final ai = _activeIndex;
+    if (ai < 0 || ai >= _labelKeys.length) return;
+    final labelBox =
+        _labelKeys[ai].currentContext?.findRenderObject() as RenderBox?;
+    final rowBox = _rowKey.currentContext?.findRenderObject() as RenderBox?;
+    if (labelBox == null || rowBox == null) return;
+
+    final labelOffset =
+        labelBox.localToGlobal(Offset.zero) - rowBox.localToGlobal(Offset.zero);
+    final targetLeft = labelOffset.dx;
+    final targetWidth = labelBox.size.width;
+
+    if (!animate || !_indicatorInitialized) {
+      _leftTween = Tween(begin: targetLeft, end: targetLeft);
+      _widthTween = Tween(begin: targetWidth, end: targetWidth);
+      _indicatorCtrl.value = 1.0;
+      _indicatorInitialized = true;
+      return;
+    }
+
+    final curLeft = _leftTween.evaluate(_curvedIndicator);
+    final curWidth = _widthTween.evaluate(_curvedIndicator);
+    if ((curLeft - targetLeft).abs() < 0.5 &&
+        (curWidth - targetWidth).abs() < 0.5) {
+      return; // already at target
+    }
+    _leftTween = Tween(begin: curLeft, end: targetLeft);
+    _widthTween = Tween(begin: curWidth, end: targetWidth);
+    _indicatorCtrl.forward(from: 0);
+  }
+
+  /// Build the sliding underline indicator widget.
+  Widget _buildIndicator(Color color) {
+    final left = _leftTween.evaluate(_curvedIndicator);
+    final width = _widthTween.evaluate(_curvedIndicator);
+    if (width <= 0) return const SizedBox.shrink();
+    return Positioned(
+      left: left,
+      top: 30, // barTop: 30px (spec §2.1)
+      child: IgnorePointer(
+        child: Container(
+          width: width,
+          height: 6, // barStroke: 6px
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2), // barRadius: 2px
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Compute how much a non-dragged tab should shift to make room.
   double _computeShiftForTab(int tabIndex) {
     if (_dragIndex == null || !_dragActive) return 0;
@@ -1372,45 +1459,55 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
             scrollDirection: Axis.horizontal,
             physics: physics,
             padding: const EdgeInsets.symmetric(horizontal: 9),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(tabCount, (i) {
-                final isActive = i == _activeIndex;
-                final isAllChats = i == 0;
-                final folder = isAllChats ? null : folders[i - 1];
-                final label = isAllChats ? 'All' : folder!.name;
-                final unread = isAllChats
-                    ? widget.allUnread
-                    : widget.chatState.unreadCountForFolder(folder!.id);
-                final isDragged = _dragActive && _dragIndex == i;
-                double shiftX = 0;
-                if (_dragActive && _dragIndex != null && i != _dragIndex!) {
-                  shiftX = _computeShiftForTab(i);
-                }
+            child: Stack(
+              clipBehavior: Clip.hardEdge,
+              children: [
+                Row(
+                  key: _rowKey,
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(tabCount, (i) {
+                    final isActive = i == _activeIndex;
+                    final isAllChats = i == 0;
+                    final folder = isAllChats ? null : folders[i - 1];
+                    final label = isAllChats ? 'All' : folder!.name;
+                    final unread = isAllChats
+                        ? widget.allUnread
+                        : widget.chatState.unreadCountForFolder(folder!.id);
+                    final isDragged = _dragActive && _dragIndex == i;
+                    double shiftX = 0;
+                    if (_dragActive && _dragIndex != null && i != _dragIndex!) {
+                      shiftX = _computeShiftForTab(i);
+                    }
 
-                return AnimatedContainer(
-                  duration: _dragActive
-                      ? const Duration(milliseconds: 150)
-                      : Duration.zero,
-                  transform: Matrix4.translationValues(
-                    isDragged ? _dragOffset : shiftX, 0,
-                    isDragged ? 1 : 0,
-                  ),
-                  child: _FolderTab(
-                    key: _tabKeys[i],
-                    label: label,
-                    unread: unread,
-                    isActive: isActive,
-                    activeColor: activeColor,
-                    inactiveColor: inactiveColor,
-                    hoverColor: hoverColor,
-                    isDragged: isDragged,
-                    onTap: () => _onTabTapped(i),
-                    onSecondaryTapUp: (pos) =>
-                        _showTabContextMenu(context, pos, folder),
-                  ),
-                );
-              }),
+                    return AnimatedContainer(
+                      duration: _dragActive
+                          ? const Duration(milliseconds: 150)
+                          : Duration.zero,
+                      transform: Matrix4.translationValues(
+                        isDragged ? _dragOffset : shiftX, 0,
+                        isDragged ? 1 : 0,
+                      ),
+                      child: _FolderTab(
+                        key: _tabKeys[i],
+                        labelKey: _labelKeys[i],
+                        label: label,
+                        unread: unread,
+                        isActive: isActive,
+                        activeColor: activeColor,
+                        inactiveColor: inactiveColor,
+                        hoverColor: hoverColor,
+                        isDragged: isDragged,
+                        onTap: () => _onTabTapped(i),
+                        onSecondaryTapUp: (pos) =>
+                            _showTabContextMenu(context, pos, folder),
+                      ),
+                    );
+                  }),
+                ),
+                // Sliding underline indicator (spec §2.1: barSnapToLabel)
+                if (_indicatorInitialized && !_dragActive)
+                  _buildIndicator(activeColor),
+              ],
             ),
           ),
         ),
@@ -1458,6 +1555,7 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
 
 /// Individual folder tab widget.
 class _FolderTab extends StatefulWidget {
+  final GlobalKey? labelKey; // for barSnapToLabel measurement by parent
   final String label;
   final int unread;
   final bool isActive;
@@ -1470,6 +1568,7 @@ class _FolderTab extends StatefulWidget {
 
   const _FolderTab({
     super.key,
+    this.labelKey,
     required this.label,
     required this.unread,
     required this.isActive,
@@ -1514,6 +1613,7 @@ class _FolderTabState extends State<_FolderTab> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
+                      key: widget.labelKey,
                       widget.label,
                       style: TextStyle(
                         fontSize: 14,
@@ -1541,21 +1641,6 @@ class _FolderTabState extends State<_FolderTab> {
                       ),
                     ],
                   ],
-                ),
-                const Spacer(),
-                // barTop: 30px → underline in bottom 3px of 33px strip
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  height: 3,
-                  decoration: BoxDecoration(
-                    color: widget.isActive
-                        ? widget.activeColor
-                        : Colors.transparent,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(2),
-                      topRight: Radius.circular(2),
-                    ),
-                  ),
                 ),
               ],
             ),
