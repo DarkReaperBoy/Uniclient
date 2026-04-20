@@ -49,91 +49,93 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                   ? const Color(0x5604080e)
                   : const Color(0x18000000),
             ),
-            // Account list (collapsible) — SlideWrap toggled by
-            // mainMenuAccountsShownValue (spec §3.2). 6px mainMenuSkip spacers.
-            ClipRect(
-              child: AnimatedSize(
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOutCirc,
-                alignment: Alignment.topCenter,
-                child: accountsExpanded
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(height: 6),
-                          _AccountList(
-                            accounts: appState.accounts,
-                            activeAccountId: appState.activeAccountId,
-                            chatState: context.watch<ChatState>(),
-                            onSelect: (id) {
-                              if (id == appState.activeAccountId) {
-                                // Spec §3.2: clicking active account closes drawer.
-                                Navigator.of(context).pop();
-                                return;
-                              }
-                              appState.setActiveAccountId(id);
-                              context.read<ChatState>().switchAccount(id);
-                              appState.setMainMenuAccountsShown(false);
-                            },
-                            onActivate: (id) {
-                              appState.setActiveAccountId(id);
-                              context.read<ChatState>().switchAccount(id);
-                              appState.setMainMenuAccountsShown(false);
-                            },
-                            onMarkAsRead: (id) {
-                              context.read<ChatState>().markAllChatsReadForAccount(id);
-                            },
-                            onLogOut: (id) {
-                              Navigator.of(context).pop(); // close drawer
-                              appState.removeAccount(id);
-                            },
-                            onAddAccount: () =>
-                                _showAddAccountDialog(context, appState),
-                          ),
-                          const SizedBox(height: 6),
-                          // PlainShadow below accounts when open (spec §3).
-                          Container(
-                            height: 1,
-                            color: isDark
-                                ? const Color(0x5604080e)
-                                : const Color(0x18000000),
-                          ),
-                        ],
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ),
-            // Menu items. Placeholder entries (My Profile, New Group, New
-            // Channel, Contacts, Calls, Saved Messages, Settings) previously
-            // rendered with empty onTap callbacks were removed per CLAUDE.md's
-            // ZERO placeholders rule. They will be re-added as their backing
-            // screens/flows are implemented (tracked in todolist.md).
+            // Spec §3: entire menu below cover is a single defaultSolidScroll
+            // ScrollArea. Accounts extend the layout; the scroll bar takes over.
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _NightModeToggle(
-                    isDark: isDark,
-                    onChanged: (dark) {
-                      appState.updateTheme(dark ? 'dark' : 'light');
-                    },
-                  ),
-                  if (Platform.isLinux)
-                    _SystemFrameToggle(
-                      enabled: appState.nativeWindowFrame,
-                      onChanged: (value) {
-                        appState.setNativeWindowFrame(value);
+              child: Scrollbar(
+                thumbVisibility: true,
+                thickness: 6,
+                radius: const Radius.circular(3),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    // Account list (collapsible) — SlideWrap toggled by
+                    // mainMenuAccountsShownValue (spec §3.2). 6px mainMenuSkip spacers.
+                    ClipRect(
+                      child: AnimatedSize(
+                        duration: const Duration(milliseconds: 150),
+                        curve: Curves.easeOutCirc,
+                        alignment: Alignment.topCenter,
+                        child: accountsExpanded
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const SizedBox(height: 6),
+                                  _AccountList(
+                                    accounts: appState.accounts,
+                                    activeAccountId: appState.activeAccountId,
+                                    chatState: context.watch<ChatState>(),
+                                    onSelect: (id) {
+                                      if (id == appState.activeAccountId) {
+                                        // Spec §3.2: clicking active account closes drawer.
+                                        Navigator.of(context).pop();
+                                        return;
+                                      }
+                                      appState.setActiveAccountId(id);
+                                      context.read<ChatState>().switchAccount(id);
+                                      appState.setMainMenuAccountsShown(false);
+                                    },
+                                    onActivate: (id) {
+                                      appState.setActiveAccountId(id);
+                                      context.read<ChatState>().switchAccount(id);
+                                      appState.setMainMenuAccountsShown(false);
+                                    },
+                                    onMarkAsRead: (id) {
+                                      context.read<ChatState>().markAllChatsReadForAccount(id);
+                                    },
+                                    onLogOut: (id) {
+                                      Navigator.of(context).pop(); // close drawer
+                                      appState.removeAccount(id);
+                                    },
+                                    onAddAccount: () =>
+                                        _showAddAccountDialog(context, appState),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  // PlainShadow below accounts when open (spec §3).
+                                  Container(
+                                    height: 1,
+                                    color: isDark
+                                        ? const Color(0x5604080e)
+                                        : const Color(0x18000000),
+                                  ),
+                                ],
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+                    ),
+                    _NightModeToggle(
+                      isDark: isDark,
+                      onChanged: (dark) {
+                        appState.updateTheme(dark ? 'dark' : 'light');
                       },
                     ),
-                ],
-              ),
-            ),
-            // Version footer.
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'UniClient v0.1.0',
-                style: theme.textTheme.bodySmall,
+                    if (Platform.isLinux)
+                      _SystemFrameToggle(
+                        enabled: appState.nativeWindowFrame,
+                        onChanged: (value) {
+                          appState.setNativeWindowFrame(value);
+                        },
+                      ),
+                    // Version footer.
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'UniClient v0.1.0',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -454,68 +456,66 @@ class _AccountList extends StatelessWidget {
         ? const Color(0xFF232E3C)
         : const Color(0xFFF1F1F1);
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 320),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final account in accounts)
-              _AccountRow(
-                account: account,
-                isActive: account.id == activeAccountId,
-                unreadCount: chatState.unreadCountForAccount(account.id),
-                unreadAllMuted: chatState.isAccountUnreadAllMuted(account.id),
-                labelColor: labelColor,
-                hoverBg: hoverBg,
-                onTap: () => onSelect(account.id),
-                onActivate: () => onActivate(account.id),
-                onMarkAsRead: () => onMarkAsRead(account.id),
-                onLogOut: () => onLogOut(account.id),
-              ),
-            // Add Account button (separate checklist item — keeping simple for now).
-            InkWell(
-              onTap: onAddAccount,
-              hoverColor: hoverBg,
-              splashColor: hoverBg.withValues(alpha: 0.5),
-              child: Padding(
-                padding: const EdgeInsets.only(top: 11, bottom: 9, right: 20),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 23),
-                    SizedBox(
-                      width: 36,
-                      height: 36,
-                      child: Center(
-                        child: Icon(
-                          Icons.add,
-                          size: 20,
-                          color: isDark
-                              ? const Color(0xFF5288C1)
-                              : const Color(0xFF40A7E3),
-                        ),
-                      ),
+    // Spec §3.2: accounts expand naturally within the parent ScrollArea.
+    // No internal scroll or max height — the drawer's single ScrollArea
+    // handles overflow when many accounts are present.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final account in accounts)
+          _AccountRow(
+            account: account,
+            isActive: account.id == activeAccountId,
+            unreadCount: chatState.unreadCountForAccount(account.id),
+            unreadAllMuted: chatState.isAccountUnreadAllMuted(account.id),
+            labelColor: labelColor,
+            hoverBg: hoverBg,
+            onTap: () => onSelect(account.id),
+            onActivate: () => onActivate(account.id),
+            onMarkAsRead: () => onMarkAsRead(account.id),
+            onLogOut: () => onLogOut(account.id),
+          ),
+        // Add Account button (separate checklist item — keeping simple for now).
+        InkWell(
+          onTap: onAddAccount,
+          hoverColor: hoverBg,
+          splashColor: hoverBg.withValues(alpha: 0.5),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 11, bottom: 9, right: 20),
+            child: Row(
+              children: [
+                const SizedBox(width: 23),
+                SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: Center(
+                    child: Icon(
+                      Icons.add,
+                      size: 20,
+                      color: isDark
+                          ? const Color(0xFF5288C1)
+                          : const Color(0xFF40A7E3),
                     ),
-                    const SizedBox(width: 2),
-                    Expanded(
-                      child: Text(
-                        'Add Account',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: isDark
-                              ? const Color(0xFF5288C1)
-                              : const Color(0xFF40A7E3),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+                const SizedBox(width: 2),
+                Expanded(
+                  child: Text(
+                    'Add Account',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? const Color(0xFF5288C1)
+                          : const Color(0xFF40A7E3),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
