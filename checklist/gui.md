@@ -81,10 +81,6 @@
 - [x] Message preview at x=68px y=34px, normal 13px, `#999999` / white active — DONE in `chat_list_row.dart`
 - [x] Sender name prefix in service color `#168acd`; "Draft:" prefix in red `#dd4b39` — DONE in `chat_list_row.dart`
 - [x] Typing indicator replaces message preview — DONE in `chat_list_row.dart`
-- [ ] Stories ring: full mode — photo 42px, unread line 2px, read line 1px; small mode — 21px photo, 1.5px unread, no read line — spec §2.3
-- [ ] Stories ring unread gradient: `groupCallLive1` (#0dcc39) → `groupCallMuted1` (#0992ef), topRight→bottomLeft — spec §2.3
-- [ ] Stories ring read: solid `dialogsUnreadBgMuted` at 0.6 opacity — spec §2.3
-- [ ] Live-stream ring: solid `attentionButtonFg` red instead of gradient — spec §2.3
 - [ ] Mini media previews: 16px thumbnails in preview line — spec §2.3
 
 ### §2.4 Chat Item States
