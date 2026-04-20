@@ -152,6 +152,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                             : const Color(0x18000000),
                       ),
                     ),
+                    // §3.3: New Group row.
+                    _MenuRow(
+                      icon: Icons.group,
+                      label: 'New Group',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        // TODO: open new group creation flow
+                      },
+                    ),
                     _NightModeToggle(
                       isDark: isDark,
                       onChanged: (dark) {
