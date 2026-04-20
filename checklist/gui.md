@@ -52,10 +52,6 @@
 ### 3.1 Profile Area / Cover
 
 ### 3.2 Account Section (collapsible)
-- [ ] Account row: SettingsButton, padding 61px left, 11px top, 20px right, 9px bottom (S3)
-- [ ] Account row font: semiboldTextStyle 13px semibold (S3)
-- [ ] Account row icon-left: 23px (S3)
-- [ ] Account avatar: 26px photo, 5px padding each side (36x36 total) (S3)
 - [ ] Active account: 2px stroke ring in windowBgActive (S3)
 - [ ] Account unread badge: 11px bold font, 18px size (S3)
 - [ ] Account unread badge: respects muted state, hidden when 0 (S3)

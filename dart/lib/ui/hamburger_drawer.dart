@@ -63,7 +63,6 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           _AccountList(
                             accounts: appState.accounts,
                             activeAccountId: appState.activeAccountId,
-                            connStates: appState.connStates,
                             onSelect: (id) {
                               appState.setActiveAccountId(id);
                               context.read<ChatState>().switchAccount(id);
@@ -378,22 +377,21 @@ class _ChevronPainter extends CustomPainter {
 }
 
 /// Expandable account list for switching accounts.
+/// Spec §3.2: each row is a SettingsButton with mainMenuButton styling.
 class _AccountList extends StatelessWidget {
   final List<AccountInfo> accounts;
   final String activeAccountId;
-  final Map<String, ConnState> connStates;
   final void Function(String id) onSelect;
   final VoidCallback onAddAccount;
 
   const _AccountList({
     required this.accounts,
     required this.activeAccountId,
-    required this.connStates,
     required this.onSelect,
     required this.onAddAccount,
   });
 
-  static const _platformIcons = <String, IconData>{
+  static const platformIcons = <String, IconData>{
     'telegram': Icons.send,
     'matrix': Icons.grid_view,
     'xmpp': Icons.message,
@@ -408,13 +406,15 @@ class _AccountList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final connColor = (ConnState s) => switch (s) {
-      ConnState.connected => const Color(0xFF3BA55C),
-      ConnState.connecting => const Color(0xFFFAA61A),
-      ConnState.unstable => const Color(0xFFFAA61A),
-      ConnState.disconnected => Colors.grey,
-    };
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Spec §3.2: windowBoldFg for label, windowBgOver for hover.
+    final labelColor = isDark
+        ? const Color(0xFFE1E3E6)
+        : const Color(0xFF222222);
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxHeight: 320),
@@ -423,61 +423,126 @@ class _AccountList extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             for (final account in accounts)
-              ListTile(
-                dense: true,
-                selected: account.id == activeAccountId,
-                selectedTileColor: theme.colorScheme.primary.withValues(alpha: 0.1),
-                leading: Stack(
-                  clipBehavior: Clip.none,
+              _AccountRow(
+                account: account,
+                isActive: account.id == activeAccountId,
+                labelColor: labelColor,
+                hoverBg: hoverBg,
+                onTap: () => onSelect(account.id),
+              ),
+            // Add Account button (separate checklist item — keeping simple for now).
+            InkWell(
+              onTap: onAddAccount,
+              hoverColor: hoverBg,
+              splashColor: hoverBg.withValues(alpha: 0.5),
+              child: Padding(
+                padding: const EdgeInsets.only(top: 11, bottom: 9, right: 20),
+                child: Row(
                   children: [
-                    CircleAvatar(
-                      radius: 16,
-                      backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.3),
-                      child: Icon(
-                        _platformIcons[account.platform] ?? Icons.chat,
-                        size: 16,
-                        color: theme.colorScheme.primary,
+                    const SizedBox(width: 23),
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Center(
+                        child: Icon(
+                          Icons.add,
+                          size: 20,
+                          color: isDark
+                              ? const Color(0xFF5288C1)
+                              : const Color(0xFF40A7E3),
+                        ),
                       ),
                     ),
-                    Positioned(
-                      right: -1,
-                      bottom: -1,
-                      child: Container(
-                        width: 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: connColor(connStates[account.id] ?? ConnState.disconnected),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: theme.colorScheme.surface, width: 1.5),
+                    const SizedBox(width: 2),
+                    Expanded(
+                      child: Text(
+                        'Add Account',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? const Color(0xFF5288C1)
+                              : const Color(0xFF40A7E3),
                         ),
                       ),
                     ),
                   ],
                 ),
-                title: Text(
-                  account.displayName.isNotEmpty ? account.displayName : account.id,
-                  style: theme.textTheme.bodyMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  _ProfileCover._platformLabel(account.platform),
-                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
-                ),
-                trailing: account.id == activeAccountId
-                    ? Icon(Icons.check, size: 16, color: theme.colorScheme.primary)
-                    : null,
-                onTap: () => onSelect(account.id),
               ),
-            ListTile(
-              dense: true,
-              leading: Icon(Icons.add, color: theme.colorScheme.primary),
-              title: Text('Add Account',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.primary,
-                  )),
-              onTap: onAddAccount,
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Single account row matching Telegram Desktop SettingsButton style.
+/// Spec §3.2: padding margins(61, 11, 20, 9), semiboldTextStyle 13px,
+/// iconLeft 23px, avatar 26px photo + 5px padding each side = 36x36.
+class _AccountRow extends StatelessWidget {
+  final AccountInfo account;
+  final bool isActive;
+  final Color labelColor;
+  final Color hoverBg;
+  final VoidCallback onTap;
+
+  const _AccountRow({
+    required this.account,
+    required this.isActive,
+    required this.labelColor,
+    required this.hoverBg,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        // Spec §3.2: margins(61px, 11px, 20px, 9px).
+        // Left 61px is composed of: 23px iconLeft + 36px avatar + 2px gap.
+        padding: const EdgeInsets.only(top: 11, bottom: 9, right: 20),
+        child: Row(
+          children: [
+            const SizedBox(width: 23), // iconLeft: 23px
+            // Avatar: 26px photo (radius 13) + 5px padding each side = 36x36.
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: Center(
+                child: CircleAvatar(
+                  radius: 13,
+                  backgroundColor:
+                      theme.colorScheme.primary.withValues(alpha: 0.3),
+                  child: Icon(
+                    _AccountList.platformIcons[account.platform] ?? Icons.chat,
+                    size: 14,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 2), // 23 + 36 + 2 = 61px text start
+            Expanded(
+              child: Text(
+                account.displayName.isNotEmpty
+                    ? account.displayName
+                    : _ProfileCover._platformLabel(account.platform),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: labelColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isActive)
+              Icon(Icons.check, size: 16, color: theme.colorScheme.primary),
           ],
         ),
       ),
