@@ -1,6 +1,7 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <gio/gio.h>
 
 #ifdef HAVE_APPINDICATOR
 #include <libayatana-appindicator/app-indicator.h>
@@ -14,6 +15,8 @@ struct _MyApplication {
   GtkWindow* window;
   FlMethodChannel* tray_channel;
   FlMethodChannel* window_channel;
+  GDBusConnection* session_bus;
+  guint xdp_settings_signal_id;
 #ifdef HAVE_APPINDICATOR
   AppIndicator* indicator;
   GtkWidget* tray_menu;
@@ -241,6 +244,91 @@ static gboolean on_window_state(GtkWidget* /*widget*/,
   return FALSE;
 }
 
+// Query button layout from XDG desktop portal (Wayland fallback).
+// Spec §1: when XSettings is unavailable, fall back to
+// org.gnome.desktop.wm.preferences::button-layout via the portal.
+static gchar* query_xdp_button_layout(GDBusConnection* connection) {
+  if (!connection) return NULL;
+
+  g_autoptr(GError) error = NULL;
+  g_autoptr(GVariant) result = g_dbus_connection_call_sync(
+      connection,
+      "org.freedesktop.portal.Desktop",
+      "/org/freedesktop/portal/desktop",
+      "org.freedesktop.portal.Settings",
+      "Read",
+      g_variant_new("(ss)", "org.gnome.desktop.wm.preferences", "button-layout"),
+      G_VARIANT_TYPE("(v)"),
+      G_DBUS_CALL_FLAGS_NONE,
+      1000,  // 1s timeout
+      NULL,
+      &error);
+
+  if (!result) return NULL;
+
+  // Portal Read returns (v). The inner variant wraps the GSettings value,
+  // which is itself a variant wrapping the actual string.
+  g_autoptr(GVariant) outer = NULL;
+  g_variant_get(result, "(v)", &outer);
+  if (!outer) return NULL;
+
+  g_autoptr(GVariant) inner = NULL;
+  GVariant* target = outer;
+  if (g_variant_is_of_type(outer, G_VARIANT_TYPE_VARIANT)) {
+    inner = g_variant_get_variant(outer);
+    target = inner;
+  }
+
+  if (g_variant_is_of_type(target, G_VARIANT_TYPE_STRING)) {
+    const gchar* str = g_variant_get_string(target, NULL);
+    if (str && str[0] != '\0') {
+      return g_strdup(str);
+    }
+  }
+
+  return NULL;
+}
+
+// Handle XDG portal SettingChanged signal for live button layout updates.
+// Signal signature: (ssv) — namespace, key, value.
+static void on_xdp_setting_changed(GDBusConnection* /*connection*/,
+                                   const gchar* /*sender*/,
+                                   const gchar* /*object_path*/,
+                                   const gchar* /*interface_name*/,
+                                   const gchar* /*signal_name*/,
+                                   GVariant* parameters,
+                                   gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  if (!self->window_channel) return;
+
+  const gchar* ns = NULL;
+  const gchar* key = NULL;
+  g_autoptr(GVariant) value = NULL;
+  g_variant_get(parameters, "(&s&sv)", &ns, &key, &value);
+
+  if (g_strcmp0(ns, "org.gnome.desktop.wm.preferences") != 0 ||
+      g_strcmp0(key, "button-layout") != 0) {
+    return;
+  }
+
+  g_autoptr(GVariant) inner = NULL;
+  GVariant* target = value;
+  if (g_variant_is_of_type(value, G_VARIANT_TYPE_VARIANT)) {
+    inner = g_variant_get_variant(value);
+    target = inner;
+  }
+
+  if (g_variant_is_of_type(target, G_VARIANT_TYPE_STRING)) {
+    const gchar* layout = g_variant_get_string(target, NULL);
+    if (layout && layout[0] != '\0') {
+      g_autoptr(FlValue) args = fl_value_new_string(layout);
+      fl_method_channel_invoke_method(self->window_channel,
+                                     "buttonLayoutChanged",
+                                     args, nullptr, nullptr, nullptr);
+    }
+  }
+}
+
 static void window_method_call_handler(FlMethodChannel* /*channel*/,
                                        FlMethodCall* method_call,
                                        gpointer user_data) {
@@ -275,6 +363,18 @@ static void window_method_call_handler(FlMethodChannel* /*channel*/,
       gtk_window_set_decorated(self->window, decorated);
     }
     fl_method_call_respond_success(method_call, nullptr, nullptr);
+  } else if (g_strcmp0(method, "resize") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    if (self->window && fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
+      FlValue* w_val = fl_value_lookup_string(args, "width");
+      FlValue* h_val = fl_value_lookup_string(args, "height");
+      if (w_val && h_val) {
+        gint w = (gint)fl_value_get_int(w_val);
+        gint h = (gint)fl_value_get_int(h_val);
+        gtk_window_resize(self->window, w, h);
+      }
+    }
+    fl_method_call_respond_success(method_call, nullptr, nullptr);
   } else if (g_strcmp0(method, "startDrag") == 0) {
     // Respond first, then start the drag — begin_move_drag may redirect
     // the event loop so the response must be sent beforehand.
@@ -288,8 +388,11 @@ static void window_method_call_handler(FlMethodChannel* /*channel*/,
     }
   } else if (g_strcmp0(method, "getButtonLayout") == 0) {
     // Spec §1: read button layout from desktop environment at runtime.
-    // GtkSettings aggregates Gtk/DecorationLayout from XSettings (X11) and
-    // the XDG desktop portal (Wayland) automatically.
+    // 1. GTK's gtk-decoration-layout (aggregates XSettings on X11 and
+    //    XDG portal on Wayland in GTK 3.24+).
+    // 2. Explicit XDG portal query (Wayland fallback when GTK doesn't
+    //    pick up the portal value).
+    // 3. Windows-style right-side buttons (spec §1 default).
     GtkSettings* settings = gtk_settings_get_default();
     gchar* layout = NULL;
     if (settings) {
@@ -301,9 +404,16 @@ static void window_method_call_handler(FlMethodChannel* /*channel*/,
       g_free(layout);
     } else {
       g_free(layout);
-      // Fallback: Windows-style right-side buttons (spec §1 default).
-      g_autoptr(FlValue) result = fl_value_new_string(":minimize,maximize,close");
-      fl_method_call_respond_success(method_call, result, nullptr);
+      // XDG portal fallback (Wayland).
+      gchar* xdp_layout = query_xdp_button_layout(self->session_bus);
+      if (xdp_layout) {
+        g_autoptr(FlValue) result = fl_value_new_string(xdp_layout);
+        fl_method_call_respond_success(method_call, result, nullptr);
+        g_free(xdp_layout);
+      } else {
+        g_autoptr(FlValue) result = fl_value_new_string(":minimize,maximize,close");
+        fl_method_call_respond_success(method_call, result, nullptr);
+      }
     }
   } else {
     fl_method_call_respond_not_implemented(method_call, nullptr);
@@ -328,9 +438,18 @@ static void on_decoration_layout_changed(GObject* /*settings*/,
     g_free(layout);
   } else {
     g_free(layout);
-    g_autoptr(FlValue) args = fl_value_new_string(":minimize,maximize,close");
-    fl_method_channel_invoke_method(self->window_channel, "buttonLayoutChanged",
-                                   args, nullptr, nullptr, nullptr);
+    // Try XDG portal fallback.
+    gchar* xdp_layout = query_xdp_button_layout(self->session_bus);
+    if (xdp_layout) {
+      g_autoptr(FlValue) args = fl_value_new_string(xdp_layout);
+      fl_method_channel_invoke_method(self->window_channel, "buttonLayoutChanged",
+                                     args, nullptr, nullptr, nullptr);
+      g_free(xdp_layout);
+    } else {
+      g_autoptr(FlValue) args = fl_value_new_string(":minimize,maximize,close");
+      fl_method_channel_invoke_method(self->window_channel, "buttonLayoutChanged",
+                                     args, nullptr, nullptr, nullptr);
+    }
   }
 }
 
@@ -428,6 +547,26 @@ static void my_application_activate(GApplication* application) {
                      G_CALLBACK(on_decoration_layout_changed), self);
   }
 
+  // Subscribe to XDG portal SettingChanged for button layout (Wayland).
+  // Spec §1: watch for live changes via portal when XSettings unavailable.
+  {
+    g_autoptr(GError) bus_error = NULL;
+    self->session_bus = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, &bus_error);
+    if (self->session_bus) {
+      self->xdp_settings_signal_id = g_dbus_connection_signal_subscribe(
+          self->session_bus,
+          "org.freedesktop.portal.Desktop",
+          "org.freedesktop.portal.Settings",
+          "SettingChanged",
+          "/org/freedesktop/portal/desktop",
+          NULL,
+          G_DBUS_SIGNAL_FLAGS_NONE,
+          on_xdp_setting_changed,
+          self,
+          NULL);
+    }
+  }
+
 #ifdef HAVE_APPINDICATOR
   init_tray(self);
 #endif
@@ -486,6 +625,12 @@ static void my_application_dispose(GObject* object) {
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   g_clear_object(&self->tray_channel);
   g_clear_object(&self->window_channel);
+  if (self->xdp_settings_signal_id && self->session_bus) {
+    g_dbus_connection_signal_unsubscribe(self->session_bus,
+                                        self->xdp_settings_signal_id);
+    self->xdp_settings_signal_id = 0;
+  }
+  g_clear_object(&self->session_bus);
 #ifdef HAVE_APPINDICATOR
   g_clear_object(&self->indicator);
   if (self->tray_menu) {
@@ -508,6 +653,8 @@ static void my_application_init(MyApplication* self) {
   self->window = nullptr;
   self->tray_channel = nullptr;
   self->window_channel = nullptr;
+  self->session_bus = nullptr;
+  self->xdp_settings_signal_id = 0;
 #ifdef HAVE_APPINDICATOR
   self->indicator = nullptr;
   self->tray_menu = nullptr;
