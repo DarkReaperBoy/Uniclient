@@ -264,6 +264,14 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         Navigator.of(context).pop();
                       },
                     ),
+                    // §3.5: Notifications — menuIconNotifications (S3).
+                    _MenuRow(
+                      icon: Icons.notifications,
+                      label: 'Notifications',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
                     // Version footer.
                     Padding(
                       padding: const EdgeInsets.all(16),
