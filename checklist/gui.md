@@ -40,8 +40,6 @@
 ### 2.4 Chat Item States
 
 ### 2.5 Special Rows
-- [ ] Archived Chats expand/collapse animation: ~200ms (S2)
-- [ ] Saved Messages: bookmark icon userpic (no avatar photo) (S2)
 
 ### 2.6 Sorting
 - [ ] Pinned chats at top (no visible separator) (S2)

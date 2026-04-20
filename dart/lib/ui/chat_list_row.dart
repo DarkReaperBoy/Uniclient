@@ -374,6 +374,10 @@ class _ChatAvatar extends StatelessWidget {
 
   bool get _hasStories => chat.storyCount > 0;
 
+  /// Saved Messages: identified by title + DM type (spec §31.1).
+  bool get _isSavedMessages =>
+      chat.title == 'Saved Messages' && chat.type == ChatType.dm;
+
   @override
   Widget build(BuildContext context) {
     final colorIndex = chat.chatId.hashCode.abs() % 7;
@@ -384,8 +388,12 @@ class _ChatAvatar extends StatelessWidget {
     final storyPhotoSize = minified ? _storyPhotoSizeSmall : _storyPhotoSizeFull;
     final photoSize = _hasStories ? storyPhotoSize : size;
 
-    final avatar = chat.avatarPath.isNotEmpty
-        ? ClipOval(
+    // Saved Messages: bookmark icon userpic (spec §31.1).
+    final Widget avatar;
+    if (_isSavedMessages) {
+      avatar = _SavedMessagesUserpic(size: photoSize, isDark: isDark);
+    } else if (chat.avatarPath.isNotEmpty) {
+      avatar = ClipOval(
             child: Image.file(
               File(chat.avatarPath),
               width: photoSize,
@@ -393,8 +401,10 @@ class _ChatAvatar extends StatelessWidget {
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => _fallback(color, initials, photoSize),
             ),
-          )
-        : _fallback(color, initials, photoSize);
+          );
+    } else {
+      avatar = _fallback(color, initials, photoSize);
+    }
 
     // No stories, no online dot — simple case.
     if (!_hasStories && !isOnline) {
@@ -871,6 +881,102 @@ class _SendStateIcon extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Returns true if [chat] is the Saved Messages self-chat (spec §31.1).
+bool isSavedMessages(ChatInfo chat) =>
+    chat.title == 'Saved Messages' && chat.type == ChatType.dm;
+
+/// Saved Messages bookmark icon userpic (spec §31.1).
+/// Blue vertical-gradient circle with white bookmark silhouette.
+/// Replaces the normal avatar for the self-chat.
+class _SavedMessagesUserpic extends StatelessWidget {
+  final double size;
+  final bool isDark;
+
+  const _SavedMessagesUserpic({required this.size, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        size: Size(size, size),
+        painter: _SavedMessagesIconPainter(isDark: isDark),
+      ),
+    );
+  }
+}
+
+/// Custom painter for the Saved Messages bookmark icon.
+/// Spec §31.1: vertical gradient circle + centered bookmark silhouette.
+/// Background: historyPeerSavedMessagesBg → historyPeerSavedMessagesBg2.
+/// Icon: white bookmark with rounded top corners and sharp V-notch bottom.
+class _SavedMessagesIconPainter extends CustomPainter {
+  final bool isDark;
+
+  _SavedMessagesIconPainter({required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    final center = Offset(s / 2, s / 2);
+    final radius = s / 2;
+
+    // Background: vertical gradient circle.
+    // Day: #65a9e0 → #44b4f0, Night: #2a8dd8 → #46ade5.
+    final bgPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: isDark
+            ? [const Color(0xFF2a8dd8), const Color(0xFF46ade5)]
+            : [const Color(0xFF65a9e0), const Color(0xFF44b4f0)],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+
+    canvas.drawCircle(center, radius, bgPaint);
+
+    // Bookmark icon dimensions (spec §31.1):
+    // Width: SafeRound(size * 0.23) * 2 + increment (~22px at 46px)
+    // Height: SafeRound(size * 0.19) * 2 + increment (~18px at 46px)
+    // Notch: SafeRound(size * 0.064) (~3px at 46px)
+    final halfW = (s * 0.23).roundToDouble();
+    final halfH = (s * 0.19).roundToDouble();
+    final bookWidth = halfW * 2 + 1;
+    final bookHeight = halfH * 2 + 1;
+    final notch = (s * 0.064).roundToDouble();
+    final cornerR = s * 0.06; // top corner radius
+
+    final left = (s - bookWidth) / 2;
+    final top = (s - bookHeight) / 2;
+    final right = left + bookWidth;
+    final bottom = top + bookHeight;
+    final cx = s / 2;
+    final notchY = bottom - notch;
+
+    // Bookmark path: rounded-top rectangle with V-notch at bottom center.
+    final path = Path()
+      ..moveTo(left, top + cornerR)
+      ..quadraticBezierTo(left, top, left + cornerR, top) // top-left round
+      ..lineTo(right - cornerR, top) // top edge
+      ..quadraticBezierTo(right, top, right, top + cornerR) // top-right round
+      ..lineTo(right, bottom) // right side down
+      ..lineTo(cx, notchY) // right-to-center V-notch
+      ..lineTo(left, bottom) // center-to-left V-notch
+      ..close(); // back to start
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = const Color(0xFFFFFFFF) // historyPeerUserpicFg
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SavedMessagesIconPainter oldDelegate) =>
+      isDark != oldDelegate.isDark;
 }
 
 /// Hover-tracking wrapper that exposes hover state to its builder.
