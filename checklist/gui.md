@@ -54,26 +54,8 @@
 ### 3.2 Account Section (collapsible)
 
 ### 3.3 Menu Items
-- [ ] Row padding: 61px left, 11px top, 20px right, 9px bottom (S3)
-- [ ] Row label font: semiboldTextStyle 13px semibold (S3)
-- [ ] Row label color: windowBoldFg inactive, windowBoldFgOver hover (S3)
-- [ ] Row icon: 24x24 from menu_icons, menuIconColor, at 21px horizontal (S3)
-- [ ] Row hover/pressed: windowBgOver background + ripple (S3)
-- [ ] Toggle skip: 19px between label and trailing toggle (S3)
-- [ ] PlainShadow divider below My Profile/Bots block with 6px padding (S3)
-- [ ] AyuGram-exclusive rows gated by showXInDrawer settings (S3)
 
 ### 3.4 Night Mode Toggle
-- [ ] Night mode: SettingsButton with trailing toggle switch (S3)
-- [ ] Toggle "on" pill color: mainMenuCoverBg (S3)
-- [ ] Toggle-shift animation offset: 11px (S3)
-- [ ] Moon icon: menuIconNightMode in menuIconColor (S3)
-- [ ] Label: "Night Mode" in semiboldTextStyle (S3)
-- [ ] Toggle off color: windowSubTextFg, on: mainMenuCoverBg (S3)
-- [ ] Toggle animation: ~150ms (S3)
-- [ ] Theme cross-fade: full-window palette animation on toggle (S3)
-- [ ] System dark mode: auto-update toggle when system theme changes (S3)
-- [ ] Confirmation dialog when theme editor is active (S3)
 
 ### 3.5 Settings Sections
 - [ ] My Account with menuIconProfile (S3)

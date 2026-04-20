@@ -10,7 +10,7 @@ import '../models/engine_models.dart';
 import '../utils/debug.dart';
 
 /// Top-level app state: accounts, connection, config, active platform.
-class AppState extends ChangeNotifier {
+class AppState extends ChangeNotifier with WidgetsBindingObserver {
   final EngineService _engine;
 
   /// Spec §3.2: max accounts 100 (AyuGram), 200 for premium.
@@ -27,6 +27,7 @@ class AppState extends ChangeNotifier {
   String _configDir = '';
   bool _nativeWindowFrame = false;
   bool _mainMenuAccountsShown = false;
+  bool _systemDarkMode = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -89,6 +90,30 @@ class AppState extends ChangeNotifier {
   bool get canAddAccount => _accounts.length < maxAccountLimit;
 
   bool get nativeWindowFrame => _nativeWindowFrame;
+
+  /// Spec §3.4: when true, theme auto-follows system dark mode changes.
+  bool get systemDarkModeEnabled => _systemDarkMode;
+
+  void setSystemDarkMode(bool value) {
+    if (_systemDarkMode == value) return;
+    _systemDarkMode = value;
+    if (value) {
+      final brightness =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      updateTheme(brightness == Brightness.dark ? 'dark' : 'light');
+    }
+    _saveWindowPrefs();
+    notifyListeners();
+  }
+
+  @override
+  void didChangePlatformBrightness() {
+    if (_systemDarkMode) {
+      final brightness =
+          WidgetsBinding.instance.platformDispatcher.platformBrightness;
+      updateTheme(brightness == Brightness.dark ? 'dark' : 'light');
+    }
+  }
 
   /// Spec §3.2: persisted toggle for account list in hamburger menu.
   bool get mainMenuAccountsShown => _mainMenuAccountsShown;
@@ -196,6 +221,12 @@ class AppState extends ChangeNotifier {
       _ensureActiveAccount();
       // Load window prefs (native frame toggle) before marking initialized.
       _loadWindowPrefs();
+      WidgetsBinding.instance.addObserver(this);
+      if (_systemDarkMode) {
+        final brightness =
+            WidgetsBinding.instance.platformDispatcher.platformBrightness;
+        updateTheme(brightness == Brightness.dark ? 'dark' : 'light');
+      }
       if (_nativeWindowFrame && Platform.isLinux) {
         try {
           await _windowChannel.invokeMethod('setDecorated', true);
@@ -328,6 +359,7 @@ class AppState extends ChangeNotifier {
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       _nativeWindowFrame = data['nativeWindowFrame'] as bool? ?? false;
       _mainMenuAccountsShown = data['mainMenuAccountsShown'] as bool? ?? false;
+      _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -340,6 +372,7 @@ class AppState extends ChangeNotifier {
       File(path).writeAsStringSync(jsonEncode({
         'nativeWindowFrame': _nativeWindowFrame,
         'mainMenuAccountsShown': _mainMenuAccountsShown,
+        'systemDarkMode': _systemDarkMode,
         'accountOrder': _accountOrder,
       }));
     } catch (_) {}
@@ -386,6 +419,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _cmdPollTimer?.cancel();
     for (final sub in _subs) {
       sub.cancel();
