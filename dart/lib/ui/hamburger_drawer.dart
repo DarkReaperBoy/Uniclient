@@ -170,6 +170,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         // TODO: open new channel creation flow
                       },
                     ),
+                    // §3.3: Contacts row (item 5) — menuIconUserShow.
+                    _MenuRow(
+                      icon: Icons.contacts,
+                      label: 'Contacts',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        // TODO: open contacts screen
+                      },
+                    ),
                     _NightModeToggle(
                       isDark: isDark,
                       onChanged: (dark) {

@@ -54,7 +54,6 @@
 ### 3.2 Account Section (collapsible)
 
 ### 3.3 Menu Items
-- [ ] Contacts row with menuIconUserShow (S3)
 - [ ] Calls row with menuIconPhone (S3)
 - [ ] Saved Messages row with menuIconSavedMessages (S3)
 - [ ] Settings row with menuIconSettings (S3)
