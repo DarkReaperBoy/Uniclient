@@ -205,6 +205,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         }
                       },
                     ),
+                    // §3.3: Settings row (item 8) — menuIconSettings.
+                    _MenuRow(
+                      icon: Icons.settings,
+                      label: 'Settings',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        // TODO: open settings screen
+                      },
+                    ),
                     _NightModeToggle(
                       isDark: isDark,
                       onChanged: (dark) {
