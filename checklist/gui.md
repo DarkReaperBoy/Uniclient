@@ -50,9 +50,6 @@
 ## 3. Hamburger Menu
 
 ### 3.1 Profile Area / Cover
-- [ ] Chevron rotation animation between up/down (S3)
-- [ ] Chevron only shown when 2+ accounts exist (S3)
-- [ ] Cover background: mainMenuCoverBg solid fill (S3)
 
 ### 3.2 Account Section (collapsible)
 - [ ] Accounts in SlideWrap toggled by mainMenuAccountsShownValue (S3)

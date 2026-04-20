@@ -40,6 +40,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
               connState: appState.connStateFor(appState.activeAccountId),
               expanded: _accountsExpanded,
               onToggle: () => setState(() => _accountsExpanded = !_accountsExpanded),
+              accountCount: appState.accounts.length,
             ),
             // 1px PlainShadow at bottom of cover (spec §3: shadowFg).
             Container(
@@ -163,12 +164,14 @@ class _ProfileCover extends StatelessWidget {
   final ConnState connState;
   final bool expanded;
   final VoidCallback onToggle;
+  final int accountCount;
 
   const _ProfileCover({
     required this.account,
     required this.connState,
     required this.expanded,
     required this.onToggle,
+    required this.accountCount,
   });
 
   @override
@@ -182,10 +185,16 @@ class _ProfileCover extends StatelessWidget {
       ConnState.disconnected => Colors.grey,
     };
 
+    // mainMenuCoverBg = windowBgActive: solid accent fill (spec §3).
+    // Day: #40a7e3, Night: #5288c1.
+    final coverBg = isDark
+        ? const Color(0xFF5288C1)
+        : const Color(0xFF40A7E3);
+
     return Container(
       height: 134,
       decoration: BoxDecoration(
-        color: theme.colorScheme.primary.withValues(alpha: 0.15),
+        color: coverBg,
       ),
       child: Stack(
         children: [
@@ -218,7 +227,7 @@ class _ProfileCover extends StatelessWidget {
                         color: connColor,
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                          color: coverBg,
                           width: 2,
                         ),
                       ),
@@ -245,10 +254,10 @@ class _ProfileCover extends StatelessWidget {
                         : _platformLabel(account?.platform ?? ''),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
-                      color: theme.colorScheme.onSurface,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -259,9 +268,7 @@ class _ProfileCover extends StatelessWidget {
                         ? Icons.workspace_premium
                         : Icons.verified,
                     size: 16,
-                    color: account?.isPremium == true
-                        ? const Color(0xFF7B68EE)
-                        : const Color(0xFF1DA1F2),
+                    color: Colors.white,
                   ),
                 ],
               ],
@@ -281,41 +288,38 @@ class _ProfileCover extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w400,
-                color: isDark
-                    ? const Color(0xFF708499)
-                    : const Color(0xFF999999),
+                color: Colors.white.withValues(alpha: 0.7),
               ),
             ),
           ),
           // Account-list toggle chevron at (30,30) from top-right.
-          // Spec §3: 6×6px chevron, 3px strokes.
-          Positioned(
-            right: 18,
-            top: 18,
-            child: GestureDetector(
-              onTap: onToggle,
-              behavior: HitTestBehavior.opaque,
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: Center(
-                  child: AnimatedRotation(
-                    turns: expanded ? 0.5 : 0.0,
-                    duration: const Duration(milliseconds: 150),
-                    curve: Curves.easeOutCirc,
-                    child: CustomPaint(
-                      size: const Size(6, 6),
-                      painter: _ChevronPainter(
-                        color: isDark
-                            ? const Color(0xFF708499)
-                            : const Color(0xFF999999),
+          // Spec §3: 6×6px chevron, 3px strokes. Only shown when 2+ accounts.
+          if (accountCount >= 2)
+            Positioned(
+              right: 18,
+              top: 18,
+              child: GestureDetector(
+                onTap: onToggle,
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Center(
+                    child: AnimatedRotation(
+                      turns: expanded ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 150),
+                      curve: Curves.easeOutCirc,
+                      child: CustomPaint(
+                        size: const Size(6, 6),
+                        painter: _ChevronPainter(
+                          color: Colors.white.withValues(alpha: 0.7),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
