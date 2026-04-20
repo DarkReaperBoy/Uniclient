@@ -362,6 +362,10 @@ class SwipeableChatRow extends StatefulWidget {
   /// Spec §2.7: Max clamped ratio — swipe commits after kThresholdWidth * kMaxRatio (~75px).
   static const kMaxRatio = 1.5;
 
+  /// Spec §2.7: Slowdown factor past threshold — drag visually lags at 1/5
+  /// actual speed, giving a rubberband feel.
+  static const kSwipeSlow = 0.2;
+
   @override
   State<SwipeableChatRow> createState() => _SwipeableChatRowState();
 }
@@ -404,9 +408,11 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   void _onDragUpdate(DragUpdateDetails details) {
     if (_resetController.isAnimating) return;
     setState(() {
-      // Only allow right-swipe (positive offset), clamped at max ratio.
-      _swipeOffset = (_swipeOffset + details.delta.dx)
-          .clamp(0.0, _maxSwipeOffset);
+      // Spec §2.7: Apply slowdown factor 0.2 past threshold (rubberband feel).
+      final dx = _swipeOffset >= SwipeableChatRow.kThresholdWidth
+          ? details.delta.dx * SwipeableChatRow.kSwipeSlow
+          : details.delta.dx;
+      _swipeOffset = (_swipeOffset + dx).clamp(0.0, _maxSwipeOffset);
     });
   }
 
