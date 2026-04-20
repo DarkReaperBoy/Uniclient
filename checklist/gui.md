@@ -56,8 +56,6 @@
 - [x] Folder tabs scrollable, drag-reorderable via raw pointer events (10px threshold) — DONE in `filter_column.dart`
 - [x] Unread badges per tab: unmuted blue `#40a7e3`, muted gray `#bbbbbb` day / `#3e546a` night — DONE in `filter_column.dart`
 - [x] Active tab highlighted with accent background — DONE in `filter_column.dart`
-- [ ] Vertical sidebar: `SideBarButton` exact 72px icon + folder name layout (currently uses 56px Container with icon+text column; spec requires specific icon size, name truncation, and active-tab highlight matching Telegram's exact sidebar button style) — spec §2.1
-- [ ] `SideBarButton` active tab: no rounded background highlight; instead a colored dot or underline (check AyuGram source `sidebar_button.cpp` — current impl uses `BorderRadius.circular(12)` bg which may be incorrect) — spec §2.1
 
 ### §2.1 Folder Tabs (Horizontal Strip)
 <!-- spec: research/telegram_desktop_ui.md §2 Folder Tabs -->
