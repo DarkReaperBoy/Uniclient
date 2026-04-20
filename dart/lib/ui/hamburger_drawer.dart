@@ -174,6 +174,7 @@ class _ProfileCover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final connColor = switch (connState) {
       ConnState.connected => const Color(0xFF3BA55C),
       ConnState.connecting => const Color(0xFFFAA61A),
@@ -267,13 +268,22 @@ class _ProfileCover extends StatelessWidget {
             ),
           ),
           // Status line at left 26, top 103 (spec §3).
+          // Font: defaultFlatLabel 13px body, color: windowSubTextFg.
           Positioned(
             left: 26,
             top: 103,
             right: 50,
             child: Text(
               _platformLabel(account?.platform ?? ''),
-              style: theme.textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w400,
+                color: isDark
+                    ? const Color(0xFF708499)
+                    : const Color(0xFF999999),
+              ),
             ),
           ),
           // Account-list toggle chevron (top-right).

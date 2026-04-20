@@ -50,7 +50,6 @@
 ## 3. Hamburger Menu
 
 ### 3.1 Profile Area / Cover
-- [ ] Status line: left 26px, top 103px, 13px body, windowSubTextFg color (S3)
 - [ ] Status content: phone when present, else "Set Emoji Status" link (S3)
 - [ ] Account-list toggle chevron: 6x6px, 3px strokes, at (30, 30) from top-right (S3)
 - [ ] Chevron rotation animation between up/down (S3)
