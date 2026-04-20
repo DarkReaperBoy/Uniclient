@@ -43,7 +43,6 @@
 
 - [x] Column width changes: `easeOutCirc` 150-200ms — DONE (180ms in `shell.dart`)
 - [x] OneColumn section transitions: horizontal slide + crossfade — DONE in `shell.dart`
-- [ ] Menu expand/collapse `slideWrapDuration` — spec §1 (account switcher uses `AnimatedSize` 150ms `easeOutCirc` which is close but not the library `slideWrapDuration` default)
 
 ---
 

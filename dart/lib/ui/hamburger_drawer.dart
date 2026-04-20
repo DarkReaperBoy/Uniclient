@@ -67,7 +67,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                     ClipRect(
                       child: AnimatedSize(
                         duration: const Duration(milliseconds: 150),
-                        curve: Curves.easeOutCirc,
+                        curve: Curves.linear,
                         alignment: Alignment.topCenter,
                         child: accountsExpanded
                             ? Column(
@@ -477,7 +477,7 @@ class _ProfileCover extends StatelessWidget {
                     child: AnimatedRotation(
                       turns: expanded ? 0.5 : 0.0,
                       duration: const Duration(milliseconds: 150),
-                      curve: Curves.easeOutCirc,
+                      curve: Curves.linear,
                       child: CustomPaint(
                         size: const Size(6, 6),
                         painter: _ChevronPainter(
