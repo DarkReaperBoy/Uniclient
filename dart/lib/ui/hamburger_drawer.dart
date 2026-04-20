@@ -183,76 +183,84 @@ class _ProfileCover extends StatelessWidget {
 
     return Container(
       height: 134,
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.primary.withValues(alpha: 0.15),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Avatar with connection state dot.
-              Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: theme.colorScheme.primary,
-                    backgroundImage: account?.avatarPath.isNotEmpty == true
-                        ? FileImage(File(account!.avatarPath))
-                        : null,
-                    child: account?.avatarPath.isNotEmpty != true
-                        ? _initials(account?.displayName ?? '?', theme)
-                        : null,
-                  ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: Container(
-                      width: 14,
-                      height: 14,
-                      decoration: BoxDecoration(
-                        color: connColor,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                          width: 2,
-                        ),
+          // Avatar: 48x48px at left 24, top 20 (spec §3).
+          Positioned(
+            left: 24,
+            top: 20,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: theme.colorScheme.primary,
+                  backgroundImage: account?.avatarPath.isNotEmpty == true
+                      ? FileImage(File(account!.avatarPath))
+                      : null,
+                  child: account?.avatarPath.isNotEmpty != true
+                      ? _initials(account?.displayName ?? '?', theme)
+                      : null,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: connColor,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                        width: 2,
                       ),
                     ),
                   ),
-                ],
-              ),
-              const Spacer(),
-              // Toggle arrow.
-              IconButton(
-                icon: AnimatedRotation(
-                  turns: expanded ? 0.5 : 0.0,
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOutCirc,
-                  child: const Icon(Icons.expand_more, size: 22),
                 ),
-                onPressed: onToggle,
+              ],
+            ),
+          ),
+          // Display name at left 26, top 84 (spec §3).
+          Positioned(
+            left: 26,
+            top: 84,
+            right: 50,
+            child: Text(
+              account?.displayName.isNotEmpty == true
+                  ? account!.displayName
+                  : _platformLabel(account?.platform ?? ''),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleMedium,
+            ),
+          ),
+          // Status line at left 26, top 103 (spec §3).
+          Positioned(
+            left: 26,
+            top: 103,
+            right: 50,
+            child: Text(
+              _platformLabel(account?.platform ?? ''),
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+          // Account-list toggle chevron (top-right).
+          Positioned(
+            right: 16,
+            top: 20,
+            child: IconButton(
+              icon: AnimatedRotation(
+                turns: expanded ? 0.5 : 0.0,
+                duration: const Duration(milliseconds: 150),
+                curve: Curves.easeOutCirc,
+                child: const Icon(Icons.expand_more, size: 22),
               ),
-            ],
-          ),
-          const Spacer(),
-          // Name.
-          Text(
-            account?.displayName.isNotEmpty == true
-                ? account!.displayName
-                : _platformLabel(account?.platform ?? ''),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.titleMedium,
-          ),
-          const SizedBox(height: 2),
-          // Platform.
-          Text(
-            _platformLabel(account?.platform ?? ''),
-            style: theme.textTheme.bodySmall,
+              onPressed: onToggle,
+            ),
           ),
         ],
       ),
@@ -262,7 +270,7 @@ class _ProfileCover extends StatelessWidget {
   Widget _initials(String name, ThemeData theme) {
     final init = name.isNotEmpty ? name[0].toUpperCase() : '?';
     return Text(init, style: const TextStyle(
-        color: Colors.white, fontSize: 22, fontWeight: FontWeight.w600));
+        color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600));
   }
 
   static String _platformLabel(String platform) => switch (platform) {

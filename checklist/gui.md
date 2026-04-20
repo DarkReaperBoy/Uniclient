@@ -50,7 +50,6 @@
 ## 3. Hamburger Menu
 
 ### 3.1 Profile Area / Cover
-- [ ] Avatar: 48x48px circular userpic at left 24px / top 20px (S3)
 - [ ] Avatar clickable: toggles account list (S3)
 - [ ] Display name: left 26px, top 84px, semiboldFont 13px, windowBoldFg color (S3)
 - [ ] Premium/verified badge after name with semiboldFont spacew gap (S3)
