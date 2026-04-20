@@ -44,7 +44,6 @@
 ### 2.6 Sorting
 
 ### 2.7 Swipe & Drag
-- [ ] Completion toast notifications (S2)
 - [ ] Drag-to-reorder: pinned chats only, sineInOut animation (S2)
 - [ ] Drag-and-drop forwarding: application/x-td-forward MIME, auto-select on hover (S2)
 

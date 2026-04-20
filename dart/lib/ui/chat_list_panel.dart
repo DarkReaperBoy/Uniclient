@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
@@ -577,6 +578,44 @@ class _ChatListPanelState extends State<ChatListPanel>
       case SwipeAction.disabled:
         break;
     }
+    // Spec §2.7: Completion toast notification after swipe action commits.
+    final toastText = _swipeActionToastText(action);
+    if (toastText != null) {
+      _showTelegramToast(context, toastText);
+    }
+  }
+
+  /// Spec §2.7: Toast text for each swipe action, matching Telegram Desktop's
+  /// lng_quick_dialog_action_toast_{action}_success localization keys.
+  /// Returns null for actions that don't show a toast (delete, disabled).
+  static String? _swipeActionToastText(SwipeAction action) {
+    return switch (action) {
+      SwipeAction.mute => 'Notifications muted.',
+      SwipeAction.unmute => 'Notifications unmuted.',
+      SwipeAction.pin => 'Chat pinned.',
+      SwipeAction.unpin => 'Chat unpinned.',
+      SwipeAction.read => 'Chat marked as read.',
+      SwipeAction.unread => 'Chat marked as unread.',
+      SwipeAction.archive => 'Chat archived.',
+      SwipeAction.unarchive => 'Chat unarchived.',
+      SwipeAction.delete => null,
+      SwipeAction.disabled => null,
+    };
+  }
+
+  /// Telegram Desktop-style toast overlay (spec §2.7, toast spec §16.10).
+  /// toastBg (#000000b2) background, toastFg (#ffffff) text, 6px radius.
+  /// Duration: 1500ms hold, 200ms fade-in, 1000ms fade-out.
+  static void _showTelegramToast(BuildContext context, String text) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _TelegramToast(
+        text: text,
+        onDone: () => entry.remove(),
+      ),
+    );
+    overlay.insert(entry);
   }
 
   void _showChatContextMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
@@ -2164,6 +2203,83 @@ class _EmptyState extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Telegram Desktop-style toast notification overlay widget.
+/// Renders a centered dark pill with white text, auto-dismisses after 1500ms.
+/// Fade-in: 200ms, fade-out: 1000ms, corner radius: 6px.
+class _TelegramToast extends StatefulWidget {
+  final String text;
+  final VoidCallback onDone;
+  const _TelegramToast({required this.text, required this.onDone});
+  @override
+  State<_TelegramToast> createState() => _TelegramToastState();
+}
+
+class _TelegramToastState extends State<_TelegramToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+  Timer? _holdTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+      reverseDuration: const Duration(milliseconds: 1000),
+    );
+    _anim.forward().then((_) {
+      if (!mounted) return;
+      _holdTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (!mounted) return;
+        _anim.reverse().then((_) {
+          if (mounted) widget.onDone();
+        });
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 50,
+      child: IgnorePointer(
+        child: FadeTransition(
+          opacity: _anim,
+          child: Center(
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 160, maxWidth: 360),
+              padding: const EdgeInsets.fromLTRB(19, 13, 19, 12),
+              decoration: BoxDecoration(
+                color: const Color(0xB2000000), // toastBg
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                widget.text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white, // toastFg
+                  fontSize: 13,
+                  fontWeight: FontWeight.normal,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
