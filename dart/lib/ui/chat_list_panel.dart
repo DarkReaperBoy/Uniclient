@@ -1508,45 +1508,42 @@ class _FolderTabState extends State<_FolderTab> {
             padding: const EdgeInsets.symmetric(horizontal: 9),
             decoration: BoxDecoration(color: bgColor),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          widget.label,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
+                const SizedBox(height: 7), // labelTop: 7px (§2.1 chatsFiltersTabs)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      widget.label,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                      ),
+                    ),
+                    if (widget.unread > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF40A7E3),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          widget.unread > 999 ? '999+' : '${widget.unread}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        if (widget.unread > 0) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF40A7E3),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              widget.unread > 999 ? '999+' : '${widget.unread}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                      ),
+                    ],
+                  ],
                 ),
-                // Spec §2: 3px underline indicator with 2px top radius
+                const Spacer(),
+                // barTop: 30px → underline in bottom 3px of 33px strip
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   height: 3,

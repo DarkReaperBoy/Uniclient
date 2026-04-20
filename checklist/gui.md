@@ -61,7 +61,6 @@
 <!-- spec: research/telegram_desktop_ui.md §2 Folder Tabs -->
 
 - [x] Horizontal `_HorizontalFolderTabs` strip shown when vertical sidebar off and folders exist — DONE in `chat_list_panel.dart`
-- [ ] Horizontal tabs: `SettingsSlider` style — strip height 33px, horizontal padding 9px, inter-label min gap 18px, labels 14px semibold — spec §2.1 (current impl uses custom widget; needs exact `chatsFiltersTabs` metrics)
 - [ ] Active tab: sliding underline indicator 6px stroke, radius 2px, at `barTop: 30px`, color `lightButtonFg` (blue); NO pill fill — spec §2.1
 - [ ] Inactive fg = `windowSubTextFg`, active fg = `lightButtonFg`; hover ripple = `windowBgOver`; active ripple = `lightButtonBgOver` — spec §2.1
 - [ ] Horizontal mouse-wheel scrolling redirected to tab strip — spec §2.1
