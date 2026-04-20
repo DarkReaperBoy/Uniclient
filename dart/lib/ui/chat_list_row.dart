@@ -7,6 +7,20 @@ import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
 
+/// Spec §2.7: Data carried during a drag-and-drop forward gesture.
+/// MIME equivalent of Telegram Desktop's `application/x-td-forward`.
+class ForwardDragData {
+  final String accountId;
+  final String sourceChatId;
+  final List<String> messageIds;
+
+  const ForwardDragData({
+    required this.accountId,
+    required this.sourceChatId,
+    required this.messageIds,
+  });
+}
+
 /// Single chat row in the sidebar chat list.
 /// Spec §2: 62px height, 46px avatar, exact positioning.
 class ChatListRow extends StatelessWidget {
@@ -18,6 +32,9 @@ class ChatListRow extends StatelessWidget {
   final VoidCallback onTap;
   final ValueChanged<Offset>? onSecondaryTap;
 
+  /// Spec §2.7: Visual highlight when forward-drag is hovering over this row.
+  final bool isForwardHovered;
+
   const ChatListRow({
     super.key,
     required this.chat,
@@ -27,6 +44,7 @@ class ChatListRow extends StatelessWidget {
     this.typingUser,
     required this.onTap,
     this.onSecondaryTap,
+    this.isForwardHovered = false,
   });
 
   // Spec dimensions.
@@ -61,10 +79,21 @@ class ChatListRow extends StatelessWidget {
     final mutedColor = isActive
         ? Colors.white
         : (isDark ? theme.textTheme.bodySmall?.color : _mutedColorDay);
+
+    // Spec §2.7: Forward-drag hover highlight — windowBgOver tint.
+    final Color? rowBg;
+    if (isForwardHovered) {
+      rowBg = isDark ? const Color(0xFF2b3a4a) : const Color(0xFFe3f0fd);
+    } else if (isActive) {
+      rowBg = activeBg;
+    } else {
+      rowBg = defaultBg;
+    }
+
     // Use a plain Container (not Material widget) to avoid MD3 surface-tint behavior
     // that washes Material(color: primary) to white in a ColorScheme.dark context.
     return Container(
-      color: isActive ? activeBg : defaultBg,
+      color: rowBg,
       child: Material(
         type: MaterialType.transparency,
         child: InkWell(

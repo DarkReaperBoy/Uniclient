@@ -130,6 +130,12 @@ class _ChatListPanelState extends State<ChatListPanel>
   List<ChatInfo> _buildNonArchived = [];
   int _buildPinnedCount = 0;
 
+  // ── Drag-and-drop forwarding (spec §2.7) ──
+  /// Chat ID currently hovered during a forward drag.
+  String? _forwardHoveredChatId;
+  /// Auto-select timer: opens the hovered chat after 2s hover (kFreezeTimeout).
+  Timer? _forwardHoverTimer;
+
   @override
   void initState() {
     super.initState();
@@ -331,6 +337,7 @@ class _ChatListPanelState extends State<ChatListPanel>
     _chatListScrollCtrl.dispose();
     _reorderOverlay?.remove();
     _reorderOverlay = null;
+    _forwardHoverTimer?.cancel();
     _searchController.removeListener(_onControllerChanged);
     _searchController.dispose();
     _searchFocus.dispose();
@@ -582,6 +589,10 @@ class _ChatListPanelState extends State<ChatListPanel>
                             final swipeAction = resolveSwipeAction(
                                 appState.swipeAction, chat);
 
+                            // Spec §2.7: Forward-drag hover state for this row.
+                            final isForwardHovered =
+                                _forwardHoveredChatId == chat.chatId;
+
                             // During active reorder: skip SwipeableChatRow wrapper for pinned items.
                             Widget row;
                             if (_reorderActive && isPinnedReorderable) {
@@ -594,6 +605,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                                 onTap: () => chatState.openChat(chat),
                                 onSecondaryTap: (pos) =>
                                     _showChatContextMenu(context, chat, pos),
+                                isForwardHovered: isForwardHovered,
                               );
                             } else {
                               row = SwipeableChatRow(
@@ -609,9 +621,58 @@ class _ChatListPanelState extends State<ChatListPanel>
                                   onTap: () => chatState.openChat(chat),
                                   onSecondaryTap: (pos) =>
                                       _showChatContextMenu(context, chat, pos),
+                                  isForwardHovered: isForwardHovered,
                                 ),
                               );
                             }
+
+                            // Spec §2.7: Wrap row in DragTarget for forward drops.
+                            // Capture inner widget before reassigning `row`.
+                            final innerRow = row;
+                            row = DragTarget<ForwardDragData>(
+                              onWillAcceptWithDetails: (details) {
+                                // Don't accept drop on the source chat itself.
+                                return details.data.sourceChatId != chat.chatId;
+                              },
+                              onAcceptWithDetails: (details) {
+                                _forwardHoverTimer?.cancel();
+                                setState(() => _forwardHoveredChatId = null);
+                                chatState.forwardMessages(
+                                  details.data.messageIds,
+                                  chat.chatId,
+                                );
+                                _showTelegramToast(
+                                    context, 'Messages forwarded.');
+                              },
+                              onMove: (details) {
+                                if (_forwardHoveredChatId != chat.chatId) {
+                                  _forwardHoverTimer?.cancel();
+                                  setState(() =>
+                                      _forwardHoveredChatId = chat.chatId);
+                                  // Spec §2.7: Auto-select on hover after
+                                  // kFreezeTimeout (2000ms).
+                                  _forwardHoverTimer = Timer(
+                                    const Duration(milliseconds: 2000),
+                                    () {
+                                      if (mounted &&
+                                          _forwardHoveredChatId ==
+                                              chat.chatId) {
+                                        chatState.openChat(chat);
+                                      }
+                                    },
+                                  );
+                                }
+                              },
+                              onLeave: (_) {
+                                if (_forwardHoveredChatId == chat.chatId) {
+                                  _forwardHoverTimer?.cancel();
+                                  setState(() =>
+                                      _forwardHoveredChatId = null);
+                                }
+                              },
+                              builder: (context, candidateData, rejectedData) =>
+                                  innerRow,
+                            );
 
                             // Pinned row drag visuals.
                             if (isPinnedReorderable) {

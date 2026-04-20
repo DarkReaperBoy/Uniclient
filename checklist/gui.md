@@ -44,7 +44,6 @@
 ### 2.6 Sorting
 
 ### 2.7 Swipe & Drag
-- [ ] Drag-and-drop forwarding: application/x-td-forward MIME, auto-select on hover (S2)
 
 ---
 

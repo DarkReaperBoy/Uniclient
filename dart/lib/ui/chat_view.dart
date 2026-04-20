@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
 import '../state/chat_state.dart';
+import 'chat_list_row.dart' show ForwardDragData;
 import 'message_bubble.dart';
 
 /// Chat column: top bar + message list + compose area.
@@ -654,6 +655,11 @@ class _ChatViewState extends State<ChatView> {
               onDelete: () => _deleteSelected(chatState),
               onCopy: () => _copySelected(chatState),
               onForward: () => _forwardSelected(context, chatState),
+              forwardDragData: ForwardDragData(
+                accountId: chat.accountId,
+                sourceChatId: chat.chatId,
+                messageIds: _selectedMsgIds.toList(),
+              ),
             )
           else
             _ChatTopBar(
@@ -1286,17 +1292,63 @@ class _SelectionBar extends StatelessWidget {
   final VoidCallback onCopy;
   final VoidCallback onForward;
 
+  /// Spec §2.7: Drag data for forward drag-and-drop.
+  final ForwardDragData? forwardDragData;
+
   const _SelectionBar({
     required this.count,
     required this.onCancel,
     required this.onDelete,
     required this.onCopy,
     required this.onForward,
+    this.forwardDragData,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Spec §2.7: Drag feedback widget — small badge showing forward count.
+    Widget forwardButton = IconButton(
+      icon: const Icon(Icons.forward),
+      tooltip: 'Forward (or drag to chat)',
+      onPressed: onForward,
+    );
+
+    // Wrap forward button in Draggable if drag data is available.
+    if (forwardDragData != null) {
+      forwardButton = Draggable<ForwardDragData>(
+        data: forwardDragData,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        feedback: Material(
+          elevation: 4,
+          borderRadius: BorderRadius.circular(8),
+          color: isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.forward, color: Colors.white, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  '$count message${count > 1 ? 's' : ''}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        child: forwardButton,
+      );
+    }
+
     return Container(
       height: 54,
       decoration: BoxDecoration(
@@ -1322,11 +1374,7 @@ class _SelectionBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.forward),
-            tooltip: 'Forward',
-            onPressed: onForward,
-          ),
+          forwardButton,
           IconButton(
             icon: const Icon(Icons.copy),
             tooltip: 'Copy',
