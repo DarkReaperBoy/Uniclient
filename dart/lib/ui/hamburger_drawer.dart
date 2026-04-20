@@ -287,18 +287,33 @@ class _ProfileCover extends StatelessWidget {
               ),
             ),
           ),
-          // Account-list toggle chevron (top-right).
+          // Account-list toggle chevron at (30,30) from top-right.
+          // Spec §3: 6×6px chevron, 3px strokes.
           Positioned(
-            right: 16,
-            top: 20,
-            child: IconButton(
-              icon: AnimatedRotation(
-                turns: expanded ? 0.5 : 0.0,
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOutCirc,
-                child: const Icon(Icons.expand_more, size: 22),
+            right: 18,
+            top: 18,
+            child: GestureDetector(
+              onTap: onToggle,
+              behavior: HitTestBehavior.opaque,
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: Center(
+                  child: AnimatedRotation(
+                    turns: expanded ? 0.5 : 0.0,
+                    duration: const Duration(milliseconds: 150),
+                    curve: Curves.easeOutCirc,
+                    child: CustomPaint(
+                      size: const Size(6, 6),
+                      painter: _ChevronPainter(
+                        color: isDark
+                            ? const Color(0xFF708499)
+                            : const Color(0xFF999999),
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              onPressed: onToggle,
             ),
           ),
         ],
@@ -331,6 +346,32 @@ class _ProfileCover extends StatelessWidget {
     'github' => 'GitHub',
     _ => platform,
   };
+}
+
+/// Custom painter for the 6×6px toggle chevron (spec §3).
+/// Draws a V-shaped chevron with 3px strokes.
+class _ChevronPainter extends CustomPainter {
+  final Color color;
+
+  const _ChevronPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+    final path = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width / 2, size.height)
+      ..lineTo(size.width, 0);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_ChevronPainter oldDelegate) => color != oldDelegate.color;
 }
 
 /// Expandable account list for switching accounts.
