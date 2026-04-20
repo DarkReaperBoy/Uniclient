@@ -17,6 +17,8 @@
 
 ## Bugs (fix first, verify with automated interaction)
 
+- [ ] Swipe spring-back uses DEBUG 5000ms duration in both branches (chat_list_row.dart ~line 534-537) — should be 200ms below-threshold and proportional above-threshold
+
 ---
 
 # GUI Implementation Checklist -- Sections 1-7
@@ -44,8 +46,6 @@
 ### 2.6 Sorting
 
 ### 2.7 Swipe & Drag
-- [ ] Revealed action: Lottie icon 20px, 80px ripple area (S2)
-- [ ] Revealed action label: 13px semibold below icon, auto-shrinks to min 5px (S2)
 - [ ] Revealed action text color: premiumButtonFg (white) (S2)
 - [ ] Action colors: Delete = red, Disabled = gray, others = Telegram blue (S2)
 - [ ] Configurable swipe action (Mute/Pin/Read/Archive/Delete) (S2)

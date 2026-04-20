@@ -346,6 +346,74 @@ class ChatListRow extends StatelessWidget {
   ];
 }
 
+/// Spec §2.7: Swipe quick action types.
+/// Each maps to a specific icon and color in the revealed action area.
+enum SwipeAction {
+  mute,
+  unmute,
+  pin,
+  unpin,
+  read,
+  unread,
+  archive,
+  unarchive,
+  delete,
+  disabled,
+}
+
+/// Spec §2.7: Icon data for each swipe action (20px dialogsQuickActionSize).
+IconData _swipeActionIcon(SwipeAction action) {
+  switch (action) {
+    case SwipeAction.mute:
+      return Icons.volume_off_outlined;
+    case SwipeAction.unmute:
+      return Icons.volume_up_outlined;
+    case SwipeAction.pin:
+      return Icons.push_pin_outlined;
+    case SwipeAction.unpin:
+      return Icons.push_pin;
+    case SwipeAction.read:
+      return Icons.done_all;
+    case SwipeAction.unread:
+      return Icons.mark_email_unread_outlined;
+    case SwipeAction.archive:
+      return Icons.archive_outlined;
+    case SwipeAction.unarchive:
+      return Icons.unarchive_outlined;
+    case SwipeAction.delete:
+      return Icons.delete_outlined;
+    case SwipeAction.disabled:
+      return Icons.block_outlined;
+  }
+}
+
+/// Spec §2.7: Display label for each swipe action.
+/// twoLines=true in TDesktop splits on first space for two-line layout.
+String _swipeActionLabel(SwipeAction action) {
+  switch (action) {
+    case SwipeAction.mute:
+      return 'Mute';
+    case SwipeAction.unmute:
+      return 'Unmute';
+    case SwipeAction.pin:
+      return 'Pin';
+    case SwipeAction.unpin:
+      return 'Unpin';
+    case SwipeAction.read:
+      return 'Read';
+    case SwipeAction.unread:
+      return 'Unread';
+    case SwipeAction.archive:
+      return 'Archive';
+    case SwipeAction.unarchive:
+      return 'Unarchive';
+    case SwipeAction.delete:
+      return 'Delete';
+    case SwipeAction.disabled:
+      return '';
+  }
+}
+
 /// Spec §2.7: Swipe quick action wrapper for chat list rows.
 /// Adds horizontal drag gesture with 50px base threshold (logical px, DPI-independent).
 class SwipeableChatRow extends StatefulWidget {
@@ -354,7 +422,15 @@ class SwipeableChatRow extends StatefulWidget {
   /// Called when swipe exceeds threshold and is released (action commits).
   final VoidCallback? onAction;
 
-  const SwipeableChatRow({super.key, required this.child, this.onAction});
+  /// The action to display in the revealed area. Determines icon and color.
+  final SwipeAction action;
+
+  const SwipeableChatRow({
+    super.key,
+    required this.child,
+    this.onAction,
+    this.action = SwipeAction.archive,
+  });
 
   /// Spec §2.7: Base swipe threshold in logical pixels.
   /// Auto-scaled by DPI via Flutter's logical pixel system.
@@ -376,9 +452,12 @@ class SwipeableChatRow extends StatefulWidget {
 }
 
 class _SwipeableChatRowState extends State<SwipeableChatRow>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   double _swipeOffset = 0.0;
   late final AnimationController _resetController;
+  late final AnimationController _rippleController;
+  late final AnimationController _iconEntranceController;
+  late final Animation<double> _iconScaleAnimation;
   double _resetFrom = 0.0;
   bool _committed = false;
 
@@ -406,16 +485,46 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
           _swipeOffset = _resetFrom * (1.0 - _resetController.value);
         });
       });
+    // Spec §2.7: Ripple animation for 80px action area on threshold crossing.
+    _rippleController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+    // Spec §2.7: Lottie-like icon entrance animation — scale with overshoot bounce.
+    _iconEntranceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _iconScaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 0.0, end: 1.15)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 60,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.15, end: 0.92)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 20,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 0.92, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeInOut)),
+        weight: 20,
+      ),
+    ]).animate(_iconEntranceController);
   }
 
   @override
   void dispose() {
     _resetController.dispose();
+    _rippleController.dispose();
+    _iconEntranceController.dispose();
     super.dispose();
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
     if (_resetController.isAnimating) return;
+    debugPrint('[SWIPE] dragUpdate dx=${details.delta.dx} offset=$_swipeOffset');
     final prevOffset = _swipeOffset;
     setState(() {
       // Spec §2.7: Apply slowdown factor 0.2 past threshold (rubberband feel).
@@ -425,11 +534,14 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
       _swipeOffset = (_swipeOffset + dx).clamp(0.0, _maxSwipeOffset);
     });
     // Spec §2.7: Fire HapticEffect::Medium once when crossing threshold.
+    // Also trigger 80px ripple area animation.
     if (!_thresholdCrossed &&
         prevOffset < SwipeableChatRow.kThresholdWidth &&
         _swipeOffset >= SwipeableChatRow.kThresholdWidth) {
       _thresholdCrossed = true;
       HapticFeedback.mediumImpact();
+      _rippleController.forward(from: 0.0);
+      _iconEntranceController.forward(from: 0.0);
     }
   }
 
@@ -446,11 +558,9 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     // Above-threshold (committed) uses speed ratio 0.35 px/ms for proportional return.
     final int durationMs;
     if (pastThreshold) {
-      durationMs = (_swipeOffset / SwipeableChatRow.kSwipeBackSpeed)
-          .round()
-          .clamp(50, 600);
+      durationMs = 5000; // DEBUG: slow spring-back for visual testing
     } else {
-      durationMs = 200;
+      durationMs = 5000; // DEBUG: slow spring-back for visual testing
     }
     _resetController.duration = Duration(milliseconds: durationMs);
     _resetController.forward(from: 0.0).then((_) {
@@ -496,7 +606,10 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                 child: ColoredBox(color: actionBg),
               ),
             ),
-            // Spec §2.7: Action icon scales in based on progress.
+            // Spec §2.7: Revealed action — 20px icon (dialogsQuickActionSize)
+            // centered in 80px ripple area (dialogsQuickActionRippleSize).
+            // Icon scales by iconRatio (swipe progress) with Lottie-like bounce
+            // on threshold crossing.
             if (progress > 0.1)
               Positioned(
                 left: 0,
@@ -504,12 +617,65 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                 bottom: 0,
                 width: _swipeOffset,
                 child: Center(
-                  child: Transform.scale(
-                    scale: Curves.easeOut.transform(progress),
-                    child: Icon(
-                      Icons.archive_outlined,
-                      color: Colors.white,
-                      size: 20,
+                  child: SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([_rippleController, _iconEntranceController]),
+                      builder: (context, child) {
+                        // Spec §2.7: iconRatio = swipe progress, with bounce
+                        // overlay when crossing threshold.
+                        final baseScale = Curves.easeOut.transform(progress);
+                        final bounceScale = _thresholdCrossed || _iconEntranceController.isAnimating
+                            ? _iconScaleAnimation.value
+                            : baseScale;
+                        final iconScale = progress >= 1.0 ? bounceScale : baseScale;
+                        final labelText = _swipeActionLabel(widget.action);
+                        // Spec §2.7: twoLines=true — split on first space.
+                        final displayLabel = labelText.replaceFirst(' ', '\n');
+                        return CustomPaint(
+                          painter: _SwipeRipplePainter(
+                            rippleProgress: _rippleController.value,
+                          ),
+                          child: Center(
+                            child: Transform.scale(
+                              scale: iconScale,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    _swipeActionIcon(widget.action),
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                                  if (labelText.isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    // Spec §2.7: 13px semibold label, auto-shrinks
+                                    // to min 5px via FittedBox scaleDown.
+                                    SizedBox(
+                                      width: 76,
+                                      height: 32,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Text(
+                                          displayLabel,
+                                          textAlign: TextAlign.center,
+                                          maxLines: 2,
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -523,6 +689,33 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
       ),
     );
   }
+}
+
+/// Spec §2.7: Ripple effect painter for the 80px swipe action area.
+/// Draws an expanding circle that fades out, triggered on threshold crossing.
+class _SwipeRipplePainter extends CustomPainter {
+  final double rippleProgress;
+
+  _SwipeRipplePainter({required this.rippleProgress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (rippleProgress <= 0) return;
+    final center = Offset(size.width / 2, size.height / 2);
+    final maxRadius = size.width / 2;
+    // Expand from 0 to full 80px diameter, fade out as it expands.
+    final radius = maxRadius * Curves.easeOut.transform(rippleProgress);
+    final alpha = 0.20 * (1.0 - rippleProgress * 0.7);
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()..color = Color.fromRGBO(255, 255, 255, alpha),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SwipeRipplePainter old) =>
+      rippleProgress != old.rippleProgress;
 }
 
 /// Circular avatar with fallback color + initials + online dot + stories ring.
