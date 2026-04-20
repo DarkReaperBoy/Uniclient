@@ -23,6 +23,10 @@ class ChatState extends ChangeNotifier {
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
 
+  // ── Pinned chat order (drag-to-reorder, spec §2.7) ──
+  // Key: accountId, Value: ordered list of pinned chat IDs.
+  final Map<String, List<String>> _pinnedChatOrders = {};
+
   // ── Folder state ──
   List<FolderInfo> _folders = [];
   String _foldersForAccount = ''; // which account the current _folders belong to
@@ -463,7 +467,48 @@ class ChatState extends ChangeNotifier {
 
   void pinChat(String accountId, String chatId, bool pinned) {
     _engine.pinChat(accountId, chatId, pinned);
+    // Invalidate custom pin order so it gets rebuilt from fresh data.
+    _pinnedChatOrders.remove(accountId);
     loadChats();
+  }
+
+  /// Get the custom pinned chat order for an account, or null if default.
+  List<String>? pinnedChatOrder(String accountId) =>
+      _pinnedChatOrders[accountId];
+
+  /// Reorder pinned chats (drag-to-reorder, spec §2.7).
+  /// [oldIndex] and [newIndex] are indices within the pinned-only sublist.
+  void reorderPinnedChats(String accountId, int oldIndex, int newIndex) {
+    final order = _pinnedChatOrders[accountId];
+    if (order == null || oldIndex < 0 || oldIndex >= order.length) return;
+    if (newIndex < 0 || newIndex >= order.length) return;
+    if (oldIndex == newIndex) return;
+    final item = order.removeAt(oldIndex);
+    order.insert(newIndex, item);
+    notifyListeners();
+  }
+
+  /// Initialize pinned chat order for an account from the current chat list.
+  /// Merges: keeps existing custom order, adds new pinned chats, removes gone.
+  void ensurePinnedOrder(String accountId) {
+    final pinned = _chats
+        .where((c) => c.accountId == accountId && c.isPinned && !c.isArchived)
+        .toList()
+      ..sort((a, b) => b.lastMsgTime.compareTo(a.lastMsgTime));
+    final currentIds = pinned.map((c) => c.chatId).toList();
+
+    final existing = _pinnedChatOrders[accountId];
+    if (existing == null) {
+      _pinnedChatOrders[accountId] = currentIds;
+      return;
+    }
+    // Keep existing order, add new, remove gone.
+    final currentSet = currentIds.toSet();
+    final newOrder = existing.where((id) => currentSet.contains(id)).toList();
+    for (final id in currentIds) {
+      if (!newOrder.contains(id)) newOrder.add(id);
+    }
+    _pinnedChatOrders[accountId] = newOrder;
   }
 
   void archiveChat(String accountId, String chatId, bool archived) {

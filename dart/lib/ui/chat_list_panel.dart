@@ -114,6 +114,22 @@ class _ChatListPanelState extends State<ChatListPanel>
   late final AnimationController _archiveAnimCtrl;
   late final Animation<double> _archiveAnim;
 
+  // ── Drag-to-reorder pinned chats (spec §2.7) ──
+  static const _kReorderThreshold = 30.0; // kStartReorderThreshold
+  static const _kChatRowHeight = 62.0;
+  final ScrollController _chatListScrollCtrl = ScrollController();
+  final GlobalKey _chatListKey = GlobalKey();
+  int? _reorderPinnedIdx; // 0-based index within pinned items
+  int? _reorderPointer;
+  Offset? _reorderStartPos;
+  bool _reorderActive = false;
+  double _reorderOffsetY = 0;
+  OverlayEntry? _reorderOverlay;
+  final List<GlobalKey> _pinnedRowKeys = [];
+  // Cached during build for pointer handlers:
+  List<ChatInfo> _buildNonArchived = [];
+  int _buildPinnedCount = 0;
+
   @override
   void initState() {
     super.initState();
@@ -312,6 +328,9 @@ class _ChatListPanelState extends State<ChatListPanel>
       ChatListPanel.switchFolderByIndexRequest = null;
     }
     _archiveAnimCtrl.dispose();
+    _chatListScrollCtrl.dispose();
+    _reorderOverlay?.remove();
+    _reorderOverlay = null;
     _searchController.removeListener(_onControllerChanged);
     _searchController.dispose();
     _searchFocus.dispose();
@@ -433,6 +452,31 @@ class _ChatListPanelState extends State<ChatListPanel>
     final hasArchived = archived.isNotEmpty;
     final archivedUnread = archived.fold(0, (sum, c) => sum + c.unreadCount);
 
+    // Spec §2.7: Apply custom pinned chat order (drag-to-reorder).
+    final pinnedCount = nonArchived.where((c) => c.isPinned).length;
+    if (!_searching && pinnedCount > 1) {
+      chatState.ensurePinnedOrder(appState.activeAccountId);
+      final pinnedOrder = chatState.pinnedChatOrder(appState.activeAccountId);
+      if (pinnedOrder != null) {
+        final pinnedSlice = nonArchived.sublist(0, pinnedCount);
+        pinnedSlice.sort((a, b) {
+          final ai = pinnedOrder.indexOf(a.chatId);
+          final bi = pinnedOrder.indexOf(b.chatId);
+          return (ai < 0 ? 999 : ai).compareTo(bi < 0 ? 999 : bi);
+        });
+        for (var i = 0; i < pinnedCount; i++) {
+          nonArchived[i] = pinnedSlice[i];
+        }
+      }
+    }
+
+    // Sync pinned row keys and cache build data for drag handlers.
+    _syncPinnedKeys(pinnedCount);
+    _buildNonArchived = nonArchived;
+    _buildPinnedCount = pinnedCount;
+    final pinnedStartInVisible =
+        _showArchived && hasArchived ? archived.length : 0;
+
     // Build the display list: archived row + (optionally expanded archived chats) + non-archived.
     final List<ChatInfo> visibleChats;
     if (_showArchived && hasArchived) {
@@ -501,51 +545,111 @@ class _ChatListPanelState extends State<ChatListPanel>
                         searching: _searching,
                         query: _searchController.text,
                       )
-                    : ListView.builder(
-                        itemCount: visibleChats.length + (hasArchived ? 1 : 0),
-                        itemBuilder: (context, index) {
-                          // First item: Archived Chats row (37px, spec §2.5).
-                          if (hasArchived && index == 0) {
-                            return _ArchivedChatsRow(
-                              unreadCount: archivedUnread,
-                              isNarrow: widget.collapsed,
-                              isExpanded: _showArchived,
-                              onTap: _toggleArchived,
-                              archivedChats: archived,
-                            );
-                          }
-                          final chatIndex = hasArchived ? index - 1 : index;
-                          final chat = visibleChats[chatIndex];
-                          final isActive =
-                              chatState.activeChat?.chatId == chat.chatId &&
-                              chatState.activeChat?.accountId == chat.accountId;
-                          // Spec §2.7: Resolve swipe action based on config + chat state.
-                          final swipeAction = resolveSwipeAction(
-                              appState.swipeAction, chat);
-                          final row = SwipeableChatRow(
-                            action: swipeAction,
-                            onAction: () => _performSwipeAction(
-                                context, swipeAction, chat),
-                            child: ChatListRow(
-                              chat: chat,
-                              isActive: isActive,
-                              isOnline: chatState.isChatOnline(chat),
-                              isNarrow: widget.collapsed,
-                              typingUser: chatState.typingUserFor(chat.chatId),
-                              onTap: () => chatState.openChat(chat),
-                              onSecondaryTap: (pos) => _showChatContextMenu(context, chat, pos),
-                            ),
-                          );
-                          // Archived chats animate expand/collapse ~200ms (spec §2.5).
-                          if (_showArchived && hasArchived && chatIndex < archived.length) {
-                            return SizeTransition(
-                              sizeFactor: _archiveAnim,
-                              axisAlignment: -1.0,
-                              child: row,
-                            );
-                          }
-                          return row;
-                        },
+                    : Listener(
+                        onPointerDown: _onReorderPointerDown,
+                        onPointerMove: _onReorderPointerMove,
+                        onPointerUp: _onReorderPointerUp,
+                        onPointerCancel: _onReorderPointerCancel,
+                        child: ListView.builder(
+                          key: _chatListKey,
+                          controller: _chatListScrollCtrl,
+                          itemCount: visibleChats.length + (hasArchived ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            // First item: Archived Chats row (37px, spec §2.5).
+                            if (hasArchived && index == 0) {
+                              return _ArchivedChatsRow(
+                                unreadCount: archivedUnread,
+                                isNarrow: widget.collapsed,
+                                isExpanded: _showArchived,
+                                onTap: _toggleArchived,
+                                archivedChats: archived,
+                              );
+                            }
+                            final chatIndex = hasArchived ? index - 1 : index;
+                            final chat = visibleChats[chatIndex];
+                            final isActive =
+                                chatState.activeChat?.chatId == chat.chatId &&
+                                chatState.activeChat?.accountId == chat.accountId;
+
+                            // Determine if this is a reorderable pinned chat.
+                            final pinnedIdx = chat.isPinned && !chat.isArchived
+                                ? chatIndex - pinnedStartInVisible
+                                : -1;
+                            final isPinnedReorderable =
+                                pinnedIdx >= 0 && pinnedIdx < pinnedCount;
+
+                            // Spec §2.7: Resolve swipe action based on config + chat state.
+                            final swipeAction = resolveSwipeAction(
+                                appState.swipeAction, chat);
+
+                            // During active reorder: skip SwipeableChatRow wrapper for pinned items.
+                            Widget row;
+                            if (_reorderActive && isPinnedReorderable) {
+                              row = ChatListRow(
+                                chat: chat,
+                                isActive: isActive,
+                                isOnline: chatState.isChatOnline(chat),
+                                isNarrow: widget.collapsed,
+                                typingUser: chatState.typingUserFor(chat.chatId),
+                                onTap: () => chatState.openChat(chat),
+                                onSecondaryTap: (pos) =>
+                                    _showChatContextMenu(context, chat, pos),
+                              );
+                            } else {
+                              row = SwipeableChatRow(
+                                action: swipeAction,
+                                onAction: () => _performSwipeAction(
+                                    context, swipeAction, chat),
+                                child: ChatListRow(
+                                  chat: chat,
+                                  isActive: isActive,
+                                  isOnline: chatState.isChatOnline(chat),
+                                  isNarrow: widget.collapsed,
+                                  typingUser: chatState.typingUserFor(chat.chatId),
+                                  onTap: () => chatState.openChat(chat),
+                                  onSecondaryTap: (pos) =>
+                                      _showChatContextMenu(context, chat, pos),
+                                ),
+                              );
+                            }
+
+                            // Pinned row drag visuals.
+                            if (isPinnedReorderable) {
+                              if (_reorderActive &&
+                                  pinnedIdx == _reorderPinnedIdx) {
+                                // Dragged item: invisible (overlay shows floating copy).
+                                row = Opacity(opacity: 0.0, child: row);
+                              } else if (_reorderActive) {
+                                // Non-dragged pinned: animate shift (sineInOut, spec §2.7).
+                                final shift =
+                                    _computeShiftForPinnedRow(pinnedIdx);
+                                row = AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeInOutSine,
+                                  transform:
+                                      Matrix4.translationValues(0, shift, 0),
+                                  child: row,
+                                );
+                              }
+                              row = KeyedSubtree(
+                                key: _pinnedRowKeys[pinnedIdx],
+                                child: row,
+                              );
+                            }
+
+                            // Archived chats animate expand/collapse ~200ms (spec §2.5).
+                            if (_showArchived &&
+                                hasArchived &&
+                                chatIndex < archived.length) {
+                              return SizeTransition(
+                                sizeFactor: _archiveAnim,
+                                axisAlignment: -1.0,
+                                child: row,
+                              );
+                            }
+                            return row;
+                          },
+                        ),
                       ),
           ),
         ],
@@ -616,6 +720,176 @@ class _ChatListPanelState extends State<ChatListPanel>
       ),
     );
     overlay.insert(entry);
+  }
+
+  // ── Drag-to-reorder pinned chats (spec §2.7) ──
+
+  void _syncPinnedKeys(int count) {
+    while (_pinnedRowKeys.length < count) {
+      _pinnedRowKeys.add(GlobalKey());
+    }
+    if (_pinnedRowKeys.length > count) {
+      _pinnedRowKeys.removeRange(count, _pinnedRowKeys.length);
+    }
+  }
+
+  void _onReorderPointerDown(PointerDownEvent event) {
+    if (event.buttons != kPrimaryButton || _searching || _reorderActive) return;
+    if (_buildPinnedCount < 2) return;
+    for (var i = 0; i < _pinnedRowKeys.length && i < _buildPinnedCount; i++) {
+      final box =
+          _pinnedRowKeys[i].currentContext?.findRenderObject() as RenderBox?;
+      if (box == null) continue;
+      final local = box.globalToLocal(event.position);
+      if (box.size.contains(local)) {
+        _reorderPointer = event.pointer;
+        _reorderPinnedIdx = i;
+        _reorderStartPos = event.position;
+        _reorderOffsetY = 0;
+        return;
+      }
+    }
+  }
+
+  void _onReorderPointerMove(PointerMoveEvent event) {
+    if (_reorderPointer != event.pointer || _reorderPinnedIdx == null) return;
+
+    final dy = event.position.dy - _reorderStartPos!.dy;
+
+    if (!_reorderActive) {
+      final dx = (event.position.dx - _reorderStartPos!.dx).abs();
+      // Horizontal movement wins → swipe gesture, cancel reorder tracking.
+      if (dx > 10 && dx > dy.abs()) {
+        _reorderPinnedIdx = null;
+        _reorderPointer = null;
+        return;
+      }
+      if (dy.abs() >= _kReorderThreshold) {
+        _reorderActive = true;
+        _createReorderOverlay();
+        setState(() {});
+      }
+      return;
+    }
+
+    setState(() => _reorderOffsetY = dy);
+    _reorderOverlay?.markNeedsBuild();
+    _autoScrollDuringReorder(event.position);
+  }
+
+  void _onReorderPointerUp(PointerUpEvent event) {
+    if (_reorderPointer != event.pointer) return;
+    if (_reorderActive && _reorderPinnedIdx != null) {
+      final target = _computeReorderTarget();
+      if (target != null && target != _reorderPinnedIdx!) {
+        final chatState = context.read<ChatState>();
+        final appState = context.read<AppState>();
+        chatState.reorderPinnedChats(
+            appState.activeAccountId, _reorderPinnedIdx!, target);
+      }
+    }
+    _cancelReorder();
+  }
+
+  void _onReorderPointerCancel(PointerCancelEvent event) {
+    if (_reorderPointer == event.pointer) _cancelReorder();
+  }
+
+  void _cancelReorder() {
+    _reorderOverlay?.remove();
+    _reorderOverlay = null;
+    setState(() {
+      _reorderPinnedIdx = null;
+      _reorderPointer = null;
+      _reorderStartPos = null;
+      _reorderActive = false;
+      _reorderOffsetY = 0;
+    });
+  }
+
+  void _createReorderOverlay() {
+    final idx = _reorderPinnedIdx!;
+    if (idx >= _buildPinnedCount || idx >= _buildNonArchived.length) return;
+    final box =
+        _pinnedRowKeys[idx].currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final startPos = box.localToGlobal(Offset.zero);
+    final startSize = box.size;
+    final chat = _buildNonArchived[idx];
+    final chatState = context.read<ChatState>();
+    final theme = Theme.of(context);
+    final isActive = chatState.activeChat?.chatId == chat.chatId &&
+        chatState.activeChat?.accountId == chat.accountId;
+    final isOnline = chatState.isChatOnline(chat);
+    final typingUser = chatState.typingUserFor(chat.chatId);
+
+    _reorderOverlay = OverlayEntry(
+      builder: (_) => Positioned(
+        left: startPos.dx,
+        top: startPos.dy + _reorderOffsetY,
+        width: startSize.width,
+        height: startSize.height,
+        child: IgnorePointer(
+          child: Theme(
+            data: theme,
+            child: Material(
+              elevation: 8,
+              shadowColor: Colors.black45,
+              child: ChatListRow(
+                chat: chat,
+                isActive: isActive,
+                isOnline: isOnline,
+                isNarrow: widget.collapsed,
+                typingUser: typingUser,
+                onTap: () {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context).insert(_reorderOverlay!);
+  }
+
+  int? _computeReorderTarget() {
+    if (_reorderPinnedIdx == null || _buildPinnedCount < 2) return null;
+    final slots = (_reorderOffsetY / _kChatRowHeight).round();
+    return (_reorderPinnedIdx! + slots).clamp(0, _buildPinnedCount - 1);
+  }
+
+  double _computeShiftForPinnedRow(int pinnedIdx) {
+    if (!_reorderActive || _reorderPinnedIdx == null) return 0;
+    final target = _computeReorderTarget() ?? _reorderPinnedIdx!;
+    final from = _reorderPinnedIdx!;
+    if (from < target) {
+      // Dragged downward: items between old..new shift up.
+      if (pinnedIdx > from && pinnedIdx <= target) return -_kChatRowHeight;
+    } else if (from > target) {
+      // Dragged upward: items between new..old shift down.
+      if (pinnedIdx >= target && pinnedIdx < from) return _kChatRowHeight;
+    }
+    return 0;
+  }
+
+  void _autoScrollDuringReorder(Offset globalPos) {
+    if (!_chatListScrollCtrl.hasClients) return;
+    final listBox =
+        _chatListKey.currentContext?.findRenderObject() as RenderBox?;
+    if (listBox == null) return;
+    final localY = listBox.globalToLocal(globalPos).dy;
+    final height = listBox.size.height;
+    const edgeZone = 50.0;
+    const scrollFactor = 0.05;
+    final pos = _chatListScrollCtrl.position;
+    if (localY > height - edgeZone) {
+      final dist = localY - (height - edgeZone);
+      pos.jumpTo((pos.pixels + dist * scrollFactor)
+          .clamp(pos.minScrollExtent, pos.maxScrollExtent));
+    } else if (localY < edgeZone) {
+      final dist = edgeZone - localY;
+      pos.jumpTo((pos.pixels - dist * scrollFactor)
+          .clamp(pos.minScrollExtent, pos.maxScrollExtent));
+    }
   }
 
   void _showChatContextMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {
