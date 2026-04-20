@@ -9,6 +9,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import '../state/chat_state.dart';
+import 'chat_list_row.dart' show isSavedMessages;
 
 /// Hamburger menu drawer. Spec §3: 274px wide, 134px cover.
 /// Shows active account profile at top, collapsible account switcher,
@@ -186,6 +187,22 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       onTap: () {
                         Navigator.of(context).pop();
                         // TODO: open calls screen
+                      },
+                    ),
+                    // §3.3: Saved Messages row (item 7) — menuIconSavedMessages.
+                    // Click handler: open self-chat (Saved Messages).
+                    _MenuRow(
+                      icon: Icons.bookmark,
+                      label: 'Saved Messages',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        final chatState = context.read<ChatState>();
+                        final saved = chatState.chats
+                            .where((c) => isSavedMessages(c))
+                            .firstOrNull;
+                        if (saved != null) {
+                          chatState.openChat(saved);
+                        }
                       },
                     ),
                     _NightModeToggle(

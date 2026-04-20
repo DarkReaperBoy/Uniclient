@@ -54,7 +54,6 @@
 ### 3.2 Account Section (collapsible)
 
 ### 3.3 Menu Items
-- [ ] Saved Messages row with menuIconSavedMessages (S3)
 - [ ] Settings row with menuIconSettings (S3)
 - [ ] Night Mode row with menuIconNightMode and inline toggle (S3)
 - [ ] Archive row (shown when user has archive folder) (S3)
