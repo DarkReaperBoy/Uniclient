@@ -212,15 +212,19 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       icon: Icons.settings,
                       label: 'Settings',
                       onTap: () {
+                        // Capture providers before pop() deactivates the
+                        // drawer context (avoids "deactivated widget" error).
+                        final chatSt = context.read<ChatState>();
+                        final authSt = context.read<AuthState>();
                         Navigator.of(context).pop();
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => ChangeNotifierProvider.value(
                               value: appState,
                               child: ChangeNotifierProvider.value(
-                                value: context.read<ChatState>(),
+                                value: chatSt,
                                 child: ChangeNotifierProvider.value(
-                                  value: context.read<AuthState>(),
+                                  value: authSt,
                                   child: const SettingsScreen(),
                                 ),
                               ),

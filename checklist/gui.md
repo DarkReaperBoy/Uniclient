@@ -36,7 +36,7 @@
 - [x] Minimize/Maximize/Close buttons with hover: close=red `#e81123`, others `windowBgOver` — DONE in `titlebar.dart`
 - [x] Double-click title area → toggle maximize; drag area → `startDrag` window move — DONE in `titlebar.dart`
 - [x] `maximizeChanged` + `buttonLayoutChanged` native callbacks update state live — DONE in `titlebar.dart`
-- [ ] Native window frame toggle (`Settings → Advanced → Use system window frame`) — spec §1 (toggle exists in settings_screen.dart but integration with `my_application.cc` / `setNativeFrame()` unverified)
+
 
 ### §1.6 Animations
 <!-- spec: research/telegram_desktop_ui.md §1 Animations -->
