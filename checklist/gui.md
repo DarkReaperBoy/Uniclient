@@ -130,7 +130,6 @@
 - [x] Account-list chevron 6×6px at (30,30) from top-right, 3px strokes, rotates up/down — DONE
 - [x] Chevron only shown when 2+ accounts — DONE
 - [x] 1px `PlainShadow` at bottom of cover — DONE
-- [ ] AyuGram/Extera badge after verified badge, offset by `infoVerifiedCheckPosition.x()` — spec §3.1 (low priority)
 
 ### §3.2 Account Section (collapsible)
 <!-- spec: research/telegram_desktop_ui.md §3 Account Section -->

@@ -440,6 +440,16 @@ class _ProfileCover extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ],
+                // AyuGram/Extera badge equivalent: UniClient app icon badge.
+                // Spec §3.1: offset by infoVerifiedCheckPosition.x() (~4px)
+                // from the verified badge (or name if no badge).
+                const SizedBox(width: 4),
+                Image.asset(
+                  'assets/icon/icon_256.png',
+                  width: 16,
+                  height: 16,
+                  filterQuality: FilterQuality.medium,
+                ),
               ],
             ),
           ),
