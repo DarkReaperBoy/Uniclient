@@ -839,23 +839,11 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                                   if (labelText.isNotEmpty) ...[
                                     const SizedBox(height: 2),
                                     // Spec §2.7: 13px semibold label, auto-shrinks
-                                    // to min 5px via FittedBox scaleDown.
+                                    // to min 5px; twoLines=true splits on first space.
                                     SizedBox(
                                       width: 76,
                                       height: 32,
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Text(
-                                          displayLabel,
-                                          textAlign: TextAlign.center,
-                                          maxLines: 2,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
+                                      child: _SwipeLabel(text: displayLabel),
                                     ),
                                   ],
                                 ],
@@ -904,6 +892,52 @@ class _SwipeRipplePainter extends CustomPainter {
   @override
   bool shouldRepaint(_SwipeRipplePainter old) =>
       rippleProgress != old.rippleProgress;
+}
+
+/// Spec §2.7: Swipe action label — 13px semibold, auto-shrinks to minimum 5px
+/// if the localized string doesn't fit, with twoLines=true (already split on
+/// first space by caller). Uses TextPainter to find the largest fitting size.
+class _SwipeLabel extends StatelessWidget {
+  final String text;
+  const _SwipeLabel({required this.text});
+
+  static const _baseSize = 13.0;
+  static const _minSize = 5.0;
+  static const _baseStyle = TextStyle(
+    fontWeight: FontWeight.w600,
+    color: Colors.white,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        var fontSize = _baseSize;
+        final tp = TextPainter(
+          text: TextSpan(text: text, style: _baseStyle.copyWith(fontSize: fontSize)),
+          maxLines: 2,
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: constraints.maxWidth);
+        // Shrink font until text fits or we hit minimum 5px.
+        while ((tp.didExceedMaxLines || tp.height > constraints.maxHeight) &&
+            fontSize > _minSize) {
+          fontSize = (fontSize - 1.0).clamp(_minSize, _baseSize);
+          tp.text = TextSpan(text: text, style: _baseStyle.copyWith(fontSize: fontSize));
+          tp.layout(maxWidth: constraints.maxWidth);
+        }
+        tp.dispose();
+        return Center(
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: _baseStyle.copyWith(fontSize: fontSize),
+          ),
+        );
+      },
+    );
+  }
 }
 
 /// Circular avatar with fallback color + initials + online dot + stories ring.
