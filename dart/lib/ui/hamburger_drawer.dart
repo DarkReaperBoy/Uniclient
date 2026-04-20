@@ -100,6 +100,10 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                                     },
                                     onAddAccount: () =>
                                         _showAddAccountDialog(context, appState),
+                                    onAddAccountTest: () =>
+                                        _showAddAccountDialog(
+                                            context, appState,
+                                            testMode: true),
                                     onReorder: appState.reorderAccounts,
                                   ),
                                   const SizedBox(height: 6),
@@ -146,7 +150,8 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     );
   }
 
-  void _showAddAccountDialog(BuildContext context, AppState appState) {
+  void _showAddAccountDialog(BuildContext context, AppState appState,
+      {bool testMode = false}) {
     // Spec §3.2: enforce max accounts limit.
     if (!appState.canAddAccount) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -162,7 +167,7 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
     showDialog(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Add Account'),
+        title: Text(testMode ? 'Add Test Account' : 'Add Account'),
         children: [
           for (final p in [
             ('telegram', 'Telegram'),
@@ -422,6 +427,7 @@ class _AccountList extends StatelessWidget {
   final void Function(String id) onMarkAsRead;
   final void Function(String id) onLogOut;
   final VoidCallback onAddAccount;
+  final VoidCallback onAddAccountTest;
   final void Function(int oldIndex, int newIndex) onReorder;
 
   const _AccountList({
@@ -433,6 +439,7 @@ class _AccountList extends StatelessWidget {
     required this.onMarkAsRead,
     required this.onLogOut,
     required this.onAddAccount,
+    required this.onAddAccountTest,
     required this.onReorder,
   });
 
@@ -448,6 +455,58 @@ class _AccountList extends StatelessWidget {
     'teamspeak': Icons.headset,
     'github': Icons.code,
   };
+
+  /// Spec §3.2: Right-click on "Add Account" shows context menu to pick
+  /// Production vs Test server (settings_information.cpp:1023-1050).
+  void _showAddAccountContextMenu(
+      BuildContext context, Offset position, bool isDark) {
+    final menuBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final hoverColor =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx,
+        position.dy,
+      ),
+      color: menuBg,
+      elevation: 5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        _ContextMenuItem(
+          value: 'production',
+          icon: Icons.person_add,
+          label: 'Add Account',
+          textColor: textColor,
+          iconColor: iconColor,
+          hoverColor: hoverColor,
+        ),
+        _ContextMenuItem(
+          value: 'test',
+          icon: Icons.science,
+          label: 'Add Test Account',
+          textColor: textColor,
+          iconColor: iconColor,
+          hoverColor: hoverColor,
+        ),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'production':
+          onAddAccount();
+        case 'test':
+          onAddAccountTest();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -505,55 +564,62 @@ class _AccountList extends StatelessWidget {
         // windowBgActive, label in windowBoldFg. mainMenuAddAccountButton
         // style (iconLeft 23px, same row padding as account rows).
         // Ctrl+click = new window; normal click = add account dialog.
-        InkWell(
-          onTap: () {
-            final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
-                .any((k) =>
-                    k == LogicalKeyboardKey.controlLeft ||
-                    k == LogicalKeyboardKey.controlRight);
-            if (ctrlHeld) {
-              // Spec §3.2: Ctrl+click launches new app window.
-              Process.start(
-                Platform.resolvedExecutable,
-                [],
-                mode: ProcessStartMode.detached,
-              );
-            } else {
-              onAddAccount();
-            }
+        // Right-click = context menu (Production vs Test server).
+        GestureDetector(
+          onSecondaryTapUp: (details) {
+            _showAddAccountContextMenu(
+                context, details.globalPosition, isDark);
           },
-          hoverColor: hoverBg,
-          splashColor: hoverBg.withValues(alpha: 0.5),
-          child: Padding(
-            padding: const EdgeInsets.only(top: 11, bottom: 9, right: 20),
-            child: Row(
-              children: [
-                const SizedBox(width: 23), // iconLeft: 23px
-                SizedBox(
-                  width: 36,
-                  height: 36,
-                  child: Center(
-                    child: Icon(
-                      Icons.add,
-                      size: 24, // settingsIconAdd: 24x24 standard icon
-                      color: isDark
-                          ? const Color(0xFF5288C1)
-                          : const Color(0xFF40A7E3), // windowBgActive
+          child: InkWell(
+            onTap: () {
+              final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
+                  .any((k) =>
+                      k == LogicalKeyboardKey.controlLeft ||
+                      k == LogicalKeyboardKey.controlRight);
+              if (ctrlHeld) {
+                // Spec §3.2: Ctrl+click launches new app window.
+                Process.start(
+                  Platform.resolvedExecutable,
+                  [],
+                  mode: ProcessStartMode.detached,
+                );
+              } else {
+                onAddAccount();
+              }
+            },
+            hoverColor: hoverBg,
+            splashColor: hoverBg.withValues(alpha: 0.5),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 11, bottom: 9, right: 20),
+              child: Row(
+                children: [
+                  const SizedBox(width: 23), // iconLeft: 23px
+                  SizedBox(
+                    width: 36,
+                    height: 36,
+                    child: Center(
+                      child: Icon(
+                        Icons.add,
+                        size: 24, // settingsIconAdd: 24x24 standard icon
+                        color: isDark
+                            ? const Color(0xFF5288C1)
+                            : const Color(0xFF40A7E3), // windowBgActive
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 2), // 23 + 36 + 2 = 61px text start
-                Expanded(
-                  child: Text(
-                    'Add Account',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: labelColor, // windowBoldFg (same as account rows)
+                  const SizedBox(width: 2), // 23 + 36 + 2 = 61px text start
+                  Expanded(
+                    child: Text(
+                      'Add Account',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: labelColor, // windowBoldFg (same as account rows)
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
