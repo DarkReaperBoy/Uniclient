@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
+import 'confirm_box.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart' show isSavedMessages;
 import 'settings_screen.dart';
@@ -960,30 +961,12 @@ class _AccountRow extends StatelessWidget {
   }
 
   void _confirmLogOut(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final attentionColor = isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log Out'),
-        content: Text(
-          'Are you sure you want to log out of ${account.displayName.isNotEmpty ? account.displayName : account.phone}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              onLogOut();
-            },
-            style: TextButton.styleFrom(foregroundColor: attentionColor),
-            child: const Text('Log Out'),
-          ),
-        ],
-      ),
+    showConfirmBox(
+      context,
+      text: 'Are you sure you want to log out?',
+      confirmText: 'Log Out',
+      isDestructive: true,
+      onConfirm: onLogOut,
     );
   }
 

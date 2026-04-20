@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import 'advanced_settings_screen.dart';
+import 'confirm_box.dart';
 
 /// Settings page (§14). Opened from hamburger drawer "Settings" row.
 /// Scrollable panel with profile header at top, then settings navigation rows.
@@ -204,34 +205,17 @@ class SettingsScreen extends StatelessWidget {
 
   void _confirmLogOut(
       BuildContext context, AppState appState, AccountInfo? account) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final attentionColor =
-        isDark ? const Color(0xFFEC3942) : const Color(0xFFD14E4E);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log Out'),
-        content: Text(
-          'Are you sure you want to log out of ${account?.displayName.isNotEmpty == true ? account!.displayName : 'this account'}?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-              Navigator.of(context).pop(); // close settings
-              if (account != null) {
-                appState.removeAccount(account.id);
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: attentionColor),
-            child: const Text('Log Out'),
-          ),
-        ],
-      ),
+    showConfirmBox(
+      context,
+      text: 'Are you sure you want to log out?',
+      confirmText: 'Log Out',
+      isDestructive: true,
+      onConfirm: () {
+        Navigator.of(context).pop(); // close settings
+        if (account != null) {
+          appState.removeAccount(account.id);
+        }
+      },
     );
   }
 }
