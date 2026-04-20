@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/engine_models.dart';
 
@@ -381,6 +382,10 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   double _resetFrom = 0.0;
   bool _committed = false;
 
+  /// Spec §2.7: Track whether we've already fired haptic for this gesture.
+  /// Fires once on threshold crossing, resets on drag end/cancel.
+  bool _thresholdCrossed = false;
+
   /// Spec §2.7: Swipe progress normalized 0-1 against threshold.
   /// 0 = no swipe, 1 = threshold reached (50px).
   double get _swipeProgress =>
@@ -411,6 +416,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
 
   void _onDragUpdate(DragUpdateDetails details) {
     if (_resetController.isAnimating) return;
+    final prevOffset = _swipeOffset;
     setState(() {
       // Spec §2.7: Apply slowdown factor 0.2 past threshold (rubberband feel).
       final dx = _swipeOffset >= SwipeableChatRow.kThresholdWidth
@@ -418,6 +424,13 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
           : details.delta.dx;
       _swipeOffset = (_swipeOffset + dx).clamp(0.0, _maxSwipeOffset);
     });
+    // Spec §2.7: Fire HapticEffect::Medium once when crossing threshold.
+    if (!_thresholdCrossed &&
+        prevOffset < SwipeableChatRow.kThresholdWidth &&
+        _swipeOffset >= SwipeableChatRow.kThresholdWidth) {
+      _thresholdCrossed = true;
+      HapticFeedback.mediumImpact();
+    }
   }
 
   void _onDragEnd(DragEndDetails details) {
@@ -426,6 +439,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
       _committed = true;
       widget.onAction?.call();
     }
+    _thresholdCrossed = false;
     // Spec §2.7: Spring back with speed ratio 0.35 px/ms — duration proportional
     // to current offset so longer swipes take longer to return.
     _resetFrom = _swipeOffset;
@@ -439,6 +453,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   }
 
   void _onDragCancel() {
+    _thresholdCrossed = false;
     if (_swipeOffset > 0) {
       _resetFrom = _swipeOffset;
       final durationMs = (_swipeOffset / SwipeableChatRow.kSwipeBackSpeed)
