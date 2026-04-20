@@ -44,10 +44,6 @@
 ### 2.6 Sorting
 
 ### 2.7 Swipe & Drag
-- [ ] Revealed action text color: premiumButtonFg (white) (S2)
-- [ ] Action colors: Delete = red, Disabled = gray, others = Telegram blue (S2)
-- [ ] Configurable swipe action (Mute/Pin/Read/Archive/Delete) (S2)
-- [ ] Action toggle variant based on current state (Archive/Unarchive etc.) (S2)
 - [ ] Completion toast notifications (S2)
 - [ ] Drag-to-reorder: pinned chats only, sineInOut animation (S2)
 - [ ] Drag-and-drop forwarding: application/x-td-forward MIME, auto-select on hover (S2)

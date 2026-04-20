@@ -24,6 +24,10 @@ class AppState extends ChangeNotifier {
   bool _nativeWindowFrame = false;
   final List<StreamSubscription<dynamic>> _subs = [];
 
+  /// Spec §2.7: Configurable swipe action for chat list rows.
+  /// Values: "mute", "pin", "read", "archive", "delete". Default: "archive".
+  String _swipeAction = 'archive';
+
   /// Callback for showing connection-state notifications (set by UI layer).
   void Function(String text, IconData icon, Color color)? onConnStateNotification;
 
@@ -54,6 +58,14 @@ class AppState extends ChangeNotifier {
       _accounts.where((a) => a.id == _activeAccountId).firstOrNull;
 
   bool get nativeWindowFrame => _nativeWindowFrame;
+
+  String get swipeAction => _swipeAction;
+  set swipeAction(String value) {
+    if (_swipeAction != value) {
+      _swipeAction = value;
+      notifyListeners();
+    }
+  }
 
   ThemeMode get themeMode => switch (_config.theme) {
     'light' => ThemeMode.light,

@@ -518,7 +518,13 @@ class _ChatListPanelState extends State<ChatListPanel>
                           final isActive =
                               chatState.activeChat?.chatId == chat.chatId &&
                               chatState.activeChat?.accountId == chat.accountId;
+                          // Spec §2.7: Resolve swipe action based on config + chat state.
+                          final swipeAction = resolveSwipeAction(
+                              appState.swipeAction, chat);
                           final row = SwipeableChatRow(
+                            action: swipeAction,
+                            onAction: () => _performSwipeAction(
+                                context, swipeAction, chat),
                             child: ChatListRow(
                               chat: chat,
                               isActive: isActive,
@@ -544,6 +550,33 @@ class _ChatListPanelState extends State<ChatListPanel>
         ],
       ),
     );
+  }
+
+  void _performSwipeAction(
+      BuildContext context, SwipeAction action, ChatInfo chat) {
+    final chatState = context.read<ChatState>();
+    switch (action) {
+      case SwipeAction.mute:
+        chatState.muteChat(chat.accountId, chat.chatId, true);
+      case SwipeAction.unmute:
+        chatState.muteChat(chat.accountId, chat.chatId, false);
+      case SwipeAction.pin:
+        chatState.pinChat(chat.accountId, chat.chatId, true);
+      case SwipeAction.unpin:
+        chatState.pinChat(chat.accountId, chat.chatId, false);
+      case SwipeAction.read:
+        chatState.markRead();
+      case SwipeAction.unread:
+        chatState.markRead();
+      case SwipeAction.archive:
+        chatState.archiveChat(chat.accountId, chat.chatId, true);
+      case SwipeAction.unarchive:
+        chatState.archiveChat(chat.accountId, chat.chatId, false);
+      case SwipeAction.delete:
+        break; // Delete requires confirmation dialog — not auto-executed
+      case SwipeAction.disabled:
+        break;
+    }
   }
 
   void _showChatContextMenu(BuildContext context, ChatInfo chat, Offset globalPosition) {

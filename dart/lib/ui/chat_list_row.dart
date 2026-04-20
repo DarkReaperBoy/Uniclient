@@ -361,6 +361,28 @@ enum SwipeAction {
   disabled,
 }
 
+/// Spec §2.7: Resolve base swipe action string to the correct toggle variant
+/// based on the chat's current state (ResolveQuickDialogLabel).
+/// e.g. "archive" → SwipeAction.unarchive if chat is already archived.
+SwipeAction resolveSwipeAction(String baseAction, ChatInfo chat) {
+  switch (baseAction) {
+    case 'mute':
+      return chat.isMuted ? SwipeAction.unmute : SwipeAction.mute;
+    case 'pin':
+      return chat.isPinned ? SwipeAction.unpin : SwipeAction.pin;
+    case 'read':
+      return (chat.unreadCount > 0 || chat.isUnreadMark)
+          ? SwipeAction.read
+          : SwipeAction.unread;
+    case 'archive':
+      return chat.isArchived ? SwipeAction.unarchive : SwipeAction.archive;
+    case 'delete':
+      return SwipeAction.delete;
+    default:
+      return SwipeAction.archive;
+  }
+}
+
 /// Spec §2.7: Icon data for each swipe action (20px dialogsQuickActionSize).
 IconData _swipeActionIcon(SwipeAction action) {
   switch (action) {
@@ -411,6 +433,23 @@ String _swipeActionLabel(SwipeAction action) {
       return 'Delete';
     case SwipeAction.disabled:
       return '';
+  }
+}
+
+/// Spec §2.7: Background color for each swipe action (ResolveQuickActionBg).
+/// Delete → attentionButtonFg (red), Disabled → windowSubTextFgOver (gray),
+/// all others → windowBgActive (Telegram blue).
+Color _swipeActionBgColor(SwipeAction action, bool isDark) {
+  switch (action) {
+    case SwipeAction.delete:
+      // attentionButtonFg: red
+      return isDark ? const Color(0xFFd14e4e) : const Color(0xFFd14e4e);
+    case SwipeAction.disabled:
+      // windowSubTextFgOver: gray
+      return isDark ? const Color(0xFF8b8b8b) : const Color(0xFF919191);
+    default:
+      // windowBgActive: Telegram blue
+      return isDark ? const Color(0xFF2b5278) : const Color(0xFF40a7e3);
   }
 }
 
@@ -591,8 +630,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
       );
     }
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec §2.7: Default action area = windowBgActive (Telegram blue).
-    final actionBg = isDark ? const Color(0xFF2b5278) : const Color(0xFF40a7e3);
+    // Spec §2.7: Action color depends on action type (ResolveQuickActionBg).
+    final actionBg = _swipeActionBgColor(widget.action, isDark);
     final progress = _swipeProgress;
     return GestureDetector(
       onHorizontalDragUpdate: _onDragUpdate,
