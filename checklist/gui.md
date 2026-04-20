@@ -52,7 +52,6 @@
 ### 3.1 Profile Area / Cover
 
 ### 3.2 Account Section (collapsible)
-- [ ] Add Account Ctrl+click: new window (S3)
 - [ ] Add Account right-click: context menu (Production vs Test server) (S3)
 - [ ] Add Account auto-hides at max account count (S3)
 

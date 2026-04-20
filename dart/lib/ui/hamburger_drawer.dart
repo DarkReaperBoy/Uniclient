@@ -504,8 +504,24 @@ class _AccountList extends StatelessWidget {
         // Spec §3.2: "Add Account" button — last row, settingsIconAdd in
         // windowBgActive, label in windowBoldFg. mainMenuAddAccountButton
         // style (iconLeft 23px, same row padding as account rows).
+        // Ctrl+click = new window; normal click = add account dialog.
         InkWell(
-          onTap: onAddAccount,
+          onTap: () {
+            final ctrlHeld = HardwareKeyboard.instance.logicalKeysPressed
+                .any((k) =>
+                    k == LogicalKeyboardKey.controlLeft ||
+                    k == LogicalKeyboardKey.controlRight);
+            if (ctrlHeld) {
+              // Spec §3.2: Ctrl+click launches new app window.
+              Process.start(
+                Platform.resolvedExecutable,
+                [],
+                mode: ProcessStartMode.detached,
+              );
+            } else {
+              onAddAccount();
+            }
+          },
           hoverColor: hoverBg,
           splashColor: hoverBg.withValues(alpha: 0.5),
           child: Padding(
