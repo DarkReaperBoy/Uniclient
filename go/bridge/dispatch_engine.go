@@ -650,6 +650,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		LastMsgTime:  c.LastMsgTime,
 		LastMsgSender:     sanitizeUTF8(c.LastMsgSender),
 		LastMsgIsOutgoing: c.LastMsgIsOutgoing,
+		LastMsgStatus:     int32(c.LastMsgStatus),
 		UnreadCount:       int32(c.UnreadCount),
 		IsMuted:      c.IsMuted,
 		IsPinned:     c.IsPinned,

@@ -105,6 +105,7 @@ class _ChatListPanelState extends State<ChatListPanel> {
   final _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   bool _searching = false;
+  bool _showArchived = false;
   List<ChatInfo>? _searchResults;
   _SearchTab _activeSearchTab = _SearchTab.myMessages;
   _MyMsgSubFilter _myMsgSubFilter = _MyMsgSubFilter.all;
@@ -400,7 +401,18 @@ class _ChatListPanelState extends State<ChatListPanel> {
       });
 
     // Separate archived chats.
+    final archived = sorted.where((c) => c.isArchived).toList();
     final nonArchived = sorted.where((c) => !c.isArchived).toList();
+    final hasArchived = archived.isNotEmpty;
+    final archivedUnread = archived.fold(0, (sum, c) => sum + c.unreadCount);
+
+    // Build the display list: archived row + (optionally expanded archived chats) + non-archived.
+    final List<ChatInfo> visibleChats;
+    if (_showArchived && hasArchived) {
+      visibleChats = [...archived, ...nonArchived];
+    } else {
+      visibleChats = nonArchived;
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -457,15 +469,26 @@ class _ChatListPanelState extends State<ChatListPanel> {
                     onTap: (chat) => chatState.openChat(chat),
                     chatState: chatState,
                   )
-                : nonArchived.isEmpty
+                : visibleChats.isEmpty && !hasArchived
                     ? _EmptyState(
                         searching: _searching,
                         query: _searchController.text,
                       )
                     : ListView.builder(
-                        itemCount: nonArchived.length,
+                        itemCount: visibleChats.length + (hasArchived ? 1 : 0),
                         itemBuilder: (context, index) {
-                          final chat = nonArchived[index];
+                          // First item: Archived Chats row (37px, spec §2.5).
+                          if (hasArchived && index == 0) {
+                            return _ArchivedChatsRow(
+                              unreadCount: archivedUnread,
+                              isNarrow: widget.collapsed,
+                              isExpanded: _showArchived,
+                              onTap: () => setState(() => _showArchived = !_showArchived),
+                              archivedChats: archived,
+                            );
+                          }
+                          final chatIndex = hasArchived ? index - 1 : index;
+                          final chat = visibleChats[chatIndex];
                           final isActive =
                               chatState.activeChat?.chatId == chat.chatId &&
                               chatState.activeChat?.accountId == chat.accountId;
@@ -1744,6 +1767,251 @@ class _SearchSubFilterRow extends StatelessWidget {
       }
     });
   }
+}
+
+/// Archived Chats collapsed row (spec §2.5).
+/// Fixed 37px height (dialogsImportantBarHeight), NOT 62px like regular rows.
+/// Wide mode: "Archived Chats" label at 18px left pad, semibold 14px, dialogsNameFg.
+/// Narrow mode: archive icon centered at 19px width.
+/// Unread counter always muted/gray. Hover: dialogsBgOver. Tap: expand/collapse.
+class _ArchivedChatsRow extends StatefulWidget {
+  final int unreadCount;
+  final bool isNarrow;
+  final bool isExpanded;
+  final VoidCallback onTap;
+  final List<ChatInfo> archivedChats;
+
+  const _ArchivedChatsRow({
+    required this.unreadCount,
+    required this.isNarrow,
+    required this.isExpanded,
+    required this.onTap,
+    this.archivedChats = const [],
+  });
+
+  static const _rowHeight = 37.0; // dialogsImportantBarHeight
+
+  @override
+  State<_ArchivedChatsRow> createState() => _ArchivedChatsRowState();
+}
+
+class _ArchivedChatsRowState extends State<_ArchivedChatsRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Spec §2.5: dialogsNameFg for text color.
+    final nameFg = isDark ? const Color(0xFFe0e0e0) : const Color(0xFF222222);
+    // Spec §2.5: dialogsBgOver on hover.
+    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1);
+    // Spec §2.5: unread counter always muted/gray.
+    final mutedBadgeBg = isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: widget.onTap,
+          hoverColor: hoverBg,
+          child: SizedBox(
+            height: _ArchivedChatsRow._rowHeight,
+            child: widget.isNarrow ? _buildNarrow() : _buildWide(nameFg, mutedBadgeBg),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Wide mode: "Archived Chats" text at 18px left pad, semibold 14px.
+  Widget _buildWide(Color nameFg, Color mutedBadgeBg) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 18, right: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Archived Chats',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: nameFg,
+              ),
+            ),
+          ),
+          if (widget.unreadCount > 0)
+            Container(
+              height: 19,
+              constraints: const BoxConstraints(minWidth: 19),
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              decoration: BoxDecoration(
+                color: mutedBadgeBg,
+                borderRadius: BorderRadius.circular(19 / 2),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                widget.unreadCount > 999 ? '999+' : '${widget.unreadCount}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Narrow mode: stacked-userpic composite centered at 19px width
+  /// (dialogsUnreadHeight). Shows up to 3 mini avatars from the archived
+  /// chats arranged in a tight overlapping cluster.
+  Widget _buildNarrow() {
+    const compositeSize = 19.0;
+    final chats = widget.archivedChats;
+
+    // Fallback: dialogsArchiveUserpic — colored circle with white archive
+    // icon inside, matching Telegram Desktop's archive userpic style.
+    // historyPeerUserpicFg = white, bg = archive peer blue.
+    if (chats.isEmpty) {
+      return Center(
+        child: Container(
+          width: compositeSize,
+          height: compositeSize,
+          decoration: const BoxDecoration(
+            color: Color(0xFF65AADD), // archive peer userpic blue
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: Icon(
+            Icons.archive_rounded,
+            size: compositeSize * 0.6,
+            color: Colors.white, // historyPeerUserpicFg
+          ),
+        ),
+      );
+    }
+
+    // Take up to 3 chats for the composite.
+    final entries = chats.take(3).toList();
+    final count = entries.length;
+
+    // Single chat: one 19px circle.
+    if (count == 1) {
+      return Center(
+        child: _miniAvatar(entries[0], compositeSize),
+      );
+    }
+
+    // 2 chats: two 13px circles, top-right + bottom-left with overlap.
+    // 3 chats: three 11px circles in a triangular cluster.
+    final double miniSize = count == 2 ? 13.0 : 11.0;
+
+    return Center(
+      child: SizedBox(
+        width: compositeSize,
+        height: compositeSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (count == 2) ...[
+              Positioned(
+                right: 0,
+                top: 0,
+                child: _miniAvatar(entries[0], miniSize),
+              ),
+              Positioned(
+                left: 0,
+                bottom: 0,
+                child: _miniAvatar(entries[1], miniSize),
+              ),
+            ] else ...[
+              // 3 chats: two on top, one centered at bottom.
+              Positioned(
+                left: 0,
+                top: 0,
+                child: _miniAvatar(entries[0], miniSize),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                child: _miniAvatar(entries[1], miniSize),
+              ),
+              Positioned(
+                left: (compositeSize - miniSize) / 2,
+                bottom: 0,
+                child: _miniAvatar(entries[2], miniSize),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Renders a single mini circular avatar (photo or fallback initials).
+  Widget _miniAvatar(ChatInfo chat, double size) {
+    final colorIndex = chat.chatId.hashCode.abs() % 7;
+    final color = _miniAvatarColors[colorIndex];
+    final initials = _miniInitials(chat.title);
+
+    if (chat.avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: Image.file(
+          File(chat.avatarPath),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _miniAvatarFallback(color, initials, size),
+        ),
+      );
+    }
+    return _miniAvatarFallback(color, initials, size);
+  }
+
+  Widget _miniAvatarFallback(Color color, String initials, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color,
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          width: 1,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.36,
+          fontWeight: FontWeight.w600,
+          height: 1,
+        ),
+      ),
+    );
+  }
+
+  static String _miniInitials(String title) {
+    final t = title.trim();
+    if (t.isEmpty) return '?';
+    return t.characters.first.toUpperCase();
+  }
+
+  static const _miniAvatarColors = [
+    Color(0xFFe17076), // red
+    Color(0xFFeda86c), // orange
+    Color(0xFF7bc862), // green
+    Color(0xFF6ec9cb), // teal
+    Color(0xFF65aadd), // blue
+    Color(0xFFee7aae), // pink
+    Color(0xFF9b86e2), // purple
+  ];
 }
 
 /// Empty state for chat list.

@@ -755,6 +755,7 @@ class EngineService {
     lastMsgTime: p.lastMsgTime.toInt(),
     lastMsgSender: _safeStr(p.lastMsgSender),
     lastMsgIsOutgoing: p.lastMsgIsOutgoing,
+    lastMsgStatus: MsgStatus.fromInt(p.lastMsgStatus),
     unreadCount: p.unreadCount,
     isMuted: p.isMuted,
     isPinned: p.isPinned,
@@ -762,6 +763,7 @@ class EngineService {
     draftText: _safeStr(p.draftText),
     memberCount: p.memberCount,
     parentId: p.parentId,
+    isBot: p.isBot,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

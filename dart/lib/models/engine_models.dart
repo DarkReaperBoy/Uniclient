@@ -173,6 +173,7 @@ class ChatInfo {
   final int lastMsgTime;
   final String lastMsgSender;
   final bool lastMsgIsOutgoing;
+  final MsgStatus lastMsgStatus;
   final int lastMsgMediaType;
   final String lastMsgThumbB64;
   final int unreadCount;
@@ -205,6 +206,7 @@ class ChatInfo {
     this.lastMsgTime = 0,
     this.lastMsgSender = '',
     this.lastMsgIsOutgoing = false,
+    this.lastMsgStatus = MsgStatus.unknown,
     this.lastMsgMediaType = 0,
     this.lastMsgThumbB64 = '',
     this.unreadCount = 0,
@@ -238,6 +240,7 @@ class ChatInfo {
     lastMsgTime: j['last_msg_time'] as int? ?? 0,
     lastMsgSender: safeStr(j['last_msg_sender'] as String? ?? ''),
     lastMsgIsOutgoing: j['last_msg_is_outgoing'] as bool? ?? false,
+    lastMsgStatus: MsgStatus.fromInt(j['last_msg_status'] as int? ?? 0),
     lastMsgMediaType: j['last_msg_media_type'] as int? ?? 0,
     lastMsgThumbB64: j['last_msg_thumb_b64'] as String? ?? '',
     unreadCount: j['unread_count'] as int? ?? 0,

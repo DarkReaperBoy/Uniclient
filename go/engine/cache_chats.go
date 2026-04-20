@@ -22,6 +22,7 @@ type ChatInfo struct {
 	LastMsgTime  int64  `json:"last_msg_time,omitempty"`
 	LastMsgSender     string `json:"last_msg_sender,omitempty"`
 	LastMsgIsOutgoing bool   `json:"last_msg_is_outgoing,omitempty"`
+	LastMsgStatus     int    `json:"last_msg_status,omitempty"`
 	LastMsgMediaType  int    `json:"last_msg_media_type,omitempty"`
 	LastMsgThumbB64   string `json:"last_msg_thumb_b64,omitempty"`
 	UnreadCount       int    `json:"unread_count"`
@@ -64,7 +65,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 	rows, err := e.db.Query(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
 		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_media_type, c.last_msg_thumb_b64,
+		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
@@ -72,8 +73,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
-		 WHERE c.is_archived = 0
-		 ORDER BY c.is_pinned DESC, c.last_msg_time DESC
+		 ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
 		 LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, err
@@ -94,7 +94,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 	rows, err := e.db.Query(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
 		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_media_type, c.last_msg_thumb_b64,
+		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
@@ -126,7 +126,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		if err := rows.Scan(
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
-			&lastMsgIsOutgoing, &c.LastMsgMediaType, &lastMsgThumbB64,
+			&lastMsgIsOutgoing, &c.LastMsgStatus, &c.LastMsgMediaType, &lastMsgThumbB64,
 			&c.UnreadCount, &isMuted, &isPinned, &isArchived,
 			&draftText, &memberCount, &parentID, &isBot,
 			&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
@@ -172,6 +172,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 	var lastMsgTime int64
 	var lastMsgID string
 	var lastMsgIsOutgoing int
+	var lastMsgStatus int
 	var lastMsgMediaType int
 	var lastMsgThumbB64 string
 	if d.LastMessage != nil {
@@ -182,6 +183,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		if d.LastMessage.IsOutgoing {
 			lastMsgIsOutgoing = 1
 		}
+		lastMsgStatus = msgStatusFromCore(d.LastMessage.Status)
 		if len(d.LastMessage.Attachments) > 0 {
 			att := d.LastMessage.Attachments[0]
 			lastMsgMediaType = guessMediaType(att.MimeType, att.Name)
@@ -192,12 +194,12 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 	_, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, last_msg_id, last_msg_text,
 		                     last_msg_time, last_msg_sender, last_msg_is_outgoing,
-		                     last_msg_media_type, last_msg_thumb_b64,
+		                     last_msg_status, last_msg_media_type, last_msg_thumb_b64,
 		                     unread_count, is_muted, is_pinned,
 		                     is_archived, member_count, parent_id,
 		                     unread_mark, unread_mention_count, unread_reaction_count,
 		                     is_verified, is_scam, is_fake, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
 		     type = excluded.type,
 		     title = excluded.title,
@@ -206,6 +208,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     last_msg_time = MAX(COALESCE(excluded.last_msg_time, 0), COALESCE(chats.last_msg_time, 0)),
 		     last_msg_sender = COALESCE(excluded.last_msg_sender, chats.last_msg_sender),
 		     last_msg_is_outgoing = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_is_outgoing ELSE chats.last_msg_is_outgoing END,
+		     last_msg_status = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_status ELSE chats.last_msg_status END,
 		     last_msg_media_type = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_media_type ELSE chats.last_msg_media_type END,
 		     last_msg_thumb_b64 = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_thumb_b64 ELSE chats.last_msg_thumb_b64 END,
 		     unread_count = excluded.unread_count,
@@ -222,7 +225,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     is_fake = excluded.is_fake,
 		     updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
-		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgMediaType, lastMsgThumbB64,
+		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgStatus, lastMsgMediaType, lastMsgThumbB64,
 		d.UnreadCount, boolToInt(d.IsMuted), boolToInt(d.IsPinned),
 		boolToInt(d.IsArchived), d.MemberCount, d.ParentID,
 		boolToInt(d.UnreadMark), d.UnreadMentionCount, d.UnreadReactionCount,
@@ -286,13 +289,13 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 		`INSERT OR IGNORE INTO chats
 		 (account_id, chat_id, type, title, avatar_path,
 		  last_msg_id, last_msg_text, last_msg_sender, last_msg_time, last_msg_is_outgoing,
-		  last_msg_media_type, last_msg_thumb_b64,
+		  last_msg_status, last_msg_media_type, last_msg_thumb_b64,
 		  unread_count, is_muted, is_pinned, is_archived,
 		  draft_text, member_count, parent_id, updated_at)
-		 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, '', 0, '', ?)`,
+		 VALUES (?, ?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, '', 0, '', ?)`,
 		accountID, chatID, chatType, title,
 		msg.ID, msgPreviewText(msg), msg.SenderName, msg.Timestamp.UnixMilli(), boolToInt(msg.IsOutgoing),
-		msgMediaType, msgThumbB64, now)
+		msgStatusFromCore(msg.Status), msgMediaType, msgThumbB64, now)
 
 	// Try to get proper chat info from core in background.
 	go func() {
@@ -315,7 +318,7 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 }
 
 // updateChatLastMessage updates the preview fields for a chat.
-func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender string, timeMs int64, isOutgoing bool, mediaType int, thumbB64 string) {
+func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender string, timeMs int64, isOutgoing bool, status int, mediaType int, thumbB64 string) {
 	outgoing := 0
 	if isOutgoing {
 		outgoing = 1
@@ -323,10 +326,11 @@ func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender st
 	e.db.Exec(
 		`UPDATE chats SET last_msg_id = ?, last_msg_text = ?, last_msg_sender = ?,
 		                  last_msg_time = ?, last_msg_is_outgoing = ?,
+		                  last_msg_status = ?,
 		                  last_msg_media_type = ?, last_msg_thumb_b64 = ?,
 		                  updated_at = ?
 		 WHERE account_id = ? AND chat_id = ? AND (last_msg_time IS NULL OR last_msg_time <= ?)`,
-		msgID, text, sender, timeMs, outgoing, mediaType, thumbB64,
+		msgID, text, sender, timeMs, outgoing, status, mediaType, thumbB64,
 		time.Now().UnixMilli(), accountID, chatID, timeMs)
 	e.emitChatUpdate(accountID, chatID)
 }
@@ -405,11 +409,7 @@ func (e *Engine) ArchiveChat(accountID, chatID string, archived bool) error {
 		acc.Core.ArchiveChat(chatID, archived)
 	}
 
-	if archived {
-		e.emitEvent(EventChatRemoved, accountID, ChatRemovedEvent{ChatID: chatID})
-	} else {
-		e.emitChatUpdate(accountID, chatID)
-	}
+	e.emitChatUpdate(accountID, chatID)
 	return nil
 }
 
@@ -448,7 +448,7 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
 	rows, err := e.db.Query(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
 		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_media_type, c.last_msg_thumb_b64,
+		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
@@ -574,7 +574,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	row := e.db.QueryRow(
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
 		        c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
-		        c.last_msg_is_outgoing, c.last_msg_media_type, c.last_msg_thumb_b64,
+		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
 		        COALESCE(u.is_bot, 0),
@@ -594,7 +594,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	err := row.Scan(
 		&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 		&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
-		&lastMsgIsOutgoing, &c.LastMsgMediaType, &lastMsgThumbB64,
+		&lastMsgIsOutgoing, &c.LastMsgStatus, &c.LastMsgMediaType, &lastMsgThumbB64,
 		&c.UnreadCount, &isMuted, &isPinned, &isArchived,
 		&draftText, &memberCount, &parentID, &isBot,
 		&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,

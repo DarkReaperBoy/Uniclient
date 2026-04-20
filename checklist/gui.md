@@ -40,10 +40,6 @@
 ### 2.4 Chat Item States
 
 ### 2.5 Special Rows
-- [ ] Archived Chats (narrow): stacked-userpic composite centered at 19px width (S2)
-- [ ] Archived Chats unread counter: always muted/gray (#bbbbbb day / #3e546a night) (S2)
-- [ ] Archived Chats background: dialogsBgOver on hover, ripple via dialogsRipple (S2)
-- [ ] Archived Chats icon: dialogsArchiveUserpic SVG in narrow mode (S2)
 - [ ] Archived Chats expand/collapse animation: ~200ms (S2)
 - [ ] Saved Messages: bookmark icon userpic (no avatar photo) (S2)
 

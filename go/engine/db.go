@@ -109,6 +109,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV6,
 	migrateV7,
 	migrateV8,
+	migrateV9,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -423,4 +424,13 @@ func migrateV8(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+// migrateV9 adds last_msg_status column to chats table (send state: 0=none, 1=pending, 2=sent, 3=read).
+func migrateV9(tx *sql.Tx) error {
+	if columnExists(tx, "chats", "last_msg_status") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_status INTEGER NOT NULL DEFAULT 0`)
+	return err
 }

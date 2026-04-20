@@ -1092,6 +1092,7 @@ type EngineChatInfo struct {
 	MemberCount       int32                  `protobuf:"varint,15,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
 	ParentId          string                 `protobuf:"bytes,16,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
 	IsBot             bool                   `protobuf:"varint,18,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
+	LastMsgStatus     int32                  `protobuf:"varint,19,opt,name=last_msg_status,json=lastMsgStatus,proto3" json:"last_msg_status,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -1250,6 +1251,13 @@ func (x *EngineChatInfo) GetIsBot() bool {
 		return x.IsBot
 	}
 	return false
+}
+
+func (x *EngineChatInfo) GetLastMsgStatus() int32 {
+	if x != nil {
+		return x.LastMsgStatus
+	}
+	return 0
 }
 
 type EngineGetChatListRequest struct {
@@ -4775,7 +4783,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xc6\x04\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xee\x04\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -4799,7 +4807,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"draft_text\x18\x0e \x01(\tR\tdraftText\x12!\n" +
 	"\fmember_count\x18\x0f \x01(\x05R\vmemberCount\x12\x1b\n" +
 	"\tparent_id\x18\x10 \x01(\tR\bparentId\x12\x15\n" +
-	"\x06is_bot\x18\x12 \x01(\bR\x05isBot\"\x83\x01\n" +
+	"\x06is_bot\x18\x12 \x01(\bR\x05isBot\x12&\n" +
+	"\x0flast_msg_status\x18\x13 \x01(\x05R\rlastMsgStatus\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +
