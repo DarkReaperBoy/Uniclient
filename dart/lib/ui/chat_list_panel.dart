@@ -7,6 +7,7 @@ import 'package:lottie/lottie.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../bridge/engine_service.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart';
@@ -108,6 +109,7 @@ class _ChatListPanelState extends State<ChatListPanel>
   final FocusNode _searchFocus = FocusNode();
   bool _searching = false;
   bool _showArchived = false;
+  List<ChatInfo> _loadedArchivedChats = []; // on-demand archived chats
   List<ChatInfo>? _searchResults;
   _SearchTab _activeSearchTab = _SearchTab.myMessages;
   _MyMsgSubFilter _myMsgSubFilter = _MyMsgSubFilter.all;
@@ -161,10 +163,19 @@ class _ChatListPanelState extends State<ChatListPanel>
         setState(() => _showArchived = false);
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<AppState>().onShowArchiveRequested = () {
+        if (mounted && !_showArchived) _toggleArchived();
+      };
+    });
   }
 
   void _toggleArchived() {
     if (!_showArchived) {
+      // Load archived chats on-demand from engine.
+      final engine = context.read<EngineService>();
+      _loadedArchivedChats = engine.getChatList(archived: true, limit: 500);
       setState(() => _showArchived = true);
       _archiveAnimCtrl.forward();
     } else if (!_archiveAnimCtrl.isAnimating) {
@@ -333,6 +344,10 @@ class _ChatListPanelState extends State<ChatListPanel>
     if (ChatListPanel.switchFolderByIndexRequest == _switchFolderByIndex) {
       ChatListPanel.switchFolderByIndexRequest = null;
     }
+    final appState = context.read<AppState>();
+    if (appState.onShowArchiveRequested != null) {
+      appState.onShowArchiveRequested = null;
+    }
     _archiveAnimCtrl.dispose();
     _chatListScrollCtrl.dispose();
     _reorderOverlay?.remove();
@@ -453,10 +468,13 @@ class _ChatListPanelState extends State<ChatListPanel>
         return b.lastMsgTime.compareTo(a.lastMsgTime);
       });
 
-    // Separate archived chats.
-    final archived = sorted.where((c) => c.isArchived).toList();
+    // Separate archived chats — use on-demand loaded list if inline is empty.
+    var archived = sorted.where((c) => c.isArchived).toList();
     final nonArchived = sorted.where((c) => !c.isArchived).toList();
-    final hasArchived = archived.isNotEmpty;
+    if (archived.isEmpty && _loadedArchivedChats.isNotEmpty) {
+      archived = _loadedArchivedChats;
+    }
+    final hasArchived = archived.isNotEmpty || chatState.hasArchivedChats;
     final archivedUnread = archived.fold(0, (sum, c) => sum + c.unreadCount);
 
     // Spec §2.7: Apply custom pinned chat order (drag-to-reorder).

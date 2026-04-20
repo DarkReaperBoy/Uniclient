@@ -23,6 +23,9 @@ class ChatState extends ChangeNotifier {
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
 
+  // ── Archive state ──
+  bool _hasArchivedChats = false;
+
   // ── Pinned chat order (drag-to-reorder, spec §2.7) ──
   // Key: accountId, Value: ordered list of pinned chat IDs.
   final Map<String, List<String>> _pinnedChatOrders = {};
@@ -86,6 +89,7 @@ class ChatState extends ChangeNotifier {
   List<CachedMessage> get pinnedMessages => _pinnedMessages;
   bool get loadingMessages => _loadingMessages;
   bool get hasMoreMessages => _hasMoreMessages;
+  bool get hasArchivedChats => _hasArchivedChats;
 
   /// Active channel/topic within a topic-type group. Null = default/all.
   String? get activeChannelId => _activeChannelId;
@@ -281,6 +285,9 @@ class ChatState extends ChangeNotifier {
     if (_disposed) return;
     // Use a large limit for unified list so all accounts' chats are included.
     _chats = _engine.getChatList(accountId: accountId, archived: archived, limit: 500);
+    // Update archive presence: check loaded chats first, then probe engine.
+    _hasArchivedChats = _chats.any((c) => c.isArchived) ||
+        _engine.getChatList(archived: true, limit: 1).isNotEmpty;
     notifyListeners();
   }
 

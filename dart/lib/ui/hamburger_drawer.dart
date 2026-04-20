@@ -227,6 +227,16 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         appState.updateTheme(!isDark ? 'dark' : 'light');
                       },
                     ),
+                    // §3.3: Archive row — shown when user has archived chats.
+                    if (context.watch<ChatState>().hasArchivedChats)
+                      _MenuRow(
+                        icon: Icons.archive,
+                        label: 'Archived Chats',
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          appState.requestShowArchive();
+                        },
+                      ),
                     if (Platform.isLinux)
                       _SystemFrameToggle(
                         enabled: appState.nativeWindowFrame,

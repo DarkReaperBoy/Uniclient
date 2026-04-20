@@ -45,6 +45,9 @@ class AppState extends ChangeNotifier {
   /// Called when a CLI command adds an account. Parameters: (accountId, platform).
   void Function(String accountId, String platform)? onAddAccount;
 
+  /// Callback for toggling archive view in chat list (set by ChatListPanel).
+  VoidCallback? onShowArchiveRequested;
+
   Timer? _cmdPollTimer;
 
   /// File path for CLI automation: add accounts without GUI interaction.
@@ -124,6 +127,10 @@ class AppState extends ChangeNotifier {
 
   ConnState connStateFor(String accountId) =>
       _connStates[accountId] ?? ConnState.disconnected;
+
+  void requestShowArchive() {
+    onShowArchiveRequested?.call();
+  }
 
   // ── Actions ──
 
