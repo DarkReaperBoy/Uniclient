@@ -50,7 +50,6 @@
 ## 3. Hamburger Menu
 
 ### 3.1 Profile Area / Cover
-- [ ] Display name: left 26px, top 84px, semiboldFont 13px, windowBoldFg color (S3)
 - [ ] Premium/verified badge after name with semiboldFont spacew gap (S3)
 - [ ] Status line: left 26px, top 103px, 13px body, windowSubTextFg color (S3)
 - [ ] Status content: phone when present, else "Set Emoji Status" link (S3)

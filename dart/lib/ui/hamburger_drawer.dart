@@ -228,6 +228,7 @@ class _ProfileCover extends StatelessWidget {
             ),
           ),
           // Display name at left 26, top 84 (spec §3).
+          // Font: semiboldFont 13px, color: windowBoldFg.
           Positioned(
             left: 26,
             top: 84,
@@ -238,7 +239,11 @@ class _ProfileCover extends StatelessWidget {
                   : _platformLabel(account?.platform ?? ''),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.titleMedium,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
           ),
           // Status line at left 26, top 103 (spec §3).
