@@ -1427,12 +1427,20 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec §2.1: inactive fg = windowSubTextFg, active fg = lightButtonFg
     final activeColor =
         isDark ? const Color(0xFF6AB3F3) : const Color(0xFF168ACD);
     final inactiveColor =
         isDark ? const Color(0xFF8A8A8A) : const Color(0xFF999999);
-    final hoverColor =
+    // Spec §2.1: hover ripple = windowBgOver (inactive), lightButtonBgOver (active)
+    final hoverInactive =
         isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final splashInactive =
+        isDark ? const Color(0xFF24303D) : const Color(0xFFE5E5E5);
+    final hoverActive =
+        isDark ? const Color(0xFF1D2A39) : const Color(0xFFE3F1FA);
+    final splashActive =
+        isDark ? const Color(0xFF223143) : const Color(0xFFC9E4F6);
 
     _syncTabKeys();
     final folders = widget.chatState.folders;
@@ -1495,7 +1503,8 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
                         isActive: isActive,
                         activeColor: activeColor,
                         inactiveColor: inactiveColor,
-                        hoverColor: hoverColor,
+                        hoverColor: isActive ? hoverActive : hoverInactive,
+                        splashColor: isActive ? splashActive : splashInactive,
                         isDragged: isDragged,
                         onTap: () => _onTabTapped(i),
                         onSecondaryTapUp: (pos) =>
@@ -1553,8 +1562,9 @@ class _HorizontalFolderTabsState extends State<_HorizontalFolderTabs>
   }
 }
 
-/// Individual folder tab widget.
-class _FolderTab extends StatefulWidget {
+/// Individual folder tab widget with Material ripple.
+/// Spec §2.1: hover ripple = windowBgOver (inactive), lightButtonBgOver (active).
+class _FolderTab extends StatelessWidget {
   final GlobalKey? labelKey; // for barSnapToLabel measurement by parent
   final String label;
   final int unread;
@@ -1562,6 +1572,7 @@ class _FolderTab extends StatefulWidget {
   final Color activeColor;
   final Color inactiveColor;
   final Color hoverColor;
+  final Color splashColor;
   final bool isDragged;
   final VoidCallback onTap;
   final void Function(Offset globalPosition) onSecondaryTapUp;
@@ -1575,74 +1586,69 @@ class _FolderTab extends StatefulWidget {
     required this.activeColor,
     required this.inactiveColor,
     required this.hoverColor,
+    required this.splashColor,
     required this.isDragged,
     required this.onTap,
     required this.onSecondaryTapUp,
   });
 
   @override
-  State<_FolderTab> createState() => _FolderTabState();
-}
-
-class _FolderTabState extends State<_FolderTab> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final textColor =
-        widget.isActive ? widget.activeColor : widget.inactiveColor;
-    final bgColor = _hovered ? widget.hoverColor : Colors.transparent;
+    final textColor = isActive ? activeColor : inactiveColor;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        onSecondaryTapUp: (d) => widget.onSecondaryTapUp(d.globalPosition),
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 150),
-          opacity: widget.isDragged ? 0.7 : 1.0,
-          child: Container(
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 150),
+      opacity: isDragged ? 0.7 : 1.0,
+      child: Material(
+        type: MaterialType.transparency,
+        child: InkWell(
+          onTap: onTap,
+          onSecondaryTapUp: (d) => onSecondaryTapUp(d.globalPosition),
+          hoverColor: hoverColor,
+          splashColor: splashColor,
+          highlightColor: splashColor.withValues(alpha: 0.3),
+          child: SizedBox(
             height: 33,
-            padding: const EdgeInsets.symmetric(horizontal: 9),
-            decoration: BoxDecoration(color: bgColor),
-            child: Column(
-              children: [
-                const SizedBox(height: 7), // labelTop: 7px (§2.1 chatsFiltersTabs)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      key: widget.labelKey,
-                      widget.label,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: textColor,
-                      ),
-                    ),
-                    if (widget.unread > 0) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF40A7E3),
-                          borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 9),
+              child: Column(
+                children: [
+                  const SizedBox(height: 7), // labelTop: 7px (§2.1 chatsFiltersTabs)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        key: labelKey,
+                        label,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: textColor,
                         ),
-                        child: Text(
-                          widget.unread > 999 ? '999+' : '${widget.unread}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold,
+                      ),
+                      if (unread > 0) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 4, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF40A7E3),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            unread > 999 ? '999+' : '$unread',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
-                  ],
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
