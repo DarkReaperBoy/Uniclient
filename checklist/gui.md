@@ -42,8 +42,6 @@
 ### 2.5 Special Rows
 
 ### 2.6 Sorting
-- [ ] Pinned chats at top (no visible separator) (S2)
-- [ ] Below pinned: sorted by last message time descending (S2)
 
 ### 2.7 Swipe & Drag
 - [ ] Swipe quick action: 50px base threshold, auto-scaled by DPI (S2)
