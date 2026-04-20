@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lottie/lottie.dart';
 
 import '../models/engine_models.dart';
 
@@ -515,29 +516,30 @@ SwipeAction resolveSwipeAction(String baseAction, ChatInfo chat) {
   }
 }
 
-/// Spec §2.7: Icon data for each swipe action (20px dialogsQuickActionSize).
-IconData _swipeActionIcon(SwipeAction action) {
+/// Spec §2.7: Lottie asset path for each swipe action (20px dialogsQuickActionSize).
+/// Draw-on animations driven by swipe progress via external AnimationController.
+String _swipeActionLottiePath(SwipeAction action) {
   switch (action) {
     case SwipeAction.mute:
-      return Icons.volume_off_outlined;
+      return 'assets/animations/swipe_mute.json';
     case SwipeAction.unmute:
-      return Icons.volume_up_outlined;
+      return 'assets/animations/swipe_unmute.json';
     case SwipeAction.pin:
-      return Icons.push_pin_outlined;
+      return 'assets/animations/swipe_pin.json';
     case SwipeAction.unpin:
-      return Icons.push_pin;
+      return 'assets/animations/swipe_unpin.json';
     case SwipeAction.read:
-      return Icons.done_all;
+      return 'assets/animations/swipe_read.json';
     case SwipeAction.unread:
-      return Icons.mark_email_unread_outlined;
+      return 'assets/animations/swipe_unread.json';
     case SwipeAction.archive:
-      return Icons.archive_outlined;
+      return 'assets/animations/swipe_archive.json';
     case SwipeAction.unarchive:
-      return Icons.unarchive_outlined;
+      return 'assets/animations/swipe_unarchive.json';
     case SwipeAction.delete:
-      return Icons.delete_outlined;
+      return 'assets/animations/swipe_delete.json';
     case SwipeAction.disabled:
-      return Icons.block_outlined;
+      return 'assets/animations/swipe_disabled.json';
   }
 }
 
@@ -629,6 +631,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
   late final AnimationController _rippleController;
   late final AnimationController _iconEntranceController;
   late final Animation<double> _iconScaleAnimation;
+  /// Spec §2.7: Drives Lottie draw-on animation proportional to swipe progress.
+  late final AnimationController _lottieController;
   double _resetFrom = 0.0;
   bool _committed = false;
 
@@ -655,6 +659,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
         setState(() {
           _swipeOffset = _resetFrom * (1.0 - _resetController.value);
         });
+        // Spec §2.7: Sync Lottie draw-on with swipe offset during spring-back.
+        _lottieController.value = _swipeProgress;
       });
     // Spec §2.7: Ripple animation for 80px action area on threshold crossing.
     _rippleController = AnimationController(
@@ -683,6 +689,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
         weight: 20,
       ),
     ]).animate(_iconEntranceController);
+    // Spec §2.7: Lottie draw-on controller — value tracks swipe progress.
+    _lottieController = AnimationController(vsync: this);
   }
 
   @override
@@ -690,6 +698,7 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
     _resetController.dispose();
     _rippleController.dispose();
     _iconEntranceController.dispose();
+    _lottieController.dispose();
     super.dispose();
   }
 
@@ -704,6 +713,8 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
           : details.delta.dx;
       _swipeOffset = (_swipeOffset + dx).clamp(0.0, _maxSwipeOffset);
     });
+    // Spec §2.7: Sync Lottie draw-on progress with swipe distance.
+    _lottieController.value = _swipeProgress;
     // Spec §2.7: Fire HapticEffect::Medium once when crossing threshold.
     // Also trigger 80px ripple area animation.
     if (!_thresholdCrossed &&
@@ -816,10 +827,14 @@ class _SwipeableChatRowState extends State<SwipeableChatRow>
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    _swipeActionIcon(widget.action),
-                                    color: Colors.white,
-                                    size: 20,
+                                  SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: Lottie.asset(
+                                      _swipeActionLottiePath(widget.action),
+                                      controller: _lottieController,
+                                      fit: BoxFit.contain,
+                                    ),
                                   ),
                                   if (labelText.isNotEmpty) ...[
                                     const SizedBox(height: 2),

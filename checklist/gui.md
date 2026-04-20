@@ -109,7 +109,6 @@
 - [x] Completion toasts — DONE in `chat_list_panel.dart`
 - [x] Drag-to-reorder pinned chats (30px threshold, sineInOut animation) — DONE in `chat_list_panel.dart`
 - [x] Drag-and-drop forwarding: `ForwardDragData`, auto-select on hover 2s timer — DONE in `chat_list_panel.dart`
-- [ ] Swipe action: Lottie icon (`swipe_{mute,unmute,...}`) at `dialogsQuickActionSize = 20px`; ripple area `dialogsQuickActionRippleSize = 80px` — spec §2.7 (currently uses static icons; Lottie swipe icons not implemented)
 - [ ] Swipe label: 13px semibold, auto-shrinks to 5px minimum, `twoLines=true` — spec §2.7
 - [ ] Swipe `kSwipeSlow = 0.2` slowdown + spring-back after release (`Ui::Animations` ~200ms) — spec §2.7 (rubber-band feel not verified)
 - [ ] Haptic feedback on swipe threshold crossing — spec §2.7 (Linux likely no-op, but hook should exist)
