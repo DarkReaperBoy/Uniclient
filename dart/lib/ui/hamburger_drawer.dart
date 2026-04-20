@@ -430,6 +430,7 @@ class _AccountList extends StatelessWidget {
                 account: account,
                 isActive: account.id == activeAccountId,
                 unreadCount: chatState.unreadCountForAccount(account.id),
+                unreadAllMuted: chatState.isAccountUnreadAllMuted(account.id),
                 labelColor: labelColor,
                 hoverBg: hoverBg,
                 onTap: () => onSelect(account.id),
@@ -488,6 +489,7 @@ class _AccountRow extends StatelessWidget {
   final AccountInfo account;
   final bool isActive;
   final int unreadCount;
+  final bool unreadAllMuted;
   final Color labelColor;
   final Color hoverBg;
   final VoidCallback onTap;
@@ -496,6 +498,7 @@ class _AccountRow extends StatelessWidget {
     required this.account,
     required this.isActive,
     required this.unreadCount,
+    required this.unreadAllMuted,
     required this.labelColor,
     required this.hoverBg,
     required this.onTap,
@@ -570,6 +573,7 @@ class _AccountRow extends StatelessWidget {
               const SizedBox(width: 2),
               _AccountUnreadBadge(
                 count: unreadCount,
+                muted: unreadAllMuted,
                 isDark: theme.brightness == Brightness.dark,
               ),
             ],
@@ -585,21 +589,31 @@ class _AccountRow extends StatelessWidget {
 /// Uses Lang::FormatCountToShort style (e.g. "1K" for 1000+).
 class _AccountUnreadBadge extends StatelessWidget {
   final int count;
+  final bool muted;
   final bool isDark;
 
   const _AccountUnreadBadge({
     required this.count,
+    required this.muted,
     required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
     // Spec §3.2: mainMenuBadgeSize 18px height, mainMenuBadgeFont 11px bold.
-    // Badge bg: dialogsUnreadBg (active) day #40a7e3 / night #5288c1.
-    // Badge text: windowFgActive #ffffff.
-    final bgColor = isDark
-        ? const Color(0xFF5288C1)
-        : const Color(0xFF40A7E3);
+    // Unmuted: dialogsUnreadBg day #40a7e3 / night #5288c1 (accent blue).
+    // Muted: dialogsUnreadBgMuted day #bbbbbb / night #3e546a (gray).
+    // Badge text: windowFgActive #ffffff always.
+    final Color bgColor;
+    if (muted) {
+      bgColor = isDark
+          ? const Color(0xFF3E546A)
+          : const Color(0xFFBBBBBB);
+    } else {
+      bgColor = isDark
+          ? const Color(0xFF5288C1)
+          : const Color(0xFF40A7E3);
+    }
 
     return Container(
       height: 18,
