@@ -120,6 +120,25 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                             : const SizedBox.shrink(),
                       ),
                     ),
+                    // §3.3 Menu Items — My Profile row.
+                    _MenuRow(
+                      icon: Icons.person,
+                      label: 'My Profile',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                    // §3.3: PlainShadow divider below My Profile/Bots block
+                    // with 6px mainMenuSkip padding top and bottom.
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Container(
+                        height: 1,
+                        color: isDark
+                            ? const Color(0x5604080e)
+                            : const Color(0x18000000),
+                      ),
+                    ),
                     _NightModeToggle(
                       isDark: isDark,
                       onChanged: (dark) {
@@ -971,6 +990,83 @@ class _AccountUnreadBadge extends StatelessWidget {
     if (count < 100000) return '${(count / 1000).toStringAsFixed(count % 1000 == 0 ? 0 : 1)}K';
     if (count < 1000000) return '${count ~/ 1000}K';
     return '${(count / 1000000).toStringAsFixed(count % 1000000 == 0 ? 0 : 1)}M';
+  }
+}
+
+/// Spec §3.3: mainMenuButton-styled row for hamburger menu items.
+/// Row padding: margins(61px, 11px, 20px, 9px).
+/// Icon: 24x24 at 21px horizontal, menuIconColor.
+/// Label: semiboldTextStyle 13px semibold, windowBoldFg / windowBoldFgOver.
+/// Hover: windowBgOver background + ripple.
+class _MenuRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Widget? trailing;
+
+  const _MenuRow({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec §3.3: windowBoldFg for label.
+    final labelColor = isDark
+        ? const Color(0xFFE1E3E6)
+        : const Color(0xFF222222);
+    // Spec §3.3: menuIconColor.
+    final iconColor = isDark
+        ? const Color(0xFF6C7883)
+        : const Color(0xFF999999);
+    // Spec §3.3: windowBgOver for hover.
+    final hoverBg = isDark
+        ? const Color(0xFF232E3C)
+        : const Color(0xFFF1F1F1);
+
+    return InkWell(
+      onTap: onTap,
+      hoverColor: hoverBg,
+      splashColor: hoverBg.withValues(alpha: 0.5),
+      child: Padding(
+        // Spec §3.3: margins(61px, 11px, 20px, 9px).
+        // Left 61px = 21px icon offset + 24px icon + 16px gap to label.
+        padding: const EdgeInsets.only(
+          left: 21,
+          top: 11,
+          right: 20,
+          bottom: 9,
+        ),
+        child: Row(
+          children: [
+            // Spec §3.3: 24x24 icon at 21px horizontal.
+            Icon(icon, size: 24, color: iconColor),
+            // Gap from icon to label: 61 - 21 - 24 = 16px.
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: labelColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (trailing != null) ...[
+              // Spec §3.3: 19px toggle skip between label and trailing.
+              const SizedBox(width: 19),
+              trailing!,
+            ],
+          ],
+        ),
+      ),
+    );
   }
 }
 
