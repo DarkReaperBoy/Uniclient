@@ -298,6 +298,15 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         Navigator.of(context).pop();
                       },
                     ),
+                    // §3.5: Advanced — menuIconManage (S3).
+                    // Navigates to Advanced settings section (§14.7).
+                    _MenuRow(
+                      icon: Icons.tune,
+                      label: 'Advanced',
+                      onTap: () {
+                        Navigator.of(context).pop();
+                      },
+                    ),
                     // Version footer.
                     Padding(
                       padding: const EdgeInsets.all(16),
