@@ -331,6 +331,15 @@ class _UniClientAppState extends State<UniClientApp> {
           final timeoutSec = (cmd['timeout'] as num?)?.toInt() ?? 5;
           _waitForText(query, timeoutSec);
 
+        case 'resize':
+          // Resize the window: {"action":"resize","width":1024,"height":768}
+          final w = (cmd['width'] as num?)?.toInt();
+          final h = (cmd['height'] as num?)?.toInt();
+          if (w != null && h != null) {
+            const channel = MethodChannel('com.uniclient.app/window');
+            channel.invokeMethod('resize', {'width': w, 'height': h});
+          }
+
         case 'dismissPopup':
           // Tap at (0,0) to dismiss any popup/dialog/menu
           _dispatchTap(1, 1);
@@ -772,6 +781,19 @@ class _UniClientAppState extends State<UniClientApp> {
       home: Column(
         children: [
           if (Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
+          // Spec §1: NativeTitleRequiresShadow — 1px shadow under native frame
+          // when system window decorations are enabled. Replaces the bottom
+          // border that the custom titlebar would normally provide.
+          if (Platform.isLinux && appState.nativeWindowFrame)
+            Builder(builder: (ctx) {
+              final isDark = Theme.of(ctx).brightness == Brightness.dark;
+              return Container(
+                height: 1,
+                color: isDark
+                    ? const Color(0x5604080e) // shadowFg night
+                    : const Color(0x18000000), // shadowFg day
+              );
+            }),
           Expanded(
             child: CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
