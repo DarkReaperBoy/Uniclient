@@ -109,6 +109,14 @@ class _ChatViewState extends State<ChatView>
   bool _showScrollToBottom = false;
   /// Spec §5: 150ms slide-up animation for scroll-to-bottom FAB.
   late final AnimationController _fabAnimCtrl;
+  /// Spec §5 / §49.17: corner button stack — Mentions, Reactions, PollVotes
+  /// slide from right (150ms linear), stacked above Jump-down with 4px gaps.
+  late final AnimationController _mentionsAnimCtrl;
+  late final AnimationController _reactionsAnimCtrl;
+  late final AnimationController _pollVotesAnimCtrl;
+  bool _showMentionsBtn = false;
+  bool _showReactionsBtn = false;
+  bool _showPollVotesBtn = false;
   String? _lastChatId;
   /// Spec §4.4: when the user taps the close button on the pinned bar,
   /// the bar is hidden locally for the current chat until the chat changes.
@@ -149,6 +157,18 @@ class _ChatViewState extends State<ChatView>
       curve: Curves.easeOutCirc,
     );
     _fabAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _mentionsAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _reactionsAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _pollVotesAnimCtrl = AnimationController(
       duration: const Duration(milliseconds: 150),
       vsync: this,
     );
@@ -198,6 +218,9 @@ class _ChatViewState extends State<ChatView>
     _selectionCurvedAnim.dispose();
     _selectionAnimCtrl.dispose();
     _fabAnimCtrl.dispose();
+    _mentionsAnimCtrl.dispose();
+    _reactionsAnimCtrl.dispose();
+    _pollVotesAnimCtrl.dispose();
     _composeController.dispose();
     _scrollController.dispose();
     _searchController.dispose();
@@ -229,7 +252,13 @@ class _ChatViewState extends State<ChatView>
       _lastChatId = chatId;
       // Chat changed — cancel any in-progress edit/reply/search so stale
       // state doesn't leak into the new chat's compose area.
-      // Also reset pinned bar dismiss state for the new chat.
+      // Also reset pinned bar dismiss state and corner button tracking.
+      _showMentionsBtn = false;
+      _showReactionsBtn = false;
+      _showPollVotesBtn = false;
+      _mentionsAnimCtrl.value = 0;
+      _reactionsAnimCtrl.value = 0;
+      _pollVotesAnimCtrl.value = 0;
       if (_editingMsgId != null || _replyToId != null || _isSearching || _pinnedBarDismissed) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -905,6 +934,23 @@ class _ChatViewState extends State<ChatView>
       return const SizedBox.shrink();
     }
 
+    // Spec §5 / §49.17: drive corner button visibility from chat data.
+    final wantMentions = chat.unreadMentionCount > 0;
+    if (wantMentions != _showMentionsBtn) {
+      _showMentionsBtn = wantMentions;
+      if (wantMentions) _mentionsAnimCtrl.forward(); else _mentionsAnimCtrl.reverse();
+    }
+    final wantReactions = chat.unreadReactionCount > 0;
+    if (wantReactions != _showReactionsBtn) {
+      _showReactionsBtn = wantReactions;
+      if (wantReactions) _reactionsAnimCtrl.forward(); else _reactionsAnimCtrl.reverse();
+    }
+    // PollVotes: no data field yet — always hidden.
+    if (_showPollVotesBtn) {
+      _showPollVotesBtn = false;
+      _pollVotesAnimCtrl.reverse();
+    }
+
     return Focus(
       canRequestFocus: false,
       skipTraversal: true,
@@ -1063,7 +1109,12 @@ class _ChatViewState extends State<ChatView>
                       : null,
                   searchQuery: _activeSearchQuery,
                 ),
-                // Spec §5: JumpDownButton — 12px right, 10px bottom, 150ms slide-up.
+                // Spec §5 / §49.17: Stacked corner buttons.
+                // Order bottom→top: Jump-down → Mentions → Reactions → PollVotes.
+                // 4px gap (historyUnreadThingsSkip) between buttons, 12px right, 10px bottom.
+                // Jump-down slides up; others slide from right. 150ms linear.
+                // Each button: 52×62px hit-area.
+                // --- Jump-down button (bottommost) ---
                 Positioned(
                   right: 12,
                   bottom: 10,
@@ -1071,7 +1122,6 @@ class _ChatViewState extends State<ChatView>
                     animation: _fabAnimCtrl,
                     builder: (context, child) {
                       if (_fabAnimCtrl.isDismissed) return const SizedBox.shrink();
-                      // Slide up from below: translate Y from +82 (offscreen) to 0.
                       final dy = (1.0 - _fabAnimCtrl.value) * 82.0;
                       return Transform.translate(
                         offset: Offset(0, dy),
@@ -1080,6 +1130,74 @@ class _ChatViewState extends State<ChatView>
                     },
                     child: _ScrollToBottomFab(
                       unreadCount: chatState.openedUnreadCount,
+                      onTap: _scrollToBottom,
+                    ),
+                  ),
+                ),
+                // --- Mentions button ---
+                Positioned(
+                  right: 12,
+                  bottom: 10,
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_fabAnimCtrl, _mentionsAnimCtrl]),
+                    builder: (context, child) {
+                      if (_mentionsAnimCtrl.isDismissed) return const SizedBox.shrink();
+                      // Y: stacks above jump-down (66 = 62 + 4px gap).
+                      final dy = -(66.0 * _fabAnimCtrl.value);
+                      // X: slides from off-screen right.
+                      final dx = (1.0 - _mentionsAnimCtrl.value) * 64.0;
+                      return Transform.translate(
+                        offset: Offset(dx, dy),
+                        child: child,
+                      );
+                    },
+                    child: _CornerButton(
+                      icon: Icons.alternate_email,
+                      count: chat.unreadMentionCount,
+                      onTap: _scrollToBottom,
+                    ),
+                  ),
+                ),
+                // --- Reactions button ---
+                Positioned(
+                  right: 12,
+                  bottom: 10,
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_fabAnimCtrl, _mentionsAnimCtrl, _reactionsAnimCtrl]),
+                    builder: (context, child) {
+                      if (_reactionsAnimCtrl.isDismissed) return const SizedBox.shrink();
+                      final dy = -(66.0 * _fabAnimCtrl.value + 66.0 * _mentionsAnimCtrl.value);
+                      final dx = (1.0 - _reactionsAnimCtrl.value) * 64.0;
+                      return Transform.translate(
+                        offset: Offset(dx, dy),
+                        child: child,
+                      );
+                    },
+                    child: _CornerButton(
+                      icon: Icons.favorite_border,
+                      count: chat.unreadReactionCount,
+                      onTap: _scrollToBottom,
+                    ),
+                  ),
+                ),
+                // --- PollVotes button (no data yet — always hidden) ---
+                Positioned(
+                  right: 12,
+                  bottom: 10,
+                  child: AnimatedBuilder(
+                    animation: Listenable.merge([_fabAnimCtrl, _mentionsAnimCtrl, _reactionsAnimCtrl, _pollVotesAnimCtrl]),
+                    builder: (context, child) {
+                      if (_pollVotesAnimCtrl.isDismissed) return const SizedBox.shrink();
+                      final dy = -(66.0 * _fabAnimCtrl.value + 66.0 * _mentionsAnimCtrl.value + 66.0 * _reactionsAnimCtrl.value);
+                      final dx = (1.0 - _pollVotesAnimCtrl.value) * 64.0;
+                      return Transform.translate(
+                        offset: Offset(dx, dy),
+                        child: child,
+                      );
+                    },
+                    child: _CornerButton(
+                      icon: Icons.poll,
+                      count: 0,
                       onTap: _scrollToBottom,
                     ),
                   ),
@@ -3241,6 +3359,139 @@ class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
                             Icons.arrow_downward,
                             size: 20,
                             color: arrowColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Corner button for Mentions/Reactions/PollVotes (spec §5 / §49.17).
+/// Same 52×62px hit-area and 42px visible disc as JumpDownButton, but
+/// with a custom icon and count badge on the disc itself.
+class _CornerButton extends StatefulWidget {
+  final IconData icon;
+  final int count;
+  final VoidCallback onTap;
+
+  const _CornerButton({
+    required this.icon,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  State<_CornerButton> createState() => _CornerButtonState();
+}
+
+class _CornerButtonState extends State<_CornerButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final discBg = isDark ? const Color(0xFF1D2B3A) : const Color(0xFFFFFFFF);
+    final discBgOver = isDark ? const Color(0xFF243446) : const Color(0xFFF1F1F1);
+    final iconColor = isDark ? const Color(0xFFADB4BA) : const Color(0xFF999999);
+    const shadowColor = Color(0x40000000);
+    // Badge uses the same muted palette as JumpDownButton.
+    final badgeBg = isDark ? const Color(0xFF3E546A) : const Color(0xFFBBBBBB);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 52,
+          height: 62 + (widget.count > 0 ? 26 : 0),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Badge: 4px above the 62px button area.
+              if (widget.count > 0)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: badgeBg,
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        widget.count > 9999
+                            ? '9999+'
+                            : widget.count.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Button area: 52×62, disc at (5,15).
+              Positioned(
+                bottom: 0,
+                left: 0,
+                child: SizedBox(
+                  width: 52,
+                  height: 62,
+                  child: Stack(
+                    children: [
+                      // Shadow disc.
+                      Positioned(
+                        left: 5,
+                        top: 17,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: shadowColor,
+                          ),
+                        ),
+                      ),
+                      // Main disc.
+                      Positioned(
+                        left: 5,
+                        top: 15,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _hovered ? discBgOver : discBg,
+                          ),
+                        ),
+                      ),
+                      // Icon centered on disc.
+                      Positioned(
+                        left: 5,
+                        top: 15,
+                        child: SizedBox(
+                          width: 42,
+                          height: 42,
+                          child: Icon(
+                            widget.icon,
+                            size: 20,
+                            color: iconColor,
                           ),
                         ),
                       ),
