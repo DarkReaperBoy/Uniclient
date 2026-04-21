@@ -23,9 +23,11 @@ import 'ui/shell.dart';
 import 'ui/titlebar.dart';
 import 'utils/debug.dart';
 import 'utils/system_tray.dart';
+import 'package:media_kit/media_kit.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
 
   // Catch all Flutter framework errors and print to stderr.
   FlutterError.onError = (details) {

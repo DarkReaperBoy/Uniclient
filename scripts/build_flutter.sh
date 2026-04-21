@@ -168,7 +168,7 @@ case "$PLATFORM" in
     mkdir -p "$BUILD_DIR/native_assets/linux"
 
     # Build with nix-shell to get GTK dev dependencies
-    nix-shell -p cmake ninja pkg-config gtk3.dev glib.dev pango.dev cairo.dev atk.dev gdk-pixbuf.dev --run "
+    nix-shell -p cmake ninja pkg-config gtk3.dev glib.dev pango.dev cairo.dev atk.dev gdk-pixbuf.dev mpv-unwrapped.dev gnumake --run "
       cd '$BUILD_DIR' &&
       rm -f CMakeCache.txt &&
       export FLUTTER_SKIP_ASSEMBLE=1 &&
@@ -181,6 +181,21 @@ case "$PLATFORM" in
       mkdir -p "$BUILD_DIR/bundle/lib"
       cp -f "$BUILD_DIR/lib/libapp.so" "$BUILD_DIR/bundle/lib/libapp.so"
       echo "  Copied libapp.so into bundle."
+    fi
+
+    # Copy plugin shared libraries into bundle (CMake sometimes misses these)
+    for plugin_so in "$BUILD_DIR"/plugins/*/lib*.so; do
+      if [[ -f "$plugin_so" ]]; then
+        cp -f "$plugin_so" "$BUILD_DIR/bundle/lib/"
+      fi
+    done
+
+    # Copy bundled native libraries for media_kit (libmpv)
+    MPV_LIB="$(nix-build '<nixpkgs>' -A mpv-unwrapped --no-out-link 2>/dev/null)/lib/libmpv.so.2"
+    if [[ -f "$MPV_LIB" ]]; then
+      cp -Lf "$MPV_LIB" "$BUILD_DIR/bundle/lib/libmpv.so.2"
+      ln -sf libmpv.so.2 "$BUILD_DIR/bundle/lib/libmpv.so"
+      echo "  Copied libmpv into bundle."
     fi
 
     # Copy Go shared library into bundle

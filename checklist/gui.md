@@ -292,7 +292,6 @@
 ### §6.4 Videos
 
 - [x] Video thumbnail with centered play button overlay and duration badge — spec §6, DONE in message_bubble.dart (_VisualMedia). Duration badge at bottom-right with semi-transparent bg, shows duration + file size
-- [ ] Click to open video playback — spec §6. Not implemented
 
 ### §6.5 GIFs
 

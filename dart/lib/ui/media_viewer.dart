@@ -2,14 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../models/engine_models.dart';
 
-/// Full-screen media viewer overlay. Spec §20.
-///
-/// Opens with 200ms linear fade-in, closes with 600ms linear fade-out.
-/// Background: near-black (`mediaviewBg`). Controls fade at `_controlsOpacity`.
-/// Keyboard: Escape=close, Left/Right=prev/next, Ctrl+0=toggle fit/1:1.
 class MediaViewer extends StatefulWidget {
   final CachedMessage initialMessage;
   final List<CachedMessage> mediaMessages;
@@ -20,13 +17,11 @@ class MediaViewer extends StatefulWidget {
     required this.mediaMessages,
   });
 
-  /// Open the media viewer with a fade transition (§20.19.1).
   static void open(
     BuildContext context, {
     required CachedMessage message,
     required List<CachedMessage> allMessages,
   }) {
-    // Filter to visual media only (photo, video, gif — not sticker/videonote).
     final mediaMessages = allMessages
         .where((m) =>
             m.mediaLocalPath.isNotEmpty &&
@@ -38,9 +33,7 @@ class MediaViewer extends StatefulWidget {
       PageRouteBuilder(
         opaque: false,
         barrierColor: Colors.transparent,
-        // §20.19.1: 200ms linear fade-in.
         transitionDuration: const Duration(milliseconds: 200),
-        // §20.19.1: 600ms linear fade-out.
         reverseTransitionDuration: const Duration(milliseconds: 600),
         pageBuilder: (context, animation, secondaryAnimation) {
           return FadeTransition(
@@ -64,15 +57,21 @@ class _MediaViewerState extends State<MediaViewer>
   late int _currentIndex;
   late final FocusNode _focusNode;
 
-  // Zoom and pan state (§20.4).
   double _scale = 1.0;
   Offset _offset = Offset.zero;
   double _baseScale = 1.0;
   Offset _baseOffset = Offset.zero;
   bool _isFitToScreen = true;
 
-  // Controls visibility — auto-hide after 3s of no interaction.
   bool _controlsVisible = true;
+
+  Player? _player;
+  VideoController? _videoController;
+  bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  double _volume = 0.8;
+  bool _isSeeking = false;
 
   @override
   void initState() {
@@ -82,33 +81,82 @@ class _MediaViewerState extends State<MediaViewer>
       (m) => m.msgId == widget.initialMessage.msgId,
     );
     if (_currentIndex < 0) _currentIndex = 0;
+    _initVideoIfNeeded();
   }
 
   @override
   void dispose() {
+    _disposePlayer();
     _focusNode.dispose();
     super.dispose();
   }
 
   CachedMessage get _currentMessage => widget.mediaMessages[_currentIndex];
+  bool get _isVideo => _currentMessage.mediaType == 2;
+  bool get _isGif => _currentMessage.mediaType == 7;
+
+  void _initVideoIfNeeded() {
+    final msg = _currentMessage;
+    if ((msg.mediaType == 2 || msg.mediaType == 7) &&
+        msg.mediaLocalPath.isNotEmpty) {
+      _disposePlayer();
+      final player = Player();
+      _player = player;
+      _videoController = VideoController(player);
+
+      player.stream.playing.listen((playing) {
+        if (mounted) setState(() => _isPlaying = playing);
+      });
+      player.stream.position.listen((pos) {
+        if (mounted && !_isSeeking) setState(() => _position = pos);
+      });
+      player.stream.duration.listen((dur) {
+        if (mounted) setState(() => _duration = dur);
+      });
+      player.stream.completed.listen((completed) {
+        if (completed && msg.mediaType == 7) {
+          player.seek(Duration.zero);
+          player.play();
+        }
+      });
+
+      player.setVolume(msg.mediaType == 7 ? 0.0 : _volume * 100.0);
+      player.setPlaylistMode(
+          msg.mediaType == 7 ? PlaylistMode.single : PlaylistMode.none);
+      player.open(Media(msg.mediaLocalPath));
+    }
+  }
+
+  void _disposePlayer() {
+    _player?.dispose();
+    _player = null;
+    _videoController = null;
+    _isPlaying = false;
+    _position = Duration.zero;
+    _duration = Duration.zero;
+  }
 
   bool get _hasPrev => _currentIndex < widget.mediaMessages.length - 1;
   bool get _hasNext => _currentIndex > 0;
 
   void _goToPrev() {
     if (!_hasPrev) return;
+    _disposePlayer();
     setState(() {
       _currentIndex++;
       _resetZoom();
     });
+    _initVideoIfNeeded();
   }
 
   void _goToNext() {
     if (!_hasNext) return;
+    _disposePlayer();
     setState(() {
       _currentIndex--;
       _resetZoom();
     });
+    _initVideoIfNeeded();
   }
 
   void _resetZoom() {
@@ -128,7 +176,16 @@ class _MediaViewerState extends State<MediaViewer>
     });
   }
 
-  void _close() => Navigator.of(context).pop();
+  void _togglePlayPause() {
+    final player = _player;
+    if (player == null) return;
+    player.playOrPause();
+  }
+
+  void _close() {
+    _disposePlayer();
+    Navigator.of(context).pop();
+  }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
@@ -137,14 +194,39 @@ class _MediaViewerState extends State<MediaViewer>
         _close();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowLeft:
+        if (_isVideo && _player != null) {
+          _player!.seek(_position - const Duration(seconds: 5));
+          return KeyEventResult.handled;
+        }
         _goToPrev();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowRight:
+        if (_isVideo && _player != null) {
+          _player!.seek(_position + const Duration(seconds: 5));
+          return KeyEventResult.handled;
+        }
         _goToNext();
         return KeyEventResult.handled;
+      case LogicalKeyboardKey.space:
+      case LogicalKeyboardKey.enter:
+        if (_isVideo || _isGif) {
+          _togglePlayPause();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
       default:
         return KeyEventResult.ignored;
     }
+  }
+
+  String _formatTime(Duration d) {
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60);
+    final s = d.inSeconds.remainder(60);
+    if (h > 0) {
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+    }
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -160,9 +242,12 @@ class _MediaViewerState extends State<MediaViewer>
       onKeyEvent: _handleKey,
       child: GestureDetector(
         onTap: () {
-          setState(() => _controlsVisible = !_controlsVisible);
+          if (_isVideo || _isGif) {
+            _togglePlayPause();
+          } else {
+            setState(() => _controlsVisible = !_controlsVisible);
+          }
         },
-        // §20.4: zoom/pan.
         onScaleStart: (details) {
           _baseScale = _scale;
           _baseOffset = _offset;
@@ -186,23 +271,20 @@ class _MediaViewerState extends State<MediaViewer>
           body: Stack(
             fit: StackFit.expand,
             children: [
-              // §20.2: background — mediaviewBg (near-black opaque).
               Container(color: const Color(0xFF000000)),
 
-              // Main content — photo display.
               Center(
                 child: Transform(
                   alignment: Alignment.center,
+                  // ignore: deprecated_member_use
                   transform: Matrix4.identity()
-                    ..translate(_offset.dx, _offset.dy)
+                    ..translate(_offset.dx, _offset.dy) // ignore: deprecated_member_use
                     ..scale(_scale),
                   child: _buildContent(msg, screenSize),
                 ),
               ),
 
-              // Navigation arrows (§20.6).
               if (_controlsVisible) ...[
-                // Left arrow (prev — older).
                 if (_hasPrev)
                   Positioned(
                     left: 0,
@@ -214,7 +296,6 @@ class _MediaViewerState extends State<MediaViewer>
                       onTap: _goToPrev,
                     ),
                   ),
-                // Right arrow (next — newer).
                 if (_hasNext)
                   Positioned(
                     right: 0,
@@ -227,14 +308,12 @@ class _MediaViewerState extends State<MediaViewer>
                     ),
                   ),
 
-                // §20.7: Footer — "Photo N of M", sender, date.
                 Positioned(
                   left: 14,
-                  bottom: 14,
+                  bottom: (_isVideo ? 86 : 14),
                   child: _buildFooter(msg, photoIndex, totalPhotos),
                 ),
 
-                // §20.8: Top-left close button.
                 Positioned(
                   top: 8,
                   left: 8,
@@ -245,13 +324,20 @@ class _MediaViewerState extends State<MediaViewer>
                   ),
                 ),
 
-                // §20.8: Bottom-right toolbar.
                 Positioned(
-                  bottom: 14,
+                  bottom: (_isVideo ? 86 : 14),
                   right: 14,
                   child: _buildToolbar(msg),
                 ),
               ],
+
+              if (_isVideo && _player != null)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: _buildVideoControls(),
+                ),
             ],
           ),
         ),
@@ -260,6 +346,16 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   Widget _buildContent(CachedMessage msg, Size screenSize) {
+    if ((msg.mediaType == 2 || msg.mediaType == 7) &&
+        _videoController != null) {
+      return Video(
+        controller: _videoController!,
+        width: screenSize.width,
+        height: screenSize.height,
+        fit: BoxFit.contain,
+        controls: NoVideoControls,
+      );
+    }
     if (msg.mediaLocalPath.isNotEmpty) {
       final file = File(msg.mediaLocalPath);
       return Image.file(
@@ -288,8 +384,139 @@ class _MediaViewerState extends State<MediaViewer>
     );
   }
 
+  Widget _buildVideoControls() {
+    final progress = _duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
+    final remaining = _duration - _position;
+
+    return AnimatedOpacity(
+      opacity: _controlsVisible ? 1.0 : 0.0,
+      duration: Duration(milliseconds: _controlsVisible ? 200 : 600),
+      child: IgnorePointer(
+        ignoring: !_controlsVisible,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 40, vertical: 14),
+          constraints: const BoxConstraints(maxWidth: 480),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xCC000000),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    _formatTime(_position),
+                    style: const TextStyle(
+                      color: Color(0xFFC7C7C7),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: GestureDetector(
+                      onHorizontalDragStart: (_) =>
+                          setState(() => _isSeeking = true),
+                      onHorizontalDragUpdate: (details) {
+                        final box =
+                            context.findRenderObject() as RenderBox?;
+                        if (box == null || _duration.inMilliseconds == 0) {
+                          return;
+                        }
+                      },
+                      onHorizontalDragEnd: (_) =>
+                          setState(() => _isSeeking = false),
+                      onTapDown: (details) {
+                        if (_duration.inMilliseconds == 0) return;
+                        final box =
+                            details.localPosition.dx;
+                        final sliderWidth =
+                            (context.findRenderObject() as RenderBox?)
+                                    ?.size
+                                    .width ??
+                                400;
+                        final ratio = (box / sliderWidth).clamp(0.0, 1.0);
+                        _player?.seek(Duration(
+                          milliseconds:
+                              (ratio * _duration.inMilliseconds).round(),
+                        ));
+                      },
+                      child: SizedBox(
+                        height: 20,
+                        child: Center(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(1.5),
+                            child: LinearProgressIndicator(
+                              value: progress,
+                              minHeight: 3,
+                              backgroundColor: const Color(0xFF252525),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Color(0xFFC7C7C7)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '-${_formatTime(remaining)}',
+                    style: const TextStyle(
+                      color: Color(0xFFC7C7C7),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ControlButton(
+                    icon: _volume > 0
+                        ? Icons.volume_up
+                        : Icons.volume_off,
+                    size: 32,
+                    onTap: () {
+                      setState(() {
+                        if (_volume > 0) {
+                          _volume = 0;
+                        } else {
+                          _volume = 0.8;
+                        }
+                        _player?.setVolume(_volume * 100.0);
+                      });
+                    },
+                  ),
+                  const SizedBox(width: 16),
+                  _ControlButton(
+                    icon: _isPlaying
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: 40,
+                    onTap: _togglePlayPause,
+                  ),
+                  const SizedBox(width: 16),
+                  _ControlButton(
+                    icon: Icons.fullscreen,
+                    size: 32,
+                    onTap: () {},
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFooter(CachedMessage msg, int photoIndex, int totalPhotos) {
-    // §20.7: header + sender name + date.
     final typeLabel = switch (msg.mediaType) {
       1 => 'Photo',
       2 => 'Video',
@@ -297,16 +524,19 @@ class _MediaViewerState extends State<MediaViewer>
       _ => 'Media',
     };
     final dt = DateTime.fromMillisecondsSinceEpoch(msg.timestamp);
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
     final hour = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
     final amPm = dt.hour >= 12 ? 'PM' : 'AM';
-    final dateStr = '${months[dt.month - 1]} ${dt.day}, ${dt.year} at $hour:${dt.minute.toString().padLeft(2, '0')} $amPm';
+    final dateStr =
+        '${months[dt.month - 1]} ${dt.day}, ${dt.year} at $hour:${dt.minute.toString().padLeft(2, '0')} $amPm';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        // "Photo N of M" — §20.7 header: mediaviewThickFont (semibold).
         Text(
           totalPhotos > 1 ? '$typeLabel $photoIndex of $totalPhotos' : typeLabel,
           style: const TextStyle(
@@ -316,7 +546,6 @@ class _MediaViewerState extends State<MediaViewer>
           ),
         ),
         const SizedBox(height: 4),
-        // Sender name + date.
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -341,11 +570,9 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   Widget _buildToolbar(CachedMessage msg) {
-    // §20.8: right-to-left toolbar icons in 46x54px cells.
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Zoom toggle (fit/1:1) — §20.4.
         _ViewerButton(
           icon: _isFitToScreen ? Icons.zoom_in : Icons.zoom_out,
           onTap: _toggleFitToScreen,
@@ -356,7 +583,48 @@ class _MediaViewerState extends State<MediaViewer>
   }
 }
 
-/// Navigation area on left/right of viewer (§20.6: 90px wide).
+class _ControlButton extends StatefulWidget {
+  final IconData icon;
+  final double size;
+  final VoidCallback onTap;
+
+  const _ControlButton({
+    required this.icon,
+    required this.size,
+    required this.onTap,
+  });
+
+  @override
+  State<_ControlButton> createState() => _ControlButtonState();
+}
+
+class _ControlButtonState extends State<_ControlButton> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: _hovering
+                ? Colors.white.withValues(alpha: 0.15)
+                : Colors.transparent,
+          ),
+          child: Icon(widget.icon, color: Colors.white, size: widget.size * 0.6),
+        ),
+      ),
+    );
+  }
+}
+
 class _NavArea extends StatefulWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -398,7 +666,6 @@ class _NavAreaState extends State<_NavArea> {
   }
 }
 
-/// Toolbar button for the media viewer (§20.8: 46x54px cells, 36px hover circle).
 class _ViewerButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onTap;
