@@ -348,6 +348,7 @@ class _UniClientShellState extends State<UniClientShell>
               ? ChatView(
                   showBackButton: false,
                   onToggleInfo: _toggleInfo,
+                  isInfoOpen: _infoOpen,
                 )
               : _EmptyChatPlaceholder(),
         ),
@@ -435,6 +436,7 @@ class _UniClientShellState extends State<UniClientShell>
                   ? ChatView(
                       showBackButton: false,
                       onToggleInfo: _toggleInfo,
+                      isInfoOpen: _infoOpen,
                       wideChatMode: wideChat,
                     )
                   : _EmptyChatPlaceholder();

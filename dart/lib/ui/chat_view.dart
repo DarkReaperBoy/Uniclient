@@ -72,6 +72,9 @@ class ChatView extends StatefulWidget {
   final bool showBackButton;
   final VoidCallback? onBack;
   final VoidCallback? onToggleInfo;
+  /// Spec §4.3: true when the info panel is open so the info toggle icon
+  /// renders in `windowActiveTextFg` (blue).
+  final bool isInfoOpen;
   /// Spec §1: Wide chat mode (chat width >= 880px) centers the message bubble
   /// column within the chat area.
   final bool wideChatMode;
@@ -84,6 +87,7 @@ class ChatView extends StatefulWidget {
     this.showBackButton = false,
     this.onBack,
     this.onToggleInfo,
+    this.isInfoOpen = false,
     this.wideChatMode = false,
     this.hideTopBarDivider = false,
   });
@@ -676,6 +680,7 @@ class _ChatViewState extends State<ChatView> {
               showBackButton: widget.showBackButton,
               onBack: widget.onBack,
               onToggleInfo: widget.onToggleInfo,
+              isInfoOpen: widget.isInfoOpen,
               moreVertKey: _moreVertKey,
               hideDivider: widget.hideTopBarDivider,
               groupOnlineCount: chatState.groupOnlineCount,
@@ -780,6 +785,9 @@ class _TopBarButton extends StatelessWidget {
   /// Optional padding inside the 40×40 ripple circle to offset the icon
   /// from center. Used by menu toggle to place icon at spec position (16, 17).
   final EdgeInsetsGeometry? iconPadding;
+  /// Spec §4.3: active state uses `windowActiveTextFg` (blue) instead of
+  /// `menuIconFg`. Used by the info toggle when the info panel is open.
+  final bool isActive;
 
   const _TopBarButton({
     super.key,
@@ -787,6 +795,7 @@ class _TopBarButton extends StatelessWidget {
     this.onPressed,
     this.width = 40,
     this.iconPadding,
+    this.isActive = false,
   });
 
   @override
@@ -801,6 +810,13 @@ class _TopBarButton extends StatelessWidget {
     final windowBgOver = isDark
         ? const Color(0xFF202b36)
         : const Color(0xFFf1f1f1);
+    // Spec §4.3: windowActiveTextFg — day #168acd, night #6ab3f3.
+    final windowActiveTextFg = isDark
+        ? const Color(0xFF6ab3f3)
+        : const Color(0xFF168acd);
+
+    final restColor = isActive ? windowActiveTextFg : menuIconFg;
+    final hoverColor = isActive ? windowActiveTextFg : menuIconFgOver;
 
     return SizedBox(
       width: width,
@@ -817,8 +833,8 @@ class _TopBarButton extends StatelessWidget {
             maximumSize: const WidgetStatePropertyAll(Size(40, 40)),
             shape: const WidgetStatePropertyAll(CircleBorder()),
             iconColor: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.hovered)) return menuIconFgOver;
-              return menuIconFg;
+              if (states.contains(WidgetState.hovered)) return hoverColor;
+              return restColor;
             }),
             overlayColor: WidgetStatePropertyAll(windowBgOver),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -845,6 +861,9 @@ class _ChatTopBar extends StatelessWidget {
   final bool hideDivider;
 
   final int groupOnlineCount;
+  /// Spec §4.3: when true, the info toggle icon uses `windowActiveTextFg`
+  /// (blue) instead of the default `menuIconFg`.
+  final bool isInfoOpen;
 
   const _ChatTopBar({
     required this.chat,
@@ -857,6 +876,7 @@ class _ChatTopBar extends StatelessWidget {
     this.moreVertKey,
     this.hideDivider = false,
     this.groupOnlineCount = 0,
+    this.isInfoOpen = false,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -1155,6 +1175,7 @@ class _ChatTopBar extends StatelessWidget {
             _TopBarButton(
               icon: Icons.info_outline,
               onPressed: onToggleInfo,
+              isActive: isInfoOpen,
             ),
           Builder(
             builder: (btnCtx) => _TopBarButton(
