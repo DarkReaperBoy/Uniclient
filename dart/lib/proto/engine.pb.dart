@@ -2618,6 +2618,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     $core.int? mediaDuration,
     $core.int? mediaDownloadState,
     $core.bool? isOutgoing,
+    $core.String? senderRank,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2704,6 +2705,9 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     if (isOutgoing != null) {
       $result.isOutgoing = isOutgoing;
     }
+    if (senderRank != null) {
+      $result.senderRank = senderRank;
+    }
     return $result;
   }
   EngineCachedMessage._() : super();
@@ -2739,6 +2743,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     ..a<$core.int>(26, _omitFieldNames ? '' : 'mediaDuration', $pb.PbFieldType.O3)
     ..a<$core.int>(27, _omitFieldNames ? '' : 'mediaDownloadState', $pb.PbFieldType.O3)
     ..aOB(28, _omitFieldNames ? '' : 'isOutgoing')
+    ..aOS(29, _omitFieldNames ? '' : 'senderRank')
     ..hasRequiredFields = false
   ;
 
@@ -3015,6 +3020,15 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
   $core.bool hasIsOutgoing() => $_has(27);
   @$pb.TagNumber(28)
   void clearIsOutgoing() => clearField(28);
+
+  @$pb.TagNumber(29)
+  $core.String get senderRank => $_getSZ(28);
+  @$pb.TagNumber(29)
+  set senderRank($core.String v) { $_setString(28, v); }
+  @$pb.TagNumber(29)
+  $core.bool hasSenderRank() => $_has(28);
+  @$pb.TagNumber(29)
+  void clearSenderRank() => clearField(29);
 }
 
 class EngineGetMessagesRequest extends $pb.GeneratedMessage {
@@ -7443,7 +7457,6 @@ class EngineJoinGroupCallResponse extends $pb.GeneratedMessage {
   void clearCallId() => clearField(1);
 }
 
-
 class EngineSendScheduledNowRequest extends $pb.GeneratedMessage {
   factory EngineSendScheduledNowRequest({
     $core.String? accountId,
@@ -7515,6 +7528,7 @@ class EngineSendScheduledNowRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(3)
   $core.List<$core.String> get msgIds => $_getList(2);
 }
+
 
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

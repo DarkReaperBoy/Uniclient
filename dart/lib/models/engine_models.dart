@@ -293,6 +293,7 @@ class CachedMessage {
   final String localId;
   final String senderId;
   final String senderName;
+  final String senderRank; // admin/creator custom title (e.g. "admin", "owner", "Head Mod")
   final String contentText;
   final String contentRaw;
   final String contentRich;
@@ -326,6 +327,7 @@ class CachedMessage {
     this.localId = '',
     this.senderId = '',
     this.senderName = '',
+    this.senderRank = '',
     this.contentText = '',
     this.contentRaw = '',
     this.contentRich = '',
@@ -358,6 +360,7 @@ class CachedMessage {
     localId: j['local_id'] as String? ?? '',
     senderId: j['sender_id'] as String? ?? '',
     senderName: safeStr(j['sender_name'] as String? ?? ''),
+    senderRank: j['sender_rank'] as String? ?? '',
     contentText: safeStr(j['content_text'] as String? ?? ''),
     contentRaw: safeStr(j['content_raw'] as String? ?? ''),
     contentRich: safeStr(j['content_rich'] as String? ?? ''),
@@ -412,6 +415,7 @@ class CachedMessage {
     String? localId,
     String? senderId,
     String? senderName,
+    String? senderRank,
     String? contentText,
     String? contentRaw,
     String? contentRich,
@@ -442,6 +446,7 @@ class CachedMessage {
     localId: localId ?? this.localId,
     senderId: senderId ?? this.senderId,
     senderName: senderName ?? this.senderName,
+    senderRank: senderRank ?? this.senderRank,
     contentText: contentText ?? this.contentText,
     contentRaw: contentRaw ?? this.contentRaw,
     contentRich: contentRich ?? this.contentRich,

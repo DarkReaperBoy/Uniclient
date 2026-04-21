@@ -815,6 +815,7 @@ func cachedMsgToProto(m *engine.CachedMessage) *pb.EngineCachedMessage {
 		LocalId:            m.LocalID,
 		SenderId:           m.SenderID,
 		SenderName:         sanitizeUTF8(m.SenderName),
+		SenderRank:         m.SenderRank,
 		ContentText:        sanitizeUTF8(m.ContentText),
 		ContentRaw:         m.ContentRaw,
 		ContentRich:        m.ContentRich,

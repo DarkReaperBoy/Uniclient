@@ -2019,6 +2019,7 @@ type EngineCachedMessage struct {
 	MediaDuration      int32  `protobuf:"varint,26,opt,name=media_duration,json=mediaDuration,proto3" json:"media_duration,omitempty"`                  // seconds (audio/video)
 	MediaDownloadState int32  `protobuf:"varint,27,opt,name=media_download_state,json=mediaDownloadState,proto3" json:"media_download_state,omitempty"` // 0=none, 1=in_progress, 2=complete, 3=failed
 	IsOutgoing         bool   `protobuf:"varint,28,opt,name=is_outgoing,json=isOutgoing,proto3" json:"is_outgoing,omitempty"`
+	SenderRank         string `protobuf:"bytes,29,opt,name=sender_rank,json=senderRank,proto3" json:"sender_rank,omitempty"` // admin/creator custom title (e.g. "admin", "owner")
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2247,6 +2248,13 @@ func (x *EngineCachedMessage) GetIsOutgoing() bool {
 		return x.IsOutgoing
 	}
 	return false
+}
+
+func (x *EngineCachedMessage) GetSenderRank() string {
+	if x != nil {
+		return x.SenderRank
+	}
+	return ""
 }
 
 type EngineGetMessagesRequest struct {
@@ -5893,7 +5901,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\"O\n" +
 	"\x1cEngineGetForumTopicsResponse\x12/\n" +
-	"\x05chats\x18\x01 \x03(\v2\x19.uniclient.EngineChatInfoR\x05chats\"\xc0\a\n" +
+	"\x05chats\x18\x01 \x03(\v2\x19.uniclient.EngineChatInfoR\x05chats\"\xe1\a\n" +
 	"\x13EngineCachedMessage\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -5929,7 +5937,9 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x0emedia_duration\x18\x1a \x01(\x05R\rmediaDuration\x120\n" +
 	"\x14media_download_state\x18\x1b \x01(\x05R\x12mediaDownloadState\x12\x1f\n" +
 	"\vis_outgoing\x18\x1c \x01(\bR\n" +
-	"isOutgoing\"\x85\x01\n" +
+	"isOutgoing\x12\x1f\n" +
+	"\vsender_rank\x18\x1d \x01(\tR\n" +
+	"senderRank\"\x85\x01\n" +
 	"\x18EngineGetMessagesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +

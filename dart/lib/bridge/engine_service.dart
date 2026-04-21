@@ -907,6 +907,7 @@ class EngineService {
       localId: p.localId,
       senderId: p.senderId,
       senderName: _safeStr(p.senderName),
+      senderRank: p.senderRank,
       contentText: _safeStr(p.contentText),
       contentRaw: contentRaw,
       contentRich: p.contentRich.isEmpty ? '' : _safeStr(utf8.decode(p.contentRich, allowMalformed: true)),

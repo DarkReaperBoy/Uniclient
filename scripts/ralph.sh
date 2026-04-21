@@ -108,6 +108,12 @@ RULES:
 - Do NOT declare something working until you have visually verified it via screenshot and tested every interaction.
 - Exit cleanly when done. The loop restarts you with fresh context.
 
+TELEGRAM ONLY:
+- The app has multiple accounts (Telegram, Rubika, etc.). ONLY use the TELEGRAM account for testing.
+- Do NOT open, interact with, or screenshot Rubika/Bale/Matrix/other platform chats.
+- If the app opens to a non-Telegram chat, switch to the Telegram account first.
+- All GUI work targets Telegram Desktop UI replication. Other platforms are irrelevant.
+
 STAY ON TASK — do NOT:
 - Read SPEC.md, auth/auth.md, or any research/ file EXCEPT the spec section cited in your checklist item.
 - Refactor, clean up, or "improve" code that isn't part of your checklist item.

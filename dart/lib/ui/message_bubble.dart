@@ -152,18 +152,33 @@ class MessageBubble extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Sender name: only on first message of group (in groups, for incoming).
+                    // Sender name + admin badge: only on first message of group (in groups, for incoming).
                     if (!isOutgoing && message.senderName.isNotEmpty && isFirstInGroup)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 2),
                         child: GestureDetector(
                           onTap: onSenderTap != null ? () => onSenderTap!(message.senderId) : null,
-                          child: Text(
-                            message.senderName,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: _senderColor(message.senderId),
+                          child: Text.rich(
+                            TextSpan(
+                              children: [
+                                TextSpan(
+                                  text: message.senderName,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _senderColor(message.senderId),
+                                  ),
+                                ),
+                                if (message.senderRank.isNotEmpty)
+                                  TextSpan(
+                                    text: ' ${message.senderRank}',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w400,
+                                      color: _senderColor(message.senderId).withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                              ],
                             ),
                           ),
                         ),

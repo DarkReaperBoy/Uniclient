@@ -177,6 +177,7 @@ type Message struct {
 	ChatID        string        `json:"chat_id"`
 	SenderID      string        `json:"sender_id"`
 	SenderName    string        `json:"sender_name"`
+	SenderRank    string        `json:"sender_rank,omitempty"` // admin/creator custom title (e.g. "admin", "owner", "Head Mod")
 	Text          string        `json:"text"`
 	Timestamp     time.Time     `json:"timestamp"`
 	EditedAt      *time.Time    `json:"edited_at,omitempty"`

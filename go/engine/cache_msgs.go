@@ -10,6 +10,12 @@ import (
 	"uniclient/cores"
 )
 
+// AdminRankProvider is optionally implemented by cores that can provide
+// admin/creator rank info for chat members (e.g. "admin", "owner", custom titles).
+type AdminRankProvider interface {
+	GetAdminRanks(chatID string) (map[string]string, error) // senderID → rank
+}
+
 // CachedMessage is the message data returned to the UI from cache.
 type CachedMessage struct {
 	AccountID    string `json:"account_id"`
@@ -18,6 +24,7 @@ type CachedMessage struct {
 	LocalID      string `json:"local_id,omitempty"`
 	SenderID     string `json:"sender_id,omitempty"`
 	SenderName   string `json:"sender_name,omitempty"`
+	SenderRank   string `json:"sender_rank,omitempty"`
 	ContentText  string `json:"content_text,omitempty"`
 	ContentRaw   []byte `json:"content_raw,omitempty"`
 	ContentRich  []byte `json:"content_rich,omitempty"`
@@ -56,7 +63,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	var err error
 	if beforeMs > 0 {
 		rows, err = e.db.Query(
-			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name,
+			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
 			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
 			 FROM messages
@@ -65,7 +72,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 			 LIMIT ?`, accountID, chatID, beforeMs, limit)
 	} else {
 		rows, err = e.db.Query(
-			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name,
+			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
 			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
 			 FROM messages
@@ -83,6 +90,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	}
 	e.populateMediaMetadata(msgs)
 	e.populateReplyPreviews(msgs)
+	e.populateAdminRanks(accountID, chatID, msgs)
 
 	// If cache has fewer messages than requested on initial load, fetch from
 	// core and cache. A few messages may have trickled in via the event stream
@@ -116,7 +124,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 // Falls back to fetching from the core if the cache has none.
 func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, error) {
 	rows, err := e.db.Query(
-		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name,
+		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
 		        content_text, content_raw, content_rich, timestamp, edited_at,
 		        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
 		 FROM messages
@@ -163,13 +171,13 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 	var msgs []CachedMessage
 	for rows.Next() {
 		var m CachedMessage
-		var localID, senderID, senderName, replyToID, replyPreview, forwardFrom sql.NullString
+		var localID, senderID, senderName, senderRank, replyToID, replyPreview, forwardFrom sql.NullString
 		var contentRaw, contentRich []byte
 		var editedAt sql.NullInt64
 		var isPinned, isOutgoing, hasMedia int
 
 		if err := rows.Scan(
-			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName,
+			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank,
 			&m.ContentText, &contentRaw, &contentRich, &m.Timestamp, &editedAt,
 			&m.Status, &replyToID, &replyPreview, &forwardFrom, &isPinned, &isOutgoing, &hasMedia,
 		); err != nil {
@@ -179,6 +187,7 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		m.LocalID = localID.String
 		m.SenderID = senderID.String
 		m.SenderName = senderName.String
+		m.SenderRank = senderRank.String
 		m.ContentRaw = contentRaw
 		m.ContentRich = contentRich
 		if editedAt.Valid {
@@ -238,6 +247,47 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 	}
 }
 
+// populateAdminRanks fills in SenderRank for cached messages by querying the core.
+// Only runs once per chat, and only if the core implements AdminRankProvider.
+func (e *Engine) populateAdminRanks(accountID, chatID string, msgs []CachedMessage) {
+	if len(msgs) == 0 {
+		return
+	}
+	// Only populate for group/channel chats (negative IDs).
+	if len(chatID) == 0 || chatID[0] != '-' {
+		return
+	}
+	// Check if any message already has a rank — if so, we've already populated.
+	for _, m := range msgs {
+		if m.SenderRank != "" {
+			return
+		}
+	}
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return
+	}
+	provider, ok := acc.Core.(AdminRankProvider)
+	if !ok {
+		return
+	}
+	ranks, err := provider.GetAdminRanks(chatID)
+	if err != nil {
+		return
+	}
+	if len(ranks) == 0 {
+		return
+	}
+	for i := range msgs {
+		if rank, ok := ranks[msgs[i].SenderID]; ok {
+			msgs[i].SenderRank = rank
+			// Also update the DB so future loads have the rank.
+			e.db.Exec(`UPDATE messages SET sender_rank = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+				rank, msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID)
+		}
+	}
+}
+
 // cacheMessage inserts a cores.Message into the cache and returns the cached form.
 func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) CachedMessage {
 	now := time.Now().UnixMilli()
@@ -277,11 +327,11 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 
 	e.db.Exec(
 		`INSERT OR REPLACE INTO messages
-		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name,
+		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
 		  content_raw, content_text, timestamp, edited_at,
 		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank),
 		rawBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
 		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(hasMedia))
@@ -297,6 +347,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		MsgID:        msg.ID,
 		SenderID:     msg.SenderID,
 		SenderName:   msg.SenderName,
+		SenderRank:   msg.SenderRank,
 		ContentText:  msg.Text,
 		ContentRaw:   rawBytes,
 		Timestamp:    ts,
@@ -675,6 +726,7 @@ func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]Cache
 			MsgID:       m.ID,
 			SenderID:    m.SenderID,
 			SenderName:  m.SenderName,
+			SenderRank:  m.SenderRank,
 			ContentText: m.Text,
 			Timestamp:   m.Timestamp.UnixMilli(),
 			HasMedia:    hasMedia,

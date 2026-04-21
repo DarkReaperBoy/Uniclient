@@ -117,6 +117,11 @@ type TelegramCore struct {
 	activeCalls map[int64]*tgCall       // callID → active call
 	pendingDH   map[int64]*pendingDHState // callID → DH exchange state
 
+	// Admin rank cache — chatID → userID → custom rank title (e.g. "admin", "owner", "Head Mod")
+	adminRanks        map[int64]map[int64]string
+	adminRanksFetched map[int64]bool // tracks which chats we've fetched admin ranks for
+	adminRanksMu      sync.RWMutex
+
 	// Raw signaling interceptors — used by test harnesses (e.g., ntgcalls)
 	rawSigInInterceptors  map[int64]func([]byte) // incoming: handleSignalingData
 	rawSigOutInterceptors map[int64]func([]byte) // outgoing: sendCallSignaling
@@ -188,6 +193,8 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		userNames:         make(map[int64]string),
 		channelNames:      make(map[int64]string),
 		peerPhotoID:       make(map[int64]int64),
+		adminRanks:         make(map[int64]map[int64]string),
+		adminRanksFetched:  make(map[int64]bool),
 		activeCalls:        make(map[int64]*tgCall),
 		pendingDH:          make(map[int64]*pendingDHState),
 		rawSigInInterceptors:  make(map[int64]func([]byte)),
@@ -9502,7 +9509,16 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		m.SenderID = peerToID(from)
 		if peer, ok := from.(*tg.PeerUser); ok {
 			m.SenderName = t.getCachedUserName(peer.UserID)
+			// Look up admin rank from cache for group/supergroup chats.
+			if chatID := peerToInt64(msg.PeerID); chatID != 0 {
+				m.SenderRank = t.getAdminRank(chatID, peer.UserID)
+			}
 		}
+	}
+
+	// Channel post author signature (e.g. "John" when channel has "Sign messages" on).
+	if author, ok := msg.GetPostAuthor(); ok && author != "" && m.SenderRank == "" {
+		m.SenderRank = author
 	}
 
 	if msg.EditDate != 0 {
@@ -9962,6 +9978,25 @@ func (t *TelegramCore) convertMessages(result tg.MessagesMessagesClass) []Messag
 	if len(rawMsgs) == 0 {
 		return nil
 	}
+
+	// Lazily fetch admin ranks for channel/supergroup chats on first message load.
+	for _, m := range rawMsgs {
+		if msg, ok := m.(*tg.Message); ok {
+			if ch, ok := msg.PeerID.(*tg.PeerChannel); ok {
+				t.adminRanksMu.RLock()
+				fetched := t.adminRanksFetched[ch.ChannelID]
+				t.adminRanksMu.RUnlock()
+				if !fetched {
+					t.adminRanksMu.Lock()
+					t.adminRanksFetched[ch.ChannelID] = true
+					t.adminRanksMu.Unlock()
+					t.fetchAndCacheAdminRanks(ch.ChannelID)
+				}
+				break
+			}
+		}
+	}
+
 	messages := make([]Message, 0, len(rawMsgs))
 	for _, m := range rawMsgs {
 		if msg, ok := m.(*tg.Message); ok {
@@ -9995,6 +10030,128 @@ func peerToID(peer tg.PeerClass) string {
 	default:
 		return ""
 	}
+}
+
+// peerToInt64 extracts the raw numeric ID from a PeerClass (chat/channel/user).
+func peerToInt64(peer tg.PeerClass) int64 {
+	switch p := peer.(type) {
+	case *tg.PeerUser:
+		return p.UserID
+	case *tg.PeerChat:
+		return p.ChatID
+	case *tg.PeerChannel:
+		return p.ChannelID
+	default:
+		return 0
+	}
+}
+
+// getAdminRank returns the cached admin rank for a user in a chat, or "".
+func (t *TelegramCore) getAdminRank(chatID, userID int64) string {
+	t.adminRanksMu.RLock()
+	defer t.adminRanksMu.RUnlock()
+	if ranks, ok := t.adminRanks[chatID]; ok {
+		return ranks[userID]
+	}
+	return ""
+}
+
+// setAdminRank stores an admin rank in the cache.
+func (t *TelegramCore) setAdminRank(chatID, userID int64, rank string) {
+	t.adminRanksMu.Lock()
+	defer t.adminRanksMu.Unlock()
+	if t.adminRanks[chatID] == nil {
+		t.adminRanks[chatID] = make(map[int64]string)
+	}
+	t.adminRanks[chatID][userID] = rank
+}
+
+// fetchAndCacheAdminRanks fetches admin ranks for a channel/supergroup and caches them.
+func (t *TelegramCore) fetchAndCacheAdminRanks(channelID int64) {
+	hash, err := t.resolveChannelAccessHash(channelID)
+	if err != nil {
+		return
+	}
+	participants, err := t.api.ChannelsGetParticipants(t.ctx, &tg.ChannelsGetParticipantsRequest{
+		Channel: &tg.InputChannel{ChannelID: channelID, AccessHash: hash},
+		Filter:  &tg.ChannelParticipantsAdmins{},
+		Offset:  0,
+		Limit:   200,
+	})
+	if err != nil {
+		return
+	}
+	cp, ok := participants.(*tg.ChannelsChannelParticipants)
+	if !ok {
+		return
+	}
+	for _, p := range cp.Participants {
+		switch admin := p.(type) {
+		case *tg.ChannelParticipantAdmin:
+			rank := admin.Rank
+			if rank == "" {
+				rank = "admin"
+			}
+			t.setAdminRank(channelID, admin.UserID, rank)
+		case *tg.ChannelParticipantCreator:
+			rank := admin.Rank
+			if rank == "" {
+				rank = "owner"
+			}
+			t.setAdminRank(channelID, admin.UserID, rank)
+		}
+	}
+}
+
+// GetAdminRanks returns admin/creator ranks for all admins in a chat.
+// Implements engine.AdminRankProvider.
+func (t *TelegramCore) GetAdminRanks(chatID string) (map[string]string, error) {
+	// Check auth without holding lock for the full duration — avoids deadlock
+	// when background update handlers hold t.mu.Lock().
+	t.mu.RLock()
+	authed := t.authed
+	api := t.api
+	t.mu.RUnlock()
+	if !authed || api == nil {
+		return nil, ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	ch, ok := peer.(*tg.PeerChannel)
+	if !ok {
+		return nil, nil // basic chats don't have admin ranks
+	}
+
+	// Use cached ranks if available.
+	t.adminRanksMu.RLock()
+	if cached, ok := t.adminRanks[ch.ChannelID]; ok && len(cached) > 0 {
+		t.adminRanksMu.RUnlock()
+		result := make(map[string]string, len(cached))
+		for uid, rank := range cached {
+			result[strconv.FormatInt(uid, 10)] = rank
+		}
+		return result, nil
+	}
+	t.adminRanksMu.RUnlock()
+
+	// Fetch admin participants from the API.
+	t.fetchAndCacheAdminRanks(ch.ChannelID)
+
+	t.adminRanksMu.RLock()
+	defer t.adminRanksMu.RUnlock()
+	cached := t.adminRanks[ch.ChannelID]
+	if len(cached) == 0 {
+		return nil, nil
+	}
+	result := make(map[string]string, len(cached))
+	for uid, rank := range cached {
+		result[strconv.FormatInt(uid, 10)] = rank
+	}
+	return result, nil
 }
 
 // --- Interactive auth helpers ---

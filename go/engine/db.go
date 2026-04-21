@@ -111,6 +111,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV8,
 	migrateV9,
 	migrateV10,
+	migrateV11,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -192,6 +193,7 @@ func migrateV1(tx *sql.Tx) error {
 			local_id      TEXT,
 			sender_id     TEXT,
 			sender_name   TEXT,
+			sender_rank   TEXT,
 			content_raw   BLOB,
 			content_rich  BLOB,
 			content_text  TEXT,
@@ -448,4 +450,13 @@ func migrateV10(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+// migrateV11 adds sender_rank column to messages table for admin/creator badges.
+func migrateV11(tx *sql.Tx) error {
+	if columnExists(tx, "messages", "sender_rank") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN sender_rank TEXT`)
+	return err
 }

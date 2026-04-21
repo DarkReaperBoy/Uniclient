@@ -550,6 +550,7 @@ const EngineCachedMessage$json = {
     {'1': 'media_duration', '3': 26, '4': 1, '5': 5, '10': 'mediaDuration'},
     {'1': 'media_download_state', '3': 27, '4': 1, '5': 5, '10': 'mediaDownloadState'},
     {'1': 'is_outgoing', '3': 28, '4': 1, '5': 8, '10': 'isOutgoing'},
+    {'1': 'sender_rank', '3': 29, '4': 1, '5': 9, '10': 'senderRank'},
   ],
 };
 
@@ -572,7 +573,7 @@ final $typed_data.Uint8List engineCachedMessageDescriptor = $convert.base64Decod
     'aWFfd2lkdGgYGCABKAVSCm1lZGlhV2lkdGgSIQoMbWVkaWFfaGVpZ2h0GBkgASgFUgttZWRpYU'
     'hlaWdodBIlCg5tZWRpYV9kdXJhdGlvbhgaIAEoBVINbWVkaWFEdXJhdGlvbhIwChRtZWRpYV9k'
     'b3dubG9hZF9zdGF0ZRgbIAEoBVISbWVkaWFEb3dubG9hZFN0YXRlEh8KC2lzX291dGdvaW5nGB'
-    'wgASgIUgppc091dGdvaW5n');
+    'wgASgIUgppc091dGdvaW5nEh8KC3NlbmRlcl9yYW5rGB0gASgJUgpzZW5kZXJSYW5r');
 
 @$core.Deprecated('Use engineGetMessagesRequestDescriptor instead')
 const EngineGetMessagesRequest$json = {
@@ -1448,4 +1449,20 @@ const EngineJoinGroupCallResponse$json = {
 /// Descriptor for `EngineJoinGroupCallResponse`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List engineJoinGroupCallResponseDescriptor = $convert.base64Decode(
     'ChtFbmdpbmVKb2luR3JvdXBDYWxsUmVzcG9uc2USFwoHY2FsbF9pZBgBIAEoCVIGY2FsbElk');
+
+@$core.Deprecated('Use engineSendScheduledNowRequestDescriptor instead')
+const EngineSendScheduledNowRequest$json = {
+  '1': 'EngineSendScheduledNowRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'msg_ids', '3': 3, '4': 3, '5': 9, '10': 'msgIds'},
+  ],
+};
+
+/// Descriptor for `EngineSendScheduledNowRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineSendScheduledNowRequestDescriptor = $convert.base64Decode(
+    'Ch1FbmdpbmVTZW5kU2NoZWR1bGVkTm93UmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2'
+    'NvdW50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhcKB21zZ19pZHMYAyADKAlSBm1zZ0lk'
+    'cw==');
 
