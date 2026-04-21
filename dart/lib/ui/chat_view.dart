@@ -2248,42 +2248,70 @@ class _PinnedBar extends StatelessWidget {
                   // Spec §4.4: left accent stripe — 2px wide, 36px tall.
                   Container(width: 2, height: 36, color: accentColor),
                   const SizedBox(width: 10), // msgReplyBarSkip
-                  if (pinned.mediaThumbB64.isNotEmpty) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: _buildPinnedThumb(),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
+                  // Spec §4.4: content change animation 160ms.
+                  // Wraps thumbnail + title/preview so entire content
+                  // animates together when the pinned message changes.
                   Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _pinnedTitle(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: titleColor,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 160),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      transitionBuilder: (child, animation) {
+                        final slideIn = Tween<Offset>(
+                          begin: const Offset(0, 0.5),
+                          end: Offset.zero,
+                        ).animate(animation);
+                        return FadeTransition(
+                          opacity: animation,
+                          child: SlideTransition(
+                            position: slideIn,
+                            child: child,
                           ),
-                        ),
-                        Text(
-                          pinned.contentText.isNotEmpty
-                              ? pinned.contentText
-                              : (pinned.senderName.isNotEmpty
-                                  ? '${pinned.senderName}: [media]'
-                                  : '[media]'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: previewColor,
+                        );
+                      },
+                      child: Row(
+                        key: ValueKey(pinned.msgId),
+                        children: [
+                          if (pinned.mediaThumbB64.isNotEmpty) ...[
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(3),
+                              child: _buildPinnedThumb(),
+                            ),
+                            const SizedBox(width: 10),
+                          ],
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  _pinnedTitle(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: titleColor,
+                                  ),
+                                ),
+                                Text(
+                                  pinned.contentText.isNotEmpty
+                                      ? pinned.contentText
+                                      : (pinned.senderName.isNotEmpty
+                                          ? '${pinned.senderName}: [media]'
+                                          : '[media]'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: previewColor,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],

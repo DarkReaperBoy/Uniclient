@@ -220,7 +220,6 @@
 - [x] Title "Pinned Message", blue accent color — DONE
 - [x] Preview text, 1 line elided — DONE
 - [x] Tapping bar jumps to pinned message — DONE
-- [ ] Content change animation: 160ms — spec §4.4
 
 ### §4.5 Contact Status / Action Bar
 <!-- spec: research/telegram_desktop_ui.md §4 Contact Status / Action Bar -->
