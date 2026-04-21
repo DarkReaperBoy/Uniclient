@@ -243,7 +243,6 @@
 
 - [x] Scroll newest-at-bottom via reversed ListView with lazy-load trigger at top — spec §5, DONE in chat_view.dart (_MessageList)
 - [x] Date separator pill: centered text, fully-rounded pill (radius = height/2), msgServicePadding 12/3/12/4, 10px above / 2px below — spec §5. DONE in chat_view.dart (_DateSeparator) — partially; colors use theme.colorScheme.surface, not exact msgServiceBg tokens
-- [ ] "Unread Messages" full-width band above first unread message — spec §5
 
 ### §5.2 Message Bubbles
 

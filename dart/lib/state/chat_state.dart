@@ -340,6 +340,14 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clear the unread bar (e.g. when user scrolls to bottom).
+  void clearOpenedUnread() {
+    if (_openedUnreadCount > 0) {
+      _openedUnreadCount = 0;
+      notifyListeners();
+    }
+  }
+
   /// Close the active chat.
   void closeChat() {
     _stopPolling();

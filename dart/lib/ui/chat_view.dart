@@ -296,6 +296,10 @@ class _ChatViewState extends State<ChatView>
         _fabAnimCtrl.reverse();
       }
     }
+    // Spec §49.4: destroy unread bar when user scrolls to bottom.
+    if (_scrollController.offset < 10) {
+      context.read<ChatState>().clearOpenedUnread();
+    }
   }
 
   bool _shouldShowContactStatusBar(ChatInfo chat) {
@@ -1108,6 +1112,7 @@ class _ChatViewState extends State<ChatView>
                       ? _searchResultIds[_searchResultIndex]
                       : null,
                   searchQuery: _activeSearchQuery,
+                  openedUnreadCount: chatState.openedUnreadCount,
                 ),
                 // Spec §5 / §49.17: Stacked corner buttons.
                 // Order bottom→top: Jump-down → Mentions → Reactions → PollVotes.
@@ -2008,6 +2013,8 @@ class _MessageList extends StatelessWidget {
   final String? searchHighlightId;
   /// Spec §4.3: active search query for text highlighting within bubbles.
   final String searchQuery;
+  /// Spec §5 / §49.4: unread count at time chat was opened (for unread bar).
+  final int openedUnreadCount;
 
   const _MessageList({
     required this.messages,
@@ -2024,6 +2031,7 @@ class _MessageList extends StatelessWidget {
     this.onReplyTap,
     this.searchHighlightId,
     this.searchQuery = '',
+    this.openedUnreadCount = 0,
   });
 
   @override
@@ -2071,9 +2079,16 @@ class _MessageList extends StatelessWidget {
         final inSelectionMode = selectedIds.isNotEmpty;
         final isSearchHighlight = msg.msgId == searchHighlightId;
 
+        // Spec §5 / §49.4: unread bar above oldest unread message.
+        // messages[0] = newest, so oldest unread = messages[openedUnreadCount - 1].
+        final showUnreadBar = openedUnreadCount > 0 &&
+            openedUnreadCount <= messages.length &&
+            index == openedUnreadCount - 1;
+
         return Column(
           children: [
             if (showDate) _DateSeparator(timestamp: msg.timestamp),
+            if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
             GestureDetector(
               behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
               onLongPress: () => onLongPress(msg.msgId),
@@ -2181,6 +2196,48 @@ class _DateSeparator extends StatelessWidget {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+}
+
+/// Spec §5 / §49.4: Full-width "N unread messages" divider band.
+/// historyUnreadBarBg: day #FCFBFA / night #182433
+/// historyUnreadBarFg: day #538BB4 / night #FFFFFF
+class _UnreadBar extends StatelessWidget {
+  final int count;
+  const _UnreadBar({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF182433) : const Color(0xFFFCFBFA);
+    final fgColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF538BB4);
+    // 1px top/bottom borders — subtle separator lines
+    final borderColor = isDark
+        ? const Color(0xFF0E1621) // slightly darker than bg
+        : const Color(0xFFE8E8E8); // light gray
+
+    final label = count == 1 ? '1 unread message' : '$count unread messages';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border.symmetric(
+          horizontal: BorderSide(color: borderColor, width: 1),
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: fgColor,
+        ),
+      ),
+    );
+  }
 }
 
 /// Reply preview bar above compose.
