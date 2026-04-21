@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -715,7 +717,13 @@ class _MediaIndicator extends StatelessWidget {
 }
 
 /// Renders photos, videos, stickers, GIFs as visual thumbnails.
-class _VisualMedia extends StatelessWidget {
+/// Spec §6: Four-tier progressive loading: full → thumbnail → small → blurred inline placeholder.
+/// Tiers (highest to lowest quality):
+///   1. Full image (mediaLocalPath) — downloaded file
+///   2. Sharp thumbnail (mediaThumbB64) — inline stripped thumb, displayed sharp
+///   3. Blurred placeholder (mediaThumbB64 + gaussian blur) — immediate visual
+///   4. Icon placeholder — no image data available
+class _VisualMedia extends StatefulWidget {
   final CachedMessage message;
   final ThemeData theme;
   final bool showOverlayInfo;
@@ -730,8 +738,80 @@ class _VisualMedia extends StatelessWidget {
     this.isDark = false,
   });
 
+  static String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(1, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  State<_VisualMedia> createState() => _VisualMediaState();
+}
+
+class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderStateMixin {
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
+  // Track whether we've seen the full image appear (for crossfade).
+  bool _fullImageLoaded = false;
+  // Cache decoded thumb bytes to avoid re-decoding on every build.
+  Uint8List? _thumbBytes;
+  String _lastThumbB64 = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeInOut,
+    );
+    _decodeThumb();
+    if (widget.message.mediaLocalPath.isNotEmpty) {
+      _fullImageLoaded = true;
+      _fadeController.value = 1.0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_VisualMedia oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Thumb changed — re-decode.
+    if (widget.message.mediaThumbB64 != oldWidget.message.mediaThumbB64) {
+      _decodeThumb();
+    }
+    // Full image just became available — animate crossfade.
+    if (widget.message.mediaLocalPath.isNotEmpty && !_fullImageLoaded) {
+      _fullImageLoaded = true;
+      _fadeController.forward(from: 0.0);
+    }
+  }
+
+  void _decodeThumb() {
+    if (widget.message.mediaThumbB64.isNotEmpty &&
+        widget.message.mediaThumbB64 != _lastThumbB64) {
+      try {
+        _thumbBytes = base64Decode(widget.message.mediaThumbB64);
+        _lastThumbB64 = widget.message.mediaThumbB64;
+      } catch (_) {
+        _thumbBytes = null;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _fadeController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final message = widget.message;
+    final theme = widget.theme;
+
     // Calculate display size (max 430x430, min 100px, preserve aspect ratio — spec §6).
     double displayWidth = 430;
     double displayHeight = 287;
@@ -754,158 +834,171 @@ class _VisualMedia extends StatelessWidget {
       displayHeight = displayHeight.clamp(100, 200);
     }
 
-    Widget imageWidget;
-
-    // Try local file first.
-    if (message.mediaLocalPath.isNotEmpty) {
-      final file = File(message.mediaLocalPath);
-      imageWidget = Image.file(
-        file,
-        width: displayWidth,
-        height: displayHeight,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => _placeholder(displayWidth, displayHeight),
-      );
-    }
-    // Try base64 thumbnail.
-    else if (message.mediaThumbB64.isNotEmpty) {
-      try {
-        final bytes = base64Decode(message.mediaThumbB64);
-        imageWidget = Image.memory(
-          bytes,
-          width: displayWidth,
-          height: displayHeight,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _placeholder(displayWidth, displayHeight),
-        );
-      } catch (_) {
-        imageWidget = _placeholder(displayWidth, displayHeight);
-      }
-    }
-    // No image data — show placeholder.
-    else {
-      imageWidget = _placeholder(displayWidth, displayHeight);
-    }
+    final hasFullImage = message.mediaLocalPath.isNotEmpty;
+    final hasThumb = _thumbBytes != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(message.mediaType == 6 ? 0 : 8),
-        child: Stack(
-          children: [
-            imageWidget,
-            // Video/GIF overlay: play button + duration.
-            if (message.mediaType == 2 || message.mediaType == 7)
-              Positioned.fill(
-                child: Center(
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      message.mediaType == 7 ? Icons.gif : Icons.play_arrow,
-                      color: Colors.white,
-                      size: 24,
-                    ),
+        child: SizedBox(
+          width: displayWidth,
+          height: displayHeight,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // --- Tier 3/4: Blurred thumbnail or icon placeholder (base layer) ---
+              if (hasThumb)
+                ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(
+                    sigmaX: hasFullImage ? 0 : 10,
+                    sigmaY: hasFullImage ? 0 : 10,
+                    tileMode: TileMode.decal,
+                  ),
+                  child: Image.memory(
+                    _thumbBytes!,
+                    width: displayWidth,
+                    height: displayHeight,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => _placeholder(displayWidth, displayHeight),
+                  ),
+                )
+              else
+                _placeholder(displayWidth, displayHeight),
+
+              // --- Tier 1: Full image (crossfades in over thumbnail) ---
+              if (hasFullImage)
+                AnimatedBuilder(
+                  animation: _fadeAnimation,
+                  builder: (_, child) => Opacity(
+                    opacity: _fadeAnimation.value,
+                    child: child,
+                  ),
+                  child: Image.file(
+                    File(message.mediaLocalPath),
+                    width: displayWidth,
+                    height: displayHeight,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const SizedBox.shrink(), // Fall back to thumb layer.
                   ),
                 ),
-              ),
-            // Duration badge for video.
-            if (message.mediaType == 2 && message.mediaDuration > 0)
-              Positioned(
-                bottom: 4,
-                left: 4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    _formatDuration(message.mediaDuration),
-                    style: const TextStyle(color: Colors.white, fontSize: 11),
-                  ),
-                ),
-              ),
-            // Video note: circular mask.
-            if (message.mediaType == 5)
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    border: Border.all(color: theme.colorScheme.primary, width: 2),
-                  ),
-                ),
-              ),
-            // Spec §5: media-overlay bottom info — translucent bg, white text/icons.
-            // msgDateImgPadding 8/2, msgDateImgDelta 4px from corner, msgDateImgBg #00000054.
-            if (showOverlayInfo)
-              Positioned(
-                bottom: 4, // msgDateImgDelta
-                right: 4,  // msgDateImgDelta
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // msgDateImgPadding
-                  decoration: BoxDecoration(
-                    color: AppColors.msgDateImgBg,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (message.views > 0) ...[
-                        const SizedBox(width: 16, height: 11,
-                          child: CustomPaint(painter: _ViewsIconPainter(color: AppColors.historyIconFgInverted))),
-                        const SizedBox(width: 2),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Text(MessageBubble._formatCount(message.views),
-                              style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
-                        ),
-                      ],
-                      if (message.forwards > 0) ...[
-                        const SizedBox(width: 16, height: 11,
-                          child: CustomPaint(painter: _ForwardsIconPainter(color: AppColors.historyIconFgInverted))),
-                        const SizedBox(width: 2),
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: Text(MessageBubble._formatCount(message.forwards),
-                              style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
-                        ),
-                      ],
-                      if (message.isEdited)
-                        const Padding(
-                          padding: EdgeInsets.only(right: 4),
-                          child: Text('edited',
-                              style: TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
-                        ),
-                      Text(
-                        MessageBubble._formatTime(message.timestamp),
-                        style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
+
+              // Video/GIF overlay: play button + duration.
+              if (message.mediaType == 2 || message.mediaType == 7)
+                Positioned.fill(
+                  child: Center(
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        shape: BoxShape.circle,
                       ),
-                      if (isOutgoing) ...[
-                        const SizedBox(width: 4),
-                        _StatusIcon(
-                          status: message.status,
-                          theme: theme,
-                          isOutgoing: true,
-                          isDark: isDark,
-                          inverted: true,
-                        ),
-                      ],
-                    ],
+                      child: Icon(
+                        message.mediaType == 7 ? Icons.gif : Icons.play_arrow,
+                        color: Colors.white,
+                        size: 24,
+                      ),
+                    ),
                   ),
                 ),
-              ),
-          ],
+              // Duration badge for video.
+              if (message.mediaType == 2 && message.mediaDuration > 0)
+                Positioned(
+                  bottom: 4,
+                  left: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _VisualMedia._formatDuration(message.mediaDuration),
+                      style: const TextStyle(color: Colors.white, fontSize: 11),
+                    ),
+                  ),
+                ),
+              // Video note: circular mask.
+              if (message.mediaType == 5)
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: theme.colorScheme.primary, width: 2),
+                    ),
+                  ),
+                ),
+              // Spec §5: media-overlay bottom info — translucent bg, white text/icons.
+              // msgDateImgPadding 8/2, msgDateImgDelta 4px from corner, msgDateImgBg #00000054.
+              if (widget.showOverlayInfo)
+                Positioned(
+                  bottom: 4, // msgDateImgDelta
+                  right: 4,  // msgDateImgDelta
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // msgDateImgPadding
+                    decoration: BoxDecoration(
+                      color: AppColors.msgDateImgBg,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (message.views > 0) ...[
+                          const SizedBox(width: 16, height: 11,
+                            child: CustomPaint(painter: _ViewsIconPainter(color: AppColors.historyIconFgInverted))),
+                          const SizedBox(width: 2),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(MessageBubble._formatCount(message.views),
+                                style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
+                          ),
+                        ],
+                        if (message.forwards > 0) ...[
+                          const SizedBox(width: 16, height: 11,
+                            child: CustomPaint(painter: _ForwardsIconPainter(color: AppColors.historyIconFgInverted))),
+                          const SizedBox(width: 2),
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Text(MessageBubble._formatCount(message.forwards),
+                                style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
+                          ),
+                        ],
+                        if (message.isEdited)
+                          const Padding(
+                            padding: EdgeInsets.only(right: 4),
+                            child: Text('edited',
+                                style: TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
+                          ),
+                        Text(
+                          MessageBubble._formatTime(message.timestamp),
+                          style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
+                        ),
+                        if (widget.isOutgoing) ...[
+                          const SizedBox(width: 4),
+                          _StatusIcon(
+                            status: message.status,
+                            theme: theme,
+                            isOutgoing: true,
+                            isDark: widget.isDark,
+                            inverted: true,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _placeholder(double width, double height) {
+    final message = widget.message;
+    final theme = widget.theme;
     final icon = switch (message.mediaType) {
       1 => Icons.photo,
       2 => Icons.videocam,
@@ -939,11 +1032,6 @@ class _VisualMedia extends StatelessWidget {
     );
   }
 
-  static String _formatDuration(int seconds) {
-    final m = seconds ~/ 60;
-    final s = seconds % 60;
-    return '${m.toString().padLeft(1, '0')}:${s.toString().padLeft(2, '0')}';
-  }
 }
 
 /// Voice message indicator. No placeholder waveform — the real waveform bytes
