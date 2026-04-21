@@ -976,59 +976,72 @@ class _ChatTopBar extends StatelessWidget {
           else
             // Spec §4.2: _leftTaken = 17px when no back button.
             const SizedBox(width: 17),
-          // Tappable avatar + title block — toggles info panel like Telegram Desktop.
+          // Spec §4.2: UserpicButton — 52×54px hit-area, 42px photo diameter,
+          // photo offset (2, -1) → positioned at left=2, top=(54-42)/2-1=5.
+          // Full 52×54 hit-area is opaque (accepts taps everywhere).
+          // Horizontal origin = _leftTaken (60px with back, 17px without).
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onToggleInfo,
+            child: SizedBox(
+              width: 52,
+              height: 54,
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 2,
+                    top: 5, // (54 - 42) / 2 + (-1)
+                    child: _chatAvatar(chat, theme, 21),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Tappable title block — toggles info panel.
           Expanded(
             child: InkWell(
               onTap: onToggleInfo,
               borderRadius: BorderRadius.circular(6),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                child: Row(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _chatAvatar(chat, theme, 18),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  chat.title.isNotEmpty ? chat.title : chat.chatId,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium,
-                                ),
-                              ),
-                              if (chat.isMuted) ...[
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.volume_off,
-                                  size: 16,
-                                  color: theme.textTheme.bodySmall?.color,
-                                ),
-                              ],
-                            ],
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            chat.title.isNotEmpty ? chat.title : chat.chatId,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium,
                           ),
-                          if (isTyping)
-                            _TopBarTypingDots(
-                              userName: typingUser!,
-                              color: subtitleColor ?? theme.colorScheme.primary,
-                            )
-                          else if (subtitle.isNotEmpty)
-                            Text(
-                              subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: subtitleColor,
-                              ),
-                            ),
+                        ),
+                        if (chat.isMuted) ...[
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.volume_off,
+                            size: 16,
+                            color: theme.textTheme.bodySmall?.color,
+                          ),
                         ],
-                      ),
+                      ],
                     ),
+                    if (isTyping)
+                      _TopBarTypingDots(
+                        userName: typingUser!,
+                        color: subtitleColor ?? theme.colorScheme.primary,
+                      )
+                    else if (subtitle.isNotEmpty)
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: subtitleColor,
+                        ),
+                      ),
                   ],
                 ),
               ),
