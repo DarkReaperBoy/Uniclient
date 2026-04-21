@@ -300,8 +300,7 @@
 ### §6.6 Stickers
 
 - [x] Sticker renders without bubble background (isStickerOnly transparent) — spec §6, DONE in message_bubble.dart
-- [x] Sticker display size ~200px max — spec §6. DONE (_VisualMedia clamps to 200px for type 6)
-- [ ] Sticker spec max: 224px (static/animated), 256px (emoji stickers) — spec §6. Current uses 200px
+- [x] Sticker display size 224px max (spec §6: 224px static/animated) — DONE in message_bubble.dart (_VisualMedia clamps to 224px for type 6)
 - [ ] Lottie animated stickers (TGS format), WEBM video stickers, auto-play on creation — spec §6. Not implemented (static image only)
 - [ ] Sticker off-screen: unload player, cache state — spec §6. Not applicable until animation implemented
 - [ ] Click opens sticker pack viewer — spec §6. Not implemented

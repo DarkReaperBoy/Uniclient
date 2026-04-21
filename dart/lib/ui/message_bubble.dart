@@ -1303,10 +1303,10 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
       displayHeight = displayHeight.clamp(100.0, maxH);
     }
 
-    // Sticker: smaller, no background.
+    // Sticker: smaller, no background. Spec §6: 224px max (static/animated).
     if (message.mediaType == 6) {
-      displayWidth = displayWidth.clamp(100, 200);
-      displayHeight = displayHeight.clamp(100, 200);
+      displayWidth = displayWidth.clamp(100, 224);
+      displayHeight = displayHeight.clamp(100, 224);
     }
 
     final hasFullImage = message.mediaLocalPath.isNotEmpty;
