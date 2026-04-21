@@ -934,6 +934,7 @@ class EngineService {
       topicId: _topicFieldFromRaw(contentRaw, 'topic_id') ?? '',
       topicName: _topicFieldFromRaw(contentRaw, 'topic_name') ?? '',
       topicColorId: _topicColorFromRaw(contentRaw),
+      viaBotName: _topicFieldFromRaw(contentRaw, 'via_bot_name') ?? '',
     );
   }
 

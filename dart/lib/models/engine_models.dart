@@ -325,6 +325,9 @@ class CachedMessage {
   final String topicName;  // topic title (may be empty if not cached)
   final int topicColorId;  // topic icon color (0 = default/unknown)
 
+  // Via-bot label (populated from contentRaw extra fields).
+  final String viaBotName; // e.g. "@gif" — inline bot that generated this message
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -359,6 +362,7 @@ class CachedMessage {
     this.topicId = '',
     this.topicName = '',
     this.topicColorId = 0,
+    this.viaBotName = '',
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -447,6 +451,7 @@ class CachedMessage {
     int? mediaDuration,
     int? mediaDownloadState,
     List<MessageReaction>? reactions,
+    String? viaBotName,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -478,6 +483,10 @@ class CachedMessage {
     mediaDuration: mediaDuration ?? this.mediaDuration,
     mediaDownloadState: mediaDownloadState ?? this.mediaDownloadState,
     reactions: reactions ?? this.reactions,
+    topicId: topicId,
+    topicName: topicName,
+    topicColorId: topicColorId,
+    viaBotName: viaBotName ?? this.viaBotName,
   );
 }
 

@@ -194,6 +194,35 @@ class MessageBubble extends StatelessWidget {
                           topicColorId: message.topicColorId,
                         ),
                       ),
+                    // Via-bot label: "via @botname" — spec §5, shown if no sender name shown and no forward header.
+                    if (message.viaBotName.isNotEmpty &&
+                        message.forwardFrom.isEmpty &&
+                        (isOutgoing || message.senderName.isEmpty || !isFirstInGroup))
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'via ',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w400,
+                                  color: isDark ? const Color(0xFF6d7f8f) : const Color(0xFFa0acb6),
+                                ),
+                              ),
+                              TextSpan(
+                                text: message.viaBotName,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? const Color(0xFF71baf7) : const Color(0xFF168acd),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     // Reply preview.
                     if (message.replyPreview.isNotEmpty)
                       _ReplyPreview(

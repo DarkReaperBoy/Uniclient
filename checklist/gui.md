@@ -259,7 +259,6 @@
 ### §5.4 Bubble Content Layout
 
 - [x] Sender name: semibold, colored per user (7 colors by id%7), hidden if attached/DM/outgoing — spec §5, DONE in message_bubble.dart
-- [ ] Via-bot label (shown if no sender name and no forward header) — spec §5. Not implemented
 - [x] Forward header: "Forwarded from Name" — spec §5, DONE in message_bubble.dart
 - [x] Reply block: 2px left bar, clickable jump to original, sender name + preview — spec §5, DONE in message_bubble.dart (_ReplyPreview). Missing: 36px height spec, 10px gap from content
 - [ ] Message text: rich text rendering — bold, italic, code spans, links, spoilers, blockquotes with colored outlines — spec §5. Current: plain Text() only

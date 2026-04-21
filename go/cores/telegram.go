@@ -95,6 +95,7 @@ type TelegramCore struct {
 	fileAccessHash    map[int64]int64  // fileID → accessHash
 	fileReference     map[int64][]byte // fileID → fileReference
 	userNames         map[int64]string // userID → display name (first + last)
+	userUsernames     map[int64]string // userID → @username (for via-bot labels etc.)
 	channelNames      map[int64]string // channelID → channel/chat title
 	peerPhotoID       map[int64]int64  // peerID → profile photo ID (for avatar downloads)
 	peerMu            sync.RWMutex
@@ -195,6 +196,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		fileAccessHash:    make(map[int64]int64),
 		fileReference:     make(map[int64][]byte),
 		userNames:         make(map[int64]string),
+		userUsernames:     make(map[int64]string),
 		channelNames:      make(map[int64]string),
 		peerPhotoID:       make(map[int64]int64),
 		adminRanks:         make(map[int64]map[int64]string),
@@ -9375,6 +9377,13 @@ func (t *TelegramCore) getCachedUserName(userID int64) string {
 	return name
 }
 
+func (t *TelegramCore) getCachedUsername(userID int64) string {
+	t.peerMu.RLock()
+	uname := t.userUsernames[userID]
+	t.peerMu.RUnlock()
+	return uname
+}
+
 func (t *TelegramCore) cacheChannelHash(channelID, accessHash int64) {
 	t.peerMu.Lock()
 	t.channelAccessHash[channelID] = accessHash
@@ -9447,6 +9456,9 @@ func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass)
 			}
 			if name != "" {
 				t.userNames[user.ID] = name
+			}
+			if user.Username != "" {
+				t.userUsernames[user.ID] = user.Username
 			}
 			if photo, ok := user.Photo.(*tg.UserProfilePhoto); ok {
 				t.peerPhotoID[user.ID] = photo.PhotoID
@@ -9583,6 +9595,21 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			}
 		} else if author, ok := fwd.GetPostAuthor(); ok && author != "" {
 			m.ForwardFrom = author
+		}
+	}
+
+	// Via-bot label: resolve ViaBotID to @username for inline bot attribution.
+	if viaBotID, ok := msg.GetViaBotID(); ok && viaBotID != 0 {
+		if uname := t.getCachedUsername(viaBotID); uname != "" {
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["via_bot_name"] = "@" + uname
+		} else if name := t.getCachedUserName(viaBotID); name != "" {
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["via_bot_name"] = name
 		}
 	}
 
