@@ -2105,6 +2105,13 @@ class _PinnedBar extends StatelessWidget {
           const SizedBox(width: 10),
           Container(width: 2, height: 28, color: theme.colorScheme.primary),
           const SizedBox(width: 10),
+          if (pinned.mediaThumbB64.isNotEmpty) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: _buildPinnedThumb(),
+            ),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -2135,6 +2142,30 @@ class _PinnedBar extends StatelessWidget {
         ],
       ),
     ),
+    );
+  }
+
+  Widget _buildPinnedThumb() {
+    try {
+      final bytes = base64Decode(pinned.mediaThumbB64);
+      return Image.memory(
+        bytes,
+        width: 32,
+        height: 32,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _thumbPlaceholder(),
+      );
+    } catch (_) {
+      return _thumbPlaceholder();
+    }
+  }
+
+  Widget _thumbPlaceholder() {
+    return Container(
+      width: 32,
+      height: 32,
+      color: Colors.grey.shade300,
+      child: const Icon(Icons.image, size: 16, color: Colors.grey),
     );
   }
 }
