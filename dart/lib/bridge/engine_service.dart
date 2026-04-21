@@ -191,6 +191,29 @@ class EngineService {
     _callRaw('__engine', 'ArchiveChat', req.writeToBuffer());
   }
 
+  Future<void> blockUser(String accountId, String userId) async {
+    final req = epb.EngineBlockUserRequest()
+      ..accountId = accountId
+      ..userId = userId;
+    await _callAsync('__engine', 'BlockUser', req.writeToBuffer());
+  }
+
+  Future<void> unblockUser(String accountId, String userId) async {
+    final req = epb.EngineUnblockUserRequest()
+      ..accountId = accountId
+      ..userId = userId;
+    await _callAsync('__engine', 'UnblockUser', req.writeToBuffer());
+  }
+
+  Future<void> addContact(String accountId, String phone, String firstName, String lastName) async {
+    final req = epb.EngineAddContactRequest()
+      ..accountId = accountId
+      ..phone = phone
+      ..firstName = firstName
+      ..lastName = lastName;
+    await _callAsync('__engine', 'AddContact', req.writeToBuffer());
+  }
+
   void markChatRead(String accountId, String chatId, String upToMsgId) {
     final req = epb.EngineMarkChatReadRequest()
       ..accountId = accountId
@@ -814,6 +837,8 @@ class EngineService {
     memberCount: p.memberCount,
     parentId: p.parentId,
     isBot: p.isBot,
+    isContact: p.isContact,
+    isBlocked: p.isBlocked,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

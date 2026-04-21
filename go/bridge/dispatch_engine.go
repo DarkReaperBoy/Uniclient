@@ -211,6 +211,27 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ArchiveChat(req.AccountId, req.ChatId, req.Archived)
 
+	case "BlockUser":
+		var req pb.EngineBlockUserRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.BlockUser(req.AccountId, req.UserId)
+
+	case "UnblockUser":
+		var req pb.EngineUnblockUserRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.UnblockUser(req.AccountId, req.UserId)
+
+	case "AddContact":
+		var req pb.EngineAddContactRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.AddContact(req.AccountId, req.Phone, req.FirstName, req.LastName)
+
 	case "MarkChatRead":
 		var req pb.EngineMarkChatReadRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
@@ -731,6 +752,8 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		MemberCount:  int32(c.MemberCount),
 		ParentId:     c.ParentID,
 		IsBot:        c.IsBot,
+		IsContact:    c.IsContact,
+		IsBlocked:    c.IsBlocked,
 	}
 }
 

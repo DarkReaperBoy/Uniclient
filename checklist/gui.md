@@ -221,17 +221,6 @@
 - [x] Preview text, 1 line elided — DONE
 - [x] Tapping bar jumps to pinned message — DONE
 
-### §4.5 Contact Status / Action Bar
-<!-- spec: research/telegram_desktop_ui.md §4 Contact Status / Action Bar -->
-
-- [ ] Action bar for unknown/blocked contacts: full-width flat buttons below top bar — spec §4.5 (not implemented)
-- [ ] Base button: 49px height, `textTop: 16px`, semibold, `windowActiveTextFg` blue, hover `historyComposeButtonBg` — spec §4.5
-- [ ] Destructive variant (Block, Report Spam): `attentionButtonFg` red — spec §4.5
-- [ ] Unblock button: 46px height, `textTop: 14px`, `attentionButtonFg` — spec §4.5
-- [ ] Status label (bot info): `FlatLabel` `minWidth: 240px` — spec §4.5
-- [ ] Inter-button gap: minimum 16px — spec §4.5
-- [ ] No icons next to labels — spec §4.5
-
 ### §4.6 Group Call Bar
 <!-- spec: research/telegram_desktop_ui.md §4 Group Call Bar -->
 

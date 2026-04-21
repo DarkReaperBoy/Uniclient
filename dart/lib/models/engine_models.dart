@@ -203,6 +203,8 @@ class ChatInfo {
   final bool isUnreadMark;
   final int unreadMentionCount;
   final int unreadReactionCount;
+  final bool isContact;
+  final bool isBlocked;
   final bool isVerified;
   final bool isScam;
   final bool isFake;
@@ -233,6 +235,8 @@ class ChatInfo {
     this.hasUnreadStory = false,
     this.isLiveStream = false,
     this.isBot = false,
+    this.isContact = false,
+    this.isBlocked = false,
     this.isUnreadMark = false,
     this.unreadMentionCount = 0,
     this.unreadReactionCount = 0,
@@ -267,6 +271,8 @@ class ChatInfo {
     hasUnreadStory: j['has_unread_story'] as bool? ?? false,
     isLiveStream: j['is_live_stream'] as bool? ?? false,
     isBot: j['is_bot'] as bool? ?? false,
+    isContact: j['is_contact'] as bool? ?? false,
+    isBlocked: j['is_blocked'] as bool? ?? false,
     isUnreadMark: j['unread_mark'] as bool? ?? false,
     unreadMentionCount: j['unread_mention_count'] as int? ?? 0,
     unreadReactionCount: j['unread_reaction_count'] as int? ?? 0,

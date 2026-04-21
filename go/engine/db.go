@@ -110,6 +110,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV7,
 	migrateV8,
 	migrateV9,
+	migrateV10,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -253,6 +254,8 @@ func migrateV1(tx *sql.Tx) error {
 			avatar_path   TEXT,
 			is_bot        INTEGER NOT NULL DEFAULT 0,
 			is_online     INTEGER NOT NULL DEFAULT 0,
+			is_contact    INTEGER NOT NULL DEFAULT 0,
+			is_blocked    INTEGER NOT NULL DEFAULT 0,
 			last_seen     INTEGER,
 			updated_at    INTEGER NOT NULL,
 			PRIMARY KEY (account_id, user_id)
@@ -433,4 +436,16 @@ func migrateV9(tx *sql.Tx) error {
 	}
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_status INTEGER NOT NULL DEFAULT 0`)
 	return err
+}
+
+// migrateV10 adds is_contact and is_blocked columns to users table.
+func migrateV10(tx *sql.Tx) error {
+	for _, col := range []string{"is_contact", "is_blocked"} {
+		if !columnExists(tx, "users", col) {
+			if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN ` + col + ` INTEGER NOT NULL DEFAULT 0`); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

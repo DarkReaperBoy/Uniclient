@@ -1425,6 +1425,8 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.bool? lastMsgIsOutgoing,
     $core.bool? isBot,
     $core.int? lastMsgStatus,
+    $core.bool? isContact,
+    $core.bool? isBlocked,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1484,6 +1486,12 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (lastMsgStatus != null) {
       $result.lastMsgStatus = lastMsgStatus;
     }
+    if (isContact != null) {
+      $result.isContact = isContact;
+    }
+    if (isBlocked != null) {
+      $result.isBlocked = isBlocked;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1510,6 +1518,8 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aOB(17, _omitFieldNames ? '' : 'lastMsgIsOutgoing')
     ..aOB(18, _omitFieldNames ? '' : 'isBot')
     ..a<$core.int>(19, _omitFieldNames ? '' : 'lastMsgStatus', $pb.PbFieldType.O3)
+    ..aOB(20, _omitFieldNames ? '' : 'isContact')
+    ..aOB(21, _omitFieldNames ? '' : 'isBlocked')
     ..hasRequiredFields = false
   ;
 
@@ -1704,6 +1714,24 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasLastMsgStatus() => $_has(18);
   @$pb.TagNumber(19)
   void clearLastMsgStatus() => clearField(19);
+
+  @$pb.TagNumber(20)
+  $core.bool get isContact => $_getBF(19);
+  @$pb.TagNumber(20)
+  set isContact($core.bool v) { $_setBool(19, v); }
+  @$pb.TagNumber(20)
+  $core.bool hasIsContact() => $_has(19);
+  @$pb.TagNumber(20)
+  void clearIsContact() => clearField(20);
+
+  @$pb.TagNumber(21)
+  $core.bool get isBlocked => $_getBF(20);
+  @$pb.TagNumber(21)
+  set isBlocked($core.bool v) { $_setBool(20, v); }
+  @$pb.TagNumber(21)
+  $core.bool hasIsBlocked() => $_has(20);
+  @$pb.TagNumber(21)
+  void clearIsBlocked() => clearField(21);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {
@@ -2152,6 +2180,152 @@ class EngineArchiveChatRequest extends $pb.GeneratedMessage {
   $core.bool hasArchived() => $_has(2);
   @$pb.TagNumber(3)
   void clearArchived() => clearField(3);
+}
+
+class EngineBlockUserRequest extends $pb.GeneratedMessage {
+  factory EngineBlockUserRequest({
+    $core.String? accountId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (userId != null) {
+      $result.userId = userId;
+    }
+    return $result;
+  }
+  EngineBlockUserRequest._() : super();
+  factory EngineBlockUserRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineBlockUserRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  EngineBlockUserRequest clone() => EngineBlockUserRequest()..mergeFromMessage(this);
+
+  @$core.pragma('dart2js:noInline')
+  static EngineBlockUserRequest create() => EngineBlockUserRequest._();
+  EngineBlockUserRequest createEmptyInstance() => create();
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get userId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set userId($core.String v) { $_setString(1, v); }
+}
+
+class EngineUnblockUserRequest extends $pb.GeneratedMessage {
+  factory EngineUnblockUserRequest({
+    $core.String? accountId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (userId != null) {
+      $result.userId = userId;
+    }
+    return $result;
+  }
+  EngineUnblockUserRequest._() : super();
+  factory EngineUnblockUserRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineUnblockUserRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  EngineUnblockUserRequest clone() => EngineUnblockUserRequest()..mergeFromMessage(this);
+
+  @$core.pragma('dart2js:noInline')
+  static EngineUnblockUserRequest create() => EngineUnblockUserRequest._();
+  EngineUnblockUserRequest createEmptyInstance() => create();
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get userId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set userId($core.String v) { $_setString(1, v); }
+}
+
+class EngineAddContactRequest extends $pb.GeneratedMessage {
+  factory EngineAddContactRequest({
+    $core.String? accountId,
+    $core.String? phone,
+    $core.String? firstName,
+    $core.String? lastName,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (phone != null) {
+      $result.phone = phone;
+    }
+    if (firstName != null) {
+      $result.firstName = firstName;
+    }
+    if (lastName != null) {
+      $result.lastName = lastName;
+    }
+    return $result;
+  }
+  EngineAddContactRequest._() : super();
+  factory EngineAddContactRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineAddContactRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'phone')
+    ..aOS(3, _omitFieldNames ? '' : 'firstName')
+    ..aOS(4, _omitFieldNames ? '' : 'lastName')
+    ..hasRequiredFields = false
+  ;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  EngineAddContactRequest clone() => EngineAddContactRequest()..mergeFromMessage(this);
+
+  @$core.pragma('dart2js:noInline')
+  static EngineAddContactRequest create() => EngineAddContactRequest._();
+  EngineAddContactRequest createEmptyInstance() => create();
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get phone => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set phone($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get firstName => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set firstName($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get lastName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set lastName($core.String v) { $_setString(3, v); }
 }
 
 class EngineMarkChatReadRequest extends $pb.GeneratedMessage {

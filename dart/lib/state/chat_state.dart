@@ -529,6 +529,21 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  Future<void> blockUser(String accountId, String userId) async {
+    await _engine.blockUser(accountId, userId);
+    loadChats();
+  }
+
+  Future<void> unblockUser(String accountId, String userId) async {
+    await _engine.unblockUser(accountId, userId);
+    loadChats();
+  }
+
+  Future<void> addContact(String accountId, String phone, String firstName, String lastName) async {
+    await _engine.addContact(accountId, phone, firstName, lastName);
+    loadChats();
+  }
+
   void leaveChat(String accountId, String chatId) {
     _engine.leaveChat(accountId, chatId);
     // If this was the active chat, clear it.

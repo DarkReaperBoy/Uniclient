@@ -238,6 +238,13 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
+  bool _shouldShowContactStatusBar(ChatInfo chat) {
+    if (chat.type != ChatType.dm) return false;
+    if (chat.title == 'Saved Messages') return false;
+    // Show for: non-contacts, blocked users, or bots.
+    return !chat.isContact || chat.isBlocked || chat.isBot;
+  }
+
   void _scrollToBottom() {
     final chatState = context.read<ChatState>();
     if (chatState.isJumped) {
@@ -937,6 +944,12 @@ class _ChatViewState extends State<ChatView> {
               onShowAll: chatState.pinnedMessages.length > 1
                   ? () => _showAllPinnedMessages(context, chatState)
                   : null,
+            ),
+          // Contact status / action bar (§4.5) — shown for non-contact DMs, blocked users, or bots.
+          if (_shouldShowContactStatusBar(chat))
+            _ContactStatusBar(
+              chat: chat,
+              chatState: chatState,
             ),
           // Message list with scroll-to-bottom FAB.
           Expanded(
@@ -2074,6 +2087,198 @@ class _EditBar extends StatelessWidget {
             tooltip: 'Cancel edit',
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Spec §4.5: Contact Status / Action Bar.
+/// Shows below the top bar for DMs with non-contacts (Add Contact + Block),
+/// blocked users (Unblock), or bots (status label).
+class _ContactStatusBar extends StatelessWidget {
+  final ChatInfo chat;
+  final ChatState chatState;
+
+  const _ContactStatusBar({required this.chat, required this.chatState});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec: windowActiveTextFg — day #168acd, night #6ab3f3.
+    final windowActiveTextFg = isDark
+        ? const Color(0xFF6ab3f3)
+        : const Color(0xFF168acd);
+    // Spec: attentionButtonFg — red in both themes.
+    const attentionButtonFg = Color(0xFFdf3f40);
+    // Spec: historyComposeAreaBg — flat background matches compose area.
+    final bgColor = isDark
+        ? const Color(0xFF17212b)
+        : const Color(0xFFffffff);
+    // Spec: historyComposeButtonBg — hover background.
+    final hoverColor = isDark
+        ? const Color(0xFF202b36)
+        : const Color(0xFFF1F1F1);
+
+    if (chat.isBlocked) {
+      // Blocked: single "Unblock" button, 46px height, attentionButtonFg red.
+      return Container(
+        color: bgColor,
+        height: 46,
+        child: _ContactStatusButton(
+          label: 'Unblock',
+          color: attentionButtonFg,
+          hoverColor: hoverColor,
+          height: 46,
+          textTop: 14,
+          onTap: () => chatState.unblockUser(chat.accountId, chat.chatId),
+        ),
+      );
+    }
+
+    if (chat.isBot) {
+      // Bot: status label centered, minWidth 240, no buttons.
+      return Container(
+        color: bgColor,
+        height: 49,
+        alignment: Alignment.center,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 240),
+          child: Text(
+            'This is a bot',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Non-contact: "Add Contact" (blue) + "Block" (red), side by side.
+    return Container(
+      color: bgColor,
+      height: 49,
+      child: Row(
+        children: [
+          Expanded(
+            child: _ContactStatusButton(
+              label: 'Add Contact',
+              color: windowActiveTextFg,
+              hoverColor: hoverColor,
+              height: 49,
+              textTop: 16,
+              onTap: () => _showAddContactDialog(context),
+            ),
+          ),
+          const SizedBox(width: 16), // Spec: historyContactStatusMinSkip 16px.
+          Expanded(
+            child: _ContactStatusButton(
+              label: 'Block',
+              color: attentionButtonFg,
+              hoverColor: hoverColor,
+              height: 49,
+              textTop: 16,
+              onTap: () => chatState.blockUser(chat.accountId, chat.chatId),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddContactDialog(BuildContext context) {
+    final firstNameCtrl = TextEditingController(text: chat.title);
+    final lastNameCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Contact'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: firstNameCtrl,
+              decoration: const InputDecoration(labelText: 'First Name'),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: lastNameCtrl,
+              decoration: const InputDecoration(labelText: 'Last Name'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              chatState.addContact(
+                chat.accountId,
+                '', // phone unknown from DM context
+                firstNameCtrl.text.trim(),
+                lastNameCtrl.text.trim(),
+              );
+              Navigator.pop(ctx);
+            },
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Spec §4.5: A single full-width flat button for the contact status bar.
+class _ContactStatusButton extends StatefulWidget {
+  final String label;
+  final Color color;
+  final Color hoverColor;
+  final double height;
+  final double textTop;
+  final VoidCallback onTap;
+
+  const _ContactStatusButton({
+    required this.label,
+    required this.color,
+    required this.hoverColor,
+    required this.height,
+    required this.textTop,
+    required this.onTap,
+  });
+
+  @override
+  State<_ContactStatusButton> createState() => _ContactStatusButtonState();
+}
+
+class _ContactStatusButtonState extends State<_ContactStatusButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          height: widget.height,
+          color: _hovered ? widget.hoverColor : Colors.transparent,
+          alignment: Alignment.topCenter,
+          padding: EdgeInsets.only(top: widget.textTop),
+          child: Text(
+            widget.label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: widget.color,
+            ),
+          ),
+        ),
       ),
     );
   }

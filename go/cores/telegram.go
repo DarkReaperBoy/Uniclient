@@ -9629,6 +9629,7 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		DisplayName: strings.TrimSpace(user.FirstName + " " + user.LastName),
 		Phone:       user.Phone,
 		IsBot:       user.Bot,
+		IsContact:   user.Contact,
 		IsVerified:  user.Verified,
 		IsPremium:   user.Premium,
 		Platform:    tgPlatform,

@@ -33,6 +33,8 @@ type ChatInfo struct {
 	MemberCount  int    `json:"member_count,omitempty"`
 	ParentID     string `json:"parent_id,omitempty"`
 	IsBot               bool `json:"is_bot"`
+	IsContact           bool `json:"is_contact"`
+	IsBlocked           bool `json:"is_blocked"`
 	UnreadMark          bool `json:"unread_mark"`
 	UnreadMentionCount  int  `json:"unread_mention_count"`
 	UnreadReactionCount int  `json:"unread_reaction_count"`
@@ -68,7 +70,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0),
+		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
 		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
@@ -97,7 +99,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0),
+		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
 		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
@@ -121,6 +123,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		var lastMsgTime sql.NullInt64
 		var memberCount sql.NullInt64
 		var isMuted, isPinned, isArchived, lastMsgIsOutgoing, isBot int
+		var isContact, isBlocked int
 		var unreadMark, isVerified, isScam, isFake int
 
 		if err := rows.Scan(
@@ -128,7 +131,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
 			&lastMsgIsOutgoing, &c.LastMsgStatus, &c.LastMsgMediaType, &lastMsgThumbB64,
 			&c.UnreadCount, &isMuted, &isPinned, &isArchived,
-			&draftText, &memberCount, &parentID, &isBot,
+			&draftText, &memberCount, &parentID, &isBot, &isContact, &isBlocked,
 			&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 			&isVerified, &isScam, &isFake,
 		); err != nil {
@@ -153,6 +156,8 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		}
 		c.ParentID = parentID.String
 		c.IsBot = isBot == 1
+		c.IsContact = isContact == 1
+		c.IsBlocked = isBlocked == 1
 		c.UnreadMark = unreadMark == 1
 		c.IsVerified = isVerified == 1
 		c.IsScam = isScam == 1
@@ -451,7 +456,7 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]ChatInfo, error) {
 		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0),
+		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
 		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
@@ -577,7 +582,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		        c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
 		        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
 		        c.draft_text, c.member_count, c.parent_id,
-		        COALESCE(u.is_bot, 0),
+		        COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
 		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake
 		 FROM chats c
@@ -589,6 +594,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	var lastMsgThumbB64 sql.NullString
 	var lastMsgTime, memberCount sql.NullInt64
 	var isMuted, isPinned, isArchived, lastMsgIsOutgoing, isBot int
+	var isContact, isBlocked int
 	var unreadMark, isVerified, isScam, isFake int
 
 	err := row.Scan(
@@ -596,7 +602,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
 		&lastMsgIsOutgoing, &c.LastMsgStatus, &c.LastMsgMediaType, &lastMsgThumbB64,
 		&c.UnreadCount, &isMuted, &isPinned, &isArchived,
-		&draftText, &memberCount, &parentID, &isBot,
+		&draftText, &memberCount, &parentID, &isBot, &isContact, &isBlocked,
 		&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 		&isVerified, &isScam, &isFake,
 	)
@@ -622,6 +628,8 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	}
 	c.ParentID = parentID.String
 	c.IsBot = isBot == 1
+	c.IsContact = isContact == 1
+	c.IsBlocked = isBlocked == 1
 	c.UnreadMark = unreadMark == 1
 	c.IsVerified = isVerified == 1
 	c.IsScam = isScam == 1

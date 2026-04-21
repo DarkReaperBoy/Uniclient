@@ -168,6 +168,8 @@ message EngineChatInfo {
   string parent_id       = 16;
   bool   is_bot          = 18;
   int32  last_msg_status = 19;
+  bool   is_contact      = 20;
+  bool   is_blocked      = 21;
 }
 
 message EngineGetChatListRequest {
@@ -209,6 +211,23 @@ message EngineMarkChatReadRequest {
   string account_id  = 1;
   string chat_id     = 2;
   string up_to_msg_id = 3;
+}
+
+message EngineBlockUserRequest {
+  string account_id = 1;
+  string user_id    = 2;
+}
+
+message EngineUnblockUserRequest {
+  string account_id = 1;
+  string user_id    = 2;
+}
+
+message EngineAddContactRequest {
+  string account_id = 1;
+  string phone      = 2;
+  string first_name = 3;
+  string last_name  = 4;
 }
 
 // --- GetForumTopics ---

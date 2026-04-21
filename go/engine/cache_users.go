@@ -17,6 +17,8 @@ type CachedUser struct {
 	AvatarPath  string `json:"avatar_path,omitempty"`
 	IsBot       bool   `json:"is_bot"`
 	IsOnline    bool   `json:"is_online"`
+	IsContact   bool   `json:"is_contact"`
+	IsBlocked   bool   `json:"is_blocked"`
 	LastSeen    int64  `json:"last_seen,omitempty"`
 }
 
@@ -29,17 +31,19 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	}
 
 	_, err := e.db.Exec(
-		`INSERT INTO users (account_id, user_id, display_name, username, is_bot, is_online, last_seen, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, is_bot, is_online, is_contact, is_blocked, last_seen, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
 		     is_bot = excluded.is_bot,
 		     is_online = excluded.is_online,
+		     is_contact = excluded.is_contact,
+		     is_blocked = excluded.is_blocked,
 		     last_seen = COALESCE(excluded.last_seen, users.last_seen),
 		     updated_at = excluded.updated_at`,
 		accountID, u.ID, u.DisplayName, u.Username,
-		boolToInt(u.IsBot), boolToInt(u.IsOnline), lastSeen, now)
+		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), lastSeen, now)
 	return err
 }
 
@@ -48,15 +52,15 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var u CachedUser
 	var displayName, username, avatarPath sql.NullString
 	var lastSeen sql.NullInt64
-	var isBot, isOnline int
+	var isBot, isOnline, isContact, isBlocked int
 
 	err := e.db.QueryRow(
 		`SELECT account_id, user_id, display_name, username, avatar_path,
-		        is_bot, is_online, last_seen
+		        is_bot, is_online, is_contact, is_blocked, last_seen
 		 FROM users WHERE account_id = ? AND user_id = ?`,
 		accountID, userID).Scan(
 		&u.AccountID, &u.UserID, &displayName, &username, &avatarPath,
-		&isBot, &isOnline, &lastSeen)
+		&isBot, &isOnline, &isContact, &isBlocked, &lastSeen)
 	if err != nil {
 		return nil, err
 	}
@@ -66,6 +70,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	u.AvatarPath = avatarPath.String
 	u.IsBot = isBot == 1
 	u.IsOnline = isOnline == 1
+	u.IsContact = isContact == 1
+	u.IsBlocked = isBlocked == 1
 	if lastSeen.Valid {
 		u.LastSeen = lastSeen.Int64
 	}
@@ -213,13 +219,15 @@ func (e *Engine) BulkUpsertUsers(accountID string, users []cores.User) error {
 	}
 
 	stmt, err := tx.Prepare(
-		`INSERT INTO users (account_id, user_id, display_name, username, is_bot, is_online, last_seen, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, is_bot, is_online, is_contact, is_blocked, last_seen, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
 		     is_bot = excluded.is_bot,
 		     is_online = excluded.is_online,
+		     is_contact = excluded.is_contact,
+		     is_blocked = excluded.is_blocked,
 		     last_seen = COALESCE(excluded.last_seen, users.last_seen),
 		     updated_at = excluded.updated_at`)
 	if err != nil {
@@ -235,7 +243,53 @@ func (e *Engine) BulkUpsertUsers(accountID string, users []cores.User) error {
 			lastSeen = sql.NullInt64{Int64: u.LastSeen.UnixMilli(), Valid: true}
 		}
 		stmt.Exec(accountID, u.ID, u.DisplayName, u.Username,
-			boolToInt(u.IsBot), boolToInt(u.IsOnline), lastSeen, now)
+			boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), lastSeen, now)
 	}
 	return tx.Commit()
+}
+
+// BlockUser blocks a user via the core and updates local DB.
+func (e *Engine) BlockUser(accountID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	if err := acc.Core.BlockUser(userID); err != nil {
+		return err
+	}
+	e.db.Exec("UPDATE users SET is_blocked = 1 WHERE account_id = ? AND user_id = ?", accountID, userID)
+	e.emitChatUpdate(accountID, userID)
+	return nil
+}
+
+// UnblockUser unblocks a user via the core and updates local DB.
+func (e *Engine) UnblockUser(accountID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	if err := acc.Core.UnblockUser(userID); err != nil {
+		return err
+	}
+	e.db.Exec("UPDATE users SET is_blocked = 0 WHERE account_id = ? AND user_id = ?", accountID, userID)
+	e.emitChatUpdate(accountID, userID)
+	return nil
+}
+
+// AddContact adds a contact via the core and updates local DB.
+func (e *Engine) AddContact(accountID, phone, firstName, lastName string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	return acc.Core.AddContact(phone, firstName, lastName)
 }

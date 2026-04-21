@@ -140,6 +140,8 @@ type User struct {
 	AvatarB64   string `json:"avatar_b64,omitempty"` // base64-encoded thumbnail
 	IsBot       bool   `json:"is_bot"`
 	IsOnline    bool   `json:"is_online"`
+	IsContact   bool   `json:"is_contact"`
+	IsBlocked   bool   `json:"is_blocked"`
 	LastSeen    *time.Time `json:"last_seen,omitempty"`
 	IsVerified  bool   `json:"is_verified,omitempty"`
 	IsPremium   bool   `json:"is_premium,omitempty"`
