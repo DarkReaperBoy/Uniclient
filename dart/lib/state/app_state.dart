@@ -28,6 +28,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool _nativeWindowFrame = false;
   bool _mainMenuAccountsShown = false;
   bool _systemDarkMode = false;
+  bool _editingTheme = false;
   List<String> _accountOrder = []; // persisted display order of account IDs
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -90,6 +91,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   bool get canAddAccount => _accounts.length < maxAccountLimit;
 
   bool get nativeWindowFrame => _nativeWindowFrame;
+
+  /// Spec §3.4: true when the theme editor is open — blocks night mode toggle.
+  bool get isEditingTheme => _editingTheme;
+
+  void setEditingTheme(bool value) {
+    if (_editingTheme == value) return;
+    _editingTheme = value;
+    notifyListeners();
+  }
 
   /// Spec §3.4: when true, theme auto-follows system dark mode changes.
   bool get systemDarkModeEnabled => _systemDarkMode;

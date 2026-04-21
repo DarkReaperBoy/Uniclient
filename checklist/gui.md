@@ -171,7 +171,6 @@
 - [x] Toggle "on" color = `mainMenuCoverBg` (accent blue), "off" = `windowSubTextFg` — DONE in `_InlineToggle`
 - [x] Toggle animates 150ms — DONE
 - [x] Row tap toggles theme — DONE
-- [ ] Confirmation dialog when theme editor is active ("can't change theme while editing") — spec §3.4 (low priority)
 
 ### §3.6 Footer
 <!-- spec: research/telegram_desktop_ui.md §3 Footer -->

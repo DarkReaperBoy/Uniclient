@@ -324,6 +324,12 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       trailing: _InlineToggle(
                         value: isDark,
                         onChanged: (dark) {
+                          if (appState.isEditingTheme) {
+                            showConfirmBox(context,
+                              text: "You can't change the theme while editing it.",
+                              inform: true);
+                            return;
+                          }
                           if (appState.systemDarkModeEnabled) {
                             appState.setSystemDarkMode(false);
                           }
@@ -331,6 +337,12 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         },
                       ),
                       onTap: () {
+                        if (appState.isEditingTheme) {
+                          showConfirmBox(context,
+                            text: "You can't change the theme while editing it.",
+                            inform: true);
+                          return;
+                        }
                         if (appState.systemDarkModeEnabled) {
                           appState.setSystemDarkMode(false);
                         }
