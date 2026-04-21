@@ -1677,37 +1677,90 @@ class _RichMessageTextState extends State<_RichMessageText> {
 
 /// Spec §5: Round selection checkbox — 20px diameter, 2px stroke.
 /// Empty: white border + 25% black fill. Checked: boxTextFgGood fill + white check glyph.
-class _SelectionCheckbox extends StatelessWidget {
+/// Animation: 160ms easeInOutQuad, bgDuration 0.75, fgDuration 1.0.
+class _SelectionCheckbox extends StatefulWidget {
   final bool checked;
   final bool isDark;
 
   const _SelectionCheckbox({required this.checked, required this.isDark});
 
   @override
+  State<_SelectionCheckbox> createState() => _SelectionCheckboxState();
+}
+
+class _SelectionCheckboxState extends State<_SelectionCheckbox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 160),
+      vsync: this,
+      value: widget.checked ? 1.0 : 0.0,
+    );
+  }
+
+  @override
+  void didUpdateWidget(_SelectionCheckbox oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.checked != oldWidget.checked) {
+      if (widget.checked) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     const double size = 20.0;
-    final bgActive = isDark
+    final bgActive = widget.isDark
         ? AppColors.selectionCheckBgActiveNight
         : AppColors.selectionCheckBgActiveDay;
 
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _SelectionCheckboxPainter(
-          checked: checked,
-          bgActive: bgActive,
-        ),
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          // easeInOutQuad mapped progress
+          final t = Curves.easeInOut.transform(_controller.value);
+          // bg fills over first 75% of animation, fg over full duration
+          final bgT = (t / 0.75).clamp(0.0, 1.0);
+          final fgT = t;
+          return CustomPaint(
+            painter: _SelectionCheckboxPainter(
+              bgProgress: bgT,
+              fgProgress: fgT,
+              bgActive: bgActive,
+            ),
+          );
+        },
       ),
     );
   }
 }
 
 class _SelectionCheckboxPainter extends CustomPainter {
-  final bool checked;
+  final double bgProgress;
+  final double fgProgress;
   final Color bgActive;
 
-  _SelectionCheckboxPainter({required this.checked, required this.bgActive});
+  _SelectionCheckboxPainter({
+    required this.bgProgress,
+    required this.fgProgress,
+    required this.bgActive,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1715,44 +1768,72 @@ class _SelectionCheckboxPainter extends CustomPainter {
     final radius = size.width / 2;
     const strokeWidth = 2.0;
 
-    if (checked) {
+    // Background: lerp from inactive (border + translucent fill) to active (solid fill)
+    if (bgProgress < 1.0) {
+      // Draw inactive state (fades out as bgProgress increases)
+      final inactiveAlpha = 1.0 - bgProgress;
+      canvas.drawCircle(
+        center,
+        radius - strokeWidth / 2,
+        Paint()..color = AppColors.selectionCheckBgInactive.withValues(alpha: AppColors.selectionCheckBgInactive.a * inactiveAlpha),
+      );
+      canvas.drawCircle(
+        center,
+        radius - strokeWidth / 2,
+        Paint()
+          ..color = AppColors.selectionCheckBorder.withValues(alpha: AppColors.selectionCheckBorder.a * inactiveAlpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth,
+      );
+    }
+    if (bgProgress > 0.0) {
+      // Draw active fill (fades in)
       canvas.drawCircle(
         center,
         radius,
-        Paint()..color = bgActive,
+        Paint()..color = bgActive.withValues(alpha: bgActive.a * bgProgress),
       );
-      // White check glyph
+    }
+
+    // Foreground: check glyph draws in with fgProgress
+    if (fgProgress > 0.0) {
       final path = Path();
-      path.moveTo(size.width * 0.28, size.height * 0.50);
-      path.lineTo(size.width * 0.43, size.height * 0.65);
-      path.lineTo(size.width * 0.72, size.height * 0.35);
+      // Full check path points
+      const p0x = 0.28, p0y = 0.50;
+      const p1x = 0.43, p1y = 0.65;
+      const p2x = 0.72, p2y = 0.35;
+
+      // Two segments: p0→p1 (first half of fgProgress), p1→p2 (second half)
+      final seg1T = (fgProgress * 2.0).clamp(0.0, 1.0);
+      final seg2T = ((fgProgress - 0.5) * 2.0).clamp(0.0, 1.0);
+
+      path.moveTo(size.width * p0x, size.height * p0y);
+      // First segment
+      final s1x = p0x + (p1x - p0x) * seg1T;
+      final s1y = p0y + (p1y - p0y) * seg1T;
+      path.lineTo(size.width * s1x, size.height * s1y);
+
+      if (seg2T > 0.0) {
+        final s2x = p1x + (p2x - p1x) * seg2T;
+        final s2y = p1y + (p2y - p1y) * seg2T;
+        path.lineTo(size.width * s2x, size.height * s2y);
+      }
+
       canvas.drawPath(
         path,
         Paint()
-          ..color = AppColors.selectionCheckBorder
+          ..color = AppColors.selectionCheckBorder.withValues(alpha: fgProgress)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0
           ..strokeCap = StrokeCap.round
           ..strokeJoin = StrokeJoin.round,
-      );
-    } else {
-      canvas.drawCircle(
-        center,
-        radius - strokeWidth / 2,
-        Paint()..color = AppColors.selectionCheckBgInactive,
-      );
-      canvas.drawCircle(
-        center,
-        radius - strokeWidth / 2,
-        Paint()
-          ..color = AppColors.selectionCheckBorder
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth,
       );
     }
   }
 
   @override
   bool shouldRepaint(_SelectionCheckboxPainter oldDelegate) =>
-      checked != oldDelegate.checked || bgActive != oldDelegate.bgActive;
+      bgProgress != oldDelegate.bgProgress ||
+      fgProgress != oldDelegate.fgProgress ||
+      bgActive != oldDelegate.bgActive;
 }

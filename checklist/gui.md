@@ -273,7 +273,6 @@
 ### §5.6 Selection Mode
 
 - [x] Long-press to enter selection mode, checkbox per message, selection action bar — spec §5, DONE in chat_view.dart
-- [ ] Check-mark animation 160ms — spec §5. Not implemented
 - [x] Selection action bar: Forward, Delete, Copy — spec §5, DONE in chat_view.dart (_SelectionBar)
 
 ### §5.7 Service Messages
