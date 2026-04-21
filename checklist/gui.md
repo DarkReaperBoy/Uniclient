@@ -273,7 +273,6 @@
 ### §5.6 Selection Mode
 
 - [x] Long-press to enter selection mode, checkbox per message, selection action bar — spec §5, DONE in chat_view.dart
-- [ ] Round checkbox: 20px diameter, 2px stroke, empty border = windowBg (white), fill #00000040, checked fill boxTextFgGood (#4ab44a day / #5598db night), check glyph white — spec §5. Current uses Icons.check_circle / Icons.circle_outlined at 22px, no spec colors
 - [ ] Checkbox position: bottom-right of bubble, 5px above bottom edge — spec §5. Not implemented (checkbox is in the Row before the bubble, not overlaid)
 - [ ] Selection offset: 30px shift left when active — spec §5. Not implemented
 - [ ] Check-mark animation 160ms — spec §5. Not implemented

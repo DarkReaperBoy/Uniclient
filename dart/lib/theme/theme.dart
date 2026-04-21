@@ -69,6 +69,15 @@ class AppColors {
   static const historyIconFgInverted = Color(0xFFffffff); // #ffffff both themes
   static const historySendingInvertedIconFg = Color(0xC8ffffff); // #ffffffc8
 
+  // Selection checkbox — spec §5: msgSelectionCheck / RoundCheckbox
+  // Empty fill: overviewCheckBg = #00000040 (25% black, both themes)
+  static const selectionCheckBgInactive = Color(0x40000000);
+  // Checked fill: boxTextFgGood day #4ab44a / night #5598db
+  static const selectionCheckBgActiveDay = Color(0xFF4ab44a);
+  static const selectionCheckBgActiveNight = Color(0xFF5598db);
+  // Border + check glyph: windowBg (white, both themes)
+  static const selectionCheckBorder = Color(0xFFffffff);
+
   // Bubble shadows — spec §5: 2px bottom shadow strip
   // Format: #RRGGBBAA in spec → 0xAARRGGBB in Flutter
   // msgOutShadow day / night (night disabled: alpha 00)
