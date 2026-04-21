@@ -229,7 +229,6 @@
 - [x] Cancel/close button — DONE
 - [x] Count display ("X selected") — DONE
 - [x] Forward drag-and-drop integration — DONE in `_SelectionBar`
-- [ ] Selection controls slide in from below at `topBarHeight`; title/subtitle translate up — spec §4.7 (current replaces bar instantly; needs `_selectedShown.start()` slide animation 200ms `easeOutCirc`)
 - [ ] All three action buttons use `defaultActiveButton` (blue pill `RoundButton`) — spec §4.7 (current uses plain `IconButton`)
 - [ ] Button labels uppercase: "FORWARD", "SEND NOW", "DELETE" — spec §4.7 (current shows icons, no labels)
 - [ ] Animated count badge on each button via `setNumbersText` — spec §4.7

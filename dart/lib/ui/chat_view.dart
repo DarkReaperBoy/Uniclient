@@ -96,7 +96,8 @@ class ChatView extends StatefulWidget {
   State<ChatView> createState() => _ChatViewState();
 }
 
-class _ChatViewState extends State<ChatView> {
+class _ChatViewState extends State<ChatView>
+    with SingleTickerProviderStateMixin {
   final _composeController = TextEditingController();
   final _scrollController = ScrollController();
   String? _replyToId;
@@ -108,6 +109,10 @@ class _ChatViewState extends State<ChatView> {
   bool _pinnedBarDismissed = false;
   final Set<String> _selectedMsgIds = {};
   bool get _selectionMode => _selectedMsgIds.isNotEmpty;
+  /// Spec §4.7: selection bar slide animation (200ms easeOutCirc).
+  late final AnimationController _selectionAnimCtrl;
+  late final CurvedAnimation _selectionCurvedAnim;
+  int _lastSelectionCount = 0;
   /// Spec §4.3: when true, the top bar shows an inline search text field
   /// instead of the title/subtitle. Toggled by the search button.
   bool _isSearching = false;
@@ -129,6 +134,14 @@ class _ChatViewState extends State<ChatView> {
   @override
   void initState() {
     super.initState();
+    _selectionAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _selectionCurvedAnim = CurvedAnimation(
+      parent: _selectionAnimCtrl,
+      curve: Curves.easeOutCirc,
+    );
     _scrollController.addListener(_onScroll);
     // Register the app-level ArrowUp hook (spec §24.7: edit last outgoing
     // when compose field is empty and no edit/reply is active).
@@ -172,6 +185,8 @@ class _ChatViewState extends State<ChatView> {
     if (ChatView.cycleReplyRequest == _cycleReply) {
       ChatView.cycleReplyRequest = null;
     }
+    _selectionCurvedAnim.dispose();
+    _selectionAnimCtrl.dispose();
     _composeController.dispose();
     _scrollController.dispose();
     _searchController.dispose();
@@ -435,7 +450,7 @@ class _ChatViewState extends State<ChatView> {
         case 'forward':
           _forwardSingle(context, chatState, msgId);
         case 'select':
-          setState(() => _selectedMsgIds.add(msgId));
+          _modifySelection(() => _selectedMsgIds.add(msgId));
         case 'pin':
           chatState.pinMessage(msgId, !msg.isPinned);
         case 'edit':
@@ -587,11 +602,23 @@ class _ChatViewState extends State<ChatView> {
     );
   }
 
+  /// Spec §4.7: modify selection set and trigger slide animation on transitions.
+  void _modifySelection(void Function() fn) {
+    final wasSelecting = _selectionMode;
+    setState(fn);
+    if (_selectionMode) _lastSelectionCount = _selectedMsgIds.length;
+    if (_selectionMode && !wasSelecting) {
+      _selectionAnimCtrl.forward();
+    } else if (!_selectionMode && wasSelecting) {
+      _selectionAnimCtrl.reverse();
+    }
+  }
+
   void _deleteSelected(ChatState chatState) {
     for (final id in _selectedMsgIds) {
       chatState.deleteMessage(id);
     }
-    setState(() => _selectedMsgIds.clear());
+    _modifySelection(() => _selectedMsgIds.clear());
   }
 
   void _forwardSingle(BuildContext context, ChatState chatState, String msgId) {
@@ -616,7 +643,7 @@ class _ChatViewState extends State<ChatView> {
         onSelect: (toChatId) async {
           Navigator.of(ctx).pop();
           await chatState.forwardMessages(msgIds, toChatId);
-          setState(() => _selectedMsgIds.clear());
+          _modifySelection(() => _selectedMsgIds.clear());
         },
       ),
     );
@@ -629,7 +656,7 @@ class _ChatViewState extends State<ChatView> {
       ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
     final text = msgs.map((m) => m.contentText).join('\n');
     Clipboard.setData(ClipboardData(text: text));
-    setState(() => _selectedMsgIds.clear());
+    _modifySelection(() => _selectedMsgIds.clear());
   }
 
   /// Harness entry point for spec §24.4 line 2978 "Ctrl+Shift+Enter always
@@ -829,7 +856,7 @@ class _ChatViewState extends State<ChatView> {
       return KeyEventResult.handled;
     }
     if (_selectionMode) {
-      setState(() => _selectedMsgIds.clear());
+      _modifySelection(() => _selectedMsgIds.clear());
       return KeyEventResult.handled;
     }
     if (_editingMsgId != null) {
@@ -870,57 +897,80 @@ class _ChatViewState extends State<ChatView> {
       color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
-          // Top bar (54px per spec) or selection action bar.
-          if (_selectionMode)
-            _SelectionBar(
-              count: _selectedMsgIds.length,
-              onCancel: () => setState(() => _selectedMsgIds.clear()),
-              onDelete: () => _deleteSelected(chatState),
-              onCopy: () => _copySelected(chatState),
-              onForward: () => _forwardSelected(context, chatState),
-              forwardDragData: ForwardDragData(
-                accountId: chat.accountId,
-                sourceChatId: chat.chatId,
-                messageIds: _selectedMsgIds.toList(),
+          // Spec §4.7: selection bar slides in from below (200ms easeOutCirc)
+          // while the top bar title/subtitle translates up by topBarHeight.
+          SizedBox(
+            height: 54, // topBarHeight
+            child: ClipRect(
+              child: AnimatedBuilder(
+                animation: _selectionCurvedAnim,
+                builder: (context, _) {
+                  final v = _selectionCurvedAnim.value;
+                  return Stack(
+                    children: [
+                      // Top bar translates up as selection bar appears
+                      Transform.translate(
+                        offset: Offset(0, -54 * v),
+                        child: _ChatTopBar(
+                          chat: chat,
+                          typingUser: chatState.typingUserFor(chat.chatId),
+                          isOnline: chatState.isChatOnline(chat),
+                          lastSeen: chatState.chatLastSeen(chat),
+                          showBackButton: widget.showBackButton,
+                          onBack: widget.onBack,
+                          onToggleInfo: widget.onToggleInfo,
+                          isInfoOpen: widget.isInfoOpen,
+                          moreVertKey: _moreVertKey,
+                          hideDivider: widget.hideTopBarDivider,
+                          groupOnlineCount: chatState.groupOnlineCount,
+                          isSearching: _isSearching,
+                          searchController: _searchController,
+                          searchFocusNode: _searchFocusNode,
+                          searchResultCount: _searchResultIds.length,
+                          searchResultIndex: _searchResultIndex,
+                          hasSearchQuery: _activeSearchQuery.isNotEmpty,
+                          onToggleSearch: () {
+                            setState(() {
+                              _isSearching = !_isSearching;
+                              if (_isSearching) {
+                                _searchFocusNode.requestFocus();
+                              } else {
+                                _searchController.clear();
+                                _searchResultIds = [];
+                                _searchResultIndex = -1;
+                                _activeSearchQuery = '';
+                              }
+                            });
+                          },
+                          onSearchPrev: _searchPrev,
+                          onSearchNext: _searchNext,
+                          onSearchChanged: (_) => _onSearchQueryChanged(),
+                        ),
+                      ),
+                      // Selection bar slides in from below
+                      if (v > 0)
+                        Transform.translate(
+                          offset: Offset(0, 54 * (1 - v)),
+                          child: _SelectionBar(
+                            count: _selectionMode ? _selectedMsgIds.length : _lastSelectionCount,
+                            onCancel: () => _modifySelection(() => _selectedMsgIds.clear()),
+                            onDelete: () => _deleteSelected(chatState),
+                            onCopy: () => _copySelected(chatState),
+                            onForward: () => _forwardSelected(context, chatState),
+                            forwardDragData: ForwardDragData(
+                              accountId: chat.accountId,
+                              sourceChatId: chat.chatId,
+                              messageIds: _selectedMsgIds.toList(),
+                            ),
+                            hideDivider: widget.hideTopBarDivider,
+                          ),
+                        ),
+                    ],
+                  );
+                },
               ),
-              hideDivider: widget.hideTopBarDivider,
-            )
-          else
-            _ChatTopBar(
-              chat: chat,
-              typingUser: chatState.typingUserFor(chat.chatId),
-              isOnline: chatState.isChatOnline(chat),
-              lastSeen: chatState.chatLastSeen(chat),
-              showBackButton: widget.showBackButton,
-              onBack: widget.onBack,
-              onToggleInfo: widget.onToggleInfo,
-              isInfoOpen: widget.isInfoOpen,
-              moreVertKey: _moreVertKey,
-              hideDivider: widget.hideTopBarDivider,
-              groupOnlineCount: chatState.groupOnlineCount,
-              isSearching: _isSearching,
-              searchController: _searchController,
-              searchFocusNode: _searchFocusNode,
-              searchResultCount: _searchResultIds.length,
-              searchResultIndex: _searchResultIndex,
-              hasSearchQuery: _activeSearchQuery.isNotEmpty,
-              onToggleSearch: () {
-                setState(() {
-                  _isSearching = !_isSearching;
-                  if (_isSearching) {
-                    _searchFocusNode.requestFocus();
-                  } else {
-                    _searchController.clear();
-                    _searchResultIds = [];
-                    _searchResultIndex = -1;
-                    _activeSearchQuery = '';
-                  }
-                });
-              },
-              onSearchPrev: _searchPrev,
-              onSearchNext: _searchNext,
-              onSearchChanged: (_) => _onSearchQueryChanged(),
             ),
+          ),
           // Group call bar (§4.6) — shown when there's an active group call.
           if (chatState.activeGroupCall != null)
             _GroupCallBar(
@@ -969,14 +1019,14 @@ class _ChatViewState extends State<ChatView> {
                   scrollController: _scrollController,
                   onReply: (msgId) => setState(() => _replyToId = msgId),
                   selectedIds: _selectedMsgIds,
-                  onToggleSelect: (msgId) => setState(() {
+                  onToggleSelect: (msgId) => _modifySelection(() {
                     if (_selectedMsgIds.contains(msgId)) {
                       _selectedMsgIds.remove(msgId);
                     } else {
                       _selectedMsgIds.add(msgId);
                     }
                   }),
-                  onLongPress: (msgId) => setState(() {
+                  onLongPress: (msgId) => _modifySelection(() {
                     _selectedMsgIds.add(msgId);
                   }),
                   onContextMenu: _showMessageContextMenu,
