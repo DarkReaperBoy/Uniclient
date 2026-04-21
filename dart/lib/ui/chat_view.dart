@@ -1054,6 +1054,7 @@ class _ChatTopBar extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
+                          fontSize: 13, // dialogsTextFont = normalFont 13px
                           color: subtitleColor,
                         ),
                       ),
@@ -1141,6 +1142,7 @@ class _TopBarTypingDotsState extends State<_TopBarTypingDots>
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+      fontSize: 13, // dialogsTextFont = normalFont 13px
       color: widget.color,
     );
     return Row(
