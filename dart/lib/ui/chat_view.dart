@@ -788,7 +788,6 @@ class _TopBarButton extends StatelessWidget {
   /// Spec §4.3: active state uses `windowActiveTextFg` (blue) instead of
   /// `menuIconFg`. Used by the info toggle when the info panel is open.
   final bool isActive;
-
   const _TopBarButton({
     super.key,
     required this.icon,
@@ -818,7 +817,7 @@ class _TopBarButton extends StatelessWidget {
     final restColor = isActive ? windowActiveTextFg : menuIconFg;
     final hoverColor = isActive ? windowActiveTextFg : menuIconFgOver;
 
-    return SizedBox(
+    Widget btn = SizedBox(
       width: width,
       height: 54,
       child: Center(
@@ -842,6 +841,7 @@ class _TopBarButton extends StatelessWidget {
         ),
       ),
     );
+    return btn;
   }
 }
 
@@ -958,6 +958,37 @@ class _ChatTopBar extends StatelessWidget {
           chatState.leaveChat(chat.accountId, chat.chatId);
       }
     });
+  }
+
+  /// Spec §4.3: right-click on call button opens audio/video call submenu.
+  static void _showCallMenu(BuildContext context, Offset globalPos) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      globalPos & const Size(1, 1),
+      Offset.zero & overlay.size,
+    );
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: const [
+        PopupMenuItem(
+          value: 'audio_call',
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.call, size: 20),
+            title: Text('Audio Call'),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'video_call',
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.videocam, size: 20),
+            title: Text('Video Call'),
+          ),
+        ),
+      ],
+    );
   }
 
   /// Spec §4.2: right-click on back button opens a call-type menu.
@@ -1171,6 +1202,22 @@ class _ChatTopBar extends StatelessWidget {
             ),
           ),
           // Spec §4.3: right-side buttons — shared 40×54 chrome.
+          // Spec §4.3: Call button — 1:1 DMs only, phone icon.
+          // Right-click opens audio/video call submenu.
+          if (chat.type == ChatType.dm)
+            Builder(
+              builder: (btnCtx) => GestureDetector(
+                onSecondaryTapUp: (details) {
+                  _showCallMenu(btnCtx, details.globalPosition);
+                },
+                child: _TopBarButton(
+                  icon: Icons.call,
+                  onPressed: () {
+                    // TODO: initiate audio call via engine
+                  },
+                ),
+              ),
+            ),
           if (onToggleInfo != null)
             _TopBarButton(
               icon: Icons.info_outline,

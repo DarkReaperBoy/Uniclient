@@ -211,8 +211,6 @@
 - [x] Info toggle button (info_outline icon) — DONE in `_ChatTopBar`
 - [x] Menu toggle (more_vert) — DONE in `_ChatTopBar`
 - [x] Menu opens: Mute/Unmute, Mark Read/Unread, Pin, Archive, Leave — DONE in `_ChatTopBar._showTopBarMenu()`
-- [ ] Call button: `top_bar_call` icon, 1:1 DMs only — spec §4.3 (not implemented)
-- [ ] Call button right-click: audio/video call submenu — spec §4.3
 - [ ] Group call button: `top_bar_group_call` icon for groups/channels — spec §4.3 (not implemented)
 - [ ] Search button: `top_bar_search` icon, toggles inline search — spec §4.3 (not implemented)
 - [ ] Inline search: text field replaces title, date/user filters — spec §4.3
