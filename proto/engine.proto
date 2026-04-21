@@ -279,6 +279,7 @@ message EngineCachedMessage {
   string sender_rank   = 29; // admin/creator custom title (e.g. "admin", "owner")
   int32  sender_color_id = 30; // name color palette index (0..63)
   bool   is_service    = 31; // service/action message (e.g. "X joined the group")
+  string grouped_id   = 32; // album group ID (messages with same ID form a media album)
 }
 
 message EngineGetMessagesRequest {

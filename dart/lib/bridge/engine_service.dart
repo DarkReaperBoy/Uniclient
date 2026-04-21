@@ -938,6 +938,7 @@ class EngineService {
       isOutgoing: p.isOutgoing,
       isService: p.isService,
       hasMedia: p.hasMedia,
+      groupedId: p.groupedId,
       mediaType: p.mediaType,
       mediaFileName: _safeStr(p.mediaFileName),
       mediaMimeType: p.mediaMimeType,

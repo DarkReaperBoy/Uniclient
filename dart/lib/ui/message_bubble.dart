@@ -2535,9 +2535,13 @@ class AlbumLayout extends StatelessWidget {
     final n = ratios.length;
     final s = _spacing;
 
-    if (n == 2) return _layout2(ratios, maxW, s);
-    if (n == 3) return _layout3(ratios, maxW, s);
-    if (n == 4) return _layout4(ratios, maxW, s);
+    // Spec: ComplexLayouter when count >= 5 OR any item ratio > 2.
+    final useComplex = n >= 5 || ratios.any((r) => r > 2.0);
+    if (!useComplex) {
+      if (n == 2) return _layout2(ratios, maxW, s);
+      if (n == 3) return _layout3(ratios, maxW, s);
+      if (n == 4) return _layout4(ratios, maxW, s);
+    }
     return _layoutComplex(ratios, maxW, s);
   }
 
@@ -2550,11 +2554,15 @@ class AlbumLayout extends StatelessWidget {
     final props = '$p0$p1';
 
     if (props == 'ww' && avgRatio > 1.4 && (r0 - r1).abs() < 0.2) {
-      // Top/bottom stack.
-      final h0 = (W / r0).clamp(_minWidth, W);
-      final h1 = (W / r1).clamp(_minWidth, W);
-      final totalH = h0 + s + h1;
-      return _AlbumLayoutResult(W, totalH, [
+      // Top/bottom stack. maxHeight = W (square ceiling).
+      var h0 = (W / r0).clamp(_minWidth, W);
+      var h1 = (W / r1).clamp(_minWidth, W);
+      if (h0 + s + h1 > W) {
+        final scale = (W - s) / (h0 + h1);
+        h0 *= scale;
+        h1 *= scale;
+      }
+      return _AlbumLayoutResult(W, h0 + s + h1, [
         Rect.fromLTWH(0, 0, W, h0),
         Rect.fromLTWH(0, h0 + s, W, h1),
       ]);

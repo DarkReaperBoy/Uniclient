@@ -867,5 +867,6 @@ func cachedMsgToProto(m *engine.CachedMessage) *pb.EngineCachedMessage {
 		MediaHeight:        int32(m.MediaHeight),
 		MediaDuration:      int32(m.MediaDuration),
 		MediaDownloadState: int32(m.MediaDownloadState),
+		GroupedId:          m.GroupedID,
 	}
 }

@@ -2621,6 +2621,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     $core.String? senderRank,
     $core.int? senderColorId,
     $core.bool? isService,
+    $core.String? groupedId,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2716,6 +2717,9 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     if (isService != null) {
       $result.isService = isService;
     }
+    if (groupedId != null) {
+      $result.groupedId = groupedId;
+    }
     return $result;
   }
   EngineCachedMessage._() : super();
@@ -2754,6 +2758,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     ..aOS(29, _omitFieldNames ? '' : 'senderRank')
     ..a<$core.int>(30, _omitFieldNames ? '' : 'senderColorId', $pb.PbFieldType.O3)
     ..aOB(31, _omitFieldNames ? '' : 'isService')
+    ..aOS(32, _omitFieldNames ? '' : 'groupedId')
     ..hasRequiredFields = false
   ;
 
@@ -3057,6 +3062,15 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
   $core.bool hasIsService() => $_has(30);
   @$pb.TagNumber(31)
   void clearIsService() => clearField(31);
+
+  @$pb.TagNumber(32)
+  $core.String get groupedId => $_getSZ(31);
+  @$pb.TagNumber(32)
+  set groupedId($core.String v) { $_setString(31, v); }
+  @$pb.TagNumber(32)
+  $core.bool hasGroupedId() => $_has(31);
+  @$pb.TagNumber(32)
+  void clearGroupedId() => clearField(32);
 }
 
 class EngineGetMessagesRequest extends $pb.GeneratedMessage {

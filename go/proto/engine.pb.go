@@ -2022,6 +2022,7 @@ type EngineCachedMessage struct {
 	SenderRank         string `protobuf:"bytes,29,opt,name=sender_rank,json=senderRank,proto3" json:"sender_rank,omitempty"`             // admin/creator custom title (e.g. "admin", "owner")
 	SenderColorId      int32  `protobuf:"varint,30,opt,name=sender_color_id,json=senderColorId,proto3" json:"sender_color_id,omitempty"` // name color palette index (0..63)
 	IsService          bool   `protobuf:"varint,31,opt,name=is_service,json=isService,proto3" json:"is_service,omitempty"`               // service/action message (e.g. "X joined the group")
+	GroupedId          string `protobuf:"bytes,32,opt,name=grouped_id,json=groupedId,proto3" json:"grouped_id,omitempty"`                // album group ID (messages with same ID form a media album)
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2271,6 +2272,13 @@ func (x *EngineCachedMessage) GetIsService() bool {
 		return x.IsService
 	}
 	return false
+}
+
+func (x *EngineCachedMessage) GetGroupedId() string {
+	if x != nil {
+		return x.GroupedId
+	}
+	return ""
 }
 
 type EngineGetMessagesRequest struct {
@@ -6073,7 +6081,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\"O\n" +
 	"\x1cEngineGetForumTopicsResponse\x12/\n" +
-	"\x05chats\x18\x01 \x03(\v2\x19.uniclient.EngineChatInfoR\x05chats\"\xa8\b\n" +
+	"\x05chats\x18\x01 \x03(\v2\x19.uniclient.EngineChatInfoR\x05chats\"\xc7\b\n" +
 	"\x13EngineCachedMessage\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -6114,7 +6122,9 @@ const file_proto_engine_proto_rawDesc = "" +
 	"senderRank\x12&\n" +
 	"\x0fsender_color_id\x18\x1e \x01(\x05R\rsenderColorId\x12\x1d\n" +
 	"\n" +
-	"is_service\x18\x1f \x01(\bR\tisService\"\x85\x01\n" +
+	"is_service\x18\x1f \x01(\bR\tisService\x12\x1d\n" +
+	"\n" +
+	"grouped_id\x18  \x01(\tR\tgroupedId\"\x85\x01\n" +
 	"\x18EngineGetMessagesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +

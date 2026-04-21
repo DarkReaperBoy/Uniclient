@@ -2167,24 +2167,41 @@ class _MessageList extends StatelessWidget {
 
   static List<_DisplayItem> _buildDisplayItems(List<CachedMessage> messages) {
     final items = <_DisplayItem>[];
+    // Sort messages with same groupedId to be consecutive before grouping.
+    // The DB returns ORDER BY timestamp DESC which may interleave album items
+    // with non-album messages at the same timestamp.
+    final sorted = List<CachedMessage>.from(messages);
+    sorted.sort((a, b) {
+      final cmp = b.timestamp.compareTo(a.timestamp);
+      if (cmp != 0) return cmp;
+      // Same timestamp: group by groupedId so album items are consecutive.
+      if (a.groupedId.isNotEmpty && b.groupedId.isNotEmpty) {
+        final gCmp = a.groupedId.compareTo(b.groupedId);
+        if (gCmp != 0) return gCmp;
+      } else if (a.groupedId.isNotEmpty) {
+        return -1;
+      } else if (b.groupedId.isNotEmpty) {
+        return 1;
+      }
+      return a.msgId.compareTo(b.msgId);
+    });
     int i = 0;
-    while (i < messages.length) {
-      final msg = messages[i];
+    while (i < sorted.length) {
+      final msg = sorted[i];
       if (msg.groupedId.isNotEmpty && msg.hasMedia) {
         // Collect all consecutive messages with this groupedId.
         final groupId = msg.groupedId;
         final albumMsgs = <CachedMessage>[msg];
         final indices = <int>[i];
         int j = i + 1;
-        while (j < messages.length &&
-            messages[j].groupedId == groupId &&
-            messages[j].hasMedia) {
-          albumMsgs.add(messages[j]);
+        while (j < sorted.length &&
+            sorted[j].groupedId == groupId &&
+            sorted[j].hasMedia) {
+          albumMsgs.add(sorted[j]);
           indices.add(j);
           j++;
         }
         if (albumMsgs.length >= 2) {
-          // Use the first (newest) as primary; caption comes from the one with text.
           final captionMsg = albumMsgs.firstWhere(
             (m) => m.contentText.isNotEmpty,
             orElse: () => albumMsgs.first,
