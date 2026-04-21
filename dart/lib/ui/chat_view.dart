@@ -957,10 +957,18 @@ class _TopBarButton extends StatelessWidget {
             maximumSize: const WidgetStatePropertyAll(Size(40, 40)),
             shape: const WidgetStatePropertyAll(CircleBorder()),
             iconColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return menuIconFg.withAlpha((0.4 * 255).round());
+              }
               if (states.contains(WidgetState.hovered)) return hoverColor;
               return restColor;
             }),
-            overlayColor: WidgetStatePropertyAll(windowBgOver),
+            overlayColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return Colors.transparent;
+              }
+              return windowBgOver;
+            }),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ),

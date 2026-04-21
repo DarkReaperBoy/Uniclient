@@ -212,7 +212,6 @@
 - [x] Menu toggle (more_vert) — DONE in `_ChatTopBar`
 - [x] Menu opens: Mute/Unmute, Mark Read/Unread, Pin, Archive, Leave — DONE in `_ChatTopBar._showTopBarMenu()`
 - [x] Inline search: date/user filters, search results navigation — spec §4.3
-- [ ] Disabled state: grayscale icon at 40% alpha, ripple disabled — spec §4.3
 
 ### §4.4 Pinned Message Bar
 <!-- spec: research/telegram_desktop_ui.md §4 Pinned Message Bar -->
