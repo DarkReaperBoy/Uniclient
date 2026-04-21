@@ -361,6 +361,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.ForwardMessage(req.AccountId, req.ChatId, req.MsgId, req.ToChatId)
 
+	case "SendScheduledNow":
+		var req pb.EngineSendScheduledNowRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.SendScheduledNow(req.AccountId, req.ChatId, req.MsgIds)
+
 	case "ReactToMessage":
 		var req pb.EngineReactToMessageRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

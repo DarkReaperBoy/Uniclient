@@ -5651,6 +5651,66 @@ func (x *EngineJoinGroupCallResponse) GetCallId() string {
 	return ""
 }
 
+type EngineSendScheduledNowRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgIds        []string               `protobuf:"bytes,3,rep,name=msg_ids,json=msgIds,proto3" json:"msg_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSendScheduledNowRequest) Reset() {
+	*x = EngineSendScheduledNowRequest{}
+	mi := &file_proto_engine_proto_msgTypes[86]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSendScheduledNowRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSendScheduledNowRequest) ProtoMessage() {}
+
+func (x *EngineSendScheduledNowRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[86]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSendScheduledNowRequest.ProtoReflect.Descriptor instead.
+func (*EngineSendScheduledNowRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{86}
+}
+
+func (x *EngineSendScheduledNowRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineSendScheduledNowRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineSendScheduledNowRequest) GetMsgIds() []string {
+	if x != nil {
+		return x.MsgIds
+	}
+	return nil
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -6156,7 +6216,12 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\"6\n" +
 	"\x1bEngineJoinGroupCallResponse\x12\x17\n" +
-	"\acall_id\x18\x01 \x01(\tR\x06callIdB\x11Z\x0funiclient/protob\x06proto3"
+	"\acall_id\x18\x01 \x01(\tR\x06callId\"p\n" +
+	"\x1dEngineSendScheduledNowRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
+	"\amsg_ids\x18\x03 \x03(\tR\x06msgIdsB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -6170,7 +6235,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 86)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 87)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -6258,6 +6323,7 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetGroupCallResponse)(nil),      // 83: uniclient.EngineGetGroupCallResponse
 	(*EngineJoinGroupCallRequest)(nil),      // 84: uniclient.EngineJoinGroupCallRequest
 	(*EngineJoinGroupCallResponse)(nil),     // 85: uniclient.EngineJoinGroupCallResponse
+	(*EngineSendScheduledNowRequest)(nil),   // 86: uniclient.EngineSendScheduledNowRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -6295,7 +6361,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   86,
+			NumMessages:   87,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

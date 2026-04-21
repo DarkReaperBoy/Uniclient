@@ -81,6 +81,9 @@ class ChatView extends StatefulWidget {
   /// Spec §4.1: hide the 1px divider below the top bar during one-column
   /// slide transitions. Re-shown after the transition completes.
   final bool hideTopBarDivider;
+  /// Spec §4.7: when viewing the scheduled messages section, the selection bar
+  /// shows "SEND NOW" instead of "FORWARD" and hides "COPY".
+  final bool isScheduledView;
 
   const ChatView({
     super.key,
@@ -90,6 +93,7 @@ class ChatView extends StatefulWidget {
     this.isInfoOpen = false,
     this.wideChatMode = false,
     this.hideTopBarDivider = false,
+    this.isScheduledView = false,
   });
 
   @override
@@ -614,6 +618,12 @@ class _ChatViewState extends State<ChatView>
     }
   }
 
+  void _sendNowSelected(ChatState chatState) {
+    final msgIds = _selectedMsgIds.toList();
+    chatState.sendScheduledNow(msgIds);
+    _modifySelection(() => _selectedMsgIds.clear());
+  }
+
   void _deleteSelected(ChatState chatState) {
     for (final id in _selectedMsgIds) {
       chatState.deleteMessage(id);
@@ -957,6 +967,10 @@ class _ChatViewState extends State<ChatView>
                             onDelete: () => _deleteSelected(chatState),
                             onCopy: () => _copySelected(chatState),
                             onForward: () => _forwardSelected(context, chatState),
+                            isScheduledView: widget.isScheduledView,
+                            onSendNow: widget.isScheduledView
+                                ? () => _sendNowSelected(chatState)
+                                : null,
                             forwardDragData: ForwardDragData(
                               accountId: chat.accountId,
                               sourceChatId: chat.chatId,
@@ -2342,12 +2356,19 @@ class _ContactStatusButtonState extends State<_ContactStatusButton> {
 }
 
 /// Selection action bar replacing the top bar during multi-select mode.
+/// In scheduled view (spec §4.7), shows "SEND NOW" + "DELETE" + "CLEAR"
+/// instead of the normal "FORWARD" + "COPY" + "DELETE" + "CLEAR".
 class _SelectionBar extends StatelessWidget {
   final int count;
   final VoidCallback onCancel;
   final VoidCallback onDelete;
   final VoidCallback onCopy;
   final VoidCallback onForward;
+
+  /// Spec §4.7: when true, shows "SEND NOW" replacing "FORWARD" and hides "COPY".
+  final bool isScheduledView;
+  /// Spec §4.7: callback for "Send Now" in scheduled section.
+  final VoidCallback? onSendNow;
 
   /// Spec §2.7: Drag data for forward drag-and-drop.
   final ForwardDragData? forwardDragData;
@@ -2360,6 +2381,8 @@ class _SelectionBar extends StatelessWidget {
     required this.onDelete,
     required this.onCopy,
     required this.onForward,
+    this.isScheduledView = false,
+    this.onSendNow,
     this.forwardDragData,
     this.hideDivider = false,
   });
@@ -2407,53 +2430,127 @@ class _SelectionBar extends StatelessWidget {
       )),
     );
 
-    Widget forwardButton = TextButton(
-      onPressed: onForward,
-      style: firstPillStyle,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Flexible(child: Text('FORWARD', overflow: TextOverflow.ellipsis)),
-          const SizedBox(width: 4),
-          _AnimatedCountBadge(count: count),
-        ],
-      ),
-    );
+    // Spec §4.7: In scheduled view, show "SEND NOW" + "DELETE" only.
+    // In normal view, show "FORWARD" + "COPY" + "DELETE".
+    final List<Widget> actionButtons;
 
-    // Wrap forward button in Draggable if drag data is available.
-    if (forwardDragData != null) {
-      forwardButton = Draggable<ForwardDragData>(
-        data: forwardDragData,
-        dragAnchorStrategy: pointerDragAnchorStrategy,
-        feedback: Material(
-          elevation: 4,
-          borderRadius: const BorderRadius.only(
-            topLeft: largeR, bottomLeft: largeR,
-            topRight: smallR, bottomRight: smallR,
-          ),
-          color: isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    if (isScheduledView) {
+      // Scheduled section: SEND NOW (first) + DELETE (last) — two buttons only.
+      actionButtons = [
+        Expanded(
+          child: TextButton(
+            onPressed: onSendNow,
+            style: firstPillStyle,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.forward, color: Colors.white, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  '$count message${count > 1 ? 's' : ''}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.none,
-                  ),
-                ),
+                const Flexible(child: Text('SEND NOW', overflow: TextOverflow.ellipsis)),
+                const SizedBox(width: 4),
+                _AnimatedCountBadge(count: count),
               ],
             ),
           ),
         ),
-        child: forwardButton,
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextButton(
+            onPressed: onDelete,
+            style: lastPillStyle,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Flexible(child: Text('DELETE', overflow: TextOverflow.ellipsis)),
+                const SizedBox(width: 4),
+                _AnimatedCountBadge(count: count),
+              ],
+            ),
+          ),
+        ),
+      ];
+    } else {
+      // Normal selection: FORWARD + COPY + DELETE — three buttons.
+      Widget forwardButton = TextButton(
+        onPressed: onForward,
+        style: firstPillStyle,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Flexible(child: Text('FORWARD', overflow: TextOverflow.ellipsis)),
+            const SizedBox(width: 4),
+            _AnimatedCountBadge(count: count),
+          ],
+        ),
       );
+
+      // Wrap forward button in Draggable if drag data is available.
+      if (forwardDragData != null) {
+        forwardButton = Draggable<ForwardDragData>(
+          data: forwardDragData,
+          dragAnchorStrategy: pointerDragAnchorStrategy,
+          feedback: Material(
+            elevation: 4,
+            borderRadius: const BorderRadius.only(
+              topLeft: largeR, bottomLeft: largeR,
+              topRight: smallR, bottomRight: smallR,
+            ),
+            color: isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.forward, color: Colors.white, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$count message${count > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.none,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          child: forwardButton,
+        );
+      }
+
+      actionButtons = [
+        Expanded(child: forwardButton),
+        const SizedBox(width: 10), // topBarActionSkip
+        Expanded(
+          child: TextButton(
+            onPressed: onCopy,
+            style: middlePillStyle,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Flexible(child: Text('COPY', overflow: TextOverflow.ellipsis)),
+                const SizedBox(width: 4),
+                _AnimatedCountBadge(count: count),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextButton(
+            onPressed: onDelete,
+            style: lastPillStyle,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Flexible(child: Text('DELETE', overflow: TextOverflow.ellipsis)),
+                const SizedBox(width: 4),
+                _AnimatedCountBadge(count: count),
+              ],
+            ),
+          ),
+        ),
+      ];
     }
 
     return Container(
@@ -2470,37 +2567,7 @@ class _SelectionBar extends StatelessWidget {
         children: [
           const SizedBox(width: 8),
           // Spec §4.7: action buttons share equal width via setFullWidth.
-          Expanded(child: forwardButton),
-          const SizedBox(width: 10), // topBarActionSkip
-          Expanded(
-            child: TextButton(
-              onPressed: onCopy,
-              style: middlePillStyle,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Flexible(child: Text('COPY', overflow: TextOverflow.ellipsis)),
-                  const SizedBox(width: 4),
-                  _AnimatedCountBadge(count: count),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextButton(
-              onPressed: onDelete,
-              style: lastPillStyle,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Flexible(child: Text('DELETE', overflow: TextOverflow.ellipsis)),
-                  const SizedBox(width: 4),
-                  _AnimatedCountBadge(count: count),
-                ],
-              ),
-            ),
-          ),
+          ...actionButtons,
           const SizedBox(width: 10),
           // Spec §4.7: Cancel/clear button — RoundButton(defaultLightButton),
           // width: -18px (auto-width with 18px horizontal padding),

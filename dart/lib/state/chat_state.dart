@@ -447,6 +447,14 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> sendScheduledNow(List<String> msgIds) async {
+    final chat = _activeChat;
+    if (chat == null) return;
+    await _engine.sendScheduledNow(chat.accountId, chat.chatId, msgIds);
+    _messages.removeWhere((m) => msgIds.contains(m.msgId));
+    notifyListeners();
+  }
+
   /// Pin or unpin a message in the active chat. Optimistically flips
   /// `isPinned` on the cached message so the context menu label and any
   /// pin-dependent UI update immediately, without waiting for the engine

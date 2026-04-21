@@ -519,3 +519,33 @@ func (e *Engine) CreateChannel(accountID, name, description string) (*ChatInfo, 
 		MemberCount: dialog.MemberCount,
 	}, nil
 }
+
+// SendScheduledNow immediately sends previously scheduled messages.
+// Only supported by cores that implement the scheduledSender interface
+// (e.g. Telegram with CapScheduled capability).
+func (e *Engine) SendScheduledNow(accountID, chatID string, msgIDs []string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	type scheduledSender interface {
+		SendScheduledNow(chatID string, msgIDs []int) error
+	}
+	ss, ok := acc.Core.(scheduledSender)
+	if !ok {
+		return fmt.Errorf("core for account %q does not support scheduled messages", accountID)
+	}
+
+	// Convert string IDs to ints for the core method.
+	intIDs := make([]int, 0, len(msgIDs))
+	for _, id := range msgIDs {
+		n, err := strconv.Atoi(id)
+		if err != nil {
+			return fmt.Errorf("invalid message ID %q: %w", id, err)
+		}
+		intIDs = append(intIDs, n)
+	}
+
+	return ss.SendScheduledNow(chatID, intIDs)
+}

@@ -669,3 +669,13 @@ message EngineJoinGroupCallRequest {
 message EngineJoinGroupCallResponse {
   string call_id = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Scheduled Messages
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineSendScheduledNowRequest {
+  string account_id       = 1;
+  string chat_id          = 2;
+  repeated string msg_ids = 3;
+}

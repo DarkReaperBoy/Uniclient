@@ -229,7 +229,6 @@
 - [x] Cancel/close button — DONE
 - [x] Count display ("X selected") — DONE
 - [x] Forward drag-and-drop integration — DONE in `_SelectionBar`
-- [ ] "Send Now" button for scheduled messages — spec §4.7
 # GUI Checklist: §5 Message List & Bubbles, §6 Media Message Types, §7 Compose Area
 
 <!-- Dart files for §5: dart/lib/ui/message_bubble.dart, dart/lib/ui/chat_view.dart (_MessageList, _DateSeparator, _ScrollToBottomFab) -->
