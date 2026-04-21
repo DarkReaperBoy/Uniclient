@@ -6,6 +6,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
 import '../models/engine_models.dart';
 import '../theme/theme.dart';
@@ -1278,20 +1280,21 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
     final message = widget.message;
     final theme = widget.theme;
 
-    // Calculate display size (max 430x430, min 100px, preserve aspect ratio — spec §6).
-    double displayWidth = 430;
-    double displayHeight = 287;
+    // Calculate display size (max 430x430 for photos/videos, 320px for GIFs — spec §6).
+    final double maxSize = message.mediaType == 7 ? 320 : 430;
+    double displayWidth = maxSize;
+    double displayHeight = maxSize * 287 / 430;
     if (message.mediaWidth > 0 && message.mediaHeight > 0) {
       final aspect = message.mediaWidth / message.mediaHeight;
       if (aspect > 1) {
-        displayWidth = 430;
-        displayHeight = 430 / aspect;
+        displayWidth = maxSize;
+        displayHeight = maxSize / aspect;
       } else {
-        displayHeight = 430;
-        displayWidth = 430 * aspect;
+        displayHeight = maxSize;
+        displayWidth = maxSize * aspect;
       }
-      displayWidth = displayWidth.clamp(100, 430);
-      displayHeight = displayHeight.clamp(100, 430);
+      displayWidth = displayWidth.clamp(100, maxSize);
+      displayHeight = displayHeight.clamp(100, maxSize);
     }
 
     // Sticker: smaller, no background.
@@ -1350,9 +1353,18 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
               else
                 _placeholder(displayWidth, displayHeight),
 
-              // --- Tier 1: Full image (crossfades in over thumbnail) ---
+              // --- Tier 1: Full image/video (crossfades in over thumbnail) ---
+              // GIFs use inline video player for auto-play + loop.
               // Hidden while spoiler is covering the media.
-              if (hasFullImage && !hasSpoiler)
+              if (hasFullImage && !hasSpoiler && message.mediaType == 7)
+                Positioned.fill(
+                  child: _GifPlayer(
+                    filePath: message.mediaLocalPath,
+                    width: displayWidth,
+                    height: displayHeight,
+                  ),
+                )
+              else if (hasFullImage && !hasSpoiler)
                 AnimatedBuilder(
                   animation: _fadeAnimation,
                   builder: (_, child) => Opacity(
@@ -1365,12 +1377,12 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                     height: displayHeight,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
-                        const SizedBox.shrink(), // Fall back to thumb layer.
+                        const SizedBox.shrink(),
                   ),
                 ),
 
-              // Video/GIF overlay: play button + duration.
-              if (message.mediaType == 2 || message.mediaType == 7)
+              // Video overlay: centered play button (not for GIFs — they auto-play).
+              if (message.mediaType == 2)
                 Positioned.fill(
                   child: Center(
                     child: Container(
@@ -1380,10 +1392,31 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                         color: Colors.black.withValues(alpha: 0.5),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        message.mediaType == 7 ? Icons.gif : Icons.play_arrow,
+                      child: const Icon(
+                        Icons.play_arrow,
                         color: Colors.white,
                         size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+              // §6 GIF corner badge — top-right "GIF" label.
+              if (message.mediaType == 7)
+                Positioned(
+                  top: 4,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'GIF',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
@@ -1556,6 +1589,74 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
     );
   }
 
+}
+
+class _GifPlayer extends StatefulWidget {
+  final String filePath;
+  final double width;
+  final double height;
+
+  const _GifPlayer({
+    required this.filePath,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<_GifPlayer> createState() => _GifPlayerState();
+}
+
+class _GifPlayerState extends State<_GifPlayer> {
+  Player? _player;
+  VideoController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  void _initPlayer() {
+    final player = Player();
+    _player = player;
+    _controller = VideoController(player);
+    player.setVolume(0);
+    player.setPlaylistMode(PlaylistMode.loop);
+    player.open(Media(widget.filePath));
+  }
+
+  @override
+  void didUpdateWidget(_GifPlayer old) {
+    super.didUpdateWidget(old);
+    if (old.filePath != widget.filePath) {
+      _dispose();
+      _initPlayer();
+    }
+  }
+
+  void _dispose() {
+    _player?.dispose();
+    _player = null;
+    _controller = null;
+  }
+
+  @override
+  void dispose() {
+    _dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null) return const SizedBox.shrink();
+    return Video(
+      controller: _controller!,
+      width: widget.width,
+      height: widget.height,
+      fit: BoxFit.cover,
+      controls: NoVideoControls,
+    );
+  }
 }
 
 /// Voice message indicator. No placeholder waveform — the real waveform bytes

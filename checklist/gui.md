@@ -296,7 +296,6 @@
 ### §6.5 GIFs
 
 - [x] GIF indicator with GIF icon — spec §6, DONE in message_bubble.dart (GIF icon shown in play overlay)
-- [ ] GIF max width 320px (not 300px), auto-play and loop, no audio, corner badge "GIF" text — spec §6. Current: static thumbnail with gif icon, no autoplay
 - [ ] GIF max inline area 1920×1080px — spec §6
 
 ### §6.6 Stickers
