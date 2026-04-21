@@ -47,6 +47,21 @@ class AppColors {
   // msgInBgSelected night / day
   static const bubbleReceivedSelected = Color(0xFF2e70a5);
   static const bubbleReceivedSelectedLight = Color(0xFFc2dcf2);
+
+  // Bubble shadows — spec §5: 2px bottom shadow strip
+  // Format: #RRGGBBAA in spec → 0xAARRGGBB in Flutter
+  // msgOutShadow day / night (night disabled: alpha 00)
+  static const bubbleSentShadow = Color(0x1d3ac346);
+  static const bubbleSentShadowNight = Color(0x00000000);
+  // msgOutShadowSelected day / night
+  static const bubbleSentShadowSelected = Color(0x2237a78d);
+  static const bubbleSentShadowSelectedNight = Color(0x00366ea6);
+  // msgInShadow day / night (night disabled: alpha 00)
+  static const bubbleReceivedShadow = Color(0x29748ea2);
+  static const bubbleReceivedShadowNight = Color(0x00748ea2);
+  // msgInShadowSelected day / night
+  static const bubbleReceivedShadowSelected = Color(0x29548dbb);
+  static const bubbleReceivedShadowSelectedNight = Color(0x00538ebb);
 }
 
 /// Sizing constants.

@@ -64,6 +64,17 @@ class MessageBubble extends StatelessWidget {
                 ? (isSelected ? AppColors.bubbleReceivedSelected : AppColors.bubbleReceived)
                 : (isSelected ? AppColors.bubbleReceivedSelectedLight : AppColors.bubbleReceivedLight));
 
+    // Spec §5: 2px bottom shadow strip. Night theme alpha=00 (disabled).
+    final shadowColor = isStickerOnly
+        ? Colors.transparent
+        : isOutgoing
+            ? (isDark
+                ? (isSelected ? AppColors.bubbleSentShadowSelectedNight : AppColors.bubbleSentShadowNight)
+                : (isSelected ? AppColors.bubbleSentShadowSelected : AppColors.bubbleSentShadow))
+            : (isDark
+                ? (isSelected ? AppColors.bubbleReceivedShadowSelectedNight : AppColors.bubbleReceivedShadowNight)
+                : (isSelected ? AppColors.bubbleReceivedShadowSelected : AppColors.bubbleReceivedShadow));
+
     final alignment = isOutgoing
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start;
@@ -122,6 +133,14 @@ class MessageBubble extends StatelessWidget {
                           bottomLeft: Radius.circular(isOutgoing ? bottomOtherSide : bottomSenderSide),
                           bottomRight: Radius.circular(isOutgoing ? bottomSenderSide : bottomOtherSide),
                         ),
+                  boxShadow: isStickerOnly
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: shadowColor,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
