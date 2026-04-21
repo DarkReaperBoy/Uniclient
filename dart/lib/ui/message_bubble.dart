@@ -1395,7 +1395,7 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                 )
               else if (hasFullImage && !hasSpoiler && _isWebmSticker(message))
                 Positioned.fill(
-                  child: _GifPlayer(
+                  child: _WebmStickerPlayer(
                     filePath: message.mediaLocalPath,
                     width: displayWidth,
                     height: displayHeight,
@@ -1696,6 +1696,33 @@ class _GifPlayerState extends State<_GifPlayer> {
   }
 }
 
+class _StickerCache {
+  static const _maxCompositions = 30;
+  static final _compositions = <String, LottieComposition>{};
+  static final _progress = <String, double>{};
+  static final _webmPositions = <String, Duration>{};
+
+  static LottieComposition? getComposition(String path) {
+    final comp = _compositions.remove(path);
+    if (comp != null) _compositions[path] = comp;
+    return comp;
+  }
+
+  static void putComposition(String path, LottieComposition comp) {
+    _compositions.remove(path);
+    _compositions[path] = comp;
+    while (_compositions.length > _maxCompositions) {
+      _compositions.remove(_compositions.keys.first);
+    }
+  }
+
+  static double? getProgress(String path) => _progress[path];
+  static void putProgress(String path, double value) => _progress[path] = value;
+
+  static Duration? getWebmPosition(String path) => _webmPositions[path];
+  static void putWebmPosition(String path, Duration pos) => _webmPositions[path] = pos;
+}
+
 class _TgsStickerPlayer extends StatefulWidget {
   final String filePath;
   final double width;
@@ -1711,8 +1738,10 @@ class _TgsStickerPlayer extends StatefulWidget {
   State<_TgsStickerPlayer> createState() => _TgsStickerPlayerState();
 }
 
-class _TgsStickerPlayerState extends State<_TgsStickerPlayer> {
+class _TgsStickerPlayerState extends State<_TgsStickerPlayer>
+    with SingleTickerProviderStateMixin {
   LottieComposition? _composition;
+  AnimationController? _animController;
 
   @override
   void initState() {
@@ -1723,26 +1752,146 @@ class _TgsStickerPlayerState extends State<_TgsStickerPlayer> {
   @override
   void didUpdateWidget(_TgsStickerPlayer old) {
     super.didUpdateWidget(old);
-    if (old.filePath != widget.filePath) _loadTgs();
+    if (old.filePath != widget.filePath) {
+      _saveProgress();
+      _animController?.dispose();
+      _animController = null;
+      _composition = null;
+      _loadTgs();
+    }
   }
 
   Future<void> _loadTgs() async {
+    final cached = _StickerCache.getComposition(widget.filePath);
+    if (cached != null) {
+      if (mounted) _setupAnimation(cached);
+      return;
+    }
     try {
       final compressed = await File(widget.filePath).readAsBytes();
       final decompressed = gzip.decode(compressed);
-      final composition = await LottieComposition.fromBytes(Uint8List.fromList(decompressed));
-      if (mounted) setState(() => _composition = composition);
+      final composition = await LottieComposition.fromBytes(
+        Uint8List.fromList(decompressed),
+      );
+      _StickerCache.putComposition(widget.filePath, composition);
+      if (mounted) _setupAnimation(composition);
     } catch (_) {}
+  }
+
+  void _setupAnimation(LottieComposition composition) {
+    setState(() {
+      _composition = composition;
+      _animController = AnimationController(
+        vsync: this,
+        duration: composition.duration,
+      );
+      final progress = _StickerCache.getProgress(widget.filePath);
+      if (progress != null) _animController!.value = progress;
+      _animController!.repeat();
+    });
+  }
+
+  void _saveProgress() {
+    if (_animController != null) {
+      _StickerCache.putProgress(widget.filePath, _animController!.value);
+    }
+  }
+
+  @override
+  void dispose() {
+    _saveProgress();
+    _animController?.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_composition == null) return const SizedBox.shrink();
+    if (_composition == null || _animController == null) {
+      return const SizedBox.shrink();
+    }
     return Lottie(
       composition: _composition!,
+      controller: _animController,
       width: widget.width,
       height: widget.height,
       fit: BoxFit.contain,
+    );
+  }
+}
+
+class _WebmStickerPlayer extends StatefulWidget {
+  final String filePath;
+  final double width;
+  final double height;
+
+  const _WebmStickerPlayer({
+    required this.filePath,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<_WebmStickerPlayer> createState() => _WebmStickerPlayerState();
+}
+
+class _WebmStickerPlayerState extends State<_WebmStickerPlayer> {
+  Player? _player;
+  VideoController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPlayer();
+  }
+
+  void _initPlayer() {
+    final player = Player();
+    _player = player;
+    _controller = VideoController(player);
+    player.setVolume(0);
+    player.setPlaylistMode(PlaylistMode.loop);
+    player.open(Media(widget.filePath));
+    final cachedPos = _StickerCache.getWebmPosition(widget.filePath);
+    if (cachedPos != null && cachedPos > Duration.zero) {
+      player.stream.playing.first.then((_) {
+        if (_player == player) player.seek(cachedPos);
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(_WebmStickerPlayer old) {
+    super.didUpdateWidget(old);
+    if (old.filePath != widget.filePath) {
+      _saveAndDispose();
+      _initPlayer();
+    }
+  }
+
+  void _saveAndDispose() {
+    if (_player != null) {
+      _StickerCache.putWebmPosition(widget.filePath, _player!.state.position);
+      _player!.dispose();
+    }
+    _player = null;
+    _controller = null;
+  }
+
+  @override
+  void dispose() {
+    _saveAndDispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_controller == null) return const SizedBox.shrink();
+    return Video(
+      controller: _controller!,
+      width: widget.width,
+      height: widget.height,
+      fit: BoxFit.cover,
+      controls: NoVideoControls,
     );
   }
 }
