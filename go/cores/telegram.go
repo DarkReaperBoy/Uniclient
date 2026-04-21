@@ -9689,6 +9689,12 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
 			}
+			if md.Spoiler {
+				if m.Extra == nil {
+					m.Extra = make(map[string]interface{})
+				}
+				m.Extra["media_spoiler"] = true
+			}
 		case *tg.MessageMediaPhoto:
 			if p, ok := md.Photo.(*tg.Photo); ok {
 				ref := FileRef{
@@ -9709,6 +9715,12 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				ref.ThumbB64 = extractStrippedThumbB64(p.Sizes)
 				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(p.ID, p.AccessHash, p.FileReference)
+			}
+			if md.Spoiler {
+				if m.Extra == nil {
+					m.Extra = make(map[string]interface{})
+				}
+				m.Extra["media_spoiler"] = true
 			}
 		}
 	}

@@ -953,6 +953,7 @@ class EngineService {
       topicName: _topicFieldFromRaw(contentRaw, 'topic_name') ?? '',
       topicColorId: _topicColorFromRaw(contentRaw),
       viaBotName: _topicFieldFromRaw(contentRaw, 'via_bot_name') ?? '',
+      mediaSpoiler: _boolExtraFromRaw(contentRaw, 'media_spoiler'),
       views: _intFieldFromRaw(contentRaw, 'views'),
       forwards: _intFieldFromRaw(contentRaw, 'forwards'),
     );
@@ -1007,6 +1008,19 @@ class EngineService {
       return 0;
     } catch (_) {
       return 0;
+    }
+  }
+
+  static bool _boolExtraFromRaw(String contentRaw, String key) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return false;
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return false;
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return false;
+      return extra[key] == true;
+    } catch (_) {
+      return false;
     }
   }
 

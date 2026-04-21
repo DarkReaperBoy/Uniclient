@@ -330,6 +330,9 @@ class CachedMessage {
   // Via-bot label (populated from contentRaw extra fields).
   final String viaBotName; // e.g. "@gif" — inline bot that generated this message
 
+  // Media spoiler flag (photo/video/GIF marked with spoiler overlay).
+  final bool mediaSpoiler;
+
   // Channel post metadata (extracted from contentRaw).
   final int views;    // view count (channel posts)
   final int forwards; // forward/share count (channel posts)
@@ -371,6 +374,7 @@ class CachedMessage {
     this.topicName = '',
     this.topicColorId = 0,
     this.viaBotName = '',
+    this.mediaSpoiler = false,
     this.views = 0,
     this.forwards = 0,
   });
@@ -407,6 +411,7 @@ class CachedMessage {
     mediaHeight: j['media_height'] as int? ?? 0,
     mediaDuration: j['media_duration'] as int? ?? 0,
     mediaDownloadState: j['media_download_state'] as int? ?? 0,
+    mediaSpoiler: j['media_spoiler'] as bool? ?? false,
     reactions: (j['reactions'] as List<dynamic>?)
         ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
         .toList() ?? const [],
@@ -466,6 +471,7 @@ class CachedMessage {
     int? mediaDownloadState,
     List<MessageReaction>? reactions,
     String? viaBotName,
+    bool? mediaSpoiler,
     int? views,
     int? forwards,
   }) => CachedMessage(
@@ -505,6 +511,7 @@ class CachedMessage {
     topicName: topicName,
     topicColorId: topicColorId,
     viaBotName: viaBotName ?? this.viaBotName,
+    mediaSpoiler: mediaSpoiler ?? this.mediaSpoiler,
     views: views ?? this.views,
     forwards: forwards ?? this.forwards,
   );

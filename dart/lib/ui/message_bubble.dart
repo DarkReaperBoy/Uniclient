@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -742,6 +743,233 @@ class _MediaIndicator extends StatelessWidget {
       message.mediaType == 7;   // gif
 }
 
+// ── Media Spoiler Particle System (spec §6.2) ──
+// 3000 particles per 128px canvas, 5 shapes, 60 frames at 33ms,
+// 1.5–2px size, 10–20px speed, 300ms fade in/out, α=32/255 darkening.
+
+class _SpoilerParticle {
+  double x, y, vx, vy, size;
+  int birthFrame, deathFrame, shape;
+  _SpoilerParticle(this.x, this.y, this.vx, this.vy, this.size,
+      this.birthFrame, this.deathFrame, this.shape);
+}
+
+class _SpoilerParticleData {
+  final List<_SpoilerParticle> particles;
+  final double tileSize;
+  static const int frameCount = 60;
+  static const int fadeDurationFrames = 9; // 300ms / 33ms
+
+  _SpoilerParticleData(this.particles, this.tileSize);
+
+  static _SpoilerParticleData generate(int count, double tileSize) {
+    final rng = math.Random(42);
+    final particles = List.generate(count, (_) {
+      final birthFrame = rng.nextInt(frameCount);
+      final lifetime = fadeDurationFrames * 2; // fadeIn + fadeOut, shownDuration=0
+      return _SpoilerParticle(
+        rng.nextDouble() * tileSize,
+        rng.nextDouble() * tileSize,
+        (rng.nextDouble() * 10 + 10) * (rng.nextBool() ? 1 : -1),
+        (rng.nextDouble() * 10 + 10) * (rng.nextBool() ? 1 : -1),
+        1.5 + rng.nextDouble() * 0.5,
+        birthFrame,
+        (birthFrame + lifetime) % frameCount,
+        rng.nextInt(5),
+      );
+    });
+    return _SpoilerParticleData(particles, tileSize);
+  }
+
+  double particleAlpha(int frame, _SpoilerParticle p) {
+    int age = (frame - p.birthFrame) % frameCount;
+    if (age < 0) age += frameCount;
+    final lifetime = fadeDurationFrames * 2;
+    if (age >= lifetime) return 0;
+    if (age < fadeDurationFrames) return age / fadeDurationFrames;
+    return 1.0 - (age - fadeDurationFrames) / fadeDurationFrames;
+  }
+
+  Offset particlePos(int frame, _SpoilerParticle p) {
+    int age = (frame - p.birthFrame) % frameCount;
+    if (age < 0) age += frameCount;
+    double x = (p.x + p.vx * age * 0.15) % tileSize;
+    double y = (p.y + p.vy * age * 0.15) % tileSize;
+    if (x < 0) x += tileSize;
+    if (y < 0) y += tileSize;
+    return Offset(x, y);
+  }
+}
+
+class _SpoilerPainter extends CustomPainter {
+  final _SpoilerParticleData data;
+  final int frame;
+  final double revealProgress;
+
+  _SpoilerPainter({
+    required this.data,
+    required this.frame,
+    this.revealProgress = 0.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (revealProgress >= 1.0) return;
+    final opacity = 1.0 - revealProgress;
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
+    // α=32/255 darkening layer
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Color.fromRGBO(0, 0, 0, (32 / 255) * opacity),
+    );
+
+    final paint = Paint()..style = PaintingStyle.fill;
+    final tile = data.tileSize;
+    final tilesX = (size.width / tile).ceil() + 1;
+    final tilesY = (size.height / tile).ceil() + 1;
+
+    for (int ty = 0; ty < tilesY; ty++) {
+      for (int tx = 0; tx < tilesX; tx++) {
+        final ox = tx * tile;
+        final oy = ty * tile;
+        for (final p in data.particles) {
+          final a = data.particleAlpha(frame, p);
+          if (a <= 0) continue;
+          final pos = data.particlePos(frame, p);
+          final px = ox + pos.dx;
+          final py = oy + pos.dy;
+          if (px < -2 || px > size.width + 2 || py < -2 || py > size.height + 2) continue;
+          paint.color = Color.fromRGBO(255, 255, 255, a * opacity * 0.85);
+          switch (p.shape) {
+            case 0:
+              canvas.drawCircle(Offset(px, py), p.size, paint);
+            case 1:
+              canvas.drawRect(Rect.fromCenter(center: Offset(px, py), width: p.size * 1.8, height: p.size * 1.8), paint);
+            case 2:
+              canvas.drawRRect(
+                RRect.fromRectAndRadius(
+                  Rect.fromCenter(center: Offset(px, py), width: p.size * 2, height: p.size),
+                  Radius.circular(p.size * 0.5),
+                ),
+                paint,
+              );
+            case 3:
+              canvas.drawCircle(Offset(px, py), p.size * 0.8, paint);
+            default:
+              canvas.drawRRect(
+                RRect.fromRectAndRadius(
+                  Rect.fromCenter(center: Offset(px, py), width: p.size, height: p.size * 2),
+                  Radius.circular(p.size * 0.5),
+                ),
+                paint,
+              );
+          }
+        }
+      }
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_SpoilerPainter old) =>
+      old.frame != frame || old.revealProgress != revealProgress;
+}
+
+class _MediaSpoilerOverlay extends StatefulWidget {
+  final double width;
+  final double height;
+  final bool revealed;
+  final VoidCallback onReveal;
+
+  const _MediaSpoilerOverlay({
+    required this.width,
+    required this.height,
+    required this.revealed,
+    required this.onReveal,
+  });
+
+  @override
+  State<_MediaSpoilerOverlay> createState() => _MediaSpoilerOverlayState();
+}
+
+class _MediaSpoilerOverlayState extends State<_MediaSpoilerOverlay>
+    with TickerProviderStateMixin {
+  static final _SpoilerParticleData _sharedParticles =
+      _SpoilerParticleData.generate(3000, 128.0);
+
+  late final AnimationController _animController;
+  late final AnimationController _revealController;
+  int _currentFrame = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1980),
+    )..repeat();
+    _animController.addListener(_onTick);
+
+    _revealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    if (widget.revealed) {
+      _revealController.value = 1.0;
+      _animController.stop();
+    }
+  }
+
+  void _onTick() {
+    final f = (_animController.value * 60).floor() % 60;
+    if (f != _currentFrame) {
+      setState(() => _currentFrame = f);
+    }
+  }
+
+  @override
+  void didUpdateWidget(_MediaSpoilerOverlay old) {
+    super.didUpdateWidget(old);
+    if (widget.revealed && !old.revealed) {
+      _revealController.forward().then((_) {
+        if (mounted) _animController.stop();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    _revealController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.revealed ? null : widget.onReveal,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedBuilder(
+        animation: _revealController,
+        builder: (_, __) {
+          if (_revealController.value >= 1.0) return const SizedBox.shrink();
+          return CustomPaint(
+            painter: _SpoilerPainter(
+              data: _sharedParticles,
+              frame: _currentFrame,
+              revealProgress: Curves.easeInOut.transform(_revealController.value),
+            ),
+            size: Size(widget.width, widget.height),
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Renders photos, videos, stickers, GIFs as visual thumbnails.
 /// Spec §6: Four-tier progressive loading: full → thumbnail → small → blurred inline placeholder.
 /// Tiers (highest to lowest quality):
@@ -779,11 +1007,10 @@ class _VisualMedia extends StatefulWidget {
 class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderStateMixin {
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
-  // Track whether we've seen the full image appear (for crossfade).
   bool _fullImageLoaded = false;
-  // Cache decoded thumb bytes to avoid re-decoding on every build.
   Uint8List? _thumbBytes;
   String _lastThumbB64 = '';
+  bool _spoilerRevealed = false;
 
   @override
   void initState() {
@@ -864,9 +1091,12 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
 
     final hasFullImage = message.mediaLocalPath.isNotEmpty;
     final hasThumb = _thumbBytes != null;
+    final hasSpoiler = message.mediaSpoiler && !_spoilerRevealed;
 
     // §6/§20: tap opens media viewer for photo/video/gif (not sticker/videonote).
-    final canOpenViewer = (message.mediaType == 1 ||
+    // Don't open viewer when spoiler is active — tap reveals spoiler instead.
+    final canOpenViewer = !hasSpoiler &&
+        (message.mediaType == 1 ||
             message.mediaType == 2 ||
             message.mediaType == 7) &&
         message.mediaLocalPath.isNotEmpty;
@@ -890,11 +1120,12 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
             fit: StackFit.expand,
             children: [
               // --- Tier 3/4: Blurred thumbnail or icon placeholder (base layer) ---
+              // When spoiler is active, always keep thumb blurred regardless of full image.
               if (hasThumb)
                 ImageFiltered(
                   imageFilter: ui.ImageFilter.blur(
-                    sigmaX: hasFullImage ? 0 : 10,
-                    sigmaY: hasFullImage ? 0 : 10,
+                    sigmaX: (hasFullImage && !hasSpoiler) ? 0 : 10,
+                    sigmaY: (hasFullImage && !hasSpoiler) ? 0 : 10,
                     tileMode: TileMode.decal,
                   ),
                   child: Image.memory(
@@ -909,7 +1140,8 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                 _placeholder(displayWidth, displayHeight),
 
               // --- Tier 1: Full image (crossfades in over thumbnail) ---
-              if (hasFullImage)
+              // Hidden while spoiler is covering the media.
+              if (hasFullImage && !hasSpoiler)
                 AnimatedBuilder(
                   animation: _fadeAnimation,
                   builder: (_, child) => Opacity(
@@ -1052,6 +1284,19 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                         ],
                       ],
                     ),
+                  ),
+                ),
+              // §6.2: Media spoiler particle overlay
+              if (message.mediaSpoiler)
+                Positioned.fill(
+                  child: _MediaSpoilerOverlay(
+                    width: displayWidth,
+                    height: displayHeight,
+                    revealed: _spoilerRevealed,
+                    onReveal: () {
+                      setState(() => _spoilerRevealed = true);
+                      _fadeController.forward(from: 0.0);
+                    },
                   ),
                 ),
             ],

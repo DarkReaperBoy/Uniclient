@@ -287,8 +287,6 @@
 
 ### §6.2 Spoiler Overlay (photos, GIFs, videos)
 
-- [ ] Per-media spoiler animation: 3000 particles / 128px canvas, 5 shapes, 60 frames at 33ms, 1.5–2px size, 10–20px speed, 300ms fade in/out, composited with bubble rounding mask, α=32/255 darkening — spec §6. Not implemented
-- [ ] Tap-to-reveal: 200ms fadeWrapDuration sineInOut, revealed state persists for session — spec §6. Not implemented
 - [ ] Text spoiler descriptor: 9000 particles, 4–8 speed, 1.5–2px size, 200ms fade — spec §6. Not implemented
 
 ### §6.3 Photo Albums (Grouped Media)
