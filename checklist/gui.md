@@ -262,7 +262,6 @@
 - [x] Forward header: "Forwarded from Name" — spec §5, DONE in message_bubble.dart
 - [x] Reply block: 2px left bar, clickable jump to original, sender name + preview — spec §5, DONE in message_bubble.dart (_ReplyPreview). Missing: 36px height spec, 10px gap from content
 - [x] Bottom info: timestamp + edited + delivery status (clock/single-check/double-check) — spec §5, DONE in message_bubble.dart
-- [ ] Bottom info: media-overlay variant with translucent bg (msgDateImgPadding 8/2, delta 4px from corner), inverted icon colors #ffffff — spec §5. Not implemented (media messages always use inline bottom info)
 - [ ] Views count + forwards count in bottom info — spec §5. Not implemented
 - [x] Edited indicator — spec §5, DONE in message_bubble.dart
 - [x] Reactions: InlineList of emoji pills below content — spec §5, DONE in message_bubble.dart (_ReactionList)

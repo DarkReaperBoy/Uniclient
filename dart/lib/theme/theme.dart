@@ -64,6 +64,10 @@ class AppColors {
   // historySendingInIconFg day / night (incoming sending clock)
   static const historySendingInIconFg = Color(0xFFa0adb5);
   static const historySendingInIconFgNight = Color(0xFF76838b);
+  // Media overlay (inverted) — spec §5: msgDateImgBg, *Inverted tokens
+  static const msgDateImgBg = Color(0x54000000); // #00000054 both themes
+  static const historyIconFgInverted = Color(0xFFffffff); // #ffffff both themes
+  static const historySendingInvertedIconFg = Color(0xC8ffffff); // #ffffffc8
 
   // Bubble shadows — spec §5: 2px bottom shadow strip
   // Format: #RRGGBBAA in spec → 0xAARRGGBB in Flutter

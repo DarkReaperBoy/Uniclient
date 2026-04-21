@@ -55,6 +55,14 @@ class MessageBubble extends StatelessWidget {
         message.replyPreview.isEmpty &&
         message.forwardFrom.isEmpty;
 
+    // Spec §5: media-only bubbles (photo/video/gif/videonote without caption)
+    // overlay the bottom info on the media with translucent bg + inverted colors.
+    final isMediaOnlyBubble = !isStickerOnly &&
+        message.hasMedia &&
+        (message.mediaType == 1 || message.mediaType == 2 ||
+         message.mediaType == 5 || message.mediaType == 7) &&
+        message.contentText.isEmpty;
+
     final bubbleColor = isStickerOnly
         ? Colors.transparent
         : isOutgoing
@@ -257,7 +265,13 @@ class MessageBubble extends StatelessWidget {
                       ),
                     // Media indicator.
                     if (message.hasMedia)
-                      _MediaIndicator(message: message, theme: theme),
+                      _MediaIndicator(
+                        message: message,
+                        theme: theme,
+                        showOverlayInfo: isMediaOnlyBubble,
+                        isOutgoing: isOutgoing,
+                        isDark: isDark,
+                      ),
                     // Reactions row — pill badges above the timestamp.
                     if (message.reactions.isNotEmpty) ...[
                       const SizedBox(height: 4),
@@ -269,27 +283,30 @@ class MessageBubble extends StatelessWidget {
                     ],
                     // Bottom info: time + edited + status.
                     // Spec §5: msgInDateFg / msgOutDateFg per theme.
-                    const SizedBox(height: 2),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Spacer(),
-                        if (message.isEdited)
-                          Padding(
-                            padding: const EdgeInsets.only(right: 4),
-                            child: Text('edited',
-                                style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
+                    // Skipped for media-only bubbles — overlay rendered by _VisualMedia instead.
+                    if (!isMediaOnlyBubble) ...[
+                      const SizedBox(height: 2),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Spacer(),
+                          if (message.isEdited)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Text('edited',
+                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
+                            ),
+                          Text(
+                            _formatTime(message.timestamp),
+                            style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
                           ),
-                        Text(
-                          _formatTime(message.timestamp),
-                          style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
-                        ),
-                        if (isOutgoing) ...[
-                          const SizedBox(width: 4),
-                          _StatusIcon(status: message.status, theme: theme, isOutgoing: true, isDark: isDark),
+                          if (isOutgoing) ...[
+                            const SizedBox(width: 4),
+                            _StatusIcon(status: message.status, theme: theme, isOutgoing: true, isDark: isDark),
+                          ],
                         ],
-                      ],
-                    ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -549,14 +566,29 @@ class _ReplyPreview extends StatelessWidget {
 class _MediaIndicator extends StatelessWidget {
   final CachedMessage message;
   final ThemeData theme;
+  final bool showOverlayInfo;
+  final bool isOutgoing;
+  final bool isDark;
 
-  const _MediaIndicator({required this.message, required this.theme});
+  const _MediaIndicator({
+    required this.message,
+    required this.theme,
+    this.showOverlayInfo = false,
+    this.isOutgoing = false,
+    this.isDark = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     // Image, video, sticker, GIF, video note — show visual preview.
     if (_isVisualMedia) {
-      return _VisualMedia(message: message, theme: theme);
+      return _VisualMedia(
+        message: message,
+        theme: theme,
+        showOverlayInfo: showOverlayInfo,
+        isOutgoing: isOutgoing,
+        isDark: isDark,
+      );
     }
     // Voice message — duration bar.
     if (message.mediaType == 4) {
@@ -582,8 +614,17 @@ class _MediaIndicator extends StatelessWidget {
 class _VisualMedia extends StatelessWidget {
   final CachedMessage message;
   final ThemeData theme;
+  final bool showOverlayInfo;
+  final bool isOutgoing;
+  final bool isDark;
 
-  const _VisualMedia({required this.message, required this.theme});
+  const _VisualMedia({
+    required this.message,
+    required this.theme,
+    this.showOverlayInfo = false,
+    this.isOutgoing = false,
+    this.isDark = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -692,6 +733,45 @@ class _VisualMedia extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(color: theme.colorScheme.primary, width: 2),
+                  ),
+                ),
+              ),
+            // Spec §5: media-overlay bottom info — translucent bg, white text/icons.
+            // msgDateImgPadding 8/2, msgDateImgDelta 4px from corner, msgDateImgBg #00000054.
+            if (showOverlayInfo)
+              Positioned(
+                bottom: 4, // msgDateImgDelta
+                right: 4,  // msgDateImgDelta
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), // msgDateImgPadding
+                  decoration: BoxDecoration(
+                    color: AppColors.msgDateImgBg,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (message.isEdited)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: Text('edited',
+                              style: TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
+                        ),
+                      Text(
+                        MessageBubble._formatTime(message.timestamp),
+                        style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted),
+                      ),
+                      if (isOutgoing) ...[
+                        const SizedBox(width: 4),
+                        _StatusIcon(
+                          status: message.status,
+                          theme: theme,
+                          isOutgoing: true,
+                          isDark: isDark,
+                          inverted: true,
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -933,23 +1013,35 @@ class _StatusIcon extends StatelessWidget {
   final ThemeData theme;
   final bool isOutgoing;
   final bool isDark;
+  final bool inverted;
 
-  const _StatusIcon({required this.status, required this.theme, required this.isOutgoing, required this.isDark});
+  const _StatusIcon({
+    required this.status,
+    required this.theme,
+    required this.isOutgoing,
+    required this.isDark,
+    this.inverted = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      MsgStatus.sending => isOutgoing
-          ? (isDark ? AppColors.historySendingOutIconFgNight : AppColors.historySendingOutIconFg)
-          : (isDark ? AppColors.historySendingInIconFgNight : AppColors.historySendingInIconFg),
-      MsgStatus.sent || MsgStatus.delivered || MsgStatus.read => isOutgoing
-          ? (isDark ? AppColors.historyOutIconFgNight : AppColors.historyOutIconFg)
-          : (isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg),
-      MsgStatus.failed => theme.colorScheme.error,
-      _ => isOutgoing
-          ? (isDark ? AppColors.historyOutIconFgNight : AppColors.historyOutIconFg)
-          : (isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg),
-    };
+    // Spec §5: media-overlay uses inverted (white) icon colors.
+    final color = inverted
+        ? (status == MsgStatus.sending
+            ? AppColors.historySendingInvertedIconFg
+            : AppColors.historyIconFgInverted)
+        : switch (status) {
+            MsgStatus.sending => isOutgoing
+                ? (isDark ? AppColors.historySendingOutIconFgNight : AppColors.historySendingOutIconFg)
+                : (isDark ? AppColors.historySendingInIconFgNight : AppColors.historySendingInIconFg),
+            MsgStatus.sent || MsgStatus.delivered || MsgStatus.read => isOutgoing
+                ? (isDark ? AppColors.historyOutIconFgNight : AppColors.historyOutIconFg)
+                : (isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg),
+            MsgStatus.failed => theme.colorScheme.error,
+            _ => isOutgoing
+                ? (isDark ? AppColors.historyOutIconFgNight : AppColors.historyOutIconFg)
+                : (isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg),
+          };
 
     return switch (status) {
       MsgStatus.sending => SizedBox(
