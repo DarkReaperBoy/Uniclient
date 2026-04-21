@@ -2620,6 +2620,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     $core.bool? isOutgoing,
     $core.String? senderRank,
     $core.int? senderColorId,
+    $core.bool? isService,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2712,6 +2713,9 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     if (senderColorId != null) {
       $result.senderColorId = senderColorId;
     }
+    if (isService != null) {
+      $result.isService = isService;
+    }
     return $result;
   }
   EngineCachedMessage._() : super();
@@ -2749,6 +2753,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     ..aOB(28, _omitFieldNames ? '' : 'isOutgoing')
     ..aOS(29, _omitFieldNames ? '' : 'senderRank')
     ..a<$core.int>(30, _omitFieldNames ? '' : 'senderColorId', $pb.PbFieldType.O3)
+    ..aOB(31, _omitFieldNames ? '' : 'isService')
     ..hasRequiredFields = false
   ;
 
@@ -3043,6 +3048,15 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
   $core.bool hasSenderColorId() => $_has(29);
   @$pb.TagNumber(30)
   void clearSenderColorId() => clearField(30);
+
+  @$pb.TagNumber(31)
+  $core.bool get isService => $_getBF(30);
+  @$pb.TagNumber(31)
+  set isService($core.bool v) { $_setBool(30, v); }
+  @$pb.TagNumber(31)
+  $core.bool hasIsService() => $_has(30);
+  @$pb.TagNumber(31)
+  void clearIsService() => clearField(31);
 }
 
 class EngineGetMessagesRequest extends $pb.GeneratedMessage {

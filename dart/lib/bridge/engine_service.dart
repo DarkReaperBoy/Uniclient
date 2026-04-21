@@ -936,6 +936,7 @@ class EngineService {
       forwardFrom: _safeStr(p.forwardFrom),
       isPinned: p.isPinned,
       isOutgoing: p.isOutgoing,
+      isService: p.isService,
       hasMedia: p.hasMedia,
       mediaType: p.mediaType,
       mediaFileName: _safeStr(p.mediaFileName),

@@ -2075,11 +2075,13 @@ class _MessageList extends StatelessWidget {
         // Same sender within 3 minutes → group together.
         final prevMsg = index > 0 ? messages[index - 1] : null;
         final nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
-        final isFirstInGroup = nextMsg == null ||
+        final isFirstInGroup = msg.isService || nextMsg == null ||
+            nextMsg.isService ||
             nextMsg.senderId != msg.senderId ||
             showDate ||
             (msg.timestamp - nextMsg.timestamp).abs() > 180000;
-        final isLastInGroup = prevMsg == null ||
+        final isLastInGroup = msg.isService || prevMsg == null ||
+            prevMsg.isService ||
             prevMsg.senderId != msg.senderId ||
             _differentDay(msg.timestamp, prevMsg.timestamp) ||
             (prevMsg.timestamp - msg.timestamp).abs() > 180000;
@@ -2093,6 +2095,17 @@ class _MessageList extends StatelessWidget {
         final showUnreadBar = openedUnreadCount > 0 &&
             openedUnreadCount <= messages.length &&
             index == openedUnreadCount - 1;
+
+        // Service messages render as centered pills, not bubbles.
+        if (msg.isService) {
+          return Column(
+            children: [
+              if (showDate) _DateSeparator(timestamp: msg.timestamp),
+              if (showUnreadBar) _UnreadBar(count: openedUnreadCount),
+              _ServiceMessage(text: msg.contentText),
+            ],
+          );
+        }
 
         return Column(
           children: [
@@ -2196,6 +2209,49 @@ class _DateSeparator extends StatelessWidget {
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
   ];
+}
+
+/// Spec §5 Service Messages: centered text in rounded pill.
+/// msgServiceBg: day #517c417f, night #213040d5. msgServiceFg: #ffffff.
+/// Padding: msgServicePadding 12/3/12/4. Margin: 10px above, 2px below.
+/// Font: 13px semibold. Radius: fully rounded pill (radius = height/2).
+class _ServiceMessage extends StatelessWidget {
+  final String text;
+
+  const _ServiceMessage({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // msgServiceBg: day #517c417f, night #213040d5
+    final bgColor = isDark ? const Color(0xD5213040) : const Color(0x7F517c41);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 2),
+      child: Center(
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.85,
+          ),
+          padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFFFFFFF),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// Spec §5 / §49.4: Full-width "N unread messages" divider band.

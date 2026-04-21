@@ -1589,6 +1589,47 @@ func protoSliceToCore_MumbleVoiceTargetEntry(vs []*pbcores.MumbleVoiceTargetEntr
 	return out
 }
 
+func coreToProto_PeerColorEntry(v cores.PeerColorEntry) *pbcores.PeerColorEntry {
+	out := &pbcores.PeerColorEntry{}
+	_ = goToProtoJSON(v, out)
+	return out
+}
+
+func coreToProto_PeerColorEntry_ptr(v *cores.PeerColorEntry) *pbcores.PeerColorEntry {
+	if v == nil { return nil }
+	return coreToProto_PeerColorEntry(*v)
+}
+
+func coreSliceToProto_PeerColorEntry(vs []cores.PeerColorEntry) []*pbcores.PeerColorEntry {
+	out := make([]*pbcores.PeerColorEntry, len(vs))
+	for i := range vs { out[i] = coreToProto_PeerColorEntry(vs[i]) }
+	return out
+}
+
+func corePtrSliceToProto_PeerColorEntry(vs []*cores.PeerColorEntry) []*pbcores.PeerColorEntry {
+	out := make([]*pbcores.PeerColorEntry, len(vs))
+	for i := range vs { out[i] = coreToProto_PeerColorEntry_ptr(vs[i]) }
+	return out
+}
+
+func protoToCore_PeerColorEntry(v *pbcores.PeerColorEntry) cores.PeerColorEntry {
+	out := cores.PeerColorEntry{}
+	_ = protoToGoJSON(v, &out)
+	return out
+}
+
+func protoToCorePtr_PeerColorEntry(v *pbcores.PeerColorEntry) *cores.PeerColorEntry {
+	if v == nil { return nil }
+	out := protoToCore_PeerColorEntry(v)
+	return &out
+}
+
+func protoSliceToCore_PeerColorEntry(vs []*pbcores.PeerColorEntry) []cores.PeerColorEntry {
+	out := make([]cores.PeerColorEntry, len(vs))
+	for i := range vs { out[i] = protoToCore_PeerColorEntry(vs[i]) }
+	return out
+}
+
 func coreToProto_RubikaAvatarList(v cores.RubikaAvatarList) *pbcores.RubikaAvatarList {
 	out := &pbcores.RubikaAvatarList{}
 	_ = goToProtoJSON(v, out)
@@ -19514,6 +19555,12 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		err := c.DemoteAdmin(req.ChatId, req.UserId)
 		if err != nil { return nil, err }
 		return nil, nil
+	case "DownloadChatAvatar":
+		var req pbcores.TelegramDownloadChatAvatarRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		err := c.DownloadChatAvatar(req.ChatId, req.DestPath)
+		if err != nil { return nil, err }
+		return nil, nil
 	case "EditChannelPhoto":
 		var req pbcores.TelegramEditChannelPhotoRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -19637,6 +19684,15 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		if err != nil { return nil, err }
 		resp := &pbcores.TelegramGetAdminLogResponse{
 			Result_1: int64(r1),
+		}
+		return proto.Marshal(resp)
+	case "GetAdminRanks":
+		var req pbcores.TelegramGetAdminRanksRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		r1, err := c.GetAdminRanks(req.ChatId)
+		if err != nil { return nil, err }
+		resp := &pbcores.TelegramGetAdminRanksResponse{
+			Result_1: r1,
 		}
 		return proto.Marshal(resp)
 	case "GetAllDrafts":
@@ -19824,6 +19880,16 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		if err != nil { return nil, err }
 		resp := &pbcores.TelegramGetFoldersResponse{
 			Result_1: FoldersToProto(r1),
+		}
+		return proto.Marshal(resp)
+	case "GetForumTopicInfo":
+		var req pbcores.TelegramGetForumTopicInfoRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		r1, r2, r3 := c.GetForumTopicInfo(req.ChatId, req.TopicId)
+		resp := &pbcores.TelegramGetForumTopicInfoResponse{
+			Title: r1,
+			IconColor: int64(r2),
+			Ok: r3,
 		}
 		return proto.Marshal(resp)
 	case "GetForumTopics":
@@ -20037,6 +20103,13 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 			Result_1: anyToBytes(r1),
 		}
 		return proto.Marshal(resp)
+	case "GetPeerColorPalette":
+		r1, err := c.GetPeerColorPalette()
+		if err != nil { return nil, err }
+		resp := &pbcores.TelegramGetPeerColorPaletteResponse{
+			Result_1: coreSliceToProto_PeerColorEntry(r1),
+		}
+		return proto.Marshal(resp)
 	case "GetPeerSettingsCheck":
 		var req pbcores.TelegramGetPeerSettingsCheckRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
@@ -20057,6 +20130,15 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 		if err != nil { return nil, err }
 		resp := &pbcores.TelegramGetPinnedDialogsResponse{
 			Result_1: DialogsToProto(r1),
+		}
+		return proto.Marshal(resp)
+	case "GetPinnedMessages":
+		var req pbcores.TelegramGetPinnedMessagesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
+		r1, err := c.GetPinnedMessages(req.ChatId)
+		if err != nil { return nil, err }
+		resp := &pbcores.TelegramGetPinnedMessagesResponse{
+			Result_1: MessagesToProto(r1),
 		}
 		return proto.Marshal(resp)
 	case "GetPinnedStories":

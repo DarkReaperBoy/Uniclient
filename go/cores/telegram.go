@@ -250,11 +250,21 @@ func (t *TelegramCore) initClient() {
 
 	// Register update dispatcher for new messages
 	dispatcher.OnNewMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewMessage) error {
-		msg, ok := u.Message.(*tg.Message)
-		if !ok {
+		var converted *Message
+		switch msg := u.Message.(type) {
+		case *tg.Message:
+			converted = t.convertMessage(msg)
+		case *tg.MessageService:
+			if _, ok := msg.Action.(*tg.MessageActionEmpty); ok {
+				return nil
+			}
+			if _, ok := msg.Action.(*tg.MessageActionHistoryClear); ok {
+				return nil
+			}
+			converted = t.convertServiceMessage(msg)
+		default:
 			return nil
 		}
-		converted := t.convertMessage(msg)
 		t.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   converted.ChatID,
@@ -292,11 +302,21 @@ func (t *TelegramCore) initClient() {
 
 	// Channel/supergroup message handlers (supergroups use different update types)
 	dispatcher.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewChannelMessage) error {
-		msg, ok := u.Message.(*tg.Message)
-		if !ok {
+		var converted *Message
+		switch msg := u.Message.(type) {
+		case *tg.Message:
+			converted = t.convertMessage(msg)
+		case *tg.MessageService:
+			if _, ok := msg.Action.(*tg.MessageActionEmpty); ok {
+				return nil
+			}
+			if _, ok := msg.Action.(*tg.MessageActionHistoryClear); ok {
+				return nil
+			}
+			converted = t.convertServiceMessage(msg)
+		default:
 			return nil
 		}
-		converted := t.convertMessage(msg)
 		t.fireUpdate(Update{
 			Type:     UpdateNewMessage,
 			ChatID:   converted.ChatID,
@@ -9712,6 +9732,160 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	return m
 }
 
+// convertServiceMessage converts a tg.MessageService to our Message struct.
+// Service messages are system events like "X joined the group", "X pinned a message", etc.
+func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
+	m := &Message{
+		ID:        strconv.Itoa(svc.ID),
+		ChatID:    peerToID(svc.PeerID),
+		Timestamp: time.Unix(int64(svc.Date), 0),
+		Status:    MessageStatusSent,
+		IsOutgoing: svc.Out,
+		IsService: true,
+		Platform:  tgPlatform,
+	}
+
+	if from := svc.FromID; from != nil {
+		m.SenderID = peerToID(from)
+		if peer, ok := from.(*tg.PeerUser); ok {
+			m.SenderName = t.getCachedUserName(peer.UserID)
+		}
+	}
+
+	m.Text = t.serviceActionText(m.SenderName, svc.Action)
+	return m
+}
+
+// serviceActionText generates human-readable text from a MessageActionClass.
+func (t *TelegramCore) serviceActionText(sender string, action tg.MessageActionClass) string {
+	if sender == "" {
+		sender = "Someone"
+	}
+	switch a := action.(type) {
+	case *tg.MessageActionChatCreate:
+		return sender + " created the group \u201c" + a.Title + "\u201d"
+	case *tg.MessageActionChatEditTitle:
+		return sender + " changed the group name to \u201c" + a.Title + "\u201d"
+	case *tg.MessageActionChatEditPhoto:
+		return sender + " updated the group photo"
+	case *tg.MessageActionChatDeletePhoto:
+		return sender + " removed the group photo"
+	case *tg.MessageActionChatAddUser:
+		names := make([]string, 0, len(a.Users))
+		for _, uid := range a.Users {
+			n := t.getCachedUserName(uid)
+			if n == "" {
+				n = "user"
+			}
+			names = append(names, n)
+		}
+		return sender + " added " + joinNames(names)
+	case *tg.MessageActionChatDeleteUser:
+		removed := t.getCachedUserName(a.UserID)
+		if removed == "" {
+			removed = "a user"
+		}
+		if removed == sender {
+			return sender + " left the group"
+		}
+		return sender + " removed " + removed
+	case *tg.MessageActionChatJoinedByLink:
+		return sender + " joined via invite link"
+	case *tg.MessageActionChatJoinedByRequest:
+		return sender + " was accepted into the group"
+	case *tg.MessageActionChannelCreate:
+		return "Channel \u201c" + a.Title + "\u201d was created"
+	case *tg.MessageActionPinMessage:
+		return sender + " pinned a message"
+	case *tg.MessageActionHistoryClear:
+		return "Chat history was cleared"
+	case *tg.MessageActionGameScore:
+		return sender + " scored " + strconv.Itoa(a.Score) + " in a game"
+	case *tg.MessageActionPhoneCall:
+		dur := ""
+		if a.Duration > 0 {
+			mins := a.Duration / 60
+			secs := a.Duration % 60
+			if mins > 0 {
+				dur = " (" + strconv.Itoa(mins) + "m " + strconv.Itoa(secs) + "s)"
+			} else {
+				dur = " (" + strconv.Itoa(secs) + "s)"
+			}
+		}
+		if a.Video {
+			return "Video call" + dur
+		}
+		return "Voice call" + dur
+	case *tg.MessageActionGroupCall:
+		if a.Duration > 0 {
+			mins := a.Duration / 60
+			secs := a.Duration % 60
+			return "Voice chat ended (" + strconv.Itoa(mins) + "m " + strconv.Itoa(secs) + "s)"
+		}
+		return sender + " started a voice chat"
+	case *tg.MessageActionContactSignUp:
+		return sender + " joined Telegram"
+	case *tg.MessageActionCustomAction:
+		return a.Message
+	case *tg.MessageActionChatMigrateTo:
+		return "Group migrated to a supergroup"
+	case *tg.MessageActionChannelMigrateFrom:
+		return "Group migrated from \u201c" + a.Title + "\u201d"
+	case *tg.MessageActionBotAllowed:
+		return sender + " allowed the bot"
+	case *tg.MessageActionTopicCreate:
+		return sender + " created topic \u201c" + a.Title + "\u201d"
+	case *tg.MessageActionTopicEdit:
+		if title, ok := a.GetTitle(); ok {
+			return sender + " changed topic name to \u201c" + title + "\u201d"
+		}
+		if closed, ok := a.GetClosed(); ok && closed {
+			return sender + " closed the topic"
+		}
+		if closed, ok := a.GetClosed(); ok && !closed {
+			return sender + " reopened the topic"
+		}
+		return sender + " edited the topic"
+	case *tg.MessageActionInviteToGroupCall:
+		return sender + " invited members to the voice chat"
+	case *tg.MessageActionSetChatWallPaper:
+		return sender + " changed the chat wallpaper"
+	case *tg.MessageActionGiftCode:
+		return sender + " sent a gift code"
+	case *tg.MessageActionSetMessagesTTL:
+		if a.Period > 0 {
+			return sender + " set messages to auto-delete"
+		}
+		return sender + " disabled auto-delete timer"
+	case *tg.MessageActionEmpty:
+		return ""
+	default:
+		return sender + " performed an action"
+	}
+}
+
+// joinNames joins a list of names with commas and "and".
+func joinNames(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	case 2:
+		return names[0] + " and " + names[1]
+	default:
+		result := ""
+		for i, n := range names {
+			if i == len(names)-1 {
+				result += "and " + n
+			} else {
+				result += n + ", "
+			}
+		}
+		return result
+	}
+}
+
 // convertTgEntities converts gotd MessageEntityClass list to our TextEntity format.
 func convertTgEntities(entities []tg.MessageEntityClass) []TextEntity {
 	result := make([]TextEntity, 0, len(entities))
@@ -10123,8 +10297,17 @@ func (t *TelegramCore) convertMessages(result tg.MessagesMessagesClass) []Messag
 
 	messages := make([]Message, 0, len(rawMsgs))
 	for _, m := range rawMsgs {
-		if msg, ok := m.(*tg.Message); ok {
+		switch msg := m.(type) {
+		case *tg.Message:
 			messages = append(messages, *t.convertMessage(msg))
+		case *tg.MessageService:
+			if _, ok := msg.Action.(*tg.MessageActionEmpty); ok {
+				continue // skip empty actions
+			}
+			if _, ok := msg.Action.(*tg.MessageActionHistoryClear); ok {
+				continue // skip history clear pseudo-messages
+			}
+			messages = append(messages, *t.convertServiceMessage(msg))
 		}
 	}
 	return messages

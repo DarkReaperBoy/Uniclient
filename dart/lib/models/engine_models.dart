@@ -306,6 +306,7 @@ class CachedMessage {
   final String forwardFrom;
   final bool isPinned;
   final bool isOutgoing;
+  final bool isService;
   final bool hasMedia;
 
   // Media metadata.
@@ -353,6 +354,7 @@ class CachedMessage {
     this.forwardFrom = '',
     this.isPinned = false,
     this.isOutgoing = false,
+    this.isService = false,
     this.hasMedia = false,
     this.mediaType = 0,
     this.mediaFileName = '',
@@ -393,6 +395,7 @@ class CachedMessage {
     forwardFrom: safeStr(j['forward_from'] as String? ?? ''),
     isPinned: j['is_pinned'] as bool? ?? false,
     isOutgoing: j['is_outgoing'] as bool? ?? false,
+    isService: j['is_service'] as bool? ?? false,
     hasMedia: j['has_media'] as bool? ?? false,
     mediaType: j['media_type'] as int? ?? 0,
     mediaFileName: j['media_file_name'] as String? ?? '',
@@ -449,6 +452,7 @@ class CachedMessage {
     String? forwardFrom,
     bool? isPinned,
     bool? isOutgoing,
+    bool? isService,
     bool? hasMedia,
     int? mediaType,
     String? mediaFileName,
@@ -484,6 +488,7 @@ class CachedMessage {
     forwardFrom: forwardFrom ?? this.forwardFrom,
     isPinned: isPinned ?? this.isPinned,
     isOutgoing: isOutgoing ?? this.isOutgoing,
+    isService: isService ?? this.isService,
     hasMedia: hasMedia ?? this.hasMedia,
     mediaType: mediaType ?? this.mediaType,
     mediaFileName: mediaFileName ?? this.mediaFileName,

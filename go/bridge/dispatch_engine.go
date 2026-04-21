@@ -855,6 +855,7 @@ func cachedMsgToProto(m *engine.CachedMessage) *pb.EngineCachedMessage {
 		ForwardFrom:        sanitizeUTF8(m.ForwardFrom),
 		IsPinned:           m.IsPinned,
 		IsOutgoing:         m.IsOutgoing,
+		IsService:          m.IsService,
 		HasMedia:           m.HasMedia,
 		MediaType:          int32(m.MediaType),
 		MediaFileName:      sanitizeUTF8(m.MediaFileName),

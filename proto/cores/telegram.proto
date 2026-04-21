@@ -34,6 +34,13 @@ message CallInfo {
   bytes protocol = 8;
 }
 
+message PeerColorEntry {
+  int64 color_id = 1;
+  repeated int64 day_colors = 2;
+  repeated int64 night_colors = 3;
+  bool hidden = 4;
+}
+
 message TelegramConfig {
   int64 a_p_i_id = 1;
   string a_p_i_hash = 2;
@@ -2073,6 +2080,14 @@ message TelegramDemoteAdminRequest {
 message TelegramDemoteAdminResponse {
 }
 
+message TelegramDownloadChatAvatarRequest {
+  string chat_id = 1;
+  string dest_path = 2;
+}
+
+message TelegramDownloadChatAvatarResponse {
+}
+
 message TelegramEditChannelPhotoRequest {
   string chat_id = 1;
   bytes photo_data = 2;
@@ -2214,6 +2229,14 @@ message TelegramGetAdminLogRequest {
 
 message TelegramGetAdminLogResponse {
   int64 result_1 = 1;
+}
+
+message TelegramGetAdminRanksRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetAdminRanksResponse {
+  map<string, string> result_1 = 1;
 }
 
 message TelegramGetAllDraftsRequest {
@@ -2403,6 +2426,17 @@ message TelegramGetFoldersRequest {
 
 message TelegramGetFoldersResponse {
   repeated uniclient.Folder result_1 = 1;
+}
+
+message TelegramGetForumTopicInfoRequest {
+  string chat_id = 1;
+  string topic_id = 2;
+}
+
+message TelegramGetForumTopicInfoResponse {
+  string title = 1;
+  int64 icon_color = 2;
+  bool ok = 3;
 }
 
 message TelegramGetForumTopicsRequest {
@@ -2609,6 +2643,13 @@ message TelegramGetPasswordResponse {
   bytes result_1 = 1;
 }
 
+message TelegramGetPeerColorPaletteRequest {
+}
+
+message TelegramGetPeerColorPaletteResponse {
+  repeated PeerColorEntry result_1 = 1;
+}
+
 message TelegramGetPeerSettingsCheckRequest {
   string chat_id = 1;
 }
@@ -2629,6 +2670,14 @@ message TelegramGetPinnedDialogsRequest {
 
 message TelegramGetPinnedDialogsResponse {
   repeated uniclient.Dialog result_1 = 1;
+}
+
+message TelegramGetPinnedMessagesRequest {
+  string chat_id = 1;
+}
+
+message TelegramGetPinnedMessagesResponse {
+  repeated uniclient.Message result_1 = 1;
 }
 
 message TelegramGetPinnedStoriesRequest {

@@ -277,8 +277,6 @@
 
 ### §5.7 Service Messages
 
-- [ ] Service messages: centered text in rounded pill, msgServiceBg day #517c417f / night #213040d5, msgServiceFg #ffffff, msgServicePadding 12/3/12/4, 10px above / 2px below, 13px semibold — spec §5. Not implemented as a distinct service-message widget; system messages arrive as regular text bubbles
-
 ---
 
 ## §6. Media Message Types

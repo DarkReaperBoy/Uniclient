@@ -37,6 +37,7 @@ type CachedMessage struct {
 	ForwardFrom  string `json:"forward_from,omitempty"`
 	IsPinned     bool   `json:"is_pinned"`
 	IsOutgoing   bool   `json:"is_outgoing"`
+	IsService    bool   `json:"is_service"`
 	HasMedia     bool   `json:"has_media"`
 
 	// Media metadata (populated from media table join).
@@ -66,7 +67,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
+			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ? AND timestamp < ?
 			 ORDER BY timestamp DESC
@@ -75,7 +76,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 		rows, err = e.db.Query(
 			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
-			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
+			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media
 			 FROM messages
 			 WHERE account_id = ? AND chat_id = ?
 			 ORDER BY timestamp DESC
@@ -125,9 +126,9 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 // Falls back to fetching from the core if the cache has none.
 func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, error) {
 	rows, err := e.db.Query(
-		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
+		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		        content_text, content_raw, content_rich, timestamp, edited_at,
-		        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
+		        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media
 		 FROM messages
 		 WHERE account_id = ? AND chat_id = ? AND is_pinned = 1
 		 ORDER BY timestamp DESC`, accountID, chatID)
@@ -175,12 +176,12 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		var localID, senderID, senderName, senderRank, replyToID, replyPreview, forwardFrom sql.NullString
 		var contentRaw, contentRich []byte
 		var editedAt sql.NullInt64
-		var isPinned, isOutgoing, hasMedia int
+		var isPinned, isOutgoing, isService, hasMedia int
 
 		if err := rows.Scan(
 			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank, &m.SenderColorID,
 			&m.ContentText, &contentRaw, &contentRich, &m.Timestamp, &editedAt,
-			&m.Status, &replyToID, &replyPreview, &forwardFrom, &isPinned, &isOutgoing, &hasMedia,
+			&m.Status, &replyToID, &replyPreview, &forwardFrom, &isPinned, &isOutgoing, &isService, &hasMedia,
 		); err != nil {
 			return msgs, err
 		}
@@ -199,6 +200,7 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		m.ForwardFrom = forwardFrom.String
 		m.IsPinned = isPinned == 1
 		m.IsOutgoing = isOutgoing == 1
+		m.IsService = isService == 1
 		m.HasMedia = hasMedia == 1
 
 		msgs = append(msgs, m)
@@ -336,12 +338,12 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		`INSERT OR REPLACE INTO messages
 		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		  content_raw, content_rich, content_text, timestamp, edited_at,
-		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, is_service, has_media)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank), msg.SenderColorID,
 		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
-		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(hasMedia))
+		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia))
 
 	// Cache media references.
 	for i, att := range msg.Attachments {
@@ -367,6 +369,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		ForwardFrom:  msg.ForwardFrom,
 		IsPinned:     msg.IsPinned,
 		IsOutgoing:   msg.IsOutgoing,
+		IsService:    msg.IsService,
 		HasMedia:     hasMedia,
 	}
 
