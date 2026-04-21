@@ -865,6 +865,37 @@ class _ChatTopBar extends StatelessWidget {
     });
   }
 
+  /// Spec §4.2: right-click on back button opens a call-type menu.
+  static void _showBackButtonCallMenu(BuildContext context, Offset globalPos) {
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      globalPos & const Size(1, 1),
+      Offset.zero & overlay.size,
+    );
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: const [
+        PopupMenuItem(
+          value: 'audio_call',
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.call, size: 20),
+            title: Text('Audio Call'),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'video_call',
+          child: ListTile(
+            dense: true,
+            leading: Icon(Icons.videocam, size: 20),
+            title: Text('Video Call'),
+          ),
+        ),
+      ],
+    );
+  }
+
   static Widget _fallbackAvatar(ChatInfo chat, ThemeData theme, double radius) {
     const colors = [
       Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
@@ -925,15 +956,21 @@ class _ChatTopBar extends StatelessWidget {
         children: [
           if (showBackButton)
             // Spec §4.2: historyTopBarBack — exact 60px width, full 54px height.
-            SizedBox(
-              width: 60,
-              height: 54,
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, size: 20),
-                onPressed: onBack,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                splashRadius: 20,
+            // Right-click opens call-type menu per spec §4.2.
+            GestureDetector(
+              onSecondaryTapUp: (details) {
+                _showBackButtonCallMenu(context, details.globalPosition);
+              },
+              child: SizedBox(
+                width: 60,
+                height: 54,
+                child: IconButton(
+                  icon: const Icon(Icons.arrow_back, size: 20),
+                  onPressed: onBack,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  splashRadius: 20,
+                ),
               ),
             )
           else
