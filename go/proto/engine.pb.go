@@ -5007,6 +5007,102 @@ func (x *EngineGetContactsResponse) GetContacts() []*EngineContactInfo {
 	return nil
 }
 
+type EngineGetOnlineCountRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetOnlineCountRequest) Reset() {
+	*x = EngineGetOnlineCountRequest{}
+	mi := &file_proto_engine_proto_msgTypes[75]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetOnlineCountRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetOnlineCountRequest) ProtoMessage() {}
+
+func (x *EngineGetOnlineCountRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[75]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetOnlineCountRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetOnlineCountRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{75}
+}
+
+func (x *EngineGetOnlineCountRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetOnlineCountRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+type EngineGetOnlineCountResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	OnlineCount   int32                  `protobuf:"varint,1,opt,name=online_count,json=onlineCount,proto3" json:"online_count,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetOnlineCountResponse) Reset() {
+	*x = EngineGetOnlineCountResponse{}
+	mi := &file_proto_engine_proto_msgTypes[76]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetOnlineCountResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetOnlineCountResponse) ProtoMessage() {}
+
+func (x *EngineGetOnlineCountResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[76]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetOnlineCountResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetOnlineCountResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{76}
+}
+
+func (x *EngineGetOnlineCountResponse) GetOnlineCount() int32 {
+	if x != nil {
+		return x.OnlineCount
+	}
+	return 0
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -5458,7 +5554,13 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"U\n" +
 	"\x19EngineGetContactsResponse\x128\n" +
-	"\bcontacts\x18\x01 \x03(\v2\x1c.uniclient.EngineContactInfoR\bcontactsB\x11Z\x0funiclient/protob\x06proto3"
+	"\bcontacts\x18\x01 \x03(\v2\x1c.uniclient.EngineContactInfoR\bcontacts\"U\n" +
+	"\x1bEngineGetOnlineCountRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"A\n" +
+	"\x1cEngineGetOnlineCountResponse\x12!\n" +
+	"\fonline_count\x18\x01 \x01(\x05R\vonlineCountB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -5472,7 +5574,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 75)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 77)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -5549,6 +5651,8 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineContactInfo)(nil),               // 72: uniclient.EngineContactInfo
 	(*EngineGetContactsRequest)(nil),        // 73: uniclient.EngineGetContactsRequest
 	(*EngineGetContactsResponse)(nil),       // 74: uniclient.EngineGetContactsResponse
+	(*EngineGetOnlineCountRequest)(nil),     // 75: uniclient.EngineGetOnlineCountRequest
+	(*EngineGetOnlineCountResponse)(nil),    // 76: uniclient.EngineGetOnlineCountResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -5584,7 +5688,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   75,
+			NumMessages:   77,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

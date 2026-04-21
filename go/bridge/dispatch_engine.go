@@ -640,6 +640,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 
 	// ��─ Shutdown ──
 
+	// ── Online count ──
+
+	case "GetOnlineCount":
+		var req pb.EngineGetOnlineCountRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		count, err := e.GetOnlineCount(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetOnlineCountResponse{
+			OnlineCount: int32(count),
+		}
+		return proto.Marshal(resp)
+
 	case "Shutdown":
 		return nil, e.Shutdown()
 

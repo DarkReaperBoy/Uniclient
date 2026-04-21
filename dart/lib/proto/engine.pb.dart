@@ -6574,5 +6574,97 @@ class EngineGetContactsResponse extends $pb.GeneratedMessage {
 }
 
 
+class EngineGetOnlineCountRequest extends $pb.GeneratedMessage {
+  factory EngineGetOnlineCountRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    return $result;
+  }
+  EngineGetOnlineCountRequest._() : super();
+  factory EngineGetOnlineCountRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetOnlineCountRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetOnlineCountRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  EngineGetOnlineCountRequest clone() => EngineGetOnlineCountRequest()..mergeFromMessage(this);
+  EngineGetOnlineCountRequest copyWith(void Function(EngineGetOnlineCountRequest) updates) => super.copyWith((message) => updates(message as EngineGetOnlineCountRequest)) as EngineGetOnlineCountRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetOnlineCountRequest create() => EngineGetOnlineCountRequest._();
+  EngineGetOnlineCountRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetOnlineCountRequest> createRepeated() => $pb.PbList<EngineGetOnlineCountRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetOnlineCountRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetOnlineCountRequest>(create);
+  static EngineGetOnlineCountRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
+class EngineGetOnlineCountResponse extends $pb.GeneratedMessage {
+  factory EngineGetOnlineCountResponse({
+    $core.int? onlineCount,
+  }) {
+    final $result = create();
+    if (onlineCount != null) $result.onlineCount = onlineCount;
+    return $result;
+  }
+  EngineGetOnlineCountResponse._() : super();
+  factory EngineGetOnlineCountResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetOnlineCountResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetOnlineCountResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..a<$core.int>(1, _omitFieldNames ? '' : 'onlineCount', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false
+  ;
+
+  EngineGetOnlineCountResponse clone() => EngineGetOnlineCountResponse()..mergeFromMessage(this);
+  EngineGetOnlineCountResponse copyWith(void Function(EngineGetOnlineCountResponse) updates) => super.copyWith((message) => updates(message as EngineGetOnlineCountResponse)) as EngineGetOnlineCountResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetOnlineCountResponse create() => EngineGetOnlineCountResponse._();
+  EngineGetOnlineCountResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetOnlineCountResponse> createRepeated() => $pb.PbList<EngineGetOnlineCountResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetOnlineCountResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetOnlineCountResponse>(create);
+  static EngineGetOnlineCountResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get onlineCount => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set onlineCount($core.int v) { $_setSignedInt32(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasOnlineCount() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOnlineCount() => clearField(1);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

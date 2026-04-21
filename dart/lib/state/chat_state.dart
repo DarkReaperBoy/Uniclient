@@ -22,6 +22,7 @@ class ChatState extends ChangeNotifier {
   // "accountId:userId" → (kind, lastSeenMs) for DM subtitle text.
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
+  int _groupOnlineCount = 0; // online members in active group/channel chat
 
   // ── Archive state ──
   bool _hasArchivedChats = false;
@@ -98,6 +99,9 @@ class ChatState extends ChangeNotifier {
 
   /// Get sender avatar base64 data by sender ID.
   String? senderAvatar(String senderId) => _senderAvatars[senderId];
+
+  /// Online member count for the active group/channel chat.
+  int get groupOnlineCount => _groupOnlineCount;
 
   /// All loaded folders across accounts.
   List<FolderInfo> get folders => _folders;
@@ -311,9 +315,11 @@ class ChatState extends ChangeNotifier {
     _engine.setActiveChat(chat.accountId, chat.chatId);
     _loadMessages();
     _loadPinnedMessages(chat.accountId, chat.chatId);
-    // Fetch member avatars for group chats.
+    // Fetch member avatars and online count for group chats.
+    _groupOnlineCount = 0;
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
       _loadMemberAvatars(chat.accountId, chat.chatId);
+      _loadOnlineCount(chat.accountId, chat.chatId);
     } else {
       _senderAvatars.clear();
     }
@@ -605,6 +611,19 @@ class ChatState extends ChangeNotifier {
       if (_senderAvatars.isNotEmpty) notifyListeners();
     } catch (_) {
       // Non-critical — avatars fall back to initials.
+    }
+  }
+
+  /// Fetch the online member count for a group/channel via the platform API.
+  Future<void> _loadOnlineCount(String accountId, String chatId) async {
+    try {
+      final count = await _engine.getOnlineCount(accountId, chatId);
+      if (count != _groupOnlineCount) {
+        _groupOnlineCount = count;
+        notifyListeners();
+      }
+    } catch (_) {
+      // Non-critical — subtitle falls back to "X members" without online count.
     }
   }
 

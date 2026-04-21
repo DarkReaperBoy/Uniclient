@@ -245,6 +245,18 @@ class EngineService {
     return resp.members.map(_memberInfoFromProto).toList();
   }
 
+  // ── Online count ──
+
+  Future<int> getOnlineCount(String accountId, String chatId) async {
+    final req = epb.EngineGetOnlineCountRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    final respBytes = await _callAsync('__engine', 'GetOnlineCount', req.writeToBuffer());
+    if (respBytes.isEmpty) return 0;
+    final resp = epb.EngineGetOnlineCountResponse.fromBuffer(respBytes);
+    return resp.onlineCount;
+  }
+
   // ── Contacts ──
 
   Future<List<ContactInfo>> getContacts(String accountId) async {

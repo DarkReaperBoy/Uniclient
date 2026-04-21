@@ -597,3 +597,16 @@ message EngineGetContactsRequest {
 message EngineGetContactsResponse {
   repeated EngineContactInfo contacts = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Online count (group/channel subtitle)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetOnlineCountRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineGetOnlineCountResponse {
+  int32 online_count = 1;
+}

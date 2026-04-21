@@ -144,6 +144,25 @@ func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]
 	return members, nil
 }
 
+// GetOnlineCount returns the number of online members in a chat.
+// Delegates to the platform core if it supports the operation.
+func (e *Engine) GetOnlineCount(accountID, chatID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type onlineCounter interface {
+		GetOnlineCount(chatID string) (int, error)
+	}
+	if oc, ok := acc.Core.(onlineCounter); ok {
+		return oc.GetOnlineCount(chatID)
+	}
+	return 0, nil
+}
+
 // ContactInfo is the contact data returned to the UI for the contacts list.
 type ContactInfo struct {
 	UserID      string `json:"user_id"`

@@ -678,6 +678,7 @@ class _ChatViewState extends State<ChatView> {
               onToggleInfo: widget.onToggleInfo,
               moreVertKey: _moreVertKey,
               hideDivider: widget.hideTopBarDivider,
+              groupOnlineCount: chatState.groupOnlineCount,
             ),
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty)
@@ -784,6 +785,8 @@ class _ChatTopBar extends StatelessWidget {
   /// Spec §4.1: hide the bottom divider during one-column slide transitions.
   final bool hideDivider;
 
+  final int groupOnlineCount;
+
   const _ChatTopBar({
     required this.chat,
     this.typingUser,
@@ -794,6 +797,7 @@ class _ChatTopBar extends StatelessWidget {
     this.onToggleInfo,
     this.moreVertKey,
     this.hideDivider = false,
+    this.groupOnlineCount = 0,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -934,9 +938,17 @@ class _ChatTopBar extends StatelessWidget {
           ? const Color(0xFF98b4d3)
           : const Color(0xFF999999);
     } else if (chat.memberCount > 0) {
-      subtitle = chat.type == ChatType.channel
-          ? '${chat.memberCount} subscribers'
-          : '${chat.memberCount} members';
+      // Spec §4.2: windowSubTextFg for group/channel subtitle.
+      subtitleColor = isDark
+          ? const Color(0xFF98b4d3)
+          : const Color(0xFF999999);
+      if (chat.type == ChatType.channel) {
+        subtitle = '${chat.memberCount} subscribers';
+      } else if (groupOnlineCount > 1) {
+        subtitle = '${chat.memberCount} members, $groupOnlineCount online';
+      } else {
+        subtitle = '${chat.memberCount} members';
+      }
     } else {
       subtitle = '';
     }
