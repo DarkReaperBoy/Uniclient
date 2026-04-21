@@ -382,28 +382,38 @@ class MessageBubble extends StatelessWidget {
 
   /// 7 sender colors from spec §5 (id % 7).
   /// Day: historyPeer{1..7}NameFg, Night: matching night-theme slots.
+  /// Remap table: colorIndex (id%7) → paletteIndex (0..7).
+  /// Source: chat_style.cpp ColorIndexToPaletteIndex — {0,7,4,1,6,3,5}.
+  static const _colorIndexRemap = [0, 7, 4, 1, 6, 3, 5];
+
+  /// 8-slot name-fg palette (historyPeer1..8NameFg).
+  static const _namePaletteDay = [
+    Color(0xFFc03d33), // 0 red
+    Color(0xFF4fad2d), // 1 green
+    Color(0xFFd09306), // 2 yellow
+    Color(0xFF168acd), // 3 blue (windowActiveTextFg)
+    Color(0xFF8544d6), // 4 purple
+    Color(0xFFcd4073), // 5 pink
+    Color(0xFF2996ad), // 6 sea
+    Color(0xFFce671b), // 7 orange
+  ];
+  static const _namePaletteNight = [
+    Color(0xFFfb6169), // 0 red
+    Color(0xFF85de85), // 1 green
+    Color(0xFFf3bc5c), // 2 yellow
+    Color(0xFF65bdf3), // 3 blue
+    Color(0xFFb48bf2), // 4 purple
+    Color(0xFFff5694), // 5 pink
+    Color(0xFF62d4e3), // 6 sea
+    Color(0xFFfaa357), // 7 orange
+  ];
+
   static Color _senderColor(String senderId, {bool isDark = false}) {
-    final hash = senderId.hashCode.abs() % 7;
-    if (isDark) {
-      return const [
-        Color(0xFFfb6169), // slot 1 red
-        Color(0xFF85de85), // slot 2 green
-        Color(0xFFf3bc5c), // slot 3 yellow
-        Color(0xFF65bdf3), // slot 4 blue
-        Color(0xFFb48bf2), // slot 5 purple
-        Color(0xFFff5694), // slot 6 pink
-        Color(0xFF62d4e3), // slot 7 sea
-      ][hash];
-    }
-    return const [
-      Color(0xFFc03d33), // slot 1 red
-      Color(0xFF4fad2d), // slot 2 green
-      Color(0xFFd09306), // slot 3 yellow
-      Color(0xFF168acd), // slot 4 blue (windowActiveTextFg)
-      Color(0xFF8544d6), // slot 5 purple
-      Color(0xFFcd4073), // slot 6 pink
-      Color(0xFF2996ad), // slot 7 sea
-    ][hash];
+    // Use numeric ID when available (Telegram IDs are ints); fall back to hashCode.
+    final numId = int.tryParse(senderId) ?? senderId.hashCode.abs();
+    final colorIndex = numId.abs() % 7; // 0..6
+    final paletteIndex = _colorIndexRemap[colorIndex]; // 0..7
+    return isDark ? _namePaletteNight[paletteIndex] : _namePaletteDay[paletteIndex];
   }
 
   static String _formatTime(int timestampMs) {

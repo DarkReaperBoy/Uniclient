@@ -636,14 +636,18 @@ class _ChatViewState extends State<ChatView>
     );
   }
 
+  static const _colorIndexRemap = [0, 7, 4, 1, 6, 3, 5];
+  static const _userpicColors = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
+    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
+  ];
+
   static Widget _senderFallbackAvatar(String senderId, String name, double radius) {
-    const colors = [
-      Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
-      Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb),
-    ];
+    final numId = int.tryParse(senderId) ?? senderId.hashCode.abs();
+    final paletteIndex = _colorIndexRemap[numId.abs() % 7];
     return CircleAvatar(
       radius: radius,
-      backgroundColor: colors[senderId.hashCode.abs() % 7],
+      backgroundColor: _userpicColors[paletteIndex],
       child: Text(
         name.isNotEmpty ? name[0].toUpperCase() : '?',
         style: TextStyle(color: Colors.white, fontSize: radius * 0.6, fontWeight: FontWeight.w600),
@@ -1525,14 +1529,18 @@ class _ChatTopBar extends StatelessWidget {
     );
   }
 
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  static const _userpicPalette = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
+    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
+  ];
+
   static Widget _fallbackAvatar(ChatInfo chat, ThemeData theme, double radius) {
-    const colors = [
-      Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
-      Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb),
-    ];
+    final numId = int.tryParse(chat.chatId) ?? chat.chatId.hashCode.abs();
+    final paletteIndex = _colorRemap[numId.abs() % 7];
     return CircleAvatar(
       radius: radius,
-      backgroundColor: colors[chat.chatId.hashCode.abs() % 7],
+      backgroundColor: _userpicPalette[paletteIndex],
       child: Text(
         chat.title.isNotEmpty ? chat.title[0].toUpperCase() : '?',
         style: TextStyle(color: Colors.white, fontSize: radius * 0.7, fontWeight: FontWeight.w600),
@@ -3810,12 +3818,15 @@ class _ForwardDialogState extends State<_ForwardDialog> {
     );
   }
 
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  static const _userpicPalette = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
+    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
+  ];
+
   static Color _avatarColor(String id) {
-    const colors = [
-      Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77),
-      Color(0xFF65aadd), Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb),
-    ];
-    return colors[id.hashCode.abs() % 7];
+    final numId = int.tryParse(id) ?? id.hashCode.abs();
+    return _userpicPalette[_colorRemap[numId.abs() % 7]];
   }
 }
 
