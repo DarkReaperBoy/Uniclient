@@ -34,11 +34,19 @@ class AppColors {
   static const danger = Color(0xFFED4245);
   static const warning = Color(0xFFFAA61A);
 
-  // Message bubbles
-  static const bubbleSent = Color(0xFF1a2744);
-  static const bubbleReceived = Color(0xFF1a1f27);
-  static const bubbleSentLight = Color(0xFFDCE8FF);
-  static const bubbleReceivedLight = Color(0xFFE8E8ED);
+  // Message bubbles — spec §5 exact tokens
+  // msgOutBg night / day
+  static const bubbleSent = Color(0xFF2b5278);
+  static const bubbleSentLight = Color(0xFFeffdde);
+  // msgInBg night / day
+  static const bubbleReceived = Color(0xFF182533);
+  static const bubbleReceivedLight = Color(0xFFffffff);
+  // msgOutBgSelected night / day
+  static const bubbleSentSelected = Color(0xFF2e70a5);
+  static const bubbleSentSelectedLight = Color(0xFFb7dbdb);
+  // msgInBgSelected night / day
+  static const bubbleReceivedSelected = Color(0xFF2e70a5);
+  static const bubbleReceivedSelectedLight = Color(0xFFc2dcf2);
 }
 
 /// Sizing constants.

@@ -17,6 +17,7 @@ class MessageBubble extends StatelessWidget {
   final void Function(Offset position)? onContextMenu;
   final ValueChanged<String>? onSenderTap;
   final ValueChanged<String>? onReplyTap;
+  final bool isSelected;
 
   const MessageBubble({
     super.key,
@@ -24,6 +25,7 @@ class MessageBubble extends StatelessWidget {
     this.isFirstInGroup = true,
     this.isLastInGroup = true,
     this.isGroupChat = false,
+    this.isSelected = false,
     this.senderAvatarB64,
     this.onReply,
     this.onContextMenu,
@@ -55,8 +57,12 @@ class MessageBubble extends StatelessWidget {
     final bubbleColor = isStickerOnly
         ? Colors.transparent
         : isOutgoing
-            ? (isDark ? AppColors.bubbleSent : AppColors.bubbleSentLight)
-            : (isDark ? AppColors.bubbleReceived : AppColors.bubbleReceivedLight);
+            ? (isDark
+                ? (isSelected ? AppColors.bubbleSentSelected : AppColors.bubbleSent)
+                : (isSelected ? AppColors.bubbleSentSelectedLight : AppColors.bubbleSentLight))
+            : (isDark
+                ? (isSelected ? AppColors.bubbleReceivedSelected : AppColors.bubbleReceived)
+                : (isSelected ? AppColors.bubbleReceivedSelectedLight : AppColors.bubbleReceivedLight));
 
     final alignment = isOutgoing
         ? CrossAxisAlignment.end

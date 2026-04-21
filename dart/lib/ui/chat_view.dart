@@ -2096,9 +2096,7 @@ class _MessageList extends StatelessWidget {
               child: Container(
                 color: isSearchHighlight
                     ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
-                    : isSelected
-                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-                        : null,
+                    : null,
                 child: Row(
                   children: [
                     if (inSelectionMode) ...[
@@ -2120,6 +2118,7 @@ class _MessageList extends StatelessWidget {
                           isFirstInGroup: isFirstInGroup,
                           isLastInGroup: isLastInGroup,
                           isGroupChat: isGroupChat,
+                          isSelected: isSelected,
                           senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
                           onReply: () => onReply(msg.msgId),
                           onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
