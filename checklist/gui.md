@@ -229,7 +229,6 @@
 - [x] Cancel/close button — DONE
 - [x] Count display ("X selected") — DONE
 - [x] Forward drag-and-drop integration — DONE in `_SelectionBar`
-- [ ] Animated count badge on each button via `setNumbersText` — spec §4.7
 - [ ] Corner radii: 8px outer ends, small inner ends (segmented pill) — spec §4.7
 - [ ] Cancel button: `RoundButton(defaultLightButton)`, `width: -18px`, right-aligned 10px from edge — spec §4.7
 - [ ] Cancel label: "CLEAR" / "CANCEL" uppercase — spec §4.7 (currently close icon only)
@@ -1858,3 +1857,9 @@ Status key: `[ ]` not started · `[x]` done
 - [ ] Button / accent colors — active button tokens (5 variants); active line tokens; attention button tokens (with alpha on dark); light button tokens — spec §57.9
 - [ ] Sidebar / folders rail colors — sideBarBg/BgActive/BgRipple; sideBarTextFg/FgActive/IconFg/IconFgActive; sideBarBadgeBg/BgMuted/Fg — spec §57.10
 - [ ] Missing / derived token handling — dialogsChatBgOver = dialogsBgOver synonym; top bar token aliases; historyComposeButton compound; profileStatusFg → windowSubTextFg; boxDividerBg from windowBgOver+shadow; dark menuBgOver override (~#2B3744); dark shadow suppression msgOutShadow/msgInShadow alpha 00 — spec §57.11
+
+---
+
+## Bugs
+
+- [ ] Mobile (oneColumn) selection mode: context menu "Select" action doesn't activate selection mode — no selection bar, no checkboxes appear. Works fine in desktop (twoColumn) mode. Likely a state/animation issue in oneColumn layout.

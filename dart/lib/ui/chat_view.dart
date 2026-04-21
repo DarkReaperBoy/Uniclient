@@ -1920,6 +1920,7 @@ class _MessageList extends StatelessWidget {
           children: [
             if (showDate) _DateSeparator(timestamp: msg.timestamp),
             GestureDetector(
+              behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
               onLongPress: () => onLongPress(msg.msgId),
               onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
               child: Container(
@@ -2383,7 +2384,14 @@ class _SelectionBar extends StatelessWidget {
     Widget forwardButton = TextButton(
       onPressed: onForward,
       style: pillStyle,
-      child: const Text('FORWARD'),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('FORWARD'),
+          const SizedBox(width: 4),
+          _AnimatedCountBadge(count: count),
+        ],
+      ),
     );
 
     // Wrap forward button in Draggable if drag data is available.
@@ -2436,29 +2444,67 @@ class _SelectionBar extends StatelessWidget {
             onPressed: onCancel,
           ),
           const SizedBox(width: 8),
-          Text(
-            '$count selected',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          const Spacer(),
           forwardButton,
           const SizedBox(width: 10), // topBarActionSkip
           TextButton(
             onPressed: onCopy,
             style: pillStyle,
-            child: const Text('COPY'),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('COPY'),
+                const SizedBox(width: 4),
+                _AnimatedCountBadge(count: count),
+              ],
+            ),
           ),
           const SizedBox(width: 10),
           TextButton(
             onPressed: onDelete,
             style: pillStyle,
-            child: const Text('DELETE'),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('DELETE'),
+                const SizedBox(width: 4),
+                _AnimatedCountBadge(count: count),
+              ],
+            ),
           ),
+          const Spacer(),
         ],
+      ),
+    );
+  }
+}
+
+/// Spec §4.7: Animated count badge for selection bar buttons.
+/// Mimics tdesktop `setNumbersText` — count slides vertically when changing.
+class _AnimatedCountBadge extends StatelessWidget {
+  final int count;
+  const _AnimatedCountBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 120),
+      transitionBuilder: (child, animation) {
+        return ClipRect(
+          child: SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1.0),
+              end: Offset.zero,
+            ).animate(CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            )),
+            child: child,
+          ),
+        );
+      },
+      child: Text(
+        '$count',
+        key: ValueKey<int>(count),
       ),
     );
   }
