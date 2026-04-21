@@ -220,7 +220,6 @@
 - [x] Title "Pinned Message", blue accent color — DONE
 - [x] Preview text, 1 line elided — DONE
 - [x] Tapping bar jumps to pinned message — DONE
-- [ ] Bar height: exactly 49px (`historyReplyHeight`) — spec §4.4 (currently 44px; needs to be 49px)
 - [ ] Thumbnail: 32×32px centered vertically, ~3px corner radius — spec §4.4 (currently no thumbnail)
 - [ ] Title text logic: "Pinned Message" (single), "Previous Pinned Message" (count==2), "Pinned Message #N" — spec §4.4 (currently always "Pinned Message")
 - [ ] Close/unpin button: 49×49 hit-area, 40px ripple at (4,4), `box_button_close` icon — spec §4.4 (no close button currently)

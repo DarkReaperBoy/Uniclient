@@ -2091,7 +2091,7 @@ class _PinnedBar extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-      height: 44,
+      height: 49,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(
