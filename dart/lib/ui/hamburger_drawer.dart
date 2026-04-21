@@ -1589,7 +1589,7 @@ class _FooterSection extends StatelessWidget {
               children: [
                 // Version link with tooltip "Build date: {date}".
                 Tooltip(
-                  message: 'Build date: 2026-04-20',
+                  message: 'Build date: ${const String.fromEnvironment('BUILD_DATE', defaultValue: 'dev')}',
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(

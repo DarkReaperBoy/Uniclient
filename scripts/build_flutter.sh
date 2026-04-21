@@ -16,6 +16,9 @@ PLATFORM="${1:-linux}"
 BUILD_MODE="${2:-debug}"
 DART_DIR="$(cd "$(dirname "$0")/../dart" && pwd)"
 
+# Build-time constants injected via --dart-define / -D
+BUILD_DATE="$(date +%Y-%m-%d)"
+
 # Find Flutter SDK
 FLUTTER_SDK="${FLUTTER_ROOT:-}"
 if [[ -z "$FLUTTER_SDK" ]]; then
@@ -66,6 +69,7 @@ case "$PLATFORM" in
     cd "$DART_DIR"
     CI=true FLUTTER_SUPPRESS_ANALYTICS=true "$FLUTTER_SDK/bin/flutter" build bundle \
       --"$BUILD_MODE" --target lib/main.dart \
+      --dart-define=BUILD_DATE="$BUILD_DATE" \
       --asset-dir "$BUILD_DIR/flutter_assets" 2>&1 | tail -3
     cd - >/dev/null
 
@@ -76,6 +80,7 @@ case "$PLATFORM" in
         --sdk-root "$PATCHED_SDK" \
         --target=flutter \
         --aot --tfa \
+        -DBUILD_DATE="$BUILD_DATE" \
         --packages="$DART_DIR/.dart_tool/package_config.json" \
         --output-dill "$BUILD_DIR/app.dill" \
         "$DART_DIR/lib/main.dart" 2>&1 | tail -1
@@ -98,6 +103,7 @@ case "$PLATFORM" in
       "$DARTAOT" "$ENGINE_DIR/$ENGINE_VARIANT/frontend_server_aot.dart.snapshot" \
         --sdk-root "$PATCHED_SDK" \
         --target=flutter \
+        -DBUILD_DATE="$BUILD_DATE" \
         --packages="$DART_DIR/.dart_tool/package_config.json" \
         --output-dill "$BUILD_DIR/flutter_assets/kernel_blob.bin" \
         --track-widget-creation \
