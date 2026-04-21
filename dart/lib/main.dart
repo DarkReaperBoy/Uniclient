@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Directory, File, Platform, exit;
+import 'dart:ui' as ui show Image;
 import 'dart:ui' show PointerChange, PointerDeviceKind, PointerData, PointerSignalKind;
+
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -52,6 +55,11 @@ void main() {
   );
 }
 
+/// §3.4: Switch theme with cross-fade animation.
+/// Call from hamburger drawer instead of appState.updateTheme() directly.
+Future<void> switchThemeWithCrossFade(BuildContext context, String theme) =>
+    _UniClientAppState.switchThemeWithCrossFade(context, theme);
+
 class UniClientApp extends StatefulWidget {
   const UniClientApp({super.key});
 
@@ -59,12 +67,82 @@ class UniClientApp extends StatefulWidget {
   State<UniClientApp> createState() => _UniClientAppState();
 }
 
-class _UniClientAppState extends State<UniClientApp> {
+class _UniClientAppState extends State<UniClientApp>
+    with TickerProviderStateMixin {
   bool _initStarted = false;
   final SystemTray _tray = SystemTray();
   VoidCallback? _unreadListener;
   ChatState? _chatStateRef;
   Timer? _debugCmdTimer;
+
+  // §3.4: Theme cross-fade — capture old frame, overlay, fade out to reveal new theme.
+  static _UniClientAppState? _instance;
+  final _themeBoundaryKey = GlobalKey();
+  ui.Image? _themeCrossFadeImage;
+  AnimationController? _themeFadeCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _instance = this;
+  }
+
+  /// §3.4: Trigger a theme cross-fade. Captures the current frame, applies
+  /// the new theme, then fades out the captured overlay to reveal new colors.
+  /// Called from hamburger_drawer.dart instead of appState.updateTheme directly.
+  static Future<void> switchThemeWithCrossFade(
+      BuildContext context, String theme) async {
+    final inst = _instance;
+    if (inst == null || !inst.mounted) {
+      context.read<AppState>().updateTheme(theme);
+      return;
+    }
+    await inst._performThemeCrossFade(context, theme);
+  }
+
+  Future<void> _performThemeCrossFade(
+      BuildContext ctx, String theme) async {
+    final appState = ctx.read<AppState>();
+    final pixelRatio = MediaQuery.of(ctx).devicePixelRatio;
+
+    final boundary = _themeBoundaryKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null || !boundary.hasSize) {
+      appState.updateTheme(theme);
+      return;
+    }
+
+    // Capture current frame at screen resolution.
+    final image = await boundary.toImage(pixelRatio: pixelRatio);
+
+    // Apply new theme — widgets rebuild underneath.
+    if (!mounted) { image.dispose(); return; }
+    appState.updateTheme(theme);
+
+    // Show captured old frame as overlay, fade it out.
+    _themeFadeCtrl?.dispose();
+    _themeFadeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    setState(() => _themeCrossFadeImage = image);
+
+    // Wait one frame so the new theme renders underneath.
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+
+    _themeFadeCtrl!.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        setState(() {
+          _themeCrossFadeImage?.dispose();
+          _themeCrossFadeImage = null;
+        });
+        _themeFadeCtrl?.dispose();
+        _themeFadeCtrl = null;
+      }
+    });
+    _themeFadeCtrl!.forward();
+  }
 
   @override
   void didChangeDependencies() {
@@ -764,6 +842,9 @@ class _UniClientAppState extends State<UniClientApp> {
     if (_unreadListener != null && _chatStateRef != null) {
       _chatStateRef!.removeListener(_unreadListener!);
     }
+    _themeFadeCtrl?.dispose();
+    _themeCrossFadeImage?.dispose();
+    _instance = null;
     _tray.dispose();
     super.dispose();
   }
@@ -778,24 +859,28 @@ class _UniClientAppState extends State<UniClientApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: appState.themeMode,
-      home: Column(
+      home: Stack(
         children: [
-          if (Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
-          // Spec §1: NativeTitleRequiresShadow — 1px shadow under native frame
-          // when system window decorations are enabled. Replaces the bottom
-          // border that the custom titlebar would normally provide.
-          if (Platform.isLinux && appState.nativeWindowFrame)
-            Builder(builder: (ctx) {
-              final isDark = Theme.of(ctx).brightness == Brightness.dark;
-              return Container(
-                height: 1,
-                color: isDark
-                    ? const Color(0x5604080e) // shadowFg night
-                    : const Color(0x18000000), // shadowFg day
-              );
-            }),
-          Expanded(
-            child: CallbackShortcuts(
+          RepaintBoundary(
+            key: _themeBoundaryKey,
+            child: Column(
+              children: [
+                if (Platform.isLinux && !appState.nativeWindowFrame) const CustomTitlebar(),
+                // Spec §1: NativeTitleRequiresShadow — 1px shadow under native frame
+                // when system window decorations are enabled. Replaces the bottom
+                // border that the custom titlebar would normally provide.
+                if (Platform.isLinux && appState.nativeWindowFrame)
+                  Builder(builder: (ctx) {
+                    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+                    return Container(
+                      height: 1,
+                      color: isDark
+                          ? const Color(0x5604080e) // shadowFg night
+                          : const Color(0x18000000), // shadowFg day
+                    );
+                  }),
+                Expanded(
+                  child: CallbackShortcuts(
         bindings: <ShortcutActivator, VoidCallback>{
           // Telegram Desktop spec §24.4: Ctrl+F opens search in current context.
           // We focus the chat list search field.
@@ -916,7 +1001,27 @@ class _UniClientAppState extends State<UniClientApp> {
         },
         child: const UniClientShell(),
       ),
+              ),
+            ],
           ),
+        ),
+          // §3.4: Theme cross-fade overlay — captured old frame fading out.
+          if (_themeCrossFadeImage != null && _themeFadeCtrl != null)
+            Positioned.fill(
+              child: AnimatedBuilder(
+                animation: _themeFadeCtrl!,
+                builder: (context, child) => Opacity(
+                  opacity: 1.0 - _themeFadeCtrl!.value,
+                  child: child,
+                ),
+                child: RawImage(
+                  image: _themeCrossFadeImage,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                ),
+              ),
+            ),
         ],
       ),
     );

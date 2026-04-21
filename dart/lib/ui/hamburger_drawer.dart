@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../bridge/engine_service.dart';
+import '../main.dart' show switchThemeWithCrossFade;
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
@@ -326,14 +327,14 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                           if (appState.systemDarkModeEnabled) {
                             appState.setSystemDarkMode(false);
                           }
-                          appState.updateTheme(dark ? 'dark' : 'light');
+                          switchThemeWithCrossFade(context, dark ? 'dark' : 'light');
                         },
                       ),
                       onTap: () {
                         if (appState.systemDarkModeEnabled) {
                           appState.setSystemDarkMode(false);
                         }
-                        appState.updateTheme(!isDark ? 'dark' : 'light');
+                        switchThemeWithCrossFade(context, !isDark ? 'dark' : 'light');
                       },
                       onSecondaryTapDown: (details) {
                         _showNightModeContextMenu(
