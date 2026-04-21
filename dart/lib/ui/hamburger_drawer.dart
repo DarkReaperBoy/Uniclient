@@ -12,6 +12,7 @@ import '../state/auth_state.dart';
 import 'confirm_box.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart' show isSavedMessages;
+import 'calls_screen.dart';
 import 'contacts_screen.dart';
 import 'create_channel_screen.dart';
 import 'my_profile_page.dart';
@@ -261,7 +262,11 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       label: 'Calls',
                       onTap: () {
                         Navigator.of(context).pop();
-                        // TODO: open calls screen
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const CallsScreen(),
+                          ),
+                        );
                       },
                     ),
                     // §3.3: Saved Messages row (item 7) — menuIconSavedMessages.
