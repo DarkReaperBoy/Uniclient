@@ -953,6 +953,29 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                     ),
                   ),
                 ),
+              // Spec §6: enlarge button in bottom-right for large photos.
+              // Shows expand icon as visual affordance; tapping photo already opens viewer.
+              if (message.mediaType == 1 &&
+                  hasFullImage &&
+                  displayWidth >= 150 &&
+                  displayHeight >= 150)
+                Positioned(
+                  bottom: widget.showOverlayInfo ? 28 : 4,
+                  right: 4,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.open_in_full,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
               // Spec §5: media-overlay bottom info — translucent bg, white text/icons.
               // msgDateImgPadding 8/2, msgDateImgDelta 4px from corner, msgDateImgBg #00000054.
               if (widget.showOverlayInfo)
