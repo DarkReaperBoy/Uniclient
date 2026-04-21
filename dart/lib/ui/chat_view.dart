@@ -256,6 +256,109 @@ class _ChatViewState extends State<ChatView> {
   /// timestamp so it becomes the newest visible (index 0 in the reversed list)
   /// and scrolls the viewport to it. If not loaded (e.g. older than the
   /// currently paged-in window), shows a snackbar instead of silently failing.
+  void _showAllPinnedMessages(BuildContext context, ChatState chatState) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+    final textColor = isDark ? const Color(0xFFdcdcdc) : const Color(0xFF000000);
+    final dividerColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8);
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1b2734) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'Pinned Messages',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: accentColor,
+                  ),
+                ),
+              ),
+              Divider(height: 1, color: dividerColor),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(ctx).size.height * 0.4,
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: chatState.pinnedMessages.length,
+                  separatorBuilder: (_, __) =>
+                      Divider(height: 1, color: dividerColor),
+                  itemBuilder: (_, i) {
+                    final msg = chatState.pinnedMessages[i];
+                    return InkWell(
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        chatState.jumpToMessage(msg.timestamp);
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (_scrollController.hasClients) {
+                            _scrollController.jumpTo(0);
+                          }
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 2,
+                              height: 36,
+                              color: accentColor,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Pinned Message #${chatState.pinnedMessages.length - i}',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: accentColor,
+                                    ),
+                                  ),
+                                  Text(
+                                    msg.contentText.isNotEmpty
+                                        ? msg.contentText
+                                        : '[media]',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _jumpToReply(ChatState chatState, String replyToId) {
     if (replyToId.isEmpty) return;
     final target = chatState.messages.where((m) => m.msgId == replyToId).firstOrNull;
@@ -831,6 +934,9 @@ class _ChatViewState extends State<ChatView> {
               onClose: () {
                 setState(() => _pinnedBarDismissed = true);
               },
+              onShowAll: chatState.pinnedMessages.length > 1
+                  ? () => _showAllPinnedMessages(context, chatState)
+                  : null,
             ),
           // Message list with scroll-to-bottom FAB.
           Expanded(
@@ -2095,6 +2201,7 @@ class _PinnedBar extends StatelessWidget {
   final int pinnedIndex;
   final VoidCallback? onTap;
   final VoidCallback? onClose;
+  final VoidCallback? onShowAll;
 
   const _PinnedBar({
     required this.pinned,
@@ -2102,6 +2209,7 @@ class _PinnedBar extends StatelessWidget {
     this.pinnedIndex = 0,
     this.onTap,
     this.onClose,
+    this.onShowAll,
   });
 
   @override
@@ -2182,6 +2290,10 @@ class _PinnedBar extends StatelessWidget {
               ),
             ),
           ),
+          // Spec §4.4: multi-pin "Show All" button — same size as close,
+          // icon pinned_show_all, only shown when pinnedCount > 1.
+          if (pinnedCount > 1)
+            _PinnedBarShowAllButton(onShowAll: onShowAll),
           // Spec §4.4: close/unpin button — 49×49 hit-area, 40px ripple
           // at (4,4), box_button_close icon in historyReplyCancelFg.
           _PinnedBarCloseButton(onClose: onClose),
@@ -2219,6 +2331,57 @@ class _PinnedBar extends StatelessWidget {
       height: 32,
       color: Colors.grey.shade300,
       child: const Icon(Icons.image, size: 16, color: Colors.grey),
+    );
+  }
+}
+
+/// Spec §4.4: historyPinnedShowAll — same 49×49 hit-area, 40px circular
+/// ripple at (4,4), `pinned_show_all` icon. Same colors as close button.
+/// Only shown when multiple pinned messages exist.
+class _PinnedBarShowAllButton extends StatelessWidget {
+  final VoidCallback? onShowAll;
+  const _PinnedBarShowAllButton({this.onShowAll});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cancelFg = isDark ? const Color(0xFF6c7883) : const Color(0xFF999999);
+    final cancelFgOver = isDark ? const Color(0xFFa8a8a8) : const Color(0xFF7c7c7c);
+
+    return SizedBox(
+      width: 49,
+      height: 49,
+      child: Stack(
+        children: [
+          Positioned(
+            left: 4,
+            top: 4,
+            child: ClipOval(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onShowAll,
+                  splashColor: (isDark
+                      ? const Color(0xFF3a4654)
+                      : const Color(0xFFf1f1f1)),
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: _HoverColorIcon(
+                      icon: Icons.view_list,
+                      size: 18,
+                      color: cancelFg,
+                      hoverColor: cancelFgOver,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

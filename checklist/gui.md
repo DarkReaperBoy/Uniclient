@@ -220,7 +220,6 @@
 - [x] Title "Pinned Message", blue accent color — DONE
 - [x] Preview text, 1 line elided — DONE
 - [x] Tapping bar jumps to pinned message — DONE
-- [ ] Multi-pin "Show All" button: same size, `pinned_show_all` icon — spec §4.4
 - [ ] Content change animation: 160ms — spec §4.4
 
 ### §4.5 Contact Status / Action Bar
