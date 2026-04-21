@@ -220,11 +220,7 @@
 - [x] Title "Pinned Message", blue accent color — DONE
 - [x] Preview text, 1 line elided — DONE
 - [x] Tapping bar jumps to pinned message — DONE
-- [ ] Close/unpin button: 49×49 hit-area, 40px ripple at (4,4), `box_button_close` icon — spec §4.4 (no close button currently)
-- [ ] Close button colors: `historyReplyCancelFg` / `historyReplyCancelFgOver` — spec §4.4
 - [ ] Multi-pin "Show All" button: same size, `pinned_show_all` icon — spec §4.4
-- [ ] Background: `historyPinnedBg` — day `#ffffff`, night `#1b2734` — spec §4.4 (currently uses `colorScheme.surface`)
-- [ ] Left accent stripe: 2px wide, 36px tall, `msgInReplyBarColor`, offset `(1,0)`, 10px skip — spec §4.4 (currently uses generic left bar at different dimensions)
 - [ ] Content change animation: 160ms — spec §4.4
 
 ### §4.5 Contact Status / Action Bar

@@ -103,6 +103,9 @@ class _ChatViewState extends State<ChatView> {
   String? _editingMsgId;
   bool _showScrollToBottom = false;
   String? _lastChatId;
+  /// Spec §4.4: when the user taps the close button on the pinned bar,
+  /// the bar is hidden locally for the current chat until the chat changes.
+  bool _pinnedBarDismissed = false;
   final Set<String> _selectedMsgIds = {};
   bool get _selectionMode => _selectedMsgIds.isNotEmpty;
   /// Spec §4.3: when true, the top bar shows an inline search text field
@@ -200,7 +203,8 @@ class _ChatViewState extends State<ChatView> {
       _lastChatId = chatId;
       // Chat changed — cancel any in-progress edit/reply/search so stale
       // state doesn't leak into the new chat's compose area.
-      if (_editingMsgId != null || _replyToId != null || _isSearching) {
+      // Also reset pinned bar dismiss state for the new chat.
+      if (_editingMsgId != null || _replyToId != null || _isSearching || _pinnedBarDismissed) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           setState(() {
@@ -212,6 +216,7 @@ class _ChatViewState extends State<ChatView> {
             _searchResultIds = [];
             _searchResultIndex = -1;
             _activeSearchQuery = '';
+            _pinnedBarDismissed = false;
           });
         });
       }
@@ -807,7 +812,7 @@ class _ChatViewState extends State<ChatView> {
               onSearchChanged: (_) => _onSearchQueryChanged(),
             ),
           // Pinned message bar (if any pinned messages).
-          if (chatState.pinnedMessages.isNotEmpty)
+          if (chatState.pinnedMessages.isNotEmpty && !_pinnedBarDismissed)
             _PinnedBar(
               pinned: chatState.pinnedMessages.first,
               pinnedCount: chatState.pinnedMessages.length,
@@ -822,6 +827,9 @@ class _ChatViewState extends State<ChatView> {
                     _scrollController.jumpTo(0);
                   }
                 });
+              },
+              onClose: () {
+                setState(() => _pinnedBarDismissed = true);
               },
             ),
           // Message list with scroll-to-bottom FAB.
@@ -2086,66 +2094,99 @@ class _PinnedBar extends StatelessWidget {
   final int pinnedCount;
   final int pinnedIndex;
   final VoidCallback? onTap;
+  final VoidCallback? onClose;
 
-  const _PinnedBar({required this.pinned, this.pinnedCount = 1, this.pinnedIndex = 0, this.onTap});
+  const _PinnedBar({
+    required this.pinned,
+    this.pinnedCount = 1,
+    this.pinnedIndex = 0,
+    this.onTap,
+    this.onClose,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-      height: 49,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec §4.4: historyPinnedBg. Day=#ffffff, night=#1b2734.
+    final pinnedBg = isDark ? const Color(0xFF1b2734) : Colors.white;
+    // Spec §4.4: bottom divider same as top bar shadow.
+    final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
+    // Spec §4.4: left accent stripe in msgInReplyBarColor.
+    // Day = activeLineFg (~#168acd). Night ≈ #429bdb.
+    final accentColor = isDark ? const Color(0xFF429bdb) : const Color(0xFF168acd);
+    // Spec §4.4: title color = windowActiveTextFg (blue accent).
+    final titleColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+    // Spec §4.4: preview text = historyComposeAreaFg.
+    final previewColor = isDark ? const Color(0xFFdcdcdc) : const Color(0xFF000000);
+
+    return Container(
+      height: 49, // historyReplyHeight
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: pinnedBg,
         border: Border(
-          bottom: BorderSide(color: theme.dividerColor, width: 1),
+          bottom: BorderSide(color: shadowFg, width: 1),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          Icon(Icons.push_pin, size: 16, color: theme.colorScheme.primary),
-          const SizedBox(width: 10),
-          Container(width: 2, height: 28, color: theme.colorScheme.primary),
-          const SizedBox(width: 10),
-          if (pinned.mediaThumbB64.isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: _buildPinnedThumb(),
-            ),
-            const SizedBox(width: 10),
-          ],
+          // Content area — tapping navigates to pinned message.
           Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _pinnedTitle(),
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onTap,
+              child: Row(
+                children: [
+                  const SizedBox(width: 1), // msgReplyBarPos offset x=1px
+                  // Spec §4.4: left accent stripe — 2px wide, 36px tall.
+                  Container(width: 2, height: 36, color: accentColor),
+                  const SizedBox(width: 10), // msgReplyBarSkip
+                  if (pinned.mediaThumbB64.isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: _buildPinnedThumb(),
+                    ),
+                    const SizedBox(width: 10),
+                  ],
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _pinnedTitle(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: titleColor,
+                          ),
+                        ),
+                        Text(
+                          pinned.contentText.isNotEmpty
+                              ? pinned.contentText
+                              : (pinned.senderName.isNotEmpty
+                                  ? '${pinned.senderName}: [media]'
+                                  : '[media]'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: previewColor,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Text(
-                  pinned.contentText.isNotEmpty
-                      ? pinned.contentText
-                      : (pinned.senderName.isNotEmpty
-                          ? '${pinned.senderName}: [media]'
-                          : '[media]'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+          // Spec §4.4: close/unpin button — 49×49 hit-area, 40px ripple
+          // at (4,4), box_button_close icon in historyReplyCancelFg.
+          _PinnedBarCloseButton(onClose: onClose),
         ],
       ),
-    ),
     );
   }
 
@@ -2178,6 +2219,90 @@ class _PinnedBar extends StatelessWidget {
       height: 32,
       color: Colors.grey.shade300,
       child: const Icon(Icons.image, size: 16, color: Colors.grey),
+    );
+  }
+}
+
+/// Spec §4.4: historyReplyCancel — 49×49 hit-area, 40px circular ripple
+/// at (4,4), `box_button_close` icon. Colors: historyReplyCancelFg resting,
+/// historyReplyCancelFgOver on hover.
+class _PinnedBarCloseButton extends StatelessWidget {
+  final VoidCallback? onClose;
+  const _PinnedBarCloseButton({this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // historyReplyCancelFg: day #999999 (placeholderFg), night #6c7883.
+    final cancelFg = isDark ? const Color(0xFF6c7883) : const Color(0xFF999999);
+    // historyReplyCancelFgOver: day #7c7c7c, night #a8a8a8.
+    final cancelFgOver = isDark ? const Color(0xFFa8a8a8) : const Color(0xFF7c7c7c);
+
+    return SizedBox(
+      width: 49,
+      height: 49,
+      child: Stack(
+        children: [
+          // Ripple circle: 40px at offset (4,4) inside the 49×49 area.
+          Positioned(
+            left: 4,
+            top: 4,
+            child: ClipOval(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: onClose,
+                  splashColor: (isDark
+                      ? const Color(0xFF3a4654)
+                      : const Color(0xFFf1f1f1)),
+                  highlightColor: Colors.transparent,
+                  hoverColor: Colors.transparent,
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: _HoverColorIcon(
+                      icon: Icons.close,
+                      size: 18,
+                      color: cancelFg,
+                      hoverColor: cancelFgOver,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Icon that changes color on hover (no surrounding InkWell needed —
+/// used inside the ripple ClipOval above).
+class _HoverColorIcon extends StatefulWidget {
+  final IconData icon;
+  final double size;
+  final Color color;
+  final Color hoverColor;
+  const _HoverColorIcon({required this.icon, required this.size, required this.color, required this.hoverColor});
+  @override
+  State<_HoverColorIcon> createState() => _HoverColorIconState();
+}
+
+class _HoverColorIconState extends State<_HoverColorIcon> {
+  bool _hovered = false;
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Center(
+        child: Icon(
+          widget.icon,
+          size: widget.size,
+          color: _hovered ? widget.hoverColor : widget.color,
+        ),
+      ),
     );
   }
 }
