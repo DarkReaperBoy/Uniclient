@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1535,6 +1536,25 @@ class _ThresholdPointerState extends MultiDragPointerState {
   }
 }
 
+/// §3.6: Compose version string with modifiers per spec.
+/// Base: "Version {APP_VERSION}" + stage (" alpha N" / " beta") + " DEBUG" in debug builds.
+String _versionString() {
+  const version = String.fromEnvironment('APP_VERSION', defaultValue: '0.1.0');
+  const stage = String.fromEnvironment('APP_STAGE', defaultValue: 'alpha');
+  const stageNum = String.fromEnvironment('APP_STAGE_NUM', defaultValue: '');
+  final buf = StringBuffer('Version $version');
+  if (stage.isNotEmpty) {
+    buf.write(' $stage');
+    if (stageNum.isNotEmpty) {
+      buf.write(' $stageNum');
+    }
+  }
+  if (kDebugMode) {
+    buf.write(' DEBUG');
+  }
+  return buf.toString();
+}
+
 /// §3.6: Footer at bottom of drawer scroll area.
 /// Two stacked lines at left 25px:
 /// - Top: product name (semibold 13px, windowSubTextFg)
@@ -1596,7 +1616,7 @@ class _FooterSection extends StatelessWidget {
                       onTap: () => _openUrl(
                           'https://github.com/DarkReaperBoy/uniclient/releases'),
                       child: Text(
-                        'Version 0.1.0 alpha',
+                        _versionString(),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w400,
@@ -1654,7 +1674,7 @@ class _FooterSection extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Version 0.1.0 alpha'),
+            Text(_versionString()),
             const SizedBox(height: 8),
             Text(
               'Unified multi-platform messaging client.',

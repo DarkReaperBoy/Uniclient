@@ -18,6 +18,9 @@ DART_DIR="$(cd "$(dirname "$0")/../dart" && pwd)"
 
 # Build-time constants injected via --dart-define / -D
 BUILD_DATE="$(date +%Y-%m-%d)"
+APP_VERSION="0.1.0"
+APP_STAGE="alpha"        # "alpha", "beta", or "" for release
+APP_STAGE_NUM=""          # alpha number (e.g. "2"), or "" to omit
 
 # Find Flutter SDK
 FLUTTER_SDK="${FLUTTER_ROOT:-}"
@@ -70,6 +73,9 @@ case "$PLATFORM" in
     CI=true FLUTTER_SUPPRESS_ANALYTICS=true "$FLUTTER_SDK/bin/flutter" build bundle \
       --"$BUILD_MODE" --target lib/main.dart \
       --dart-define=BUILD_DATE="$BUILD_DATE" \
+      --dart-define=APP_VERSION="$APP_VERSION" \
+      --dart-define=APP_STAGE="$APP_STAGE" \
+      --dart-define=APP_STAGE_NUM="$APP_STAGE_NUM" \
       --asset-dir "$BUILD_DIR/flutter_assets" 2>&1 | tail -3
     cd - >/dev/null
 
@@ -81,6 +87,9 @@ case "$PLATFORM" in
         --target=flutter \
         --aot --tfa \
         -DBUILD_DATE="$BUILD_DATE" \
+        -DAPP_VERSION="$APP_VERSION" \
+        -DAPP_STAGE="$APP_STAGE" \
+        -DAPP_STAGE_NUM="$APP_STAGE_NUM" \
         --packages="$DART_DIR/.dart_tool/package_config.json" \
         --output-dill "$BUILD_DIR/app.dill" \
         "$DART_DIR/lib/main.dart" 2>&1 | tail -1
@@ -104,6 +113,9 @@ case "$PLATFORM" in
         --sdk-root "$PATCHED_SDK" \
         --target=flutter \
         -DBUILD_DATE="$BUILD_DATE" \
+        -DAPP_VERSION="$APP_VERSION" \
+        -DAPP_STAGE="$APP_STAGE" \
+        -DAPP_STAGE_NUM="$APP_STAGE_NUM" \
         --packages="$DART_DIR/.dart_tool/package_config.json" \
         --output-dill "$BUILD_DIR/flutter_assets/kernel_blob.bin" \
         --track-widget-creation \

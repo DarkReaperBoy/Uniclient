@@ -181,7 +181,6 @@
 - [x] Bottom line: "Version X – About" (regular 13px), two link regions — DONE
 - [x] Version tooltip "Build date: {date}" — DONE
 - [x] "About" link opens AboutBox dialog — DONE
-- [ ] Version string: append " alpha N" / " beta" / " DEBUG" modifiers as appropriate — spec §3.6 (currently hardcoded "Version 0.1.0 alpha")
 
 ---
 
