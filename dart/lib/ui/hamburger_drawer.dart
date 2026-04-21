@@ -312,17 +312,36 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                         );
                       },
                     ),
+                    // §3.4: Night Mode row with system dark mode support.
+                    // Right-click/long-press shows context menu with "Use System Theme" toggle.
+                    // Manual toggle disables system dark mode when active.
                     _MenuRow(
                       icon: Icons.nightlight_round,
-                      label: 'Night Mode',
+                      label: appState.systemDarkModeEnabled
+                          ? 'Night Mode (Auto)'
+                          : 'Night Mode',
                       trailing: _InlineToggle(
                         value: isDark,
                         onChanged: (dark) {
+                          if (appState.systemDarkModeEnabled) {
+                            appState.setSystemDarkMode(false);
+                          }
                           appState.updateTheme(dark ? 'dark' : 'light');
                         },
                       ),
                       onTap: () {
+                        if (appState.systemDarkModeEnabled) {
+                          appState.setSystemDarkMode(false);
+                        }
                         appState.updateTheme(!isDark ? 'dark' : 'light');
+                      },
+                      onSecondaryTapDown: (details) {
+                        _showNightModeContextMenu(
+                          context, details.globalPosition, isDark, appState);
+                      },
+                      onLongPressWithPosition: (position) {
+                        _showNightModeContextMenu(
+                          context, position, isDark, appState);
                       },
                     ),
                     // §3.3: Archive row — shown when user has archived chats.
@@ -360,6 +379,44 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
         ),
       ),
     );
+  }
+
+  /// §3.4: Right-click context menu for Night Mode row — toggle system dark mode.
+  void _showNightModeContextMenu(
+      BuildContext context, Offset position, bool isDark, AppState appState) {
+    final menuBg = isDark ? const Color(0xFF17212B) : const Color(0xFFFFFFFF);
+    final hoverColor =
+        isDark ? const Color(0xFF232E3C) : const Color(0xFFF1F1F1);
+    final textColor =
+        isDark ? const Color(0xFFF5F5F5) : const Color(0xFF000000);
+    final iconColor =
+        isDark ? const Color(0xFF6C7883) : const Color(0xFF999999);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx, position.dy, position.dx, position.dy,
+      ),
+      color: menuBg,
+      elevation: 5,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      items: [
+        _ContextMenuItem(
+          value: 'system_theme',
+          icon: appState.systemDarkModeEnabled
+              ? Icons.check_box
+              : Icons.check_box_outline_blank,
+          label: 'Use System Theme',
+          textColor: textColor,
+          iconColor: iconColor,
+          hoverColor: hoverColor,
+        ),
+      ],
+    ).then((value) {
+      if (value == 'system_theme') {
+        appState.setSystemDarkMode(!appState.systemDarkModeEnabled);
+      }
+    });
   }
 
   void _showAddAccountDialog(BuildContext context, AppState appState,
@@ -1240,12 +1297,14 @@ class _AccountUnreadBadge extends StatelessWidget {
 /// Icon: 24x24 at 21px horizontal, menuIconColor.
 /// Label: semiboldTextStyle 13px semibold, windowBoldFg / windowBoldFgOver.
 /// Hover: windowBgOver background + ripple.
-class _MenuRow extends StatelessWidget {
+class _MenuRow extends StatefulWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final Widget? trailing;
   final String? iconPath; // optional file-based icon (for menu bots)
+  final GestureTapDownCallback? onSecondaryTapDown;
+  final void Function(Offset globalPosition)? onLongPressWithPosition;
 
   const _MenuRow({
     required this.icon,
@@ -1253,7 +1312,16 @@ class _MenuRow extends StatelessWidget {
     required this.onTap,
     this.trailing,
     this.iconPath,
+    this.onSecondaryTapDown,
+    this.onLongPressWithPosition,
   });
+
+  @override
+  State<_MenuRow> createState() => _MenuRowState();
+}
+
+class _MenuRowState extends State<_MenuRow> {
+  Offset _lastPointerDown = Offset.zero;
 
   @override
   Widget build(BuildContext context) {
@@ -1271,57 +1339,64 @@ class _MenuRow extends StatelessWidget {
         ? const Color(0xFF232E3C)
         : const Color(0xFFF1F1F1);
 
-    return InkWell(
-      onTap: onTap,
-      hoverColor: hoverBg,
-      splashColor: hoverBg.withValues(alpha: 0.5),
-      child: Padding(
-        // Spec §3.3: margins(61px, 11px, 20px, 9px).
-        // Left 61px = 21px icon offset + 24px icon + 16px gap to label.
-        padding: const EdgeInsets.only(
-          left: 21,
-          top: 11,
-          right: 20,
-          bottom: 9,
-        ),
-        child: Row(
-          children: [
-            // Spec §3.3: 24x24 icon at 21px horizontal.
-            // Menu bots use file-based icons when available.
-            if (iconPath != null && iconPath!.isNotEmpty)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.file(
-                  File(iconPath!),
-                  width: 24,
-                  height: 24,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      Icon(icon, size: 24, color: iconColor),
+    return Listener(
+      onPointerDown: (e) => _lastPointerDown = e.position,
+      child: InkWell(
+        onTap: widget.onTap,
+        onSecondaryTapDown: widget.onSecondaryTapDown,
+        onLongPress: widget.onLongPressWithPosition != null
+            ? () => widget.onLongPressWithPosition!(_lastPointerDown)
+            : null,
+        hoverColor: hoverBg,
+        splashColor: hoverBg.withValues(alpha: 0.5),
+        child: Padding(
+          // Spec §3.3: margins(61px, 11px, 20px, 9px).
+          // Left 61px = 21px icon offset + 24px icon + 16px gap to label.
+          padding: const EdgeInsets.only(
+            left: 21,
+            top: 11,
+            right: 20,
+            bottom: 9,
+          ),
+          child: Row(
+            children: [
+              // Spec §3.3: 24x24 icon at 21px horizontal.
+              // Menu bots use file-based icons when available.
+              if (widget.iconPath != null && widget.iconPath!.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.file(
+                    File(widget.iconPath!),
+                    width: 24,
+                    height: 24,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Icon(widget.icon, size: 24, color: iconColor),
+                  ),
+                )
+              else
+                Icon(widget.icon, size: 24, color: iconColor),
+              // Gap from icon to label: 61 - 21 - 24 = 16px.
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: labelColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              )
-            else
-              Icon(icon, size: 24, color: iconColor),
-            // Gap from icon to label: 61 - 21 - 24 = 16px.
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: labelColor,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
               ),
-            ),
-            if (trailing != null) ...[
-              // Spec §3.3: 19px toggle skip between label and trailing.
-              const SizedBox(width: 19),
-              trailing!,
+              if (widget.trailing != null) ...[
+                // Spec §3.3: 19px toggle skip between label and trailing.
+                const SizedBox(width: 19),
+                widget.trailing!,
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

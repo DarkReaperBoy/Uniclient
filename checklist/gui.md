@@ -171,7 +171,6 @@
 - [x] Toggle "on" color = `mainMenuCoverBg` (accent blue), "off" = `windowSubTextFg` — DONE in `_InlineToggle`
 - [x] Toggle animates 150ms — DONE
 - [x] Row tap toggles theme — DONE
-- [ ] System dark mode detection: if `systemDarkModeEnabled`, toggle state reflects system value live — spec §3.4 (not implemented; theme is only set manually)
 - [ ] Theme cross-fade full-window palette animation on toggle — spec §3.4 (currently just rebuilds with new theme; no crossfade animation)
 - [ ] Confirmation dialog when theme editor is active ("can't change theme while editing") — spec §3.4 (low priority)
 
