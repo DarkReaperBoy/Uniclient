@@ -283,8 +283,7 @@
 
 ### §6.1 Shared Constants & Photo Layout
 
-- [x] Photos inline in bubble, 430px max, 100px min, aspect ratio preserved — spec §6. DONE in message_bubble.dart (_VisualMedia). Current max is 300px, not 430px
-- [ ] Fix max dimension to 430px (currently 300px) and min to 100px (currently 80px) — spec §6
+- [x] Photos inline in bubble, 430px max, 100px min, aspect ratio preserved — spec §6. DONE in message_bubble.dart (_VisualMedia)
 - [ ] Four-tier photo loading: full → thumbnail → small → blurred inline placeholder — spec §6. Current: local file or base64 thumb only, no progressive tiers
 - [ ] Click opens media viewer (lightbox, spec §20) — spec §6. Not implemented (no tap handler on media)
 - [ ] Photo enlarge button in bottom-right corner for large photos — spec §6. Not implemented

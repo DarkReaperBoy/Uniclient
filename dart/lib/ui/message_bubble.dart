@@ -732,26 +732,26 @@ class _VisualMedia extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Calculate display size (max 300x300, preserve aspect ratio).
-    double displayWidth = 300;
-    double displayHeight = 200;
+    // Calculate display size (max 430x430, min 100px, preserve aspect ratio — spec §6).
+    double displayWidth = 430;
+    double displayHeight = 287;
     if (message.mediaWidth > 0 && message.mediaHeight > 0) {
       final aspect = message.mediaWidth / message.mediaHeight;
       if (aspect > 1) {
-        displayWidth = 300;
-        displayHeight = 300 / aspect;
+        displayWidth = 430;
+        displayHeight = 430 / aspect;
       } else {
-        displayHeight = 300;
-        displayWidth = 300 * aspect;
+        displayHeight = 430;
+        displayWidth = 430 * aspect;
       }
-      displayWidth = displayWidth.clamp(80, 300);
-      displayHeight = displayHeight.clamp(80, 300);
+      displayWidth = displayWidth.clamp(100, 430);
+      displayHeight = displayHeight.clamp(100, 430);
     }
 
     // Sticker: smaller, no background.
     if (message.mediaType == 6) {
-      displayWidth = displayWidth.clamp(80, 200);
-      displayHeight = displayHeight.clamp(80, 200);
+      displayWidth = displayWidth.clamp(100, 200);
+      displayHeight = displayHeight.clamp(100, 200);
     }
 
     Widget imageWidget;
