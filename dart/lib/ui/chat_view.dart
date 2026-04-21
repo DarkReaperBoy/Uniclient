@@ -101,12 +101,14 @@ class ChatView extends StatefulWidget {
 }
 
 class _ChatViewState extends State<ChatView>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _composeController = TextEditingController();
   final _scrollController = ScrollController();
   String? _replyToId;
   String? _editingMsgId;
   bool _showScrollToBottom = false;
+  /// Spec §5: 150ms slide-up animation for scroll-to-bottom FAB.
+  late final AnimationController _fabAnimCtrl;
   String? _lastChatId;
   /// Spec §4.4: when the user taps the close button on the pinned bar,
   /// the bar is hidden locally for the current chat until the chat changes.
@@ -145,6 +147,10 @@ class _ChatViewState extends State<ChatView>
     _selectionCurvedAnim = CurvedAnimation(
       parent: _selectionAnimCtrl,
       curve: Curves.easeOutCirc,
+    );
+    _fabAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
     );
     _scrollController.addListener(_onScroll);
     // Register the app-level ArrowUp hook (spec §24.7: edit last outgoing
@@ -191,6 +197,7 @@ class _ChatViewState extends State<ChatView>
     }
     _selectionCurvedAnim.dispose();
     _selectionAnimCtrl.dispose();
+    _fabAnimCtrl.dispose();
     _composeController.dispose();
     _scrollController.dispose();
     _searchController.dispose();
@@ -250,10 +257,15 @@ class _ChatViewState extends State<ChatView>
         _scrollController.position.maxScrollExtent - 200) {
       context.read<ChatState>().loadMoreMessages();
     }
-    // Show/hide scroll-to-bottom FAB.
-    final showFab = _scrollController.offset > 200;
+    // Spec §5: show FAB after scrolling 480px from bottom.
+    final showFab = _scrollController.offset > 480;
     if (showFab != _showScrollToBottom) {
-      setState(() => _showScrollToBottom = showFab);
+      _showScrollToBottom = showFab;
+      if (showFab) {
+        _fabAnimCtrl.forward();
+      } else {
+        _fabAnimCtrl.reverse();
+      }
     }
   }
 
@@ -1051,16 +1063,27 @@ class _ChatViewState extends State<ChatView>
                       : null,
                   searchQuery: _activeSearchQuery,
                 ),
-                // Scroll-to-bottom FAB (spec §5: JumpDownButton).
-                if (_showScrollToBottom)
-                  Positioned(
-                    right: 16,
-                    bottom: 16,
+                // Spec §5: JumpDownButton — 12px right, 10px bottom, 150ms slide-up.
+                Positioned(
+                  right: 12,
+                  bottom: 10,
+                  child: AnimatedBuilder(
+                    animation: _fabAnimCtrl,
+                    builder: (context, child) {
+                      if (_fabAnimCtrl.isDismissed) return const SizedBox.shrink();
+                      // Slide up from below: translate Y from +82 (offscreen) to 0.
+                      final dy = (1.0 - _fabAnimCtrl.value) * 82.0;
+                      return Transform.translate(
+                        offset: Offset(0, dy),
+                        child: child,
+                      );
+                    },
                     child: _ScrollToBottomFab(
                       unreadCount: chatState.openedUnreadCount,
                       onTap: _scrollToBottom,
                     ),
                   ),
+                ),
               ],
             ),
           ),
@@ -3105,38 +3128,130 @@ class _HoverColorIconState extends State<_HoverColorIcon> {
 }
 
 /// Scroll-to-bottom FAB (spec §5: JumpDownButton).
-class _ScrollToBottomFab extends StatelessWidget {
+/// Spec §5: JumpDownButton — 52×62px hit-area, 42px visible disc,
+/// two-layer icon (shadow disc + arrow), muted unread badge 4px above.
+class _ScrollToBottomFab extends StatefulWidget {
   final int unreadCount;
   final VoidCallback onTap;
 
   const _ScrollToBottomFab({required this.unreadCount, required this.onTap});
 
   @override
+  State<_ScrollToBottomFab> createState() => _ScrollToBottomFabState();
+}
+
+class _ScrollToBottomFabState extends State<_ScrollToBottomFab> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (unreadCount > 0)
-          Container(
-            margin: const EdgeInsets.only(bottom: 4),
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(
-              unreadCount > 99 ? '99+' : unreadCount.toString(),
-              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-            ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Spec colors.
+    final discBg = isDark ? const Color(0xFF1D2B3A) : const Color(0xFFFFFFFF);
+    final discBgOver = isDark ? const Color(0xFF243446) : const Color(0xFFF1F1F1);
+    final arrowColor = isDark ? const Color(0xFFADB4BA) : const Color(0xFF999999);
+    const shadowColor = Color(0x40000000); // #00000040 = 25% black
+    // Badge: muted palette.
+    final badgeBg = isDark ? const Color(0xFF3E546A) : const Color(0xFFBBBBBB);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 52,
+          height: 62 + (widget.unreadCount > 0 ? 26 : 0), // badge adds 22+4 above
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Badge: 4px above the 62px button area.
+              if (widget.unreadCount > 0)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      decoration: BoxDecoration(
+                        color: badgeBg,
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        widget.unreadCount > 9999
+                            ? '9999+'
+                            : widget.unreadCount.toString(),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              // Button area: 52×62, disc at (5,15) within it.
+              Positioned(
+                bottom: 0,
+                left: 0,
+                child: SizedBox(
+                  width: 52,
+                  height: 62,
+                  child: Stack(
+                    children: [
+                      // Shadow disc (slightly offset down for drop shadow).
+                      Positioned(
+                        left: 5,
+                        top: 17, // 15 + 2px shadow offset
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: shadowColor,
+                          ),
+                        ),
+                      ),
+                      // Main disc.
+                      Positioned(
+                        left: 5,
+                        top: 15,
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _hovered ? discBgOver : discBg,
+                          ),
+                        ),
+                      ),
+                      // Arrow icon centered on disc.
+                      Positioned(
+                        left: 5,
+                        top: 15,
+                        child: SizedBox(
+                          width: 42,
+                          height: 42,
+                          child: Icon(
+                            Icons.arrow_downward,
+                            size: 20,
+                            color: arrowColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        FloatingActionButton.small(
-          onPressed: onTap,
-          backgroundColor: theme.colorScheme.surface,
-          elevation: 4,
-          child: Icon(Icons.keyboard_arrow_down, color: theme.textTheme.bodyMedium?.color),
         ),
-      ],
+      ),
     );
   }
 }

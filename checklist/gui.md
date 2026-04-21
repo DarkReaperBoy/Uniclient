@@ -242,10 +242,7 @@
 ### §5.1 Message List Chrome
 
 - [x] Scroll newest-at-bottom via reversed ListView with lazy-load trigger at top — spec §5, DONE in chat_view.dart (_MessageList)
-- [ ] Scroll-to-bottom FAB: 52×62px hit-area, 42px ripple disc, two-layer icon (historyToDownBelow shadow + historyToDownAbove arrow), 12px right / 10px bottom anchor, 150ms slide-in animation — spec §5 (S5). Current impl: FloatingActionButton.small at (16,16), wrong size/icon/position/animation
-- [ ] FAB show threshold: 480px from bottom (not current ~200px offset check) — spec §5
 - [ ] Stacked corner buttons order (bottom→top): Jump-down → Mentions → Reactions → PollVotes, 4px gap, Mentions/Reactions/PollVotes slide from right, Jump-down slides up — spec §5
-- [ ] FAB unread-count badge: 22px min height, semibold 13px, muted palette (bgMuted #bbbbbb day / #3e546a night), 4px above button top — spec §5. Current: uses primary color, not muted palette
 - [x] Date separator pill: centered text, fully-rounded pill (radius = height/2), msgServicePadding 12/3/12/4, 10px above / 2px below — spec §5. DONE in chat_view.dart (_DateSeparator) — partially; colors use theme.colorScheme.surface, not exact msgServiceBg tokens
 - [ ] Date separator exact colors: day #517c417f / night #213040d5, text #ffffff — spec §5. Current uses colorScheme.surface.withAlpha(0.8)
 - [ ] "Unread Messages" full-width band above first unread message — spec §5
