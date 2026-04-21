@@ -4827,6 +4827,186 @@ func (x *EngineCreateChannelResponse) GetChat() *EngineChatInfo {
 	return nil
 }
 
+type EngineContactInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Username      string                 `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	Phone         string                 `protobuf:"bytes,4,opt,name=phone,proto3" json:"phone,omitempty"`
+	AvatarB64     string                 `protobuf:"bytes,5,opt,name=avatar_b64,json=avatarB64,proto3" json:"avatar_b64,omitempty"`
+	IsBot         bool                   `protobuf:"varint,6,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
+	IsOnline      bool                   `protobuf:"varint,7,opt,name=is_online,json=isOnline,proto3" json:"is_online,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineContactInfo) Reset() {
+	*x = EngineContactInfo{}
+	mi := &file_proto_engine_proto_msgTypes[72]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineContactInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineContactInfo) ProtoMessage() {}
+
+func (x *EngineContactInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[72]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineContactInfo.ProtoReflect.Descriptor instead.
+func (*EngineContactInfo) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{72}
+}
+
+func (x *EngineContactInfo) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *EngineContactInfo) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *EngineContactInfo) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *EngineContactInfo) GetPhone() string {
+	if x != nil {
+		return x.Phone
+	}
+	return ""
+}
+
+func (x *EngineContactInfo) GetAvatarB64() string {
+	if x != nil {
+		return x.AvatarB64
+	}
+	return ""
+}
+
+func (x *EngineContactInfo) GetIsBot() bool {
+	if x != nil {
+		return x.IsBot
+	}
+	return false
+}
+
+func (x *EngineContactInfo) GetIsOnline() bool {
+	if x != nil {
+		return x.IsOnline
+	}
+	return false
+}
+
+type EngineGetContactsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetContactsRequest) Reset() {
+	*x = EngineGetContactsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[73]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetContactsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetContactsRequest) ProtoMessage() {}
+
+func (x *EngineGetContactsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[73]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetContactsRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetContactsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{73}
+}
+
+func (x *EngineGetContactsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+type EngineGetContactsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contacts      []*EngineContactInfo   `protobuf:"bytes,1,rep,name=contacts,proto3" json:"contacts,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetContactsResponse) Reset() {
+	*x = EngineGetContactsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[74]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetContactsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetContactsResponse) ProtoMessage() {}
+
+func (x *EngineGetContactsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[74]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetContactsResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetContactsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{74}
+}
+
+func (x *EngineGetContactsResponse) GetContacts() []*EngineContactInfo {
+	if x != nil {
+		return x.Contacts
+	}
+	return nil
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -5264,7 +5444,21 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x03 \x01(\tR\vdescription\"L\n" +
 	"\x1bEngineCreateChannelResponse\x12-\n" +
-	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chatB\x11Z\x0funiclient/protob\x06proto3"
+	"\x04chat\x18\x01 \x01(\v2\x19.uniclient.EngineChatInfoR\x04chat\"\xd4\x01\n" +
+	"\x11EngineContactInfo\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12!\n" +
+	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x12\x14\n" +
+	"\x05phone\x18\x04 \x01(\tR\x05phone\x12\x1d\n" +
+	"\n" +
+	"avatar_b64\x18\x05 \x01(\tR\tavatarB64\x12\x15\n" +
+	"\x06is_bot\x18\x06 \x01(\bR\x05isBot\x12\x1b\n" +
+	"\tis_online\x18\a \x01(\bR\bisOnline\"9\n" +
+	"\x18EngineGetContactsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"U\n" +
+	"\x19EngineGetContactsResponse\x128\n" +
+	"\bcontacts\x18\x01 \x03(\v2\x1c.uniclient.EngineContactInfoR\bcontactsB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -5278,7 +5472,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 72)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 75)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -5352,6 +5546,9 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetPinnedMessagesResponse)(nil), // 69: uniclient.EngineGetPinnedMessagesResponse
 	(*EngineCreateChannelRequest)(nil),      // 70: uniclient.EngineCreateChannelRequest
 	(*EngineCreateChannelResponse)(nil),     // 71: uniclient.EngineCreateChannelResponse
+	(*EngineContactInfo)(nil),               // 72: uniclient.EngineContactInfo
+	(*EngineGetContactsRequest)(nil),        // 73: uniclient.EngineGetContactsRequest
+	(*EngineGetContactsResponse)(nil),       // 74: uniclient.EngineGetContactsResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -5368,11 +5565,12 @@ var file_proto_engine_proto_depIdxs = []int32{
 	63, // 11: uniclient.EngineGetFoldersResponse.folders:type_name -> uniclient.EngineFolderInfo
 	28, // 12: uniclient.EngineGetPinnedMessagesResponse.messages:type_name -> uniclient.EngineCachedMessage
 	18, // 13: uniclient.EngineCreateChannelResponse.chat:type_name -> uniclient.EngineChatInfo
-	14, // [14:14] is the sub-list for method output_type
-	14, // [14:14] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	72, // 14: uniclient.EngineGetContactsResponse.contacts:type_name -> uniclient.EngineContactInfo
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -5386,7 +5584,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   72,
+			NumMessages:   75,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

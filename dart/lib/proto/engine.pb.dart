@@ -6377,6 +6377,202 @@ class EngineCreateChannelResponse extends $pb.GeneratedMessage {
   EngineChatInfo ensureChat() => $_ensure(0);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Contacts
+// ═══════════════════════════════════════════════════════════════════════
+
+class EngineContactInfo extends $pb.GeneratedMessage {
+  factory EngineContactInfo({
+    $core.String? userId,
+    $core.String? username,
+    $core.String? displayName,
+    $core.String? phone,
+    $core.String? avatarB64,
+    $core.bool? isBot,
+    $core.bool? isOnline,
+  }) {
+    final $result = create();
+    if (userId != null) $result.userId = userId;
+    if (username != null) $result.username = username;
+    if (displayName != null) $result.displayName = displayName;
+    if (phone != null) $result.phone = phone;
+    if (avatarB64 != null) $result.avatarB64 = avatarB64;
+    if (isBot != null) $result.isBot = isBot;
+    if (isOnline != null) $result.isOnline = isOnline;
+    return $result;
+  }
+  EngineContactInfo._() : super();
+  factory EngineContactInfo.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineContactInfo.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineContactInfo', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'userId')
+    ..aOS(2, _omitFieldNames ? '' : 'username')
+    ..aOS(3, _omitFieldNames ? '' : 'displayName')
+    ..aOS(4, _omitFieldNames ? '' : 'phone')
+    ..aOS(5, _omitFieldNames ? '' : 'avatarB64')
+    ..aOB(6, _omitFieldNames ? '' : 'isBot')
+    ..aOB(7, _omitFieldNames ? '' : 'isOnline')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.deepCopy] instead. Will be removed in next major version')
+  EngineContactInfo clone() => EngineContactInfo()..mergeFromMessage(this);
+  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.rebuild] instead. Will be removed in next major version')
+  EngineContactInfo copyWith(void Function(EngineContactInfo) updates) => super.copyWith((message) => updates(message as EngineContactInfo)) as EngineContactInfo;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineContactInfo create() => EngineContactInfo._();
+  EngineContactInfo createEmptyInstance() => create();
+  static $pb.PbList<EngineContactInfo> createRepeated() => $pb.PbList<EngineContactInfo>();
+  @$core.pragma('dart2js:noInline')
+  static EngineContactInfo getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineContactInfo>(create);
+  static EngineContactInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get userId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set userId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasUserId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearUserId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get username => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set username($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasUsername() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUsername() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get displayName => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set displayName($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasDisplayName() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearDisplayName() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get phone => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set phone($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasPhone() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearPhone() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get avatarB64 => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set avatarB64($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasAvatarB64() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearAvatarB64() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.bool get isBot => $_getBF(5);
+  @$pb.TagNumber(6)
+  set isBot($core.bool v) { $_setBool(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasIsBot() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearIsBot() => clearField(6);
+
+  @$pb.TagNumber(7)
+  $core.bool get isOnline => $_getBF(6);
+  @$pb.TagNumber(7)
+  set isOnline($core.bool v) { $_setBool(6, v); }
+  @$pb.TagNumber(7)
+  $core.bool hasIsOnline() => $_has(6);
+  @$pb.TagNumber(7)
+  void clearIsOnline() => clearField(7);
+}
+
+class EngineGetContactsRequest extends $pb.GeneratedMessage {
+  factory EngineGetContactsRequest({
+    $core.String? accountId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    return $result;
+  }
+  EngineGetContactsRequest._() : super();
+  factory EngineGetContactsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetContactsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetContactsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.deepCopy] instead. Will be removed in next major version')
+  EngineGetContactsRequest clone() => EngineGetContactsRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.rebuild] instead. Will be removed in next major version')
+  EngineGetContactsRequest copyWith(void Function(EngineGetContactsRequest) updates) => super.copyWith((message) => updates(message as EngineGetContactsRequest)) as EngineGetContactsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetContactsRequest create() => EngineGetContactsRequest._();
+  EngineGetContactsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetContactsRequest> createRepeated() => $pb.PbList<EngineGetContactsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetContactsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetContactsRequest>(create);
+  static EngineGetContactsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+}
+
+class EngineGetContactsResponse extends $pb.GeneratedMessage {
+  factory EngineGetContactsResponse({
+    $core.List<EngineContactInfo>? contacts,
+  }) {
+    final $result = create();
+    if (contacts != null) $result.contacts.addAll(contacts);
+    return $result;
+  }
+  EngineGetContactsResponse._() : super();
+  factory EngineGetContactsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetContactsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetContactsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineContactInfo>(1, _omitFieldNames ? '' : 'contacts', $pb.PbFieldType.PM, subBuilder: EngineContactInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.deepCopy] instead. Will be removed in next major version')
+  EngineGetContactsResponse clone() => EngineGetContactsResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.rebuild] instead. Will be removed in next major version')
+  EngineGetContactsResponse copyWith(void Function(EngineGetContactsResponse) updates) => super.copyWith((message) => updates(message as EngineGetContactsResponse)) as EngineGetContactsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetContactsResponse create() => EngineGetContactsResponse._();
+  EngineGetContactsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetContactsResponse> createRepeated() => $pb.PbList<EngineGetContactsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetContactsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetContactsResponse>(create);
+  static EngineGetContactsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineContactInfo> get contacts => $_getList(0);
+}
+
 
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

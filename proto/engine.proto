@@ -575,3 +575,25 @@ message EngineCreateChannelRequest {
 message EngineCreateChannelResponse {
   EngineChatInfo chat = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Contacts
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineContactInfo {
+  string user_id      = 1;
+  string username     = 2;
+  string display_name = 3;
+  string phone        = 4;
+  string avatar_b64   = 5;
+  bool   is_bot       = 6;
+  bool   is_online    = 7;
+}
+
+message EngineGetContactsRequest {
+  string account_id = 1;
+}
+
+message EngineGetContactsResponse {
+  repeated EngineContactInfo contacts = 1;
+}

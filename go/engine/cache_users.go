@@ -144,6 +144,48 @@ func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]
 	return members, nil
 }
 
+// ContactInfo is the contact data returned to the UI for the contacts list.
+type ContactInfo struct {
+	UserID      string `json:"user_id"`
+	Username    string `json:"username,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	Phone       string `json:"phone,omitempty"`
+	AvatarB64   string `json:"avatar_b64,omitempty"`
+	IsBot       bool   `json:"is_bot"`
+	IsOnline    bool   `json:"is_online"`
+}
+
+// GetContacts fetches the contact list from the connected core.
+func (e *Engine) GetContacts(accountID string) ([]ContactInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+
+	users, err := acc.Core.GetContacts()
+	if err != nil {
+		return nil, err
+	}
+
+	contacts := make([]ContactInfo, 0, len(users))
+	for _, u := range users {
+		e.UpsertUser(accountID, u)
+		contacts = append(contacts, ContactInfo{
+			UserID:      u.ID,
+			Username:    u.Username,
+			DisplayName: u.DisplayName,
+			Phone:       u.Phone,
+			AvatarB64:   u.AvatarB64,
+			IsBot:       u.IsBot,
+			IsOnline:    u.IsOnline,
+		})
+	}
+	return contacts, nil
+}
+
 // BulkUpsertUsers inserts/updates multiple user profiles in a single transaction.
 func (e *Engine) BulkUpsertUsers(accountID string, users []cores.User) error {
 	tx, err := e.db.Begin()

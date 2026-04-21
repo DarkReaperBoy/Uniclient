@@ -245,6 +245,16 @@ class EngineService {
     return resp.members.map(_memberInfoFromProto).toList();
   }
 
+  // ── Contacts ──
+
+  Future<List<ContactInfo>> getContacts(String accountId) async {
+    final req = epb.EngineGetContactsRequest()
+      ..accountId = accountId;
+    final respBytes = await _callAsync('__engine', 'GetContacts', req.writeToBuffer());
+    final resp = epb.EngineGetContactsResponse.fromBuffer(respBytes);
+    return resp.contacts.map(_contactInfoFromProto).toList();
+  }
+
   // ── Messages ──
 
   List<CachedMessage> getMessages(String accountId, String chatId, {int beforeMs = 0, int limit = 50}) {
@@ -843,6 +853,16 @@ class EngineService {
     isBot: p.isBot,
     isOnline: p.isOnline,
     role: p.role.isNotEmpty ? p.role : 'member',
+  );
+
+  static ContactInfo _contactInfoFromProto(epb.EngineContactInfo p) => ContactInfo(
+    userId: p.userId,
+    username: _safeStr(p.username),
+    displayName: _safeStr(p.displayName),
+    phone: p.phone,
+    avatarB64: p.avatarB64,
+    isBot: p.isBot,
+    isOnline: p.isOnline,
   );
 
   static SearchResult _searchResultFromProto(epb.EngineSearchResult p) => SearchResult(

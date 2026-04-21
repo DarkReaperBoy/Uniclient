@@ -613,7 +613,32 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(&pb.EngineCreateChannelResponse{Chat: chatInfoToProto(chat)})
 
-	// ── Shutdown ──
+	// ── Contacts ──
+
+	case "GetContacts":
+		var req pb.EngineGetContactsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		contacts, err := e.GetContacts(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetContactsResponse{}
+		for _, c := range contacts {
+			resp.Contacts = append(resp.Contacts, &pb.EngineContactInfo{
+				UserId:      c.UserID,
+				Username:    sanitizeUTF8(c.Username),
+				DisplayName: sanitizeUTF8(c.DisplayName),
+				Phone:       c.Phone,
+				AvatarB64:   c.AvatarB64,
+				IsBot:       c.IsBot,
+				IsOnline:    c.IsOnline,
+			})
+		}
+		return proto.Marshal(resp)
+
+	// ��─ Shutdown ──
 
 	case "Shutdown":
 		return nil, e.Shutdown()

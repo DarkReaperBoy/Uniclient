@@ -12,6 +12,7 @@ import '../state/auth_state.dart';
 import 'confirm_box.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart' show isSavedMessages;
+import 'contacts_screen.dart';
 import 'create_channel_screen.dart';
 import 'my_profile_page.dart';
 import 'settings_screen.dart';
@@ -235,8 +236,23 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       icon: Icons.contacts,
                       label: 'Contacts',
                       onTap: () {
+                        final chatSt = context.read<ChatState>();
+                        final authSt = context.read<AuthState>();
                         Navigator.of(context).pop();
-                        // TODO: open contacts screen
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChangeNotifierProvider.value(
+                              value: appState,
+                              child: ChangeNotifierProvider.value(
+                                value: chatSt,
+                                child: ChangeNotifierProvider.value(
+                                  value: authSt,
+                                  child: const ContactsScreen(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
                     // §3.3: Calls row (item 6) — menuIconPhone.

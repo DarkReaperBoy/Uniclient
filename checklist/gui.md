@@ -162,7 +162,7 @@
 - [x] Menu Bots rows: dynamic per-bot entries with file-based icons — DONE
 - [x] Saved Messages → opens self-chat — DONE
 - [x] Settings → opens `SettingsScreen` (§14) — DONE
-- [ ] Contacts → opens contacts screen — spec §3.3
+- [x] Contacts → opens contacts screen — spec §3.3 — DONE
 - [ ] Calls → opens calls screen — spec §3.3
 
 ### §3.4 Night Mode Toggle

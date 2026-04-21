@@ -624,6 +624,33 @@ class MemberInfo {
           : userId;
 }
 
+// ── Contact info ──
+class ContactInfo {
+  final String userId;
+  final String username;
+  final String displayName;
+  final String phone;
+  final String avatarB64;
+  final bool isBot;
+  final bool isOnline;
+
+  const ContactInfo({
+    required this.userId,
+    this.username = '',
+    this.displayName = '',
+    this.phone = '',
+    this.avatarB64 = '',
+    this.isBot = false,
+    this.isOnline = false,
+  });
+
+  String get label => displayName.isNotEmpty
+      ? displayName
+      : username.isNotEmpty
+          ? '@$username'
+          : userId;
+}
+
 // ── Menu Bot (attach-menu bot with inMainMenu + media) ──
 class MenuBotInfo {
   final String id;
