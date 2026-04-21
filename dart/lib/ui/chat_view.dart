@@ -1239,7 +1239,8 @@ class _ChatTopBar extends StatelessWidget {
         ),
       ),
       // Spec §4.2: left uses _leftTaken (60px with back, 17px without).
-      padding: const EdgeInsets.only(right: 8),
+      // Spec §4.3: buttons flush (0-gap) — no right padding; the menu toggle's
+      // 44px width provides the right-side breathing room for the icon.
       child: Row(
         children: [
           if (showBackButton)
@@ -1513,13 +1514,24 @@ class _ChatTopBar extends StatelessWidget {
               onPressed: onToggleInfo,
               isActive: isInfoOpen,
             ),
-          Builder(
-            builder: (btnCtx) => _TopBarButton(
-              key: moreVertKey,
-              icon: Icons.more_vert,
-              width: 44,
-              iconPadding: const EdgeInsets.only(left: 8),
-              onPressed: () => _showTopBarMenu(btnCtx, chat, onToggleInfo: onToggleInfo),
+          // Spec §4.3: topBarSkip = -5px — menu toggle pulled 5px tighter
+          // against its left neighbour.  Allocate 39px (44 − 5) in the Row
+          // while rendering the full 44px button; the 5px overflow extends
+          // leftward into the previous button's space.
+          SizedBox(
+            width: 39, // 44 - topBarSkip(5)
+            child: OverflowBox(
+              maxWidth: 44,
+              alignment: Alignment.centerRight,
+              child: Builder(
+                builder: (btnCtx) => _TopBarButton(
+                  key: moreVertKey,
+                  icon: Icons.more_vert,
+                  width: 44,
+                  iconPadding: const EdgeInsets.only(left: 8),
+                  onPressed: () => _showTopBarMenu(btnCtx, chat, onToggleInfo: onToggleInfo),
+                ),
+              ),
             ),
           ),
         ],
