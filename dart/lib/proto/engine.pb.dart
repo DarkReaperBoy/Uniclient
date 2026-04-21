@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: engine.proto
+//  source: proto/engine.proto
 //
 // @dart = 2.12
 
@@ -2182,152 +2182,6 @@ class EngineArchiveChatRequest extends $pb.GeneratedMessage {
   void clearArchived() => clearField(3);
 }
 
-class EngineBlockUserRequest extends $pb.GeneratedMessage {
-  factory EngineBlockUserRequest({
-    $core.String? accountId,
-    $core.String? userId,
-  }) {
-    final $result = create();
-    if (accountId != null) {
-      $result.accountId = accountId;
-    }
-    if (userId != null) {
-      $result.userId = userId;
-    }
-    return $result;
-  }
-  EngineBlockUserRequest._() : super();
-  factory EngineBlockUserRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineBlockUserRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'accountId')
-    ..aOS(2, _omitFieldNames ? '' : 'userId')
-    ..hasRequiredFields = false
-  ;
-
-  $pb.BuilderInfo get info_ => _i;
-
-  EngineBlockUserRequest clone() => EngineBlockUserRequest()..mergeFromMessage(this);
-
-  @$core.pragma('dart2js:noInline')
-  static EngineBlockUserRequest create() => EngineBlockUserRequest._();
-  EngineBlockUserRequest createEmptyInstance() => create();
-
-  @$pb.TagNumber(1)
-  $core.String get accountId => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set accountId($core.String v) { $_setString(0, v); }
-
-  @$pb.TagNumber(2)
-  $core.String get userId => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set userId($core.String v) { $_setString(1, v); }
-}
-
-class EngineUnblockUserRequest extends $pb.GeneratedMessage {
-  factory EngineUnblockUserRequest({
-    $core.String? accountId,
-    $core.String? userId,
-  }) {
-    final $result = create();
-    if (accountId != null) {
-      $result.accountId = accountId;
-    }
-    if (userId != null) {
-      $result.userId = userId;
-    }
-    return $result;
-  }
-  EngineUnblockUserRequest._() : super();
-  factory EngineUnblockUserRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineUnblockUserRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'accountId')
-    ..aOS(2, _omitFieldNames ? '' : 'userId')
-    ..hasRequiredFields = false
-  ;
-
-  $pb.BuilderInfo get info_ => _i;
-
-  EngineUnblockUserRequest clone() => EngineUnblockUserRequest()..mergeFromMessage(this);
-
-  @$core.pragma('dart2js:noInline')
-  static EngineUnblockUserRequest create() => EngineUnblockUserRequest._();
-  EngineUnblockUserRequest createEmptyInstance() => create();
-
-  @$pb.TagNumber(1)
-  $core.String get accountId => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set accountId($core.String v) { $_setString(0, v); }
-
-  @$pb.TagNumber(2)
-  $core.String get userId => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set userId($core.String v) { $_setString(1, v); }
-}
-
-class EngineAddContactRequest extends $pb.GeneratedMessage {
-  factory EngineAddContactRequest({
-    $core.String? accountId,
-    $core.String? phone,
-    $core.String? firstName,
-    $core.String? lastName,
-  }) {
-    final $result = create();
-    if (accountId != null) {
-      $result.accountId = accountId;
-    }
-    if (phone != null) {
-      $result.phone = phone;
-    }
-    if (firstName != null) {
-      $result.firstName = firstName;
-    }
-    if (lastName != null) {
-      $result.lastName = lastName;
-    }
-    return $result;
-  }
-  EngineAddContactRequest._() : super();
-  factory EngineAddContactRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineAddContactRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
-    ..aOS(1, _omitFieldNames ? '' : 'accountId')
-    ..aOS(2, _omitFieldNames ? '' : 'phone')
-    ..aOS(3, _omitFieldNames ? '' : 'firstName')
-    ..aOS(4, _omitFieldNames ? '' : 'lastName')
-    ..hasRequiredFields = false
-  ;
-
-  $pb.BuilderInfo get info_ => _i;
-
-  EngineAddContactRequest clone() => EngineAddContactRequest()..mergeFromMessage(this);
-
-  @$core.pragma('dart2js:noInline')
-  static EngineAddContactRequest create() => EngineAddContactRequest._();
-  EngineAddContactRequest createEmptyInstance() => create();
-
-  @$pb.TagNumber(1)
-  $core.String get accountId => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set accountId($core.String v) { $_setString(0, v); }
-
-  @$pb.TagNumber(2)
-  $core.String get phone => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set phone($core.String v) { $_setString(1, v); }
-
-  @$pb.TagNumber(3)
-  $core.String get firstName => $_getSZ(2);
-  @$pb.TagNumber(3)
-  set firstName($core.String v) { $_setString(2, v); }
-
-  @$pb.TagNumber(4)
-  $core.String get lastName => $_getSZ(3);
-  @$pb.TagNumber(4)
-  set lastName($core.String v) { $_setString(3, v); }
-}
-
 class EngineMarkChatReadRequest extends $pb.GeneratedMessage {
   factory EngineMarkChatReadRequest({
     $core.String? accountId,
@@ -2404,6 +2258,226 @@ class EngineMarkChatReadRequest extends $pb.GeneratedMessage {
   $core.bool hasUpToMsgId() => $_has(2);
   @$pb.TagNumber(3)
   void clearUpToMsgId() => clearField(3);
+}
+
+class EngineBlockUserRequest extends $pb.GeneratedMessage {
+  factory EngineBlockUserRequest({
+    $core.String? accountId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (userId != null) {
+      $result.userId = userId;
+    }
+    return $result;
+  }
+  EngineBlockUserRequest._() : super();
+  factory EngineBlockUserRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineBlockUserRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineBlockUserRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineBlockUserRequest clone() => EngineBlockUserRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineBlockUserRequest copyWith(void Function(EngineBlockUserRequest) updates) => super.copyWith((message) => updates(message as EngineBlockUserRequest)) as EngineBlockUserRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineBlockUserRequest create() => EngineBlockUserRequest._();
+  EngineBlockUserRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineBlockUserRequest> createRepeated() => $pb.PbList<EngineBlockUserRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineBlockUserRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineBlockUserRequest>(create);
+  static EngineBlockUserRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get userId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set userId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasUserId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUserId() => clearField(2);
+}
+
+class EngineUnblockUserRequest extends $pb.GeneratedMessage {
+  factory EngineUnblockUserRequest({
+    $core.String? accountId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (userId != null) {
+      $result.userId = userId;
+    }
+    return $result;
+  }
+  EngineUnblockUserRequest._() : super();
+  factory EngineUnblockUserRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineUnblockUserRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineUnblockUserRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineUnblockUserRequest clone() => EngineUnblockUserRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineUnblockUserRequest copyWith(void Function(EngineUnblockUserRequest) updates) => super.copyWith((message) => updates(message as EngineUnblockUserRequest)) as EngineUnblockUserRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineUnblockUserRequest create() => EngineUnblockUserRequest._();
+  EngineUnblockUserRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineUnblockUserRequest> createRepeated() => $pb.PbList<EngineUnblockUserRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineUnblockUserRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineUnblockUserRequest>(create);
+  static EngineUnblockUserRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get userId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set userId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasUserId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUserId() => clearField(2);
+}
+
+class EngineAddContactRequest extends $pb.GeneratedMessage {
+  factory EngineAddContactRequest({
+    $core.String? accountId,
+    $core.String? phone,
+    $core.String? firstName,
+    $core.String? lastName,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (phone != null) {
+      $result.phone = phone;
+    }
+    if (firstName != null) {
+      $result.firstName = firstName;
+    }
+    if (lastName != null) {
+      $result.lastName = lastName;
+    }
+    return $result;
+  }
+  EngineAddContactRequest._() : super();
+  factory EngineAddContactRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineAddContactRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineAddContactRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'phone')
+    ..aOS(3, _omitFieldNames ? '' : 'firstName')
+    ..aOS(4, _omitFieldNames ? '' : 'lastName')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineAddContactRequest clone() => EngineAddContactRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineAddContactRequest copyWith(void Function(EngineAddContactRequest) updates) => super.copyWith((message) => updates(message as EngineAddContactRequest)) as EngineAddContactRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineAddContactRequest create() => EngineAddContactRequest._();
+  EngineAddContactRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineAddContactRequest> createRepeated() => $pb.PbList<EngineAddContactRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineAddContactRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineAddContactRequest>(create);
+  static EngineAddContactRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get phone => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set phone($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasPhone() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearPhone() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get firstName => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set firstName($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasFirstName() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearFirstName() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get lastName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set lastName($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasLastName() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearLastName() => clearField(4);
 }
 
 class EngineGetForumTopicsRequest extends $pb.GeneratedMessage {
@@ -6462,9 +6536,15 @@ class EngineCreateChannelRequest extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.deepCopy] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineCreateChannelRequest clone() => EngineCreateChannelRequest()..mergeFromMessage(this);
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.rebuild] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineCreateChannelRequest copyWith(void Function(EngineCreateChannelRequest) updates) => super.copyWith((message) => updates(message as EngineCreateChannelRequest)) as EngineCreateChannelRequest;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6524,9 +6604,15 @@ class EngineCreateChannelResponse extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.deepCopy] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineCreateChannelResponse clone() => EngineCreateChannelResponse()..mergeFromMessage(this);
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.rebuild] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineCreateChannelResponse copyWith(void Function(EngineCreateChannelResponse) updates) => super.copyWith((message) => updates(message as EngineCreateChannelResponse)) as EngineCreateChannelResponse;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6551,10 +6637,6 @@ class EngineCreateChannelResponse extends $pb.GeneratedMessage {
   EngineChatInfo ensureChat() => $_ensure(0);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Contacts
-// ═══════════════════════════════════════════════════════════════════════
-
 class EngineContactInfo extends $pb.GeneratedMessage {
   factory EngineContactInfo({
     $core.String? userId,
@@ -6566,13 +6648,27 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     $core.bool? isOnline,
   }) {
     final $result = create();
-    if (userId != null) $result.userId = userId;
-    if (username != null) $result.username = username;
-    if (displayName != null) $result.displayName = displayName;
-    if (phone != null) $result.phone = phone;
-    if (avatarB64 != null) $result.avatarB64 = avatarB64;
-    if (isBot != null) $result.isBot = isBot;
-    if (isOnline != null) $result.isOnline = isOnline;
+    if (userId != null) {
+      $result.userId = userId;
+    }
+    if (username != null) {
+      $result.username = username;
+    }
+    if (displayName != null) {
+      $result.displayName = displayName;
+    }
+    if (phone != null) {
+      $result.phone = phone;
+    }
+    if (avatarB64 != null) {
+      $result.avatarB64 = avatarB64;
+    }
+    if (isBot != null) {
+      $result.isBot = isBot;
+    }
+    if (isOnline != null) {
+      $result.isOnline = isOnline;
+    }
     return $result;
   }
   EngineContactInfo._() : super();
@@ -6590,9 +6686,15 @@ class EngineContactInfo extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.deepCopy] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineContactInfo clone() => EngineContactInfo()..mergeFromMessage(this);
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.rebuild] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineContactInfo copyWith(void Function(EngineContactInfo) updates) => super.copyWith((message) => updates(message as EngineContactInfo)) as EngineContactInfo;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6674,7 +6776,9 @@ class EngineGetContactsRequest extends $pb.GeneratedMessage {
     $core.String? accountId,
   }) {
     final $result = create();
-    if (accountId != null) $result.accountId = accountId;
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
     return $result;
   }
   EngineGetContactsRequest._() : super();
@@ -6686,9 +6790,15 @@ class EngineGetContactsRequest extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.deepCopy] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineGetContactsRequest clone() => EngineGetContactsRequest()..mergeFromMessage(this);
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.rebuild] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineGetContactsRequest copyWith(void Function(EngineGetContactsRequest) updates) => super.copyWith((message) => updates(message as EngineGetContactsRequest)) as EngineGetContactsRequest;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6713,10 +6823,12 @@ class EngineGetContactsRequest extends $pb.GeneratedMessage {
 
 class EngineGetContactsResponse extends $pb.GeneratedMessage {
   factory EngineGetContactsResponse({
-    $core.List<EngineContactInfo>? contacts,
+    $core.Iterable<EngineContactInfo>? contacts,
   }) {
     final $result = create();
-    if (contacts != null) $result.contacts.addAll(contacts);
+    if (contacts != null) {
+      $result.contacts.addAll(contacts);
+    }
     return $result;
   }
   EngineGetContactsResponse._() : super();
@@ -6728,9 +6840,15 @@ class EngineGetContactsResponse extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.deepCopy] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineGetContactsResponse clone() => EngineGetContactsResponse()..mergeFromMessage(this);
-  @$core.Deprecated('Using this can add significant overhead to your binary. Use [GeneratedMessageGenericExtensions.rebuild] instead. Will be removed in next major version')
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineGetContactsResponse copyWith(void Function(EngineGetContactsResponse) updates) => super.copyWith((message) => updates(message as EngineGetContactsResponse)) as EngineGetContactsResponse;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6747,15 +6865,18 @@ class EngineGetContactsResponse extends $pb.GeneratedMessage {
   $core.List<EngineContactInfo> get contacts => $_getList(0);
 }
 
-
 class EngineGetOnlineCountRequest extends $pb.GeneratedMessage {
   factory EngineGetOnlineCountRequest({
     $core.String? accountId,
     $core.String? chatId,
   }) {
     final $result = create();
-    if (accountId != null) $result.accountId = accountId;
-    if (chatId != null) $result.chatId = chatId;
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
     return $result;
   }
   EngineGetOnlineCountRequest._() : super();
@@ -6768,7 +6889,15 @@ class EngineGetOnlineCountRequest extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineGetOnlineCountRequest clone() => EngineGetOnlineCountRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineGetOnlineCountRequest copyWith(void Function(EngineGetOnlineCountRequest) updates) => super.copyWith((message) => updates(message as EngineGetOnlineCountRequest)) as EngineGetOnlineCountRequest;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6805,7 +6934,9 @@ class EngineGetOnlineCountResponse extends $pb.GeneratedMessage {
     $core.int? onlineCount,
   }) {
     final $result = create();
-    if (onlineCount != null) $result.onlineCount = onlineCount;
+    if (onlineCount != null) {
+      $result.onlineCount = onlineCount;
+    }
     return $result;
   }
   EngineGetOnlineCountResponse._() : super();
@@ -6817,7 +6948,15 @@ class EngineGetOnlineCountResponse extends $pb.GeneratedMessage {
     ..hasRequiredFields = false
   ;
 
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
   EngineGetOnlineCountResponse clone() => EngineGetOnlineCountResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
   EngineGetOnlineCountResponse copyWith(void Function(EngineGetOnlineCountResponse) updates) => super.copyWith((message) => updates(message as EngineGetOnlineCountResponse)) as EngineGetOnlineCountResponse;
 
   $pb.BuilderInfo get info_ => _i;
@@ -6839,6 +6978,471 @@ class EngineGetOnlineCountResponse extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearOnlineCount() => clearField(1);
 }
+
+class EngineGroupCallParticipant extends $pb.GeneratedMessage {
+  factory EngineGroupCallParticipant({
+    $core.String? userId,
+    $core.String? displayName,
+    $core.bool? isMuted,
+    $core.bool? isSpeaking,
+    $core.bool? hasVideo,
+    $core.String? avatarPath,
+  }) {
+    final $result = create();
+    if (userId != null) {
+      $result.userId = userId;
+    }
+    if (displayName != null) {
+      $result.displayName = displayName;
+    }
+    if (isMuted != null) {
+      $result.isMuted = isMuted;
+    }
+    if (isSpeaking != null) {
+      $result.isSpeaking = isSpeaking;
+    }
+    if (hasVideo != null) {
+      $result.hasVideo = hasVideo;
+    }
+    if (avatarPath != null) {
+      $result.avatarPath = avatarPath;
+    }
+    return $result;
+  }
+  EngineGroupCallParticipant._() : super();
+  factory EngineGroupCallParticipant.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGroupCallParticipant.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGroupCallParticipant', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'userId')
+    ..aOS(2, _omitFieldNames ? '' : 'displayName')
+    ..aOB(3, _omitFieldNames ? '' : 'isMuted')
+    ..aOB(4, _omitFieldNames ? '' : 'isSpeaking')
+    ..aOB(5, _omitFieldNames ? '' : 'hasVideo')
+    ..aOS(6, _omitFieldNames ? '' : 'avatarPath')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGroupCallParticipant clone() => EngineGroupCallParticipant()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGroupCallParticipant copyWith(void Function(EngineGroupCallParticipant) updates) => super.copyWith((message) => updates(message as EngineGroupCallParticipant)) as EngineGroupCallParticipant;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGroupCallParticipant create() => EngineGroupCallParticipant._();
+  EngineGroupCallParticipant createEmptyInstance() => create();
+  static $pb.PbList<EngineGroupCallParticipant> createRepeated() => $pb.PbList<EngineGroupCallParticipant>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGroupCallParticipant getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGroupCallParticipant>(create);
+  static EngineGroupCallParticipant? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get userId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set userId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasUserId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearUserId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get displayName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set displayName($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasDisplayName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDisplayName() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.bool get isMuted => $_getBF(2);
+  @$pb.TagNumber(3)
+  set isMuted($core.bool v) { $_setBool(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasIsMuted() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearIsMuted() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.bool get isSpeaking => $_getBF(3);
+  @$pb.TagNumber(4)
+  set isSpeaking($core.bool v) { $_setBool(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasIsSpeaking() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearIsSpeaking() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get hasVideo => $_getBF(4);
+  @$pb.TagNumber(5)
+  set hasVideo($core.bool v) { $_setBool(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasHasVideo() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearHasVideo() => clearField(5);
+
+  @$pb.TagNumber(6)
+  $core.String get avatarPath => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set avatarPath($core.String v) { $_setString(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasAvatarPath() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearAvatarPath() => clearField(6);
+}
+
+class EngineGroupCallInfo extends $pb.GeneratedMessage {
+  factory EngineGroupCallInfo({
+    $core.String? callId,
+    $core.String? chatId,
+    $core.String? title,
+    $core.int? participantsCount,
+    $core.Iterable<EngineGroupCallParticipant>? participants,
+    $core.bool? active,
+  }) {
+    final $result = create();
+    if (callId != null) {
+      $result.callId = callId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    if (title != null) {
+      $result.title = title;
+    }
+    if (participantsCount != null) {
+      $result.participantsCount = participantsCount;
+    }
+    if (participants != null) {
+      $result.participants.addAll(participants);
+    }
+    if (active != null) {
+      $result.active = active;
+    }
+    return $result;
+  }
+  EngineGroupCallInfo._() : super();
+  factory EngineGroupCallInfo.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGroupCallInfo.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGroupCallInfo', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'callId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'title')
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'participantsCount', $pb.PbFieldType.O3)
+    ..pc<EngineGroupCallParticipant>(5, _omitFieldNames ? '' : 'participants', $pb.PbFieldType.PM, subBuilder: EngineGroupCallParticipant.create)
+    ..aOB(6, _omitFieldNames ? '' : 'active')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGroupCallInfo clone() => EngineGroupCallInfo()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGroupCallInfo copyWith(void Function(EngineGroupCallInfo) updates) => super.copyWith((message) => updates(message as EngineGroupCallInfo)) as EngineGroupCallInfo;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGroupCallInfo create() => EngineGroupCallInfo._();
+  EngineGroupCallInfo createEmptyInstance() => create();
+  static $pb.PbList<EngineGroupCallInfo> createRepeated() => $pb.PbList<EngineGroupCallInfo>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGroupCallInfo getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGroupCallInfo>(create);
+  static EngineGroupCallInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get callId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set callId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasCallId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCallId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get title => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set title($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasTitle() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTitle() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.int get participantsCount => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set participantsCount($core.int v) { $_setSignedInt32(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasParticipantsCount() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearParticipantsCount() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.List<EngineGroupCallParticipant> get participants => $_getList(4);
+
+  @$pb.TagNumber(6)
+  $core.bool get active => $_getBF(5);
+  @$pb.TagNumber(6)
+  set active($core.bool v) { $_setBool(5, v); }
+  @$pb.TagNumber(6)
+  $core.bool hasActive() => $_has(5);
+  @$pb.TagNumber(6)
+  void clearActive() => clearField(6);
+}
+
+class EngineGetGroupCallRequest extends $pb.GeneratedMessage {
+  factory EngineGetGroupCallRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    return $result;
+  }
+  EngineGetGroupCallRequest._() : super();
+  factory EngineGetGroupCallRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetGroupCallRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetGroupCallRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGetGroupCallRequest clone() => EngineGetGroupCallRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGetGroupCallRequest copyWith(void Function(EngineGetGroupCallRequest) updates) => super.copyWith((message) => updates(message as EngineGetGroupCallRequest)) as EngineGetGroupCallRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetGroupCallRequest create() => EngineGetGroupCallRequest._();
+  EngineGetGroupCallRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetGroupCallRequest> createRepeated() => $pb.PbList<EngineGetGroupCallRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetGroupCallRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetGroupCallRequest>(create);
+  static EngineGetGroupCallRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
+class EngineGetGroupCallResponse extends $pb.GeneratedMessage {
+  factory EngineGetGroupCallResponse({
+    EngineGroupCallInfo? groupCall,
+  }) {
+    final $result = create();
+    if (groupCall != null) {
+      $result.groupCall = groupCall;
+    }
+    return $result;
+  }
+  EngineGetGroupCallResponse._() : super();
+  factory EngineGetGroupCallResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetGroupCallResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetGroupCallResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOM<EngineGroupCallInfo>(1, _omitFieldNames ? '' : 'groupCall', subBuilder: EngineGroupCallInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGetGroupCallResponse clone() => EngineGetGroupCallResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGetGroupCallResponse copyWith(void Function(EngineGetGroupCallResponse) updates) => super.copyWith((message) => updates(message as EngineGetGroupCallResponse)) as EngineGetGroupCallResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetGroupCallResponse create() => EngineGetGroupCallResponse._();
+  EngineGetGroupCallResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetGroupCallResponse> createRepeated() => $pb.PbList<EngineGetGroupCallResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetGroupCallResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetGroupCallResponse>(create);
+  static EngineGetGroupCallResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  EngineGroupCallInfo get groupCall => $_getN(0);
+  @$pb.TagNumber(1)
+  set groupCall(EngineGroupCallInfo v) { setField(1, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasGroupCall() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearGroupCall() => clearField(1);
+  @$pb.TagNumber(1)
+  EngineGroupCallInfo ensureGroupCall() => $_ensure(0);
+}
+
+class EngineJoinGroupCallRequest extends $pb.GeneratedMessage {
+  factory EngineJoinGroupCallRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    return $result;
+  }
+  EngineJoinGroupCallRequest._() : super();
+  factory EngineJoinGroupCallRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineJoinGroupCallRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineJoinGroupCallRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineJoinGroupCallRequest clone() => EngineJoinGroupCallRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineJoinGroupCallRequest copyWith(void Function(EngineJoinGroupCallRequest) updates) => super.copyWith((message) => updates(message as EngineJoinGroupCallRequest)) as EngineJoinGroupCallRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineJoinGroupCallRequest create() => EngineJoinGroupCallRequest._();
+  EngineJoinGroupCallRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineJoinGroupCallRequest> createRepeated() => $pb.PbList<EngineJoinGroupCallRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineJoinGroupCallRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineJoinGroupCallRequest>(create);
+  static EngineJoinGroupCallRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
+class EngineJoinGroupCallResponse extends $pb.GeneratedMessage {
+  factory EngineJoinGroupCallResponse({
+    $core.String? callId,
+  }) {
+    final $result = create();
+    if (callId != null) {
+      $result.callId = callId;
+    }
+    return $result;
+  }
+  EngineJoinGroupCallResponse._() : super();
+  factory EngineJoinGroupCallResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineJoinGroupCallResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineJoinGroupCallResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'callId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineJoinGroupCallResponse clone() => EngineJoinGroupCallResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineJoinGroupCallResponse copyWith(void Function(EngineJoinGroupCallResponse) updates) => super.copyWith((message) => updates(message as EngineJoinGroupCallResponse)) as EngineJoinGroupCallResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineJoinGroupCallResponse create() => EngineJoinGroupCallResponse._();
+  EngineJoinGroupCallResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineJoinGroupCallResponse> createRepeated() => $pb.PbList<EngineJoinGroupCallResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineJoinGroupCallResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineJoinGroupCallResponse>(create);
+  static EngineJoinGroupCallResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get callId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set callId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasCallId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCallId() => clearField(1);
+}
+
 
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

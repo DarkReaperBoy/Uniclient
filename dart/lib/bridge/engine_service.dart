@@ -37,6 +37,7 @@ class EngineService {
   final _downloadProgressController = StreamController<DownloadProgressEvent>.broadcast();
   final _downloadCompleteController = StreamController<DownloadCompleteEvent>.broadcast();
   final _userStatusController = StreamController<UserStatusEvent>.broadcast();
+  final _groupCallStateController = StreamController<GroupCallStateEvent>.broadcast();
   StreamSubscription<Uint8List>? _bridgeEventSub;
 
   Stream<AuthStateEvent> get onAuthState => _authStateController.stream;
@@ -53,6 +54,7 @@ class EngineService {
   Stream<DownloadProgressEvent> get onDownloadProgress => _downloadProgressController.stream;
   Stream<DownloadCompleteEvent> get onDownloadComplete => _downloadCompleteController.stream;
   Stream<UserStatusEvent> get onUserStatus => _userStatusController.stream;
+  Stream<GroupCallStateEvent> get onGroupCallState => _groupCallStateController.stream;
 
   bool get isInitialized => _initialized;
 
@@ -278,6 +280,45 @@ class EngineService {
     if (respBytes.isEmpty) return 0;
     final resp = epb.EngineGetOnlineCountResponse.fromBuffer(respBytes);
     return resp.onlineCount;
+  }
+
+  // ── Group calls ──
+
+  /// Get active group call info for a chat, or null if no active call.
+  Future<GroupCallInfo?> getGroupCall(String accountId, String chatId) async {
+    final req = epb.EngineGetGroupCallRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    final respBytes = await _callAsync('__engine', 'GetGroupCall', req.writeToBuffer());
+    if (respBytes.isEmpty) return null;
+    final resp = epb.EngineGetGroupCallResponse.fromBuffer(respBytes);
+    if (!resp.hasGroupCall()) return null;
+    final gc = resp.groupCall;
+    return GroupCallInfo(
+      callId: gc.callId,
+      chatId: gc.chatId,
+      title: gc.title,
+      participantsCount: gc.participantsCount,
+      participants: gc.participants.map((p) => GroupCallParticipant(
+        userId: p.userId,
+        displayName: p.displayName,
+        isMuted: p.isMuted,
+        isSpeaking: p.isSpeaking,
+        hasVideo: p.hasVideo,
+        avatarPath: p.avatarPath,
+      )).toList(),
+      active: gc.active,
+    );
+  }
+
+  /// Join an active group call in a chat.
+  Future<String> joinGroupCall(String accountId, String chatId) async {
+    final req = epb.EngineJoinGroupCallRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    final respBytes = await _callAsync('__engine', 'JoinGroupCall', req.writeToBuffer());
+    final resp = epb.EngineJoinGroupCallResponse.fromBuffer(respBytes);
+    return resp.callId;
   }
 
   // ── Contacts ──
@@ -776,6 +817,14 @@ class EngineService {
         if (data is Map<String, dynamic>) {
           _userStatusController.add(UserStatusEvent.fromJson(data,
             accountId: event['account_id'] as String? ?? ''));
+        }
+
+      case 'group_call_state':
+        if (data is Map<String, dynamic>) {
+          _groupCallStateController.add(GroupCallStateEvent(
+            accountId: event['account_id'] as String? ?? '',
+            info: GroupCallInfo.fromJson(data),
+          ));
         }
     }
   }

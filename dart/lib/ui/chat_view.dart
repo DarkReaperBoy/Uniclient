@@ -921,6 +921,12 @@ class _ChatViewState extends State<ChatView> {
               onSearchNext: _searchNext,
               onSearchChanged: (_) => _onSearchQueryChanged(),
             ),
+          // Group call bar (§4.6) — shown when there's an active group call.
+          if (chatState.activeGroupCall != null)
+            _GroupCallBar(
+              groupCall: chatState.activeGroupCall!,
+              onJoin: () => chatState.joinGroupCall(),
+            ),
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty && !_pinnedBarDismissed)
             _PinnedBar(
@@ -2395,6 +2401,179 @@ class _SelectionBar extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Group call bar (§4.6) — shown when there's an active group call in a group/channel.
+/// Displays overlapping participant userpics with green speaking-indicator rings and a "Join" button.
+class _GroupCallBar extends StatelessWidget {
+  final GroupCallInfo groupCall;
+  final VoidCallback? onJoin;
+
+  const _GroupCallBar({
+    required this.groupCall,
+    this.onJoin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final barBg = isDark ? const Color(0xFF1B2734) : const Color(0xFFFFFFFF);
+    final shadowColor = isDark ? const Color(0x5604080E) : const Color(0x18000000);
+    final textColor = isDark ? const Color(0xFFE1E3E6) : const Color(0xFF222222);
+    final subtitleColor = isDark ? const Color(0xFF7E8B99) : const Color(0xFF999999);
+    final accentGreen = const Color(0xFF4DC920);
+    final joinBg = const Color(0xFF40A7E3);
+
+    final participants = groupCall.participants;
+    // Show up to 3 overlapping userpics.
+    final visibleParticipants = participants.take(3).toList();
+
+    return Container(
+      height: 52,
+      decoration: BoxDecoration(
+        color: barBg,
+        border: Border(bottom: BorderSide(color: shadowColor, width: 1)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 13),
+        child: Row(
+          children: [
+            // Overlapping participant userpics.
+            if (visibleParticipants.isNotEmpty) ...[
+              SizedBox(
+                width: 28.0 + (visibleParticipants.length - 1) * 20.0,
+                height: 28,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    for (var i = 0; i < visibleParticipants.length; i++)
+                      Positioned(
+                        left: i * 20.0,
+                        child: _GroupCallUserpic(
+                          participant: visibleParticipants[i],
+                          isSpeaking: visibleParticipants[i].isSpeaking,
+                          accentGreen: accentGreen,
+                          isDark: isDark,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+            ] else ...[
+              // No participants yet — show a phone icon.
+              Icon(Icons.phone_in_talk, size: 22, color: joinBg),
+              const SizedBox(width: 10),
+            ],
+            // Title and participant count.
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    groupCall.title.isNotEmpty ? groupCall.title : 'Voice Chat',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    groupCall.participantsCount > 0
+                        ? '${groupCall.participantsCount} participant${groupCall.participantsCount == 1 ? '' : 's'}'
+                        : 'No participants',
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: subtitleColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // "Join" button.
+            Material(
+              color: joinBg,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onJoin,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  child: Text(
+                    'Join',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Circular userpic for a group call participant with optional green speaking ring.
+class _GroupCallUserpic extends StatelessWidget {
+  final GroupCallParticipant participant;
+  final bool isSpeaking;
+  final Color accentGreen;
+  final bool isDark;
+
+  const _GroupCallUserpic({
+    required this.participant,
+    required this.isSpeaking,
+    required this.accentGreen,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const double size = 28;
+    const double borderWidth = 2;
+    // Color by userId hash for deterministic avatar bg.
+    final hue = (participant.userId.hashCode % 360).abs().toDouble();
+    final avatarBg = HSLColor.fromAHSL(1, hue, 0.5, 0.45).toColor();
+    final initials = participant.displayName.isNotEmpty
+        ? participant.displayName[0].toUpperCase()
+        : '?';
+
+    final avatar = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: avatarBg,
+        border: isSpeaking
+            ? Border.all(color: accentGreen, width: borderWidth)
+            : Border.all(
+                color: isDark ? const Color(0xFF17212B) : Colors.white,
+                width: borderWidth,
+              ),
+      ),
+      child: Center(
+        child: Text(
+          initials,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+
+    return avatar;
   }
 }
 

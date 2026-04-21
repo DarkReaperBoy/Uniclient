@@ -886,3 +886,70 @@ class UserStatusEvent {
     lastSeenMs: (j['last_seen'] as num?)?.toInt() ?? 0,
   );
 }
+
+// ── Group call ──
+class GroupCallParticipant {
+  final String userId;
+  final String displayName;
+  final bool isMuted;
+  final bool isSpeaking;
+  final bool hasVideo;
+  final String avatarPath;
+
+  const GroupCallParticipant({
+    this.userId = '',
+    this.displayName = '',
+    this.isMuted = false,
+    this.isSpeaking = false,
+    this.hasVideo = false,
+    this.avatarPath = '',
+  });
+
+  factory GroupCallParticipant.fromJson(Map<String, dynamic> j) => GroupCallParticipant(
+    userId: j['user_id'] as String? ?? '',
+    displayName: j['display_name'] as String? ?? '',
+    isMuted: j['is_muted'] as bool? ?? false,
+    isSpeaking: j['is_speaking'] as bool? ?? false,
+    hasVideo: j['has_video'] as bool? ?? false,
+    avatarPath: j['avatar_path'] as String? ?? '',
+  );
+}
+
+class GroupCallInfo {
+  final String callId;
+  final String chatId;
+  final String title;
+  final int participantsCount;
+  final List<GroupCallParticipant> participants;
+  final bool active;
+
+  const GroupCallInfo({
+    this.callId = '',
+    this.chatId = '',
+    this.title = '',
+    this.participantsCount = 0,
+    this.participants = const [],
+    this.active = false,
+  });
+
+  factory GroupCallInfo.fromJson(Map<String, dynamic> j) => GroupCallInfo(
+    callId: j['call_id'] as String? ?? '',
+    chatId: j['chat_id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    participantsCount: j['participants_count'] as int? ?? 0,
+    participants: (j['participants'] as List<dynamic>?)
+        ?.map((p) => GroupCallParticipant.fromJson(p as Map<String, dynamic>))
+        .toList() ?? [],
+    active: j['active'] as bool? ?? false,
+  );
+}
+
+class GroupCallStateEvent {
+  final String accountId;
+  final GroupCallInfo info;
+
+  const GroupCallStateEvent({
+    this.accountId = '',
+    this.info = const GroupCallInfo(),
+  });
+}

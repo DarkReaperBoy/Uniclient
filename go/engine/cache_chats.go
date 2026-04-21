@@ -637,3 +637,92 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 
 	e.emitEvent(EventChatUpdated, accountID, ChatUpdatedEvent{Chat: c})
 }
+
+// GroupCallInfo is the group call data returned to the UI.
+type GroupCallInfo struct {
+	CallID            string                  `json:"call_id"`
+	ChatID            string                  `json:"chat_id"`
+	Title             string                  `json:"title"`
+	ParticipantsCount int                     `json:"participants_count"`
+	Participants      []GroupCallParticipant   `json:"participants"`
+	Active            bool                    `json:"active"`
+}
+
+// GroupCallParticipant is a single participant in a group call.
+type GroupCallParticipant struct {
+	UserID      string `json:"user_id"`
+	DisplayName string `json:"display_name"`
+	IsMuted     bool   `json:"is_muted"`
+	IsSpeaking  bool   `json:"is_speaking"`
+	HasVideo    bool   `json:"has_video"`
+	AvatarPath  string `json:"avatar_path,omitempty"`
+}
+
+// GetGroupCall checks whether a chat has an active group call and returns its info.
+// Returns nil with no error if no group call is active.
+func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type groupCaller interface {
+		GetGroupCall(chatID string) (*cores.CallSession, error)
+	}
+	gc, ok := acc.Core.(groupCaller)
+	if !ok {
+		return nil, nil // platform doesn't support group calls
+	}
+	cs, err := gc.GetGroupCall(chatID)
+	if err != nil {
+		return nil, nil // no active group call or error — treat as no call
+	}
+	if cs == nil || cs.State == cores.CallStateEnded {
+		return nil, nil
+	}
+
+	info := &GroupCallInfo{
+		CallID: cs.ID,
+		ChatID: chatID,
+		Active: true,
+	}
+	if title, ok := cs.Meta["title"]; ok {
+		info.Title = title
+	}
+	if countStr, ok := cs.Meta["participants_count"]; ok {
+		if n, err := strconv.Atoi(countStr); err == nil {
+			info.ParticipantsCount = n
+		}
+	}
+	for _, p := range cs.Participants {
+		info.Participants = append(info.Participants, GroupCallParticipant{
+			UserID:      p.UserID,
+			DisplayName: p.DisplayName,
+			IsMuted:     p.IsMuted,
+			IsSpeaking:  p.IsSpeaking,
+			HasVideo:    p.HasVideo,
+		})
+	}
+	if info.ParticipantsCount == 0 && len(info.Participants) > 0 {
+		info.ParticipantsCount = len(info.Participants)
+	}
+	return info, nil
+}
+
+// JoinGroupCall joins the active group call in a chat.
+func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	cs, err := acc.Core.JoinGroupCall(chatID)
+	if err != nil {
+		return "", err
+	}
+	return cs.ID, nil
+}

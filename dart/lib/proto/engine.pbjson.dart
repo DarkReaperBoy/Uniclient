@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: engine.proto
+//  source: proto/engine.proto
 //
 // @dart = 2.12
 
@@ -40,6 +40,10 @@ const AccountInfo$json = {
     {'1': 'avatar_path', '3': 4, '4': 1, '5': 9, '10': 'avatarPath'},
     {'1': 'sort_order', '3': 5, '4': 1, '5': 5, '10': 'sortOrder'},
     {'1': 'conn_state', '3': 6, '4': 1, '5': 5, '10': 'connState'},
+    {'1': 'is_verified', '3': 7, '4': 1, '5': 8, '10': 'isVerified'},
+    {'1': 'is_premium', '3': 8, '4': 1, '5': 8, '10': 'isPremium'},
+    {'1': 'phone', '3': 9, '4': 1, '5': 9, '10': 'phone'},
+    {'1': 'username', '3': 10, '4': 1, '5': 9, '10': 'username'},
   ],
 };
 
@@ -48,7 +52,9 @@ final $typed_data.Uint8List accountInfoDescriptor = $convert.base64Decode(
     'CgtBY2NvdW50SW5mbxIOCgJpZBgBIAEoCVICaWQSGgoIcGxhdGZvcm0YAiABKAlSCHBsYXRmb3'
     'JtEiEKDGRpc3BsYXlfbmFtZRgDIAEoCVILZGlzcGxheU5hbWUSHwoLYXZhdGFyX3BhdGgYBCAB'
     'KAlSCmF2YXRhclBhdGgSHQoKc29ydF9vcmRlchgFIAEoBVIJc29ydE9yZGVyEh0KCmNvbm5fc3'
-    'RhdGUYBiABKAVSCWNvbm5TdGF0ZQ==');
+    'RhdGUYBiABKAVSCWNvbm5TdGF0ZRIfCgtpc192ZXJpZmllZBgHIAEoCFIKaXNWZXJpZmllZBId'
+    'Cgppc19wcmVtaXVtGAggASgIUglpc1ByZW1pdW0SFAoFcGhvbmUYCSABKAlSBXBob25lEhoKCH'
+    'VzZXJuYW1lGAogASgJUgh1c2VybmFtZQ==');
 
 @$core.Deprecated('Use engineInitRequestDescriptor instead')
 const EngineInitRequest$json = {
@@ -311,6 +317,10 @@ const EngineChatInfo$json = {
     {'1': 'draft_text', '3': 14, '4': 1, '5': 9, '10': 'draftText'},
     {'1': 'member_count', '3': 15, '4': 1, '5': 5, '10': 'memberCount'},
     {'1': 'parent_id', '3': 16, '4': 1, '5': 9, '10': 'parentId'},
+    {'1': 'is_bot', '3': 18, '4': 1, '5': 8, '10': 'isBot'},
+    {'1': 'last_msg_status', '3': 19, '4': 1, '5': 5, '10': 'lastMsgStatus'},
+    {'1': 'is_contact', '3': 20, '4': 1, '5': 8, '10': 'isContact'},
+    {'1': 'is_blocked', '3': 21, '4': 1, '5': 8, '10': 'isBlocked'},
   ],
 };
 
@@ -326,7 +336,9 @@ final $typed_data.Uint8List engineChatInfoDescriptor = $convert.base64Decode(
     'sgASgIUgdpc011dGVkEhsKCWlzX3Bpbm5lZBgMIAEoCFIIaXNQaW5uZWQSHwoLaXNfYXJjaGl2'
     'ZWQYDSABKAhSCmlzQXJjaGl2ZWQSHQoKZHJhZnRfdGV4dBgOIAEoCVIJZHJhZnRUZXh0EiEKDG'
     '1lbWJlcl9jb3VudBgPIAEoBVILbWVtYmVyQ291bnQSGwoJcGFyZW50X2lkGBAgASgJUghwYXJl'
-    'bnRJZA==');
+    'bnRJZBIVCgZpc19ib3QYEiABKAhSBWlzQm90EiYKD2xhc3RfbXNnX3N0YXR1cxgTIAEoBVINbG'
+    'FzdE1zZ1N0YXR1cxIdCgppc19jb250YWN0GBQgASgIUglpc0NvbnRhY3QSHQoKaXNfYmxvY2tl'
+    'ZBgVIAEoCFIJaXNCbG9ja2Vk');
 
 @$core.Deprecated('Use engineGetChatListRequestDescriptor instead')
 const EngineGetChatListRequest$json = {
@@ -433,6 +445,51 @@ final $typed_data.Uint8List engineMarkChatReadRequestDescriptor = $convert.base6
     'ChlFbmdpbmVNYXJrQ2hhdFJlYWRSZXF1ZXN0Eh0KCmFjY291bnRfaWQYASABKAlSCWFjY291bn'
     'RJZBIXCgdjaGF0X2lkGAIgASgJUgZjaGF0SWQSHwoMdXBfdG9fbXNnX2lkGAMgASgJUgl1cFRv'
     'TXNnSWQ=');
+
+@$core.Deprecated('Use engineBlockUserRequestDescriptor instead')
+const EngineBlockUserRequest$json = {
+  '1': 'EngineBlockUserRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'user_id', '3': 2, '4': 1, '5': 9, '10': 'userId'},
+  ],
+};
+
+/// Descriptor for `EngineBlockUserRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineBlockUserRequestDescriptor = $convert.base64Decode(
+    'ChZFbmdpbmVCbG9ja1VzZXJSZXF1ZXN0Eh0KCmFjY291bnRfaWQYASABKAlSCWFjY291bnRJZB'
+    'IXCgd1c2VyX2lkGAIgASgJUgZ1c2VySWQ=');
+
+@$core.Deprecated('Use engineUnblockUserRequestDescriptor instead')
+const EngineUnblockUserRequest$json = {
+  '1': 'EngineUnblockUserRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'user_id', '3': 2, '4': 1, '5': 9, '10': 'userId'},
+  ],
+};
+
+/// Descriptor for `EngineUnblockUserRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineUnblockUserRequestDescriptor = $convert.base64Decode(
+    'ChhFbmdpbmVVbmJsb2NrVXNlclJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3VudE'
+    'lkEhcKB3VzZXJfaWQYAiABKAlSBnVzZXJJZA==');
+
+@$core.Deprecated('Use engineAddContactRequestDescriptor instead')
+const EngineAddContactRequest$json = {
+  '1': 'EngineAddContactRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'phone', '3': 2, '4': 1, '5': 9, '10': 'phone'},
+    {'1': 'first_name', '3': 3, '4': 1, '5': 9, '10': 'firstName'},
+    {'1': 'last_name', '3': 4, '4': 1, '5': 9, '10': 'lastName'},
+  ],
+};
+
+/// Descriptor for `EngineAddContactRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineAddContactRequestDescriptor = $convert.base64Decode(
+    'ChdFbmdpbmVBZGRDb250YWN0UmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW50SW'
+    'QSFAoFcGhvbmUYAiABKAlSBXBob25lEh0KCmZpcnN0X25hbWUYAyABKAlSCWZpcnN0TmFtZRIb'
+    'CglsYXN0X25hbWUYBCABKAlSCGxhc3ROYW1l');
 
 @$core.Deprecated('Use engineGetForumTopicsRequestDescriptor instead')
 const EngineGetForumTopicsRequest$json = {
@@ -1194,4 +1251,201 @@ const EngineGetPinnedMessagesResponse$json = {
 final $typed_data.Uint8List engineGetPinnedMessagesResponseDescriptor = $convert.base64Decode(
     'Ch9FbmdpbmVHZXRQaW5uZWRNZXNzYWdlc1Jlc3BvbnNlEjoKCG1lc3NhZ2VzGAEgAygLMh4udW'
     '5pY2xpZW50LkVuZ2luZUNhY2hlZE1lc3NhZ2VSCG1lc3NhZ2Vz');
+
+@$core.Deprecated('Use engineCreateChannelRequestDescriptor instead')
+const EngineCreateChannelRequest$json = {
+  '1': 'EngineCreateChannelRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {'1': 'description', '3': 3, '4': 1, '5': 9, '10': 'description'},
+  ],
+};
+
+/// Descriptor for `EngineCreateChannelRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineCreateChannelRequestDescriptor = $convert.base64Decode(
+    'ChpFbmdpbmVDcmVhdGVDaGFubmVsUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
+    '50SWQSEgoEbmFtZRgCIAEoCVIEbmFtZRIgCgtkZXNjcmlwdGlvbhgDIAEoCVILZGVzY3JpcHRp'
+    'b24=');
+
+@$core.Deprecated('Use engineCreateChannelResponseDescriptor instead')
+const EngineCreateChannelResponse$json = {
+  '1': 'EngineCreateChannelResponse',
+  '2': [
+    {'1': 'chat', '3': 1, '4': 1, '5': 11, '6': '.uniclient.EngineChatInfo', '10': 'chat'},
+  ],
+};
+
+/// Descriptor for `EngineCreateChannelResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineCreateChannelResponseDescriptor = $convert.base64Decode(
+    'ChtFbmdpbmVDcmVhdGVDaGFubmVsUmVzcG9uc2USLQoEY2hhdBgBIAEoCzIZLnVuaWNsaWVudC'
+    '5FbmdpbmVDaGF0SW5mb1IEY2hhdA==');
+
+@$core.Deprecated('Use engineContactInfoDescriptor instead')
+const EngineContactInfo$json = {
+  '1': 'EngineContactInfo',
+  '2': [
+    {'1': 'user_id', '3': 1, '4': 1, '5': 9, '10': 'userId'},
+    {'1': 'username', '3': 2, '4': 1, '5': 9, '10': 'username'},
+    {'1': 'display_name', '3': 3, '4': 1, '5': 9, '10': 'displayName'},
+    {'1': 'phone', '3': 4, '4': 1, '5': 9, '10': 'phone'},
+    {'1': 'avatar_b64', '3': 5, '4': 1, '5': 9, '10': 'avatarB64'},
+    {'1': 'is_bot', '3': 6, '4': 1, '5': 8, '10': 'isBot'},
+    {'1': 'is_online', '3': 7, '4': 1, '5': 8, '10': 'isOnline'},
+  ],
+};
+
+/// Descriptor for `EngineContactInfo`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineContactInfoDescriptor = $convert.base64Decode(
+    'ChFFbmdpbmVDb250YWN0SW5mbxIXCgd1c2VyX2lkGAEgASgJUgZ1c2VySWQSGgoIdXNlcm5hbW'
+    'UYAiABKAlSCHVzZXJuYW1lEiEKDGRpc3BsYXlfbmFtZRgDIAEoCVILZGlzcGxheU5hbWUSFAoF'
+    'cGhvbmUYBCABKAlSBXBob25lEh0KCmF2YXRhcl9iNjQYBSABKAlSCWF2YXRhckI2NBIVCgZpc1'
+    '9ib3QYBiABKAhSBWlzQm90EhsKCWlzX29ubGluZRgHIAEoCFIIaXNPbmxpbmU=');
+
+@$core.Deprecated('Use engineGetContactsRequestDescriptor instead')
+const EngineGetContactsRequest$json = {
+  '1': 'EngineGetContactsRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+  ],
+};
+
+/// Descriptor for `EngineGetContactsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetContactsRequestDescriptor = $convert.base64Decode(
+    'ChhFbmdpbmVHZXRDb250YWN0c1JlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3VudE'
+    'lk');
+
+@$core.Deprecated('Use engineGetContactsResponseDescriptor instead')
+const EngineGetContactsResponse$json = {
+  '1': 'EngineGetContactsResponse',
+  '2': [
+    {'1': 'contacts', '3': 1, '4': 3, '5': 11, '6': '.uniclient.EngineContactInfo', '10': 'contacts'},
+  ],
+};
+
+/// Descriptor for `EngineGetContactsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetContactsResponseDescriptor = $convert.base64Decode(
+    'ChlFbmdpbmVHZXRDb250YWN0c1Jlc3BvbnNlEjgKCGNvbnRhY3RzGAEgAygLMhwudW5pY2xpZW'
+    '50LkVuZ2luZUNvbnRhY3RJbmZvUghjb250YWN0cw==');
+
+@$core.Deprecated('Use engineGetOnlineCountRequestDescriptor instead')
+const EngineGetOnlineCountRequest$json = {
+  '1': 'EngineGetOnlineCountRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineGetOnlineCountRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetOnlineCountRequestDescriptor = $convert.base64Decode(
+    'ChtFbmdpbmVHZXRPbmxpbmVDb3VudFJlcXVlc3QSHQoKYWNjb3VudF9pZBgBIAEoCVIJYWNjb3'
+    'VudElkEhcKB2NoYXRfaWQYAiABKAlSBmNoYXRJZA==');
+
+@$core.Deprecated('Use engineGetOnlineCountResponseDescriptor instead')
+const EngineGetOnlineCountResponse$json = {
+  '1': 'EngineGetOnlineCountResponse',
+  '2': [
+    {'1': 'online_count', '3': 1, '4': 1, '5': 5, '10': 'onlineCount'},
+  ],
+};
+
+/// Descriptor for `EngineGetOnlineCountResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetOnlineCountResponseDescriptor = $convert.base64Decode(
+    'ChxFbmdpbmVHZXRPbmxpbmVDb3VudFJlc3BvbnNlEiEKDG9ubGluZV9jb3VudBgBIAEoBVILb2'
+    '5saW5lQ291bnQ=');
+
+@$core.Deprecated('Use engineGroupCallParticipantDescriptor instead')
+const EngineGroupCallParticipant$json = {
+  '1': 'EngineGroupCallParticipant',
+  '2': [
+    {'1': 'user_id', '3': 1, '4': 1, '5': 9, '10': 'userId'},
+    {'1': 'display_name', '3': 2, '4': 1, '5': 9, '10': 'displayName'},
+    {'1': 'is_muted', '3': 3, '4': 1, '5': 8, '10': 'isMuted'},
+    {'1': 'is_speaking', '3': 4, '4': 1, '5': 8, '10': 'isSpeaking'},
+    {'1': 'has_video', '3': 5, '4': 1, '5': 8, '10': 'hasVideo'},
+    {'1': 'avatar_path', '3': 6, '4': 1, '5': 9, '10': 'avatarPath'},
+  ],
+};
+
+/// Descriptor for `EngineGroupCallParticipant`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGroupCallParticipantDescriptor = $convert.base64Decode(
+    'ChpFbmdpbmVHcm91cENhbGxQYXJ0aWNpcGFudBIXCgd1c2VyX2lkGAEgASgJUgZ1c2VySWQSIQ'
+    'oMZGlzcGxheV9uYW1lGAIgASgJUgtkaXNwbGF5TmFtZRIZCghpc19tdXRlZBgDIAEoCFIHaXNN'
+    'dXRlZBIfCgtpc19zcGVha2luZxgEIAEoCFIKaXNTcGVha2luZxIbCgloYXNfdmlkZW8YBSABKA'
+    'hSCGhhc1ZpZGVvEh8KC2F2YXRhcl9wYXRoGAYgASgJUgphdmF0YXJQYXRo');
+
+@$core.Deprecated('Use engineGroupCallInfoDescriptor instead')
+const EngineGroupCallInfo$json = {
+  '1': 'EngineGroupCallInfo',
+  '2': [
+    {'1': 'call_id', '3': 1, '4': 1, '5': 9, '10': 'callId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+    {'1': 'title', '3': 3, '4': 1, '5': 9, '10': 'title'},
+    {'1': 'participants_count', '3': 4, '4': 1, '5': 5, '10': 'participantsCount'},
+    {'1': 'participants', '3': 5, '4': 3, '5': 11, '6': '.uniclient.EngineGroupCallParticipant', '10': 'participants'},
+    {'1': 'active', '3': 6, '4': 1, '5': 8, '10': 'active'},
+  ],
+};
+
+/// Descriptor for `EngineGroupCallInfo`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGroupCallInfoDescriptor = $convert.base64Decode(
+    'ChNFbmdpbmVHcm91cENhbGxJbmZvEhcKB2NhbGxfaWQYASABKAlSBmNhbGxJZBIXCgdjaGF0X2'
+    'lkGAIgASgJUgZjaGF0SWQSFAoFdGl0bGUYAyABKAlSBXRpdGxlEi0KEnBhcnRpY2lwYW50c19j'
+    'b3VudBgEIAEoBVIRcGFydGljaXBhbnRzQ291bnQSSQoMcGFydGljaXBhbnRzGAUgAygLMiUudW'
+    '5pY2xpZW50LkVuZ2luZUdyb3VwQ2FsbFBhcnRpY2lwYW50UgxwYXJ0aWNpcGFudHMSFgoGYWN0'
+    'aXZlGAYgASgIUgZhY3RpdmU=');
+
+@$core.Deprecated('Use engineGetGroupCallRequestDescriptor instead')
+const EngineGetGroupCallRequest$json = {
+  '1': 'EngineGetGroupCallRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineGetGroupCallRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetGroupCallRequestDescriptor = $convert.base64Decode(
+    'ChlFbmdpbmVHZXRHcm91cENhbGxSZXF1ZXN0Eh0KCmFjY291bnRfaWQYASABKAlSCWFjY291bn'
+    'RJZBIXCgdjaGF0X2lkGAIgASgJUgZjaGF0SWQ=');
+
+@$core.Deprecated('Use engineGetGroupCallResponseDescriptor instead')
+const EngineGetGroupCallResponse$json = {
+  '1': 'EngineGetGroupCallResponse',
+  '2': [
+    {'1': 'group_call', '3': 1, '4': 1, '5': 11, '6': '.uniclient.EngineGroupCallInfo', '10': 'groupCall'},
+  ],
+};
+
+/// Descriptor for `EngineGetGroupCallResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetGroupCallResponseDescriptor = $convert.base64Decode(
+    'ChpFbmdpbmVHZXRHcm91cENhbGxSZXNwb25zZRI9Cgpncm91cF9jYWxsGAEgASgLMh4udW5pY2'
+    'xpZW50LkVuZ2luZUdyb3VwQ2FsbEluZm9SCWdyb3VwQ2FsbA==');
+
+@$core.Deprecated('Use engineJoinGroupCallRequestDescriptor instead')
+const EngineJoinGroupCallRequest$json = {
+  '1': 'EngineJoinGroupCallRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+    {'1': 'chat_id', '3': 2, '4': 1, '5': 9, '10': 'chatId'},
+  ],
+};
+
+/// Descriptor for `EngineJoinGroupCallRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineJoinGroupCallRequestDescriptor = $convert.base64Decode(
+    'ChpFbmdpbmVKb2luR3JvdXBDYWxsUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
+    '50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElk');
+
+@$core.Deprecated('Use engineJoinGroupCallResponseDescriptor instead')
+const EngineJoinGroupCallResponse$json = {
+  '1': 'EngineJoinGroupCallResponse',
+  '2': [
+    {'1': 'call_id', '3': 1, '4': 1, '5': 9, '10': 'callId'},
+  ],
+};
+
+/// Descriptor for `EngineJoinGroupCallResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineJoinGroupCallResponseDescriptor = $convert.base64Decode(
+    'ChtFbmdpbmVKb2luR3JvdXBDYWxsUmVzcG9uc2USFwoHY2FsbF9pZBgBIAEoCVIGY2FsbElk');
 

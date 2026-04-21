@@ -629,3 +629,43 @@ message EngineGetOnlineCountRequest {
 message EngineGetOnlineCountResponse {
   int32 online_count = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Group Call (active voice chat in group/channel)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGroupCallParticipant {
+  string user_id      = 1;
+  string display_name = 2;
+  bool   is_muted     = 3;
+  bool   is_speaking  = 4;
+  bool   has_video    = 5;
+  string avatar_path  = 6;
+}
+
+message EngineGroupCallInfo {
+  string call_id                              = 1;
+  string chat_id                              = 2;
+  string title                                = 3;
+  int32  participants_count                    = 4;
+  repeated EngineGroupCallParticipant participants = 5;
+  bool   active                               = 6;
+}
+
+message EngineGetGroupCallRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineGetGroupCallResponse {
+  EngineGroupCallInfo group_call = 1;
+}
+
+message EngineJoinGroupCallRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineJoinGroupCallResponse {
+  string call_id = 1;
+}

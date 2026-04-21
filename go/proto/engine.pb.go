@@ -5291,6 +5291,366 @@ func (x *EngineGetOnlineCountResponse) GetOnlineCount() int32 {
 	return 0
 }
 
+type EngineGroupCallParticipant struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	IsMuted       bool                   `protobuf:"varint,3,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
+	IsSpeaking    bool                   `protobuf:"varint,4,opt,name=is_speaking,json=isSpeaking,proto3" json:"is_speaking,omitempty"`
+	HasVideo      bool                   `protobuf:"varint,5,opt,name=has_video,json=hasVideo,proto3" json:"has_video,omitempty"`
+	AvatarPath    string                 `protobuf:"bytes,6,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGroupCallParticipant) Reset() {
+	*x = EngineGroupCallParticipant{}
+	mi := &file_proto_engine_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGroupCallParticipant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGroupCallParticipant) ProtoMessage() {}
+
+func (x *EngineGroupCallParticipant) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGroupCallParticipant.ProtoReflect.Descriptor instead.
+func (*EngineGroupCallParticipant) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{80}
+}
+
+func (x *EngineGroupCallParticipant) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *EngineGroupCallParticipant) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *EngineGroupCallParticipant) GetIsMuted() bool {
+	if x != nil {
+		return x.IsMuted
+	}
+	return false
+}
+
+func (x *EngineGroupCallParticipant) GetIsSpeaking() bool {
+	if x != nil {
+		return x.IsSpeaking
+	}
+	return false
+}
+
+func (x *EngineGroupCallParticipant) GetHasVideo() bool {
+	if x != nil {
+		return x.HasVideo
+	}
+	return false
+}
+
+func (x *EngineGroupCallParticipant) GetAvatarPath() string {
+	if x != nil {
+		return x.AvatarPath
+	}
+	return ""
+}
+
+type EngineGroupCallInfo struct {
+	state             protoimpl.MessageState        `protogen:"open.v1"`
+	CallId            string                        `protobuf:"bytes,1,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	ChatId            string                        `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	Title             string                        `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	ParticipantsCount int32                         `protobuf:"varint,4,opt,name=participants_count,json=participantsCount,proto3" json:"participants_count,omitempty"`
+	Participants      []*EngineGroupCallParticipant `protobuf:"bytes,5,rep,name=participants,proto3" json:"participants,omitempty"`
+	Active            bool                          `protobuf:"varint,6,opt,name=active,proto3" json:"active,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *EngineGroupCallInfo) Reset() {
+	*x = EngineGroupCallInfo{}
+	mi := &file_proto_engine_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGroupCallInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGroupCallInfo) ProtoMessage() {}
+
+func (x *EngineGroupCallInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGroupCallInfo.ProtoReflect.Descriptor instead.
+func (*EngineGroupCallInfo) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{81}
+}
+
+func (x *EngineGroupCallInfo) GetCallId() string {
+	if x != nil {
+		return x.CallId
+	}
+	return ""
+}
+
+func (x *EngineGroupCallInfo) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineGroupCallInfo) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EngineGroupCallInfo) GetParticipantsCount() int32 {
+	if x != nil {
+		return x.ParticipantsCount
+	}
+	return 0
+}
+
+func (x *EngineGroupCallInfo) GetParticipants() []*EngineGroupCallParticipant {
+	if x != nil {
+		return x.Participants
+	}
+	return nil
+}
+
+func (x *EngineGroupCallInfo) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+type EngineGetGroupCallRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetGroupCallRequest) Reset() {
+	*x = EngineGetGroupCallRequest{}
+	mi := &file_proto_engine_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetGroupCallRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetGroupCallRequest) ProtoMessage() {}
+
+func (x *EngineGetGroupCallRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetGroupCallRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetGroupCallRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{82}
+}
+
+func (x *EngineGetGroupCallRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetGroupCallRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+type EngineGetGroupCallResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupCall     *EngineGroupCallInfo   `protobuf:"bytes,1,opt,name=group_call,json=groupCall,proto3" json:"group_call,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetGroupCallResponse) Reset() {
+	*x = EngineGetGroupCallResponse{}
+	mi := &file_proto_engine_proto_msgTypes[83]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetGroupCallResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetGroupCallResponse) ProtoMessage() {}
+
+func (x *EngineGetGroupCallResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[83]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetGroupCallResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetGroupCallResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{83}
+}
+
+func (x *EngineGetGroupCallResponse) GetGroupCall() *EngineGroupCallInfo {
+	if x != nil {
+		return x.GroupCall
+	}
+	return nil
+}
+
+type EngineJoinGroupCallRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineJoinGroupCallRequest) Reset() {
+	*x = EngineJoinGroupCallRequest{}
+	mi := &file_proto_engine_proto_msgTypes[84]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineJoinGroupCallRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineJoinGroupCallRequest) ProtoMessage() {}
+
+func (x *EngineJoinGroupCallRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[84]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineJoinGroupCallRequest.ProtoReflect.Descriptor instead.
+func (*EngineJoinGroupCallRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{84}
+}
+
+func (x *EngineJoinGroupCallRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineJoinGroupCallRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+type EngineJoinGroupCallResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CallId        string                 `protobuf:"bytes,1,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineJoinGroupCallResponse) Reset() {
+	*x = EngineJoinGroupCallResponse{}
+	mi := &file_proto_engine_proto_msgTypes[85]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineJoinGroupCallResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineJoinGroupCallResponse) ProtoMessage() {}
+
+func (x *EngineJoinGroupCallResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[85]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineJoinGroupCallResponse.ProtoReflect.Descriptor instead.
+func (*EngineJoinGroupCallResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{85}
+}
+
+func (x *EngineJoinGroupCallResponse) GetCallId() string {
+	if x != nil {
+		return x.CallId
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -5767,7 +6127,36 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\"A\n" +
 	"\x1cEngineGetOnlineCountResponse\x12!\n" +
-	"\fonline_count\x18\x01 \x01(\x05R\vonlineCountB\x11Z\x0funiclient/protob\x06proto3"
+	"\fonline_count\x18\x01 \x01(\x05R\vonlineCount\"\xd2\x01\n" +
+	"\x1aEngineGroupCallParticipant\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x19\n" +
+	"\bis_muted\x18\x03 \x01(\bR\aisMuted\x12\x1f\n" +
+	"\vis_speaking\x18\x04 \x01(\bR\n" +
+	"isSpeaking\x12\x1b\n" +
+	"\thas_video\x18\x05 \x01(\bR\bhasVideo\x12\x1f\n" +
+	"\vavatar_path\x18\x06 \x01(\tR\n" +
+	"avatarPath\"\xef\x01\n" +
+	"\x13EngineGroupCallInfo\x12\x17\n" +
+	"\acall_id\x18\x01 \x01(\tR\x06callId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x14\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\x12-\n" +
+	"\x12participants_count\x18\x04 \x01(\x05R\x11participantsCount\x12I\n" +
+	"\fparticipants\x18\x05 \x03(\v2%.uniclient.EngineGroupCallParticipantR\fparticipants\x12\x16\n" +
+	"\x06active\x18\x06 \x01(\bR\x06active\"S\n" +
+	"\x19EngineGetGroupCallRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"[\n" +
+	"\x1aEngineGetGroupCallResponse\x12=\n" +
+	"\n" +
+	"group_call\x18\x01 \x01(\v2\x1e.uniclient.EngineGroupCallInfoR\tgroupCall\"T\n" +
+	"\x1aEngineJoinGroupCallRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"6\n" +
+	"\x1bEngineJoinGroupCallResponse\x12\x17\n" +
+	"\acall_id\x18\x01 \x01(\tR\x06callIdB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -5781,7 +6170,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 80)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 86)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -5863,6 +6252,12 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetContactsResponse)(nil),       // 77: uniclient.EngineGetContactsResponse
 	(*EngineGetOnlineCountRequest)(nil),     // 78: uniclient.EngineGetOnlineCountRequest
 	(*EngineGetOnlineCountResponse)(nil),    // 79: uniclient.EngineGetOnlineCountResponse
+	(*EngineGroupCallParticipant)(nil),      // 80: uniclient.EngineGroupCallParticipant
+	(*EngineGroupCallInfo)(nil),             // 81: uniclient.EngineGroupCallInfo
+	(*EngineGetGroupCallRequest)(nil),       // 82: uniclient.EngineGetGroupCallRequest
+	(*EngineGetGroupCallResponse)(nil),      // 83: uniclient.EngineGetGroupCallResponse
+	(*EngineJoinGroupCallRequest)(nil),      // 84: uniclient.EngineJoinGroupCallRequest
+	(*EngineJoinGroupCallResponse)(nil),     // 85: uniclient.EngineJoinGroupCallResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -5880,11 +6275,13 @@ var file_proto_engine_proto_depIdxs = []int32{
 	31, // 12: uniclient.EngineGetPinnedMessagesResponse.messages:type_name -> uniclient.EngineCachedMessage
 	18, // 13: uniclient.EngineCreateChannelResponse.chat:type_name -> uniclient.EngineChatInfo
 	75, // 14: uniclient.EngineGetContactsResponse.contacts:type_name -> uniclient.EngineContactInfo
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	80, // 15: uniclient.EngineGroupCallInfo.participants:type_name -> uniclient.EngineGroupCallParticipant
+	81, // 16: uniclient.EngineGetGroupCallResponse.group_call:type_name -> uniclient.EngineGroupCallInfo
+	17, // [17:17] is the sub-list for method output_type
+	17, // [17:17] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -5898,7 +6295,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   80,
+			NumMessages:   86,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

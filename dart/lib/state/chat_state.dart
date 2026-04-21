@@ -23,6 +23,7 @@ class ChatState extends ChangeNotifier {
   final Map<String, ({String kind, int lastSeenMs})> _userLastSeen = {};
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
   int _groupOnlineCount = 0; // online members in active group/channel chat
+  GroupCallInfo? _activeGroupCall; // active group call in current chat
 
   // ── Archive state ──
   bool _hasArchivedChats = false;
@@ -79,6 +80,8 @@ class ChatState extends ChangeNotifier {
     _subs.add(_engine.onDownloadComplete.listen(_handleDownloadComplete));
     // User status → track online/offline for DM avatar dots.
     _subs.add(_engine.onUserStatus.listen(_handleUserStatus));
+    // Group call state → update active group call bar.
+    _subs.add(_engine.onGroupCallState.listen(_handleGroupCallState));
   }
 
   // ── Getters ──
@@ -88,6 +91,7 @@ class ChatState extends ChangeNotifier {
   int get openedUnreadCount => _openedUnreadCount;
   List<CachedMessage> get messages => _messages;
   List<CachedMessage> get pinnedMessages => _pinnedMessages;
+  GroupCallInfo? get activeGroupCall => _activeGroupCall;
   bool get loadingMessages => _loadingMessages;
   bool get hasMoreMessages => _hasMoreMessages;
   bool get hasArchivedChats => _hasArchivedChats;
@@ -317,9 +321,11 @@ class ChatState extends ChangeNotifier {
     _loadPinnedMessages(chat.accountId, chat.chatId);
     // Fetch member avatars and online count for group chats.
     _groupOnlineCount = 0;
+    _activeGroupCall = null;
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
       _loadMemberAvatars(chat.accountId, chat.chatId);
       _loadOnlineCount(chat.accountId, chat.chatId);
+      _loadGroupCall(chat.accountId, chat.chatId);
     } else {
       _senderAvatars.clear();
     }
@@ -341,6 +347,7 @@ class ChatState extends ChangeNotifier {
     _openedUnreadCount = 0;
     _messages = [];
     _pinnedMessages = [];
+    _activeGroupCall = null;
     _engine.clearActiveChat();
     notifyListeners();
   }
@@ -667,6 +674,35 @@ class ChatState extends ChangeNotifier {
       _pinnedMessages = _engine.getPinnedMessages(accountId, chatId);
     } catch (_) {
       _pinnedMessages = [];
+    }
+  }
+
+  Future<void> _loadGroupCall(String accountId, String chatId) async {
+    try {
+      _activeGroupCall = await _engine.getGroupCall(accountId, chatId);
+      notifyListeners();
+    } catch (_) {
+      _activeGroupCall = null;
+    }
+  }
+
+  void _handleGroupCallState(GroupCallStateEvent event) {
+    final chat = _activeChat;
+    if (chat == null) return;
+    // Only process events for the currently active chat.
+    if (event.info.chatId != chat.chatId) return;
+    _activeGroupCall = event.info.active ? event.info : null;
+    notifyListeners();
+  }
+
+  /// Join the active group call in the current chat.
+  Future<void> joinGroupCall() async {
+    final chat = _activeChat;
+    if (chat == null || _activeGroupCall == null) return;
+    try {
+      await _engine.joinGroupCall(chat.accountId, chat.chatId);
+    } catch (e) {
+      // TODO: show error to user
     }
   }
 

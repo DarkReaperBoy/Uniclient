@@ -221,13 +221,6 @@
 - [x] Preview text, 1 line elided — DONE
 - [x] Tapping bar jumps to pinned message — DONE
 
-### §4.6 Group Call Bar
-<!-- spec: research/telegram_desktop_ui.md §4 Group Call Bar -->
-
-- [ ] Active group call bar with overlapping participant userpics — spec §4.6 (not implemented)
-- [ ] Green speaking-indicator rings on userpics — spec §4.6
-- [ ] "Join" button — spec §4.6
-
 ### §4.7 Selection Mode
 <!-- spec: research/telegram_desktop_ui.md §4 Selection Mode -->
 

@@ -2,6 +2,7 @@ package engine
 
 import (
 	"encoding/json"
+	"strconv"
 	"sync"
 	"time"
 
@@ -27,6 +28,7 @@ const (
 	EventDownloadComplete = "download_complete"
 	EventIncomingCall    = "incoming_call"
 	EventCallState       = "call_state"
+	EventGroupCallState  = "group_call_state"
 )
 
 // EngineEvent is the envelope for all events pushed to Dart.
@@ -350,7 +352,37 @@ func (e *Engine) handleUserStatus(accountID, userID string, online bool, kind st
 }
 
 // handleCallUpdate emits call state events.
+// Group calls get a dedicated event type so the UI can show/hide the group call bar.
 func (e *Engine) handleCallUpdate(accountID string, call *cores.CallSession) {
+	if call.IsGroup {
+		info := GroupCallInfo{
+			CallID: call.ID,
+			ChatID: call.ChatID,
+			Active: call.State != cores.CallStateEnded,
+		}
+		if title, ok := call.Meta["title"]; ok {
+			info.Title = title
+		}
+		if countStr, ok := call.Meta["participants_count"]; ok {
+			if n, err := strconv.Atoi(countStr); err == nil {
+				info.ParticipantsCount = n
+			}
+		}
+		for _, p := range call.Participants {
+			info.Participants = append(info.Participants, GroupCallParticipant{
+				UserID:      p.UserID,
+				DisplayName: p.DisplayName,
+				IsMuted:     p.IsMuted,
+				IsSpeaking:  p.IsSpeaking,
+				HasVideo:    p.HasVideo,
+			})
+		}
+		if info.ParticipantsCount == 0 && len(info.Participants) > 0 {
+			info.ParticipantsCount = len(info.Participants)
+		}
+		e.emitEvent(EventGroupCallState, accountID, info)
+		return
+	}
 	if call.State == cores.CallStateRinging {
 		e.emitEvent(EventIncomingCall, accountID, call)
 	} else {

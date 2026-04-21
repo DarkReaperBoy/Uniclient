@@ -691,6 +691,49 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetGroupCall":
+		var req pb.EngineGetGroupCallRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		info, err := e.GetGroupCall(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetGroupCallResponse{}
+		if info != nil {
+			gc := &pb.EngineGroupCallInfo{
+				CallId:            info.CallID,
+				ChatId:            info.ChatID,
+				Title:             info.Title,
+				ParticipantsCount: int32(info.ParticipantsCount),
+				Active:            info.Active,
+			}
+			for _, p := range info.Participants {
+				gc.Participants = append(gc.Participants, &pb.EngineGroupCallParticipant{
+					UserId:      p.UserID,
+					DisplayName: p.DisplayName,
+					IsMuted:     p.IsMuted,
+					IsSpeaking:  p.IsSpeaking,
+					HasVideo:    p.HasVideo,
+					AvatarPath:  p.AvatarPath,
+				})
+			}
+			resp.GroupCall = gc
+		}
+		return proto.Marshal(resp)
+
+	case "JoinGroupCall":
+		var req pb.EngineJoinGroupCallRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		callID, err := e.JoinGroupCall(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineJoinGroupCallResponse{CallId: callID})
+
 	case "Shutdown":
 		return nil, e.Shutdown()
 
