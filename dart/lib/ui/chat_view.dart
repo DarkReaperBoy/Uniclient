@@ -914,6 +914,7 @@ class _ChatTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
     // Subtitle: typing, online status, member count, or last seen.
     String subtitle;
@@ -927,6 +928,11 @@ class _ChatTopBar extends StatelessWidget {
       subtitleColor = const Color(0xFF3BA55C); // online green
     } else if (chat.type == ChatType.dm) {
       subtitle = _formatLastSeen(lastSeen);
+      // Spec §4.2 / §14135: windowSubTextFg gray for offline/last-seen.
+      // Day #999999, night #98b4d3.
+      subtitleColor = isDark
+          ? const Color(0xFF98b4d3)
+          : const Color(0xFF999999);
     } else if (chat.memberCount > 0) {
       subtitle = chat.type == ChatType.channel
           ? '${chat.memberCount} subscribers'
@@ -934,8 +940,6 @@ class _ChatTopBar extends StatelessWidget {
     } else {
       subtitle = '';
     }
-
-    final isDark = theme.brightness == Brightness.dark;
     // Spec §4.1: topBarBg = windowBg. Day #ffffff, night #17212b.
     final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
     // Spec §4.1: shadowFg divider. Day #00000018 (~9% black), night #04080e56 (~34%).
@@ -1947,8 +1951,12 @@ class _ForwardDialogState extends State<_ForwardDialog> {
   }
 }
 
-/// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
+/// Format a last-seen descriptor per Telegram Desktop spec §4.2 / §14138.
 /// Shared by the chat top bar and the info panel avatar header.
+///
+/// Time format matches Telegram Desktop: 12-hour AM/PM (via QLocale in
+/// original source). kind variants: recently, within_week, within_month,
+/// long_ago, exact (with lastSeenMs timestamp).
 String formatChatLastSeen(({String kind, int lastSeenMs}) ls) {
   switch (ls.kind) {
     case 'recently':
@@ -1976,16 +1984,30 @@ String formatChatLastSeen(({String kind, int lastSeenMs}) ls) {
       final yesterday = then.year == y.year &&
           then.month == y.month &&
           then.day == y.day;
-      String twoDigits(int n) => n.toString().padLeft(2, '0');
-      final time = '${twoDigits(then.hour)}:${twoDigits(then.minute)}';
+      final time = _formatTime12h(then);
       if (sameDay) return 'last seen today at $time';
       if (yesterday) return 'last seen yesterday at $time';
       const months = [
         'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
         'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
       ];
-      return 'last seen ${months[then.month - 1]} ${then.day} at $time';
+      final date = '${months[then.month - 1]} ${then.day}';
+      if (then.year != now.year) {
+        return 'last seen $date, ${then.year} at $time';
+      }
+      return 'last seen $date at $time';
     default:
       return '';
   }
+}
+
+/// Format a [DateTime] as 12-hour time with AM/PM (e.g. "3:45 PM").
+/// Matches Telegram Desktop QLocale English format per spec §14145.
+String _formatTime12h(DateTime dt) {
+  final h = dt.hour;
+  final m = dt.minute.toString().padLeft(2, '0');
+  if (h == 0) return '12:$m AM';
+  if (h < 12) return '$h:$m AM';
+  if (h == 12) return '12:$m PM';
+  return '${h - 12}:$m PM';
 }
