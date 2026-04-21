@@ -287,8 +287,6 @@
 
 ### §6.2 Spoiler Overlay (photos, GIFs, videos)
 
-- [ ] Text spoiler descriptor: 9000 particles, 4–8 speed, 1.5–2px size, 200ms fade — spec §6. Not implemented
-
 ### §6.3 Photo Albums (Grouped Media)
 
 - [ ] Album layout: up to 10 items, 4px spacing, 100–430px width, per-count layout rules (2-item split, 3-item columns, 4-item grid, 5–10 ComplexLayouter with scoring), corner rounding only at outer edges — spec §6. Not implemented (each photo renders individually)

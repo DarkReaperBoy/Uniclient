@@ -757,28 +757,33 @@ class _SpoilerParticle {
 class _SpoilerParticleData {
   final List<_SpoilerParticle> particles;
   final double tileSize;
+  final int fadeDurationFrames;
   static const int frameCount = 60;
-  static const int fadeDurationFrames = 9; // 300ms / 33ms
 
-  _SpoilerParticleData(this.particles, this.tileSize);
+  _SpoilerParticleData(this.particles, this.tileSize, {this.fadeDurationFrames = 9});
 
-  static _SpoilerParticleData generate(int count, double tileSize) {
+  static _SpoilerParticleData generate(
+    int count, double tileSize, {
+    double speedMin = 10, double speedMax = 20,
+    int fadeDurationFrames = 9,
+  }) {
     final rng = math.Random(42);
+    final speedRange = speedMax - speedMin;
     final particles = List.generate(count, (_) {
       final birthFrame = rng.nextInt(frameCount);
-      final lifetime = fadeDurationFrames * 2; // fadeIn + fadeOut, shownDuration=0
+      final lifetime = fadeDurationFrames * 2;
       return _SpoilerParticle(
         rng.nextDouble() * tileSize,
         rng.nextDouble() * tileSize,
-        (rng.nextDouble() * 10 + 10) * (rng.nextBool() ? 1 : -1),
-        (rng.nextDouble() * 10 + 10) * (rng.nextBool() ? 1 : -1),
+        (rng.nextDouble() * speedRange + speedMin) * (rng.nextBool() ? 1 : -1),
+        (rng.nextDouble() * speedRange + speedMin) * (rng.nextBool() ? 1 : -1),
         1.5 + rng.nextDouble() * 0.5,
         birthFrame,
         (birthFrame + lifetime) % frameCount,
         rng.nextInt(5),
       );
     });
-    return _SpoilerParticleData(particles, tileSize);
+    return _SpoilerParticleData(particles, tileSize, fadeDurationFrames: fadeDurationFrames);
   }
 
   double particleAlpha(int frame, _SpoilerParticle p) {
@@ -968,6 +973,199 @@ class _MediaSpoilerOverlayState extends State<_MediaSpoilerOverlay>
       ),
     );
   }
+}
+
+// ── Text Spoiler Widget (spec §6.2 text-spoiler descriptor) ──
+// 9000 particles, 4–8 speed, 1.5–2px size, 200ms fade.
+
+class _TextSpoilerWidget extends StatefulWidget {
+  final String text;
+  final TextStyle style;
+  final bool isDark;
+  final VoidCallback onReveal;
+  final bool revealed;
+
+  const _TextSpoilerWidget({
+    required this.text,
+    required this.style,
+    required this.isDark,
+    required this.onReveal,
+    required this.revealed,
+  });
+
+  @override
+  State<_TextSpoilerWidget> createState() => _TextSpoilerWidgetState();
+}
+
+class _TextSpoilerWidgetState extends State<_TextSpoilerWidget>
+    with TickerProviderStateMixin {
+  static final _SpoilerParticleData _textParticles =
+      _SpoilerParticleData.generate(
+    9000, 128.0,
+    speedMin: 4, speedMax: 8,
+    fadeDurationFrames: 6, // 200ms / 33ms ≈ 6
+  );
+
+  late final AnimationController _animController;
+  late final AnimationController _revealController;
+  int _currentFrame = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 33 * _SpoilerParticleData.frameCount),
+    )..addListener(() {
+        final newFrame = (_animController.value * _SpoilerParticleData.frameCount).floor()
+            % _SpoilerParticleData.frameCount;
+        if (newFrame != _currentFrame) {
+          setState(() => _currentFrame = newFrame);
+        }
+      });
+    _revealController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    if (!widget.revealed) {
+      _animController.repeat();
+    } else {
+      _revealController.value = 1.0;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_TextSpoilerWidget old) {
+    super.didUpdateWidget(old);
+    if (widget.revealed && !old.revealed) {
+      _revealController.forward().then((_) {
+        if (mounted) _animController.stop();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    _revealController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark
+        ? const Color(0xFF6D7F8F)
+        : const Color(0xFFA0ACB6);
+
+    return GestureDetector(
+      onTap: widget.revealed ? null : widget.onReveal,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedBuilder(
+        animation: _revealController,
+        builder: (_, __) {
+          final revealVal = Curves.easeInOut.transform(_revealController.value);
+          if (revealVal >= 1.0) {
+            return Text(widget.text, style: widget.style);
+          }
+          return ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: CustomPaint(
+              foregroundPainter: _TextSpoilerPainter(
+                data: _textParticles,
+                frame: _currentFrame,
+                revealProgress: revealVal,
+                bgColor: bgColor,
+              ),
+              child: Text(
+                widget.text,
+                style: widget.style.copyWith(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TextSpoilerPainter extends CustomPainter {
+  final _SpoilerParticleData data;
+  final int frame;
+  final double revealProgress;
+  final Color bgColor;
+
+  _TextSpoilerPainter({
+    required this.data,
+    required this.frame,
+    required this.revealProgress,
+    required this.bgColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (revealProgress >= 1.0) return;
+    final opacity = 1.0 - revealProgress;
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = bgColor.withValues(alpha: opacity),
+    );
+
+    final paint = Paint()..style = PaintingStyle.fill;
+    final tile = data.tileSize;
+    final tilesX = (size.width / tile).ceil() + 1;
+    final tilesY = (size.height / tile).ceil() + 1;
+
+    for (int ty = 0; ty < tilesY; ty++) {
+      for (int tx = 0; tx < tilesX; tx++) {
+        final ox = tx * tile;
+        final oy = ty * tile;
+        for (final p in data.particles) {
+          final a = data.particleAlpha(frame, p);
+          if (a <= 0) continue;
+          final pos = data.particlePos(frame, p);
+          final px = ox + pos.dx;
+          final py = oy + pos.dy;
+          if (px < -2 || px > size.width + 2 || py < -2 || py > size.height + 2) continue;
+          paint.color = Color.fromRGBO(255, 255, 255, a * opacity * 0.7);
+          switch (p.shape) {
+            case 0:
+              canvas.drawCircle(Offset(px, py), p.size, paint);
+            case 1:
+              canvas.drawRect(Rect.fromCenter(center: Offset(px, py), width: p.size * 1.8, height: p.size * 1.8), paint);
+            case 2:
+              canvas.drawRRect(
+                RRect.fromRectAndRadius(
+                  Rect.fromCenter(center: Offset(px, py), width: p.size * 2, height: p.size),
+                  Radius.circular(p.size * 0.5),
+                ),
+                paint,
+              );
+            case 3:
+              canvas.drawCircle(Offset(px, py), p.size * 0.8, paint);
+            default:
+              canvas.drawRRect(
+                RRect.fromRectAndRadius(
+                  Rect.fromCenter(center: Offset(px, py), width: p.size, height: p.size * 2),
+                  Radius.circular(p.size * 0.5),
+                ),
+                paint,
+              );
+          }
+        }
+      }
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_TextSpoilerPainter old) =>
+      old.frame != frame || old.revealProgress != revealProgress;
 }
 
 /// Renders photos, videos, stickers, GIFs as visual thumbnails.
@@ -1812,7 +2010,7 @@ class _RichMessageTextState extends State<_RichMessageText> {
     }
     _recognizers.clear();
 
-    final entities = _parseEntities();
+    var entities = _parseEntities();
     if (entities.isEmpty) {
       return Text(widget.text, style: widget.baseStyle);
     }
@@ -1824,17 +2022,23 @@ class _RichMessageTextState extends State<_RichMessageText> {
     // Sort by offset for stable processing.
     entities.sort((a, b) => a.offset.compareTo(b.offset));
 
+    final hasSpoilers = entities.any((e) => e.type == 'spoiler');
+    final hasUnrevealed = hasSpoilers && entities
+        .where((e) => e.type == 'spoiler')
+        .any((e) => !_revealedSpoilers.contains(e.offset));
+
     // Separate blockquotes (block-level) from inline entities.
     final blockquotes = entities.where((e) => e.type == 'blockquote').toList();
     final inlineEntities = entities.where((e) => e.type != 'blockquote').toList();
 
+    Widget result;
     if (blockquotes.isEmpty) {
       // Simple case: no blockquotes, just inline rich text.
-      return Text.rich(
+      result = Text.rich(
         TextSpan(children: _buildInlineSpans(text, 0, textLen, inlineEntities, isDark)),
         style: widget.baseStyle,
       );
-    }
+    } else {
 
     // Complex case: split text into blockquote blocks and normal blocks.
     final children = <Widget>[];
@@ -1889,9 +2093,23 @@ class _RichMessageTextState extends State<_RichMessageText> {
       ));
     }
 
-    return Column(
+    result = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: children,
+    );
+    }
+
+    if (!hasUnrevealed) return result;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          for (final e in entities.where((e) => e.type == 'spoiler')) {
+            _revealedSpoilers.add(e.offset);
+          }
+        });
+      },
+      behavior: HitTestBehavior.opaque,
+      child: result,
     );
   }
 
@@ -1973,28 +2191,14 @@ class _RichMessageTextState extends State<_RichMessageText> {
       case 'spoiler':
         final idx = entity.offset;
         final revealed = _revealedSpoilers.contains(idx);
-        if (revealed) {
-          return TextSpan(text: text);
-        }
         return WidgetSpan(
           alignment: PlaceholderAlignment.middle,
-          child: GestureDetector(
-            onTap: () => setState(() => _revealedSpoilers.add(idx)),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFFA0ACB6),
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: Text(
-                '\u2588' * (text.length.clamp(1, 40)),
-                style: TextStyle(
-                  fontSize: (widget.baseStyle.fontSize ?? 14) * 0.85,
-                  color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFFA0ACB6),
-                  letterSpacing: -1,
-                ),
-              ),
-            ),
+          child: _TextSpoilerWidget(
+            text: text,
+            style: widget.baseStyle,
+            isDark: isDark,
+            revealed: revealed,
+            onReveal: () => setState(() => _revealedSpoilers.add(idx)),
           ),
         );
       case 'url':
