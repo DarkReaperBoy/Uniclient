@@ -87,13 +87,18 @@ class MessageBubble extends StatelessWidget {
     final bottomSenderSide = isLastInGroup ? _radiusSmall : _radiusSmall;
     final bottomOtherSide = isLastInGroup ? _radiusLarge : _radiusSmall;
 
-    final verticalPad = isLastInGroup ? 2.0 : 1.0;
-
     // Show sender avatar for incoming messages in group chats.
     final showAvatar = isGroupChat && !isOutgoing;
 
+    // Spec §5: Bubble margins — left 16px, top 6px, right 56px, bottom 2px.
+    // Attached-to-previous collapses top to 0px.
     return Padding(
-      padding: EdgeInsets.only(top: isFirstInGroup ? 4.0 : verticalPad, bottom: verticalPad),
+      padding: EdgeInsets.only(
+        left: 16.0,
+        top: isFirstInGroup ? 6.0 : 0.0,
+        right: 56.0,
+        bottom: 2.0,
+      ),
       child: Column(
         crossAxisAlignment: alignment,
         children: [

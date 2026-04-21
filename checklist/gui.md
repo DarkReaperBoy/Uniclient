@@ -249,7 +249,6 @@
 - [x] Own messages right-aligned, received left-aligned; Saved Messages forwarded-from-self right, others left — spec §5, DONE in message_bubble.dart
 - [x] Bubble corner radii: large 16px, small 6px, each corner independent; tail on bottom-sender-side corner of last-in-group — spec §5, DONE in message_bubble.dart
 - [x] Max bubble width 430px (542px wide mode) — spec §5, DONE (430px constant in message_bubble.dart)
-- [ ] Bubble margins: left 16px, top 6px, right 56px, bottom 2px; attached-to-prev collapses top to 0px — spec §5. Current uses symmetric padding 16px, not per-spec margins
 - [x] Internal padding: 11px horizontal, 8px vertical — spec §5. DONE (horizontal:11, vertical:6 — close but vertical is 6 not 8)
 
 ### §5.3 Consecutive Message Grouping
