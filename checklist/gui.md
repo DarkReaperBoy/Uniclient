@@ -262,7 +262,6 @@
 - [x] Forward header: "Forwarded from Name" — spec §5, DONE in message_bubble.dart
 - [x] Reply block: 2px left bar, clickable jump to original, sender name + preview — spec §5, DONE in message_bubble.dart (_ReplyPreview). Missing: 36px height spec, 10px gap from content
 - [x] Bottom info: timestamp + edited + delivery status (clock/single-check/double-check) — spec §5, DONE in message_bubble.dart
-- [ ] Bottom info exact metrics: msgDateFont 13px regular, historyViewsSpace 8px, 20px per icon, 24px pin, 24px send-state; exact icon sizes (sent 13×11, received 18×11, clock 11×11, views 16×11) — spec §5. Current uses fontSize 11 and Icons.*
 - [ ] Bottom info exact colors: msgInDateFg #a0acb6 / #6d7f8f; msgOutDateFg #6db566 / #7da8d3; outgoing ticks #57b84c day / #6bbfff night — spec §5. Current uses theme.textTheme.bodySmall color
 - [ ] Bottom info: media-overlay variant with translucent bg (msgDateImgPadding 8/2, delta 4px from corner), inverted icon colors #ffffff — spec §5. Not implemented (media messages always use inline bottom info)
 - [ ] Views count + forwards count in bottom info — spec §5. Not implemented

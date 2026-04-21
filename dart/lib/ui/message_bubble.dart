@@ -277,14 +277,14 @@ class MessageBubble extends StatelessWidget {
                           Padding(
                             padding: const EdgeInsets.only(right: 4),
                             child: Text('edited',
-                                style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color)),
+                                style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color)),
                           ),
                         Text(
                           _formatTime(message.timestamp),
-                          style: TextStyle(fontSize: 11, color: theme.textTheme.bodySmall?.color),
+                          style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
                         ),
                         if (isOutgoing) ...[
-                          const SizedBox(width: 3),
+                          const SizedBox(width: 4),
                           _StatusIcon(status: message.status, theme: theme),
                         ],
                       ],
@@ -916,6 +916,8 @@ class _FileIndicator extends StatelessWidget {
   }
 }
 
+/// Spec §5: Delivery status icon at exact spec sizes.
+/// Clock 11×11, single-check 13×11, double-check 18×11.
 class _StatusIcon extends StatelessWidget {
   final MsgStatus status;
   final ThemeData theme;
@@ -924,17 +926,112 @@ class _StatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = switch (status) {
-      MsgStatus.sending => (Icons.access_time, theme.textTheme.bodySmall?.color),
-      MsgStatus.sent => (Icons.check, theme.textTheme.bodySmall?.color),
-      MsgStatus.delivered => (Icons.done_all, theme.textTheme.bodySmall?.color),
-      MsgStatus.read => (Icons.done_all, theme.colorScheme.primary),
-      MsgStatus.failed => (Icons.error_outline, theme.colorScheme.error),
-      _ => (Icons.check, theme.textTheme.bodySmall?.color),
+    final color = switch (status) {
+      MsgStatus.sending => theme.textTheme.bodySmall?.color ?? Colors.grey,
+      MsgStatus.sent => theme.textTheme.bodySmall?.color ?? Colors.grey,
+      MsgStatus.delivered => theme.textTheme.bodySmall?.color ?? Colors.grey,
+      MsgStatus.read => theme.colorScheme.primary,
+      MsgStatus.failed => theme.colorScheme.error,
+      _ => theme.textTheme.bodySmall?.color ?? Colors.grey,
     };
 
-    return Icon(icon, size: 14, color: color);
+    return switch (status) {
+      MsgStatus.sending => SizedBox(
+          width: 11, height: 11,
+          child: CustomPaint(painter: _ClockPainter(color: color)),
+        ),
+      MsgStatus.sent => SizedBox(
+          width: 13, height: 11,
+          child: CustomPaint(painter: _SentCheckPainter(color: color)),
+        ),
+      MsgStatus.delivered || MsgStatus.read => SizedBox(
+          width: 18, height: 11,
+          child: CustomPaint(painter: _DoubleCheckPainter(color: color)),
+        ),
+      MsgStatus.failed => Icon(Icons.error_outline, size: 13, color: color),
+      _ => SizedBox(
+          width: 13, height: 11,
+          child: CustomPaint(painter: _SentCheckPainter(color: color)),
+        ),
+    };
   }
+}
+
+/// Spec §5: Clock icon for sending state, 11×11px.
+class _ClockPainter extends CustomPainter {
+  final Color color;
+  _ClockPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = (size.width - 2) / 2;
+    canvas.drawCircle(Offset(cx, cy), r, paint);
+    canvas.drawLine(Offset(cx, cy), Offset(cx + r * 0.45, cy - r * 0.35), paint);
+    canvas.drawLine(Offset(cx, cy), Offset(cx, cy - r * 0.65), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ClockPainter old) => color != old.color;
+}
+
+/// Spec §5: Single checkmark for sent state, 13×11px.
+class _SentCheckPainter extends CustomPainter {
+  final Color color;
+  _SentCheckPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final path = Path()
+      ..moveTo(1, size.height * 0.5)
+      ..lineTo(size.width * 0.35, size.height - 1.5)
+      ..lineTo(size.width - 1, 1.5);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SentCheckPainter old) => color != old.color;
+}
+
+/// Spec §5: Double checkmark for delivered/read state, 18×11px.
+class _DoubleCheckPainter extends CustomPainter {
+  final Color color;
+  _DoubleCheckPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final p1 = Path()
+      ..moveTo(1, size.height * 0.5)
+      ..lineTo(size.width * 0.28, size.height - 1.5)
+      ..lineTo(size.width * 0.6, 1.5);
+    final p2 = Path()
+      ..moveTo(size.width * 0.3, size.height * 0.5)
+      ..lineTo(size.width * 0.55, size.height - 1.5)
+      ..lineTo(size.width - 1, 1.5);
+    canvas.drawPath(p1, paint);
+    canvas.drawPath(p2, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _DoubleCheckPainter old) => color != old.color;
 }
 
 // ── Rich text entity model ──
