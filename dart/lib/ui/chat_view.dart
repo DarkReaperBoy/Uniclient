@@ -2413,7 +2413,7 @@ class _SelectionBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('FORWARD'),
+          const Flexible(child: Text('FORWARD', overflow: TextOverflow.ellipsis)),
           const SizedBox(width: 4),
           _AnimatedCountBadge(count: count),
         ],
@@ -2465,42 +2465,62 @@ class _SelectionBar extends StatelessWidget {
           bottom: BorderSide(color: shadowFg, width: 1),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.only(left: 8, right: 10),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: onCancel,
-          ),
           const SizedBox(width: 8),
-          forwardButton,
+          // Spec §4.7: action buttons share equal width via setFullWidth.
+          Expanded(child: forwardButton),
           const SizedBox(width: 10), // topBarActionSkip
-          TextButton(
-            onPressed: onCopy,
-            style: middlePillStyle,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('COPY'),
-                const SizedBox(width: 4),
-                _AnimatedCountBadge(count: count),
-              ],
+          Expanded(
+            child: TextButton(
+              onPressed: onCopy,
+              style: middlePillStyle,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Flexible(child: Text('COPY', overflow: TextOverflow.ellipsis)),
+                  const SizedBox(width: 4),
+                  _AnimatedCountBadge(count: count),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 10),
-          TextButton(
-            onPressed: onDelete,
-            style: lastPillStyle,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('DELETE'),
-                const SizedBox(width: 4),
-                _AnimatedCountBadge(count: count),
-              ],
+          Expanded(
+            child: TextButton(
+              onPressed: onDelete,
+              style: lastPillStyle,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Flexible(child: Text('DELETE', overflow: TextOverflow.ellipsis)),
+                  const SizedBox(width: 4),
+                  _AnimatedCountBadge(count: count),
+                ],
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 10),
+          // Spec §4.7: Cancel/clear button — RoundButton(defaultLightButton),
+          // width: -18px (auto-width with 18px horizontal padding),
+          // right-aligned 10px from edge. Label: "CLEAR" uppercase.
+          TextButton(
+            onPressed: onCancel,
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              foregroundColor: isDark
+                  ? const Color(0xFF6AB2F2) // windowActiveTextFg night
+                  : const Color(0xFF168ACD), // windowActiveTextFg day
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              textStyle: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+              shape: const StadiumBorder(),
+            ),
+            child: const Text('CLEAR'),
+          ),
         ],
       ),
     );

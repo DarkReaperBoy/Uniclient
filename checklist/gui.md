@@ -229,8 +229,6 @@
 - [x] Cancel/close button — DONE
 - [x] Count display ("X selected") — DONE
 - [x] Forward drag-and-drop integration — DONE in `_SelectionBar`
-- [ ] Cancel button: `RoundButton(defaultLightButton)`, `width: -18px`, right-aligned 10px from edge — spec §4.7
-- [ ] Cancel label: "CLEAR" / "CANCEL" uppercase — spec §4.7 (currently close icon only)
 - [ ] "Send Now" button for scheduled messages — spec §4.7
 # GUI Checklist: §5 Message List & Bubbles, §6 Media Message Types, §7 Compose Area
 
