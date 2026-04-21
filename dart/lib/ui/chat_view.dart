@@ -810,6 +810,8 @@ class _ChatViewState extends State<ChatView> {
           if (chatState.pinnedMessages.isNotEmpty)
             _PinnedBar(
               pinned: chatState.pinnedMessages.first,
+              pinnedCount: chatState.pinnedMessages.length,
+              pinnedIndex: 0,
               onTap: () {
                 final pinned = chatState.pinnedMessages.first;
                 // Load messages with pinned message as the newest (index 0).
@@ -2081,9 +2083,11 @@ class _SelectionBar extends StatelessWidget {
 /// Shows the most recent pinned message with a pin icon.
 class _PinnedBar extends StatelessWidget {
   final CachedMessage pinned;
+  final int pinnedCount;
+  final int pinnedIndex;
   final VoidCallback? onTap;
 
-  const _PinnedBar({required this.pinned, this.onTap});
+  const _PinnedBar({required this.pinned, this.pinnedCount = 1, this.pinnedIndex = 0, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -2118,7 +2122,7 @@ class _PinnedBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Pinned Message',
+                  _pinnedTitle(),
                   maxLines: 1,
                   style: TextStyle(
                     fontSize: 12,
@@ -2143,6 +2147,14 @@ class _PinnedBar extends StatelessWidget {
       ),
     ),
     );
+  }
+
+  String _pinnedTitle() {
+    if (pinnedCount <= 1) return 'Pinned Message';
+    if (pinnedCount == 2 && pinnedIndex > 0) {
+      return 'Previous Pinned Message';
+    }
+    return 'Pinned Message #${pinnedCount - pinnedIndex}';
   }
 
   Widget _buildPinnedThumb() {
