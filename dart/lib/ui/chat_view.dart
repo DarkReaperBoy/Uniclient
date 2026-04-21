@@ -1018,6 +1018,21 @@ class _ChatTopBar extends StatelessWidget {
                             style: theme.textTheme.titleMedium,
                           ),
                         ),
+                        if (chat.isVerified) ...[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.verified,
+                            size: 16,
+                            color: Color(0xFF168acd),
+                          ),
+                        ],
+                        if (chat.isScam) ...[
+                          const SizedBox(width: 4),
+                          _TopBarWarningBadge(label: 'SCAM'),
+                        ],
+                        if (chat.isFake) ...[
+                          const SizedBox(width: 4),
+                          _TopBarWarningBadge(label: 'FAKE'),
+                        ],
                         if (chat.isMuted) ...[
                           const SizedBox(width: 4),
                           Icon(
@@ -1068,6 +1083,32 @@ class _ChatTopBar extends StatelessWidget {
 
 /// Spec §4.2: Animated typing indicator for the top bar subtitle.
 /// Shows "UserName is typing" with three bouncing dots.
+class _TopBarWarningBadge extends StatelessWidget {
+  final String label;
+  const _TopBarWarningBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    const color = Color(0xFFe53935);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+      decoration: BoxDecoration(
+        border: Border.all(color: color, width: 1),
+        borderRadius: BorderRadius.circular(2),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+          height: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
 class _TopBarTypingDots extends StatefulWidget {
   final String userName;
   final Color color;

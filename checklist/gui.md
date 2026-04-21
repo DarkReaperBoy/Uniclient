@@ -204,7 +204,6 @@
 - [x] Avatar in top bar — DONE (36px diameter currently)
 - [x] Title text: semibold, elided — DONE
 - [x] Subtitle: DM online/last-seen, group member count, typing indicator — DONE in `_ChatTopBar`
-- [ ] Verified/scam/fake badge inline after title — spec §4.2 (currently shows mute icon but not verified/scam badges)
 - [ ] Subtitle font: `dialogsTextFont` — spec §4.2
 - [ ] DM subtitle: "online" green `#3BA55C` (done) + "last seen [time]" formatted per §1.4 — spec §4.2 (online done; last-seen format needs verification across all `kind` variants)
 - [ ] Group subtitle: "X members, Y online" — spec §4.2 (currently shows "X members" only; "Y online" missing)
