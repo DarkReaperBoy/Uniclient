@@ -2373,17 +2373,43 @@ class _SelectionBar extends StatelessWidget {
     final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
 
     // Spec §4.7: defaultActiveButton — blue pill RoundButton, white text.
-    final pillStyle = TextButton.styleFrom(
+    // Corner radii: 8px outer ends, 4px small inner ends (segmented pill).
+    const largeR = Radius.circular(8);
+    const smallR = Radius.circular(4);
+    final basePillStyle = TextButton.styleFrom(
       backgroundColor: const Color(0xFF40A7E3), // activeButtonBg
       foregroundColor: Colors.white, // activeButtonFg
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    );
+    // First button: large left corners, small right corners.
+    final firstPillStyle = basePillStyle.copyWith(
+      shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+        borderRadius: const BorderRadius.only(
+          topLeft: largeR, bottomLeft: largeR,
+          topRight: smallR, bottomRight: smallR,
+        ),
+      )),
+    );
+    // Middle button: all small corners.
+    final middlePillStyle = basePillStyle.copyWith(
+      shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(smallR),
+      )),
+    );
+    // Last button: small left corners, large right corners.
+    final lastPillStyle = basePillStyle.copyWith(
+      shape: WidgetStatePropertyAll(RoundedRectangleBorder(
+        borderRadius: const BorderRadius.only(
+          topLeft: smallR, bottomLeft: smallR,
+          topRight: largeR, bottomRight: largeR,
+        ),
+      )),
     );
 
     Widget forwardButton = TextButton(
       onPressed: onForward,
-      style: pillStyle,
+      style: firstPillStyle,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2401,7 +2427,10 @@ class _SelectionBar extends StatelessWidget {
         dragAnchorStrategy: pointerDragAnchorStrategy,
         feedback: Material(
           elevation: 4,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: const BorderRadius.only(
+            topLeft: largeR, bottomLeft: largeR,
+            topRight: smallR, bottomRight: smallR,
+          ),
           color: isDark ? const Color(0xFF2b5278) : const Color(0xFF419fd9),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -2448,7 +2477,7 @@ class _SelectionBar extends StatelessWidget {
           const SizedBox(width: 10), // topBarActionSkip
           TextButton(
             onPressed: onCopy,
-            style: pillStyle,
+            style: middlePillStyle,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -2461,7 +2490,7 @@ class _SelectionBar extends StatelessWidget {
           const SizedBox(width: 10),
           TextButton(
             onPressed: onDelete,
-            style: pillStyle,
+            style: lastPillStyle,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

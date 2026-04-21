@@ -229,7 +229,6 @@
 - [x] Cancel/close button — DONE
 - [x] Count display ("X selected") — DONE
 - [x] Forward drag-and-drop integration — DONE in `_SelectionBar`
-- [ ] Corner radii: 8px outer ends, small inner ends (segmented pill) — spec §4.7
 - [ ] Cancel button: `RoundButton(defaultLightButton)`, `width: -18px`, right-aligned 10px from edge — spec §4.7
 - [ ] Cancel label: "CLEAR" / "CANCEL" uppercase — spec §4.7 (currently close icon only)
 - [ ] "Send Now" button for scheduled messages — spec §4.7
