@@ -2138,7 +2138,7 @@ class _DateSeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final dt = DateTime.fromMillisecondsSinceEpoch(timestamp);
     final now = DateTime.now();
     final diff = now.difference(dt);
@@ -2152,16 +2152,26 @@ class _DateSeparator extends StatelessWidget {
       text = '${_months[dt.month - 1]} ${dt.day}, ${dt.year}';
     }
 
+    // msgServiceBg: day #517c417f, night #213040d5
+    final bgColor = isDark ? const Color(0xD5213040) : const Color(0x7F517c41);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.only(top: 10, bottom: 2),
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.fromLTRB(12, 3, 12, 4),
           decoration: BoxDecoration(
-            color: theme.colorScheme.surface.withValues(alpha: 0.8),
-            borderRadius: BorderRadius.circular(12),
+            color: bgColor,
+            borderRadius: BorderRadius.circular(999),
           ),
-          child: Text(text, style: theme.textTheme.bodySmall?.copyWith(fontSize: 12)),
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFFFFFFFF),
+            ),
+          ),
         ),
       ),
     );
