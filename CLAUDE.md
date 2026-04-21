@@ -90,6 +90,7 @@ When the user says "add X", follow these steps in order:
 - **SPEC FIRST, CODE SECOND — mandatory for all UI work** — Before writing ANY widget or screen code, you MUST: (1) Read the FULL spec sections for that component (`research/telegram_desktop_ui.md`), not just headers — every subsection, dimension, and state. (2) Cross-reference all related spec sections (a sidebar involves §1 layout + §2 chat list + §3 hamburger + §18 folders). (3) For large components (new screens, multi-widget layouts), write a component breakdown plan in `research/gui_component_plan_{name}.md` listing every widget, its nesting, exact dimensions, and state needs — not required for small single-widget checklist items. This rule exists because we wasted an entire session building a completely wrong left panel by skipping the spec.
 - **Research before implementing UI features** — If you check `research/telegram_desktop_ui.md` and don't find the UI feature you need to implement, you MUST research AyuGram Desktop source code (https://github.com/AyuGram/AyuGramDesktop) first and add your findings to the research file BEFORE writing any code. Never guess how a UI feature should work — find the real implementation.
 - **Smoke-test the GUI before declaring done** — After ANY GUI-related work, you MUST build the app, launch it, and **interact with it like a normal user** to verify changes work. Passing unit tests is not enough — the actual app must work.
+- **Test BOTH mobile and desktop modes — MANDATORY** — The app opens at ~600px by default (mobile/oneColumn mode). Features that only work at one size are BROKEN. After launching the app, test at BOTH sizes using `flutter_interact.sh resize desktop` (1024x768) and `flutter_interact.sh resize mobile` (400x720). Screenshot and verify at each size. A feature is not done until it works in both modes.
 - **UI is the source of truth, not API calls** — A feature is NOT working unless the user can SEE it working in the UI. An API call succeeding behind the scenes means nothing if the display is broken. When verifying bugs or features: screenshot the rendered result and judge what the USER sees, not what the logs say. "Forward works" means a forwarded message renders with a "Forwarded from" header — not that the API returned 200. "Pinned bar works" means clicking it scrolls to the pinned message visually — not that GetPinnedMessages returned data. Always verify the VISUAL output, never just the data layer.
 
   ### GUI Automation Toolkit
@@ -102,6 +103,12 @@ When the user says "add X", follow these steps in order:
   # Build & launch
   nix develop --command bash -c "scripts/build_flutter.sh linux debug"
   cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
+
+  # Kill the app — ALWAYS use `pkill uniclient`, nothing else.
+  # `kill $PID` and `pkill -f "bundle/uniclient"` kill the bash wrapper
+  # but leave the actual binary running as an orphan. Only `pkill uniclient`
+  # matches the real process name.
+  pkill uniclient
 
   # Screenshot the rendered UI (works on Wayland, X11, headless — no display needed)
   scripts/flutter_inspect.sh screenshot /tmp/ss.png   # then: Read /tmp/ss.png

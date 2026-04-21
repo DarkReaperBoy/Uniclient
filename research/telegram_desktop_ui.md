@@ -302,19 +302,23 @@ Gating: each item is conditional on an AyuGram `showXInDrawer()` setting (`windo
 
 **Confirmation.** If a theme is currently being edited, toggling shows `lng_theme_editor_cant_change_theme` and reverts (lines 858-862).
 
-### Settings Sections
+### Settings Sections — CROSS-REFERENCE TO §14 (NOT hamburger drawer items!)
 
-| # | Section | Icon |
-|---|---------|------|
-| 1 | My Account | `menuIconProfile` |
-| 2 | Notifications | `menuIconNotifications` |
-| 3 | Privacy and Security | `menuIconLock` |
-| 4 | Chat Settings | `menuIconChatBubble` |
-| 5 | Folders | `menuIconShowInFolder` |
-| 6 | Advanced | `menuIconManage` |
-| 7 | Devices / Active Sessions | `menuIconUnmute` |
-| 8 | Power Saving Mode | `menuIconPowerUsage` |
-| 9 | Language | (dynamic label) |
+**IMPORTANT: This table lists what the SETTINGS PAGE (§14) contains. These are NOT
+items in the hamburger drawer. The drawer's "Settings" row opens the Settings page
+(§14), and THAT page shows these rows. Do not add them to the hamburger drawer.**
+
+| # | Section | Icon | Implemented in |
+|---|---------|------|----------------|
+| 1 | My Account | `menuIconProfile` | §14 Settings page |
+| 2 | Notifications | `menuIconNotifications` | §14 Settings page |
+| 3 | Privacy and Security | `menuIconLock` | §14 Settings page |
+| 4 | Chat Settings | `menuIconChatBubble` | §14 Settings page |
+| 5 | Folders | `menuIconShowInFolder` | §14 Settings page |
+| 6 | Advanced | `menuIconManage` | §14 Settings page |
+| 7 | Devices / Active Sessions | `menuIconUnmute` | §14 Settings page |
+| 8 | Power Saving Mode | `menuIconPowerUsage` | §14 Settings page |
+| 9 | Language | (dynamic label) | §14 Settings page |
 
 ### Footer
 

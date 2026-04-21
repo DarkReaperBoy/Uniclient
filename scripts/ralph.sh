@@ -88,10 +88,13 @@ THEN:
    b. Build Flutter: scripts/build_flutter.sh linux debug
    c. Launch app: cd dart/build/linux/x64/debug/bundle && nohup ./uniclient > /tmp/uniclient_log.txt 2>&1 &
    d. Wait 3 seconds for startup
-   e. Screenshot: scripts/flutter_inspect.sh screenshot /tmp/ralph_ss.png
-   f. Read screenshot to verify visually
-   g. Test interaction with scripts/flutter_interact.sh if applicable
-   h. Kill app: pkill uniclient
+   e. Test BOTH modes — the app opens narrow by default, so desktop mode WILL be missed if you skip this:
+      - Desktop first: scripts/flutter_interact.sh resize desktop
+        Screenshot, verify, test interactions
+      - Then mobile: scripts/flutter_interact.sh resize mobile
+        Screenshot, verify, test interactions
+      Your feature must work in BOTH modes or it's not done.
+   f. Kill app: pkill uniclient
 7. If it works: DELETE the completed item from checklist/gui.md, git add changed files, commit, push
 8. If build/test fails: fix and retry (up to 3 attempts in this session)
    - If still broken after 3 attempts: commit partial progress with "WIP:" prefix, push, exit
@@ -176,26 +179,39 @@ If all remaining items seem blocked, commit a note explaining why and exit."
     --dangerously-skip-permissions \
     --model claude-opus-4-6 \
     --effort max \
-    --max-turns 50 \
-    --output-format stream-json \
+--output-format stream-json \
     --verbose \
     -p "$PROMPT" \
     2>&1 \
     | tee "$ITER_FILE.jsonl" \
-    | jq -Rr --unbuffered '
+    | jq -Rr --unbuffered --arg root "$PROJECT_ROOT/" '
         try fromjson catch empty | . as $e |
         if $e.type == "assistant" then
           ($e.message.content // [])[] |
-            if .type == "text" then "💬 \(.text | split("\n")[0])"
-            elif .type == "tool_use" then "🔧 \(.name): \(.input | tostring | .[:140])"
+            if .type == "text" then
+              "\n\(.text | split("\n") | map("│ \(.)") | join("\n"))\n"
+            elif .type == "tool_use" then
+              if .name == "Read" then       "\n📖 Read \(.input.file_path | ltrimstr($root))"
+              elif .name == "Edit" then     "\n✏️  Edit \(.input.file_path | ltrimstr($root))"
+              elif .name == "Write" then    "\n📝 Write \(.input.file_path | ltrimstr($root))"
+              elif .name == "Bash" then     "\n$ \(.input.command | gsub("\n"; " ; ") | .[:200])"
+              elif .name == "Grep" then     "\n🔍 Grep \"\(.input.pattern // "")\" in \(.input.path // "." | ltrimstr($root))"
+              elif .name == "Glob" then     "\n🔍 Glob \(.input.pattern // "")"
+              elif .name == "Agent" then    "\n🤖 Agent: \(.input.description // "")"
+              else                          "\n🔧 \(.name)"
+              end
             else empty end
         elif $e.type == "user" then
           ($e.message.content // [])[] |
             if .type == "tool_result" then
-              "  ↳ \((.content | tostring | split("\n") | .[0])[:140])"
+              (.content | tostring | split("\n")) as $lines |
+              if ($lines | length) == 0 or ($lines[0] | length) == 0 then "  ✓"
+              elif ($lines[0] | test("(?i)^(error|fail|exception|fatal)")) then "  ❌ \($lines[0][:200])"
+              else "  ✓ \($lines[0][:160])"
+              end
             else empty end
-        elif $e.type == "system" and $e.subtype == "init" then "🚀 session \($e.session_id // "")"
-        elif $e.type == "result" then "✅ \($e.subtype // "done") (\(($e.duration_ms // 0) / 1000)s, $\($e.total_cost_usd // 0))"
+        elif $e.type == "system" and $e.subtype == "init" then "\n🚀 Session \($e.session_id // "")\n"
+        elif $e.type == "result" then "\n✅ \($e.subtype // "done") — \(($e.duration_ms // 0) / 1000)s, $\($e.total_cost_usd // 0)\n"
         else empty end' \
     | tee -a "$ITER_FILE"
   EXIT_CODE=${PIPESTATUS[0]}

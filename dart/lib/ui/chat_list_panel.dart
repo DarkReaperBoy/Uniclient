@@ -475,6 +475,8 @@ class _ChatListPanelState extends State<ChatListPanel>
       archived = _loadedArchivedChats;
     }
     final hasArchived = archived.isNotEmpty || chatState.hasArchivedChats;
+    // Don't show archived row when displaying search results (spec §2.2).
+    final showArchiveRow = hasArchived && !(_searching && _searchController.text.isNotEmpty);
     final archivedUnread = archived.fold(0, (sum, c) => sum + c.unreadCount);
 
     // Spec §2.7: Apply custom pinned chat order (drag-to-reorder).
@@ -568,7 +570,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                     onTap: (chat) => chatState.openChat(chat),
                     chatState: chatState,
                   )
-                : visibleChats.isEmpty && !hasArchived
+                : visibleChats.isEmpty && !showArchiveRow
                     ? _EmptyState(
                         searching: _searching,
                         query: _searchController.text,
@@ -581,10 +583,10 @@ class _ChatListPanelState extends State<ChatListPanel>
                         child: ListView.builder(
                           key: _chatListKey,
                           controller: _chatListScrollCtrl,
-                          itemCount: visibleChats.length + (hasArchived ? 1 : 0),
+                          itemCount: visibleChats.length + (showArchiveRow ? 1 : 0),
                           itemBuilder: (context, index) {
                             // First item: Archived Chats row (37px, spec §2.5).
-                            if (hasArchived && index == 0) {
+                            if (showArchiveRow && index == 0) {
                               return _ArchivedChatsRow(
                                 unreadCount: archivedUnread,
                                 isNarrow: widget.collapsed,
@@ -593,7 +595,7 @@ class _ChatListPanelState extends State<ChatListPanel>
                                 archivedChats: archived,
                               );
                             }
-                            final chatIndex = hasArchived ? index - 1 : index;
+                            final chatIndex = showArchiveRow ? index - 1 : index;
                             final chat = visibleChats[chatIndex];
                             final isActive =
                                 chatState.activeChat?.chatId == chat.chatId &&
@@ -721,7 +723,7 @@ class _ChatListPanelState extends State<ChatListPanel>
 
                             // Archived chats animate expand/collapse ~200ms (spec §2.5).
                             if (_showArchived &&
-                                hasArchived &&
+                                showArchiveRow &&
                                 chatIndex < archived.length) {
                               return SizeTransition(
                                 sizeFactor: _archiveAnim,

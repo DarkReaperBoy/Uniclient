@@ -34,6 +34,11 @@
 #
 # COMBO (high-level):
 #   ./scripts/flutter_interact.sh taptext "Forward"        # find text "Forward" and tap its center
+#
+# WINDOW:
+#   ./scripts/flutter_interact.sh resize mobile            # resize to 400x720 (narrow/oneColumn)
+#   ./scripts/flutter_interact.sh resize desktop           # resize to 1024x768 (wide/twoColumn+)
+#   ./scripts/flutter_interact.sh resize 800 600           # resize to custom WxH
 
 set -euo pipefail
 
@@ -166,6 +171,18 @@ case "$ACTION" in
     wait_output 3
     ;;
 
+  resize)
+    # Resize the uniclient window via debug command (in-app, no external tools).
+    MODE="${1:-}"
+    case "$MODE" in
+      mobile)  W=400; H=720 ;;
+      desktop) W=1024; H=768 ;;
+      *)       W="${1:-1024}"; H="${2:-768}" ;;
+    esac
+    send_cmd "{\"action\":\"resize\",\"width\":$W,\"height\":$H}"
+    echo "Resized to ${W}x${H}"
+    ;;
+
   help|*)
     cat <<'HELPEOF'
 Usage: flutter_interact.sh <action> [args...]
@@ -200,6 +217,11 @@ STATE:
   messages                        List current messages
   state                           Get current app state
   accounts                        List accounts
+
+WINDOW:
+  resize mobile                   Resize to 400x720 (narrow/oneColumn)
+  resize desktop                  Resize to 1024x768 (wide/twoColumn+)
+  resize <W> <H>                  Resize to custom dimensions
 HELPEOF
     ;;
 esac
