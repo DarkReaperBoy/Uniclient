@@ -9674,12 +9674,15 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 					Extra:    encodeFileExtra(d.AccessHash, d.FileReference),
 				}
 				isAnimated := false
+				isSticker := false
 				for _, attr := range d.Attributes {
 					switch a := attr.(type) {
 					case *tg.DocumentAttributeFilename:
 						ref.Name = a.FileName
 					case *tg.DocumentAttributeAnimated:
 						isAnimated = true
+					case *tg.DocumentAttributeSticker:
+						isSticker = true
 					case *tg.DocumentAttributeVideo:
 						ref.Width = a.W
 						ref.Height = a.H
@@ -9693,6 +9696,9 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				}
 				if isAnimated && ref.MimeType == "video/mp4" {
 					ref.MimeType = "image/gif"
+				}
+				if isSticker && ref.MimeType == "video/webm" {
+					ref.MimeType = "video/webm+sticker"
 				}
 				// Extract stripped thumbnail from document's thumb sizes (videos, stickers, GIFs).
 				ref.ThumbB64 = extractStrippedThumbB64(d.Thumbs)

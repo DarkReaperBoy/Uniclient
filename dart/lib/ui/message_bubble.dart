@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -1183,6 +1184,20 @@ class _TextSpoilerPainter extends CustomPainter {
       old.frame != frame || old.revealProgress != revealProgress;
 }
 
+bool _isTgsSticker(CachedMessage m) {
+  if (m.mediaType != 6) return false;
+  final path = m.mediaLocalPath.toLowerCase();
+  if (path.endsWith('.tgs')) return true;
+  return m.mediaMimeType == 'application/x-tgsticker';
+}
+
+bool _isWebmSticker(CachedMessage m) {
+  if (m.mediaType != 6) return false;
+  final path = m.mediaLocalPath.toLowerCase();
+  if (path.endsWith('.webm')) return true;
+  return m.mediaMimeType == 'video/webm+sticker' || m.mediaMimeType == 'video/webm';
+}
+
 /// Renders photos, videos, stickers, GIFs as visual thumbnails.
 /// Spec §6: Four-tier progressive loading: full → thumbnail → small → blurred inline placeholder.
 /// Tiers (highest to lowest quality):
@@ -1363,6 +1378,22 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
               // GIFs use inline video player for auto-play + loop.
               // Hidden while spoiler is covering the media.
               if (hasFullImage && !hasSpoiler && message.mediaType == 7)
+                Positioned.fill(
+                  child: _GifPlayer(
+                    filePath: message.mediaLocalPath,
+                    width: displayWidth,
+                    height: displayHeight,
+                  ),
+                )
+              else if (hasFullImage && !hasSpoiler && _isTgsSticker(message))
+                Positioned.fill(
+                  child: _TgsStickerPlayer(
+                    filePath: message.mediaLocalPath,
+                    width: displayWidth,
+                    height: displayHeight,
+                  ),
+                )
+              else if (hasFullImage && !hasSpoiler && _isWebmSticker(message))
                 Positioned.fill(
                   child: _GifPlayer(
                     filePath: message.mediaLocalPath,
@@ -1661,6 +1692,57 @@ class _GifPlayerState extends State<_GifPlayer> {
       height: widget.height,
       fit: BoxFit.cover,
       controls: NoVideoControls,
+    );
+  }
+}
+
+class _TgsStickerPlayer extends StatefulWidget {
+  final String filePath;
+  final double width;
+  final double height;
+
+  const _TgsStickerPlayer({
+    required this.filePath,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<_TgsStickerPlayer> createState() => _TgsStickerPlayerState();
+}
+
+class _TgsStickerPlayerState extends State<_TgsStickerPlayer> {
+  LottieComposition? _composition;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTgs();
+  }
+
+  @override
+  void didUpdateWidget(_TgsStickerPlayer old) {
+    super.didUpdateWidget(old);
+    if (old.filePath != widget.filePath) _loadTgs();
+  }
+
+  Future<void> _loadTgs() async {
+    try {
+      final compressed = await File(widget.filePath).readAsBytes();
+      final decompressed = gzip.decode(compressed);
+      final composition = await LottieComposition.fromBytes(Uint8List.fromList(decompressed));
+      if (mounted) setState(() => _composition = composition);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_composition == null) return const SizedBox.shrink();
+    return Lottie(
+      composition: _composition!,
+      width: widget.width,
+      height: widget.height,
+      fit: BoxFit.contain,
     );
   }
 }

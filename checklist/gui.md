@@ -301,8 +301,7 @@
 
 - [x] Sticker renders without bubble background (isStickerOnly transparent) — spec §6, DONE in message_bubble.dart
 - [x] Sticker display size 224px max (spec §6: 224px static/animated) — DONE in message_bubble.dart (_VisualMedia clamps to 224px for type 6)
-- [ ] Lottie animated stickers (TGS format), WEBM video stickers, auto-play on creation — spec §6. Not implemented (static image only)
-- [ ] Sticker off-screen: unload player, cache state — spec §6. Not applicable until animation implemented
+- [ ] Sticker off-screen: unload player, cache state — spec §6. Not implemented
 - [ ] Click opens sticker pack viewer — spec §6. Not implemented
 - [ ] No outline/glow/drop-shadow; msgStickerOverlay tint only during selection — spec §6. Not implemented
 - [ ] Premium effect multiplier 1.49×, incoming mirrored horizontally, outgoing not — spec §6. Not implemented
