@@ -255,7 +255,6 @@
 
 - [x] AttachedToPrevious/Next flags for spacing and corner rounding, tail only on last in group, sender name + avatar only on first — spec §5, DONE in chat_view.dart (_MessageList grouping logic) and message_bubble.dart
 - [x] Avatar size 33px, avatar-skip offset 40px — spec §5, DONE in message_bubble.dart (33px avatar, 7px gap ≈ 40px total skip)
-- [ ] BubbleAttachedToPrevious/Next: top corners on sender's side collapse to Small (6px) when not first-in-group; bottom corners collapse to Small when not last-in-group — spec §5. Current: bottomSenderSide is always _radiusSmall regardless of isLastInGroup, which deviates from spec
 
 ### §5.4 Bubble Content Layout
 

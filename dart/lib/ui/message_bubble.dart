@@ -79,12 +79,14 @@ class MessageBubble extends StatelessWidget {
         ? CrossAxisAlignment.end
         : CrossAxisAlignment.start;
 
-    // Spec §5: Consecutive grouping affects spacing and corner rounding.
-    // Top corners: attached-to-previous on sender's side → Small (6px), else Large (16px).
-    // Bottom corners: attached-to-next → Small; last in group → tail/Small; else Large.
+    // Spec §5 Consecutive Message Grouping — per-corner radius rules:
+    //   Top sender-side:    Large when first-in-group, Small when attached-to-previous.
+    //   Top other-side:     Always Large.
+    //   Bottom sender-side: Always Small (Small when mid-group, Tail≈Small when last).
+    //   Bottom other-side:  Large when last-in-group, Small when attached-to-next.
     final topSenderSide = isFirstInGroup ? _radiusLarge : _radiusSmall;
     final topOtherSide = _radiusLarge;
-    final bottomSenderSide = isLastInGroup ? _radiusSmall : _radiusSmall;
+    final bottomSenderSide = _radiusSmall;
     final bottomOtherSide = isLastInGroup ? _radiusLarge : _radiusSmall;
 
     // Show sender avatar for incoming messages in group chats.
