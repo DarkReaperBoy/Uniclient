@@ -770,6 +770,61 @@ class _ChatViewState extends State<ChatView> {
 }
 
 /// Chat top bar. Spec §4: 54px height.
+/// Spec §4.3: shared top-bar button chrome — 40px width (overridable),
+/// 54px height, 40px circular ripple centered at (0, 7), 20px icon glyph.
+/// Colors: menuIconFg resting, menuIconFgOver on hover, windowBgOver overlay.
+class _TopBarButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final double width;
+
+  const _TopBarButton({
+    super.key,
+    required this.icon,
+    this.onPressed,
+    this.width = 40,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final menuIconFg = isDark
+        ? const Color(0xFF6c7883)
+        : const Color(0xFF999999);
+    final menuIconFgOver = isDark
+        ? const Color(0xFFdcdcdc)
+        : const Color(0xFF8a8a8a);
+    final windowBgOver = isDark
+        ? const Color(0xFF202b36)
+        : const Color(0xFFf1f1f1);
+
+    return SizedBox(
+      width: width,
+      height: 54,
+      child: Center(
+        child: IconButton(
+          icon: Icon(icon, size: 20),
+          onPressed: onPressed,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          style: ButtonStyle(
+            fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
+            minimumSize: const WidgetStatePropertyAll(Size(40, 40)),
+            maximumSize: const WidgetStatePropertyAll(Size(40, 40)),
+            shape: const WidgetStatePropertyAll(CircleBorder()),
+            iconColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.hovered)) return menuIconFgOver;
+              return menuIconFg;
+            }),
+            overlayColor: WidgetStatePropertyAll(windowBgOver),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ChatTopBar extends StatelessWidget {
   final ChatInfo chat;
   final String? typingUser;
@@ -1079,16 +1134,16 @@ class _ChatTopBar extends StatelessWidget {
               ),
             ),
           ),
-          // Right-side buttons.
+          // Spec §4.3: right-side buttons — shared 40×54 chrome.
           if (onToggleInfo != null)
-            IconButton(
-              icon: const Icon(Icons.info_outline, size: 20),
+            _TopBarButton(
+              icon: Icons.info_outline,
               onPressed: onToggleInfo,
             ),
           Builder(
-            builder: (btnCtx) => IconButton(
+            builder: (btnCtx) => _TopBarButton(
               key: moreVertKey,
-              icon: const Icon(Icons.more_vert, size: 20),
+              icon: Icons.more_vert,
               onPressed: () => _showTopBarMenu(btnCtx, chat),
             ),
           ),

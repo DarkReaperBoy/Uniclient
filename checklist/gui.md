@@ -211,7 +211,6 @@
 - [x] Info toggle button (info_outline icon) — DONE in `_ChatTopBar`
 - [x] Menu toggle (more_vert) — DONE in `_ChatTopBar`
 - [x] Menu opens: Mute/Unmute, Mark Read/Unread, Pin, Archive, Leave — DONE in `_ChatTopBar._showTopBarMenu()`
-- [ ] Shared button chrome: 40px width, 54px height, 40px circular ripple at `(0,7)`, icon 20px — spec §4.3 (current uses `IconButton` default sizing; needs exact spec dimensions)
 - [ ] Menu toggle: 44px width override, icon at `(16, 17)` — spec §4.3
 - [ ] Menu toggle additional items: New Window, View Profile, Clear History, Delete Chat — spec §4.3
 - [ ] Info toggle: active color `windowActiveTextFg` (blue) when info panel open — spec §4.3 (currently no active state on icon)
@@ -222,7 +221,6 @@
 - [ ] Inline search: text field replaces title, date/user filters — spec §4.3
 - [ ] Buttons flush (0-gap); `topBarSkip: -5px` pulls menu toggle tighter — spec §4.3
 - [ ] Disabled state: grayscale icon at 40% alpha, ripple disabled — spec §4.3
-- [ ] Icon colors: `menuIconFg` normal, `menuIconFgOver` hover — spec §4.3
 
 ### §4.4 Pinned Message Bar
 <!-- spec: research/telegram_desktop_ui.md §4 Pinned Message Bar -->
