@@ -204,7 +204,6 @@
 - [x] Avatar in top bar — DONE (36px diameter currently)
 - [x] Title text: semibold, elided — DONE
 - [x] Subtitle: DM online/last-seen, group member count, typing indicator — DONE in `_ChatTopBar`
-- [ ] Back button: exact `historyTopBarBack` style — 60px width; `_leftTaken` = 60px when shown, 17px without — spec §4.2 (current uses `IconButton` which is ~48px; needs exact 60px width)
 - [ ] Back button right-click: call-type menu — spec §4.2
 - [ ] Avatar: `UserpicButton` 52×54px hit-area, 42px photo diameter, offset (2, -1) — spec §4.2 (current uses 36px radius circle; needs exact spec dimensions)
 - [ ] Avatar horizontal origin = `_leftTaken` (60px with back, 17px without) — spec §4.2

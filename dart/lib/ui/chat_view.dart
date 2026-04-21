@@ -919,15 +919,26 @@ class _ChatTopBar extends StatelessWidget {
           bottom: BorderSide(color: shadowFg, width: 1),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      // Spec §4.2: left uses _leftTaken (60px with back, 17px without).
+      padding: const EdgeInsets.only(right: 8),
       child: Row(
         children: [
-          if (showBackButton) ...[
-            IconButton(
-              icon: const Icon(Icons.arrow_back, size: 20),
-              onPressed: onBack,
-            ),
-          ],
+          if (showBackButton)
+            // Spec §4.2: historyTopBarBack — exact 60px width, full 54px height.
+            SizedBox(
+              width: 60,
+              height: 54,
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back, size: 20),
+                onPressed: onBack,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                splashRadius: 20,
+              ),
+            )
+          else
+            // Spec §4.2: _leftTaken = 17px when no back button.
+            const SizedBox(width: 17),
           // Tappable avatar + title block — toggles info panel like Telegram Desktop.
           Expanded(
             child: InkWell(
