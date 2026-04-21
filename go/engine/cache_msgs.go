@@ -309,6 +309,12 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 	// Store raw as JSON for round-trip editing.
 	rawBytes, _ := json.Marshal(msg)
 
+	// Serialize rich-text entities to JSON for the content_rich column.
+	var richBytes []byte
+	if len(msg.Entities) > 0 {
+		richBytes, _ = json.Marshal(msg.Entities)
+	}
+
 	// Auto-populate reply preview from cache if the core didn't provide one.
 	if msg.ReplyToID != "" && msg.ReplyPreview == "" {
 		var replyText sql.NullString
@@ -328,11 +334,11 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 	e.db.Exec(
 		`INSERT OR REPLACE INTO messages
 		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
-		  content_raw, content_text, timestamp, edited_at,
+		  content_raw, content_rich, content_text, timestamp, edited_at,
 		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank),
-		rawBytes, msg.Text, ts, editedAt,
+		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
 		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(hasMedia))
 
@@ -350,6 +356,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		SenderRank:   msg.SenderRank,
 		ContentText:  msg.Text,
 		ContentRaw:   rawBytes,
+		ContentRich:  richBytes,
 		Timestamp:    ts,
 		EditedAt:     editedAt.Int64,
 		Status:       status,

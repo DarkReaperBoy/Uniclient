@@ -171,6 +171,17 @@ type Dialog struct {
 	Platform      string     `json:"platform"`
 }
 
+// TextEntity represents a rich-text formatting entity (bold, italic, link, etc.)
+// within a message's text. Offset and Length are in UTF-16 code units to match
+// Telegram's convention; the Dart side works natively in UTF-16.
+type TextEntity struct {
+	Type     string `json:"type"`               // "bold","italic","underline","strike","code","pre","text_url","url","mention","hashtag","bot_command","email","phone","cashtag","spoiler","blockquote","custom_emoji","mention_name","bank_card"
+	Offset   int    `json:"offset"`             // start position in UTF-16 code units
+	Length   int    `json:"length"`             // length in UTF-16 code units
+	URL      string `json:"url,omitempty"`      // for text_url
+	Language string `json:"language,omitempty"` // for pre (code block language)
+}
+
 // Message represents a single message with its content, metadata, and attachments.
 type Message struct {
 	ID            string        `json:"id"`
@@ -179,6 +190,7 @@ type Message struct {
 	SenderName    string        `json:"sender_name"`
 	SenderRank    string        `json:"sender_rank,omitempty"` // admin/creator custom title (e.g. "admin", "owner", "Head Mod")
 	Text          string        `json:"text"`
+	Entities      []TextEntity  `json:"entities,omitempty"` // rich-text entities for Text
 	Timestamp     time.Time     `json:"timestamp"`
 	EditedAt      *time.Time    `json:"edited_at,omitempty"`
 	Status        MessageStatus `json:"status"`

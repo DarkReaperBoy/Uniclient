@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../models/engine_models.dart';
@@ -245,11 +246,14 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
-                    // Message text.
+                    // Message text (rich or plain).
                     if (message.contentText.isNotEmpty)
-                      Text(
-                        message.contentText,
-                        style: theme.textTheme.bodyMedium,
+                      _RichMessageText(
+                        text: message.contentText,
+                        entitiesJson: message.contentRich,
+                        baseStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
+                        theme: theme,
+                        isOutgoing: isOutgoing,
                       ),
                     // Media indicator.
                     if (message.hasMedia)
@@ -930,5 +934,344 @@ class _StatusIcon extends StatelessWidget {
     };
 
     return Icon(icon, size: 14, color: color);
+  }
+}
+
+// ── Rich text entity model ──
+
+class _TextEntity {
+  final String type;
+  final int offset; // UTF-16 code units
+  final int length;
+  final String url;
+  final String language;
+
+  const _TextEntity({
+    required this.type,
+    required this.offset,
+    required this.length,
+    this.url = '',
+    this.language = '',
+  });
+
+  factory _TextEntity.fromJson(Map<String, dynamic> j) => _TextEntity(
+    type: j['type'] as String? ?? '',
+    offset: j['offset'] as int? ?? 0,
+    length: j['length'] as int? ?? 0,
+    url: j['url'] as String? ?? '',
+    language: j['language'] as String? ?? '',
+  );
+}
+
+// ── Rich message text widget ──
+
+class _RichMessageText extends StatefulWidget {
+  final String text;
+  final String entitiesJson;
+  final TextStyle baseStyle;
+  final ThemeData theme;
+  final bool isOutgoing;
+
+  const _RichMessageText({
+    required this.text,
+    required this.entitiesJson,
+    required this.baseStyle,
+    required this.theme,
+    required this.isOutgoing,
+  });
+
+  @override
+  State<_RichMessageText> createState() => _RichMessageTextState();
+}
+
+class _RichMessageTextState extends State<_RichMessageText> {
+  final Set<int> _revealedSpoilers = {};
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  List<_TextEntity> _parseEntities() {
+    if (widget.entitiesJson.isEmpty) return const [];
+    try {
+      final list = jsonDecode(widget.entitiesJson) as List;
+      return list.map((e) => _TextEntity.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Clean up old recognizers.
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+
+    final entities = _parseEntities();
+    if (entities.isEmpty) {
+      return Text(widget.text, style: widget.baseStyle);
+    }
+
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final text = widget.text;
+    final textLen = text.length; // already UTF-16 in Dart
+
+    // Sort by offset for stable processing.
+    entities.sort((a, b) => a.offset.compareTo(b.offset));
+
+    // Separate blockquotes (block-level) from inline entities.
+    final blockquotes = entities.where((e) => e.type == 'blockquote').toList();
+    final inlineEntities = entities.where((e) => e.type != 'blockquote').toList();
+
+    if (blockquotes.isEmpty) {
+      // Simple case: no blockquotes, just inline rich text.
+      return Text.rich(
+        TextSpan(children: _buildInlineSpans(text, 0, textLen, inlineEntities, isDark)),
+        style: widget.baseStyle,
+      );
+    }
+
+    // Complex case: split text into blockquote blocks and normal blocks.
+    final children = <Widget>[];
+    var cursor = 0;
+
+    for (final bq in blockquotes) {
+      final bqStart = bq.offset.clamp(0, textLen);
+      final bqEnd = (bq.offset + bq.length).clamp(0, textLen);
+
+      // Text before the blockquote.
+      if (cursor < bqStart) {
+        final before = inlineEntities.where((e) =>
+          e.offset < bqStart && e.offset + e.length > cursor).toList();
+        children.add(Text.rich(
+          TextSpan(children: _buildInlineSpans(text, cursor, bqStart, before, isDark)),
+          style: widget.baseStyle,
+        ));
+      }
+
+      // The blockquote itself.
+      final bqInline = inlineEntities.where((e) =>
+        e.offset >= bqStart && e.offset < bqEnd).toList();
+      final bqColor = isDark ? const Color(0xFF65bdf3) : const Color(0xFF168acd);
+      final bqBg = isDark ? const Color(0x1A65bdf3) : const Color(0x14168acd);
+      children.add(Container(
+        margin: const EdgeInsets.symmetric(vertical: 2),
+        padding: const EdgeInsets.fromLTRB(10, 4, 8, 4),
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: bqColor, width: 3)),
+          color: bqBg,
+          borderRadius: const BorderRadius.only(
+            topRight: Radius.circular(4),
+            bottomRight: Radius.circular(4),
+          ),
+        ),
+        child: Text.rich(
+          TextSpan(children: _buildInlineSpans(text, bqStart, bqEnd, bqInline, isDark)),
+          style: widget.baseStyle,
+        ),
+      ));
+
+      cursor = bqEnd;
+    }
+
+    // Remaining text after last blockquote.
+    if (cursor < textLen) {
+      final after = inlineEntities.where((e) =>
+        e.offset >= cursor).toList();
+      children.add(Text.rich(
+        TextSpan(children: _buildInlineSpans(text, cursor, textLen, after, isDark)),
+        style: widget.baseStyle,
+      ));
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
+  List<InlineSpan> _buildInlineSpans(
+    String text, int regionStart, int regionEnd,
+    List<_TextEntity> entities, bool isDark,
+  ) {
+    final spans = <InlineSpan>[];
+    var cursor = regionStart;
+
+    // Filter and sort entities within this region.
+    final relevant = entities
+      .where((e) => e.offset < regionEnd && e.offset + e.length > regionStart)
+      .toList()
+      ..sort((a, b) => a.offset.compareTo(b.offset));
+
+    for (final entity in relevant) {
+      final eStart = entity.offset.clamp(regionStart, regionEnd);
+      final eEnd = (entity.offset + entity.length).clamp(regionStart, regionEnd);
+      if (eEnd <= eStart) continue;
+
+      // Plain text before this entity.
+      if (cursor < eStart) {
+        spans.add(TextSpan(text: text.substring(cursor, eStart)));
+      }
+
+      final entityText = text.substring(eStart, eEnd);
+      spans.add(_styledSpan(entity, entityText, isDark));
+      cursor = eEnd;
+    }
+
+    // Remaining plain text.
+    if (cursor < regionEnd) {
+      spans.add(TextSpan(text: text.substring(cursor, regionEnd)));
+    }
+
+    return spans;
+  }
+
+  InlineSpan _styledSpan(_TextEntity entity, String text, bool isDark) {
+    switch (entity.type) {
+      case 'bold':
+        return TextSpan(text: text, style: const TextStyle(fontWeight: FontWeight.bold));
+      case 'italic':
+        return TextSpan(text: text, style: const TextStyle(fontStyle: FontStyle.italic));
+      case 'underline':
+        return TextSpan(text: text, style: const TextStyle(decoration: TextDecoration.underline));
+      case 'strike':
+        return TextSpan(text: text, style: const TextStyle(decoration: TextDecoration.lineThrough));
+      case 'code':
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            backgroundColor: isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0),
+            fontSize: (widget.baseStyle.fontSize ?? 14) * 0.9,
+          ),
+        );
+      case 'pre':
+        return WidgetSpan(
+          child: Container(
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(vertical: 2),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: SelectableText(
+              text,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: (widget.baseStyle.fontSize ?? 14) * 0.9,
+                color: widget.baseStyle.color,
+              ),
+            ),
+          ),
+        );
+      case 'spoiler':
+        final idx = entity.offset;
+        final revealed = _revealedSpoilers.contains(idx);
+        if (revealed) {
+          return TextSpan(text: text);
+        }
+        return WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: GestureDetector(
+            onTap: () => setState(() => _revealedSpoilers.add(idx)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFFA0ACB6),
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(
+                '\u2588' * (text.length.clamp(1, 40)),
+                style: TextStyle(
+                  fontSize: (widget.baseStyle.fontSize ?? 14) * 0.85,
+                  color: isDark ? const Color(0xFF6D7F8F) : const Color(0xFFA0ACB6),
+                  letterSpacing: -1,
+                ),
+              ),
+            ),
+          ),
+        );
+      case 'url':
+        final recognizer = TapGestureRecognizer()
+          ..onTap = () => _openUrl(text);
+        _recognizers.add(recognizer);
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
+            decoration: TextDecoration.underline,
+            decorationColor: isDark ? const Color(0x6665BDF3) : const Color(0x66168ACD),
+          ),
+          recognizer: recognizer,
+        );
+      case 'text_url':
+        final recognizer = TapGestureRecognizer()
+          ..onTap = () => _openUrl(entity.url);
+        _recognizers.add(recognizer);
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
+            decoration: TextDecoration.underline,
+            decorationColor: isDark ? const Color(0x6665BDF3) : const Color(0x66168ACD),
+          ),
+          recognizer: recognizer,
+        );
+      case 'mention':
+      case 'mention_name':
+      case 'hashtag':
+      case 'bot_command':
+      case 'cashtag':
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
+          ),
+        );
+      case 'email':
+        final recognizer = TapGestureRecognizer()
+          ..onTap = () => _openUrl('mailto:$text');
+        _recognizers.add(recognizer);
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
+            decoration: TextDecoration.underline,
+            decorationColor: isDark ? const Color(0x6665BDF3) : const Color(0x66168ACD),
+          ),
+          recognizer: recognizer,
+        );
+      case 'phone':
+        final recognizer = TapGestureRecognizer()
+          ..onTap = () => _openUrl('tel:$text');
+        _recognizers.add(recognizer);
+        return TextSpan(
+          text: text,
+          style: TextStyle(
+            color: isDark ? const Color(0xFF65BDF3) : const Color(0xFF168ACD),
+          ),
+          recognizer: recognizer,
+        );
+      case 'custom_emoji':
+        return TextSpan(text: text);
+      default:
+        return TextSpan(text: text);
+    }
+  }
+
+  static void _openUrl(String url) {
+    if (!url.startsWith('http://') && !url.startsWith('https://') &&
+        !url.startsWith('mailto:') && !url.startsWith('tel:')) {
+      url = 'https://$url';
+    }
+    Process.run('xdg-open', [url]);
   }
 }

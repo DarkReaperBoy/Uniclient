@@ -9613,6 +9613,11 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 	}
 
+	// Extract rich-text entities.
+	if len(msg.Entities) > 0 {
+		m.Entities = convertTgEntities(msg.Entities)
+	}
+
 	if media := msg.Media; media != nil {
 		switch md := media.(type) {
 		case *tg.MessageMediaDocument:
@@ -9684,6 +9689,56 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	}
 
 	return m
+}
+
+// convertTgEntities converts gotd MessageEntityClass list to our TextEntity format.
+func convertTgEntities(entities []tg.MessageEntityClass) []TextEntity {
+	result := make([]TextEntity, 0, len(entities))
+	for _, e := range entities {
+		var te TextEntity
+		switch v := e.(type) {
+		case *tg.MessageEntityBold:
+			te = TextEntity{Type: "bold", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityItalic:
+			te = TextEntity{Type: "italic", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityUnderline:
+			te = TextEntity{Type: "underline", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityStrike:
+			te = TextEntity{Type: "strike", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityCode:
+			te = TextEntity{Type: "code", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityPre:
+			te = TextEntity{Type: "pre", Offset: v.Offset, Length: v.Length, Language: v.Language}
+		case *tg.MessageEntityTextURL:
+			te = TextEntity{Type: "text_url", Offset: v.Offset, Length: v.Length, URL: v.URL}
+		case *tg.MessageEntityURL:
+			te = TextEntity{Type: "url", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityMention:
+			te = TextEntity{Type: "mention", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityMentionName:
+			te = TextEntity{Type: "mention_name", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityHashtag:
+			te = TextEntity{Type: "hashtag", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityBotCommand:
+			te = TextEntity{Type: "bot_command", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityEmail:
+			te = TextEntity{Type: "email", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityPhone:
+			te = TextEntity{Type: "phone", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityCashtag:
+			te = TextEntity{Type: "cashtag", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntitySpoiler:
+			te = TextEntity{Type: "spoiler", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityBlockquote:
+			te = TextEntity{Type: "blockquote", Offset: v.Offset, Length: v.Length}
+		case *tg.MessageEntityCustomEmoji:
+			te = TextEntity{Type: "custom_emoji", Offset: v.Offset, Length: v.Length}
+		default:
+			continue
+		}
+		result = append(result, te)
+	}
+	return result
 }
 
 func (t *TelegramCore) convertUser(user *tg.User) *User {
