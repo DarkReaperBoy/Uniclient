@@ -205,6 +205,7 @@ type Message struct {
 	IsPinned      bool                   `json:"is_pinned"`
 	IsOutgoing    bool                   `json:"is_outgoing"`
 	IsService     bool                   `json:"is_service"`        // service/action message (e.g. "X joined the group")
+	GroupedID     string                 `json:"grouped_id,omitempty"` // album group ID (messages with same ID form an album)
 	Views         int                    `json:"views,omitempty"`    // view count (channel posts)
 	Forwards      int                    `json:"forwards,omitempty"` // forward/share count (channel posts)
 	Platform      string                 `json:"platform"`

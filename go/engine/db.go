@@ -114,6 +114,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV11,
 	migrateV12,
 	migrateV13,
+	migrateV14,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -478,5 +479,13 @@ func migrateV13(tx *sql.Tx) error {
 		return nil
 	}
 	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN is_service INTEGER NOT NULL DEFAULT 0`)
+	return err
+}
+
+func migrateV14(tx *sql.Tx) error {
+	if columnExists(tx, "messages", "grouped_id") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN grouped_id TEXT`)
 	return err
 }

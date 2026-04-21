@@ -333,6 +333,9 @@ class CachedMessage {
   // Media spoiler flag (photo/video/GIF marked with spoiler overlay).
   final bool mediaSpoiler;
 
+  // Album grouping (messages with same groupedId form a media album).
+  final String groupedId;
+
   // Channel post metadata (extracted from contentRaw).
   final int views;    // view count (channel posts)
   final int forwards; // forward/share count (channel posts)
@@ -375,6 +378,7 @@ class CachedMessage {
     this.topicColorId = 0,
     this.viaBotName = '',
     this.mediaSpoiler = false,
+    this.groupedId = '',
     this.views = 0,
     this.forwards = 0,
   });
@@ -412,6 +416,7 @@ class CachedMessage {
     mediaDuration: j['media_duration'] as int? ?? 0,
     mediaDownloadState: j['media_download_state'] as int? ?? 0,
     mediaSpoiler: j['media_spoiler'] as bool? ?? false,
+    groupedId: j['grouped_id'] as String? ?? '',
     reactions: (j['reactions'] as List<dynamic>?)
         ?.map((r) => MessageReaction.fromJson(r as Map<String, dynamic>))
         .toList() ?? const [],
@@ -430,6 +435,7 @@ class CachedMessage {
   bool get isGif => mediaType == 7;
   bool get isFile => mediaType == 8;
   bool get isMediaDownloaded => mediaDownloadState == 2;
+  bool get isAlbumMember => groupedId.isNotEmpty;
   String get mediaSizeLabel {
     if (mediaFileSize <= 0) return '';
     if (mediaFileSize < 1024) return '$mediaFileSize B';
@@ -472,6 +478,7 @@ class CachedMessage {
     List<MessageReaction>? reactions,
     String? viaBotName,
     bool? mediaSpoiler,
+    String? groupedId,
     int? views,
     int? forwards,
   }) => CachedMessage(
@@ -512,6 +519,7 @@ class CachedMessage {
     topicColorId: topicColorId,
     viaBotName: viaBotName ?? this.viaBotName,
     mediaSpoiler: mediaSpoiler ?? this.mediaSpoiler,
+    groupedId: groupedId ?? this.groupedId,
     views: views ?? this.views,
     forwards: forwards ?? this.forwards,
   );

@@ -293,8 +293,7 @@
 
 ### §6.4 Videos
 
-- [x] Video thumbnail with centered play button overlay and duration badge — spec §6, DONE in message_bubble.dart (_VisualMedia). Duration badge is bottom-left, not bottom-right corner with semi-transparent bg
-- [ ] Fix duration badge position to bottom-right with semi-transparent background, include file size — spec §6
+- [x] Video thumbnail with centered play button overlay and duration badge — spec §6, DONE in message_bubble.dart (_VisualMedia). Duration badge at bottom-right with semi-transparent bg, shows duration + file size
 - [ ] Click to open video playback — spec §6. Not implemented
 
 ### §6.5 GIFs

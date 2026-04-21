@@ -25,6 +25,7 @@ class MessageBubble extends StatelessWidget {
   final bool isSelected;
   final bool inSelectionMode;
   final List<CachedMessage> allMessages;
+  final List<CachedMessage> albumItems;
 
   const MessageBubble({
     super.key,
@@ -35,6 +36,7 @@ class MessageBubble extends StatelessWidget {
     this.isSelected = false,
     this.inSelectionMode = false,
     this.allMessages = const [],
+    this.albumItems = const [],
     this.senderAvatarB64,
     this.onReply,
     this.onContextMenu,
@@ -65,7 +67,9 @@ class MessageBubble extends StatelessWidget {
 
     // Spec §5: media-only bubbles (photo/video/gif/videonote without caption)
     // overlay the bottom info on the media with translucent bg + inverted colors.
-    final isMediaOnlyBubble = !isStickerOnly &&
+    // Albums never use overlay mode — info renders in the bubble below the album.
+    final isMediaOnlyBubble = albumItems.isEmpty &&
+        !isStickerOnly &&
         message.hasMedia &&
         (message.mediaType == 1 || message.mediaType == 2 ||
          message.mediaType == 5 || message.mediaType == 7) &&
@@ -284,8 +288,17 @@ class MessageBubble extends StatelessWidget {
                         theme: theme,
                         isOutgoing: isOutgoing,
                       ),
-                    // Media indicator.
-                    if (message.hasMedia)
+                    // Media indicator — album or single.
+                    if (albumItems.length >= 2)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: AlbumLayout(
+                          items: albumItems,
+                          maxWidth: (showAvatar ? _maxWidth - 40 : _maxWidth) - 22,
+                          allMessages: allMessages,
+                        ),
+                      )
+                    else if (message.hasMedia)
                       _MediaIndicator(
                         message: message,
                         theme: theme,
@@ -1375,19 +1388,21 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                     ),
                   ),
                 ),
-              // Duration badge for video.
+              // Duration badge for video — spec §6: bottom-right, semi-transparent bg, duration + file size.
               if (message.mediaType == 2 && message.mediaDuration > 0)
                 Positioned(
-                  bottom: 4,
-                  left: 4,
+                  bottom: widget.showOverlayInfo ? 28 : 4,
+                  right: 4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      _VisualMedia._formatDuration(message.mediaDuration),
+                      message.mediaFileSize > 0
+                          ? '${_VisualMedia._formatDuration(message.mediaDuration)}, ${message.mediaSizeLabel}'
+                          : _VisualMedia._formatDuration(message.mediaDuration),
                       style: const TextStyle(color: Colors.white, fontSize: 11),
                     ),
                   ),
@@ -2439,4 +2454,425 @@ class _SelectionCheckboxPainter extends CustomPainter {
       bgProgress != oldDelegate.bgProgress ||
       fgProgress != oldDelegate.fgProgress ||
       bgActive != oldDelegate.bgActive;
+}
+
+// ── Album Layout Widget (spec §6.3) ──
+// Groups up to 10 media items with 4px spacing, 100–430px width.
+// Per-count layout rules from grouped_layout.cpp.
+
+class AlbumLayout extends StatelessWidget {
+  final List<CachedMessage> items;
+  final double maxWidth;
+  final List<CachedMessage> allMessages;
+
+  static const double _spacing = 4.0;
+  static const double _minWidth = 100.0;
+
+  const AlbumLayout({
+    super.key,
+    required this.items,
+    this.maxWidth = 430.0,
+    this.allMessages = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) return const SizedBox.shrink();
+    if (items.length == 1) {
+      return _AlbumThumb(message: items[0], allMessages: allMessages);
+    }
+
+    final ratios = items.map((m) {
+      if (m.mediaWidth > 0 && m.mediaHeight > 0) {
+        return m.mediaWidth / m.mediaHeight;
+      }
+      return 1.0;
+    }).toList();
+
+    final layout = _computeLayout(ratios, maxWidth);
+    return _buildLayout(context, layout);
+  }
+
+  Widget _buildLayout(BuildContext context, _AlbumLayoutResult layout) {
+    return SizedBox(
+      width: layout.totalWidth,
+      height: layout.totalHeight,
+      child: Stack(
+        children: [
+          for (int i = 0; i < layout.rects.length && i < items.length; i++)
+            Positioned(
+              left: layout.rects[i].left,
+              top: layout.rects[i].top,
+              width: layout.rects[i].width,
+              height: layout.rects[i].height,
+              child: _AlbumThumb(
+                message: items[i],
+                allMessages: allMessages,
+                borderRadius: _cornerRadius(i, layout.rects, layout.totalWidth, layout.totalHeight),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  BorderRadius _cornerRadius(int index, List<Rect> rects, double totalW, double totalH) {
+    const r = 8.0;
+    final rect = rects[index];
+    final atLeft = rect.left < 1;
+    final atRight = (rect.right - totalW).abs() < 1;
+    final atTop = rect.top < 1;
+    final atBottom = (rect.bottom - totalH).abs() < 1;
+    return BorderRadius.only(
+      topLeft: (atLeft && atTop) ? const Radius.circular(r) : Radius.zero,
+      topRight: (atRight && atTop) ? const Radius.circular(r) : Radius.zero,
+      bottomLeft: (atLeft && atBottom) ? const Radius.circular(r) : Radius.zero,
+      bottomRight: (atRight && atBottom) ? const Radius.circular(r) : Radius.zero,
+    );
+  }
+
+  _AlbumLayoutResult _computeLayout(List<double> ratios, double maxW) {
+    final n = ratios.length;
+    final s = _spacing;
+
+    if (n == 2) return _layout2(ratios, maxW, s);
+    if (n == 3) return _layout3(ratios, maxW, s);
+    if (n == 4) return _layout4(ratios, maxW, s);
+    return _layoutComplex(ratios, maxW, s);
+  }
+
+  static String _proportion(double r) => r > 1.2 ? 'w' : (r < 0.8 ? 'n' : 'q');
+
+  _AlbumLayoutResult _layout2(List<double> ratios, double W, double s) {
+    final r0 = ratios[0], r1 = ratios[1];
+    final p0 = _proportion(r0), p1 = _proportion(r1);
+    final avgRatio = (r0 + r1) / 2;
+    final props = '$p0$p1';
+
+    if (props == 'ww' && avgRatio > 1.4 && (r0 - r1).abs() < 0.2) {
+      // Top/bottom stack.
+      final h0 = (W / r0).clamp(_minWidth, W);
+      final h1 = (W / r1).clamp(_minWidth, W);
+      final totalH = h0 + s + h1;
+      return _AlbumLayoutResult(W, totalH, [
+        Rect.fromLTWH(0, 0, W, h0),
+        Rect.fromLTWH(0, h0 + s, W, h1),
+      ]);
+    }
+
+    if (props == 'ww' || props == 'qq') {
+      // Equal left/right split.
+      final w = (W - s) / 2;
+      final h = math.min(w / r0, w / r1).clamp(_minWidth, W);
+      return _AlbumLayoutResult(W, h, [
+        Rect.fromLTWH(0, 0, w, h),
+        Rect.fromLTWH(w + s, 0, w, h),
+      ]);
+    }
+
+    // Proportional left/right.
+    final w1 = ((W - s) / (1 + r1 / r0)).clamp(_minWidth, W - s - _minWidth);
+    final w2 = W - s - w1;
+    final h = math.min(w1 / r0, w2 / r1).clamp(_minWidth, W);
+    return _AlbumLayoutResult(W, h, [
+      Rect.fromLTWH(0, 0, w1, h),
+      Rect.fromLTWH(w1 + s, 0, w2, h),
+    ]);
+  }
+
+  _AlbumLayoutResult _layout3(List<double> ratios, double W, double s) {
+    final r0 = ratios[0], r1 = ratios[1], r2 = ratios[2];
+    final p0 = _proportion(r0);
+
+    if (p0 == 'n') {
+      // Left column + two stacked right.
+      final rightH = W * 0.66;
+      final leftW = (W - s) * 0.5;
+      final rightW = W - s - leftW;
+      final h1 = (rightH - s) / 2;
+      return _AlbumLayoutResult(W, rightH, [
+        Rect.fromLTWH(0, 0, leftW, rightH),
+        Rect.fromLTWH(leftW + s, 0, rightW, h1),
+        Rect.fromLTWH(leftW + s, h1 + s, rightW, rightH - h1 - s),
+      ]);
+    }
+
+    // Top row + two below.
+    final topH = math.min(W / r0, W * 0.66);
+    final botH = (W - s) / (r1 + r2);
+    final w1 = botH * r1;
+    final w2 = W - s - w1;
+    final totalH = topH + s + botH;
+    return _AlbumLayoutResult(W, totalH, [
+      Rect.fromLTWH(0, 0, W, topH),
+      Rect.fromLTWH(0, topH + s, w1, botH),
+      Rect.fromLTWH(w1 + s, topH + s, w2, botH),
+    ]);
+  }
+
+  _AlbumLayoutResult _layout4(List<double> ratios, double W, double s) {
+    final r0 = ratios[0];
+    final p0 = _proportion(r0);
+
+    if (p0 == 'w') {
+      // Wide top + three below.
+      final topH = math.min(W / r0, W * 0.66);
+      final botH = (W - 2 * s) / (ratios[1] + ratios[2] + ratios[3]);
+      final w1 = botH * ratios[1];
+      final w2 = botH * ratios[2];
+      final w3 = W - 2 * s - w1 - w2;
+      return _AlbumLayoutResult(W, topH + s + botH, [
+        Rect.fromLTWH(0, 0, W, topH),
+        Rect.fromLTWH(0, topH + s, w1, botH),
+        Rect.fromLTWH(w1 + s, topH + s, w2, botH),
+        Rect.fromLTWH(w1 + w2 + 2 * s, topH + s, w3, botH),
+      ]);
+    }
+
+    // Left column + three stacked right.
+    final totalH = W * 0.75;
+    final leftW = math.max(_minWidth, math.min(W * 0.4, totalH * r0));
+    final rightW = W - s - leftW;
+    final rowH = (totalH - 2 * s) / 3;
+    return _AlbumLayoutResult(W, totalH, [
+      Rect.fromLTWH(0, 0, leftW, totalH),
+      Rect.fromLTWH(leftW + s, 0, rightW, rowH),
+      Rect.fromLTWH(leftW + s, rowH + s, rightW, rowH),
+      Rect.fromLTWH(leftW + s, 2 * (rowH + s), rightW, totalH - 2 * (rowH + s)),
+    ]);
+  }
+
+  _AlbumLayoutResult _layoutComplex(List<double> ratios, double W, double s) {
+    final n = ratios.length;
+    final avgRatio = ratios.reduce((a, b) => a + b) / n;
+    final maxH = W * 4 / 3;
+
+    final clamped = ratios.map((r) {
+      if (avgRatio > 1.1) return r.clamp(1.0, 2.75);
+      return r.clamp(0.6667, 1.0);
+    }).toList();
+
+    // Generate all valid row splits (2-4 rows, max 3 per row, 4 allowed on row 2 if avgRatio < 0.85).
+    _AlbumLayoutResult? best;
+    double bestDiff = double.infinity;
+
+    for (final split in _generateSplits(n, avgRatio)) {
+      double totalH = 0;
+      final rects = <Rect>[];
+      double y = 0;
+      bool valid = true;
+
+      for (final rowItems in split) {
+        final rowRatios = <double>[];
+        for (final idx in rowItems) {
+          rowRatios.add(clamped[idx]);
+        }
+        final sumR = rowRatios.reduce((a, b) => a + b);
+        final lineH = (W - (rowItems.length - 1) * s) / sumR;
+
+        if (lineH < _minWidth * 0.5) { valid = false; break; }
+
+        double x = 0;
+        for (int j = 0; j < rowItems.length; j++) {
+          final w = lineH * rowRatios[j];
+          rects.add(Rect.fromLTWH(x, y, j == rowItems.length - 1 ? W - x : w, lineH));
+          x += w + s;
+        }
+        y += lineH + s;
+        totalH += lineH + s;
+      }
+
+      if (!valid) continue;
+      totalH -= s;
+
+      double diff = (totalH - maxH).abs();
+      bool anySmall = false;
+      for (final rowItems in split) {
+        final sumR = rowItems.map((i) => clamped[i]).reduce((a, b) => a + b);
+        final lh = (W - (rowItems.length - 1) * s) / sumR;
+        if (lh < _minWidth) anySmall = true;
+      }
+      if (anySmall) diff *= 1.5;
+      for (int ri = 0; ri < split.length - 1; ri++) {
+        if (split[ri].length > split[ri + 1].length) { diff *= 1.5; break; }
+      }
+
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        best = _AlbumLayoutResult(W, totalH, rects);
+      }
+    }
+
+    if (best != null) return best;
+
+    // Fallback: simple grid.
+    final cols = n <= 4 ? 2 : 3;
+    final rows = (n / cols).ceil();
+    final cellW = (W - (cols - 1) * s) / cols;
+    final cellH = cellW;
+    final rects = <Rect>[];
+    for (int i = 0; i < n; i++) {
+      final row = i ~/ cols;
+      final col = i % cols;
+      rects.add(Rect.fromLTWH(col * (cellW + s), row * (cellH + s), cellW, cellH));
+    }
+    return _AlbumLayoutResult(W, rows * cellH + (rows - 1) * s, rects);
+  }
+
+  List<List<List<int>>> _generateSplits(int n, double avgRatio) {
+    final results = <List<List<int>>>[];
+    final maxPerRow = 3;
+    final allow4 = avgRatio < 0.85;
+
+    void recurse(int start, List<List<int>> current, int rowIdx) {
+      if (start == n) {
+        if (current.length >= 2) results.add(List.from(current.map((r) => List.from(r))));
+        return;
+      }
+      if (current.length >= 4) return;
+      final remaining = n - start;
+      final maxRows = 4 - current.length;
+      if (remaining > maxRows * maxPerRow + (allow4 ? 1 : 0)) return;
+
+      final maxThisRow = (rowIdx == 1 && allow4) ? 4 : maxPerRow;
+      for (int count = 1; count <= math.min(maxThisRow, remaining); count++) {
+        final row = List.generate(count, (j) => start + j);
+        current.add(row);
+        recurse(start + count, current, rowIdx + 1);
+        current.removeLast();
+      }
+    }
+
+    recurse(0, [], 0);
+    return results;
+  }
+}
+
+class _AlbumLayoutResult {
+  final double totalWidth;
+  final double totalHeight;
+  final List<Rect> rects;
+  const _AlbumLayoutResult(this.totalWidth, this.totalHeight, this.rects);
+}
+
+class _AlbumThumb extends StatefulWidget {
+  final CachedMessage message;
+  final List<CachedMessage> allMessages;
+  final BorderRadius borderRadius;
+
+  const _AlbumThumb({
+    required this.message,
+    this.allMessages = const [],
+    this.borderRadius = const BorderRadius.all(Radius.circular(8)),
+  });
+
+  @override
+  State<_AlbumThumb> createState() => _AlbumThumbState();
+}
+
+class _AlbumThumbState extends State<_AlbumThumb> {
+  Uint8List? _thumbBytes;
+  String _lastThumbB64 = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _decodeThumb();
+  }
+
+  @override
+  void didUpdateWidget(_AlbumThumb old) {
+    super.didUpdateWidget(old);
+    if (widget.message.mediaThumbB64 != old.message.mediaThumbB64) _decodeThumb();
+  }
+
+  void _decodeThumb() {
+    if (widget.message.mediaThumbB64.isNotEmpty &&
+        widget.message.mediaThumbB64 != _lastThumbB64) {
+      try {
+        _thumbBytes = base64Decode(widget.message.mediaThumbB64);
+        _lastThumbB64 = widget.message.mediaThumbB64;
+      } catch (_) {
+        _thumbBytes = null;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final msg = widget.message;
+    final hasLocal = msg.mediaLocalPath.isNotEmpty;
+    final canOpen = hasLocal &&
+        (msg.mediaType == 1 || msg.mediaType == 2 || msg.mediaType == 7);
+
+    Widget image;
+    if (hasLocal) {
+      image = Image.file(
+        File(msg.mediaLocalPath),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => _thumbOrPlaceholder(),
+      );
+    } else {
+      image = _thumbOrPlaceholder();
+    }
+
+    return GestureDetector(
+      onTap: canOpen
+          ? () => MediaViewer.open(context, message: msg, allMessages: widget.allMessages)
+          : null,
+      child: ClipRRect(
+        borderRadius: widget.borderRadius,
+        child: SizedBox.expand(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              image,
+              if (msg.mediaType == 2 || msg.mediaType == 7)
+                Center(
+                  child: Container(
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      msg.mediaType == 7 ? Icons.gif : Icons.play_arrow,
+                      color: Colors.white, size: 18,
+                    ),
+                  ),
+                ),
+              if (msg.mediaType == 2 && msg.mediaDuration > 0)
+                Positioned(
+                  bottom: 2, right: 2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Text(
+                      _VisualMedia._formatDuration(msg.mediaDuration),
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _thumbOrPlaceholder() {
+    if (_thumbBytes != null) {
+      return Image.memory(_thumbBytes!, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _placeholder());
+    }
+    return _placeholder();
+  }
+
+  Widget _placeholder() {
+    return Container(color: Colors.grey.shade800,
+      child: const Center(child: Icon(Icons.image, color: Colors.white38, size: 24)));
+  }
 }

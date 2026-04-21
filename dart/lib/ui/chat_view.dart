@@ -2054,49 +2054,49 @@ class _MessageList extends StatelessWidget {
       );
     }
 
+    // Pre-compute display items: group consecutive album members.
+    final displayItems = _buildDisplayItems(messages);
+
     return ListView.builder(
       controller: scrollController,
       reverse: true, // Newest at bottom.
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: messages.length + (loading ? 1 : 0),
+      itemCount: displayItems.length + (loading ? 1 : 0),
       itemBuilder: (context, index) {
-        if (loading && index == messages.length) {
+        if (loading && index == displayItems.length) {
           return const Padding(
             padding: EdgeInsets.all(16),
             child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
           );
         }
-        final msg = messages[index];
-        // Check if we should show a date separator.
-        final showDate = index == messages.length - 1 ||
-            _differentDay(msg.timestamp, messages[index + 1].timestamp);
+        final item = displayItems[index];
+        final msg = item.primary;
+        final prevItem = index > 0 ? displayItems[index - 1] : null;
+        final nextItem = index < displayItems.length - 1 ? displayItems[index + 1] : null;
+
+        final showDate = nextItem == null ||
+            _differentDay(msg.timestamp, nextItem.primary.timestamp);
 
         // Consecutive message grouping (spec §5):
-        // Same sender within 3 minutes → group together.
-        final prevMsg = index > 0 ? messages[index - 1] : null;
-        final nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
-        final isFirstInGroup = msg.isService || nextMsg == null ||
-            nextMsg.isService ||
-            nextMsg.senderId != msg.senderId ||
+        final isFirstInGroup = msg.isService || nextItem == null ||
+            nextItem.primary.isService ||
+            nextItem.primary.senderId != msg.senderId ||
             showDate ||
-            (msg.timestamp - nextMsg.timestamp).abs() > 180000;
-        final isLastInGroup = msg.isService || prevMsg == null ||
-            prevMsg.isService ||
-            prevMsg.senderId != msg.senderId ||
-            _differentDay(msg.timestamp, prevMsg.timestamp) ||
-            (prevMsg.timestamp - msg.timestamp).abs() > 180000;
+            (msg.timestamp - nextItem.primary.timestamp).abs() > 180000;
+        final isLastInGroup = msg.isService || prevItem == null ||
+            prevItem.primary.isService ||
+            prevItem.primary.senderId != msg.senderId ||
+            _differentDay(msg.timestamp, prevItem.primary.timestamp) ||
+            (prevItem.primary.timestamp - msg.timestamp).abs() > 180000;
 
         final isSelected = selectedIds.contains(msg.msgId);
         final inSelectionMode = selectedIds.isNotEmpty;
         final isSearchHighlight = msg.msgId == searchHighlightId;
 
-        // Spec §5 / §49.4: unread bar above oldest unread message.
-        // messages[0] = newest, so oldest unread = messages[openedUnreadCount - 1].
         final showUnreadBar = openedUnreadCount > 0 &&
             openedUnreadCount <= messages.length &&
-            index == openedUnreadCount - 1;
+            item.originalIndices.any((i) => i == openedUnreadCount - 1);
 
-        // Service messages render as centered pills, not bubbles.
         if (msg.isService) {
           return Column(
             children: [
@@ -2115,8 +2115,6 @@ class _MessageList extends StatelessWidget {
               behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
               onLongPress: () => onLongPress(msg.msgId),
               onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
-              // Spec §5: msgSelectionOffset = 30px shifts bubbles left when
-              // selection mode is active. 160ms easeInOut (Qt easeInOutQuad).
               child: AnimatedPadding(
                 duration: const Duration(milliseconds: 160),
                 curve: Curves.easeInOut,
@@ -2127,20 +2125,36 @@ class _MessageList extends StatelessWidget {
                       : null,
                   child: IgnorePointer(
                     ignoring: inSelectionMode,
-                    child: MessageBubble(
-                      message: msg,
-                      isFirstInGroup: isFirstInGroup,
-                      isLastInGroup: isLastInGroup,
-                      isGroupChat: isGroupChat,
-                      isSelected: isSelected,
-                      inSelectionMode: inSelectionMode,
-                      allMessages: messages,
-                      senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
-                      onReply: () => onReply(msg.msgId),
-                      onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
-                      onSenderTap: onSenderTap,
-                      onReplyTap: onReplyTap,
-                    ),
+                    child: item.isAlbum
+                        ? MessageBubble(
+                            message: msg,
+                            isFirstInGroup: isFirstInGroup,
+                            isLastInGroup: isLastInGroup,
+                            isGroupChat: isGroupChat,
+                            isSelected: isSelected,
+                            inSelectionMode: inSelectionMode,
+                            allMessages: messages,
+                            albumItems: item.albumMessages,
+                            senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
+                            onReply: () => onReply(msg.msgId),
+                            onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
+                            onSenderTap: onSenderTap,
+                            onReplyTap: onReplyTap,
+                          )
+                        : MessageBubble(
+                            message: msg,
+                            isFirstInGroup: isFirstInGroup,
+                            isLastInGroup: isLastInGroup,
+                            isGroupChat: isGroupChat,
+                            isSelected: isSelected,
+                            inSelectionMode: inSelectionMode,
+                            allMessages: messages,
+                            senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
+                            onReply: () => onReply(msg.msgId),
+                            onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
+                            onSenderTap: onSenderTap,
+                            onReplyTap: onReplyTap,
+                          ),
                   ),
                 ),
               ),
@@ -2151,11 +2165,62 @@ class _MessageList extends StatelessWidget {
     );
   }
 
+  static List<_DisplayItem> _buildDisplayItems(List<CachedMessage> messages) {
+    final items = <_DisplayItem>[];
+    int i = 0;
+    while (i < messages.length) {
+      final msg = messages[i];
+      if (msg.groupedId.isNotEmpty && msg.hasMedia) {
+        // Collect all consecutive messages with this groupedId.
+        final groupId = msg.groupedId;
+        final albumMsgs = <CachedMessage>[msg];
+        final indices = <int>[i];
+        int j = i + 1;
+        while (j < messages.length &&
+            messages[j].groupedId == groupId &&
+            messages[j].hasMedia) {
+          albumMsgs.add(messages[j]);
+          indices.add(j);
+          j++;
+        }
+        if (albumMsgs.length >= 2) {
+          // Use the first (newest) as primary; caption comes from the one with text.
+          final captionMsg = albumMsgs.firstWhere(
+            (m) => m.contentText.isNotEmpty,
+            orElse: () => albumMsgs.first,
+          );
+          items.add(_DisplayItem(
+            primary: captionMsg,
+            albumMessages: albumMsgs,
+            originalIndices: indices,
+          ));
+          i = j;
+          continue;
+        }
+      }
+      items.add(_DisplayItem(primary: msg, originalIndices: [i]));
+      i++;
+    }
+    return items;
+  }
+
   bool _differentDay(int ts1, int ts2) {
     final d1 = DateTime.fromMillisecondsSinceEpoch(ts1);
     final d2 = DateTime.fromMillisecondsSinceEpoch(ts2);
     return d1.year != d2.year || d1.month != d2.month || d1.day != d2.day;
   }
+}
+
+class _DisplayItem {
+  final CachedMessage primary;
+  final List<CachedMessage> albumMessages;
+  final List<int> originalIndices;
+  const _DisplayItem({
+    required this.primary,
+    this.albumMessages = const [],
+    this.originalIndices = const [],
+  });
+  bool get isAlbum => albumMessages.length >= 2;
 }
 
 

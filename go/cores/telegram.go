@@ -9561,6 +9561,10 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		Platform:   tgPlatform,
 	}
 
+	if gid, ok := msg.GetGroupedID(); ok && gid != 0 {
+		m.GroupedID = strconv.FormatInt(gid, 10)
+	}
+
 	if from := msg.FromID; from != nil {
 		m.SenderID = peerToID(from)
 		if peer, ok := from.(*tg.PeerUser); ok {
