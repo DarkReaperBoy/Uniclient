@@ -2371,11 +2371,19 @@ class _SelectionBar extends StatelessWidget {
     final topBarBg = isDark ? const Color(0xFF17212b) : Colors.white;
     final shadowFg = isDark ? const Color(0x5604080e) : const Color(0x18000000);
 
-    // Spec §2.7: Drag feedback widget — small badge showing forward count.
-    Widget forwardButton = IconButton(
-      icon: const Icon(Icons.forward),
-      tooltip: 'Forward (or drag to chat)',
+    // Spec §4.7: defaultActiveButton — blue pill RoundButton, white text.
+    final pillStyle = TextButton.styleFrom(
+      backgroundColor: const Color(0xFF40A7E3), // activeButtonBg
+      foregroundColor: Colors.white, // activeButtonFg
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+    );
+
+    Widget forwardButton = TextButton(
       onPressed: onForward,
+      style: pillStyle,
+      child: const Text('FORWARD'),
     );
 
     // Wrap forward button in Draggable if drag data is available.
@@ -2438,15 +2446,17 @@ class _SelectionBar extends StatelessWidget {
           ),
           const Spacer(),
           forwardButton,
-          IconButton(
-            icon: const Icon(Icons.copy),
-            tooltip: 'Copy',
+          const SizedBox(width: 10), // topBarActionSkip
+          TextButton(
             onPressed: onCopy,
+            style: pillStyle,
+            child: const Text('COPY'),
           ),
-          IconButton(
-            icon: Icon(Icons.delete_outline, color: theme.colorScheme.error),
-            tooltip: 'Delete',
+          const SizedBox(width: 10),
+          TextButton(
             onPressed: onDelete,
+            style: pillStyle,
+            child: const Text('DELETE'),
           ),
         ],
       ),
