@@ -284,7 +284,6 @@
 ### §6.1 Shared Constants & Photo Layout
 
 - [x] Photos inline in bubble, 430px max, 100px min, aspect ratio preserved — spec §6. DONE in message_bubble.dart (_VisualMedia)
-- [ ] Caption below photo narrows the photo width — spec §6. Not implemented (captions are separate text blocks above media)
 
 ### §6.2 Spoiler Overlay (photos, GIFs, videos)
 

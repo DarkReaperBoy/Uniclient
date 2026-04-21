@@ -70,6 +70,14 @@ class MessageBubble extends StatelessWidget {
          message.mediaType == 5 || message.mediaType == 7) &&
         message.contentText.isEmpty;
 
+    // Spec §6: For photos/videos/GIFs with caption text, caption renders BELOW
+    // the media (not above). The photo also narrows because it shares the
+    // bubble's horizontal padding with the caption text.
+    final isCaptionedMedia = message.hasMedia &&
+        message.contentText.isNotEmpty &&
+        (message.mediaType == 1 || message.mediaType == 2 ||
+         message.mediaType == 7);
+
     final bubbleColor = isStickerOnly
         ? Colors.transparent
         : isOutgoing
@@ -264,8 +272,10 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
-                    // Message text (rich or plain).
-                    if (message.contentText.isNotEmpty)
+                    // Spec §6: For captioned media (photo/video/GIF + text),
+                    // media renders first, caption text below it.
+                    // For all other messages, text renders before media.
+                    if (!isCaptionedMedia && message.contentText.isNotEmpty)
                       _RichMessageText(
                         text: message.contentText,
                         entitiesJson: message.contentRich,
@@ -282,6 +292,15 @@ class MessageBubble extends StatelessWidget {
                         isOutgoing: isOutgoing,
                         isDark: isDark,
                         allMessages: allMessages,
+                      ),
+                    // Caption text below media for captioned photo/video/GIF.
+                    if (isCaptionedMedia)
+                      _RichMessageText(
+                        text: message.contentText,
+                        entitiesJson: message.contentRich,
+                        baseStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
+                        theme: theme,
+                        isOutgoing: isOutgoing,
                       ),
                     // Reactions row — pill badges above the timestamp.
                     if (message.reactions.isNotEmpty) ...[
