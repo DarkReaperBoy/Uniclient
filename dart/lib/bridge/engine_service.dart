@@ -344,6 +344,20 @@ class EngineService {
     await _callAsync('__engine', 'LeaveChat', req.writeToBuffer());
   }
 
+  Future<void> clearHistory(String accountId, String chatId) async {
+    final req = epb.EngineLeaveChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    await _callAsync('__engine', 'ClearHistory', req.writeToBuffer());
+  }
+
+  Future<void> deleteChat(String accountId, String chatId) async {
+    final req = epb.EngineLeaveChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    await _callAsync('__engine', 'DeleteChat', req.writeToBuffer());
+  }
+
   Future<epb.EngineChatInfo> createChannel(String accountId, String name, String description) async {
     final req = epb.EngineCreateChannelRequest()
       ..accountId = accountId

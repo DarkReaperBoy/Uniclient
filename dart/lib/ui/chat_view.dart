@@ -167,7 +167,7 @@ class _ChatViewState extends State<ChatView> {
     if (chat == null) return false;
     final btnCtx = _moreVertKey.currentContext;
     if (btnCtx == null) return false;
-    _ChatTopBar._showTopBarMenu(btnCtx, chat);
+    _ChatTopBar._showTopBarMenu(btnCtx, chat, onToggleInfo: widget.onToggleInfo);
     return true;
   }
 
@@ -880,8 +880,9 @@ class _ChatTopBar extends StatelessWidget {
   }
 
   /// Show the chat-level action menu anchored to the more_vert button.
-  /// Mirrors the chat-list right-click menu but scoped to the currently open chat.
-  static void _showTopBarMenu(BuildContext btnCtx, ChatInfo chat) {
+  /// Spec §4.3: New Window, Archive, Pin, View Profile, Mute, Mark Read/Unread,
+  /// Clear History, Delete Chat, Leave Channel.
+  static void _showTopBarMenu(BuildContext btnCtx, ChatInfo chat, {VoidCallback? onToggleInfo}) {
     final chatState = btnCtx.read<ChatState>();
     final overlay = Overlay.of(btnCtx).context.findRenderObject() as RenderBox;
     final button = btnCtx.findRenderObject() as RenderBox;
@@ -893,10 +894,13 @@ class _ChatTopBar extends StatelessWidget {
     final isGroupy = chat.type == ChatType.group ||
         chat.type == ChatType.channel ||
         chat.type == ChatType.topic;
+    final isDm = chat.type == ChatType.dm;
     showMenu<String>(
       context: btnCtx,
       position: position,
       items: [
+        if (onToggleInfo != null)
+          const PopupMenuItem(value: 'view_profile', child: Text('View Profile')),
         PopupMenuItem(value: 'mute', child: Text(chat.isMuted ? 'Unmute' : 'Mute')),
         PopupMenuItem(
           value: 'read',
@@ -904,14 +908,18 @@ class _ChatTopBar extends StatelessWidget {
         ),
         PopupMenuItem(value: 'pin', child: Text(chat.isPinned ? 'Unpin' : 'Pin')),
         PopupMenuItem(value: 'archive', child: Text(chat.isArchived ? 'Unarchive' : 'Archive')),
-        if (isGroupy) ...[
-          const PopupMenuDivider(),
-          const PopupMenuItem(value: 'leave', child: Text('Leave Chat')),
-        ],
+        const PopupMenuDivider(),
+        const PopupMenuItem(value: 'clear_history', child: Text('Clear History')),
+        if (isDm)
+          const PopupMenuItem(value: 'delete_chat', child: Text('Delete Chat')),
+        if (isGroupy)
+          PopupMenuItem(value: 'leave', child: Text(chat.type == ChatType.channel ? 'Leave Channel' : 'Leave Chat')),
       ],
     ).then((value) {
       if (value == null) return;
       switch (value) {
+        case 'view_profile':
+          onToggleInfo?.call();
         case 'mute':
           chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted);
         case 'read':
@@ -922,6 +930,10 @@ class _ChatTopBar extends StatelessWidget {
           chatState.pinChat(chat.accountId, chat.chatId, !chat.isPinned);
         case 'archive':
           chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
+        case 'clear_history':
+          chatState.clearHistory(chat.accountId, chat.chatId);
+        case 'delete_chat':
+          chatState.deleteChat(chat.accountId, chat.chatId);
         case 'leave':
           chatState.leaveChat(chat.accountId, chat.chatId);
       }
@@ -1150,7 +1162,7 @@ class _ChatTopBar extends StatelessWidget {
               icon: Icons.more_vert,
               width: 44,
               iconPadding: const EdgeInsets.only(left: 8),
-              onPressed: () => _showTopBarMenu(btnCtx, chat),
+              onPressed: () => _showTopBarMenu(btnCtx, chat, onToggleInfo: onToggleInfo),
             ),
           ),
         ],

@@ -319,6 +319,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.LeaveChat(req.AccountId, req.ChatId)
 
+	case "ClearHistory":
+		var req pb.EngineLeaveChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ClearHistory(req.AccountId, req.ChatId)
+
+	case "DeleteChat":
+		var req pb.EngineLeaveChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.DeleteChat(req.AccountId, req.ChatId)
+
 	case "ForwardMessage":
 		var req pb.EngineForwardMessageRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

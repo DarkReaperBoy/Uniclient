@@ -539,6 +539,26 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  void clearHistory(String accountId, String chatId) {
+    _engine.clearHistory(accountId, chatId);
+    // If this is the active chat, clear local messages.
+    if (_activeChat?.accountId == accountId && _activeChat?.chatId == chatId) {
+      _messages.clear();
+      notifyListeners();
+    }
+    loadChats();
+  }
+
+  void deleteChat(String accountId, String chatId) {
+    _engine.deleteChat(accountId, chatId);
+    // If this was the active chat, clear it.
+    if (_activeChat?.accountId == accountId && _activeChat?.chatId == chatId) {
+      _activeChat = null;
+      _messages.clear();
+    }
+    loadChats();
+  }
+
   void markChatRead(String accountId, String chatId) {
     // Try to find latest message ID if available (active chat only).
     final chatMsgs = _messages.where((m) => m.accountId == accountId && m.chatId == chatId);

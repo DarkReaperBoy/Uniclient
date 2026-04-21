@@ -375,6 +375,68 @@ func (e *Engine) LeaveChat(accountID, chatID string) error {
 	return nil
 }
 
+// ClearHistory deletes the message history for a chat on the server and locally,
+// but keeps the chat visible in the chat list.
+func (e *Engine) ClearHistory(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	// Platform-specific history deletion.
+	type historyDeleter interface {
+		DeleteChatHistory(chatID string) error
+	}
+	if hd, ok := acc.Core.(historyDeleter); ok {
+		if err := hd.DeleteChatHistory(chatID); err != nil {
+			return err
+		}
+	}
+
+	// Remove messages from local cache.
+	e.db.Exec("DELETE FROM messages WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+
+	// Emit event so Dart can refresh the chat view.
+	e.emitEvent(EventChatUpdated, accountID, map[string]string{
+		"account_id": accountID,
+		"chat_id":    chatID,
+	})
+
+	return nil
+}
+
+// DeleteChat deletes a chat entirely — clears history and removes the chat.
+// For groups/channels this is equivalent to leave + delete. For DMs it clears
+// history and removes the chat from the list.
+func (e *Engine) DeleteChat(accountID, chatID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	// Clear server-side history first.
+	type historyDeleter interface {
+		DeleteChatHistory(chatID string) error
+	}
+	if hd, ok := acc.Core.(historyDeleter); ok {
+		_ = hd.DeleteChatHistory(chatID) // best-effort
+	}
+
+	// Remove from local cache.
+	e.db.Exec("DELETE FROM messages WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+	e.db.Exec("DELETE FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
+
+	// Emit chat_removed event so Dart updates the list.
+	e.emitEvent(EventChatRemoved, accountID, map[string]string{
+		"account_id": accountID,
+		"chat_id":    chatID,
+	})
+
+	return nil
+}
+
 // JoinChat joins a channel/room/group by name. For IRC this is a channel name
 // like "#freenode", for Mumble it's a channel ID, etc. After joining, triggers
 // a sync so the chat appears in the list.
