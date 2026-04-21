@@ -2102,24 +2102,31 @@ class _MessageList extends StatelessWidget {
               behavior: inSelectionMode ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
               onLongPress: () => onLongPress(msg.msgId),
               onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
-              child: Container(
-                color: isSearchHighlight
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
-                    : null,
-                child: IgnorePointer(
-                  ignoring: inSelectionMode,
-                  child: MessageBubble(
-                    message: msg,
-                    isFirstInGroup: isFirstInGroup,
-                    isLastInGroup: isLastInGroup,
-                    isGroupChat: isGroupChat,
-                    isSelected: isSelected,
-                    inSelectionMode: inSelectionMode,
-                    senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
-                    onReply: () => onReply(msg.msgId),
-                    onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
-                    onSenderTap: onSenderTap,
-                    onReplyTap: onReplyTap,
+              // Spec §5: msgSelectionOffset = 30px shifts bubbles left when
+              // selection mode is active. 160ms easeInOut (Qt easeInOutQuad).
+              child: AnimatedPadding(
+                duration: const Duration(milliseconds: 160),
+                curve: Curves.easeInOut,
+                padding: EdgeInsets.only(right: inSelectionMode ? 30.0 : 0.0),
+                child: Container(
+                  color: isSearchHighlight
+                      ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                      : null,
+                  child: IgnorePointer(
+                    ignoring: inSelectionMode,
+                    child: MessageBubble(
+                      message: msg,
+                      isFirstInGroup: isFirstInGroup,
+                      isLastInGroup: isLastInGroup,
+                      isGroupChat: isGroupChat,
+                      isSelected: isSelected,
+                      inSelectionMode: inSelectionMode,
+                      senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
+                      onReply: () => onReply(msg.msgId),
+                      onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
+                      onSenderTap: onSenderTap,
+                      onReplyTap: onReplyTap,
+                    ),
                   ),
                 ),
               ),
