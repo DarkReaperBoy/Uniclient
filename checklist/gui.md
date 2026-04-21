@@ -267,8 +267,7 @@
 
 ### §5.5 Sender Name Colors
 
-- [x] 7 base colors assigned by id%7 — spec §5, DONE in message_bubble.dart (_senderColor). Colors are approximate variants; exact spec day palette: #c03d33 / #4fad2d / #d09306 / windowActiveTextFg / #8544d6 / #cd4073 / #2996ad
-- [ ] Exact day palette hex values (see above) and exact night palette: #fb6169 / #85de85 / #f3bc5c / #65bdf3 / #b48bf2 / #ff5694 / #62d4e3 — spec §5. Current approximations differ
+- [x] 7 base colors assigned by id%7 — spec §5, DONE in message_bubble.dart (_senderColor). Exact day palette (#c03d33/#4fad2d/#d09306/#168acd/#8544d6/#cd4073/#2996ad) and night palette (#fb6169/#85de85/#f3bc5c/#65bdf3/#b48bf2/#ff5694/#62d4e3) — theme-aware via isDark param
 - [ ] ColorIndex remap via map [0,7,4,1,6,3,5]; runtime-fetched extended 64-entry palette (indices 8–63 from help.peerColors) — spec §5. Not implemented (static 7-color array only)
 
 ### §5.6 Selection Mode

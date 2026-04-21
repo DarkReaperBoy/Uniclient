@@ -120,7 +120,7 @@ class MessageBubble extends StatelessWidget {
               // Sender avatar: show on last message of group, invisible spacer otherwise.
               if (showAvatar) ...[
                 if (isLastInGroup)
-                  _buildSenderAvatar()
+                  _buildSenderAvatar(isDark)
                 else
                   const SizedBox(width: 33), // spacer to align with avatar below
                 const SizedBox(width: 7),
@@ -175,7 +175,7 @@ class MessageBubble extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: _senderColor(message.senderId),
+                                    color: _senderColor(message.senderId, isDark: isDark),
                                   ),
                                 ),
                                 if (message.senderRank.isNotEmpty)
@@ -184,7 +184,7 @@ class MessageBubble extends StatelessWidget {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w400,
-                                      color: _senderColor(message.senderId).withValues(alpha: 0.6),
+                                      color: _senderColor(message.senderId, isDark: isDark).withValues(alpha: 0.6),
                                     ),
                                   ),
                               ],
@@ -340,12 +340,12 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  Widget _buildSenderAvatar() {
+  Widget _buildSenderAvatar(bool isDark) {
     // Spec §5: sender avatar 33px diameter, bottom-left of last message in group.
     const double avatarSize = 33;
     final fallback = CircleAvatar(
       radius: avatarSize / 2,
-      backgroundColor: _senderColor(message.senderId),
+      backgroundColor: _senderColor(message.senderId, isDark: isDark),
       child: Text(
         message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
         style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
@@ -380,17 +380,29 @@ class MessageBubble extends StatelessWidget {
     );
   }
 
-  /// 7 sender colors from spec (id % 7).
-  static Color _senderColor(String senderId) {
+  /// 7 sender colors from spec §5 (id % 7).
+  /// Day: historyPeer{1..7}NameFg, Night: matching night-theme slots.
+  static Color _senderColor(String senderId, {bool isDark = false}) {
     final hash = senderId.hashCode.abs() % 7;
+    if (isDark) {
+      return const [
+        Color(0xFFfb6169), // slot 1 red
+        Color(0xFF85de85), // slot 2 green
+        Color(0xFFf3bc5c), // slot 3 yellow
+        Color(0xFF65bdf3), // slot 4 blue
+        Color(0xFFb48bf2), // slot 5 purple
+        Color(0xFFff5694), // slot 6 pink
+        Color(0xFF62d4e3), // slot 7 sea
+      ][hash];
+    }
     return const [
-      Color(0xFFe17076),
-      Color(0xFF7bc862),
-      Color(0xFFe5ca77),
-      Color(0xFF65aadd),
-      Color(0xFFa695e7),
-      Color(0xFFee7aae),
-      Color(0xFF6ec9cb),
+      Color(0xFFc03d33), // slot 1 red
+      Color(0xFF4fad2d), // slot 2 green
+      Color(0xFFd09306), // slot 3 yellow
+      Color(0xFF168acd), // slot 4 blue (windowActiveTextFg)
+      Color(0xFF8544d6), // slot 5 purple
+      Color(0xFFcd4073), // slot 6 pink
+      Color(0xFF2996ad), // slot 7 sea
     ][hash];
   }
 
