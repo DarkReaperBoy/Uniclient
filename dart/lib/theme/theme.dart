@@ -48,6 +48,23 @@ class AppColors {
   static const bubbleReceivedSelected = Color(0xFF2e70a5);
   static const bubbleReceivedSelectedLight = Color(0xFFc2dcf2);
 
+  // Bottom info — spec §5: timestamp + edited label + delivery ticks
+  // msgInDateFg day / night
+  static const msgInDateFg = Color(0xFFa0acb6);
+  static const msgInDateFgNight = Color(0xFF6d7f8f);
+  // msgOutDateFg day / night
+  static const msgOutDateFg = Color(0xFF6db566);
+  static const msgOutDateFgNight = Color(0xFF7da8d3);
+  // historyOutIconFg day / night (outgoing ticks: sent, delivered, read)
+  static const historyOutIconFg = Color(0xFF57b84c);
+  static const historyOutIconFgNight = Color(0xFF6bbfff);
+  // historySendingOutIconFg day / night (outgoing sending clock)
+  static const historySendingOutIconFg = Color(0xFF98d292);
+  static const historySendingOutIconFgNight = Color(0xFF70a4d2);
+  // historySendingInIconFg day / night (incoming sending clock)
+  static const historySendingInIconFg = Color(0xFFa0adb5);
+  static const historySendingInIconFgNight = Color(0xFF76838b);
+
   // Bubble shadows — spec §5: 2px bottom shadow strip
   // Format: #RRGGBBAA in spec → 0xAARRGGBB in Flutter
   // msgOutShadow day / night (night disabled: alpha 00)

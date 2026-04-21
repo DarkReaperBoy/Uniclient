@@ -268,6 +268,7 @@ class MessageBubble extends StatelessWidget {
                       ),
                     ],
                     // Bottom info: time + edited + status.
+                    // Spec §5: msgInDateFg / msgOutDateFg per theme.
                     const SizedBox(height: 2),
                     Row(
                       mainAxisSize: MainAxisSize.min,
@@ -277,15 +278,15 @@ class MessageBubble extends StatelessWidget {
                           Padding(
                             padding: const EdgeInsets.only(right: 4),
                             child: Text('edited',
-                                style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color)),
+                                style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
                           ),
                         Text(
                           _formatTime(message.timestamp),
-                          style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
+                          style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark)),
                         ),
                         if (isOutgoing) ...[
                           const SizedBox(width: 4),
-                          _StatusIcon(status: message.status, theme: theme),
+                          _StatusIcon(status: message.status, theme: theme, isOutgoing: true, isDark: isDark),
                         ],
                       ],
                     ),
@@ -360,6 +361,14 @@ class MessageBubble extends StatelessWidget {
     if (timestampMs == 0) return '';
     final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Spec §5: bottom info timestamp/edited color per direction+theme.
+  static Color _bottomInfoColor(bool isOutgoing, bool isDark) {
+    if (isOutgoing) {
+      return isDark ? AppColors.msgOutDateFgNight : AppColors.msgOutDateFg;
+    }
+    return isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg;
   }
 }
 
@@ -918,21 +927,28 @@ class _FileIndicator extends StatelessWidget {
 
 /// Spec §5: Delivery status icon at exact spec sizes.
 /// Clock 11×11, single-check 13×11, double-check 18×11.
+/// Colors: historyOutIconFg for sent/delivered/read, historySendingOutIconFg for sending clock.
 class _StatusIcon extends StatelessWidget {
   final MsgStatus status;
   final ThemeData theme;
+  final bool isOutgoing;
+  final bool isDark;
 
-  const _StatusIcon({required this.status, required this.theme});
+  const _StatusIcon({required this.status, required this.theme, required this.isOutgoing, required this.isDark});
 
   @override
   Widget build(BuildContext context) {
     final color = switch (status) {
-      MsgStatus.sending => theme.textTheme.bodySmall?.color ?? Colors.grey,
-      MsgStatus.sent => theme.textTheme.bodySmall?.color ?? Colors.grey,
-      MsgStatus.delivered => theme.textTheme.bodySmall?.color ?? Colors.grey,
-      MsgStatus.read => theme.colorScheme.primary,
+      MsgStatus.sending => isOutgoing
+          ? (isDark ? AppColors.historySendingOutIconFgNight : AppColors.historySendingOutIconFg)
+          : (isDark ? AppColors.historySendingInIconFgNight : AppColors.historySendingInIconFg),
+      MsgStatus.sent || MsgStatus.delivered || MsgStatus.read => isOutgoing
+          ? (isDark ? AppColors.historyOutIconFgNight : AppColors.historyOutIconFg)
+          : (isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg),
       MsgStatus.failed => theme.colorScheme.error,
-      _ => theme.textTheme.bodySmall?.color ?? Colors.grey,
+      _ => isOutgoing
+          ? (isDark ? AppColors.historyOutIconFgNight : AppColors.historyOutIconFg)
+          : (isDark ? AppColors.msgInDateFgNight : AppColors.msgInDateFg),
     };
 
     return switch (status) {
