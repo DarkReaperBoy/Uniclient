@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../ui/message_bubble.dart';
 
 /// Chat list + active chat + messages state.
 class ChatState extends ChangeNotifier {
@@ -70,6 +71,8 @@ class ChatState extends ChangeNotifier {
         if (event.accountId == _foldersForAccount) {
           loadFoldersForAccount(event.accountId);
         }
+        // Fetch extended peer name color palette (help.peerColors).
+        _fetchPeerColors(event.accountId);
       }
     }));
     // Also reload when auth finishes (finalizeAuth emits account_list).
@@ -82,6 +85,25 @@ class ChatState extends ChangeNotifier {
     _subs.add(_engine.onUserStatus.listen(_handleUserStatus));
     // Group call state → update active group call bar.
     _subs.add(_engine.onGroupCallState.listen(_handleGroupCallState));
+  }
+
+  // Accounts for which we've already fetched peer colors.
+  final Set<String> _peerColorsFetched = {};
+
+  /// Fetch extended peer name colors (help.peerColors) from the engine.
+  void _fetchPeerColors(String accountId) {
+    if (_peerColorsFetched.contains(accountId)) return;
+    _peerColorsFetched.add(accountId);
+    _engine.getPeerColors(accountId).then((colors) {
+      if (colors.isNotEmpty) {
+        // Import into the static palette used by MessageBubble.
+        // Use dynamic import to avoid circular dependency.
+        MessageBubble.loadPeerColors(colors);
+      }
+    }).catchError((_) {
+      // Non-fatal: extended colors are optional, base 8 still works.
+      _peerColorsFetched.remove(accountId);
+    });
   }
 
   // ── Getters ──

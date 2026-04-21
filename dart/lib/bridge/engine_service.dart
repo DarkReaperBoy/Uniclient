@@ -282,6 +282,22 @@ class EngineService {
     return resp.onlineCount;
   }
 
+  // ── Peer colors ──
+
+  Future<List<PeerColorEntry>> getPeerColors(String accountId) async {
+    final req = epb.EngineGetPeerColorsRequest()
+      ..accountId = accountId;
+    final respBytes = await _callAsync('__engine', 'GetPeerColors', req.writeToBuffer());
+    if (respBytes.isEmpty) return [];
+    final resp = epb.EngineGetPeerColorsResponse.fromBuffer(respBytes);
+    return resp.colors.map((c) => PeerColorEntry(
+      colorId: c.colorId,
+      dayColors: c.dayColors.toList(),
+      nightColors: c.nightColors.toList(),
+      hidden: c.hidden,
+    )).toList();
+  }
+
   // ── Group calls ──
 
   /// Get active group call info for a chat, or null if no active call.
@@ -908,6 +924,7 @@ class EngineService {
       senderId: p.senderId,
       senderName: _safeStr(p.senderName),
       senderRank: p.senderRank,
+      senderColorId: p.senderColorId,
       contentText: _safeStr(p.contentText),
       contentRaw: contentRaw,
       contentRich: p.contentRich.isEmpty ? '' : _safeStr(utf8.decode(p.contentRich, allowMalformed: true)),

@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: proto/engine.proto
+//  source: engine.proto
 //
 // @dart = 2.12
 
@@ -551,6 +551,7 @@ const EngineCachedMessage$json = {
     {'1': 'media_download_state', '3': 27, '4': 1, '5': 5, '10': 'mediaDownloadState'},
     {'1': 'is_outgoing', '3': 28, '4': 1, '5': 8, '10': 'isOutgoing'},
     {'1': 'sender_rank', '3': 29, '4': 1, '5': 9, '10': 'senderRank'},
+    {'1': 'sender_color_id', '3': 30, '4': 1, '5': 5, '10': 'senderColorId'},
   ],
 };
 
@@ -573,7 +574,8 @@ final $typed_data.Uint8List engineCachedMessageDescriptor = $convert.base64Decod
     'aWFfd2lkdGgYGCABKAVSCm1lZGlhV2lkdGgSIQoMbWVkaWFfaGVpZ2h0GBkgASgFUgttZWRpYU'
     'hlaWdodBIlCg5tZWRpYV9kdXJhdGlvbhgaIAEoBVINbWVkaWFEdXJhdGlvbhIwChRtZWRpYV9k'
     'b3dubG9hZF9zdGF0ZRgbIAEoBVISbWVkaWFEb3dubG9hZFN0YXRlEh8KC2lzX291dGdvaW5nGB'
-    'wgASgIUgppc091dGdvaW5nEh8KC3NlbmRlcl9yYW5rGB0gASgJUgpzZW5kZXJSYW5r');
+    'wgASgIUgppc091dGdvaW5nEh8KC3NlbmRlcl9yYW5rGB0gASgJUgpzZW5kZXJSYW5rEiYKD3Nl'
+    'bmRlcl9jb2xvcl9pZBgeIAEoBVINc2VuZGVyQ29sb3JJZA==');
 
 @$core.Deprecated('Use engineGetMessagesRequestDescriptor instead')
 const EngineGetMessagesRequest$json = {
@@ -1465,4 +1467,47 @@ final $typed_data.Uint8List engineSendScheduledNowRequestDescriptor = $convert.b
     'Ch1FbmdpbmVTZW5kU2NoZWR1bGVkTm93UmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2'
     'NvdW50SWQSFwoHY2hhdF9pZBgCIAEoCVIGY2hhdElkEhcKB21zZ19pZHMYAyADKAlSBm1zZ0lk'
     'cw==');
+
+@$core.Deprecated('Use enginePeerColorEntryDescriptor instead')
+const EnginePeerColorEntry$json = {
+  '1': 'EnginePeerColorEntry',
+  '2': [
+    {'1': 'color_id', '3': 1, '4': 1, '5': 5, '10': 'colorId'},
+    {'1': 'day_colors', '3': 2, '4': 3, '5': 5, '10': 'dayColors'},
+    {'1': 'night_colors', '3': 3, '4': 3, '5': 5, '10': 'nightColors'},
+    {'1': 'hidden', '3': 4, '4': 1, '5': 8, '10': 'hidden'},
+  ],
+};
+
+/// Descriptor for `EnginePeerColorEntry`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List enginePeerColorEntryDescriptor = $convert.base64Decode(
+    'ChRFbmdpbmVQZWVyQ29sb3JFbnRyeRIZCghjb2xvcl9pZBgBIAEoBVIHY29sb3JJZBIdCgpkYX'
+    'lfY29sb3JzGAIgAygFUglkYXlDb2xvcnMSIQoMbmlnaHRfY29sb3JzGAMgAygFUgtuaWdodENv'
+    'bG9ycxIWCgZoaWRkZW4YBCABKAhSBmhpZGRlbg==');
+
+@$core.Deprecated('Use engineGetPeerColorsRequestDescriptor instead')
+const EngineGetPeerColorsRequest$json = {
+  '1': 'EngineGetPeerColorsRequest',
+  '2': [
+    {'1': 'account_id', '3': 1, '4': 1, '5': 9, '10': 'accountId'},
+  ],
+};
+
+/// Descriptor for `EngineGetPeerColorsRequest`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetPeerColorsRequestDescriptor = $convert.base64Decode(
+    'ChpFbmdpbmVHZXRQZWVyQ29sb3JzUmVxdWVzdBIdCgphY2NvdW50X2lkGAEgASgJUglhY2NvdW'
+    '50SWQ=');
+
+@$core.Deprecated('Use engineGetPeerColorsResponseDescriptor instead')
+const EngineGetPeerColorsResponse$json = {
+  '1': 'EngineGetPeerColorsResponse',
+  '2': [
+    {'1': 'colors', '3': 1, '4': 3, '5': 11, '6': '.uniclient.EnginePeerColorEntry', '10': 'colors'},
+  ],
+};
+
+/// Descriptor for `EngineGetPeerColorsResponse`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List engineGetPeerColorsResponseDescriptor = $convert.base64Decode(
+    'ChtFbmdpbmVHZXRQZWVyQ29sb3JzUmVzcG9uc2USNwoGY29sb3JzGAEgAygLMh8udW5pY2xpZW'
+    '50LkVuZ2luZVBlZXJDb2xvckVudHJ5UgZjb2xvcnM=');
 

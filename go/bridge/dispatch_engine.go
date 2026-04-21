@@ -744,6 +744,33 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 	case "Shutdown":
 		return nil, e.Shutdown()
 
+	// ── Peer Colors ──
+
+	case "GetPeerColors":
+		var req pb.EngineGetPeerColorsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		colors, err := e.GetPeerColors(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetPeerColorsResponse{}
+		for _, c := range colors {
+			entry := &pb.EnginePeerColorEntry{
+				ColorId: int32(c.ColorID),
+				Hidden:  c.Hidden,
+			}
+			for _, v := range c.DayColors {
+				entry.DayColors = append(entry.DayColors, int32(v))
+			}
+			for _, v := range c.NightColors {
+				entry.NightColors = append(entry.NightColors, int32(v))
+			}
+			resp.Colors = append(resp.Colors, entry)
+		}
+		return proto.Marshal(resp)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
@@ -816,6 +843,7 @@ func cachedMsgToProto(m *engine.CachedMessage) *pb.EngineCachedMessage {
 		SenderId:           m.SenderID,
 		SenderName:         sanitizeUTF8(m.SenderName),
 		SenderRank:         m.SenderRank,
+		SenderColorId:      int32(m.SenderColorID),
 		ContentText:        sanitizeUTF8(m.ContentText),
 		ContentRaw:         m.ContentRaw,
 		ContentRich:        m.ContentRich,

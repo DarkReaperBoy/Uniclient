@@ -268,7 +268,7 @@
 ### §5.5 Sender Name Colors
 
 - [x] 7 base colors assigned by id%7 + ColorIndex remap [0,7,4,1,6,3,5] + 8-slot palette (orange #ce671b/#faa357) + numeric ID parsing — DONE in message_bubble.dart, chat_view.dart
-- [ ] Runtime-fetched extended 64-entry palette (indices 8–63 from help.peerColors) — spec §5. Requires bridge method to expose HelpGetPeerColors from Go to Dart
+- [x] Runtime-fetched extended 64-entry palette (indices 8–63 from help.peerColors) — DONE: Go GetPeerColorPalette() → bridge → Dart loadPeerColors(), DB migration v12 adds sender_color_id column, full pipeline User.Color → cache → proto → UI
 
 ### §5.6 Selection Mode
 

@@ -175,7 +175,7 @@ class MessageBubble extends StatelessWidget {
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: _senderColor(message.senderId, isDark: isDark),
+                                    color: _senderColor(message.senderId, isDark: isDark, colorId: message.senderColorId),
                                   ),
                                 ),
                                 if (message.senderRank.isNotEmpty)
@@ -345,7 +345,7 @@ class MessageBubble extends StatelessWidget {
     const double avatarSize = 33;
     final fallback = CircleAvatar(
       radius: avatarSize / 2,
-      backgroundColor: _senderColor(message.senderId, isDark: isDark),
+      backgroundColor: _senderColor(message.senderId, isDark: isDark, colorId: message.senderColorId),
       child: Text(
         message.senderName.isNotEmpty ? message.senderName[0].toUpperCase() : '?',
         style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
@@ -408,11 +408,44 @@ class MessageBubble extends StatelessWidget {
     Color(0xFFfaa357), // 7 orange
   ];
 
-  static Color _senderColor(String senderId, {bool isDark = false}) {
-    // Use numeric ID when available (Telegram IDs are ints); fall back to hashCode.
-    final numId = int.tryParse(senderId) ?? senderId.hashCode.abs();
-    final colorIndex = numId.abs() % 7; // 0..6
-    final paletteIndex = _colorIndexRemap[colorIndex]; // 0..7
+  /// Extended 64-entry peer color palette fetched at runtime from help.peerColors.
+  /// Key: color_id (0..63), Value: [dayColor, nightColor].
+  /// Populated by calling [loadPeerColors] after auth.
+  static final Map<int, List<Color>> _extendedPalette = {};
+
+  /// Load the extended peer color palette from the engine.
+  /// Called once per account after successful auth.
+  static void loadPeerColors(List<PeerColorEntry> entries) {
+    for (final e in entries) {
+      if (e.dayColors.isEmpty) continue; // indices 0-6 return empty, use hardcoded
+      final dayRgb = e.dayColors.first;
+      final dayColor = Color(0xFF000000 | (dayRgb & 0xFFFFFF));
+      final nightColor = e.nightColors.isNotEmpty
+          ? Color(0xFF000000 | (e.nightColors.first & 0xFFFFFF))
+          : dayColor; // fallback to day if no night variant
+      _extendedPalette[e.colorId] = [dayColor, nightColor];
+    }
+  }
+
+  /// Resolve sender name color using the color_id from the user's PeerColor.
+  /// For color_id 0-6 (default), uses the hardcoded 8-slot palette via remap.
+  /// For color_id 7+ (premium/extended), uses the runtime-fetched palette.
+  static Color _senderColor(String senderId, {bool isDark = false, int colorId = -1}) {
+    // If we have an explicit color_id >= 7, check extended palette first.
+    if (colorId >= 7) {
+      final ext = _extendedPalette[colorId];
+      if (ext != null) {
+        return isDark ? ext[1] : ext[0];
+      }
+      // Extended color not loaded yet — fall through to default logic.
+    }
+
+    // For color_id 0-6 or when extended palette isn't available:
+    // Use the standard id%7 → remap → 8-slot palette.
+    final effectiveColorId = (colorId >= 0 && colorId < 7)
+        ? colorId
+        : ((int.tryParse(senderId) ?? senderId.hashCode.abs()).abs() % 7);
+    final paletteIndex = _colorIndexRemap[effectiveColorId];
     return isDark ? _namePaletteNight[paletteIndex] : _namePaletteDay[paletteIndex];
   }
 

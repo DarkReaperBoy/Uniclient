@@ -293,3 +293,23 @@ func (e *Engine) AddContact(accountID, phone, firstName, lastName string) error 
 	}
 	return acc.Core.AddContact(phone, firstName, lastName)
 }
+
+// GetPeerColors fetches the extended peer color palette (help.peerColors) from the core.
+// Returns up to 64 color entries. Only works for Telegram accounts.
+func (e *Engine) GetPeerColors(accountID string) ([]cores.PeerColorEntry, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type peerColorFetcher interface {
+		GetPeerColorPalette() ([]cores.PeerColorEntry, error)
+	}
+	fetcher, ok := acc.Core.(peerColorFetcher)
+	if !ok {
+		return nil, nil // not a Telegram account, no peer colors
+	}
+	return fetcher.GetPeerColorPalette()
+}

@@ -294,6 +294,7 @@ class CachedMessage {
   final String senderId;
   final String senderName;
   final String senderRank; // admin/creator custom title (e.g. "admin", "owner", "Head Mod")
+  final int senderColorId; // name color palette index (0..63)
   final String contentText;
   final String contentRaw;
   final String contentRich;
@@ -340,6 +341,7 @@ class CachedMessage {
     this.senderId = '',
     this.senderName = '',
     this.senderRank = '',
+    this.senderColorId = 0,
     this.contentText = '',
     this.contentRaw = '',
     this.contentRich = '',
@@ -379,6 +381,7 @@ class CachedMessage {
     senderId: j['sender_id'] as String? ?? '',
     senderName: safeStr(j['sender_name'] as String? ?? ''),
     senderRank: j['sender_rank'] as String? ?? '',
+    senderColorId: j['sender_color_id'] as int? ?? 0,
     contentText: safeStr(j['content_text'] as String? ?? ''),
     contentRaw: safeStr(j['content_raw'] as String? ?? ''),
     contentRich: safeStr(j['content_rich'] as String? ?? ''),
@@ -434,6 +437,7 @@ class CachedMessage {
     String? senderId,
     String? senderName,
     String? senderRank,
+    int? senderColorId,
     String? contentText,
     String? contentRaw,
     String? contentRich,
@@ -468,6 +472,7 @@ class CachedMessage {
     senderId: senderId ?? this.senderId,
     senderName: senderName ?? this.senderName,
     senderRank: senderRank ?? this.senderRank,
+    senderColorId: senderColorId ?? this.senderColorId,
     contentText: contentText ?? this.contentText,
     contentRaw: contentRaw ?? this.contentRaw,
     contentRich: contentRich ?? this.contentRich,
@@ -983,5 +988,19 @@ class GroupCallStateEvent {
   const GroupCallStateEvent({
     this.accountId = '',
     this.info = const GroupCallInfo(),
+  });
+}
+
+class PeerColorEntry {
+  final int colorId;
+  final List<int> dayColors;
+  final List<int> nightColors;
+  final bool hidden;
+
+  const PeerColorEntry({
+    required this.colorId,
+    this.dayColors = const [],
+    this.nightColors = const [],
+    this.hidden = false,
   });
 }

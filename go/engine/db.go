@@ -112,6 +112,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV9,
 	migrateV10,
 	migrateV11,
+	migrateV12,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -458,5 +459,15 @@ func migrateV11(tx *sql.Tx) error {
 		return nil
 	}
 	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN sender_rank TEXT`)
+	return err
+}
+
+// migrateV12 adds sender_color_id column to messages table for extended peer name colors.
+// Default -1 means "use senderId % 7 fallback" (distinguishes from actual color_id=0).
+func migrateV12(tx *sql.Tx) error {
+	if columnExists(tx, "messages", "sender_color_id") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN sender_color_id INTEGER NOT NULL DEFAULT -1`)
 	return err
 }

@@ -2019,7 +2019,8 @@ type EngineCachedMessage struct {
 	MediaDuration      int32  `protobuf:"varint,26,opt,name=media_duration,json=mediaDuration,proto3" json:"media_duration,omitempty"`                  // seconds (audio/video)
 	MediaDownloadState int32  `protobuf:"varint,27,opt,name=media_download_state,json=mediaDownloadState,proto3" json:"media_download_state,omitempty"` // 0=none, 1=in_progress, 2=complete, 3=failed
 	IsOutgoing         bool   `protobuf:"varint,28,opt,name=is_outgoing,json=isOutgoing,proto3" json:"is_outgoing,omitempty"`
-	SenderRank         string `protobuf:"bytes,29,opt,name=sender_rank,json=senderRank,proto3" json:"sender_rank,omitempty"` // admin/creator custom title (e.g. "admin", "owner")
+	SenderRank         string `protobuf:"bytes,29,opt,name=sender_rank,json=senderRank,proto3" json:"sender_rank,omitempty"`             // admin/creator custom title (e.g. "admin", "owner")
+	SenderColorId      int32  `protobuf:"varint,30,opt,name=sender_color_id,json=senderColorId,proto3" json:"sender_color_id,omitempty"` // name color palette index (0..63)
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2255,6 +2256,13 @@ func (x *EngineCachedMessage) GetSenderRank() string {
 		return x.SenderRank
 	}
 	return ""
+}
+
+func (x *EngineCachedMessage) GetSenderColorId() int32 {
+	if x != nil {
+		return x.SenderColorId
+	}
+	return 0
 }
 
 type EngineGetMessagesRequest struct {
@@ -5719,6 +5727,162 @@ func (x *EngineSendScheduledNowRequest) GetMsgIds() []string {
 	return nil
 }
 
+type EnginePeerColorEntry struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ColorId       int32                  `protobuf:"varint,1,opt,name=color_id,json=colorId,proto3" json:"color_id,omitempty"`                    // 0..63
+	DayColors     []int32                `protobuf:"varint,2,rep,packed,name=day_colors,json=dayColors,proto3" json:"day_colors,omitempty"`       // 1-3 RGB ints (light mode)
+	NightColors   []int32                `protobuf:"varint,3,rep,packed,name=night_colors,json=nightColors,proto3" json:"night_colors,omitempty"` // 1-3 RGB ints (dark mode, may be empty)
+	Hidden        bool                   `protobuf:"varint,4,opt,name=hidden,proto3" json:"hidden,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnginePeerColorEntry) Reset() {
+	*x = EnginePeerColorEntry{}
+	mi := &file_proto_engine_proto_msgTypes[87]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnginePeerColorEntry) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnginePeerColorEntry) ProtoMessage() {}
+
+func (x *EnginePeerColorEntry) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[87]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnginePeerColorEntry.ProtoReflect.Descriptor instead.
+func (*EnginePeerColorEntry) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{87}
+}
+
+func (x *EnginePeerColorEntry) GetColorId() int32 {
+	if x != nil {
+		return x.ColorId
+	}
+	return 0
+}
+
+func (x *EnginePeerColorEntry) GetDayColors() []int32 {
+	if x != nil {
+		return x.DayColors
+	}
+	return nil
+}
+
+func (x *EnginePeerColorEntry) GetNightColors() []int32 {
+	if x != nil {
+		return x.NightColors
+	}
+	return nil
+}
+
+func (x *EnginePeerColorEntry) GetHidden() bool {
+	if x != nil {
+		return x.Hidden
+	}
+	return false
+}
+
+type EngineGetPeerColorsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetPeerColorsRequest) Reset() {
+	*x = EngineGetPeerColorsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[88]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetPeerColorsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetPeerColorsRequest) ProtoMessage() {}
+
+func (x *EngineGetPeerColorsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[88]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetPeerColorsRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetPeerColorsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{88}
+}
+
+func (x *EngineGetPeerColorsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+type EngineGetPeerColorsResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Colors        []*EnginePeerColorEntry `protobuf:"bytes,1,rep,name=colors,proto3" json:"colors,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetPeerColorsResponse) Reset() {
+	*x = EngineGetPeerColorsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[89]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetPeerColorsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetPeerColorsResponse) ProtoMessage() {}
+
+func (x *EngineGetPeerColorsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[89]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetPeerColorsResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetPeerColorsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{89}
+}
+
+func (x *EngineGetPeerColorsResponse) GetColors() []*EnginePeerColorEntry {
+	if x != nil {
+		return x.Colors
+	}
+	return nil
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -5901,7 +6065,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\"O\n" +
 	"\x1cEngineGetForumTopicsResponse\x12/\n" +
-	"\x05chats\x18\x01 \x03(\v2\x19.uniclient.EngineChatInfoR\x05chats\"\xe1\a\n" +
+	"\x05chats\x18\x01 \x03(\v2\x19.uniclient.EngineChatInfoR\x05chats\"\x89\b\n" +
 	"\x13EngineCachedMessage\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -5939,7 +6103,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\vis_outgoing\x18\x1c \x01(\bR\n" +
 	"isOutgoing\x12\x1f\n" +
 	"\vsender_rank\x18\x1d \x01(\tR\n" +
-	"senderRank\"\x85\x01\n" +
+	"senderRank\x12&\n" +
+	"\x0fsender_color_id\x18\x1e \x01(\x05R\rsenderColorId\"\x85\x01\n" +
 	"\x18EngineGetMessagesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -6231,7 +6396,18 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
-	"\amsg_ids\x18\x03 \x03(\tR\x06msgIdsB\x11Z\x0funiclient/protob\x06proto3"
+	"\amsg_ids\x18\x03 \x03(\tR\x06msgIds\"\x8b\x01\n" +
+	"\x14EnginePeerColorEntry\x12\x19\n" +
+	"\bcolor_id\x18\x01 \x01(\x05R\acolorId\x12\x1d\n" +
+	"\n" +
+	"day_colors\x18\x02 \x03(\x05R\tdayColors\x12!\n" +
+	"\fnight_colors\x18\x03 \x03(\x05R\vnightColors\x12\x16\n" +
+	"\x06hidden\x18\x04 \x01(\bR\x06hidden\";\n" +
+	"\x1aEngineGetPeerColorsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"V\n" +
+	"\x1bEngineGetPeerColorsResponse\x127\n" +
+	"\x06colors\x18\x01 \x03(\v2\x1f.uniclient.EnginePeerColorEntryR\x06colorsB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -6245,7 +6421,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 87)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -6334,6 +6510,9 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineJoinGroupCallRequest)(nil),      // 84: uniclient.EngineJoinGroupCallRequest
 	(*EngineJoinGroupCallResponse)(nil),     // 85: uniclient.EngineJoinGroupCallResponse
 	(*EngineSendScheduledNowRequest)(nil),   // 86: uniclient.EngineSendScheduledNowRequest
+	(*EnginePeerColorEntry)(nil),            // 87: uniclient.EnginePeerColorEntry
+	(*EngineGetPeerColorsRequest)(nil),      // 88: uniclient.EngineGetPeerColorsRequest
+	(*EngineGetPeerColorsResponse)(nil),     // 89: uniclient.EngineGetPeerColorsResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -6353,11 +6532,12 @@ var file_proto_engine_proto_depIdxs = []int32{
 	75, // 14: uniclient.EngineGetContactsResponse.contacts:type_name -> uniclient.EngineContactInfo
 	80, // 15: uniclient.EngineGroupCallInfo.participants:type_name -> uniclient.EngineGroupCallParticipant
 	81, // 16: uniclient.EngineGetGroupCallResponse.group_call:type_name -> uniclient.EngineGroupCallInfo
-	17, // [17:17] is the sub-list for method output_type
-	17, // [17:17] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	87, // 17: uniclient.EngineGetPeerColorsResponse.colors:type_name -> uniclient.EnginePeerColorEntry
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -6371,7 +6551,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   87,
+			NumMessages:   90,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

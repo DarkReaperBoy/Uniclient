@@ -1,6 +1,6 @@
 //
 //  Generated code. Do not modify.
-//  source: proto/engine.proto
+//  source: engine.proto
 //
 // @dart = 2.12
 
@@ -2619,6 +2619,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     $core.int? mediaDownloadState,
     $core.bool? isOutgoing,
     $core.String? senderRank,
+    $core.int? senderColorId,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2708,6 +2709,9 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     if (senderRank != null) {
       $result.senderRank = senderRank;
     }
+    if (senderColorId != null) {
+      $result.senderColorId = senderColorId;
+    }
     return $result;
   }
   EngineCachedMessage._() : super();
@@ -2744,6 +2748,7 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     ..a<$core.int>(27, _omitFieldNames ? '' : 'mediaDownloadState', $pb.PbFieldType.O3)
     ..aOB(28, _omitFieldNames ? '' : 'isOutgoing')
     ..aOS(29, _omitFieldNames ? '' : 'senderRank')
+    ..a<$core.int>(30, _omitFieldNames ? '' : 'senderColorId', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -3029,6 +3034,15 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
   $core.bool hasSenderRank() => $_has(28);
   @$pb.TagNumber(29)
   void clearSenderRank() => clearField(29);
+
+  @$pb.TagNumber(30)
+  $core.int get senderColorId => $_getIZ(29);
+  @$pb.TagNumber(30)
+  set senderColorId($core.int v) { $_setSignedInt32(29, v); }
+  @$pb.TagNumber(30)
+  $core.bool hasSenderColorId() => $_has(29);
+  @$pb.TagNumber(30)
+  void clearSenderColorId() => clearField(30);
 }
 
 class EngineGetMessagesRequest extends $pb.GeneratedMessage {
@@ -7527,6 +7541,180 @@ class EngineSendScheduledNowRequest extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(3)
   $core.List<$core.String> get msgIds => $_getList(2);
+}
+
+class EnginePeerColorEntry extends $pb.GeneratedMessage {
+  factory EnginePeerColorEntry({
+    $core.int? colorId,
+    $core.Iterable<$core.int>? dayColors,
+    $core.Iterable<$core.int>? nightColors,
+    $core.bool? hidden,
+  }) {
+    final $result = create();
+    if (colorId != null) {
+      $result.colorId = colorId;
+    }
+    if (dayColors != null) {
+      $result.dayColors.addAll(dayColors);
+    }
+    if (nightColors != null) {
+      $result.nightColors.addAll(nightColors);
+    }
+    if (hidden != null) {
+      $result.hidden = hidden;
+    }
+    return $result;
+  }
+  EnginePeerColorEntry._() : super();
+  factory EnginePeerColorEntry.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EnginePeerColorEntry.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EnginePeerColorEntry', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..a<$core.int>(1, _omitFieldNames ? '' : 'colorId', $pb.PbFieldType.O3)
+    ..p<$core.int>(2, _omitFieldNames ? '' : 'dayColors', $pb.PbFieldType.K3)
+    ..p<$core.int>(3, _omitFieldNames ? '' : 'nightColors', $pb.PbFieldType.K3)
+    ..aOB(4, _omitFieldNames ? '' : 'hidden')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EnginePeerColorEntry clone() => EnginePeerColorEntry()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EnginePeerColorEntry copyWith(void Function(EnginePeerColorEntry) updates) => super.copyWith((message) => updates(message as EnginePeerColorEntry)) as EnginePeerColorEntry;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EnginePeerColorEntry create() => EnginePeerColorEntry._();
+  EnginePeerColorEntry createEmptyInstance() => create();
+  static $pb.PbList<EnginePeerColorEntry> createRepeated() => $pb.PbList<EnginePeerColorEntry>();
+  @$core.pragma('dart2js:noInline')
+  static EnginePeerColorEntry getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EnginePeerColorEntry>(create);
+  static EnginePeerColorEntry? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get colorId => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set colorId($core.int v) { $_setSignedInt32(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasColorId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearColorId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get dayColors => $_getList(1);
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get nightColors => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.bool get hidden => $_getBF(3);
+  @$pb.TagNumber(4)
+  set hidden($core.bool v) { $_setBool(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasHidden() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearHidden() => clearField(4);
+}
+
+class EngineGetPeerColorsRequest extends $pb.GeneratedMessage {
+  factory EngineGetPeerColorsRequest({
+    $core.String? accountId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    return $result;
+  }
+  EngineGetPeerColorsRequest._() : super();
+  factory EngineGetPeerColorsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetPeerColorsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetPeerColorsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGetPeerColorsRequest clone() => EngineGetPeerColorsRequest()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGetPeerColorsRequest copyWith(void Function(EngineGetPeerColorsRequest) updates) => super.copyWith((message) => updates(message as EngineGetPeerColorsRequest)) as EngineGetPeerColorsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPeerColorsRequest create() => EngineGetPeerColorsRequest._();
+  EngineGetPeerColorsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetPeerColorsRequest> createRepeated() => $pb.PbList<EngineGetPeerColorsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPeerColorsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetPeerColorsRequest>(create);
+  static EngineGetPeerColorsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+}
+
+class EngineGetPeerColorsResponse extends $pb.GeneratedMessage {
+  factory EngineGetPeerColorsResponse({
+    $core.Iterable<EnginePeerColorEntry>? colors,
+  }) {
+    final $result = create();
+    if (colors != null) {
+      $result.colors.addAll(colors);
+    }
+    return $result;
+  }
+  EngineGetPeerColorsResponse._() : super();
+  factory EngineGetPeerColorsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetPeerColorsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetPeerColorsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EnginePeerColorEntry>(1, _omitFieldNames ? '' : 'colors', $pb.PbFieldType.PM, subBuilder: EnginePeerColorEntry.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.deepCopy] instead. '
+  'Will be removed in next major version')
+  EngineGetPeerColorsResponse clone() => EngineGetPeerColorsResponse()..mergeFromMessage(this);
+  @$core.Deprecated(
+  'Using this can add significant overhead to your binary. '
+  'Use [GeneratedMessageGenericExtensions.rebuild] instead. '
+  'Will be removed in next major version')
+  EngineGetPeerColorsResponse copyWith(void Function(EngineGetPeerColorsResponse) updates) => super.copyWith((message) => updates(message as EngineGetPeerColorsResponse)) as EngineGetPeerColorsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPeerColorsResponse create() => EngineGetPeerColorsResponse._();
+  EngineGetPeerColorsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetPeerColorsResponse> createRepeated() => $pb.PbList<EngineGetPeerColorsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetPeerColorsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetPeerColorsResponse>(create);
+  static EngineGetPeerColorsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EnginePeerColorEntry> get colors => $_getList(0);
 }
 
 

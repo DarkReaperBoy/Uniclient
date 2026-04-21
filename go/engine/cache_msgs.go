@@ -22,9 +22,10 @@ type CachedMessage struct {
 	ChatID       string `json:"chat_id"`
 	MsgID        string `json:"msg_id"`
 	LocalID      string `json:"local_id,omitempty"`
-	SenderID     string `json:"sender_id,omitempty"`
-	SenderName   string `json:"sender_name,omitempty"`
-	SenderRank   string `json:"sender_rank,omitempty"`
+	SenderID      string `json:"sender_id,omitempty"`
+	SenderName    string `json:"sender_name,omitempty"`
+	SenderRank    string `json:"sender_rank,omitempty"`
+	SenderColorID int    `json:"sender_color_id,omitempty"`
 	ContentText  string `json:"content_text,omitempty"`
 	ContentRaw   []byte `json:"content_raw,omitempty"`
 	ContentRich  []byte `json:"content_rich,omitempty"`
@@ -63,7 +64,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 	var err error
 	if beforeMs > 0 {
 		rows, err = e.db.Query(
-			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
+			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
 			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
 			 FROM messages
@@ -72,7 +73,7 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs int64, limit int
 			 LIMIT ?`, accountID, chatID, beforeMs, limit)
 	} else {
 		rows, err = e.db.Query(
-			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
+			`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			        content_text, content_raw, content_rich, timestamp, edited_at,
 			        status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media
 			 FROM messages
@@ -177,7 +178,7 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 		var isPinned, isOutgoing, hasMedia int
 
 		if err := rows.Scan(
-			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank,
+			&m.AccountID, &m.ChatID, &m.MsgID, &localID, &senderID, &senderName, &senderRank, &m.SenderColorID,
 			&m.ContentText, &contentRaw, &contentRich, &m.Timestamp, &editedAt,
 			&m.Status, &replyToID, &replyPreview, &forwardFrom, &isPinned, &isOutgoing, &hasMedia,
 		); err != nil {
@@ -333,11 +334,11 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 
 	e.db.Exec(
 		`INSERT OR REPLACE INTO messages
-		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank,
+		 (account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 		  content_raw, content_rich, content_text, timestamp, edited_at,
 		  status, reply_to_id, reply_preview, forward_from, is_pinned, is_outgoing, has_media)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank),
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		accountID, chatID, msg.ID, nil, msg.SenderID, msg.SenderName, nullStr(msg.SenderRank), msg.SenderColorID,
 		rawBytes, richBytes, msg.Text, ts, editedAt,
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
 		nullStr(msg.ForwardFrom), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(hasMedia))
@@ -348,13 +349,14 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 	}
 
 	cached := CachedMessage{
-		AccountID:    accountID,
-		ChatID:       chatID,
-		MsgID:        msg.ID,
-		SenderID:     msg.SenderID,
-		SenderName:   msg.SenderName,
-		SenderRank:   msg.SenderRank,
-		ContentText:  msg.Text,
+		AccountID:     accountID,
+		ChatID:        chatID,
+		MsgID:         msg.ID,
+		SenderID:      msg.SenderID,
+		SenderName:    msg.SenderName,
+		SenderRank:    msg.SenderRank,
+		SenderColorID: msg.SenderColorID,
+		ContentText:   msg.Text,
 		ContentRaw:   rawBytes,
 		ContentRich:  richBytes,
 		Timestamp:    ts,

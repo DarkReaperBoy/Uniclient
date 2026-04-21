@@ -189,6 +189,7 @@ type Message struct {
 	SenderID      string        `json:"sender_id"`
 	SenderName    string        `json:"sender_name"`
 	SenderRank    string        `json:"sender_rank,omitempty"` // admin/creator custom title (e.g. "admin", "owner", "Head Mod")
+	SenderColorID int           `json:"sender_color_id"`       // name color palette index (0..63)
 	Text          string        `json:"text"`
 	Entities      []TextEntity  `json:"entities,omitempty"` // rich-text entities for Text
 	Timestamp     time.Time     `json:"timestamp"`

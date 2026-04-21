@@ -96,6 +96,7 @@ type TelegramCore struct {
 	fileReference     map[int64][]byte // fileID → fileReference
 	userNames         map[int64]string // userID → display name (first + last)
 	userUsernames     map[int64]string // userID → @username (for via-bot labels etc.)
+	userColorIDs      map[int64]int    // userID → name color_id (0..63, from User.Color.Color)
 	channelNames      map[int64]string // channelID → channel/chat title
 	peerPhotoID       map[int64]int64  // peerID → profile photo ID (for avatar downloads)
 	peerMu            sync.RWMutex
@@ -197,6 +198,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		fileReference:     make(map[int64][]byte),
 		userNames:         make(map[int64]string),
 		userUsernames:     make(map[int64]string),
+		userColorIDs:      make(map[int64]int),
 		channelNames:      make(map[int64]string),
 		peerPhotoID:       make(map[int64]int64),
 		adminRanks:         make(map[int64]map[int64]string),
@@ -9384,6 +9386,17 @@ func (t *TelegramCore) getCachedUsername(userID int64) string {
 	return uname
 }
 
+func (t *TelegramCore) getCachedUserColorID(userID int64) int {
+	t.peerMu.RLock()
+	cid, ok := t.userColorIDs[userID]
+	t.peerMu.RUnlock()
+	if ok {
+		return cid
+	}
+	// -1 = unknown; Dart UI falls back to senderId % 7
+	return -1
+}
+
 func (t *TelegramCore) cacheChannelHash(channelID, accessHash int64) {
 	t.peerMu.Lock()
 	t.channelAccessHash[channelID] = accessHash
@@ -9460,6 +9473,11 @@ func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass)
 			if user.Username != "" {
 				t.userUsernames[user.ID] = user.Username
 			}
+			if pc, ok := user.GetColor(); ok {
+				if c, ok := pc.(*tg.PeerColor); ok {
+					t.userColorIDs[user.ID] = c.Color
+				}
+			}
 			if photo, ok := user.Photo.(*tg.UserProfilePhoto); ok {
 				t.peerPhotoID[user.ID] = photo.PhotoID
 			}
@@ -9527,6 +9545,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		m.SenderID = peerToID(from)
 		if peer, ok := from.(*tg.PeerUser); ok {
 			m.SenderName = t.getCachedUserName(peer.UserID)
+			m.SenderColorID = t.getCachedUserColorID(peer.UserID)
 			// Look up admin rank from cache for group/supergroup chats.
 			if chatID := peerToInt64(msg.PeerID); chatID != 0 {
 				m.SenderRank = t.getAdminRank(chatID, peer.UserID)
@@ -14390,6 +14409,45 @@ func (t *TelegramCore) HelpGetPeerColors(hash int) (tg.HelpPeerColorsClass, erro
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return nil, ErrAuth }
 	return t.api.HelpGetPeerColors(t.ctx, hash)
+}
+
+// PeerColorEntry is a parsed peer color entry for the UI.
+type PeerColorEntry struct {
+	ColorID     int   `json:"color_id"`
+	DayColors   []int `json:"day_colors"`
+	NightColors []int `json:"night_colors"`
+	Hidden      bool  `json:"hidden"`
+}
+
+// GetPeerColorPalette fetches and parses help.peerColors into a simple list.
+func (t *TelegramCore) GetPeerColorPalette() ([]PeerColorEntry, error) {
+	result, err := t.HelpGetPeerColors(0)
+	if err != nil {
+		return nil, err
+	}
+	colors, ok := result.(*tg.HelpPeerColors)
+	if !ok {
+		return nil, nil // NotModified or unexpected type
+	}
+	entries := make([]PeerColorEntry, 0, len(colors.Colors))
+	for _, opt := range colors.Colors {
+		entry := PeerColorEntry{
+			ColorID: opt.ColorID,
+			Hidden:  opt.Hidden,
+		}
+		if cs, ok := opt.GetColors(); ok {
+			if set, ok := cs.(*tg.HelpPeerColorSet); ok {
+				entry.DayColors = set.Colors
+			}
+		}
+		if cs, ok := opt.GetDarkColors(); ok {
+			if set, ok := cs.(*tg.HelpPeerColorSet); ok {
+				entry.NightColors = set.Colors
+			}
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
 }
 
 // HelpGetPeerProfileColors returns available profile accent colors.
