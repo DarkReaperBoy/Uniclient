@@ -2106,31 +2106,21 @@ class _MessageList extends StatelessWidget {
                 color: isSearchHighlight
                     ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
                     : null,
-                child: Row(
-                  children: [
-                    if (inSelectionMode) ...[
-                      const SizedBox(width: 8),
-                      _RoundCheckbox(checked: isSelected, isDark: Theme.of(context).brightness == Brightness.dark),
-                      const SizedBox(width: 4),
-                    ],
-                    Expanded(
-                      child: IgnorePointer(
-                        ignoring: inSelectionMode,
-                        child: MessageBubble(
-                          message: msg,
-                          isFirstInGroup: isFirstInGroup,
-                          isLastInGroup: isLastInGroup,
-                          isGroupChat: isGroupChat,
-                          isSelected: isSelected,
-                          senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
-                          onReply: () => onReply(msg.msgId),
-                          onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
-                          onSenderTap: onSenderTap,
-                          onReplyTap: onReplyTap,
-                        ),
-                      ),
-                    ),
-                  ],
+                child: IgnorePointer(
+                  ignoring: inSelectionMode,
+                  child: MessageBubble(
+                    message: msg,
+                    isFirstInGroup: isFirstInGroup,
+                    isLastInGroup: isLastInGroup,
+                    isGroupChat: isGroupChat,
+                    isSelected: isSelected,
+                    inSelectionMode: inSelectionMode,
+                    senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
+                    onReply: () => onReply(msg.msgId),
+                    onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
+                    onSenderTap: onSenderTap,
+                    onReplyTap: onReplyTap,
+                  ),
                 ),
               ),
             ),
@@ -2147,91 +2137,6 @@ class _MessageList extends StatelessWidget {
   }
 }
 
-/// Spec §5: Round selection checkbox — 20px diameter, 2px stroke.
-/// Empty: white border + 25% black fill. Checked: boxTextFgGood fill + white check glyph.
-class _RoundCheckbox extends StatelessWidget {
-  final bool checked;
-  final bool isDark;
-
-  const _RoundCheckbox({required this.checked, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    const double size = 20.0;
-    const double strokeWidth = 2.0;
-    final bgActive = isDark
-        ? AppColors.selectionCheckBgActiveNight
-        : AppColors.selectionCheckBgActiveDay;
-
-    return SizedBox(
-      width: size,
-      height: size,
-      child: CustomPaint(
-        painter: _RoundCheckboxPainter(
-          checked: checked,
-          bgActive: bgActive,
-        ),
-      ),
-    );
-  }
-}
-
-class _RoundCheckboxPainter extends CustomPainter {
-  final bool checked;
-  final Color bgActive;
-
-  _RoundCheckboxPainter({required this.checked, required this.bgActive});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    const strokeWidth = 2.0;
-
-    if (checked) {
-      // Checked: solid fill with boxTextFgGood color
-      canvas.drawCircle(
-        center,
-        radius,
-        Paint()..color = bgActive,
-      );
-      // White check glyph — spec offset (3, 6) in 20px circle, glyph ~14×8
-      final path = Path();
-      // Check mark path scaled to fit inside 20px circle
-      path.moveTo(size.width * 0.28, size.height * 0.50);
-      path.lineTo(size.width * 0.43, size.height * 0.65);
-      path.lineTo(size.width * 0.72, size.height * 0.35);
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = AppColors.selectionCheckBorder
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.0
-          ..strokeCap = StrokeCap.round
-          ..strokeJoin = StrokeJoin.round,
-      );
-    } else {
-      // Empty: translucent black fill + white border
-      canvas.drawCircle(
-        center,
-        radius - strokeWidth / 2,
-        Paint()..color = AppColors.selectionCheckBgInactive,
-      );
-      canvas.drawCircle(
-        center,
-        radius - strokeWidth / 2,
-        Paint()
-          ..color = AppColors.selectionCheckBorder
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeWidth,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RoundCheckboxPainter oldDelegate) =>
-      checked != oldDelegate.checked || bgActive != oldDelegate.bgActive;
-}
 
 /// Centered date separator pill.
 class _DateSeparator extends StatelessWidget {

@@ -19,6 +19,7 @@ class MessageBubble extends StatelessWidget {
   final ValueChanged<String>? onSenderTap;
   final ValueChanged<String>? onReplyTap;
   final bool isSelected;
+  final bool inSelectionMode;
 
   const MessageBubble({
     super.key,
@@ -27,6 +28,7 @@ class MessageBubble extends StatelessWidget {
     this.isLastInGroup = true,
     this.isGroupChat = false,
     this.isSelected = false,
+    this.inSelectionMode = false,
     this.senderAvatarB64,
     this.onReply,
     this.onContextMenu,
@@ -135,7 +137,10 @@ class MessageBubble extends StatelessWidget {
                 : null,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 40 : _maxWidth),
-              child: Container(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+              Container(
                 padding: isStickerOnly
                     ? EdgeInsets.zero
                     : const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
@@ -329,6 +334,19 @@ class MessageBubble extends StatelessWidget {
                     ],
                   ],
                 ),
+              ),
+              // Spec §5: selection checkbox overlaid at bottom-right of bubble,
+              // 5px above bottom edge.
+              if (inSelectionMode)
+                Positioned(
+                  bottom: 5,
+                  right: 4,
+                  child: _SelectionCheckbox(
+                    checked: isSelected,
+                    isDark: isDark,
+                  ),
+                ),
+              ],
               ),
             ),
           ),
@@ -1655,4 +1673,86 @@ class _RichMessageTextState extends State<_RichMessageText> {
     }
     Process.run('xdg-open', [url]);
   }
+}
+
+/// Spec §5: Round selection checkbox — 20px diameter, 2px stroke.
+/// Empty: white border + 25% black fill. Checked: boxTextFgGood fill + white check glyph.
+class _SelectionCheckbox extends StatelessWidget {
+  final bool checked;
+  final bool isDark;
+
+  const _SelectionCheckbox({required this.checked, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    const double size = 20.0;
+    final bgActive = isDark
+        ? AppColors.selectionCheckBgActiveNight
+        : AppColors.selectionCheckBgActiveDay;
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _SelectionCheckboxPainter(
+          checked: checked,
+          bgActive: bgActive,
+        ),
+      ),
+    );
+  }
+}
+
+class _SelectionCheckboxPainter extends CustomPainter {
+  final bool checked;
+  final Color bgActive;
+
+  _SelectionCheckboxPainter({required this.checked, required this.bgActive});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    const strokeWidth = 2.0;
+
+    if (checked) {
+      canvas.drawCircle(
+        center,
+        radius,
+        Paint()..color = bgActive,
+      );
+      // White check glyph
+      final path = Path();
+      path.moveTo(size.width * 0.28, size.height * 0.50);
+      path.lineTo(size.width * 0.43, size.height * 0.65);
+      path.lineTo(size.width * 0.72, size.height * 0.35);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = AppColors.selectionCheckBorder
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    } else {
+      canvas.drawCircle(
+        center,
+        radius - strokeWidth / 2,
+        Paint()..color = AppColors.selectionCheckBgInactive,
+      );
+      canvas.drawCircle(
+        center,
+        radius - strokeWidth / 2,
+        Paint()
+          ..color = AppColors.selectionCheckBorder
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = strokeWidth,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SelectionCheckboxPainter oldDelegate) =>
+      checked != oldDelegate.checked || bgActive != oldDelegate.bgActive;
 }
