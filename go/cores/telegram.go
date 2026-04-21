@@ -127,6 +127,10 @@ type TelegramCore struct {
 	rawSigOutInterceptors map[int64]func([]byte) // outgoing: sendCallSignaling
 	rawSigInterceptorsMu  sync.RWMutex
 
+	// Forum topic cache — chatID:topicID → {title, iconColor}
+	forumTopics   map[string]forumTopicInfo
+	forumTopicsMu sync.RWMutex
+
 	// Video codec factories — set via SetVideoEncoderFactory/SetVideoDecoderFactory.
 	// Keeps telegram.go pure Go: the implementation (e.g. vpx package) is injected by bridge/tests.
 	newVideoEncoder func(width, height, bitrate int) (VideoEncoder, error)
@@ -9529,6 +9533,23 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	if reply, ok := msg.GetReplyTo(); ok {
 		if rh, ok := reply.(*tg.MessageReplyHeader); ok {
 			m.ReplyToID = strconv.Itoa(rh.ReplyToMsgID)
+			if rh.ForumTopic {
+				topicID := rh.ReplyToTopID
+				if topicID == 0 {
+					topicID = rh.ReplyToMsgID
+				}
+				if m.Extra == nil {
+					m.Extra = make(map[string]interface{})
+				}
+				tidStr := strconv.Itoa(topicID)
+				m.Extra["topic_id"] = tidStr
+				// Look up cached topic name and color.
+				chatID := peerToID(msg.PeerID)
+				if title, color, ok := t.GetForumTopicInfo(chatID, tidStr); ok {
+					m.Extra["topic_name"] = title
+					m.Extra["topic_color"] = color
+				}
+			}
 		}
 	}
 
@@ -10064,6 +10085,35 @@ func (t *TelegramCore) setAdminRank(chatID, userID int64, rank string) {
 		t.adminRanks[chatID] = make(map[int64]string)
 	}
 	t.adminRanks[chatID][userID] = rank
+}
+
+// forumTopicInfo holds cached info for a forum topic (name, icon color).
+type forumTopicInfo struct {
+	Title     string
+	IconColor int // one of the 6 predefined colors (0x6FB9F0, 0xFFD67E, etc.)
+}
+
+// cacheForumTopic stores forum topic info for use in message topic buttons.
+func (t *TelegramCore) cacheForumTopic(chatID string, topicID int, title string, iconColor int) {
+	t.forumTopicsMu.Lock()
+	defer t.forumTopicsMu.Unlock()
+	if t.forumTopics == nil {
+		t.forumTopics = make(map[string]forumTopicInfo)
+	}
+	key := chatID + ":" + strconv.Itoa(topicID)
+	t.forumTopics[key] = forumTopicInfo{Title: title, IconColor: iconColor}
+}
+
+// GetForumTopicInfo returns cached topic name and color for a given chat+topic.
+// Exported so the engine can call it when populating message topic fields.
+func (t *TelegramCore) GetForumTopicInfo(chatID, topicID string) (title string, iconColor int, ok bool) {
+	t.forumTopicsMu.RLock()
+	defer t.forumTopicsMu.RUnlock()
+	key := chatID + ":" + topicID
+	if info, found := t.forumTopics[key]; found {
+		return info.Title, info.IconColor, true
+	}
+	return "", 0, false
 }
 
 // fetchAndCacheAdminRanks fetches admin ranks for a channel/supergroup and caches them.
@@ -11236,6 +11286,8 @@ func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]Dialog, error
 	var topics []Dialog
 	for _, topic := range result.Topics {
 		if ft, ok := topic.(*tg.ForumTopic); ok {
+			// Cache topic info for message topic buttons.
+			t.cacheForumTopic(chatID, ft.ID, ft.Title, ft.IconColor)
 			topics = append(topics, Dialog{ID: strconv.Itoa(ft.ID), Title: ft.Title, Type: ChatTypeTopic, ParentID: chatID, Platform: tgPlatform})
 		}
 	}

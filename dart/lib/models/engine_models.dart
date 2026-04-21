@@ -320,6 +320,11 @@ class CachedMessage {
   final int mediaDownloadState; // 0=none, 1=in_progress, 2=complete, 3=failed (matches Go engine/db.go)
   final List<MessageReaction> reactions;
 
+  // Forum topic info (populated from contentRaw extra fields).
+  final String topicId;    // topic root message ID (empty = not a forum topic message)
+  final String topicName;  // topic title (may be empty if not cached)
+  final int topicColorId;  // topic icon color (0 = default/unknown)
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -351,6 +356,9 @@ class CachedMessage {
     this.mediaDuration = 0,
     this.mediaDownloadState = 0,
     this.reactions = const [],
+    this.topicId = '',
+    this.topicName = '',
+    this.topicColorId = 0,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(

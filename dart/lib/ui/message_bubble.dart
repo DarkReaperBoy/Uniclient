@@ -183,6 +183,17 @@ class MessageBubble extends StatelessWidget {
                           ),
                         ),
                       ),
+                    // Topic button (forums): small pill with topic icon + name.
+                    if (message.topicId.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: _TopicButton(
+                          topicName: message.topicName.isNotEmpty
+                              ? message.topicName
+                              : 'Topic #${message.topicId}',
+                          topicColorId: message.topicColorId,
+                        ),
+                      ),
                     // Reply preview.
                     if (message.replyPreview.isNotEmpty)
                       _ReplyPreview(
@@ -384,6 +395,78 @@ class _ReactionList extends StatelessWidget {
       return '${v.endsWith('.0') ? v.substring(0, v.length - 2) : v}K';
     }
     return '${(n / 1000).round()}K';
+  }
+}
+
+/// Forum topic button — small pill with colored circle icon + topic name.
+/// Spec §5 item 2 / §22.2: colored circle with first letter, 6 predefined colors.
+class _TopicButton extends StatelessWidget {
+  final String topicName;
+  final int topicColorId;
+
+  const _TopicButton({required this.topicName, required this.topicColorId});
+
+  // Spec §22.2: 6 predefined topic icon colors.
+  static const _topicColors = <int, Color>{
+    0x6FB9F0: Color(0xFF6FB9F0), // blue
+    0xFFD67E: Color(0xFFFFD67E), // yellow
+    0xCB86DB: Color(0xFFCB86DB), // violet
+    0x8EEE98: Color(0xFF8EEE98), // green
+    0xFF93B2: Color(0xFFFF93B2), // rose
+    0xFB6F5F: Color(0xFFFB6F5F), // red
+  };
+  static const _defaultColor = Color(0xFF6FB9F0); // blue fallback
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _topicColors[topicColorId] ?? _defaultColor;
+    // First non-whitespace character for the icon circle.
+    final letter = topicName.isNotEmpty
+        ? topicName.trim().characters.first.toUpperCase()
+        : '#';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Colored circle with first letter (spec §22.2: defaultForumTopicIcon 21px,
+          // but inside a bubble pill we use a smaller 16px variant).
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+            alignment: Alignment.center,
+            child: Text(
+              letter,
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                height: 1.0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              topicName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

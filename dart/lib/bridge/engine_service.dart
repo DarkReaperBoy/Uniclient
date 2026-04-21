@@ -931,6 +931,9 @@ class EngineService {
       mediaDuration: p.mediaDuration,
       mediaDownloadState: p.mediaDownloadState,
       reactions: _reactionsFromRaw(contentRaw),
+      topicId: _topicFieldFromRaw(contentRaw, 'topic_id') ?? '',
+      topicName: _topicFieldFromRaw(contentRaw, 'topic_name') ?? '',
+      topicColorId: _topicColorFromRaw(contentRaw),
     );
   }
 
@@ -951,6 +954,38 @@ class EngineService {
           .toList(growable: false);
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// Extract a string field from the "extra" map inside contentRaw JSON.
+  static String? _topicFieldFromRaw(String contentRaw, String key) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"extra"')) return null;
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return null;
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return null;
+      final v = extra[key];
+      return v is String ? v : v?.toString();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Extract topic_color (int) from the "extra" map inside contentRaw JSON.
+  static int _topicColorFromRaw(String contentRaw) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"topic_color"')) return 0;
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return 0;
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return 0;
+      final v = extra['topic_color'];
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return 0;
+    } catch (_) {
+      return 0;
     }
   }
 
