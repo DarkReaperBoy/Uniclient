@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/auth_state.dart';
 import 'confirm_box.dart';
 import '../state/chat_state.dart';
 import 'chat_list_row.dart' show isSavedMessages;
+import 'create_channel_screen.dart';
 import 'my_profile_page.dart';
 import 'settings_screen.dart';
 
@@ -205,8 +207,27 @@ class _HamburgerDrawerState extends State<HamburgerDrawer> {
                       icon: Icons.campaign,
                       label: 'New Channel',
                       onTap: () {
+                        final chatSt = context.read<ChatState>();
+                        final authSt = context.read<AuthState>();
+                        final engineSvc = context.read<EngineService>();
                         Navigator.of(context).pop();
-                        // TODO: open new channel creation flow
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ChangeNotifierProvider.value(
+                              value: appState,
+                              child: Provider<EngineService>.value(
+                                value: engineSvc,
+                                child: ChangeNotifierProvider.value(
+                                  value: chatSt,
+                                  child: ChangeNotifierProvider.value(
+                                    value: authSt,
+                                    child: const CreateChannelScreen(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
                     // §3.3: Contacts row (item 5) — menuIconUserShow.

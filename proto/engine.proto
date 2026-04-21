@@ -561,3 +561,17 @@ message EngineGetPinnedMessagesRequest {
 message EngineGetPinnedMessagesResponse {
   repeated EngineCachedMessage messages = 1;
 }
+
+// ══════════════���══════════════════════════════��═════════════════════════
+// Create Channel
+// ══════���═══════════════════���════════════════════════════════════════════
+
+message EngineCreateChannelRequest {
+  string account_id  = 1;
+  string name        = 2;
+  string description = 3;
+}
+
+message EngineCreateChannelResponse {
+  EngineChatInfo chat = 1;
+}

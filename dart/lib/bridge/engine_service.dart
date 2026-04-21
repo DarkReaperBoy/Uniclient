@@ -322,6 +322,16 @@ class EngineService {
     await _callAsync('__engine', 'LeaveChat', req.writeToBuffer());
   }
 
+  Future<epb.EngineChatInfo> createChannel(String accountId, String name, String description) async {
+    final req = epb.EngineCreateChannelRequest()
+      ..accountId = accountId
+      ..name = name
+      ..description = description;
+    final respBytes = await _callAsync('__engine', 'CreateChannel', req.writeToBuffer());
+    final resp = epb.EngineCreateChannelResponse.fromBuffer(respBytes);
+    return resp.chat;
+  }
+
   Future<void> forwardMessage(String accountId, String chatId, String msgId, String toChatId) async {
     final req = epb.EngineForwardMessageRequest()
       ..accountId = accountId

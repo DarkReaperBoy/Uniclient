@@ -600,6 +600,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UpdateConfigFromBridge(changes)
 
+	// ── Create Channel ──
+
+	case "CreateChannel":
+		var req pb.EngineCreateChannelRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		chat, err := e.CreateChannel(req.AccountId, req.Name, req.Description)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineCreateChannelResponse{Chat: chatInfoToProto(chat)})
+
 	// ── Shutdown ──
 
 	case "Shutdown":

@@ -423,3 +423,37 @@ func (e *Engine) JoinChat(accountID, channelName string) error {
 
 	return nil
 }
+
+// CreateChannel creates a new broadcast channel with a name and description.
+// Returns the created chat info after syncing it to the local cache.
+func (e *Engine) CreateChannel(accountID, name, description string) (*ChatInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	dialog, err := acc.Core.CreateChannel(name, description)
+	if err != nil {
+		return nil, err
+	}
+
+	// Upsert the new channel into the local cache.
+	if err := e.UpsertChat(accountID, *dialog); err != nil {
+		return nil, fmt.Errorf("failed to cache new channel: %w", err)
+	}
+
+	// Re-sync so the chat list updates for the Dart side.
+	go func() {
+		ctx := context.Background()
+		e.syncAccount(ctx, accountID)
+	}()
+
+	// Return the created chat info.
+	return &ChatInfo{
+		AccountID:   accountID,
+		ChatID:      dialog.ID,
+		Type:        ChatTypeChanVal,
+		Title:       dialog.Title,
+		MemberCount: dialog.MemberCount,
+	}, nil
+}
