@@ -935,6 +935,8 @@ class EngineService {
       topicName: _topicFieldFromRaw(contentRaw, 'topic_name') ?? '',
       topicColorId: _topicColorFromRaw(contentRaw),
       viaBotName: _topicFieldFromRaw(contentRaw, 'via_bot_name') ?? '',
+      views: _intFieldFromRaw(contentRaw, 'views'),
+      forwards: _intFieldFromRaw(contentRaw, 'forwards'),
     );
   }
 
@@ -982,6 +984,21 @@ class EngineService {
       final extra = decoded['extra'];
       if (extra is! Map<String, dynamic>) return 0;
       final v = extra['topic_color'];
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Extract a top-level int field from contentRaw JSON (e.g. "views", "forwards").
+  static int _intFieldFromRaw(String contentRaw, String key) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return 0;
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return 0;
+      final v = decoded[key];
       if (v is int) return v;
       if (v is num) return v.toInt();
       return 0;

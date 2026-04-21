@@ -328,6 +328,10 @@ class CachedMessage {
   // Via-bot label (populated from contentRaw extra fields).
   final String viaBotName; // e.g. "@gif" — inline bot that generated this message
 
+  // Channel post metadata (extracted from contentRaw).
+  final int views;    // view count (channel posts)
+  final int forwards; // forward/share count (channel posts)
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -363,6 +367,8 @@ class CachedMessage {
     this.topicName = '',
     this.topicColorId = 0,
     this.viaBotName = '',
+    this.views = 0,
+    this.forwards = 0,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -452,6 +458,8 @@ class CachedMessage {
     int? mediaDownloadState,
     List<MessageReaction>? reactions,
     String? viaBotName,
+    int? views,
+    int? forwards,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -487,6 +495,8 @@ class CachedMessage {
     topicName: topicName,
     topicColorId: topicColorId,
     viaBotName: viaBotName ?? this.viaBotName,
+    views: views ?? this.views,
+    forwards: forwards ?? this.forwards,
   );
 }
 

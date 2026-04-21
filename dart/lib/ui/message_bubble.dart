@@ -281,7 +281,7 @@ class MessageBubble extends StatelessWidget {
                         theme: theme,
                       ),
                     ],
-                    // Bottom info: time + edited + status.
+                    // Bottom info: views + forwards + edited + time + status.
                     // Spec §5: msgInDateFg / msgOutDateFg per theme.
                     // Skipped for media-only bubbles — overlay rendered by _VisualMedia instead.
                     if (!isMediaOnlyBubble) ...[
@@ -290,6 +290,26 @@ class MessageBubble extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Spacer(),
+                          if (message.views > 0) ...[
+                            SizedBox(width: 16, height: 11,
+                              child: CustomPaint(painter: _ViewsIconPainter(color: _bottomInfoColor(isOutgoing, isDark)))),
+                            const SizedBox(width: 2),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Text(_formatCount(message.views),
+                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
+                            ),
+                          ],
+                          if (message.forwards > 0) ...[
+                            SizedBox(width: 16, height: 11,
+                              child: CustomPaint(painter: _ForwardsIconPainter(color: _bottomInfoColor(isOutgoing, isDark)))),
+                            const SizedBox(width: 2),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Text(_formatCount(message.forwards),
+                                  style: TextStyle(fontSize: 13, color: _bottomInfoColor(isOutgoing, isDark))),
+                            ),
+                          ],
                           if (message.isEdited)
                             Padding(
                               padding: const EdgeInsets.only(right: 4),
@@ -378,6 +398,17 @@ class MessageBubble extends StatelessWidget {
     if (timestampMs == 0) return '';
     final dt = DateTime.fromMillisecondsSinceEpoch(timestampMs);
     return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  /// Compact number format for views/forwards (e.g. 1.2K, 3.5M).
+  static String _formatCount(int n) {
+    if (n < 1000) return n.toString();
+    if (n < 1000000) {
+      final v = (n / 1000).toStringAsFixed(1);
+      return '${v.endsWith('.0') ? v.substring(0, v.length - 2) : v}K';
+    }
+    final v = (n / 1000000).toStringAsFixed(1);
+    return '${v.endsWith('.0') ? v.substring(0, v.length - 2) : v}M';
   }
 
   /// Spec §5: bottom info timestamp/edited color per direction+theme.
@@ -751,6 +782,26 @@ class _VisualMedia extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (message.views > 0) ...[
+                        const SizedBox(width: 16, height: 11,
+                          child: CustomPaint(painter: _ViewsIconPainter(color: AppColors.historyIconFgInverted))),
+                        const SizedBox(width: 2),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(MessageBubble._formatCount(message.views),
+                              style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
+                        ),
+                      ],
+                      if (message.forwards > 0) ...[
+                        const SizedBox(width: 16, height: 11,
+                          child: CustomPaint(painter: _ForwardsIconPainter(color: AppColors.historyIconFgInverted))),
+                        const SizedBox(width: 2),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(MessageBubble._formatCount(message.forwards),
+                              style: const TextStyle(fontSize: 13, color: AppColors.historyIconFgInverted)),
+                        ),
+                      ],
                       if (message.isEdited)
                         const Padding(
                           padding: EdgeInsets.only(right: 4),
@@ -1140,6 +1191,76 @@ class _DoubleCheckPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DoubleCheckPainter old) => color != old.color;
+}
+
+/// Spec §5: Eye icon for views count, 16×11px (history_views).
+class _ViewsIconPainter extends CustomPainter {
+  final Color color;
+  const _ViewsIconPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // Eye outline: two arcs meeting at left and right tips.
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final path = Path();
+    // Upper arc.
+    path.moveTo(1, cy);
+    path.quadraticBezierTo(cx, cy - 5.5, size.width - 1, cy);
+    // Lower arc.
+    path.quadraticBezierTo(cx, cy + 5.5, 1, cy);
+    canvas.drawPath(path, paint);
+
+    // Iris: filled circle in the center.
+    final irisPaint = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(cx, cy), 2.2, irisPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ViewsIconPainter old) => color != old.color;
+}
+
+/// Spec §5: Share/forward icon for forwards count, 16×11px (history_replies).
+class _ForwardsIconPainter extends CustomPainter {
+  final Color color;
+  const _ForwardsIconPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // Forward arrow: right-pointing arrow shape.
+    final cy = size.height / 2;
+    final path = Path()
+      ..moveTo(size.width * 0.4, 1)
+      ..lineTo(size.width - 1, cy)
+      ..lineTo(size.width * 0.4, size.height - 1);
+    canvas.drawPath(path, paint);
+
+    // Stem: horizontal line from arrow tip to left.
+    canvas.drawLine(
+      Offset(size.width - 1, cy),
+      Offset(2, cy),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ForwardsIconPainter old) => color != old.color;
 }
 
 // ── Rich text entity model ──

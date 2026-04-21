@@ -9518,6 +9518,8 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		Status:     MessageStatusSent,
 		IsPinned:   msg.Pinned,
 		IsOutgoing: msg.Out,
+		Views:      msg.Views,
+		Forwards:   msg.Forwards,
 		Platform:   tgPlatform,
 	}
 
