@@ -487,12 +487,23 @@ class _UniClientAppState extends State<UniClientApp>
     if (ctx == null) return;
     final editableState = ctx.findAncestorStateOfType<EditableTextState>();
     if (editableState != null) {
-      final controller = editableState.textEditingValue;
-      final newText = controller.text + text;
-      editableState.updateEditingValue(TextEditingValue(
+      final current = editableState.textEditingValue;
+      final newText = current.text + text;
+      final newValue = TextEditingValue(
         text: newText,
         selection: TextSelection.collapsed(offset: newText.length),
-      ));
+      );
+      editableState.updateEditingValue(newValue);
+      // Walk ancestors to find the TextField widget and call onChanged,
+      // since updateEditingValue may not trigger it in all code paths.
+      ctx.visitAncestorElements((element) {
+        final widget = element.widget;
+        if (widget is TextField) {
+          widget.onChanged?.call(newText);
+          return false;
+        }
+        return true;
+      });
     }
   }
 

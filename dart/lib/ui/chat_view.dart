@@ -110,6 +110,12 @@ class _ChatViewState extends State<ChatView> {
   bool _isSearching = false;
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  /// Spec §4.3: search results — list of message IDs matching the query
+  /// in the current chat, and the index of the currently highlighted result.
+  List<String> _searchResultIds = [];
+  int _searchResultIndex = -1;
+  /// Currently active search query (for highlight in message list).
+  String _activeSearchQuery = '';
   // GlobalKey attached to the top-bar more_vert IconButton so the Ctrl+\
   // keyboard shortcut (spec §24.4 `show_chat_menu`) can anchor the menu
   // at the same pixel position as clicking the button. The key is passed
@@ -142,10 +148,12 @@ class _ChatViewState extends State<ChatView> {
     // app-level CallbackShortcuts so the shortcut works regardless of current
     // focus.
     ChatView.cycleReplyRequest = _cycleReply;
+    _searchController.addListener(_onSearchQueryChanged);
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchQueryChanged);
     if (ChatView.editLastOutgoingRequest == _editLastOutgoing) {
       ChatView.editLastOutgoingRequest = null;
     }
@@ -201,6 +209,9 @@ class _ChatViewState extends State<ChatView> {
             _composeController.clear();
             _isSearching = false;
             _searchController.clear();
+            _searchResultIds = [];
+            _searchResultIndex = -1;
+            _activeSearchQuery = '';
           });
         });
       }
@@ -619,6 +630,75 @@ class _ChatViewState extends State<ChatView> {
     return true;
   }
 
+  /// Spec §4.3: execute in-chat search — filter current chat messages matching
+  /// the query text. Results are ordered newest-first (matching the reversed
+  /// ListView). Navigating results jumps the message list to each match.
+  void _onSearchQueryChanged() {
+    if (!mounted) return;
+    final query = _searchController.text.trim().toLowerCase();
+    // Avoid redundant updates if query hasn't actually changed.
+    if (query == _activeSearchQuery) return;
+    if (query.isEmpty) {
+      setState(() {
+        _searchResultIds = [];
+        _searchResultIndex = -1;
+        _activeSearchQuery = '';
+      });
+      return;
+    }
+    final chatState = context.read<ChatState>();
+    final matches = <String>[];
+    for (final msg in chatState.messages) {
+      if (msg.contentText.toLowerCase().contains(query)) {
+        matches.add(msg.msgId);
+      }
+    }
+    setState(() {
+      _activeSearchQuery = query;
+      _searchResultIds = matches;
+      _searchResultIndex = matches.isNotEmpty ? 0 : -1;
+    });
+    if (matches.isNotEmpty) {
+      _jumpToSearchResult(chatState, 0);
+    }
+  }
+
+  /// Navigate to the next search result (down = older messages).
+  void _searchNext() {
+    if (_searchResultIds.isEmpty) return;
+    final next = (_searchResultIndex + 1) % _searchResultIds.length;
+    setState(() => _searchResultIndex = next);
+    _jumpToSearchResult(context.read<ChatState>(), next);
+  }
+
+  /// Navigate to the previous search result (up = newer messages).
+  void _searchPrev() {
+    if (_searchResultIds.isEmpty) return;
+    final prev = (_searchResultIndex - 1 + _searchResultIds.length) %
+        _searchResultIds.length;
+    setState(() => _searchResultIndex = prev);
+    _jumpToSearchResult(context.read<ChatState>(), prev);
+  }
+
+  /// Scroll the message list so the search result at [index] is visible.
+  void _jumpToSearchResult(ChatState chatState, int index) {
+    if (index < 0 || index >= _searchResultIds.length) return;
+    final targetId = _searchResultIds[index];
+    // Find the message in the currently loaded list.
+    final msgIndex = chatState.messages.indexWhere((m) => m.msgId == targetId);
+    if (msgIndex < 0) return;
+    // The ListView is reversed (index 0 = newest = bottom). Estimate
+    // pixel position: each message row ~72px average. Jump to approximate
+    // position so the target is visible.
+    final target = chatState.messages[msgIndex];
+    chatState.jumpToMessage(target.timestamp);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0);
+      }
+    });
+  }
+
   /// Escape key handler — Telegram Desktop spec §8: cancels reply, edit,
   /// or selection in priority order (selection > edit > reply). Returns
   /// `handled` if anything was cancelled so the event doesn't bubble further.
@@ -627,6 +707,9 @@ class _ChatViewState extends State<ChatView> {
       setState(() {
         _isSearching = false;
         _searchController.clear();
+        _searchResultIds = [];
+        _searchResultIndex = -1;
+        _activeSearchQuery = '';
       });
       return KeyEventResult.handled;
     }
@@ -703,6 +786,9 @@ class _ChatViewState extends State<ChatView> {
               isSearching: _isSearching,
               searchController: _searchController,
               searchFocusNode: _searchFocusNode,
+              searchResultCount: _searchResultIds.length,
+              searchResultIndex: _searchResultIndex,
+              hasSearchQuery: _activeSearchQuery.isNotEmpty,
               onToggleSearch: () {
                 setState(() {
                   _isSearching = !_isSearching;
@@ -710,9 +796,15 @@ class _ChatViewState extends State<ChatView> {
                     _searchFocusNode.requestFocus();
                   } else {
                     _searchController.clear();
+                    _searchResultIds = [];
+                    _searchResultIndex = -1;
+                    _activeSearchQuery = '';
                   }
                 });
               },
+              onSearchPrev: _searchPrev,
+              onSearchNext: _searchNext,
+              onSearchChanged: (_) => _onSearchQueryChanged(),
             ),
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty)
@@ -755,6 +847,10 @@ class _ChatViewState extends State<ChatView> {
                   onContextMenu: _showMessageContextMenu,
                   onSenderTap: (senderId) => _showSenderProfile(context, chatState, senderId),
                   onReplyTap: (replyToId) => _jumpToReply(chatState, replyToId),
+                  searchHighlightId: _searchResultIndex >= 0 && _searchResultIndex < _searchResultIds.length
+                      ? _searchResultIds[_searchResultIndex]
+                      : null,
+                  searchQuery: _activeSearchQuery,
                 ),
                 // Scroll-to-bottom FAB (spec §5: JumpDownButton).
                 if (_showScrollToBottom)
@@ -900,6 +996,14 @@ class _ChatTopBar extends StatelessWidget {
   final VoidCallback? onToggleSearch;
   final TextEditingController? searchController;
   final FocusNode? searchFocusNode;
+  /// Spec §4.3: search results navigation state.
+  final int searchResultCount;
+  final int searchResultIndex;
+  /// True when a search query has been entered (to show counter/nav).
+  final bool hasSearchQuery;
+  final VoidCallback? onSearchPrev;
+  final VoidCallback? onSearchNext;
+  final ValueChanged<String>? onSearchChanged;
 
   const _ChatTopBar({
     required this.chat,
@@ -917,6 +1021,12 @@ class _ChatTopBar extends StatelessWidget {
     this.onToggleSearch,
     this.searchController,
     this.searchFocusNode,
+    this.searchResultCount = 0,
+    this.searchResultIndex = -1,
+    this.hasSearchQuery = false,
+    this.onSearchPrev,
+    this.onSearchNext,
+    this.onSearchChanged,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -1176,34 +1286,125 @@ class _ChatTopBar extends StatelessWidget {
             ),
           ),
           // Spec §4.3: when searching, replace title/subtitle with inline
-          // search text field. Otherwise show normal tappable title block.
+          // search text field + filter buttons + results navigation.
           if (isSearching)
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                child: TextField(
-                  controller: searchController,
-                  focusNode: searchFocusNode,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.normal,
-                    fontSize: 14,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Search',
-                    hintStyle: TextStyle(
-                      color: isDark
-                          ? const Color(0xFF6c7883)
-                          : const Color(0xFF999999),
-                      fontSize: 14,
+              child: Row(
+                children: [
+                  // Search text field fills available space.
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: TextField(
+                        controller: searchController,
+                        focusNode: searchFocusNode,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.normal,
+                          fontSize: 14,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Search',
+                          hintStyle: TextStyle(
+                            color: isDark
+                                ? const Color(0xFF6c7883)
+                                : const Color(0xFF999999),
+                            fontSize: 14,
+                          ),
+                          isDense: true,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 10,
+                            horizontal: 8,
+                          ),
+                        ),
+                        onChanged: onSearchChanged,
+                        onSubmitted: (_) => onSearchNext?.call(),
+                      ),
                     ),
-                    isDense: true,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 10,
-                      horizontal: 8,
-                    ),
                   ),
-                ),
+                  // Spec §4.3: when query is active, show results counter
+                  // and navigation arrows. When empty, show filter buttons.
+                  if (hasSearchQuery) ...[
+                    // Results counter text.
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Text(
+                        searchResultCount > 0
+                            ? '${searchResultIndex + 1} of $searchResultCount'
+                            : 'No results',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? const Color(0xFF6c7883)
+                              : const Color(0xFF999999),
+                        ),
+                      ),
+                    ),
+                    // Up arrow — previous (newer) result.
+                    SizedBox(
+                      width: 28,
+                      height: 54,
+                      child: IconButton(
+                        icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                        onPressed: searchResultCount > 0
+                            ? onSearchPrev
+                            : null,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        splashRadius: 14,
+                        color: isDark
+                            ? const Color(0xFF6c7883)
+                            : const Color(0xFF999999),
+                      ),
+                    ),
+                    // Down arrow — next (older) result.
+                    SizedBox(
+                      width: 28,
+                      height: 54,
+                      child: IconButton(
+                        icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                        onPressed: searchResultCount > 0
+                            ? onSearchNext
+                            : null,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        splashRadius: 14,
+                        color: isDark
+                            ? const Color(0xFF6c7883)
+                            : const Color(0xFF999999),
+                      ),
+                    ),
+                  ] else ...[
+                    // Spec §4.3: "jump to date" filter button (calendar icon).
+                    _TopBarButton(
+                      icon: Icons.calendar_today,
+                      onPressed: () {
+                        final ctx = searchFocusNode?.context;
+                        if (ctx == null) return;
+                        showDatePicker(
+                          context: ctx,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime(2013, 8),
+                          lastDate: DateTime.now(),
+                        ).then((date) {
+                          if (date == null) return;
+                          final chatState = ctx.read<ChatState>();
+                          chatState.jumpToMessage(date.millisecondsSinceEpoch);
+                        });
+                      },
+                    ),
+                    // Spec §4.3: "choose from user" filter button (person icon).
+                    if (chat.type == ChatType.group ||
+                        chat.type == ChatType.channel ||
+                        chat.type == ChatType.topic)
+                      _TopBarButton(
+                        icon: Icons.person_search,
+                        onPressed: () {
+                          // TODO: open user picker for "from user" filter
+                        },
+                      ),
+                  ],
+                ],
               ),
             )
           else
@@ -1443,6 +1644,10 @@ class _MessageList extends StatelessWidget {
   final void Function(String msgId, Offset position) onContextMenu;
   final ValueChanged<String>? onSenderTap;
   final ValueChanged<String>? onReplyTap;
+  /// Spec §4.3: ID of the currently highlighted search result message.
+  final String? searchHighlightId;
+  /// Spec §4.3: active search query for text highlighting within bubbles.
+  final String searchQuery;
 
   const _MessageList({
     required this.messages,
@@ -1457,6 +1662,8 @@ class _MessageList extends StatelessWidget {
     required this.onContextMenu,
     this.onSenderTap,
     this.onReplyTap,
+    this.searchHighlightId,
+    this.searchQuery = '',
   });
 
   @override
@@ -1502,6 +1709,7 @@ class _MessageList extends StatelessWidget {
 
         final isSelected = selectedIds.contains(msg.msgId);
         final inSelectionMode = selectedIds.isNotEmpty;
+        final isSearchHighlight = msg.msgId == searchHighlightId;
 
         return Column(
           children: [
@@ -1510,9 +1718,11 @@ class _MessageList extends StatelessWidget {
               onLongPress: () => onLongPress(msg.msgId),
               onTap: inSelectionMode ? () => onToggleSelect(msg.msgId) : null,
               child: Container(
-                color: isSelected
-                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
-                    : null,
+                color: isSearchHighlight
+                    ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                    : isSelected
+                        ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.15)
+                        : null,
                 child: Row(
                   children: [
                     if (inSelectionMode) ...[
