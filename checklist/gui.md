@@ -211,7 +211,6 @@
 - [x] Info toggle button (info_outline icon) — DONE in `_ChatTopBar`
 - [x] Menu toggle (more_vert) — DONE in `_ChatTopBar`
 - [x] Menu opens: Mute/Unmute, Mark Read/Unread, Pin, Archive, Leave — DONE in `_ChatTopBar._showTopBarMenu()`
-- [ ] Menu toggle: 44px width override, icon at `(16, 17)` — spec §4.3
 - [ ] Menu toggle additional items: New Window, View Profile, Clear History, Delete Chat — spec §4.3
 - [ ] Info toggle: active color `windowActiveTextFg` (blue) when info panel open — spec §4.3 (currently no active state on icon)
 - [ ] Call button: `top_bar_call` icon, 1:1 DMs only — spec §4.3 (not implemented)

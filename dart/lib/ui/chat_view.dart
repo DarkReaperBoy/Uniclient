@@ -777,12 +777,16 @@ class _TopBarButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
   final double width;
+  /// Optional padding inside the 40×40 ripple circle to offset the icon
+  /// from center. Used by menu toggle to place icon at spec position (16, 17).
+  final EdgeInsetsGeometry? iconPadding;
 
   const _TopBarButton({
     super.key,
     required this.icon,
     this.onPressed,
     this.width = 40,
+    this.iconPadding,
   });
 
   @override
@@ -805,7 +809,7 @@ class _TopBarButton extends StatelessWidget {
         child: IconButton(
           icon: Icon(icon, size: 20),
           onPressed: onPressed,
-          padding: EdgeInsets.zero,
+          padding: iconPadding ?? EdgeInsets.zero,
           constraints: const BoxConstraints(),
           style: ButtonStyle(
             fixedSize: const WidgetStatePropertyAll(Size(40, 40)),
@@ -1144,6 +1148,8 @@ class _ChatTopBar extends StatelessWidget {
             builder: (btnCtx) => _TopBarButton(
               key: moreVertKey,
               icon: Icons.more_vert,
+              width: 44,
+              iconPadding: const EdgeInsets.only(left: 8),
               onPressed: () => _showTopBarMenu(btnCtx, chat),
             ),
           ),
