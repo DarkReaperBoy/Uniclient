@@ -296,7 +296,6 @@
 ### §6.5 GIFs
 
 - [x] GIF indicator with GIF icon — spec §6, DONE in message_bubble.dart (GIF icon shown in play overlay)
-- [ ] GIF max inline area 1920×1080px — spec §6
 
 ### §6.6 Stickers
 

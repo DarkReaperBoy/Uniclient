@@ -1280,21 +1280,27 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
     final message = widget.message;
     final theme = widget.theme;
 
-    // Calculate display size (max 430x430 for photos/videos, 320px for GIFs — spec §6).
-    final double maxSize = message.mediaType == 7 ? 320 : 430;
-    double displayWidth = maxSize;
-    double displayHeight = maxSize * 287 / 430;
+    // Photos/videos: max 430×430. GIFs: 320px wide, 1080px tall (spec §6 max inline area 1920×1080).
+    final bool isGif = message.mediaType == 7;
+    final double maxW = isGif ? 320.0 : 430.0;
+    final double maxH = isGif ? 1080.0 : 430.0;
+    double displayWidth = maxW;
+    double displayHeight = maxW * 287.0 / 430.0;
     if (message.mediaWidth > 0 && message.mediaHeight > 0) {
       final aspect = message.mediaWidth / message.mediaHeight;
-      if (aspect > 1) {
-        displayWidth = maxSize;
-        displayHeight = maxSize / aspect;
+      if (aspect >= 1) {
+        displayWidth = maxW;
+        displayHeight = maxW / aspect;
       } else {
-        displayHeight = maxSize;
-        displayWidth = maxSize * aspect;
+        displayHeight = maxH;
+        displayWidth = maxH * aspect;
+        if (displayWidth > maxW) {
+          displayWidth = maxW;
+          displayHeight = maxW / aspect;
+        }
       }
-      displayWidth = displayWidth.clamp(100, maxSize);
-      displayHeight = displayHeight.clamp(100, maxSize);
+      displayWidth = displayWidth.clamp(100.0, maxW);
+      displayHeight = displayHeight.clamp(100.0, maxH);
     }
 
     // Sticker: smaller, no background.
