@@ -2134,6 +2134,7 @@ class _MessageList extends StatelessWidget {
                       isGroupChat: isGroupChat,
                       isSelected: isSelected,
                       inSelectionMode: inSelectionMode,
+                      allMessages: messages,
                       senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
                       onReply: () => onReply(msg.msgId),
                       onContextMenu: (pos) => onContextMenu(msg.msgId, pos),

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 
 import '../models/engine_models.dart';
 import '../theme/theme.dart';
+import 'media_viewer.dart';
 
 /// Single message bubble. Spec §5: max 430px, 16/6px radius, sender colors.
 class MessageBubble extends StatelessWidget {
@@ -22,6 +23,7 @@ class MessageBubble extends StatelessWidget {
   final ValueChanged<String>? onReplyTap;
   final bool isSelected;
   final bool inSelectionMode;
+  final List<CachedMessage> allMessages;
 
   const MessageBubble({
     super.key,
@@ -31,6 +33,7 @@ class MessageBubble extends StatelessWidget {
     this.isGroupChat = false,
     this.isSelected = false,
     this.inSelectionMode = false,
+    this.allMessages = const [],
     this.senderAvatarB64,
     this.onReply,
     this.onContextMenu,
@@ -278,6 +281,7 @@ class MessageBubble extends StatelessWidget {
                         showOverlayInfo: isMediaOnlyBubble,
                         isOutgoing: isOutgoing,
                         isDark: isDark,
+                        allMessages: allMessages,
                       ),
                     // Reactions row — pill badges above the timestamp.
                     if (message.reactions.isNotEmpty) ...[
@@ -675,6 +679,7 @@ class _MediaIndicator extends StatelessWidget {
   final bool showOverlayInfo;
   final bool isOutgoing;
   final bool isDark;
+  final List<CachedMessage> allMessages;
 
   const _MediaIndicator({
     required this.message,
@@ -682,6 +687,7 @@ class _MediaIndicator extends StatelessWidget {
     this.showOverlayInfo = false,
     this.isOutgoing = false,
     this.isDark = false,
+    this.allMessages = const [],
   });
 
   @override
@@ -694,6 +700,7 @@ class _MediaIndicator extends StatelessWidget {
         showOverlayInfo: showOverlayInfo,
         isOutgoing: isOutgoing,
         isDark: isDark,
+        allMessages: allMessages,
       );
     }
     // Voice message — duration bar.
@@ -729,6 +736,7 @@ class _VisualMedia extends StatefulWidget {
   final bool showOverlayInfo;
   final bool isOutgoing;
   final bool isDark;
+  final List<CachedMessage> allMessages;
 
   const _VisualMedia({
     required this.message,
@@ -736,6 +744,7 @@ class _VisualMedia extends StatefulWidget {
     this.showOverlayInfo = false,
     this.isOutgoing = false,
     this.isDark = false,
+    this.allMessages = const [],
   });
 
   static String _formatDuration(int seconds) {
@@ -837,7 +846,21 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
     final hasFullImage = message.mediaLocalPath.isNotEmpty;
     final hasThumb = _thumbBytes != null;
 
-    return Padding(
+    // §6/§20: tap opens media viewer for photo/video/gif (not sticker/videonote).
+    final canOpenViewer = (message.mediaType == 1 ||
+            message.mediaType == 2 ||
+            message.mediaType == 7) &&
+        message.mediaLocalPath.isNotEmpty;
+
+    return GestureDetector(
+      onTap: canOpenViewer
+          ? () => MediaViewer.open(
+                context,
+                message: message,
+                allMessages: widget.allMessages,
+              )
+          : null,
+      child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(message.mediaType == 6 ? 0 : 8),
@@ -993,6 +1016,7 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
           ),
         ),
       ),
+    ),
     );
   }
 
