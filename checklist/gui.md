@@ -211,8 +211,7 @@
 - [x] Info toggle button (info_outline icon) — DONE in `_ChatTopBar`
 - [x] Menu toggle (more_vert) — DONE in `_ChatTopBar`
 - [x] Menu opens: Mute/Unmute, Mark Read/Unread, Pin, Archive, Leave — DONE in `_ChatTopBar._showTopBarMenu()`
-- [ ] Search button: `top_bar_search` icon, toggles inline search — spec §4.3 (not implemented)
-- [ ] Inline search: text field replaces title, date/user filters — spec §4.3
+- [ ] Inline search: date/user filters, search results navigation — spec §4.3
 - [ ] Buttons flush (0-gap); `topBarSkip: -5px` pulls menu toggle tighter — spec §4.3
 - [ ] Disabled state: grayscale icon at 40% alpha, ripple disabled — spec §4.3
 

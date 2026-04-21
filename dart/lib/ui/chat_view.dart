@@ -105,6 +105,11 @@ class _ChatViewState extends State<ChatView> {
   String? _lastChatId;
   final Set<String> _selectedMsgIds = {};
   bool get _selectionMode => _selectedMsgIds.isNotEmpty;
+  /// Spec §4.3: when true, the top bar shows an inline search text field
+  /// instead of the title/subtitle. Toggled by the search button.
+  bool _isSearching = false;
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
   // GlobalKey attached to the top-bar more_vert IconButton so the Ctrl+\
   // keyboard shortcut (spec §24.4 `show_chat_menu`) can anchor the menu
   // at the same pixel position as clicking the button. The key is passed
@@ -158,6 +163,8 @@ class _ChatViewState extends State<ChatView> {
     }
     _composeController.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -183,15 +190,17 @@ class _ChatViewState extends State<ChatView> {
     final chatId = chatState.activeChat?.chatId;
     if (chatId != null && chatId != _lastChatId) {
       _lastChatId = chatId;
-      // Chat changed — cancel any in-progress edit/reply so stale state
-      // doesn't leak into the new chat's compose area.
-      if (_editingMsgId != null || _replyToId != null) {
+      // Chat changed — cancel any in-progress edit/reply/search so stale
+      // state doesn't leak into the new chat's compose area.
+      if (_editingMsgId != null || _replyToId != null || _isSearching) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           setState(() {
             _editingMsgId = null;
             _replyToId = null;
             _composeController.clear();
+            _isSearching = false;
+            _searchController.clear();
           });
         });
       }
@@ -614,6 +623,13 @@ class _ChatViewState extends State<ChatView> {
   /// or selection in priority order (selection > edit > reply). Returns
   /// `handled` if anything was cancelled so the event doesn't bubble further.
   KeyEventResult _handleEscape() {
+    if (_isSearching) {
+      setState(() {
+        _isSearching = false;
+        _searchController.clear();
+      });
+      return KeyEventResult.handled;
+    }
     if (_selectionMode) {
       setState(() => _selectedMsgIds.clear());
       return KeyEventResult.handled;
@@ -684,6 +700,19 @@ class _ChatViewState extends State<ChatView> {
               moreVertKey: _moreVertKey,
               hideDivider: widget.hideTopBarDivider,
               groupOnlineCount: chatState.groupOnlineCount,
+              isSearching: _isSearching,
+              searchController: _searchController,
+              searchFocusNode: _searchFocusNode,
+              onToggleSearch: () {
+                setState(() {
+                  _isSearching = !_isSearching;
+                  if (_isSearching) {
+                    _searchFocusNode.requestFocus();
+                  } else {
+                    _searchController.clear();
+                  }
+                });
+              },
             ),
           // Pinned message bar (if any pinned messages).
           if (chatState.pinnedMessages.isNotEmpty)
@@ -865,6 +894,13 @@ class _ChatTopBar extends StatelessWidget {
   /// (blue) instead of the default `menuIconFg`.
   final bool isInfoOpen;
 
+  /// Spec §4.3: search button state — when true, the title/subtitle area is
+  /// replaced with an inline search text field.
+  final bool isSearching;
+  final VoidCallback? onToggleSearch;
+  final TextEditingController? searchController;
+  final FocusNode? searchFocusNode;
+
   const _ChatTopBar({
     required this.chat,
     this.typingUser,
@@ -877,6 +913,10 @@ class _ChatTopBar extends StatelessWidget {
     this.hideDivider = false,
     this.groupOnlineCount = 0,
     this.isInfoOpen = false,
+    this.isSearching = false,
+    this.onToggleSearch,
+    this.searchController,
+    this.searchFocusNode,
   });
 
   /// Format a last-seen descriptor per Telegram Desktop spec §1.4 / §7588.
@@ -1135,73 +1175,112 @@ class _ChatTopBar extends StatelessWidget {
               ),
             ),
           ),
-          // Tappable title block — toggles info panel.
-          Expanded(
-            child: InkWell(
-              onTap: onToggleInfo,
-              borderRadius: BorderRadius.circular(6),
+          // Spec §4.3: when searching, replace title/subtitle with inline
+          // search text field. Otherwise show normal tappable title block.
+          if (isSearching)
+            Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            chat.title.isNotEmpty ? chat.title : chat.chatId,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleMedium,
-                          ),
-                        ),
-                        if (chat.isVerified) ...[
-                          const SizedBox(width: 4),
-                          const Icon(Icons.verified,
-                            size: 16,
-                            color: Color(0xFF168acd),
-                          ),
-                        ],
-                        if (chat.isScam) ...[
-                          const SizedBox(width: 4),
-                          _TopBarWarningBadge(label: 'SCAM'),
-                        ],
-                        if (chat.isFake) ...[
-                          const SizedBox(width: 4),
-                          _TopBarWarningBadge(label: 'FAKE'),
-                        ],
-                        if (chat.isMuted) ...[
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.volume_off,
-                            size: 16,
-                            color: theme.textTheme.bodySmall?.color,
-                          ),
-                        ],
-                      ],
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                child: TextField(
+                  controller: searchController,
+                  focusNode: searchFocusNode,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.normal,
+                    fontSize: 14,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search',
+                    hintStyle: TextStyle(
+                      color: isDark
+                          ? const Color(0xFF6c7883)
+                          : const Color(0xFF999999),
+                      fontSize: 14,
                     ),
-                    if (isTyping)
-                      _TopBarTypingDots(
-                        userName: typingUser!,
-                        color: subtitleColor ?? theme.colorScheme.primary,
-                      )
-                    else if (subtitle.isNotEmpty)
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          fontSize: 13, // dialogsTextFont = normalFont 13px
-                          color: subtitleColor,
-                        ),
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 8,
+                    ),
+                  ),
+                ),
+              ),
+            )
+          else
+            // Tappable title block — toggles info panel.
+            Expanded(
+              child: InkWell(
+                onTap: onToggleInfo,
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              chat.title.isNotEmpty ? chat.title : chat.chatId,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                          if (chat.isVerified) ...[
+                            const SizedBox(width: 4),
+                            const Icon(Icons.verified,
+                              size: 16,
+                              color: Color(0xFF168acd),
+                            ),
+                          ],
+                          if (chat.isScam) ...[
+                            const SizedBox(width: 4),
+                            _TopBarWarningBadge(label: 'SCAM'),
+                          ],
+                          if (chat.isFake) ...[
+                            const SizedBox(width: 4),
+                            _TopBarWarningBadge(label: 'FAKE'),
+                          ],
+                          if (chat.isMuted) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.volume_off,
+                              size: 16,
+                              color: theme.textTheme.bodySmall?.color,
+                            ),
+                          ],
+                        ],
                       ),
-                  ],
+                      if (isTyping)
+                        _TopBarTypingDots(
+                          userName: typingUser!,
+                          color: subtitleColor ?? theme.colorScheme.primary,
+                        )
+                      else if (subtitle.isNotEmpty)
+                        Text(
+                          subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontSize: 13, // dialogsTextFont = normalFont 13px
+                            color: subtitleColor,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
           // Spec §4.3: right-side buttons — shared 40×54 chrome.
+          // Per spec order (left to right): Search, GroupCall, Call, Info, Menu.
+          // Spec §4.3: Search button — top_bar_search icon, toggles inline search.
+          _TopBarButton(
+            icon: Icons.search,
+            onPressed: onToggleSearch,
+            isActive: isSearching,
+          ),
           // Spec §4.3: Call button — 1:1 DMs only, phone icon.
           // Right-click opens audio/video call submenu.
           if (chat.type == ChatType.dm)
