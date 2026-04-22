@@ -362,7 +362,6 @@
 
 ### §7.9 SendFilesBox
 
-- [ ] Send button: long-press opens send menu; paid peer overrides with price label — spec §7.7. Not implemented
 - [ ] Spoiler per-item via context menu; bulk via top-right 3-dots menu — spec §7.7. Not implemented
 
 ### §7.10 Autocomplete

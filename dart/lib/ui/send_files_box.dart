@@ -5,6 +5,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../models/engine_models.dart' show ChatType;
+
 const double _previewWidth = 308;
 const double _previewHeightMax = 1280;
 const double _rowSkip = 10;
@@ -13,6 +15,20 @@ const int _maxAlbumCount = 10;
 const double _thumbCornerRadius = 6;
 const double _fileThumbSize = 44;
 const double _fileThumbSkip = 11;
+
+class SendFilesResult {
+  final List<String> paths;
+  final String caption;
+  final bool silent;
+  final DateTime? scheduledDate;
+
+  const SendFilesResult({
+    required this.paths,
+    this.caption = '',
+    this.silent = false,
+    this.scheduledDate,
+  });
+}
 
 enum _FileType { photo, video, file }
 
@@ -32,20 +48,36 @@ class _PreparedFile {
   });
 }
 
-Future<List<String>?> showSendFilesBox(
+Future<SendFilesResult?> showSendFilesBox(
   BuildContext context, {
   required List<String> filePaths,
+  ChatType chatType = ChatType.dm,
+  bool isSelfChat = false,
+  int starsPerMessage = 0,
 }) {
-  return showDialog<List<String>>(
+  return showDialog<SendFilesResult>(
     context: context,
-    builder: (ctx) => _SendFilesBoxDialog(filePaths: filePaths),
+    builder: (ctx) => _SendFilesBoxDialog(
+      filePaths: filePaths,
+      chatType: chatType,
+      isSelfChat: isSelfChat,
+      starsPerMessage: starsPerMessage,
+    ),
   );
 }
 
 class _SendFilesBoxDialog extends StatefulWidget {
   final List<String> filePaths;
+  final ChatType chatType;
+  final bool isSelfChat;
+  final int starsPerMessage;
 
-  const _SendFilesBoxDialog({required this.filePaths});
+  const _SendFilesBoxDialog({
+    required this.filePaths,
+    this.chatType = ChatType.dm,
+    this.isSelfChat = false,
+    this.starsPerMessage = 0,
+  });
 
   @override
   State<_SendFilesBoxDialog> createState() => _SendFilesBoxDialogState();
@@ -125,8 +157,97 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     } catch (_) {}
   }
 
-  void _send() {
-    Navigator.of(context).pop(_resultPaths);
+  void _send({bool silent = false, DateTime? scheduledDate}) {
+    Navigator.of(context).pop(SendFilesResult(
+      paths: _resultPaths,
+      caption: _captionController.text,
+      silent: silent,
+      scheduledDate: scheduledDate,
+    ));
+  }
+
+  void _showSendMenu(BuildContext ctx, Offset position) {
+    final isDark = Theme.of(ctx).brightness == Brightness.dark;
+    final iconColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF707579);
+    final textColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF222222);
+    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+
+    showMenu<String>(
+      context: ctx,
+      position: RelativeRect.fromLTRB(position.dx, position.dy - 120, position.dx + 1, position.dy),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: menuBg,
+      elevation: 8,
+      items: [
+        if (!widget.isSelfChat)
+          PopupMenuItem<String>(
+            value: 'silent',
+            height: 40,
+            child: Row(
+              children: [
+                Icon(Icons.volume_off_outlined, size: 20, color: iconColor),
+                const SizedBox(width: 14),
+                Text('Send without Sound',
+                    style: TextStyle(fontSize: 14, color: textColor)),
+              ],
+            ),
+          ),
+        PopupMenuItem<String>(
+          value: 'schedule',
+          height: 40,
+          child: Row(
+            children: [
+              Icon(Icons.schedule_outlined, size: 20, color: iconColor),
+              const SizedBox(width: 14),
+              Text(widget.isSelfChat ? 'Set Reminder' : 'Schedule Message',
+                  style: TextStyle(fontSize: 14, color: textColor)),
+            ],
+          ),
+        ),
+        if (widget.chatType == ChatType.dm && !widget.isSelfChat)
+          PopupMenuItem<String>(
+            value: 'when_online',
+            height: 40,
+            child: Row(
+              children: [
+                Icon(Icons.person_outline, size: 20, color: iconColor),
+                const SizedBox(width: 14),
+                Text('Send When Online',
+                    style: TextStyle(fontSize: 14, color: textColor)),
+              ],
+            ),
+          ),
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'silent':
+          _send(silent: true);
+        case 'schedule':
+          _pickScheduleDate();
+        case 'when_online':
+          _send();
+      }
+    });
+  }
+
+  Future<void> _pickScheduleDate() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(minutes: 5))),
+    );
+    if (time == null || !mounted) return;
+    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (scheduled.isBefore(DateTime.now())) return;
+    _send(scheduledDate: scheduled);
   }
 
   @override
@@ -277,13 +398,12 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                     child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 4),
-                  TextButton(
-                    onPressed: _send,
-                    style: TextButton.styleFrom(
-                      foregroundColor: accentFg,
-                      textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                    child: const Text('Send'),
+                  _SendMenuButton(
+                    accentColor: accentFg,
+                    starsPerMessage: widget.starsPerMessage,
+                    fileCount: _files.length,
+                    onSend: _send,
+                    onShowMenu: _showSendMenu,
                   ),
                 ],
               ),
@@ -822,6 +942,57 @@ class _CheckboxRow extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SendMenuButton extends StatelessWidget {
+  final Color accentColor;
+  final int starsPerMessage;
+  final int fileCount;
+  final void Function({bool silent, DateTime? scheduledDate}) onSend;
+  final void Function(BuildContext ctx, Offset position) onShowMenu;
+
+  const _SendMenuButton({
+    required this.accentColor,
+    required this.starsPerMessage,
+    required this.fileCount,
+    required this.onSend,
+    required this.onShowMenu,
+  });
+
+  String get _label {
+    if (starsPerMessage > 0) {
+      final total = starsPerMessage * fileCount;
+      return '\u2B50 $total';
+    }
+    return 'Send';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(4),
+      onTap: () => onSend(),
+      onLongPress: () {
+        final box = context.findRenderObject() as RenderBox;
+        final pos = box.localToGlobal(Offset(box.size.width, 0));
+        onShowMenu(context, pos);
+      },
+      onSecondaryTapUp: (details) {
+        onShowMenu(context, details.globalPosition);
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          _label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: accentColor,
+          ),
         ),
       ),
     );

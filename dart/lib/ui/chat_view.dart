@@ -894,10 +894,17 @@ class _ChatViewState extends State<ChatView>
   }
 
   Future<void> _uploadFiles(ChatState chatState, List<String> paths) async {
-    final confirmed = await showSendFilesBox(context, filePaths: paths);
-    if (confirmed == null || confirmed.isEmpty) return;
-    for (final path in confirmed) {
-      chatState.uploadFile(path);
+    final chat = chatState.activeChat;
+    final result = await showSendFilesBox(
+      context,
+      filePaths: paths,
+      chatType: chat?.type ?? ChatType.dm,
+      isSelfChat: chat != null && chat.title == 'Saved Messages' && chat.type == ChatType.dm,
+      starsPerMessage: chat?.starsToSend ?? 0,
+    );
+    if (result == null || result.paths.isEmpty) return;
+    for (final path in result.paths) {
+      chatState.uploadFile(path, caption: result.caption);
     }
   }
 
