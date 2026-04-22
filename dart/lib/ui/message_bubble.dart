@@ -1929,16 +1929,23 @@ class _WebmStickerPlayerState extends State<_WebmStickerPlayer> {
   }
 }
 
-class _VoiceIndicator extends StatelessWidget {
+class _VoiceIndicator extends StatefulWidget {
   final CachedMessage message;
   final ThemeData theme;
 
   const _VoiceIndicator({required this.message, required this.theme});
 
   @override
+  State<_VoiceIndicator> createState() => _VoiceIndicatorState();
+}
+
+class _VoiceIndicatorState extends State<_VoiceIndicator> {
+  double? _hoverX;
+
+  @override
   Widget build(BuildContext context) {
-    final isOut = message.isOutgoing;
-    final waveform = message.mediaWaveform;
+    final isOut = widget.message.isOutgoing;
+    final waveform = widget.message.mediaWaveform;
     final hasWaveform = waveform.isNotEmpty;
 
     return Padding(
@@ -1950,10 +1957,10 @@ class _VoiceIndicator extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.15),
+              color: widget.theme.colorScheme.primary.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.play_arrow, size: 24, color: theme.colorScheme.primary),
+            child: Icon(Icons.play_arrow, size: 24, color: widget.theme.colorScheme.primary),
           ),
           const SizedBox(width: 8),
           Flexible(
@@ -1964,12 +1971,21 @@ class _VoiceIndicator extends StatelessWidget {
                 if (hasWaveform)
                   SizedBox(
                     height: 17,
-                    child: CustomPaint(
-                      size: const Size(double.infinity, 17),
-                      painter: _WaveformPainter(
-                        samples: waveform,
-                        isOutgoing: isOut,
-                        progress: 0.0,
+                    child: MouseRegion(
+                      onHover: (event) {
+                        setState(() { _hoverX = event.localPosition.dx; });
+                      },
+                      onExit: (_) {
+                        setState(() { _hoverX = null; });
+                      },
+                      child: CustomPaint(
+                        size: const Size(double.infinity, 17),
+                        painter: _WaveformPainter(
+                          samples: waveform,
+                          isOutgoing: isOut,
+                          progress: 0.0,
+                          hoverX: _hoverX,
+                        ),
                       ),
                     ),
                   )
@@ -1978,23 +1994,23 @@ class _VoiceIndicator extends StatelessWidget {
                     'Voice message',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium,
+                    style: widget.theme.textTheme.bodyMedium,
                   ),
                 const SizedBox(height: 2),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (message.mediaDuration > 0)
+                    if (widget.message.mediaDuration > 0)
                       Text(
-                        _VisualMedia._formatDuration(message.mediaDuration),
-                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                        _VisualMedia._formatDuration(widget.message.mediaDuration),
+                        style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
                       ),
-                    if (message.mediaDuration > 0 && message.mediaSizeLabel.isNotEmpty)
-                      Text(' · ', style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color)),
-                    if (message.mediaSizeLabel.isNotEmpty)
+                    if (widget.message.mediaDuration > 0 && widget.message.mediaSizeLabel.isNotEmpty)
+                      Text(' · ', style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color)),
+                    if (widget.message.mediaSizeLabel.isNotEmpty)
                       Text(
-                        message.mediaSizeLabel,
-                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                        widget.message.mediaSizeLabel,
+                        style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
                       ),
                   ],
                 ),
@@ -2011,6 +2027,7 @@ class _WaveformPainter extends CustomPainter {
   final List<int> samples;
   final bool isOutgoing;
   final double progress;
+  final double? hoverX;
 
   static const double _barWidth = 2.0;
   static const double _barGap = 1.0;
@@ -2026,6 +2043,7 @@ class _WaveformPainter extends CustomPainter {
     required this.samples,
     required this.isOutgoing,
     required this.progress,
+    this.hoverX,
   });
 
   @override
@@ -2044,6 +2062,13 @@ class _WaveformPainter extends CustomPainter {
     final unplayedPaint = Paint()
       ..color = isOutgoing ? _outboxUnplayed : _inboxUnplayed;
 
+    final hoverWidth = hoverX?.clamp(0.0, size.width).roundToDouble();
+    final Paint? hoverPaint = hoverWidth != null
+        ? (Paint()..color = (isOutgoing ? _outboxPlayed : _inboxPlayed).withValues(alpha: 0.30))
+        : null;
+    final double hoverMin = hoverWidth != null ? math.min(activeWidth, hoverWidth) : 0;
+    final double hoverMax = hoverWidth != null ? math.max(activeWidth, hoverWidth) : 0;
+
     for (int i = 0; i < barCount; i++) {
       final bucketStart = (i * bucketSize).floor();
       final bucketEnd = ((i + 1) * bucketSize).ceil().clamp(0, samples.length);
@@ -2055,18 +2080,16 @@ class _WaveformPainter extends CustomPainter {
       final barHeight = _minHeight + (peak / 31.0) * (_maxHeight - _minHeight);
       final x = i * barStep;
       final y = (_maxHeight - barHeight) / 2;
+      final rrect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, y, _barWidth, barHeight),
+        const Radius.circular(1),
+      );
 
       final barRight = x + _barWidth;
       if (barRight <= activeWidth) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromLTWH(x, y, _barWidth, barHeight), const Radius.circular(1)),
-          playedPaint,
-        );
+        canvas.drawRRect(rrect, playedPaint);
       } else if (x >= activeWidth) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(Rect.fromLTWH(x, y, _barWidth, barHeight), const Radius.circular(1)),
-          unplayedPaint,
-        );
+        canvas.drawRRect(rrect, unplayedPaint);
       } else {
         final splitAt = activeWidth - x;
         canvas.drawRRect(
@@ -2078,12 +2101,19 @@ class _WaveformPainter extends CustomPainter {
           unplayedPaint,
         );
       }
+
+      if (hoverPaint != null && barRight > hoverMin && x < hoverMax) {
+        canvas.drawRRect(rrect, hoverPaint);
+      }
     }
   }
 
   @override
   bool shouldRepaint(_WaveformPainter old) =>
-      old.progress != progress || old.isOutgoing != isOutgoing || old.samples != samples;
+      old.progress != progress ||
+      old.isOutgoing != isOutgoing ||
+      old.samples != samples ||
+      old.hoverX != hoverX;
 }
 
 /// Audio file indicator (music, podcast, etc.).
