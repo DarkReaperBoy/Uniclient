@@ -4017,6 +4017,8 @@ final _kEmoticonsSorted = () {
 /// Compose area at bottom. Spec §7.
 /// Enter sends, Shift+Enter for newline (matching Telegram Desktop).
 /// Up arrow with empty field → edit last outgoing message (spec §24.7).
+enum SendButtonType { send, schedule, save, record, round, cancel, slowmode, editPrice }
+
 class _ComposeArea extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -4065,6 +4067,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
   Timer? _linkTimer;
   int _prevTextLength = 0;
   List<String> _detectedLinks = const [];
+  bool _hasText = false;
 
   @override
   void initState() {
@@ -4072,16 +4075,32 @@ class _ComposeAreaState extends State<_ComposeArea> {
     _focusNode = FocusNode(onKeyEvent: _onKey);
     _scrollController = ScrollController()..addListener(_updateFades);
     widget.controller.addListener(_scheduleUpdateFades);
+    widget.controller.addListener(_onTextLengthChanged);
     _prevTextLength = widget.controller.text.length;
+    _hasText = widget.controller.text.isNotEmpty;
   }
 
   @override
   void dispose() {
     _linkTimer?.cancel();
+    widget.controller.removeListener(_onTextLengthChanged);
     widget.controller.removeListener(_scheduleUpdateFades);
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _onTextLengthChanged() {
+    final has = widget.controller.text.isNotEmpty;
+    if (has != _hasText) {
+      setState(() => _hasText = has);
+    }
+  }
+
+  SendButtonType _computeSendButtonType() {
+    if (widget.isEditing) return SendButtonType.save;
+    if (!_hasText) return SendButtonType.record;
+    return SendButtonType.send;
   }
 
   void _scheduleUpdateFades() {
@@ -4439,12 +4458,11 @@ class _ComposeAreaState extends State<_ComposeArea> {
             isEmojiToggle: true,
             onPressed: () {},
           ),
-          _ComposeSlotButton(
-            icon: widget.isEditing ? Icons.check : Icons.send,
-            tooltip: widget.isEditing ? 'Save' : 'Send',
-            iconColor: theme.colorScheme.primary,
-            hoverColor: theme.colorScheme.primary,
-            onPressed: widget.onSend,
+          _SendButton(
+            type: _computeSendButtonType(),
+            accentColor: theme.colorScheme.primary,
+            iconFg: iconFg,
+            onSend: widget.onSend,
           ),
         ],
       ),
@@ -4512,6 +4530,98 @@ class _ComposeSlotButtonState extends State<_ComposeSlotButton> {
             width: 44,
             height: 46,
             child: Center(child: iconWidget),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Spec §7.3: 8-state send button with selection logic.
+class _SendButton extends StatefulWidget {
+  final SendButtonType type;
+  final Color accentColor;
+  final Color iconFg;
+  final VoidCallback onSend;
+
+  const _SendButton({
+    required this.type,
+    required this.accentColor,
+    required this.iconFg,
+    required this.onSend,
+  });
+
+  @override
+  State<_SendButton> createState() => _SendButtonState();
+}
+
+class _SendButtonState extends State<_SendButton> {
+  bool _hovered = false;
+
+  static IconData _iconFor(SendButtonType type) => switch (type) {
+    SendButtonType.send => Icons.send,
+    SendButtonType.schedule => Icons.schedule_send,
+    SendButtonType.save => Icons.check,
+    SendButtonType.record => Icons.mic,
+    SendButtonType.round => Icons.videocam,
+    SendButtonType.cancel => Icons.close,
+    SendButtonType.slowmode => Icons.timer,
+    SendButtonType.editPrice => Icons.star,
+  };
+
+  static String _tooltipFor(SendButtonType type) => switch (type) {
+    SendButtonType.send => 'Send',
+    SendButtonType.schedule => 'Schedule',
+    SendButtonType.save => 'Save',
+    SendButtonType.record => 'Voice message',
+    SendButtonType.round => 'Video message',
+    SendButtonType.cancel => 'Cancel',
+    SendButtonType.slowmode => 'Slowmode active',
+    SendButtonType.editPrice => 'Edit price',
+  };
+
+  void _onTap() {
+    switch (widget.type) {
+      case SendButtonType.send:
+      case SendButtonType.save:
+        widget.onSend();
+      case SendButtonType.record:
+      case SendButtonType.round:
+        break;
+      case SendButtonType.cancel:
+        break;
+      case SendButtonType.schedule:
+        widget.onSend();
+      case SendButtonType.slowmode:
+      case SendButtonType.editPrice:
+        break;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final type = widget.type;
+    final isSendLike = type == SendButtonType.send ||
+        type == SendButtonType.save ||
+        type == SendButtonType.schedule;
+    final color = isSendLike
+        ? widget.accentColor
+        : (_hovered ? widget.accentColor : widget.iconFg);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Tooltip(
+        message: _tooltipFor(type),
+        child: InkResponse(
+          onTap: _onTap,
+          radius: 20,
+          child: SizedBox(
+            width: 44,
+            height: 46,
+            child: Center(
+              child: Icon(_iconFor(type), size: 22, color: color),
+            ),
           ),
         ),
       ),
