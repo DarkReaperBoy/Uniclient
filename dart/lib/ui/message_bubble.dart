@@ -2538,52 +2538,101 @@ class _FileIndicator extends StatelessWidget {
 
   const _FileIndicator({required this.message, required this.theme});
 
+  static String _middleTruncate(String name, int maxLen) {
+    if (name.length <= maxLen) return name;
+    final dotIdx = name.lastIndexOf('.');
+    if (dotIdx < 0) {
+      return '${name.substring(0, maxLen - 3)}…';
+    }
+    final ext = name.substring(dotIdx);
+    final stem = name.substring(0, dotIdx);
+    final available = maxLen - ext.length - 1;
+    if (available < 4) return '${name.substring(0, maxLen - 3)}…';
+    final half = available ~/ 2;
+    return '${stem.substring(0, half)}…${stem.substring(stem.length - (available - half))}$ext';
+  }
+
+  IconData _stateIcon() {
+    switch (message.mediaDownloadState) {
+      case 1: return Icons.close;
+      case 2: return Icons.play_arrow;
+      default: return Icons.arrow_downward;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final fileName = message.mediaFileName.isNotEmpty ? message.mediaFileName : 'File';
     final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : '';
+    final displayName = _middleTruncate(fileName, 32);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.insert_drive_file, size: 18, color: theme.colorScheme.primary),
-                if (ext.isNotEmpty && ext.length <= 4)
-                  Text(ext, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fileName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                if (message.mediaSizeLabel.isNotEmpty)
-                  Text(
-                    message.mediaSizeLabel,
-                    style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+      child: SizedBox(
+        height: 44,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.insert_drive_file, size: 20, color: theme.colorScheme.primary),
+                      if (ext.isNotEmpty && ext.length <= 4)
+                        Text(ext, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+                    ],
                   ),
-              ],
+                  Positioned(
+                    right: 2,
+                    bottom: 2,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(_stateIcon(), size: 10, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(width: 11),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 0),
+                    child: Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  if (message.mediaSizeLabel.isNotEmpty)
+                    Text(
+                      message.mediaSizeLabel,
+                      style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -315,8 +315,7 @@
 
 ### §6.9 Files/Documents
 
-- [x] File indicator: 40px icon left, filename + file size, extension badge — spec §6, DONE in message_bubble.dart (_FileIndicator). Icon 40px (spec says 44px), gap 8px (spec 11px), vertical positioning differs from spec (name at 12px, status at 34px)
-- [ ] Fix to 44px icon, 11px gap, middle-truncated filename, icon state variants (download arrow, cancel X, play triangle) — spec §6
+- [x] File indicator: 44px icon left, 11px gap, middle-truncated filename, file size, extension badge, icon state variants (download arrow, cancel X, play triangle) — spec §6, DONE in message_bubble.dart (_FileIndicator)
 - [ ] Click to download/open file — spec §6. Not implemented
 
 ### §6.10 Audio/Music
