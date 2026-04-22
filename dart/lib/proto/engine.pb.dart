@@ -8106,5 +8106,133 @@ class EngineTranscribeAudioResponse extends $pb.GeneratedMessage {
 }
 
 
+class EngineGetAttachMenuBotsRequest extends $pb.GeneratedMessage {
+  factory EngineGetAttachMenuBotsRequest({
+    $core.String? accountId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    return $result;
+  }
+  EngineGetAttachMenuBotsRequest._() : super();
+  factory EngineGetAttachMenuBotsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetAttachMenuBotsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetAttachMenuBotsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetAttachMenuBotsRequest clone() => EngineGetAttachMenuBotsRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetAttachMenuBotsRequest copyWith(void Function(EngineGetAttachMenuBotsRequest) updates) => super.copyWith((message) => updates(message as EngineGetAttachMenuBotsRequest)) as EngineGetAttachMenuBotsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetAttachMenuBotsRequest create() => EngineGetAttachMenuBotsRequest._();
+  EngineGetAttachMenuBotsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetAttachMenuBotsRequest> createRepeated() => $pb.PbList<EngineGetAttachMenuBotsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetAttachMenuBotsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetAttachMenuBotsRequest>(create);
+  static EngineGetAttachMenuBotsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+}
+
+class EngineAttachMenuBotInfo extends $pb.GeneratedMessage {
+  factory EngineAttachMenuBotInfo({
+    $fixnum.Int64? botId,
+    $core.String? shortName,
+    $core.bool? inactive,
+  }) {
+    final $result = create();
+    if (botId != null) $result.botId = botId;
+    if (shortName != null) $result.shortName = shortName;
+    if (inactive != null) $result.inactive = inactive;
+    return $result;
+  }
+  EngineAttachMenuBotInfo._() : super();
+  factory EngineAttachMenuBotInfo.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineAttachMenuBotInfo.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineAttachMenuBotInfo', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'botId')
+    ..aOS(2, _omitFieldNames ? '' : 'shortName')
+    ..aOB(3, _omitFieldNames ? '' : 'inactive')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineAttachMenuBotInfo clone() => EngineAttachMenuBotInfo()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineAttachMenuBotInfo copyWith(void Function(EngineAttachMenuBotInfo) updates) => super.copyWith((message) => updates(message as EngineAttachMenuBotInfo)) as EngineAttachMenuBotInfo;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineAttachMenuBotInfo create() => EngineAttachMenuBotInfo._();
+  EngineAttachMenuBotInfo createEmptyInstance() => create();
+  static $pb.PbList<EngineAttachMenuBotInfo> createRepeated() => $pb.PbList<EngineAttachMenuBotInfo>();
+  @$core.pragma('dart2js:noInline')
+  static EngineAttachMenuBotInfo getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineAttachMenuBotInfo>(create);
+  static EngineAttachMenuBotInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get botId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set botId($fixnum.Int64 v) { $_setInt64(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get shortName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set shortName($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.bool get inactive => $_getBF(2);
+  @$pb.TagNumber(3)
+  set inactive($core.bool v) { $_setBool(2, v); }
+}
+
+class EngineGetAttachMenuBotsResponse extends $pb.GeneratedMessage {
+  factory EngineGetAttachMenuBotsResponse({
+    $core.Iterable<EngineAttachMenuBotInfo>? bots,
+  }) {
+    final $result = create();
+    if (bots != null) $result.bots.addAll(bots);
+    return $result;
+  }
+  EngineGetAttachMenuBotsResponse._() : super();
+  factory EngineGetAttachMenuBotsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetAttachMenuBotsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetAttachMenuBotsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineAttachMenuBotInfo>(1, _omitFieldNames ? '' : 'bots', $pb.PbFieldType.PM, subBuilder: EngineAttachMenuBotInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetAttachMenuBotsResponse clone() => EngineGetAttachMenuBotsResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetAttachMenuBotsResponse copyWith(void Function(EngineGetAttachMenuBotsResponse) updates) => super.copyWith((message) => updates(message as EngineGetAttachMenuBotsResponse)) as EngineGetAttachMenuBotsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetAttachMenuBotsResponse create() => EngineGetAttachMenuBotsResponse._();
+  EngineGetAttachMenuBotsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetAttachMenuBotsResponse> createRepeated() => $pb.PbList<EngineGetAttachMenuBotsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetAttachMenuBotsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetAttachMenuBotsResponse>(create);
+  static EngineGetAttachMenuBotsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineAttachMenuBotInfo> get bots => $_getList(0);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

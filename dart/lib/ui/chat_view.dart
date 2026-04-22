@@ -3,11 +3,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
+import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'chat_list_row.dart' show ForwardDragData;
@@ -787,6 +790,12 @@ class _ChatViewState extends State<ChatView>
     _scrollToBottom();
   }
 
+  void _uploadFiles(ChatState chatState, List<String> paths) {
+    for (final path in paths) {
+      chatState.uploadFile(path);
+    }
+  }
+
   /// Up-arrow-to-edit-last-message — Telegram Desktop spec §24.7: when the
   /// compose field is empty and no edit/reply is active, pressing Up enters
   /// edit mode on the newest outgoing message. `_messages` is newest-first
@@ -1284,6 +1293,7 @@ class _ChatViewState extends State<ChatView>
             onLinksDetected: (links) {
               setState(() => _detectedLinks = links);
             },
+            onFilesSelected: (paths) => _uploadFiles(chatState, paths),
           ),
         ],
       ),
@@ -4021,6 +4031,7 @@ class _ComposeArea extends StatefulWidget {
   /// event was consumed.
   final bool Function(int direction)? onCycleReply;
   final ValueChanged<List<String>>? onLinksDetected;
+  final ValueChanged<List<String>>? onFilesSelected;
 
   const _ComposeArea({
     required this.controller,
@@ -4031,6 +4042,7 @@ class _ComposeArea extends StatefulWidget {
     this.onEditLast,
     this.onCycleReply,
     this.onLinksDetected,
+    this.onFilesSelected,
   });
 
   @override
@@ -4204,6 +4216,93 @@ class _ComposeAreaState extends State<_ComposeArea> {
     }
   }
 
+  Future<void> _pickFiles() async {
+    debugPrint('ATTACH: _pickFiles called');
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+      );
+      debugPrint('ATTACH: result=$result');
+      if (result == null || result.files.isEmpty) return;
+      final paths = result.files
+          .where((f) => f.path != null)
+          .map((f) => f.path!)
+          .toList();
+      debugPrint('ATTACH: picked ${paths.length} files: $paths');
+      if (paths.isNotEmpty) {
+        widget.onFilesSelected?.call(paths);
+      }
+    } catch (e) {
+      debugPrint('ATTACH: error=$e');
+    }
+  }
+
+  List<AttachMenuBotInfo>? _cachedAttachBots;
+  bool _attachBotsFetched = false;
+
+  Future<void> _onAttachPressed() async {
+    final engine = context.read<EngineService>();
+    final accountId = context.read<AppState>().activeAccountId;
+
+    if (!_attachBotsFetched) {
+      _cachedAttachBots = await engine.getAttachMenuBots(accountId);
+      _attachBotsFetched = true;
+    }
+
+    final bots = _cachedAttachBots;
+    if (bots == null || bots.isEmpty) {
+      _pickFiles();
+      return;
+    }
+
+    if (!mounted) return;
+    final button = _attachButtonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (button == null) {
+      _pickFiles();
+      return;
+    }
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final menuBg = isDark ? const Color(0xFF17212B) : Colors.white;
+    final menuFg = isDark ? Colors.white : Colors.black87;
+
+    final selected = await showMenu<int>(
+      context: context,
+      position: position,
+      color: menuBg,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      items: [
+        PopupMenuItem<int>(
+          value: -1,
+          child: Text('Default', style: TextStyle(color: menuFg, fontWeight: FontWeight.w500)),
+        ),
+        ...bots.asMap().entries.map((e) => PopupMenuItem<int>(
+          value: e.key,
+          child: Text(e.value.shortName, style: TextStyle(color: menuFg)),
+        )),
+      ],
+    );
+
+    if (selected == null) return;
+    if (selected == -1) {
+      _pickFiles();
+    } else {
+      final bot = bots[selected];
+      final chatState = context.read<ChatState>();
+      chatState.openChatById(bot.botId.toString());
+    }
+  }
+
+  final GlobalKey _attachButtonKey = GlobalKey();
+
   static bool _listEquals(List<String> a, List<String> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
@@ -4321,12 +4420,15 @@ class _ComposeAreaState extends State<_ComposeArea> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _ComposeSlotButton(
+          KeyedSubtree(
+            key: _attachButtonKey,
+            child: _ComposeSlotButton(
             icon: Icons.attach_file,
             tooltip: 'Attach file',
             iconColor: iconFg,
             hoverColor: iconFgOver,
-            onPressed: () {},
+            onPressed: _onAttachPressed,
+          ),
           ),
           Expanded(child: field),
           _ComposeSlotButton(

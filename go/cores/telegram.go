@@ -15339,6 +15339,25 @@ func (t *TelegramCore) MessagesGetAttachMenuBots(hash int64) (tg.AttachMenuBotsC
 	return t.api.MessagesGetAttachMenuBots(t.ctx, hash)
 }
 
+func (t *TelegramCore) GetAttachMenuBots() ([]AttachMenuBotInfo, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.MessagesGetAttachMenuBots(t.ctx, 0)
+	if err != nil { return nil, err }
+	bots, ok := result.(*tg.AttachMenuBots)
+	if !ok { return nil, nil }
+	var out []AttachMenuBotInfo
+	for _, b := range bots.Bots {
+		if !b.ShowInAttachMenu { continue }
+		out = append(out, AttachMenuBotInfo{
+			BotID:     b.BotID,
+			ShortName: b.ShortName,
+			Inactive:  b.Inactive,
+		})
+	}
+	return out, nil
+}
+
 // MessagesGetAvailableEffects returns available message effects.
 func (t *TelegramCore) MessagesGetAvailableEffects(hash int) (tg.MessagesAvailableEffectsClass, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

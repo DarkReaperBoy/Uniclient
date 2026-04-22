@@ -349,6 +349,25 @@ class EngineService {
     }
   }
 
+  // ── Attach menu bots ──
+
+  Future<List<AttachMenuBotInfo>> getAttachMenuBots(String accountId) async {
+    final req = epb.EngineGetAttachMenuBotsRequest()..accountId = accountId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetAttachMenuBots', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetAttachMenuBotsResponse.fromBuffer(respBytes);
+      return resp.bots.map((b) => AttachMenuBotInfo(
+        botId: b.botId.toInt(),
+        shortName: b.shortName,
+        inactive: b.inactive,
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getAttachMenuBots failed', e);
+      return [];
+    }
+  }
+
   // ── Group calls ──
 
   /// Get active group call info for a chat, or null if no active call.

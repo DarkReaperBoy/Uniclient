@@ -6271,6 +6271,154 @@ func (x *EngineTranscribeAudioResponse) GetText() string {
 	return ""
 }
 
+type EngineGetAttachMenuBotsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetAttachMenuBotsRequest) Reset() {
+	*x = EngineGetAttachMenuBotsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[95]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetAttachMenuBotsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetAttachMenuBotsRequest) ProtoMessage() {}
+
+func (x *EngineGetAttachMenuBotsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[95]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetAttachMenuBotsRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetAttachMenuBotsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{95}
+}
+
+func (x *EngineGetAttachMenuBotsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+type EngineAttachMenuBotInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	BotId         int64                  `protobuf:"varint,1,opt,name=bot_id,json=botId,proto3" json:"bot_id,omitempty"`
+	ShortName     string                 `protobuf:"bytes,2,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"` // display name in attach menu
+	Inactive      bool                   `protobuf:"varint,3,opt,name=inactive,proto3" json:"inactive,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineAttachMenuBotInfo) Reset() {
+	*x = EngineAttachMenuBotInfo{}
+	mi := &file_proto_engine_proto_msgTypes[96]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineAttachMenuBotInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineAttachMenuBotInfo) ProtoMessage() {}
+
+func (x *EngineAttachMenuBotInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[96]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineAttachMenuBotInfo.ProtoReflect.Descriptor instead.
+func (*EngineAttachMenuBotInfo) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{96}
+}
+
+func (x *EngineAttachMenuBotInfo) GetBotId() int64 {
+	if x != nil {
+		return x.BotId
+	}
+	return 0
+}
+
+func (x *EngineAttachMenuBotInfo) GetShortName() string {
+	if x != nil {
+		return x.ShortName
+	}
+	return ""
+}
+
+func (x *EngineAttachMenuBotInfo) GetInactive() bool {
+	if x != nil {
+		return x.Inactive
+	}
+	return false
+}
+
+type EngineGetAttachMenuBotsResponse struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Bots          []*EngineAttachMenuBotInfo `protobuf:"bytes,1,rep,name=bots,proto3" json:"bots,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetAttachMenuBotsResponse) Reset() {
+	*x = EngineGetAttachMenuBotsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[97]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetAttachMenuBotsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetAttachMenuBotsResponse) ProtoMessage() {}
+
+func (x *EngineGetAttachMenuBotsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[97]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetAttachMenuBotsResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetAttachMenuBotsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{97}
+}
+
+func (x *EngineGetAttachMenuBotsResponse) GetBots() []*EngineAttachMenuBotInfo {
+	if x != nil {
+		return x.Bots
+	}
+	return nil
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -6833,7 +6981,17 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x1dEngineTranscribeAudioResponse\x12\x18\n" +
 	"\apending\x18\x01 \x01(\bR\apending\x12)\n" +
 	"\x10transcription_id\x18\x02 \x01(\x03R\x0ftranscriptionId\x12\x12\n" +
-	"\x04text\x18\x03 \x01(\tR\x04textB\x11Z\x0funiclient/protob\x06proto3"
+	"\x04text\x18\x03 \x01(\tR\x04text\"?\n" +
+	"\x1eEngineGetAttachMenuBotsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"k\n" +
+	"\x17EngineAttachMenuBotInfo\x12\x15\n" +
+	"\x06bot_id\x18\x01 \x01(\x03R\x05botId\x12\x1d\n" +
+	"\n" +
+	"short_name\x18\x02 \x01(\tR\tshortName\x12\x1a\n" +
+	"\binactive\x18\x03 \x01(\bR\binactive\"Y\n" +
+	"\x1fEngineGetAttachMenuBotsResponse\x126\n" +
+	"\x04bots\x18\x01 \x03(\v2\".uniclient.EngineAttachMenuBotInfoR\x04botsB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -6847,7 +7005,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 95)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 98)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -6944,6 +7102,9 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetStickerSetInfoResponse)(nil), // 92: uniclient.EngineGetStickerSetInfoResponse
 	(*EngineTranscribeAudioRequest)(nil),    // 93: uniclient.EngineTranscribeAudioRequest
 	(*EngineTranscribeAudioResponse)(nil),   // 94: uniclient.EngineTranscribeAudioResponse
+	(*EngineGetAttachMenuBotsRequest)(nil),  // 95: uniclient.EngineGetAttachMenuBotsRequest
+	(*EngineAttachMenuBotInfo)(nil),         // 96: uniclient.EngineAttachMenuBotInfo
+	(*EngineGetAttachMenuBotsResponse)(nil), // 97: uniclient.EngineGetAttachMenuBotsResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -6965,11 +7126,12 @@ var file_proto_engine_proto_depIdxs = []int32{
 	81, // 16: uniclient.EngineGetGroupCallResponse.group_call:type_name -> uniclient.EngineGroupCallInfo
 	87, // 17: uniclient.EngineGetPeerColorsResponse.colors:type_name -> uniclient.EnginePeerColorEntry
 	91, // 18: uniclient.EngineGetStickerSetInfoResponse.stickers:type_name -> uniclient.EngineStickerInfo
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	96, // 19: uniclient.EngineGetAttachMenuBotsResponse.bots:type_name -> uniclient.EngineAttachMenuBotInfo
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -6983,7 +7145,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   95,
+			NumMessages:   98,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

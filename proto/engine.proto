@@ -749,3 +749,21 @@ message EngineTranscribeAudioResponse {
   int64  transcription_id  = 2;
   string text              = 3;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Attach Menu Bots (for compose attach-bots popup)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetAttachMenuBotsRequest {
+  string account_id = 1;
+}
+
+message EngineAttachMenuBotInfo {
+  int64  bot_id     = 1;
+  string short_name = 2;  // display name in attach menu
+  bool   inactive   = 3;
+}
+
+message EngineGetAttachMenuBotsResponse {
+  repeated EngineAttachMenuBotInfo bots = 1;
+}

@@ -1246,6 +1246,18 @@ class StickerInfoItem {
   });
 }
 
+class AttachMenuBotInfo {
+  final int botId;
+  final String shortName;
+  final bool inactive;
+
+  const AttachMenuBotInfo({
+    this.botId = 0,
+    this.shortName = '',
+    this.inactive = false,
+  });
+}
+
 class StickerSetInfo {
   final String title;
   final String shortName;

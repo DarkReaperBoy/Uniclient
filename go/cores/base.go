@@ -271,6 +271,12 @@ type StickerSetResult struct {
 	Stickers  []StickerInfo `json:"stickers"`
 }
 
+type AttachMenuBotInfo struct {
+	BotID     int64  `json:"bot_id"`
+	ShortName string `json:"short_name"`
+	Inactive  bool   `json:"inactive"`
+}
+
 // ReadState tracks the last-read message positions for the current user and peers.
 type ReadState struct {
 	MyLastRead   string            `json:"my_last_read"`

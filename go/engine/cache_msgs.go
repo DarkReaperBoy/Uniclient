@@ -862,3 +862,22 @@ func (e *Engine) TranscribeAudio(accountID, chatID, msgID string) (bool, int64, 
 	}
 	return transcriber.TranscribeAudio(chatID, msgID)
 }
+
+type AttachMenuBotsFetcher interface {
+	GetAttachMenuBots() ([]cores.AttachMenuBotInfo, error)
+}
+
+func (e *Engine) GetAttachMenuBots(accountID string) ([]cores.AttachMenuBotInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(AttachMenuBotsFetcher)
+	if !ok {
+		return nil, nil
+	}
+	return fetcher.GetAttachMenuBots()
+}

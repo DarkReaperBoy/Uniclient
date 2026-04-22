@@ -355,6 +355,14 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void openChatById(String chatId) {
+    final chat = _chats.firstWhere(
+      (c) => c.chatId == chatId,
+      orElse: () => _chats.first,
+    );
+    if (chat.chatId == chatId) openChat(chat);
+  }
+
   /// Select a channel/topic within the active topic-type group.
   /// Pass null to deselect (show default/all).
   void setActiveChannel(String? channelId) {
@@ -401,6 +409,14 @@ class ChatState extends ChangeNotifier {
     _refreshMessages();
 
     return localId;
+  }
+
+  Future<String?> uploadFile(String filePath, {String caption = ''}) async {
+    final chat = _activeChat;
+    if (chat == null) return null;
+    final msgId = await _engine.uploadFile(chat.accountId, chat.chatId, filePath, caption: caption);
+    _refreshMessages();
+    return msgId;
   }
 
   Future<void> editMessage(String msgId, String newText, {String entities = ''}) async {

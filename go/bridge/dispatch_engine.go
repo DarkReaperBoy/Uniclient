@@ -816,6 +816,25 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			Text:            text,
 		})
 
+	case "GetAttachMenuBots":
+		var req pb.EngineGetAttachMenuBotsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		bots, err := e.GetAttachMenuBots(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetAttachMenuBotsResponse{}
+		for _, b := range bots {
+			resp.Bots = append(resp.Bots, &pb.EngineAttachMenuBotInfo{
+				BotId:     b.BotID,
+				ShortName: b.ShortName,
+				Inactive:  b.Inactive,
+			})
+		}
+		return proto.Marshal(resp)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

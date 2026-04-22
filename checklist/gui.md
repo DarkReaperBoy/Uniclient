@@ -343,8 +343,6 @@
 
 ### §7.3 Attachment Button
 
-- [ ] Attach-bots menu on hover/click if user has registered bots; first entry ("Default") falls through to native picker — spec §7.2. Not implemented
-
 ### §7.4 Send Button States & Morph
 
 - [x] Send button with icon switch: check/save while editing — spec §7.3, DONE in chat_view.dart. Basic edit→save state only
