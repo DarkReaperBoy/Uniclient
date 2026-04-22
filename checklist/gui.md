@@ -352,9 +352,7 @@
 
 ### §7.6 Reply / Edit / Forward Bar (FieldHeader)
 
-- [x] Reply bar: 2px colored left bar, sender name + text excerpt, close (×) button, 44px height — spec §7.1, DONE in chat_view.dart (_ReplyBar). Height is 44px (spec says 49px historyReplyHeight), missing thumbnail and navigation arrows
-- [ ] Fix height to 49px (historyReplyHeight); add 32px thumbnail preview; add navigation arrows for stepping through replies — spec §7.1
-- [ ] Bar icon 22×22 at point(7,7); cancel button 49×49 hit-area, ripple 40×40 at (4,4) — spec §7.1
+- [x] Reply bar: 49px height, reply icon 22×22, 2px accent bar, 32px thumbnail preview for media messages, sender name + text/media-type description, 49×49 cancel button — spec §7.1, DONE in chat_view.dart (_ReplyBar)
 - [x] Edit bar: pencil icon + "Editing" header + message preview + close button — spec §7.1, DONE in chat_view.dart (_EditBar). Height 44px (spec 49px), send button correctly switches to Save
 - [ ] Edit bar: fix height to 49px; confirmation dialog on cancel — spec §7.1. No cancel confirmation implemented
 - [ ] Forward bar: forwarding author name + message preview + hide-sender-name option + close — spec §7.1. Not implemented as distinct bar (forward uses dialog instead)

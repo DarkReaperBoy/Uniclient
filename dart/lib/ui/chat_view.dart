@@ -2442,7 +2442,8 @@ class _UnreadBar extends StatelessWidget {
   }
 }
 
-/// Reply preview bar above compose.
+/// Reply preview bar above compose — Telegram Desktop FieldHeader style.
+/// 49px height, reply icon at (7,7), optional 32px thumbnail, cancel button.
 class _ReplyBar extends StatelessWidget {
   final String replyId;
   final List<CachedMessage> messages;
@@ -2457,51 +2458,124 @@ class _ReplyBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final msg = messages.where((m) => m.msgId == replyId).firstOrNull;
+    final hasThumb = msg != null && msg.mediaThumbB64.isNotEmpty;
+
+    final titleColor = isDark ? const Color(0xFF429BDB) : theme.colorScheme.primary;
+    final descColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+    final cancelColor = isDark ? const Color(0xFF6C7883) : const Color(0xFFA0ACB6);
 
     return Container(
-      height: 44,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          top: BorderSide(color: theme.dividerColor, width: 1),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 49,
+      color: theme.colorScheme.surface,
       child: Row(
         children: [
-          Container(width: 2, height: 28, color: theme.colorScheme.primary),
+          // Reply icon at point(7,7), 22×22.
+          Padding(
+            padding: const EdgeInsets.only(left: 7, top: 7),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Icon(Icons.reply, size: 22, color: titleColor),
+            ),
+          ),
+          // Spacer to reach historyReplySkip (53px) minus icon area.
+          const SizedBox(width: 24),
+          // 2px accent bar, 36px tall.
+          Container(width: 2, height: 36, color: titleColor),
           const SizedBox(width: 10),
+          // Optional 32×32 thumbnail.
+          if (hasThumb) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: _buildThumb(msg!),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          // Title + description text block.
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   msg?.senderName ?? 'Reply',
                   maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.primary,
+                    height: 1.25,
+                    color: titleColor,
                   ),
                 ),
                 Text(
-                  msg?.contentText ?? '',
+                  _descriptionText(msg),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.25,
+                    color: descColor.withValues(alpha: 0.7),
+                  ),
                 ),
               ],
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            onPressed: onCancel,
+          // Cancel (X) button — 49×49 hit area.
+          SizedBox(
+            width: 49,
+            height: 49,
+            child: IconButton(
+              onPressed: onCancel,
+              icon: Icon(Icons.close, size: 18, color: cancelColor),
+              splashRadius: 20,
+              padding: EdgeInsets.zero,
+            ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildThumb(CachedMessage msg) {
+    if (msg.mediaThumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(msg.mediaThumbB64);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          width: 32,
+          height: 32,
+          gaplessPlayback: true,
+        );
+      } catch (_) {}
+    }
+    return Container(
+      color: Colors.grey.withValues(alpha: 0.3),
+      child: const Icon(Icons.image, size: 16, color: Colors.grey),
+    );
+  }
+
+  String _descriptionText(CachedMessage? msg) {
+    if (msg == null) return '';
+    if (msg.contentText.isNotEmpty) return msg.contentText;
+    switch (msg.mediaType) {
+      case 1: return 'Photo';
+      case 2: return 'Video';
+      case 3: return 'Audio';
+      case 4: return 'Voice message';
+      case 5: return 'Video message';
+      case 6: return 'Sticker';
+      case 7: return 'GIF';
+      case 8: return 'File';
+      default: return '';
+    }
   }
 }
 
