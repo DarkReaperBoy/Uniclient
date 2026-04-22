@@ -982,6 +982,7 @@ class EngineService {
       mediaHeight: p.mediaHeight,
       mediaDuration: p.mediaDuration,
       mediaDownloadState: p.mediaDownloadState,
+      mediaWaveform: _waveformFromRaw(contentRaw),
       reactions: _reactionsFromRaw(contentRaw),
       topicId: _topicFieldFromRaw(contentRaw, 'topic_id') ?? '',
       topicName: _topicFieldFromRaw(contentRaw, 'topic_name') ?? '',
@@ -1046,6 +1047,38 @@ class EngineService {
       return 0;
     } catch (_) {
       return 0;
+    }
+  }
+
+  static List<int> _waveformFromRaw(String contentRaw) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"waveform"')) return const [];
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return const [];
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return const [];
+      final wfB64 = extra['waveform'];
+      if (wfB64 is! String || wfB64.isEmpty) return const [];
+      final bytes = base64Decode(wfB64);
+      final samples = <int>[];
+      for (int i = 0; i < 100; i++) {
+        final bitOffset = i * 5;
+        final byteIdx = bitOffset ~/ 8;
+        final bitIdx = bitOffset % 8;
+        if (byteIdx >= bytes.length) break;
+        int val;
+        if (bitIdx + 5 <= 8) {
+          val = (bytes[byteIdx] >> bitIdx) & 0x1F;
+        } else {
+          final lo = bytes[byteIdx] >> bitIdx;
+          final hi = byteIdx + 1 < bytes.length ? bytes[byteIdx + 1] : 0;
+          val = (lo | (hi << (8 - bitIdx))) & 0x1F;
+        }
+        samples.add(val);
+      }
+      return samples;
+    } catch (_) {
+      return const [];
     }
   }
 

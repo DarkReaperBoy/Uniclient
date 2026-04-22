@@ -1929,11 +1929,6 @@ class _WebmStickerPlayerState extends State<_WebmStickerPlayer> {
   }
 }
 
-/// Voice message indicator. No placeholder waveform — the real waveform bytes
-/// are not yet piped through the engine/bridge (see research/telegram_notes.md
-/// "Voice"). Until they are, show an honest mic badge + "Voice message" label
-/// + duration + file size, matching the layout of [_AudioIndicator]. CLAUDE.md
-/// hard-bans fake waveforms, so we do not paint one.
 class _VoiceIndicator extends StatelessWidget {
   final CachedMessage message;
   final ThemeData theme;
@@ -1942,19 +1937,23 @@ class _VoiceIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOut = message.isOutgoing;
+    final waveform = message.mediaWaveform;
+    final hasWaveform = waveform.isNotEmpty;
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: theme.colorScheme.primary.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.mic, size: 20, color: theme.colorScheme.primary),
+            child: Icon(Icons.play_arrow, size: 24, color: theme.colorScheme.primary),
           ),
           const SizedBox(width: 8),
           Flexible(
@@ -1962,12 +1961,26 @@ class _VoiceIndicator extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Voice message',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
+                if (hasWaveform)
+                  SizedBox(
+                    height: 17,
+                    child: CustomPaint(
+                      size: const Size(double.infinity, 17),
+                      painter: _WaveformPainter(
+                        samples: waveform,
+                        isOutgoing: isOut,
+                        progress: 0.0,
+                      ),
+                    ),
+                  )
+                else
+                  Text(
+                    'Voice message',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                const SizedBox(height: 2),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -1992,6 +2005,85 @@ class _VoiceIndicator extends StatelessWidget {
       ),
     );
   }
+}
+
+class _WaveformPainter extends CustomPainter {
+  final List<int> samples;
+  final bool isOutgoing;
+  final double progress;
+
+  static const double _barWidth = 2.0;
+  static const double _barGap = 1.0;
+  static const double _minHeight = 3.0;
+  static const double _maxHeight = 17.0;
+
+  static const Color _inboxPlayed = Color(0xFF40A7E3);
+  static const Color _inboxUnplayed = Color(0xFFD4DEE6);
+  static const Color _outboxPlayed = Color(0xFF5EBD66);
+  static const Color _outboxUnplayed = Color(0xFFB3E2B4);
+
+  _WaveformPainter({
+    required this.samples,
+    required this.isOutgoing,
+    required this.progress,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (samples.isEmpty) return;
+
+    final barStep = _barWidth + _barGap;
+    final barCount = math.min(samples.length, (size.width / barStep).floor());
+    if (barCount <= 0) return;
+
+    final bucketSize = samples.length / barCount;
+    final activeWidth = (size.width * progress).roundToDouble();
+
+    final playedPaint = Paint()
+      ..color = isOutgoing ? _outboxPlayed : _inboxPlayed;
+    final unplayedPaint = Paint()
+      ..color = isOutgoing ? _outboxUnplayed : _inboxUnplayed;
+
+    for (int i = 0; i < barCount; i++) {
+      final bucketStart = (i * bucketSize).floor();
+      final bucketEnd = ((i + 1) * bucketSize).ceil().clamp(0, samples.length);
+      int peak = 0;
+      for (int j = bucketStart; j < bucketEnd; j++) {
+        if (samples[j] > peak) peak = samples[j];
+      }
+
+      final barHeight = _minHeight + (peak / 31.0) * (_maxHeight - _minHeight);
+      final x = i * barStep;
+      final y = (_maxHeight - barHeight) / 2;
+
+      final barRight = x + _barWidth;
+      if (barRight <= activeWidth) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(x, y, _barWidth, barHeight), const Radius.circular(1)),
+          playedPaint,
+        );
+      } else if (x >= activeWidth) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(x, y, _barWidth, barHeight), const Radius.circular(1)),
+          unplayedPaint,
+        );
+      } else {
+        final splitAt = activeWidth - x;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(x, y, splitAt, barHeight), const Radius.circular(1)),
+          playedPaint,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(activeWidth, y, _barWidth - splitAt, barHeight), const Radius.circular(1)),
+          unplayedPaint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter old) =>
+      old.progress != progress || old.isOutgoing != isOutgoing || old.samples != samples;
 }
 
 /// Audio file indicator (music, podcast, etc.).

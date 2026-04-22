@@ -320,6 +320,7 @@ class CachedMessage {
   final int mediaHeight;
   final int mediaDuration; // seconds
   final int mediaDownloadState; // 0=none, 1=in_progress, 2=complete, 3=failed (matches Go engine/db.go)
+  final List<int> mediaWaveform; // 5-bit amplitude samples (0–31), typically 100 entries for voice messages
   final List<MessageReaction> reactions;
 
   // Forum topic info (populated from contentRaw extra fields).
@@ -380,6 +381,7 @@ class CachedMessage {
     this.mediaHeight = 0,
     this.mediaDuration = 0,
     this.mediaDownloadState = 0,
+    this.mediaWaveform = const [],
     this.reactions = const [],
     this.topicId = '',
     this.topicName = '',
@@ -427,6 +429,7 @@ class CachedMessage {
     mediaHeight: j['media_height'] as int? ?? 0,
     mediaDuration: j['media_duration'] as int? ?? 0,
     mediaDownloadState: j['media_download_state'] as int? ?? 0,
+    mediaWaveform: (j['media_waveform'] as List<dynamic>?)?.cast<int>() ?? const [],
     mediaSpoiler: j['media_spoiler'] as bool? ?? false,
     groupedId: j['grouped_id'] as String? ?? '',
     reactions: (j['reactions'] as List<dynamic>?)
@@ -487,6 +490,7 @@ class CachedMessage {
     int? mediaHeight,
     int? mediaDuration,
     int? mediaDownloadState,
+    List<int>? mediaWaveform,
     List<MessageReaction>? reactions,
     String? viaBotName,
     bool? mediaSpoiler,
@@ -526,6 +530,7 @@ class CachedMessage {
     mediaHeight: mediaHeight ?? this.mediaHeight,
     mediaDuration: mediaDuration ?? this.mediaDuration,
     mediaDownloadState: mediaDownloadState ?? this.mediaDownloadState,
+    mediaWaveform: mediaWaveform ?? this.mediaWaveform,
     reactions: reactions ?? this.reactions,
     topicId: topicId,
     topicName: topicName,
