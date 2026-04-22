@@ -78,6 +78,11 @@ class AppColors {
   // Border + check glyph: windowBg (white, both themes)
   static const selectionCheckBorder = Color(0xFFffffff);
 
+  // msgStickerOverlay — spec §6: tint applied over stickers during selection only
+  // Spec #RRGGBBAA → Flutter 0xAARRGGBB
+  static const msgStickerOverlay = Color(0x7F358CD4);      // day: #358CD47F
+  static const msgStickerOverlayNight = Color(0x7F3585D4);  // night: #3585D47F
+
   // Bubble shadows — spec §5: 2px bottom shadow strip
   // Format: #RRGGBBAA in spec → 0xAARRGGBB in Flutter
   // msgOutShadow day / night (night disabled: alpha 00)

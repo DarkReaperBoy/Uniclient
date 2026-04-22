@@ -309,6 +309,7 @@ class MessageBubble extends StatelessWidget {
                         showOverlayInfo: isMediaOnlyBubble,
                         isOutgoing: isOutgoing,
                         isDark: isDark,
+                        isSelected: isSelected,
                         allMessages: allMessages,
                       ),
                     // Caption text below media for captioned photo/video/GIF.
@@ -716,6 +717,7 @@ class _MediaIndicator extends StatelessWidget {
   final bool showOverlayInfo;
   final bool isOutgoing;
   final bool isDark;
+  final bool isSelected;
   final List<CachedMessage> allMessages;
 
   const _MediaIndicator({
@@ -724,6 +726,7 @@ class _MediaIndicator extends StatelessWidget {
     this.showOverlayInfo = false,
     this.isOutgoing = false,
     this.isDark = false,
+    this.isSelected = false,
     this.allMessages = const [],
   });
 
@@ -737,6 +740,7 @@ class _MediaIndicator extends StatelessWidget {
         showOverlayInfo: showOverlayInfo,
         isOutgoing: isOutgoing,
         isDark: isDark,
+        isSelected: isSelected,
         allMessages: allMessages,
       );
     }
@@ -1212,6 +1216,7 @@ class _VisualMedia extends StatefulWidget {
   final bool showOverlayInfo;
   final bool isOutgoing;
   final bool isDark;
+  final bool isSelected;
   final List<CachedMessage> allMessages;
 
   const _VisualMedia({
@@ -1220,6 +1225,7 @@ class _VisualMedia extends StatefulWidget {
     this.showOverlayInfo = false,
     this.isOutgoing = false,
     this.isDark = false,
+    this.isSelected = false,
     this.allMessages = const [],
   });
 
@@ -1585,6 +1591,15 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                       setState(() => _spoilerRevealed = true);
                       _fadeController.forward(from: 0.0);
                     },
+                  ),
+                ),
+              // §6.6: Sticker selection overlay — msgStickerOverlay tint
+              if (message.mediaType == 6 && widget.isSelected)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: widget.isDark
+                        ? AppColors.msgStickerOverlayNight
+                        : AppColors.msgStickerOverlay,
                   ),
                 ),
             ],
