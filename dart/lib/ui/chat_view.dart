@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -4099,7 +4100,12 @@ class _ComposeAreaState extends State<_ComposeArea> {
 
   SendButtonType _computeSendButtonType() {
     if (widget.isEditing) return SendButtonType.save;
-    if (!_hasText) return SendButtonType.record;
+    if (!_hasText) {
+      final appState = context.read<AppState>();
+      return appState.recordVideoMessages
+          ? SendButtonType.round
+          : SendButtonType.record;
+    }
     return SendButtonType.send;
   }
 
@@ -4463,6 +4469,11 @@ class _ComposeAreaState extends State<_ComposeArea> {
             accentColor: theme.colorScheme.primary,
             iconFg: iconFg,
             onSend: widget.onSend,
+            onToggleVoiceRound: () {
+              final appState = context.read<AppState>();
+              appState.recordVideoMessages = !appState.recordVideoMessages;
+              setState(() {});
+            },
           ),
         ],
       ),
@@ -4543,12 +4554,14 @@ class _SendButton extends StatefulWidget {
   final Color accentColor;
   final Color iconFg;
   final VoidCallback onSend;
+  final VoidCallback? onToggleVoiceRound;
 
   const _SendButton({
     required this.type,
     required this.accentColor,
     required this.iconFg,
     required this.onSend,
+    this.onToggleVoiceRound,
   });
 
   @override
@@ -4556,13 +4569,22 @@ class _SendButton extends StatefulWidget {
 }
 
 class _SendButtonState extends State<_SendButton>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _hovered = false;
   late AnimationController _morphController;
+  late AnimationController _rollController;
   SendButtonType? _prevType;
+  bool _isVoiceRoundTransition = false;
 
   static const _kWideScale = 5.0;
   static const _morphDuration = Duration(milliseconds: 120);
+  static const _rollDuration = Duration(milliseconds: 500);
+
+  static bool _isVoiceRound(SendButtonType? a, SendButtonType? b) {
+    if (a == null || b == null) return false;
+    const vr = {SendButtonType.record, SendButtonType.round};
+    return vr.contains(a) && vr.contains(b) && a != b;
+  }
 
   @override
   void initState() {
@@ -4571,11 +4593,16 @@ class _SendButtonState extends State<_SendButton>
       vsync: this,
       duration: _morphDuration,
     )..value = 1.0;
+    _rollController = AnimationController(
+      vsync: this,
+      duration: _rollDuration,
+    )..value = 1.0;
   }
 
   @override
   void dispose() {
     _morphController.dispose();
+    _rollController.dispose();
     super.dispose();
   }
 
@@ -4584,7 +4611,13 @@ class _SendButtonState extends State<_SendButton>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.type != widget.type) {
       _prevType = oldWidget.type;
-      _morphController.forward(from: 0.0);
+      if (_isVoiceRound(oldWidget.type, widget.type)) {
+        _isVoiceRoundTransition = true;
+        _rollController.forward(from: 0.0);
+      } else {
+        _isVoiceRoundTransition = false;
+        _morphController.forward(from: 0.0);
+      }
     }
   }
 
@@ -4637,65 +4670,106 @@ class _SendButtonState extends State<_SendButton>
         : (_hovered ? widget.accentColor : widget.iconFg);
   }
 
+  Widget _buildRollTransition() {
+    return AnimatedBuilder(
+      animation: _rollController,
+      builder: (context, _) {
+        final t = _rollController.value;
+        final angle = t * math.pi;
+        final showNew = t >= 0.5;
+        final icon = showNew ? _iconFor(widget.type) : _iconFor(_prevType!);
+        final color = showNew ? _colorFor(widget.type) : _colorFor(_prevType!);
+        return Center(
+          child: Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.rotationZ(angle),
+            child: Opacity(
+              opacity: showNew ? ((t - 0.5) * 2.0) : (1.0 - t * 2.0).clamp(0.3, 1.0),
+              child: Icon(icon, size: 22, color: color),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBloomTransition() {
+    return AnimatedBuilder(
+      animation: _morphController,
+      builder: (context, _) {
+        final t = _morphController.value;
+        if (t >= 1.0 || _prevType == null) {
+          return Center(
+            child: Icon(
+              _iconFor(widget.type),
+              size: 22,
+              color: _colorFor(widget.type),
+            ),
+          );
+        }
+        final outScale = 1.0 + (_kWideScale - 1.0) * t;
+        final inScale = _kWideScale - (_kWideScale - 1.0) * t;
+        return Center(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Opacity(
+                opacity: 1.0 - t,
+                child: Transform.scale(
+                  scale: outScale,
+                  child: Icon(
+                    _iconFor(_prevType!),
+                    size: 22,
+                    color: _colorFor(_prevType!),
+                  ),
+                ),
+              ),
+              Opacity(
+                opacity: t,
+                child: Transform.scale(
+                  scale: inScale,
+                  child: Icon(
+                    _iconFor(widget.type),
+                    size: 22,
+                    color: _colorFor(widget.type),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: Tooltip(
-        message: _tooltipFor(widget.type),
-        child: InkResponse(
-          onTap: _onTap,
-          radius: 20,
-          child: SizedBox(
-            width: 44,
-            height: 46,
-            child: ClipRect(
-              child: AnimatedBuilder(
-                animation: _morphController,
-                builder: (context, _) {
-                  final t = _morphController.value;
-                  if (t >= 1.0 || _prevType == null) {
-                    return Center(
-                      child: Icon(
-                        _iconFor(widget.type),
-                        size: 22,
-                        color: _colorFor(widget.type),
-                      ),
-                    );
-                  }
-                  final outScale = 1.0 + (_kWideScale - 1.0) * t;
-                  final inScale = _kWideScale - (_kWideScale - 1.0) * t;
-                  return Center(
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Opacity(
-                          opacity: 1.0 - t,
-                          child: Transform.scale(
-                            scale: outScale,
-                            child: Icon(
-                              _iconFor(_prevType!),
-                              size: 22,
-                              color: _colorFor(_prevType!),
-                            ),
-                          ),
-                        ),
-                        Opacity(
-                          opacity: t,
-                          child: Transform.scale(
-                            scale: inScale,
-                            child: Icon(
-                              _iconFor(widget.type),
-                              size: 22,
-                              color: _colorFor(widget.type),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+    final isRecordOrRound =
+        widget.type == SendButtonType.record || widget.type == SendButtonType.round;
+
+    return Listener(
+      onPointerDown: isRecordOrRound
+          ? (e) {
+              if (e.buttons == kSecondaryMouseButton) {
+                widget.onToggleVoiceRound?.call();
+              }
+            }
+          : null,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: Tooltip(
+          message: _tooltipFor(widget.type),
+          child: InkResponse(
+            onTap: _onTap,
+            radius: 20,
+            child: SizedBox(
+              width: 44,
+              height: 46,
+              child: ClipRect(
+                child: _isVoiceRoundTransition && _rollController.value < 1.0
+                    ? _buildRollTransition()
+                    : _buildBloomTransition(),
               ),
             ),
           ),

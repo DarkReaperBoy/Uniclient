@@ -40,6 +40,9 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Values: "mute", "pin", "read", "archive", "delete". Default: "archive".
   String _swipeAction = 'archive';
 
+  /// Spec §7.3: When true, empty-field send button shows Round (camera) instead of Record (mic).
+  bool _recordVideoMessages = false;
+
   /// Callback for showing connection-state notifications (set by UI layer).
   void Function(String text, IconData icon, Color color)? onConnStateNotification;
 
@@ -150,6 +153,15 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   set swipeAction(String value) {
     if (_swipeAction != value) {
       _swipeAction = value;
+      notifyListeners();
+    }
+  }
+
+  bool get recordVideoMessages => _recordVideoMessages;
+  set recordVideoMessages(bool value) {
+    if (_recordVideoMessages != value) {
+      _recordVideoMessages = value;
+      _saveWindowPrefs();
       notifyListeners();
     }
   }
@@ -370,6 +382,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _nativeWindowFrame = data['nativeWindowFrame'] as bool? ?? false;
       _mainMenuAccountsShown = data['mainMenuAccountsShown'] as bool? ?? false;
       _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
+      _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -383,6 +396,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'nativeWindowFrame': _nativeWindowFrame,
         'mainMenuAccountsShown': _mainMenuAccountsShown,
         'systemDarkMode': _systemDarkMode,
+        'recordVideoMessages': _recordVideoMessages,
         'accountOrder': _accountOrder,
       }));
     } catch (_) {}
