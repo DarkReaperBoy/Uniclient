@@ -9844,6 +9844,65 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			}
 
 			m.Attachments = []FileRef{{MimeType: "application/x-poll", Name: "poll"}}
+		case *tg.MessageMediaGeo:
+			if gp, ok := md.Geo.(*tg.GeoPoint); ok {
+				if m.Extra == nil {
+					m.Extra = make(map[string]interface{})
+				}
+				m.Extra["geo_lat"] = gp.Lat
+				m.Extra["geo_long"] = gp.Long
+				if m.Text == "" {
+					m.Text = "📍 Location"
+				}
+				m.Attachments = []FileRef{{MimeType: "application/x-location", Name: "location"}}
+			}
+		case *tg.MessageMediaGeoLive:
+			if gp, ok := md.Geo.(*tg.GeoPoint); ok {
+				if m.Extra == nil {
+					m.Extra = make(map[string]interface{})
+				}
+				m.Extra["geo_lat"] = gp.Lat
+				m.Extra["geo_long"] = gp.Long
+				m.Extra["geo_live"] = true
+				m.Extra["geo_period"] = md.Period
+				if heading, ok := md.GetHeading(); ok {
+					m.Extra["geo_heading"] = heading
+				}
+				if m.Text == "" {
+					m.Text = "📍 Live Location"
+				}
+				m.Attachments = []FileRef{{MimeType: "application/x-location", Name: "location"}}
+			}
+		case *tg.MessageMediaVenue:
+			if gp, ok := md.Geo.(*tg.GeoPoint); ok {
+				if m.Extra == nil {
+					m.Extra = make(map[string]interface{})
+				}
+				m.Extra["geo_lat"] = gp.Lat
+				m.Extra["geo_long"] = gp.Long
+				m.Extra["venue_title"] = md.Title
+				m.Extra["venue_address"] = md.Address
+				if m.Text == "" {
+					m.Text = "📍 " + md.Title
+				}
+				m.Attachments = []FileRef{{MimeType: "application/x-location", Name: "location"}}
+			}
+		case *tg.MessageMediaContact:
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			m.Extra["contact_phone"] = md.PhoneNumber
+			m.Extra["contact_first_name"] = md.FirstName
+			m.Extra["contact_last_name"] = md.LastName
+			m.Extra["contact_user_id"] = md.UserID
+			if m.Text == "" {
+				name := md.FirstName
+				if md.LastName != "" {
+					name += " " + md.LastName
+				}
+				m.Text = "👤 " + name
+			}
+			m.Attachments = []FileRef{{MimeType: "application/x-contact", Name: "contact"}}
 		}
 	}
 

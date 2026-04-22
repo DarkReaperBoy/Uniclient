@@ -365,6 +365,14 @@ class CachedMessage {
   final int pollClosePeriod;
   final List<String> pollRecentVoters;
 
+  // Location data (extracted from contentRaw extra fields).
+  final double geoLat;
+  final double geoLong;
+  final bool geoLive;
+  final int geoPeriod;
+  final String venueTitle;
+  final String venueAddress;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -423,6 +431,12 @@ class CachedMessage {
     this.pollCloseDate = 0,
     this.pollClosePeriod = 0,
     this.pollRecentVoters = const [],
+    this.geoLat = 0.0,
+    this.geoLong = 0.0,
+    this.geoLive = false,
+    this.geoPeriod = 0,
+    this.venueTitle = '',
+    this.venueAddress = '',
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -478,6 +492,8 @@ class CachedMessage {
   bool get isGif => mediaType == 7;
   bool get isFile => mediaType == 8;
   bool get isPoll => mediaType == 9;
+  bool get isLocation => mediaType == 10;
+  bool get isContact => mediaType == 11;
   bool get isMediaDownloaded => mediaDownloadState == 2;
   bool get isAlbumMember => groupedId.isNotEmpty;
   String get mediaSizeLabel {
@@ -539,6 +555,12 @@ class CachedMessage {
     int? pollCloseDate,
     int? pollClosePeriod,
     List<String>? pollRecentVoters,
+    double? geoLat,
+    double? geoLong,
+    bool? geoLive,
+    int? geoPeriod,
+    String? venueTitle,
+    String? venueAddress,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -597,6 +619,12 @@ class CachedMessage {
     pollCloseDate: pollCloseDate ?? this.pollCloseDate,
     pollClosePeriod: pollClosePeriod ?? this.pollClosePeriod,
     pollRecentVoters: pollRecentVoters ?? this.pollRecentVoters,
+    geoLat: geoLat ?? this.geoLat,
+    geoLong: geoLong ?? this.geoLong,
+    geoLive: geoLive ?? this.geoLive,
+    geoPeriod: geoPeriod ?? this.geoPeriod,
+    venueTitle: venueTitle ?? this.venueTitle,
+    venueAddress: venueAddress ?? this.venueAddress,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;

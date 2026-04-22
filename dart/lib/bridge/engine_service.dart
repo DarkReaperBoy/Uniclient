@@ -1025,6 +1025,12 @@ class EngineService {
       pollCloseDate: _int64FieldFromRaw(contentRaw, 'poll_close_date'),
       pollClosePeriod: _int64FieldFromRaw(contentRaw, 'poll_close_period'),
       pollRecentVoters: _stringListExtraFromRaw(contentRaw, 'poll_recent_voters'),
+      geoLat: _doubleExtraFromRaw(contentRaw, 'geo_lat'),
+      geoLong: _doubleExtraFromRaw(contentRaw, 'geo_long'),
+      geoLive: _boolExtraFromRaw(contentRaw, 'geo_live'),
+      geoPeriod: _int64FieldFromRaw(contentRaw, 'geo_period'),
+      venueTitle: _topicFieldFromRaw(contentRaw, 'venue_title') ?? '',
+      venueAddress: _topicFieldFromRaw(contentRaw, 'venue_address') ?? '',
     );
   }
 
@@ -1153,6 +1159,22 @@ class EngineService {
       return 0;
     } catch (_) {
       return 0;
+    }
+  }
+
+  static double _doubleExtraFromRaw(String contentRaw, String key) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return 0.0;
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return 0.0;
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return 0.0;
+      final v = extra[key];
+      if (v is double) return v;
+      if (v is num) return v.toDouble();
+      return 0.0;
+    } catch (_) {
+      return 0.0;
     }
   }
 

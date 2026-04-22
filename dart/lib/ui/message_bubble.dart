@@ -289,7 +289,7 @@ class MessageBubble extends StatelessWidget {
                     // Spec §6: For captioned media (photo/video/GIF + text),
                     // media renders first, caption text below it.
                     // For all other messages, text renders before media.
-                    if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9)
+                    if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9 && message.mediaType != 10)
                       _RichMessageText(
                         text: message.contentText,
                         entitiesJson: message.contentRich,
@@ -752,6 +752,10 @@ class _MediaIndicator extends StatelessWidget {
     // Poll — question + options.
     if (message.mediaType == 9) {
       return _PollWidget(message: message, theme: theme);
+    }
+    // Location — static/live/venue map.
+    if (message.mediaType == 10) {
+      return _LocationIndicator(message: message, theme: theme);
     }
     // Voice message — duration bar.
     if (message.mediaType == 4) {
@@ -2628,6 +2632,229 @@ class _AudioIndicator extends StatelessWidget {
             ),
     );
   }
+}
+
+class _LocationIndicator extends StatelessWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+
+  const _LocationIndicator({required this.message, required this.theme});
+
+  void _openCoordinates() {
+    final lat = message.geoLat;
+    final lng = message.geoLong;
+    if (lat == 0.0 && lng == 0.0) return;
+    final url = 'https://www.openstreetmap.org/?mlat=$lat&mlon=$lng#map=15/$lat/$lng';
+    Process.run('xdg-open', [url]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final lat = message.geoLat;
+    final lng = message.geoLong;
+    final hasVenue = message.venueTitle.isNotEmpty;
+    final isLive = message.geoLive;
+
+    final mapW = 430.0;
+    final mapH = 200.0;
+
+    return GestureDetector(
+      onTap: _openCoordinates,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: mapW,
+              minWidth: 100,
+              maxHeight: mapH,
+            ),
+            child: Container(
+              width: mapW,
+              height: mapH,
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1B2836)
+                    : const Color(0xFFE8EDF2),
+                borderRadius: (hasVenue || isLive)
+                    ? const BorderRadius.vertical(top: Radius.circular(8))
+                    : BorderRadius.circular(8),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CustomPaint(
+                    size: Size(mapW, mapH),
+                    painter: _MapGridPainter(isDark: isDark),
+                  ),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE53935),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.location_on, color: Colors.white, size: 24),
+                  ),
+                  Positioned(
+                    left: 8,
+                    bottom: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (isLive)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF43A047),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            const Text(
+                              'LIVE',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (hasVenue || isLive)
+            Container(
+              width: mapW,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? const Color(0xFF1B2836)
+                    : const Color(0xFFF5F5F5),
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    hasVenue ? message.venueTitle : 'Live Location',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  if (message.venueAddress.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      message.venueAddress,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark
+                            ? const Color(0xFF8899A6)
+                            : const Color(0xFF999999),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapGridPainter extends CustomPainter {
+  final bool isDark;
+  const _MapGridPainter({required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = isDark
+          ? const Color(0xFF2A3A4A)
+          : const Color(0xFFD5DBE1)
+      ..strokeWidth = 0.5;
+
+    for (double x = 0; x < size.width; x += 40) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y < size.height; y += 40) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+
+    final roadPaint = Paint()
+      ..color = isDark
+          ? const Color(0xFF354A5F)
+          : const Color(0xFFC8CED4)
+      ..strokeWidth = 2.0;
+
+    canvas.drawLine(
+      Offset(size.width * 0.3, 0),
+      Offset(size.width * 0.35, size.height),
+      roadPaint,
+    );
+    canvas.drawLine(
+      Offset(0, size.height * 0.4),
+      Offset(size.width, size.height * 0.45),
+      roadPaint,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.7, 0),
+      Offset(size.width * 0.65, size.height),
+      roadPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MapGridPainter oldDelegate) => isDark != oldDelegate.isDark;
 }
 
 /// File/document attachment indicator.
