@@ -349,7 +349,6 @@
 
 ### §7.5 Voice Record Bar
 
-- [ ] Drag-up-to-lock widget (75×133px, 150ms show/hide, 15° pull-rotate angle), hands-free mode, stop-square button 12px — spec §7.4. Not implemented
 - [ ] Video-record round-message mode triggered when send is Type::Round — spec §7.4. Not implemented
 - [ ] TTL "voice once" 2px ring on lock when armed — spec §7.4. Not implemented
 

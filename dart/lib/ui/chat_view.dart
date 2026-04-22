@@ -4079,7 +4079,8 @@ class _ComposeArea extends StatefulWidget {
   State<_ComposeArea> createState() => _ComposeAreaState();
 }
 
-class _ComposeAreaState extends State<_ComposeArea> {
+class _ComposeAreaState extends State<_ComposeArea>
+    with TickerProviderStateMixin {
   static final _urlRegex = RegExp(
     r'(?:https?://|www\.)'
     r'[^\s<>\[\](){}"'
@@ -4102,6 +4103,11 @@ class _ComposeAreaState extends State<_ComposeArea> {
   DateTime? _recordingStart;
   Timer? _recordingTimer;
   Duration _recordingDuration = Duration.zero;
+  bool _isRecordingLocked = false;
+  double _lockDragStartY = 0;
+  int _trackingPointerId = -1;
+  double _lockProgress = 0.0;
+  late AnimationController _lockShowController;
 
   @override
   void initState() {
@@ -4113,6 +4119,10 @@ class _ComposeAreaState extends State<_ComposeArea> {
     _prevTextLength = widget.controller.text.length;
     _hasText = widget.controller.text.isNotEmpty;
     _startSlowmodeTimer();
+    _lockShowController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
   }
 
   @override
@@ -4154,6 +4164,10 @@ class _ComposeAreaState extends State<_ComposeArea> {
     _slowmodeTimer?.cancel();
     _linkTimer?.cancel();
     _recordingTimer?.cancel();
+    _lockShowController.dispose();
+    if (_trackingPointerId >= 0) {
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointerEvent);
+    }
     widget.controller.removeListener(_onTextLengthChanged);
     widget.controller.removeListener(_scheduleUpdateFades);
     _scrollController.dispose();
@@ -4161,12 +4175,20 @@ class _ComposeAreaState extends State<_ComposeArea> {
     super.dispose();
   }
 
-  void _startRecording() {
+  static const double _lockThreshold = 80.0;
+
+  void _startRecording(double startY, int pointerId) {
     setState(() {
       _isRecording = true;
+      _isRecordingLocked = false;
       _recordingStart = DateTime.now();
       _recordingDuration = Duration.zero;
+      _lockDragStartY = startY;
+      _trackingPointerId = pointerId;
+      _lockProgress = 0.0;
     });
+    _lockShowController.forward(from: 0.0);
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_onGlobalPointerEvent);
     _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       if (_recordingStart != null) {
         setState(() {
@@ -4176,13 +4198,53 @@ class _ComposeAreaState extends State<_ComposeArea> {
     });
   }
 
+  void _onGlobalPointerEvent(PointerEvent event) {
+    if (event.pointer != _trackingPointerId) return;
+    if (_isRecordingLocked) return;
+    if (event is PointerMoveEvent) {
+      final dragUp = _lockDragStartY - event.position.dy;
+      final progress = (dragUp / _lockThreshold).clamp(0.0, 1.0);
+      if (progress != _lockProgress) {
+        setState(() => _lockProgress = progress);
+      }
+    } else if (event is PointerUpEvent || event is PointerCancelEvent) {
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointerEvent);
+      _trackingPointerId = -1;
+      if (_lockProgress >= 1.0) {
+        setState(() => _isRecordingLocked = true);
+      } else {
+        setState(() => _lockProgress = 0.0);
+      }
+    }
+  }
+
+  void _stopAndSendRecording() {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    _lockShowController.reverse();
+    setState(() {
+      _isRecording = false;
+      _isRecordingLocked = false;
+      _recordingStart = null;
+      _recordingDuration = Duration.zero;
+      _lockProgress = 0.0;
+    });
+  }
+
   void _cancelRecording() {
     _recordingTimer?.cancel();
     _recordingTimer = null;
+    if (_trackingPointerId >= 0) {
+      GestureBinding.instance.pointerRouter.removeGlobalRoute(_onGlobalPointerEvent);
+      _trackingPointerId = -1;
+    }
+    _lockShowController.reverse();
     setState(() {
       _isRecording = false;
+      _isRecordingLocked = false;
       _recordingStart = null;
       _recordingDuration = Duration.zero;
+      _lockProgress = 0.0;
     });
   }
 
@@ -4538,7 +4600,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
         : AppColors.historyComposeIconFgOver;
 
     if (_isRecording) {
-      return Container(
+      final recordBar = Container(
         decoration: BoxDecoration(
           color: composeBg,
           border: Border(
@@ -4551,8 +4613,40 @@ class _ComposeAreaState extends State<_ComposeArea> {
           child: _VoiceRecordBar(
             duration: _recordingDuration,
             onCancel: _cancelRecording,
+            isLocked: _isRecordingLocked,
+            onStop: _stopAndSendRecording,
           ),
         ),
+      );
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          recordBar,
+          Positioned(
+            right: 1,
+            top: -22,
+            child: IgnorePointer(
+              child: AnimatedBuilder(
+                animation: _lockShowController,
+                builder: (context, child) {
+                  if (_lockShowController.value == 0) return const SizedBox.shrink();
+                  return Opacity(
+                    opacity: _lockShowController.value,
+                    child: Transform.translate(
+                      offset: Offset(0, 133 * (1 - _lockShowController.value)),
+                      child: child,
+                    ),
+                  );
+                },
+                child: _RecordLockWidget(
+                  progress: _lockProgress,
+                  isLocked: _isRecordingLocked,
+                  isDark: isDark,
+                ),
+              ),
+            ),
+          ),
+        ],
       );
     }
 
@@ -4610,7 +4704,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
                 appState.recordVideoMessages = !appState.recordVideoMessages;
                 setState(() {});
               },
-              onRecordTap: _startRecording,
+              onRecordStart: _startRecording,
             );
           }),
         ],
@@ -4693,7 +4787,7 @@ class _SendButton extends StatefulWidget {
   final Color iconFg;
   final VoidCallback onSend;
   final VoidCallback? onToggleVoiceRound;
-  final VoidCallback? onRecordTap;
+  final void Function(double startY, int pointerId)? onRecordStart;
   final VoidCallback? onSendSilent;
   final ValueChanged<DateTime>? onSendScheduled;
   final VoidCallback? onSendWhenOnline;
@@ -4709,7 +4803,7 @@ class _SendButton extends StatefulWidget {
     required this.iconFg,
     required this.onSend,
     this.onToggleVoiceRound,
-    this.onRecordTap,
+    this.onRecordStart,
     this.onSendSilent,
     this.onSendScheduled,
     this.onSendWhenOnline,
@@ -4774,9 +4868,11 @@ class _SendButtonState extends State<_SendButton>
     if (widget.forbidden && _isForbiddable(widget.type)) return;
     _holdFired = false;
     _holdTimer?.cancel();
+    final globalY = e.position.dy;
+    final pointerId = e.pointer;
     _holdTimer = Timer(const Duration(milliseconds: 200), () {
       _holdFired = true;
-      widget.onRecordTap?.call();
+      widget.onRecordStart?.call(globalY, pointerId);
     });
   }
 
@@ -4853,7 +4949,7 @@ class _SendButtonState extends State<_SendButton>
         widget.onSend();
       case SendButtonType.record:
       case SendButtonType.round:
-        widget.onRecordTap?.call();
+        break;
       case SendButtonType.cancel:
         break;
       case SendButtonType.schedule:
@@ -5185,10 +5281,14 @@ class _SendButtonState extends State<_SendButton>
 class _VoiceRecordBar extends StatefulWidget {
   final Duration duration;
   final VoidCallback onCancel;
+  final bool isLocked;
+  final VoidCallback? onStop;
 
   const _VoiceRecordBar({
     required this.duration,
     required this.onCancel,
+    this.isLocked = false,
+    this.onStop,
   });
 
   @override
@@ -5266,43 +5366,93 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
             ),
           ),
         ),
-        Expanded(
-          child: Center(
-            child: SizedBox(
-              width: 210,
-              child: Text(
-                'Slide to cancel',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: hintFg,
-                ),
-              ),
-            ),
-          ),
-        ),
-        MouseRegion(
-          onEnter: (_) => setState(() => _cancelHovered = true),
-          onExit: (_) => setState(() => _cancelHovered = false),
-          child: GestureDetector(
-            onTap: widget.onCancel,
-            child: SizedBox(
-              width: 100,
-              height: 46,
-              child: Center(
-                child: Text(
-                  'Cancel',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: _cancelHovered
-                        ? cancelFg.withValues(alpha: 0.7)
-                        : cancelFg,
+        if (widget.isLocked) ...[
+          Expanded(
+            child: Center(
+              child: MouseRegion(
+                onEnter: (_) => setState(() => _cancelHovered = true),
+                onExit: (_) => setState(() => _cancelHovered = false),
+                child: GestureDetector(
+                  onTap: widget.onCancel,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      color: _cancelHovered
+                          ? (isDark ? const Color(0xFF2b3640) : const Color(0xFFf1f1f1))
+                          : Colors.transparent,
+                    ),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: cancelFg,
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
+          GestureDetector(
+            onTap: widget.onStop,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: SizedBox(
+                width: 44,
+                height: 46,
+                child: Center(
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFe53935),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ] else ...[
+          Expanded(
+            child: Center(
+              child: SizedBox(
+                width: 210,
+                child: Text(
+                  'Slide to cancel',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: hintFg,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          MouseRegion(
+            onEnter: (_) => setState(() => _cancelHovered = true),
+            onExit: (_) => setState(() => _cancelHovered = false),
+            child: GestureDetector(
+              onTap: widget.onCancel,
+              child: SizedBox(
+                width: 100,
+                height: 46,
+                child: Center(
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _cancelHovered
+                          ? cancelFg.withValues(alpha: 0.7)
+                          : cancelFg,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -5349,6 +5499,78 @@ class _BlobPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _BlobPainter old) =>
       old.level != level || old.signalDotOpacity != signalDotOpacity;
+}
+
+class _RecordLockWidget extends StatelessWidget {
+  final double progress;
+  final bool isLocked;
+  final bool isDark;
+
+  const _RecordLockWidget({
+    required this.progress,
+    required this.isLocked,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFffffff);
+    final borderColor = isDark ? const Color(0xFF2b3e50) : const Color(0xFFe0e0e0);
+    final iconColor = isDark ? const Color(0xFF7e8e9f) : const Color(0xFF999999);
+    final lockAngle = isLocked ? 15.0 * math.pi / 180.0 : 0.0;
+
+    return SizedBox(
+      width: 75,
+      height: 133,
+      child: Container(
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(37.5),
+          border: Border.all(color: borderColor, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (!isLocked)
+              Icon(
+                Icons.keyboard_arrow_up,
+                size: 24,
+                color: iconColor.withValues(alpha: 1.0 - progress),
+              )
+            else
+              const SizedBox(height: 24),
+            const SizedBox(height: 8),
+            Transform.rotate(
+              angle: lockAngle,
+              child: Icon(
+                isLocked ? Icons.lock : Icons.lock_open,
+                size: 28,
+                color: isLocked ? const Color(0xFFe53935) : iconColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 4,
+              width: 40,
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: borderColor,
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFe53935)),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Forward dialog — shows a searchable chat list to pick a destination.
