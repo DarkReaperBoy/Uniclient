@@ -2634,11 +2634,62 @@ class _AudioIndicator extends StatelessWidget {
   }
 }
 
-class _LocationIndicator extends StatelessWidget {
+class _LocationIndicator extends StatefulWidget {
   final CachedMessage message;
   final ThemeData theme;
 
   const _LocationIndicator({required this.message, required this.theme});
+
+  @override
+  State<_LocationIndicator> createState() => _LocationIndicatorState();
+}
+
+class _LocationIndicatorState extends State<_LocationIndicator> {
+  Timer? _ringTimer;
+
+  CachedMessage get message => widget.message;
+  ThemeData get theme => widget.theme;
+
+  static const _kUntilOffPeriod = 0x7FFFFFFF;
+
+  bool get _isUntilOff =>
+      message.geoPeriod == 0 || message.geoPeriod >= _kUntilOffPeriod;
+
+  double _elapsedProgress() {
+    if (_isUntilOff) return 0.0;
+    final period = message.geoPeriod;
+    final sentMs = message.timestamp;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final elapsed = (nowMs - sentMs) / 1000.0;
+    return (elapsed / period).clamp(0.0, 1.0);
+  }
+
+  int _remainingMinutes() {
+    final period = message.geoPeriod;
+    final sentMs = message.timestamp;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final elapsed = (nowMs - sentMs) / 1000.0;
+    final remaining = period - elapsed;
+    return (remaining / 60).ceil().clamp(0, period ~/ 60 + 1);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (message.geoLive && !_isUntilOff) {
+      final period = message.geoPeriod;
+      final tickSecs = (period / 360).clamp(1, 86400).toInt();
+      _ringTimer = Timer.periodic(Duration(seconds: tickSecs), (_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _ringTimer?.cancel();
+    super.dispose();
+  }
 
   void _openCoordinates() {
     final lat = message.geoLat;
@@ -2774,34 +2825,68 @@ class _LocationIndicator extends StatelessWidget {
                     : const Color(0xFFF5F5F5),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
-                  Text(
-                    hasVenue ? message.venueTitle : 'Live Location',
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                  if (message.venueAddress.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      message.venueAddress,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: isDark
-                            ? const Color(0xFF8899A6)
-                            : const Color(0xFF999999),
+                  if (isLive) ...[
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CustomPaint(
+                        painter: _LiveLocationRingPainter(
+                          progress: _elapsedProgress(),
+                          ringColor: isDark
+                              ? const Color(0xFF6AB2F2)
+                              : const Color(0xFF40A7E3),
+                        ),
+                        child: Center(
+                          child: Text(
+                            _isUntilOff ? '\u221E' : '${_remainingMinutes()}',
+                            style: TextStyle(
+                              fontSize: _isUntilOff ? 14 : 10,
+                              fontWeight: FontWeight.w600,
+                              color: isDark
+                                  ? const Color(0xFF6AB2F2)
+                                  : const Color(0xFF40A7E3),
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                   ],
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          hasVenue ? message.venueTitle : 'Live Location',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        if (message.venueAddress.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            message.venueAddress,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: isDark
+                                  ? const Color(0xFF8899A6)
+                                  : const Color(0xFF999999),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -2809,6 +2894,49 @@ class _LocationIndicator extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LiveLocationRingPainter extends CustomPainter {
+  final double progress;
+  final Color ringColor;
+
+  const _LiveLocationRingPainter({
+    required this.progress,
+    required this.ringColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width - 2.0) / 2;
+
+    final bgPaint = Paint()
+      ..color = ringColor.withValues(alpha: ringColor.a * 0.20)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    canvas.drawCircle(center, radius, bgPaint);
+
+    if (progress > 0.0) {
+      final arcPaint = Paint()
+        ..color = ringColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0
+        ..strokeCap = StrokeCap.round;
+      const startAngle = -math.pi / 2;
+      final sweepAngle = -2 * math.pi * progress;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle,
+        false,
+        arcPaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_LiveLocationRingPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.ringColor != ringColor;
 }
 
 class _MapGridPainter extends CustomPainter {

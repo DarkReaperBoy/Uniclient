@@ -327,8 +327,6 @@
 
 ### §6.12 Locations
 
-- [ ] Live-location ring: 28px, 2px stroke, msgServiceFg color, bg ring at 0.20 opacity, elapsed arc full opacity, counter-clockwise sweep from 12 o'clock, 1 tick per 1/360 period — spec §6. Not implemented
-- [ ] Remaining minutes inside ring (semibold), infinity glyph for "until turned off" — spec §6. Not implemented
 
 ### §6.13 Contacts
 
