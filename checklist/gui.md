@@ -311,8 +311,7 @@
 
 ### §6.8 Video Messages (Round Video)
 
-- [x] Circular clip + border shown for video notes (mediaType 5) — spec §6, DONE in message_bubble.dart (_VisualMedia). Uses ClipRRect + circular border, not actual circular clip of image
-- [ ] Circular mask: proper ClipOval, max 360px diameter — spec §6. Current shows ClipRRect(8px) + circular border overlay, not a true circle clip
+- [x] Circular clip + border shown for video notes (mediaType 5) — spec §6, DONE in message_bubble.dart (_VisualMedia). ClipOval + 360px max diameter + subtle 1px border
 - [ ] Progress arc overlay: 3px stroke with RoundCap, inset by 1.5px, starts 12 o'clock, sweeps clockwise, historyVideoMessageProgressFg color, 0.72 opacity — spec §6. Not implemented
 - [ ] Duration badge — spec §6. Not implemented for round video
 - [ ] Auto-play muted when on-screen, tap toggles sound — spec §6. Not implemented

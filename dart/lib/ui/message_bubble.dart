@@ -1301,6 +1301,12 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
     super.dispose();
   }
 
+  static Widget _clipForMediaType(int mediaType, {required Widget child}) {
+    if (mediaType == 5) return ClipOval(child: child);
+    if (mediaType == 6) return child;
+    return ClipRRect(borderRadius: BorderRadius.circular(8), child: child);
+  }
+
   @override
   Widget build(BuildContext context) {
     final message = widget.message;
@@ -1333,6 +1339,13 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
     if (message.mediaType == 6) {
       displayWidth = displayWidth.clamp(100, 224);
       displayHeight = displayHeight.clamp(100, 224);
+    }
+
+    // §6.8: Video notes (round video) — circular, max 360px diameter.
+    if (message.mediaType == 5) {
+      final d = displayWidth.clamp(100.0, 360.0);
+      displayWidth = d;
+      displayHeight = d;
     }
 
     // §6.6: Premium sticker effect bounding box = stickerSize × 1.49.
@@ -1372,8 +1385,8 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
         width: effectWidth,
         height: effectHeight,
         child: Center(
-        child: ClipRRect(
-        borderRadius: BorderRadius.circular(message.mediaType == 6 ? 0 : 8),
+        child: _clipForMediaType(
+        message.mediaType,
         child: SizedBox(
           width: displayWidth,
           height: displayHeight,
@@ -1503,13 +1516,16 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                     ),
                   ),
                 ),
-              // Video note: circular mask.
+              // Video note: thin circular border atop the clipped content.
               if (message.mediaType == 5)
                 Positioned.fill(
                   child: Container(
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: theme.colorScheme.primary, width: 2),
+                      border: Border.all(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.12),
+                        width: 1,
+                      ),
                     ),
                   ),
                 ),
