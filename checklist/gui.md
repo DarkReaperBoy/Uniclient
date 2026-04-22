@@ -323,7 +323,6 @@
 
 ### §6.11 Polls
 
-- [ ] Full poll widget: question text, radio buttons (18px, 2px stroke) for single-choice / rounded-rect checkboxes (18px, 3px radius) for multi-choice, idle 0.7 opacity / hover 1.0, 120ms toggle animation — spec §6. Not implemented
 - [ ] After voting: percentage bars with easeOutCirc animation — spec §6. Not implemented
 - [ ] Quiz mode: correct answer green, wrong answer red + 400ms shake (±3° rotation 8 segs / ±3% scale 2 segs) — spec §6. Not implemented
 - [ ] Quiz correct fireworks: 60+30 particles, 480×320 canvas, 6 fixed colors, ~2.5–3s — spec §6. Not implemented

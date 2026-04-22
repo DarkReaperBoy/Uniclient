@@ -1015,6 +1015,13 @@ class EngineService {
       stickerPremium: _boolExtraFromRaw(contentRaw, 'sticker_premium'),
       audioTitle: _topicFieldFromRaw(contentRaw, 'audio_title') ?? '',
       audioPerformer: _topicFieldFromRaw(contentRaw, 'audio_performer') ?? '',
+      pollQuestion: _topicFieldFromRaw(contentRaw, 'poll_question') ?? '',
+      pollOptions: _pollOptionsFromRaw(contentRaw),
+      pollQuiz: _boolExtraFromRaw(contentRaw, 'poll_quiz'),
+      pollMultiple: _boolExtraFromRaw(contentRaw, 'poll_multiple'),
+      pollClosed: _boolExtraFromRaw(contentRaw, 'poll_closed'),
+      pollPublic: _boolExtraFromRaw(contentRaw, 'poll_public'),
+      pollTotalVoters: _int64FieldFromRaw(contentRaw, 'poll_total_voters'),
     );
   }
 
@@ -1143,6 +1150,24 @@ class EngineService {
       return 0;
     } catch (_) {
       return 0;
+    }
+  }
+
+  static List<PollOption> _pollOptionsFromRaw(String contentRaw) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"poll_options"')) return const [];
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return const [];
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return const [];
+      final raw = extra['poll_options'];
+      if (raw is! List) return const [];
+      return raw
+          .whereType<Map<String, dynamic>>()
+          .map(PollOption.fromJson)
+          .toList(growable: false);
+    } catch (_) {
+      return const [];
     }
   }
 

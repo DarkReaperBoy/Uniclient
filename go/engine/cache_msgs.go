@@ -676,6 +676,8 @@ func mediaPreviewLabel(att cores.FileRef) (emoji, label string) {
 		return "🖼", "Sticker"
 	case MediaGIF:
 		return "🎞", "GIF"
+	case MediaPoll:
+		return "📊", "Poll"
 	case MediaFile:
 		name := att.Name
 		if name == "" {
@@ -695,6 +697,8 @@ func guessMediaType(mime, name string) int {
 		return MediaFile
 	}
 	switch {
+	case mime == "application/x-poll":
+		return MediaPoll
 	case mime == "image/gif":
 		return MediaGIF
 	case mime == "image/webp":

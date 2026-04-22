@@ -289,7 +289,7 @@ class MessageBubble extends StatelessWidget {
                     // Spec §6: For captioned media (photo/video/GIF + text),
                     // media renders first, caption text below it.
                     // For all other messages, text renders before media.
-                    if (!isCaptionedMedia && message.contentText.isNotEmpty)
+                    if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9)
                       _RichMessageText(
                         text: message.contentText,
                         entitiesJson: message.contentRich,
@@ -748,6 +748,10 @@ class _MediaIndicator extends StatelessWidget {
         isSelected: isSelected,
         allMessages: allMessages,
       );
+    }
+    // Poll — question + options.
+    if (message.mediaType == 9) {
+      return _PollWidget(message: message, theme: theme);
     }
     // Voice message — duration bar.
     if (message.mediaType == 4) {
@@ -3933,4 +3937,219 @@ class _VideoNoteProgressPainter extends CustomPainter {
   @override
   bool shouldRepaint(_VideoNoteProgressPainter oldDelegate) =>
       oldDelegate.progress != progress || oldDelegate.color != color;
+}
+
+// ── Poll Widget (spec §6.11) ──
+// Question text, radio/checkbox options, idle 0.7 / hover 1.0 opacity, 120ms toggle.
+class _PollWidget extends StatefulWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+
+  const _PollWidget({required this.message, required this.theme});
+
+  @override
+  State<_PollWidget> createState() => _PollWidgetState();
+}
+
+class _PollWidgetState extends State<_PollWidget> {
+  final Set<int> _selectedIndices = {};
+  int _hoveredIndex = -1;
+  bool _hasVoted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (int i = 0; i < widget.message.pollOptions.length; i++) {
+      if (widget.message.pollOptions[i].chosen) {
+        _selectedIndices.add(i);
+        _hasVoted = true;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final msg = widget.message;
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final isMultiple = msg.pollMultiple;
+    final isClosed = msg.pollClosed;
+    final isQuiz = msg.pollQuiz;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            msg.pollQuestion,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            isQuiz ? 'Quiz' : (isMultiple ? 'Multiple answers' : 'Anonymous Poll'),
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.white54 : Colors.black45,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...List.generate(msg.pollOptions.length, (i) {
+            final opt = msg.pollOptions[i];
+            final isSelected = _selectedIndices.contains(i);
+            final isHovered = _hoveredIndex == i;
+            final canVote = !_hasVoted && !isClosed;
+            return _PollOptionRow(
+              text: opt.text,
+              isMultiple: isMultiple,
+              isSelected: isSelected,
+              isHovered: isHovered,
+              canVote: canVote,
+              isDark: isDark,
+              onHover: (h) => setState(() => _hoveredIndex = h ? i : -1),
+              onTap: canVote ? () => _onOptionTap(i) : null,
+            );
+          }),
+          if (msg.pollTotalVoters > 0 || _hasVoted)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                '${msg.pollTotalVoters} vote${msg.pollTotalVoters == 1 ? '' : 's'}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white54 : Colors.black45,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _onOptionTap(int index) {
+    setState(() {
+      if (widget.message.pollMultiple) {
+        if (_selectedIndices.contains(index)) {
+          _selectedIndices.remove(index);
+        } else {
+          _selectedIndices.add(index);
+        }
+      } else {
+        _selectedIndices.clear();
+        _selectedIndices.add(index);
+        _hasVoted = true;
+      }
+    });
+  }
+}
+
+class _PollOptionRow extends StatelessWidget {
+  final String text;
+  final bool isMultiple;
+  final bool isSelected;
+  final bool isHovered;
+  final bool canVote;
+  final bool isDark;
+  final ValueChanged<bool> onHover;
+  final VoidCallback? onTap;
+
+  const _PollOptionRow({
+    required this.text,
+    required this.isMultiple,
+    required this.isSelected,
+    required this.isHovered,
+    required this.canVote,
+    required this.isDark,
+    required this.onHover,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => onHover(true),
+      onExit: (_) => onHover(false),
+      cursor: canVote ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            children: [
+              AnimatedOpacity(
+                opacity: isHovered ? 1.0 : 0.7,
+                duration: const Duration(milliseconds: 120),
+                child: _buildIndicator(),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIndicator() {
+    const size = 18.0;
+    const stroke = 2.0;
+    final accentColor = const Color(0xFF40A7E3);
+    final uncheckedColor = isDark ? const Color(0xFF7E8B95) : const Color(0xFF9DA5AB);
+
+    if (isMultiple) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(3),
+          border: Border.all(
+            color: isSelected ? accentColor : uncheckedColor,
+            width: stroke,
+          ),
+          color: isSelected ? accentColor : Colors.transparent,
+        ),
+        child: isSelected
+            ? const Icon(Icons.check, size: 12, color: Colors.white)
+            : null,
+      );
+    }
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? accentColor : uncheckedColor,
+          width: stroke,
+        ),
+      ),
+      child: isSelected
+          ? Center(
+              child: Container(
+                width: size - stroke * 2 - 2,
+                height: size - stroke * 2 - 2,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accentColor,
+                ),
+              ),
+            )
+          : null,
+    );
+  }
 }

@@ -347,6 +347,7 @@ const (
 	MediaSticker   = 6
 	MediaGIF       = 7
 	MediaFile      = 8
+	MediaPoll      = 9
 )
 
 func columnExists(tx *sql.Tx, table, column string) bool {

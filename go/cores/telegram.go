@@ -9779,6 +9779,53 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				}
 				m.Extra["media_spoiler"] = true
 			}
+		case *tg.MessageMediaPoll:
+			if m.Extra == nil {
+				m.Extra = make(map[string]interface{})
+			}
+			poll := md.Poll
+			if m.Text == "" {
+				m.Text = "📊 " + poll.Question.Text
+			}
+			m.Extra["poll_question"] = poll.Question.Text
+			m.Extra["poll_quiz"] = poll.Quiz
+			m.Extra["poll_multiple"] = poll.MultipleChoice
+			m.Extra["poll_closed"] = poll.Closed
+			m.Extra["poll_public"] = poll.PublicVoters
+
+			opts := make([]map[string]interface{}, 0, len(poll.Answers))
+			for _, ac := range poll.Answers {
+				a, ok := ac.(*tg.PollAnswer)
+				if !ok {
+					continue
+				}
+				opt := map[string]interface{}{
+					"text":   a.Text.Text,
+					"option": base64.StdEncoding.EncodeToString(a.Option),
+				}
+				opts = append(opts, opt)
+			}
+
+			res := md.Results
+			if voters, ok := res.GetResults(); ok {
+				for _, v := range voters {
+					optB64 := base64.StdEncoding.EncodeToString(v.Option)
+					for i := range opts {
+						if opts[i]["option"] == optB64 {
+							opts[i]["voters"] = v.Voters
+							opts[i]["chosen"] = v.Chosen
+							opts[i]["correct"] = v.Correct
+							break
+						}
+					}
+				}
+			}
+			m.Extra["poll_options"] = opts
+			if tv, ok := res.GetTotalVoters(); ok {
+				m.Extra["poll_total_voters"] = tv
+			}
+
+			m.Attachments = []FileRef{{MimeType: "application/x-poll", Name: "poll"}}
 		}
 	}
 

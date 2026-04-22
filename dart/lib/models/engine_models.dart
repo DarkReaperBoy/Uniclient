@@ -353,6 +353,15 @@ class CachedMessage {
   final String audioTitle;
   final String audioPerformer;
 
+  // Poll data (extracted from contentRaw extra fields).
+  final String pollQuestion;
+  final List<PollOption> pollOptions;
+  final bool pollQuiz;
+  final bool pollMultiple;
+  final bool pollClosed;
+  final bool pollPublic;
+  final int pollTotalVoters;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -401,6 +410,13 @@ class CachedMessage {
     this.stickerPremium = false,
     this.audioTitle = '',
     this.audioPerformer = '',
+    this.pollQuestion = '',
+    this.pollOptions = const [],
+    this.pollQuiz = false,
+    this.pollMultiple = false,
+    this.pollClosed = false,
+    this.pollPublic = false,
+    this.pollTotalVoters = 0,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -455,6 +471,7 @@ class CachedMessage {
   bool get isSticker => mediaType == 6;
   bool get isGif => mediaType == 7;
   bool get isFile => mediaType == 8;
+  bool get isPoll => mediaType == 9;
   bool get isMediaDownloaded => mediaDownloadState == 2;
   bool get isAlbumMember => groupedId.isNotEmpty;
   String get mediaSizeLabel {
@@ -506,6 +523,13 @@ class CachedMessage {
     bool? stickerPremium,
     String? audioTitle,
     String? audioPerformer,
+    String? pollQuestion,
+    List<PollOption>? pollOptions,
+    bool? pollQuiz,
+    bool? pollMultiple,
+    bool? pollClosed,
+    bool? pollPublic,
+    int? pollTotalVoters,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -554,6 +578,13 @@ class CachedMessage {
     stickerPremium: stickerPremium ?? this.stickerPremium,
     audioTitle: audioTitle ?? this.audioTitle,
     audioPerformer: audioPerformer ?? this.audioPerformer,
+    pollQuestion: pollQuestion ?? this.pollQuestion,
+    pollOptions: pollOptions ?? this.pollOptions,
+    pollQuiz: pollQuiz ?? this.pollQuiz,
+    pollMultiple: pollMultiple ?? this.pollMultiple,
+    pollClosed: pollClosed ?? this.pollClosed,
+    pollPublic: pollPublic ?? this.pollPublic,
+    pollTotalVoters: pollTotalVoters ?? this.pollTotalVoters,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
@@ -582,6 +613,31 @@ class MessageReaction {
     'count': count,
     'by_me': byMe,
   };
+}
+
+// ── Poll option ──
+class PollOption {
+  final String text;
+  final String optionB64;
+  final int voters;
+  final bool chosen;
+  final bool correct;
+
+  const PollOption({
+    required this.text,
+    this.optionB64 = '',
+    this.voters = 0,
+    this.chosen = false,
+    this.correct = false,
+  });
+
+  factory PollOption.fromJson(Map<String, dynamic> j) => PollOption(
+    text: j['text'] as String? ?? '',
+    optionB64: j['option'] as String? ?? '',
+    voters: j['voters'] as int? ?? 0,
+    chosen: j['chosen'] as bool? ?? false,
+    correct: j['correct'] as bool? ?? false,
+  );
 }
 
 // ── Shared media item ──
