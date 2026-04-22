@@ -4098,6 +4098,10 @@ class _ComposeAreaState extends State<_ComposeArea> {
   bool _hasText = false;
   Timer? _slowmodeTimer;
   int _slowmodeSecondsLeft = 0;
+  bool _isRecording = false;
+  DateTime? _recordingStart;
+  Timer? _recordingTimer;
+  Duration _recordingDuration = Duration.zero;
 
   @override
   void initState() {
@@ -4149,11 +4153,37 @@ class _ComposeAreaState extends State<_ComposeArea> {
   void dispose() {
     _slowmodeTimer?.cancel();
     _linkTimer?.cancel();
+    _recordingTimer?.cancel();
     widget.controller.removeListener(_onTextLengthChanged);
     widget.controller.removeListener(_scheduleUpdateFades);
     _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _startRecording() {
+    setState(() {
+      _isRecording = true;
+      _recordingStart = DateTime.now();
+      _recordingDuration = Duration.zero;
+    });
+    _recordingTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (_recordingStart != null) {
+        setState(() {
+          _recordingDuration = DateTime.now().difference(_recordingStart!);
+        });
+      }
+    });
+  }
+
+  void _cancelRecording() {
+    _recordingTimer?.cancel();
+    _recordingTimer = null;
+    setState(() {
+      _isRecording = false;
+      _recordingStart = null;
+      _recordingDuration = Duration.zero;
+    });
   }
 
   void _onTextLengthChanged() {
@@ -4507,6 +4537,25 @@ class _ComposeAreaState extends State<_ComposeArea> {
         ? AppColors.historyComposeIconFgOverNight
         : AppColors.historyComposeIconFgOver;
 
+    if (_isRecording) {
+      return Container(
+        decoration: BoxDecoration(
+          color: composeBg,
+          border: Border(
+            top: BorderSide(color: theme.dividerColor, width: 1),
+          ),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 9),
+        child: SizedBox(
+          height: 46,
+          child: _VoiceRecordBar(
+            duration: _recordingDuration,
+            onCancel: _cancelRecording,
+          ),
+        ),
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         color: composeBg,
@@ -4561,6 +4610,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
                 appState.recordVideoMessages = !appState.recordVideoMessages;
                 setState(() {});
               },
+              onRecordTap: _startRecording,
             );
           }),
         ],
@@ -4643,6 +4693,7 @@ class _SendButton extends StatefulWidget {
   final Color iconFg;
   final VoidCallback onSend;
   final VoidCallback? onToggleVoiceRound;
+  final VoidCallback? onRecordTap;
   final VoidCallback? onSendSilent;
   final ValueChanged<DateTime>? onSendScheduled;
   final VoidCallback? onSendWhenOnline;
@@ -4658,6 +4709,7 @@ class _SendButton extends StatefulWidget {
     required this.iconFg,
     required this.onSend,
     this.onToggleVoiceRound,
+    this.onRecordTap,
     this.onSendSilent,
     this.onSendScheduled,
     this.onSendWhenOnline,
@@ -4763,7 +4815,7 @@ class _SendButtonState extends State<_SendButton>
         widget.onSend();
       case SendButtonType.record:
       case SendButtonType.round:
-        break;
+        widget.onRecordTap?.call();
       case SendButtonType.cancel:
         break;
       case SendButtonType.schedule:
@@ -5083,6 +5135,178 @@ class _SendButtonState extends State<_SendButton>
       ),
     );
   }
+}
+
+/// Spec §7.4: Voice-record bar — replaces compose input during recording.
+/// Red pulsing blob (3-layer, audio-level-driven), timer with 1 decimal,
+/// "Slide to cancel" hint (210px wide), cancel button (100px).
+class _VoiceRecordBar extends StatefulWidget {
+  final Duration duration;
+  final VoidCallback onCancel;
+
+  const _VoiceRecordBar({
+    required this.duration,
+    required this.onCancel,
+  });
+
+  @override
+  State<_VoiceRecordBar> createState() => _VoiceRecordBarState();
+}
+
+class _VoiceRecordBarState extends State<_VoiceRecordBar>
+    with TickerProviderStateMixin {
+  late AnimationController _blobController;
+  late AnimationController _signalDotController;
+  bool _cancelHovered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _blobController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+    _signalDotController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _blobController.dispose();
+    _signalDotController.dispose();
+    super.dispose();
+  }
+
+  String _formatDuration(Duration d) {
+    final totalMs = d.inMilliseconds;
+    final minutes = totalMs ~/ 60000;
+    final seconds = (totalMs % 60000) ~/ 1000;
+    final tenths = (totalMs % 1000) ~/ 100;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}.$tenths';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textFg = isDark ? const Color(0xFFe0e3ea) : const Color(0xFF222222);
+    final cancelFg = isDark ? const Color(0xFF6ab4f8) : const Color(0xFF168acd);
+    final hintFg = isDark ? const Color(0xFF7e8e9f) : const Color(0xFF999999);
+
+    return Row(
+      children: [
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 46,
+          height: 46,
+          child: AnimatedBuilder(
+            animation: _blobController,
+            builder: (context, _) {
+              return CustomPaint(
+                painter: _BlobPainter(
+                  level: _blobController.value,
+                  signalDotOpacity: _signalDotController.value,
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 60,
+          child: Text(
+            _formatDuration(widget.duration),
+            style: TextStyle(
+              fontSize: 13,
+              color: textFg,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: SizedBox(
+              width: 210,
+              child: Text(
+                'Slide to cancel',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: hintFg,
+                ),
+              ),
+            ),
+          ),
+        ),
+        MouseRegion(
+          onEnter: (_) => setState(() => _cancelHovered = true),
+          onExit: (_) => setState(() => _cancelHovered = false),
+          child: GestureDetector(
+            onTap: widget.onCancel,
+            child: SizedBox(
+              width: 100,
+              height: 46,
+              child: Center(
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: _cancelHovered
+                        ? cancelFg.withValues(alpha: 0.7)
+                        : cancelFg,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BlobPainter extends CustomPainter {
+  final double level;
+  final double signalDotOpacity;
+
+  _BlobPainter({required this.level, required this.signalDotOpacity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final center = Offset(cx, cy);
+
+    final minorRadius = 40.0 + (47.0 - 40.0) * _wave(level, 0.3);
+    final majorRadius = 43.0 + (50.0 - 43.0) * _wave(level, 0.6);
+    final mainRadius = 23.0 + (37.0 - 23.0) * level;
+
+    final scale = 0.45;
+
+    final minorPaint = Paint()
+      ..color = const Color(0xFFe53935).withValues(alpha: 0.12);
+    canvas.drawCircle(center, minorRadius * scale, minorPaint);
+
+    final majorPaint = Paint()
+      ..color = const Color(0xFFe53935).withValues(alpha: 0.20);
+    canvas.drawCircle(center, majorRadius * scale, majorPaint);
+
+    final mainPaint = Paint()..color = const Color(0xFFe53935);
+    canvas.drawCircle(center, mainRadius * scale, mainPaint);
+
+    final dotPaint = Paint()
+      ..color = const Color(0xFFe53935).withValues(alpha: signalDotOpacity);
+    canvas.drawCircle(center, 5.0 * scale, dotPaint);
+  }
+
+  double _wave(double t, double offset) {
+    return ((math.sin((t + offset) * math.pi * 2) + 1.0) / 2.0);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BlobPainter old) =>
+      old.level != level || old.signalDotOpacity != signalDotOpacity;
 }
 
 /// Forward dialog — shows a searchable chat list to pick a destination.

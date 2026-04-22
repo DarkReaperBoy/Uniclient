@@ -349,7 +349,6 @@
 
 ### §7.5 Voice Record Bar
 
-- [ ] Voice record bar replacing input during recording: red pulsing blob (main 23–37px, major 43–50px, minor 40–47px), timer (13px, 1 decimal), "Slide to cancel" (210px wide, margins 15/25), cancel button 100px — spec §7.4. Not implemented
 - [ ] Hold-to-record: pointer-down arms timer, release before ~200ms cancels with tooltip — spec §7.4. Not implemented
 - [ ] Drag-up-to-lock widget (75×133px, 150ms show/hide, 15° pull-rotate angle), hands-free mode, stop-square button 12px — spec §7.4. Not implemented
 - [ ] Video-record round-message mode triggered when send is Type::Round — spec §7.4. Not implemented
