@@ -4555,8 +4555,38 @@ class _SendButton extends StatefulWidget {
   State<_SendButton> createState() => _SendButtonState();
 }
 
-class _SendButtonState extends State<_SendButton> {
+class _SendButtonState extends State<_SendButton>
+    with SingleTickerProviderStateMixin {
   bool _hovered = false;
+  late AnimationController _morphController;
+  SendButtonType? _prevType;
+
+  static const _kWideScale = 5.0;
+  static const _morphDuration = Duration(milliseconds: 120);
+
+  @override
+  void initState() {
+    super.initState();
+    _morphController = AnimationController(
+      vsync: this,
+      duration: _morphDuration,
+    )..value = 1.0;
+  }
+
+  @override
+  void dispose() {
+    _morphController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SendButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.type != widget.type) {
+      _prevType = oldWidget.type;
+      _morphController.forward(from: 0.0);
+    }
+  }
 
   static IconData _iconFor(SendButtonType type) => switch (type) {
     SendButtonType.send => Icons.send,
@@ -4598,29 +4628,75 @@ class _SendButtonState extends State<_SendButton> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final type = widget.type;
+  Color _colorFor(SendButtonType type) {
     final isSendLike = type == SendButtonType.send ||
         type == SendButtonType.save ||
         type == SendButtonType.schedule;
-    final color = isSendLike
+    return isSendLike
         ? widget.accentColor
         : (_hovered ? widget.accentColor : widget.iconFg);
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Tooltip(
-        message: _tooltipFor(type),
+        message: _tooltipFor(widget.type),
         child: InkResponse(
           onTap: _onTap,
           radius: 20,
           child: SizedBox(
             width: 44,
             height: 46,
-            child: Center(
-              child: Icon(_iconFor(type), size: 22, color: color),
+            child: ClipRect(
+              child: AnimatedBuilder(
+                animation: _morphController,
+                builder: (context, _) {
+                  final t = _morphController.value;
+                  if (t >= 1.0 || _prevType == null) {
+                    return Center(
+                      child: Icon(
+                        _iconFor(widget.type),
+                        size: 22,
+                        color: _colorFor(widget.type),
+                      ),
+                    );
+                  }
+                  final outScale = 1.0 + (_kWideScale - 1.0) * t;
+                  final inScale = _kWideScale - (_kWideScale - 1.0) * t;
+                  return Center(
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Opacity(
+                          opacity: 1.0 - t,
+                          child: Transform.scale(
+                            scale: outScale,
+                            child: Icon(
+                              _iconFor(_prevType!),
+                              size: 22,
+                              color: _colorFor(_prevType!),
+                            ),
+                          ),
+                        ),
+                        Opacity(
+                          opacity: t,
+                          child: Transform.scale(
+                            scale: inScale,
+                            child: Icon(
+                              _iconFor(widget.type),
+                              size: 22,
+                              color: _colorFor(widget.type),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             ),
           ),
         ),

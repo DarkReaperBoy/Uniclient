@@ -346,7 +346,6 @@
 ### §7.4 Send Button States & Morph
 
 - [x] Send button with icon switch: check/save while editing — spec §7.3, DONE in chat_view.dart. Full 8-state enum with selection logic
-- [ ] Cross-fade morph: 120ms universalDuration, outgoing scales 1×→5×, incoming scales 5×→1×, both fade — spec §7.3. Not implemented
 - [ ] Voice↔Round Lottie swap animation (mic → camera), 30-frame cap — spec §7.3. Not implemented
 - [ ] Forbidden state: icon at 0.5 opacity — spec §7.3. Not implemented
 - [ ] Slowmode: "M:SS" countdown display, cursor disabled — spec §7.3. Not implemented
