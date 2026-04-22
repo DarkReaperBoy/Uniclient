@@ -9,8 +9,11 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../state/audio_service.dart';
+import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'media_viewer.dart';
 import 'sticker_pack_viewer.dart';
@@ -1942,25 +1945,82 @@ class _VoiceIndicator extends StatefulWidget {
 class _VoiceIndicatorState extends State<_VoiceIndicator> {
   double? _hoverX;
 
+  void _onPlayPause() {
+    final msg = widget.message;
+    final audio = context.read<AudioService>();
+
+    if (msg.mediaLocalPath.isEmpty && msg.mediaDownloadState != 1) {
+      context.read<ChatState>().requestDownload(msg);
+      return;
+    }
+    if (msg.mediaLocalPath.isEmpty) return;
+
+    audio.playVoice(msg.mediaLocalPath, msg.msgId);
+  }
+
+  void _onWaveformTap(double localX, double totalWidth) {
+    if (totalWidth <= 0) return;
+    final audio = context.read<AudioService>();
+    final msg = widget.message;
+
+    if (!audio.isActiveMsg(msg.msgId)) {
+      if (msg.mediaLocalPath.isEmpty) return;
+      audio.playVoice(msg.mediaLocalPath, msg.msgId).then((_) {
+        Future.delayed(const Duration(milliseconds: 100), () {
+          audio.seek(localX / totalWidth);
+        });
+      });
+      return;
+    }
+    audio.seek(localX / totalWidth);
+  }
+
+  String _formatDurationMs(Duration d) {
+    final totalSecs = d.inSeconds;
+    final m = totalSecs ~/ 60;
+    final s = totalSecs % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final isOut = widget.message.isOutgoing;
     final waveform = widget.message.mediaWaveform;
     final hasWaveform = waveform.isNotEmpty;
+    final audio = context.watch<AudioService>();
+    final isActive = audio.isActiveMsg(widget.message.msgId);
+    final isPlaying = audio.isPlayingMsg(widget.message.msgId);
+    final progress = isActive ? audio.progress : 0.0;
+    final downloading = widget.message.mediaDownloadState == 1;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: widget.theme.colorScheme.primary.withValues(alpha: 0.15),
-              shape: BoxShape.circle,
+          GestureDetector(
+            onTap: downloading ? null : _onPlayPause,
+            child: Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: widget.theme.colorScheme.primary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: downloading
+                  ? Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: widget.theme.colorScheme.primary,
+                      ),
+                    )
+                  : Icon(
+                      isPlaying ? Icons.pause : Icons.play_arrow,
+                      size: 24,
+                      color: widget.theme.colorScheme.primary,
+                    ),
             ),
-            child: Icon(Icons.play_arrow, size: 24, color: widget.theme.colorScheme.primary),
           ),
           const SizedBox(width: 8),
           Flexible(
@@ -1971,22 +2031,37 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
                 if (hasWaveform)
                   SizedBox(
                     height: 17,
-                    child: MouseRegion(
-                      onHover: (event) {
-                        setState(() { _hoverX = event.localPosition.dx; });
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = constraints.maxWidth;
+                        return MouseRegion(
+                          onHover: (event) {
+                            setState(() { _hoverX = event.localPosition.dx; });
+                          },
+                          onExit: (_) {
+                            setState(() { _hoverX = null; });
+                          },
+                          child: GestureDetector(
+                            onTapDown: (details) {
+                              _onWaveformTap(details.localPosition.dx, width);
+                            },
+                            onHorizontalDragUpdate: (details) {
+                              if (isActive) {
+                                audio.seek(details.localPosition.dx / width);
+                              }
+                            },
+                            child: CustomPaint(
+                              size: Size(width, 17),
+                              painter: _WaveformPainter(
+                                samples: waveform,
+                                isOutgoing: isOut,
+                                progress: progress,
+                                hoverX: _hoverX,
+                              ),
+                            ),
+                          ),
+                        );
                       },
-                      onExit: (_) {
-                        setState(() { _hoverX = null; });
-                      },
-                      child: CustomPaint(
-                        size: const Size(double.infinity, 17),
-                        painter: _WaveformPainter(
-                          samples: waveform,
-                          isOutgoing: isOut,
-                          progress: 0.0,
-                          hoverX: _hoverX,
-                        ),
-                      ),
                     ),
                   )
                 else
@@ -2000,18 +2075,31 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (widget.message.mediaDuration > 0)
+                    Text(
+                      isActive && audio.duration.inMilliseconds > 0
+                          ? _formatDurationMs(audio.position)
+                          : widget.message.mediaDuration > 0
+                              ? _VisualMedia._formatDuration(widget.message.mediaDuration)
+                              : '',
+                      style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                    ),
+                    if (isActive && audio.duration.inMilliseconds > 0) ...[
                       Text(
-                        _VisualMedia._formatDuration(widget.message.mediaDuration),
+                        ' / ${_formatDurationMs(audio.duration)}',
                         style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
                       ),
-                    if (widget.message.mediaDuration > 0 && widget.message.mediaSizeLabel.isNotEmpty)
+                    ] else if (widget.message.mediaDuration > 0 && widget.message.mediaSizeLabel.isNotEmpty) ...[
                       Text(' · ', style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color)),
-                    if (widget.message.mediaSizeLabel.isNotEmpty)
                       Text(
                         widget.message.mediaSizeLabel,
                         style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
                       ),
+                    ] else if (widget.message.mediaSizeLabel.isNotEmpty) ...[
+                      Text(
+                        widget.message.mediaSizeLabel,
+                        style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                      ),
+                    ],
                   ],
                 ),
               ],

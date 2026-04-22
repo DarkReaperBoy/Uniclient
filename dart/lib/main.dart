@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 import 'bridge/engine_service.dart';
 import 'state/app_state.dart';
 import 'state/chat_state.dart';
+import 'state/audio_service.dart';
 import 'state/auth_state.dart';
 import 'theme/theme.dart';
 import 'ui/chat_list_panel.dart';
@@ -51,6 +52,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => AppState(engineService)),
         ChangeNotifierProvider(create: (_) => ChatState(engineService)),
         ChangeNotifierProvider(create: (_) => AuthState(engineService)),
+        ChangeNotifierProvider(create: (_) => AudioService()),
       ],
       child: const UniClientApp(),
     ),

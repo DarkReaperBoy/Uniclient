@@ -913,6 +913,16 @@ class ChatState extends ChangeNotifier {
     }
   }
 
+  void requestDownload(CachedMessage msg) {
+    if (msg.mediaDownloadState == 1) return;
+    final idx = _messages.indexWhere((m) => m.msgId == msg.msgId);
+    if (idx >= 0) {
+      _messages[idx] = _messages[idx].copyWith(mediaDownloadState: 1);
+      notifyListeners();
+    }
+    _engine.requestDownload(msg.accountId, msg.chatId, msg.msgId);
+  }
+
   void _handleDownloadComplete(DownloadCompleteEvent event) {
     if (_disposed) return;
     final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
