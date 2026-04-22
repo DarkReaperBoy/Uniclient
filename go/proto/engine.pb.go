@@ -1105,30 +1105,32 @@ func (x *EngineCancelAuthRequest) GetAccountId() string {
 }
 
 type EngineChatInfo struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	AccountId         string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	ChatId            string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
-	Type              int32                  `protobuf:"varint,3,opt,name=type,proto3" json:"type,omitempty"`
-	Title             string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
-	AvatarPath        string                 `protobuf:"bytes,5,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
-	LastMsgId         string                 `protobuf:"bytes,6,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"`
-	LastMsgText       string                 `protobuf:"bytes,7,opt,name=last_msg_text,json=lastMsgText,proto3" json:"last_msg_text,omitempty"`
-	LastMsgTime       int64                  `protobuf:"varint,8,opt,name=last_msg_time,json=lastMsgTime,proto3" json:"last_msg_time,omitempty"`
-	LastMsgSender     string                 `protobuf:"bytes,9,opt,name=last_msg_sender,json=lastMsgSender,proto3" json:"last_msg_sender,omitempty"`
-	LastMsgIsOutgoing bool                   `protobuf:"varint,17,opt,name=last_msg_is_outgoing,json=lastMsgIsOutgoing,proto3" json:"last_msg_is_outgoing,omitempty"`
-	UnreadCount       int32                  `protobuf:"varint,10,opt,name=unread_count,json=unreadCount,proto3" json:"unread_count,omitempty"`
-	IsMuted           bool                   `protobuf:"varint,11,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
-	IsPinned          bool                   `protobuf:"varint,12,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
-	IsArchived        bool                   `protobuf:"varint,13,opt,name=is_archived,json=isArchived,proto3" json:"is_archived,omitempty"`
-	DraftText         string                 `protobuf:"bytes,14,opt,name=draft_text,json=draftText,proto3" json:"draft_text,omitempty"`
-	MemberCount       int32                  `protobuf:"varint,15,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
-	ParentId          string                 `protobuf:"bytes,16,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
-	IsBot             bool                   `protobuf:"varint,18,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
-	LastMsgStatus     int32                  `protobuf:"varint,19,opt,name=last_msg_status,json=lastMsgStatus,proto3" json:"last_msg_status,omitempty"`
-	IsContact         bool                   `protobuf:"varint,20,opt,name=is_contact,json=isContact,proto3" json:"is_contact,omitempty"`
-	IsBlocked         bool                   `protobuf:"varint,21,opt,name=is_blocked,json=isBlocked,proto3" json:"is_blocked,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	AccountId            string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId               string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	Type                 int32                  `protobuf:"varint,3,opt,name=type,proto3" json:"type,omitempty"`
+	Title                string                 `protobuf:"bytes,4,opt,name=title,proto3" json:"title,omitempty"`
+	AvatarPath           string                 `protobuf:"bytes,5,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
+	LastMsgId            string                 `protobuf:"bytes,6,opt,name=last_msg_id,json=lastMsgId,proto3" json:"last_msg_id,omitempty"`
+	LastMsgText          string                 `protobuf:"bytes,7,opt,name=last_msg_text,json=lastMsgText,proto3" json:"last_msg_text,omitempty"`
+	LastMsgTime          int64                  `protobuf:"varint,8,opt,name=last_msg_time,json=lastMsgTime,proto3" json:"last_msg_time,omitempty"`
+	LastMsgSender        string                 `protobuf:"bytes,9,opt,name=last_msg_sender,json=lastMsgSender,proto3" json:"last_msg_sender,omitempty"`
+	LastMsgIsOutgoing    bool                   `protobuf:"varint,17,opt,name=last_msg_is_outgoing,json=lastMsgIsOutgoing,proto3" json:"last_msg_is_outgoing,omitempty"`
+	UnreadCount          int32                  `protobuf:"varint,10,opt,name=unread_count,json=unreadCount,proto3" json:"unread_count,omitempty"`
+	IsMuted              bool                   `protobuf:"varint,11,opt,name=is_muted,json=isMuted,proto3" json:"is_muted,omitempty"`
+	IsPinned             bool                   `protobuf:"varint,12,opt,name=is_pinned,json=isPinned,proto3" json:"is_pinned,omitempty"`
+	IsArchived           bool                   `protobuf:"varint,13,opt,name=is_archived,json=isArchived,proto3" json:"is_archived,omitempty"`
+	DraftText            string                 `protobuf:"bytes,14,opt,name=draft_text,json=draftText,proto3" json:"draft_text,omitempty"`
+	MemberCount          int32                  `protobuf:"varint,15,opt,name=member_count,json=memberCount,proto3" json:"member_count,omitempty"`
+	ParentId             string                 `protobuf:"bytes,16,opt,name=parent_id,json=parentId,proto3" json:"parent_id,omitempty"`
+	IsBot                bool                   `protobuf:"varint,18,opt,name=is_bot,json=isBot,proto3" json:"is_bot,omitempty"`
+	LastMsgStatus        int32                  `protobuf:"varint,19,opt,name=last_msg_status,json=lastMsgStatus,proto3" json:"last_msg_status,omitempty"`
+	IsContact            bool                   `protobuf:"varint,20,opt,name=is_contact,json=isContact,proto3" json:"is_contact,omitempty"`
+	IsBlocked            bool                   `protobuf:"varint,21,opt,name=is_blocked,json=isBlocked,proto3" json:"is_blocked,omitempty"`
+	SlowmodeSeconds      int32                  `protobuf:"varint,22,opt,name=slowmode_seconds,json=slowmodeSeconds,proto3" json:"slowmode_seconds,omitempty"`
+	SlowmodeNextSendDate int64                  `protobuf:"varint,23,opt,name=slowmode_next_send_date,json=slowmodeNextSendDate,proto3" json:"slowmode_next_send_date,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *EngineChatInfo) Reset() {
@@ -1306,6 +1308,20 @@ func (x *EngineChatInfo) GetIsBlocked() bool {
 		return x.IsBlocked
 	}
 	return false
+}
+
+func (x *EngineChatInfo) GetSlowmodeSeconds() int32 {
+	if x != nil {
+		return x.SlowmodeSeconds
+	}
+	return 0
+}
+
+func (x *EngineChatInfo) GetSlowmodeNextSendDate() int64 {
+	if x != nil {
+		return x.SlowmodeNextSendDate
+	}
+	return 0
 }
 
 type EngineGetChatListRequest struct {
@@ -6518,7 +6534,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xac\x05\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\x8e\x06\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -6547,7 +6563,9 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"is_contact\x18\x14 \x01(\bR\tisContact\x12\x1d\n" +
 	"\n" +
-	"is_blocked\x18\x15 \x01(\bR\tisBlocked\"\x83\x01\n" +
+	"is_blocked\x18\x15 \x01(\bR\tisBlocked\x12)\n" +
+	"\x10slowmode_seconds\x18\x16 \x01(\x05R\x0fslowmodeSeconds\x125\n" +
+	"\x17slowmode_next_send_date\x18\x17 \x01(\x03R\x14slowmodeNextSendDate\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +

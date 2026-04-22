@@ -346,7 +346,6 @@
 ### §7.4 Send Button States & Morph
 
 - [x] Send button with icon switch: check/save while editing — spec §7.3, DONE in chat_view.dart. Full 8-state enum with selection logic
-- [ ] Slowmode: "M:SS" countdown display, cursor disabled — spec §7.3. Not implemented
 - [ ] Stars-to-send pill chip: height 28px, star-count + icon, widens send button — spec §7.3. Not implemented
 - [ ] Send menu (right-click/long-press): Silent, Schedule, WhenOnline, HQ, Spoiler, CaptionAbove/Below, Price; 150ms scale+fade popup animation — spec §7.2. Not implemented
 

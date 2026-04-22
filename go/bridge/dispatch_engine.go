@@ -895,6 +895,8 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		IsBot:        c.IsBot,
 		IsContact:    c.IsContact,
 		IsBlocked:    c.IsBlocked,
+		SlowmodeSeconds:       int32(c.SlowmodeSeconds),
+		SlowmodeNextSendDate:  c.SlowmodeNextSendDate,
 	}
 }
 

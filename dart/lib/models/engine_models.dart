@@ -210,6 +210,8 @@ class ChatInfo {
   final bool isFake;
   final bool voiceRestricted;
   final bool videoRestricted;
+  final int slowmodeSeconds;
+  final int slowmodeNextSendDate;
 
   const ChatInfo({
     required this.accountId,
@@ -247,6 +249,8 @@ class ChatInfo {
     this.isFake = false,
     this.voiceRestricted = false,
     this.videoRestricted = false,
+    this.slowmodeSeconds = 0,
+    this.slowmodeNextSendDate = 0,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -285,6 +289,8 @@ class ChatInfo {
     isFake: j['is_fake'] as bool? ?? false,
     voiceRestricted: j['voice_restricted'] as bool? ?? false,
     videoRestricted: j['video_restricted'] as bool? ?? false,
+    slowmodeSeconds: j['slowmode_seconds'] as int? ?? 0,
+    slowmodeNextSendDate: j['slowmode_next_send_date'] as int? ?? 0,
   );
 
   /// Time as DateTime for display.

@@ -166,9 +166,11 @@ type Dialog struct {
 	UnreadMentionCount  int  `json:"unread_mention_count,omitempty"`
 	UnreadReactionCount int  `json:"unread_reaction_count,omitempty"`
 	IsVerified          bool `json:"is_verified,omitempty"`
-	IsScam        bool       `json:"is_scam,omitempty"`
-	IsFake        bool       `json:"is_fake,omitempty"`
-	Platform      string     `json:"platform"`
+	IsScam              bool   `json:"is_scam,omitempty"`
+	IsFake              bool   `json:"is_fake,omitempty"`
+	SlowmodeSeconds     int    `json:"slowmode_seconds,omitempty"`
+	SlowmodeNextSendDate int64 `json:"slowmode_next_send_date,omitempty"`
+	Platform            string `json:"platform"`
 }
 
 // TextEntity represents a rich-text formatting entity (bold, italic, link, etc.)

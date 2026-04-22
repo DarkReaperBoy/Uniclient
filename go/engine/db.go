@@ -115,6 +115,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV12,
 	migrateV13,
 	migrateV14,
+	migrateV15,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -491,4 +492,18 @@ func migrateV14(tx *sql.Tx) error {
 	}
 	_, err := tx.Exec(`ALTER TABLE messages ADD COLUMN grouped_id TEXT`)
 	return err
+}
+
+func migrateV15(tx *sql.Tx) error {
+	if !columnExists(tx, "chats", "slowmode_seconds") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN slowmode_seconds INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "chats", "slowmode_next_send_date") {
+		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN slowmode_next_send_date INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+	return nil
 }

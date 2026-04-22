@@ -170,6 +170,8 @@ message EngineChatInfo {
   int32  last_msg_status = 19;
   bool   is_contact      = 20;
   bool   is_blocked      = 21;
+  int32  slowmode_seconds         = 22;
+  int64  slowmode_next_send_date  = 23;
 }
 
 message EngineGetChatListRequest {

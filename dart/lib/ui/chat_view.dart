@@ -1291,6 +1291,8 @@ class _ChatViewState extends State<ChatView>
             chatType: chat.type,
             voiceRestricted: chat.voiceRestricted,
             videoRestricted: chat.videoRestricted,
+            slowmodeSeconds: chat.slowmodeSeconds,
+            slowmodeNextSendDate: chat.slowmodeNextSendDate,
             onEditLast: _editLastOutgoing,
             onCycleReply: _cycleReply,
             onLinksDetected: (links) {
@@ -4039,6 +4041,8 @@ class _ComposeArea extends StatefulWidget {
   final ValueChanged<List<String>>? onFilesSelected;
   final bool voiceRestricted;
   final bool videoRestricted;
+  final int slowmodeSeconds;
+  final int slowmodeNextSendDate;
 
   const _ComposeArea({
     required this.controller,
@@ -4052,6 +4056,8 @@ class _ComposeArea extends StatefulWidget {
     this.onFilesSelected,
     this.voiceRestricted = false,
     this.videoRestricted = false,
+    this.slowmodeSeconds = 0,
+    this.slowmodeNextSendDate = 0,
   });
 
   @override
@@ -4075,6 +4081,8 @@ class _ComposeAreaState extends State<_ComposeArea> {
   int _prevTextLength = 0;
   List<String> _detectedLinks = const [];
   bool _hasText = false;
+  Timer? _slowmodeTimer;
+  int _slowmodeSecondsLeft = 0;
 
   @override
   void initState() {
@@ -4085,10 +4093,46 @@ class _ComposeAreaState extends State<_ComposeArea> {
     widget.controller.addListener(_onTextLengthChanged);
     _prevTextLength = widget.controller.text.length;
     _hasText = widget.controller.text.isNotEmpty;
+    _startSlowmodeTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ComposeArea oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.slowmodeNextSendDate != widget.slowmodeNextSendDate ||
+        oldWidget.slowmodeSeconds != widget.slowmodeSeconds) {
+      _startSlowmodeTimer();
+    }
+  }
+
+  void _startSlowmodeTimer() {
+    _slowmodeTimer?.cancel();
+    _slowmodeTimer = null;
+    _slowmodeSecondsLeft = _computeSlowmodeLeft();
+    if (_slowmodeSecondsLeft > 0) {
+      _slowmodeTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+        final left = _computeSlowmodeLeft();
+        if (left != _slowmodeSecondsLeft) {
+          setState(() => _slowmodeSecondsLeft = left);
+        }
+        if (left <= 0) {
+          _slowmodeTimer?.cancel();
+          _slowmodeTimer = null;
+        }
+      });
+    }
+  }
+
+  int _computeSlowmodeLeft() {
+    if (widget.slowmodeNextSendDate <= 0) return 0;
+    final nowSec = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final left = widget.slowmodeNextSendDate - nowSec;
+    return left > 0 ? left : 0;
   }
 
   @override
   void dispose() {
+    _slowmodeTimer?.cancel();
     _linkTimer?.cancel();
     widget.controller.removeListener(_onTextLengthChanged);
     widget.controller.removeListener(_scheduleUpdateFades);
@@ -4106,6 +4150,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
 
   SendButtonType _computeSendButtonType() {
     if (widget.isEditing) return SendButtonType.save;
+    if (_slowmodeSecondsLeft > 0) return SendButtonType.slowmode;
     if (!_hasText) {
       final appState = context.read<AppState>();
       return appState.recordVideoMessages
@@ -4113,6 +4158,13 @@ class _ComposeAreaState extends State<_ComposeArea> {
           : SendButtonType.record;
     }
     return SendButtonType.send;
+  }
+
+  static String _formatSlowmode(int seconds) {
+    final clamped = seconds.clamp(0, 6000);
+    final m = clamped ~/ 60;
+    final s = clamped % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
   }
 
   void _scheduleUpdateFades() {
@@ -4480,6 +4532,9 @@ class _ComposeAreaState extends State<_ComposeArea> {
               iconFg: iconFg,
               onSend: widget.onSend,
               forbidden: forbidden,
+              slowmodeText: type == SendButtonType.slowmode
+                  ? _formatSlowmode(_slowmodeSecondsLeft)
+                  : null,
               onToggleVoiceRound: () {
                 final appState = context.read<AppState>();
                 appState.recordVideoMessages = !appState.recordVideoMessages;
@@ -4568,6 +4623,7 @@ class _SendButton extends StatefulWidget {
   final VoidCallback onSend;
   final VoidCallback? onToggleVoiceRound;
   final bool forbidden;
+  final String? slowmodeText;
 
   const _SendButton({
     required this.type,
@@ -4576,6 +4632,7 @@ class _SendButton extends StatefulWidget {
     required this.onSend,
     this.onToggleVoiceRound,
     this.forbidden = false,
+    this.slowmodeText,
   });
 
   @override
@@ -4679,6 +4736,12 @@ class _SendButtonState extends State<_SendButton>
       case SendButtonType.schedule:
         widget.onSend();
       case SendButtonType.slowmode:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Slow mode is enabled. Please wait before sending another message.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
       case SendButtonType.editPrice:
         break;
     }
@@ -4773,14 +4836,35 @@ class _SendButtonState extends State<_SendButton>
     final isRecordOrRound =
         widget.type == SendButtonType.record || widget.type == SendButtonType.round;
     final isForbidden = widget.forbidden && _isForbiddable(widget.type);
+    final isSlowmode = widget.type == SendButtonType.slowmode;
 
-    Widget iconContent = ClipRect(
-      child: _isVoiceRoundTransition && _rollController.value < 1.0
-          ? _buildRollTransition()
-          : _buildBloomTransition(),
-    );
-    if (isForbidden) {
-      iconContent = Opacity(opacity: 0.5, child: iconContent);
+    Widget content;
+    if (isSlowmode && widget.slowmodeText != null) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      content = Padding(
+        padding: const EdgeInsets.only(right: 10),
+        child: Center(
+          child: Text(
+            widget.slowmodeText!,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+              color: isDark
+                  ? const Color(0xFF7e8e9f)
+                  : const Color(0xFF999999),
+            ),
+          ),
+        ),
+      );
+    } else {
+      content = ClipRect(
+        child: _isVoiceRoundTransition && _rollController.value < 1.0
+            ? _buildRollTransition()
+            : _buildBloomTransition(),
+      );
+      if (isForbidden) {
+        content = Opacity(opacity: 0.5, child: content);
+      }
     }
 
     return Listener(
@@ -4792,19 +4876,20 @@ class _SendButtonState extends State<_SendButton>
             }
           : null,
       child: MouseRegion(
+        cursor: isSlowmode ? SystemMouseCursors.basic : SystemMouseCursors.click,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: Tooltip(
           message: _tooltipFor(widget.type),
-          child: isForbidden
+          child: (isForbidden || isSlowmode)
               ? GestureDetector(
                   onTap: _onTap,
-                  child: SizedBox(width: 44, height: 46, child: iconContent),
+                  child: SizedBox(width: 44, height: 46, child: content),
                 )
               : InkResponse(
                   onTap: _onTap,
                   radius: 20,
-                  child: SizedBox(width: 44, height: 46, child: iconContent),
+                  child: SizedBox(width: 44, height: 46, child: content),
                 ),
         ),
       ),

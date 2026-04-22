@@ -982,6 +982,8 @@ class EngineService {
     isBot: p.isBot,
     isContact: p.isContact,
     isBlocked: p.isBlocked,
+    slowmodeSeconds: p.slowmodeSeconds,
+    slowmodeNextSendDate: p.slowmodeNextSendDate.toInt(),
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {
