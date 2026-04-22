@@ -262,6 +262,31 @@ class _UniClientAppState extends State<UniClientApp>
           if (text.isNotEmpty) {
             chatState.sendMessage(text);
           }
+        case 'setCompose':
+          final text = cmd['text'] as String? ?? '';
+          final selStart = cmd['selStart'] as int?;
+          final selEnd = cmd['selEnd'] as int?;
+          ChatView.setComposeRequest?.call(text, selStart: selStart, selEnd: selEnd);
+        case 'formatCompose':
+          final fmt = cmd['format'] as String? ?? '';
+          final type = switch (fmt) {
+            'bold' => FormatType.bold,
+            'italic' => FormatType.italic,
+            'underline' => FormatType.underline,
+            'strike' => FormatType.strike,
+            'code' => FormatType.code,
+            'spoiler' => FormatType.spoiler,
+            'blockquote' => FormatType.blockquote,
+            _ => null,
+          };
+          if (type != null) {
+            ChatView.toggleFormatRequest?.call(type);
+          }
+        case 'getComposeEntities':
+          final entities = ChatView.getComposeEntitiesRequest?.call() ?? '';
+          File('/tmp/uniclient_debug_out.json').writeAsStringSync(
+            jsonEncode({'entities': entities}),
+          );
         case 'getMessages':
           // Dump current messages to output file.
           final out = chatState.messages.take(20).map((m) => {

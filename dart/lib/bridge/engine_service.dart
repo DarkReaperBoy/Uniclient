@@ -433,7 +433,7 @@ class EngineService {
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
-  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = ''}) async {
+  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = ''}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
@@ -444,7 +444,7 @@ class EngineService {
     return resp.localId;
   }
 
-  Future<void> editMessage(String accountId, String chatId, String msgId, String newText) async {
+  Future<void> editMessage(String accountId, String chatId, String msgId, String newText, {String entities = ''}) async {
     final req = epb.EngineEditMessageRequest()
       ..accountId = accountId
       ..chatId = chatId

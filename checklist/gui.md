@@ -337,7 +337,6 @@
 ### §7.1 Text Input Field
 
 - [x] Auto-growing TextField, max ~160px (spec 224px), placeholder "Write a message...", Enter sends / Shift+Enter newline — spec §7.1, DONE in chat_view.dart (_ComposeArea). maxHeight 160px not 224px
-- [ ] Rich text formatting: Bold (Ctrl+B), Italic (Ctrl+I), Underline (Ctrl+U), Strikethrough (Ctrl+Shift+X), Monospace (Ctrl+Shift+M), Spoiler (Ctrl+Shift+P), Blockquote — spec §7. Not implemented
 - [ ] Instant emoji replacement (:) → emoji) — spec §7. Not implemented
 - [ ] Link detection after 500ms debounce — spec §7. Not implemented
 - [ ] No visible outline: border 0, borderActive 0; strip min height 54px (36 + 2×9 padding) — spec §7.1. Current uses rounded OutlineInputBorder with fillColor

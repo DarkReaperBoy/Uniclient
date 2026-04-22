@@ -58,6 +58,10 @@ class ChatView extends StatefulWidget {
   /// consumed (send dispatched).
   static bool requestSendCompose() => sendComposeRequest?.call() ?? false;
 
+  static void Function(String text, {int? selStart, int? selEnd})? setComposeRequest;
+  static void Function(FormatType type)? toggleFormatRequest;
+  static String Function()? getComposeEntitiesRequest;
+
   /// Global hook used by Ctrl+Up / Ctrl+Down (spec §24.6 lines 2982-2983) to
   /// cycle the reply target. direction=+1 → older message (Ctrl+Up), -1 →
   /// newer message (Ctrl+Down). Ctrl+Down on the newest message cancels the
@@ -103,7 +107,7 @@ class ChatView extends StatefulWidget {
 
 class _ChatViewState extends State<ChatView>
     with TickerProviderStateMixin {
-  final _composeController = TextEditingController();
+  final _composeController = RichTextEditingController();
   final _scrollController = ScrollController();
   String? _replyToId;
   String? _editingMsgId;
@@ -195,6 +199,9 @@ class _ChatViewState extends State<ChatView>
     // app-level CallbackShortcuts so the shortcut works regardless of current
     // focus.
     ChatView.cycleReplyRequest = _cycleReply;
+    ChatView.setComposeRequest = _setComposeText;
+    ChatView.toggleFormatRequest = _toggleComposeFormat;
+    ChatView.getComposeEntitiesRequest = _getComposeEntities;
     _searchController.addListener(_onSearchQueryChanged);
   }
 
@@ -215,6 +222,15 @@ class _ChatViewState extends State<ChatView>
     }
     if (ChatView.cycleReplyRequest == _cycleReply) {
       ChatView.cycleReplyRequest = null;
+    }
+    if (ChatView.setComposeRequest == _setComposeText) {
+      ChatView.setComposeRequest = null;
+    }
+    if (ChatView.toggleFormatRequest == _toggleComposeFormat) {
+      ChatView.toggleFormatRequest = null;
+    }
+    if (ChatView.getComposeEntitiesRequest == _getComposeEntities) {
+      ChatView.getComposeEntitiesRequest = null;
     }
     _selectionCurvedAnim.dispose();
     _selectionAnimCtrl.dispose();
@@ -731,20 +747,41 @@ class _ChatViewState extends State<ChatView>
     return true;
   }
 
+  void _setComposeText(String text, {int? selStart, int? selEnd}) {
+    if (text != _composeController.text) {
+      _composeController.entities.clear();
+    }
+    _composeController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection(
+        baseOffset: selStart ?? text.length,
+        extentOffset: selEnd ?? text.length,
+      ),
+    );
+  }
+
+  void _toggleComposeFormat(FormatType type) {
+    _composeController.toggleFormat(type);
+  }
+
+  String _getComposeEntities() {
+    return _composeController.entitiesJson;
+  }
+
   void _sendMessage() {
     final text = _composeController.text.trim();
     if (text.isEmpty) return;
+    final entities = _composeController.entitiesJson;
     final chatState = context.read<ChatState>();
     if (_editingMsgId != null) {
-      chatState.editMessage(_editingMsgId!, text);
+      chatState.editMessage(_editingMsgId!, text, entities: entities);
       _composeController.clear();
       setState(() => _editingMsgId = null);
       return;
     }
-    chatState.sendMessage(text, replyToId: _replyToId ?? '');
+    chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities);
     _composeController.clear();
     setState(() => _replyToId = null);
-    // Scroll to bottom after sending.
     _scrollToBottom();
   }
 
@@ -3714,6 +3751,209 @@ class _CornerButtonState extends State<_CornerButton> {
   }
 }
 
+// ── Rich text editing controller (spec §7 / §41.4) ──
+
+enum FormatType { bold, italic, underline, strike, code, spoiler, blockquote }
+
+class ComposeEntity {
+  int offset;
+  int length;
+  final FormatType type;
+
+  ComposeEntity({required this.offset, required this.length, required this.type});
+
+  Map<String, dynamic> toJson() {
+    final typeStr = switch (type) {
+      FormatType.bold => 'bold',
+      FormatType.italic => 'italic',
+      FormatType.underline => 'underline',
+      FormatType.strike => 'strike',
+      FormatType.code => 'code',
+      FormatType.spoiler => 'spoiler',
+      FormatType.blockquote => 'blockquote',
+    };
+    return {'type': typeStr, 'offset': offset, 'length': length};
+  }
+}
+
+class RichTextEditingController extends TextEditingController {
+  final List<ComposeEntity> entities = [];
+
+  String _prevText = '';
+
+  RichTextEditingController() {
+    addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    final newText = text;
+    if (newText == _prevText) return;
+
+    final oldLen = _prevText.length;
+    final newLen = newText.length;
+
+    if (newLen == 0) {
+      entities.clear();
+      _prevText = newText;
+      return;
+    }
+
+    final minLen = oldLen < newLen ? oldLen : newLen;
+    var commonPrefix = 0;
+    while (commonPrefix < minLen &&
+        _prevText.codeUnitAt(commonPrefix) == newText.codeUnitAt(commonPrefix)) {
+      commonPrefix++;
+    }
+    final changePos = commonPrefix;
+    final delta = newLen - oldLen;
+
+    for (var i = entities.length - 1; i >= 0; i--) {
+      final e = entities[i];
+      final eEnd = e.offset + e.length;
+
+      if (delta > 0) {
+        if (changePos <= e.offset) {
+          e.offset += delta;
+        } else if (changePos < eEnd) {
+          e.length += delta;
+        }
+      } else {
+        final delStart = changePos;
+        final delEnd = changePos - delta;
+
+        if (delEnd <= e.offset) {
+          e.offset += delta;
+        } else if (delStart >= eEnd) {
+          // no change
+        } else if (delStart <= e.offset && delEnd >= eEnd) {
+          entities.removeAt(i);
+          continue;
+        } else if (delStart <= e.offset) {
+          final removed = delEnd - e.offset;
+          e.offset = delStart;
+          e.length -= removed;
+        } else if (delEnd >= eEnd) {
+          e.length = delStart - e.offset;
+        } else {
+          e.length += delta;
+        }
+      }
+
+      if (i < entities.length && entities[i].length <= 0) {
+        entities.removeAt(i);
+      }
+    }
+
+    _prevText = newText;
+  }
+
+  void toggleFormat(FormatType type) {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+
+    final start = sel.start;
+    final end = sel.end;
+    final length = end - start;
+
+    final existing = entities.where((e) =>
+      e.type == type && e.offset == start && e.length == length).toList();
+
+    if (existing.isNotEmpty) {
+      for (final e in existing) {
+        entities.remove(e);
+      }
+    } else {
+      entities.add(ComposeEntity(offset: start, length: length, type: type));
+    }
+    notifyListeners();
+  }
+
+  bool hasFormat(FormatType type) {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return false;
+    final start = sel.start;
+    final end = sel.end;
+    return entities.any((e) =>
+      e.type == type && e.offset <= start && e.offset + e.length >= end);
+  }
+
+  String get entitiesJson {
+    if (entities.isEmpty) return '';
+    return jsonEncode(entities.map((e) => e.toJson()).toList());
+  }
+
+  @override
+  void clear() {
+    entities.clear();
+    _prevText = '';
+    super.clear();
+  }
+
+  @override
+  set text(String newText) {
+    entities.clear();
+    _prevText = newText;
+    super.text = newText;
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    if (entities.isEmpty) {
+      return super.buildTextSpan(
+        context: context, style: style, withComposing: withComposing);
+    }
+
+    final t = text;
+    final sorted = List<ComposeEntity>.from(entities)
+      ..sort((a, b) => a.offset.compareTo(b.offset));
+
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    for (final entity in sorted) {
+      final eStart = entity.offset.clamp(0, t.length);
+      final eEnd = (entity.offset + entity.length).clamp(0, t.length);
+      if (eEnd <= eStart) continue;
+
+      if (cursor < eStart) {
+        spans.add(TextSpan(text: t.substring(cursor, eStart)));
+      }
+
+      final entityText = t.substring(eStart, eEnd);
+      final entityStyle = switch (entity.type) {
+        FormatType.bold => const TextStyle(fontWeight: FontWeight.bold),
+        FormatType.italic => const TextStyle(fontStyle: FontStyle.italic),
+        FormatType.underline => const TextStyle(decoration: TextDecoration.underline),
+        FormatType.strike => const TextStyle(decoration: TextDecoration.lineThrough),
+        FormatType.code => TextStyle(
+          fontFamily: 'monospace',
+          backgroundColor: isDark ? const Color(0xFF1E2A36) : const Color(0xFFF0F0F0),
+        ),
+        FormatType.spoiler => TextStyle(
+          backgroundColor: isDark ? const Color(0xFF3A3A3A) : const Color(0xFFD0D0D0),
+        ),
+        FormatType.blockquote => TextStyle(
+          color: isDark ? const Color(0xFF65bdf3) : const Color(0xFF168acd),
+          fontStyle: FontStyle.italic,
+        ),
+      };
+      spans.add(TextSpan(text: entityText, style: entityStyle));
+      cursor = eEnd;
+    }
+
+    if (cursor < t.length) {
+      spans.add(TextSpan(text: t.substring(cursor)));
+    }
+
+    return TextSpan(style: style, children: spans);
+  }
+}
+
 /// Compose area at bottom. Spec §7.
 /// Enter sends, Shift+Enter for newline (matching Telegram Desktop).
 /// Up arrow with empty field → edit last outgoing message (spec §24.7).
@@ -3788,13 +4028,43 @@ class _ComposeAreaState extends State<_ComposeArea> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    final shift = HardwareKeyboard.instance.isShiftPressed;
+    final richCtrl = widget.controller is RichTextEditingController
+        ? widget.controller as RichTextEditingController
+        : null;
+
+    if (richCtrl != null && ctrl) {
+      FormatType? fmt;
+      if (!shift) {
+        fmt = switch (event.logicalKey) {
+          LogicalKeyboardKey.keyB => FormatType.bold,
+          LogicalKeyboardKey.keyI => FormatType.italic,
+          LogicalKeyboardKey.keyU => FormatType.underline,
+          _ => null,
+        };
+      } else {
+        fmt = switch (event.logicalKey) {
+          LogicalKeyboardKey.keyX => FormatType.strike,
+          LogicalKeyboardKey.keyM => FormatType.code,
+          LogicalKeyboardKey.keyP => FormatType.spoiler,
+          LogicalKeyboardKey.period => FormatType.blockquote,
+          _ => null,
+        };
+      }
+      if (fmt != null) {
+        richCtrl.toggleFormat(fmt);
+        return KeyEventResult.handled;
+      }
+    }
+
     // Ctrl+Shift+Enter → always send (spec §24.4 line 2978: "always sends
     // regardless of mode"). Intercepted BEFORE the plain-Enter branch since
     // isShiftPressed is true here, and BEFORE falling through to default
     // EditableText handling which would otherwise insert a newline.
     if (event.logicalKey == LogicalKeyboardKey.enter &&
-        HardwareKeyboard.instance.isControlPressed &&
-        HardwareKeyboard.instance.isShiftPressed) {
+        ctrl && shift) {
       widget.onSend();
       return KeyEventResult.handled;
     }
