@@ -3744,21 +3744,43 @@ class _ComposeArea extends StatefulWidget {
 
 class _ComposeAreaState extends State<_ComposeArea> {
   late final FocusNode _focusNode;
+  late final ScrollController _scrollController;
+  bool _showTopFade = false;
+  bool _showBottomFade = false;
 
   @override
   void initState() {
     super.initState();
-    // FocusNode.onKeyEvent runs BEFORE EditableText's built-in text-editing
-    // actions (MoveSelectionUp on ArrowUp), so this is the only place we can
-    // reliably intercept ArrowUp in an empty compose field before it gets
-    // consumed as cursor movement. Enter handling moved here too for symmetry.
     _focusNode = FocusNode(onKeyEvent: _onKey);
+    _scrollController = ScrollController()..addListener(_updateFades);
+    widget.controller.addListener(_scheduleUpdateFades);
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_scheduleUpdateFades);
+    _scrollController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  void _scheduleUpdateFades() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateFades();
+    });
+  }
+
+  void _updateFades() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    final top = pos.pixels > 0.5;
+    final bottom = pos.pixels < pos.maxScrollExtent - 0.5;
+    if (top != _showTopFade || bottom != _showBottomFade) {
+      setState(() {
+        _showTopFade = top;
+        _showBottomFade = bottom;
+      });
+    }
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
@@ -3817,6 +3839,56 @@ class _ComposeAreaState extends State<_ComposeArea> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final needsFade = _showTopFade || _showBottomFade;
+
+    Widget field = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 36, maxHeight: 224),
+      child: TextField(
+        controller: widget.controller,
+        focusNode: _focusNode,
+        scrollController: _scrollController,
+        onChanged: widget.onDraftChanged,
+        maxLines: null,
+        textInputAction: TextInputAction.newline,
+        style: theme.textTheme.bodyMedium,
+        decoration: InputDecoration(
+          hintText: 'Write a message...',
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: BorderSide.none,
+          ),
+          filled: true,
+          fillColor: theme.brightness == Brightness.dark
+              ? const Color(0xFF1e2430)
+              : const Color(0xFFF0F0F0),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        ),
+      ),
+    );
+
+    if (needsFade) {
+      field = ShaderMask(
+        shaderCallback: (bounds) {
+          const fadeH = 6.0;
+          final topStop = (fadeH / bounds.height).clamp(0.0, 0.45);
+          final bottomStop = (1.0 - fadeH / bounds.height).clamp(0.55, 1.0);
+          return LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              _showTopFade ? Colors.transparent : Colors.white,
+              Colors.white,
+              Colors.white,
+              _showBottomFade ? Colors.transparent : Colors.white,
+            ],
+            stops: [0.0, topStop, bottomStop, 1.0],
+          ).createShader(bounds);
+        },
+        blendMode: BlendMode.dstIn,
+        child: field,
+      );
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -3829,35 +3901,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Text input — key handling lives on the FocusNode so Enter (send)
-          // and ArrowUp (edit last) fire before EditableText's default actions.
-          Expanded(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 160),
-              child: TextField(
-                controller: widget.controller,
-                focusNode: _focusNode,
-                onChanged: widget.onDraftChanged,
-                maxLines: null,
-                textInputAction: TextInputAction.newline,
-                style: theme.textTheme.bodyMedium,
-                decoration: InputDecoration(
-                  hintText: 'Write a message...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: theme.brightness == Brightness.dark
-                      ? const Color(0xFF1e2430)
-                      : const Color(0xFFF0F0F0),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                ),
-              ),
-            ),
-          ),
-          // Send button — icon switches to check/save while editing (spec §7: "editing -> Save").
+          Expanded(child: field),
           IconButton(
             tooltip: widget.isEditing ? 'Save' : 'Send',
             icon: Icon(
