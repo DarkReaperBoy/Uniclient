@@ -1239,6 +1239,7 @@ class _ChatViewState extends State<ChatView>
             onSend: _sendMessage,
             onDraftChanged: (text) => chatState.saveDraft(text),
             isEditing: _editingMsgId != null,
+            chatType: chat.type,
             onEditLast: _editLastOutgoing,
             onCycleReply: _cycleReply,
           ),
@@ -3721,6 +3722,7 @@ class _ComposeArea extends StatefulWidget {
   final VoidCallback onSend;
   final ValueChanged<String> onDraftChanged;
   final bool isEditing;
+  final ChatType chatType;
   /// Called when Up is pressed with empty field + no edit/reply active.
   /// Returns true if edit mode was entered (so the event is consumed).
   final bool Function()? onEditLast;
@@ -3734,6 +3736,7 @@ class _ComposeArea extends StatefulWidget {
     required this.onSend,
     required this.onDraftChanged,
     this.isEditing = false,
+    this.chatType = ChatType.dm,
     this.onEditLast,
     this.onCycleReply,
   });
@@ -3852,7 +3855,11 @@ class _ComposeAreaState extends State<_ComposeArea> {
         textInputAction: TextInputAction.newline,
         style: theme.textTheme.bodyMedium,
         decoration: InputDecoration(
-          hintText: 'Write a message...',
+          hintText: widget.isEditing
+              ? 'Edit message'
+              : widget.chatType == ChatType.channel
+                  ? 'Broadcast a message...'
+                  : 'Write a message...',
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(20),
             borderSide: BorderSide.none,
