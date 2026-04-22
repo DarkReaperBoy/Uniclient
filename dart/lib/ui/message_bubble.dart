@@ -3951,20 +3951,74 @@ class _PollWidget extends StatefulWidget {
   State<_PollWidget> createState() => _PollWidgetState();
 }
 
-class _PollWidgetState extends State<_PollWidget> {
+class _PollWidgetState extends State<_PollWidget>
+    with TickerProviderStateMixin {
   final Set<int> _selectedIndices = {};
   int _hoveredIndex = -1;
   bool _hasVoted = false;
+  bool _showFireworks = false;
+  late final AnimationController _barAnim;
+  late final Animation<double> _barCurve;
+  late final AnimationController _shakeAnim;
 
   @override
   void initState() {
     super.initState();
+    _barAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _barCurve = CurvedAnimation(parent: _barAnim, curve: Curves.easeOutCirc);
+    _shakeAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    bool preVoted = false;
     for (int i = 0; i < widget.message.pollOptions.length; i++) {
       if (widget.message.pollOptions[i].chosen) {
         _selectedIndices.add(i);
-        _hasVoted = true;
+        preVoted = true;
       }
     }
+    if (preVoted || widget.message.pollClosed) {
+      _hasVoted = true;
+      _barAnim.value = 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _barAnim.dispose();
+    _shakeAnim.dispose();
+    super.dispose();
+  }
+
+  double _shakeRotation(double t) {
+    const segments = 8;
+    final phase = (t * segments) % 1.0;
+    final seg = (t * segments).floor() % 4;
+    double v;
+    switch (seg) {
+      case 0: v = -phase; break;
+      case 1: v = phase - 1.0; break;
+      case 2: v = phase; break;
+      default: v = 1.0 - phase; break;
+    }
+    return v * 3.0 * 3.14159 / 180.0;
+  }
+
+  double _shakeScale(double t) {
+    const segments = 2;
+    final phase = (t * segments) % 1.0;
+    final seg = (t * segments).floor() % 4;
+    double v;
+    switch (seg) {
+      case 0: v = -phase; break;
+      case 1: v = phase - 1.0; break;
+      case 2: v = phase; break;
+      default: v = 1.0 - phase; break;
+    }
+    return 1.0 + v * 0.03;
   }
 
   @override
@@ -3974,8 +4028,10 @@ class _PollWidgetState extends State<_PollWidget> {
     final isMultiple = msg.pollMultiple;
     final isClosed = msg.pollClosed;
     final isQuiz = msg.pollQuiz;
+    final showResults = _hasVoted || isClosed;
+    final totalVoters = msg.pollTotalVoters;
 
-    return Padding(
+    Widget content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3997,27 +4053,49 @@ class _PollWidgetState extends State<_PollWidget> {
             ),
           ),
           const SizedBox(height: 8),
-          ...List.generate(msg.pollOptions.length, (i) {
-            final opt = msg.pollOptions[i];
-            final isSelected = _selectedIndices.contains(i);
-            final isHovered = _hoveredIndex == i;
-            final canVote = !_hasVoted && !isClosed;
-            return _PollOptionRow(
-              text: opt.text,
-              isMultiple: isMultiple,
-              isSelected: isSelected,
-              isHovered: isHovered,
-              canVote: canVote,
-              isDark: isDark,
-              onHover: (h) => setState(() => _hoveredIndex = h ? i : -1),
-              onTap: canVote ? () => _onOptionTap(i) : null,
-            );
-          }),
-          if (msg.pollTotalVoters > 0 || _hasVoted)
+          if (showResults)
+            AnimatedBuilder(
+              animation: _barCurve,
+              builder: (context, _) {
+                return Column(
+                  children: List.generate(msg.pollOptions.length, (i) {
+                    final opt = msg.pollOptions[i];
+                    final pct = totalVoters > 0
+                        ? (opt.voters / totalVoters)
+                        : 0.0;
+                    return _PollResultRow(
+                      text: opt.text,
+                      percentage: pct,
+                      animValue: _barCurve.value,
+                      isChosen: opt.chosen,
+                      isDark: isDark,
+                      isCorrect: opt.correct,
+                      isQuiz: isQuiz,
+                    );
+                  }),
+                );
+              },
+            )
+          else
+            ...List.generate(msg.pollOptions.length, (i) {
+              final isSelected = _selectedIndices.contains(i);
+              final isHovered = _hoveredIndex == i;
+              return _PollOptionRow(
+                text: msg.pollOptions[i].text,
+                isMultiple: isMultiple,
+                isSelected: isSelected,
+                isHovered: isHovered,
+                canVote: true,
+                isDark: isDark,
+                onHover: (h) => setState(() => _hoveredIndex = h ? i : -1),
+                onTap: () => _onOptionTap(i),
+              );
+            }),
+          if (totalVoters > 0 || _hasVoted)
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(
-                '${msg.pollTotalVoters} vote${msg.pollTotalVoters == 1 ? '' : 's'}',
+                '$totalVoters vote${totalVoters == 1 ? '' : 's'}',
                 style: TextStyle(
                   fontSize: 12,
                   color: isDark ? Colors.white54 : Colors.black45,
@@ -4027,6 +4105,43 @@ class _PollWidgetState extends State<_PollWidget> {
         ],
       ),
     );
+
+    if (_shakeAnim.isAnimating) {
+      content = AnimatedBuilder(
+        animation: _shakeAnim,
+        builder: (context, child) {
+          final t = _shakeAnim.value;
+          return Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..rotateZ(_shakeRotation(t))
+              ..scale(_shakeScale(t)),
+            child: child,
+          );
+        },
+        child: content,
+      );
+    }
+
+    if (_showFireworks) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          content,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: _PollFireworks(
+                onComplete: () {
+                  if (mounted) setState(() => _showFireworks = false);
+                },
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return content;
   }
 
   void _onOptionTap(int index) {
@@ -4041,8 +4156,132 @@ class _PollWidgetState extends State<_PollWidget> {
         _selectedIndices.clear();
         _selectedIndices.add(index);
         _hasVoted = true;
+        _barAnim.forward();
+        if (widget.message.pollQuiz) {
+          final chosenOpt = widget.message.pollOptions[index];
+          if (chosenOpt.correct) {
+            _showFireworks = true;
+          } else {
+            _shakeAnim.forward(from: 0.0);
+          }
+        }
       }
     });
+  }
+}
+
+class _PollResultRow extends StatelessWidget {
+  final String text;
+  final double percentage;
+  final double animValue;
+  final bool isChosen;
+  final bool isDark;
+  final bool isCorrect;
+  final bool isQuiz;
+
+  const _PollResultRow({
+    required this.text,
+    required this.percentage,
+    required this.animValue,
+    required this.isChosen,
+    required this.isDark,
+    this.isCorrect = false,
+    this.isQuiz = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pctValue = (percentage * animValue * 100).round();
+    Color barColor;
+    if (isQuiz) {
+      if (isCorrect) {
+        barColor = const Color(0xFF4CAF50);
+      } else if (isChosen) {
+        barColor = const Color(0xFFE53935);
+      } else {
+        barColor = isDark ? const Color(0xFF3E546A) : const Color(0xFFDEE5EB);
+      }
+    } else {
+      barColor = isChosen
+          ? const Color(0xFF40A7E3)
+          : (isDark ? const Color(0xFF3E546A) : const Color(0xFFDEE5EB));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (isQuiz && (isCorrect || isChosen))
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isCorrect
+                          ? const Color(0xFF4CAF50)
+                          : const Color(0xFFE53935),
+                    ),
+                    child: Icon(
+                      isCorrect ? Icons.check : Icons.close,
+                      size: 12,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$pctValue%',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: SizedBox(
+              height: 4,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final fillWidth =
+                      constraints.maxWidth * percentage * animValue;
+                  return Stack(
+                    children: [
+                      Container(
+                        color: isDark
+                            ? const Color(0xFF2B3640)
+                            : const Color(0xFFF0F0F0),
+                      ),
+                      Container(
+                        width: fillWidth,
+                        color: barColor,
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -4152,4 +4391,121 @@ class _PollOptionRow extends StatelessWidget {
           : null,
     );
   }
+}
+
+class _PollFireworks extends StatefulWidget {
+  final VoidCallback onComplete;
+  const _PollFireworks({required this.onComplete});
+
+  @override
+  State<_PollFireworks> createState() => _PollFireworksState();
+}
+
+class _PollFireworksState extends State<_PollFireworks>
+    with SingleTickerProviderStateMixin {
+  static const _colors = [
+    Color(0xFFE8BC2C), Color(0xFFD0049E), Color(0xFF02CBFE),
+    Color(0xFF5723FD), Color(0xFFFE8C27), Color(0xFF6CB859),
+  ];
+  static const _particleCount = 60;
+  static const _fallCount = 30;
+
+  late final List<_Particle> _particles;
+  late final AnimationController _ctrl;
+  final _rng = math.Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _particles = List.generate(_particleCount + _fallCount, (i) {
+      final isFall = i >= _particleCount;
+      return _Particle(
+        color: _colors[_rng.nextInt(_colors.length)],
+        x: _rng.nextDouble(),
+        y: isFall ? -0.1 - _rng.nextDouble() * 0.3 : 0.3 + _rng.nextDouble() * 0.4,
+        vx: (_rng.nextDouble() - 0.5) * (isFall ? 0.3 : 1.2),
+        vy: isFall
+            ? 0.2 + _rng.nextDouble() * 0.5
+            : -0.5 - _rng.nextDouble() * 1.0,
+        rotation: _rng.nextDouble() * 6.28,
+        rotSpeed: (_rng.nextDouble() - 0.5) * 8,
+        size: 2.0 + _rng.nextDouble() * 3,
+        isFall: isFall,
+      );
+    });
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..addStatusListener((s) {
+      if (s == AnimationStatus.completed) widget.onComplete();
+    });
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _FireworksPainter(
+            particles: _particles,
+            progress: _ctrl.value,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _Particle {
+  final Color color;
+  double x, y, vx, vy, rotation, rotSpeed, size;
+  final bool isFall;
+  _Particle({
+    required this.color, required this.x, required this.y,
+    required this.vx, required this.vy, required this.rotation,
+    required this.rotSpeed, required this.size, required this.isFall,
+  });
+}
+
+class _FireworksPainter extends CustomPainter {
+  final List<_Particle> particles;
+  final double progress;
+  _FireworksPainter({required this.particles, required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final speed = progress > 0.5 ? math.max(0.2, 1.0 - (progress - 0.5) * 1.6) : 1.0;
+    for (final p in particles) {
+      if (p.isFall && progress < 0.3) continue;
+      final t = p.isFall ? (progress - 0.3) / 0.7 : progress;
+      if (t < 0 || t > 1) continue;
+      final px = (p.x + p.vx * t * speed) * size.width;
+      final py = (p.y + p.vy * t * speed + 0.5 * t * t) * size.height;
+      final alpha = (1.0 - t).clamp(0.0, 1.0);
+      if (alpha <= 0 || px < -10 || px > size.width + 10 ||
+          py < -10 || py > size.height + 10) continue;
+      final paint = Paint()
+        ..color = p.color.withValues(alpha: alpha)
+        ..style = PaintingStyle.fill;
+      canvas.save();
+      canvas.translate(px, py);
+      canvas.rotate(p.rotation + p.rotSpeed * t);
+      canvas.drawRect(
+        Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size * 0.5),
+        paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_FireworksPainter old) => old.progress != progress;
 }

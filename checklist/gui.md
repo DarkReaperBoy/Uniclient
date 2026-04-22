@@ -323,9 +323,6 @@
 
 ### §6.11 Polls
 
-- [ ] After voting: percentage bars with easeOutCirc animation — spec §6. Not implemented
-- [ ] Quiz mode: correct answer green, wrong answer red + 400ms shake (±3° rotation 8 segs / ±3% scale 2 segs) — spec §6. Not implemented
-- [ ] Quiz correct fireworks: 60+30 particles, 480×320 canvas, 6 fixed colors, ~2.5–3s — spec §6. Not implemented
 - [ ] Footer: total votes count; timed polls: remaining seconds; recent voter userpics row — spec §6. Not implemented
 
 ### §6.12 Locations
