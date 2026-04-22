@@ -8420,5 +8420,163 @@ class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
   void clearThumbB64() => clearField(5);
 }
 
+class EngineBotCallbackRequest extends $pb.GeneratedMessage {
+  factory EngineBotCallbackRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? msgId,
+    $core.String? data,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    if (msgId != null) {
+      $result.msgId = msgId;
+    }
+    if (data != null) {
+      $result.data = data;
+    }
+    return $result;
+  }
+  EngineBotCallbackRequest._() : super();
+  factory EngineBotCallbackRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineBotCallbackRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineBotCallbackRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..aOS(4, _omitFieldNames ? '' : 'data')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineBotCallbackRequest clone() => EngineBotCallbackRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineBotCallbackRequest copyWith(void Function(EngineBotCallbackRequest) updates) => super.copyWith((message) => updates(message as EngineBotCallbackRequest)) as EngineBotCallbackRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineBotCallbackRequest create() => EngineBotCallbackRequest._();
+  EngineBotCallbackRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineBotCallbackRequest> createRepeated() => $pb.PbList<EngineBotCallbackRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineBotCallbackRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineBotCallbackRequest>(create);
+  static EngineBotCallbackRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get msgId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasMsgId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMsgId() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get data => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set data($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasData() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearData() => clearField(4);
+}
+
+class EngineBotCallbackResponse extends $pb.GeneratedMessage {
+  factory EngineBotCallbackResponse({
+    $core.String? message,
+    $core.bool? showAlert,
+    $core.String? url,
+  }) {
+    final $result = create();
+    if (message != null) {
+      $result.message = message;
+    }
+    if (showAlert != null) {
+      $result.showAlert = showAlert;
+    }
+    if (url != null) {
+      $result.url = url;
+    }
+    return $result;
+  }
+  EngineBotCallbackResponse._() : super();
+  factory EngineBotCallbackResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineBotCallbackResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineBotCallbackResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'message')
+    ..aOB(2, _omitFieldNames ? '' : 'showAlert')
+    ..aOS(3, _omitFieldNames ? '' : 'url')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineBotCallbackResponse clone() => EngineBotCallbackResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineBotCallbackResponse copyWith(void Function(EngineBotCallbackResponse) updates) => super.copyWith((message) => updates(message as EngineBotCallbackResponse)) as EngineBotCallbackResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineBotCallbackResponse create() => EngineBotCallbackResponse._();
+  EngineBotCallbackResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineBotCallbackResponse> createRepeated() => $pb.PbList<EngineBotCallbackResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineBotCallbackResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineBotCallbackResponse>(create);
+  static EngineBotCallbackResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get message => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set message($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasMessage() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMessage() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.bool get showAlert => $_getBF(1);
+  @$pb.TagNumber(2)
+  set showAlert($core.bool v) { $_setBool(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasShowAlert() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearShowAlert() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get url => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set url($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasUrl() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearUrl() => clearField(3);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

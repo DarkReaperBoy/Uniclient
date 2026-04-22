@@ -358,8 +358,6 @@
 
 ### §7.7 Bot Keyboard
 
-- [ ] Inline keyboard under messages: 36px height, 2px margin, 10px padding, URL/switchPM/payment/webview/copy icons with 4px padding — spec §7.5. Not implemented
-
 ### §7.8 Drag & Drop
 
 - [ ] File drag overlay: rounded card (not full-screen wash) with boxBg fill + boxRoundShadow, two cards (document top / photo bottom), five DragState modes, 72px area height, 27px/19px semibold fonts, windowSubTextFg resting / windowActiveTextFg hovered, opacity 0→1 animation — spec §7.6. Not implemented

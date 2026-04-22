@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:lottie/lottie.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -164,7 +165,11 @@ class MessageBubble extends StatelessWidget {
                 : null,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 40 : _maxWidth),
-              child: Stack(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+              Stack(
                 clipBehavior: Clip.none,
                 children: [
               Container(
@@ -407,6 +412,15 @@ class MessageBubble extends StatelessWidget {
                 ),
               ],
               ),
+              if (message.hasInlineKeyboard)
+                _InlineKeyboard(
+                  rows: message.inlineKeyboard,
+                  messageId: message.msgId,
+                  isOutgoing: isOutgoing,
+                  isDark: isDark,
+                ),
+            ],
+            ),
             ),
           ),
           ),
@@ -5331,6 +5345,240 @@ class _WebPagePreview extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _InlineKeyboard extends StatelessWidget {
+  final List<List<InlineKeyboardButton>> rows;
+  final String messageId;
+  final bool isOutgoing;
+  final bool isDark;
+
+  const _InlineKeyboard({
+    required this.rows,
+    required this.messageId,
+    required this.isOutgoing,
+    required this.isDark,
+  });
+
+  static const _buttonHeight = 36.0;
+  static const _buttonMargin = 2.0;
+  static const _buttonPadding = 10.0;
+  static const _iconPadding = 4.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: _buttonMargin),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int r = 0; r < rows.length; r++)
+            Padding(
+              padding: EdgeInsets.only(top: r > 0 ? _buttonMargin : 0),
+              child: Row(
+                children: [
+                  for (int c = 0; c < rows[r].length; c++) ...[
+                    if (c > 0) const SizedBox(width: _buttonMargin),
+                    Expanded(
+                      child: _InlineButton(
+                        button: rows[r][c],
+                        messageId: messageId,
+                        isOutgoing: isOutgoing,
+                        isDark: isDark,
+                        isTopLeft: r == 0 && c == 0,
+                        isTopRight: r == 0 && c == rows[r].length - 1,
+                        isBottomLeft: r == rows.length - 1 && c == 0,
+                        isBottomRight: r == rows.length - 1 && c == rows[r].length - 1,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineButton extends StatefulWidget {
+  final InlineKeyboardButton button;
+  final String messageId;
+  final bool isOutgoing;
+  final bool isDark;
+  final bool isTopLeft;
+  final bool isTopRight;
+  final bool isBottomLeft;
+  final bool isBottomRight;
+
+  const _InlineButton({
+    required this.button,
+    required this.messageId,
+    required this.isOutgoing,
+    required this.isDark,
+    required this.isTopLeft,
+    required this.isTopRight,
+    required this.isBottomLeft,
+    required this.isBottomRight,
+  });
+
+  @override
+  State<_InlineButton> createState() => _InlineButtonState();
+}
+
+class _InlineButtonState extends State<_InlineButton> {
+  bool _loading = false;
+
+  Color get _bgColor => widget.isDark
+      ? const Color(0x33ffffff)
+      : const Color(0x13000000);
+
+  Color get _hoverColor => widget.isDark
+      ? const Color(0x44ffffff)
+      : const Color(0x22000000);
+
+  Color get _textColor => widget.isDark
+      ? const Color(0xFFffffff)
+      : const Color(0xFF5b97cd);
+
+  Color get _iconColor => widget.isDark
+      ? const Color(0xAAFFFFFF)
+      : const Color(0xFF5b97cd);
+
+  static const _largeRadius = 10.0;
+  static const _smallRadius = 3.0;
+
+  BorderRadius get _borderRadius => BorderRadius.only(
+    topLeft: Radius.circular(widget.isTopLeft ? _largeRadius : _smallRadius),
+    topRight: Radius.circular(widget.isTopRight ? _largeRadius : _smallRadius),
+    bottomLeft: Radius.circular(widget.isBottomLeft ? _largeRadius : _smallRadius),
+    bottomRight: Radius.circular(widget.isBottomRight ? _largeRadius : _smallRadius),
+  );
+
+  IconData? get _trailingIcon {
+    switch (widget.button.type) {
+      case 'url':
+      case 'url_auth':
+        return Icons.open_in_new;
+      case 'switch_inline':
+        return Icons.alternate_email;
+      case 'buy':
+        return Icons.credit_card;
+      case 'web_view':
+      case 'simple_web_view':
+        return Icons.web;
+      case 'copy':
+        return Icons.copy;
+      default:
+        return null;
+    }
+  }
+
+  Future<void> _onTap() async {
+    final btn = widget.button;
+    switch (btn.type) {
+      case 'url':
+      case 'url_auth':
+        if (btn.url.isNotEmpty) {
+          var url = btn.url;
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://$url';
+          }
+          Process.run('xdg-open', [url]);
+        }
+      case 'copy':
+        if (btn.copyText.isNotEmpty) {
+          final data = ClipboardData(text: btn.copyText);
+          Clipboard.setData(data);
+        }
+      case 'callback':
+        if (_loading) return;
+        setState(() => _loading = true);
+        try {
+          final chatState = context.read<ChatState>();
+          final answer = await chatState.botCallback(widget.messageId, btn.data);
+          if (answer.isNotEmpty && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(answer), duration: const Duration(seconds: 3)),
+            );
+          }
+        } catch (_) {
+        } finally {
+          if (mounted) setState(() => _loading = false);
+        }
+      case 'switch_inline':
+        break;
+      case 'buy':
+        break;
+      case 'web_view':
+      case 'simple_web_view':
+        if (btn.url.isNotEmpty) {
+          var url = btn.url;
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'https://$url';
+          }
+          Process.run('xdg-open', [url]);
+        }
+      default:
+        final chatState = context.read<ChatState>();
+        chatState.sendMessage(btn.text);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _trailingIcon;
+    return SizedBox(
+      height: _InlineKeyboard._buttonHeight,
+      child: Material(
+        color: _bgColor,
+        borderRadius: _borderRadius,
+        child: InkWell(
+          onTap: _onTap,
+          borderRadius: _borderRadius,
+          hoverColor: _hoverColor,
+          splashColor: _hoverColor,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: _InlineKeyboard._buttonPadding),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.button.text,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: _textColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+                if (icon != null) ...[
+                  const SizedBox(width: _InlineKeyboard._iconPadding),
+                  Icon(icon, size: 14, color: _iconColor),
+                ],
+                if (_loading)
+                  Padding(
+                    padding: const EdgeInsets.only(left: _InlineKeyboard._iconPadding),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: _iconColor,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

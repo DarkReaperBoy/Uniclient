@@ -881,3 +881,22 @@ func (e *Engine) GetAttachMenuBots(accountID string) ([]cores.AttachMenuBotInfo,
 	}
 	return fetcher.GetAttachMenuBots()
 }
+
+type BotCallbackAnswerer interface {
+	GetBotCallbackAnswer(chatID string, msgID string, data []byte) (string, error)
+}
+
+func (e *Engine) BotCallback(accountID, chatID, msgID, data string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	answerer, ok := acc.Core.(BotCallbackAnswerer)
+	if !ok {
+		return "", fmt.Errorf("platform does not support bot callbacks")
+	}
+	return answerer.GetBotCallbackAnswer(chatID, msgID, []byte(data))
+}

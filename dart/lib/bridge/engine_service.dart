@@ -567,6 +567,18 @@ class EngineService {
     await _callAsync('__engine', 'ReactToMessage', req.writeToBuffer());
   }
 
+  Future<String> botCallback(String accountId, String chatId, String msgId, String data) async {
+    final req = epb.EngineBotCallbackRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..data = data;
+    final respBytes = await _callAsync('__engine', 'BotCallback', req.writeToBuffer());
+    if (respBytes.isEmpty) return '';
+    final resp = epb.EngineBotCallbackResponse.fromBuffer(respBytes);
+    return resp.message;
+  }
+
   Future<void> pinMessage(String accountId, String chatId, String msgId, bool pinned) async {
     final req = epb.EnginePinMessageRequest()
       ..accountId = accountId

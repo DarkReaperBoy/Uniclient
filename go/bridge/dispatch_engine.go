@@ -854,6 +854,17 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "BotCallback":
+		var req pb.EngineBotCallbackRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msg, err := e.BotCallback(req.AccountId, req.ChatId, req.MsgId, req.Data)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineBotCallbackResponse{Message: msg})
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

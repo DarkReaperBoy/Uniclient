@@ -787,3 +787,20 @@ message EngineGetWebPagePreviewResponse {
   string description = 4;
   string thumb_b64   = 5;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Bot Callback (inline keyboard callback button)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineBotCallbackRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string msg_id     = 3;
+  string data       = 4;
+}
+
+message EngineBotCallbackResponse {
+  string message     = 1;
+  bool   show_alert  = 2;
+  string url         = 3;
+}
