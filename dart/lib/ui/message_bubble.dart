@@ -2478,55 +2478,150 @@ class _AudioIndicator extends StatelessWidget {
 
   const _AudioIndicator({required this.message, required this.theme});
 
+  static String _formatSongName(String filename, String title, String performer) {
+    if (performer.isNotEmpty && title.isNotEmpty) {
+      return '$performer \u2013 $title';
+    }
+    if (title.isNotEmpty) return title;
+    if (performer.isNotEmpty) return performer;
+    if (filename.isNotEmpty) {
+      final dotIdx = filename.lastIndexOf('.');
+      return dotIdx > 0 ? filename.substring(0, dotIdx) : filename;
+    }
+    return 'Unknown Track';
+  }
+
+  void _onTap(BuildContext context) {
+    final state = message.mediaDownloadState;
+    if (state == 2 && message.mediaLocalPath.isNotEmpty) {
+      Process.run('xdg-open', [message.mediaLocalPath]);
+      return;
+    }
+    if (state == 1) {
+      context.read<EngineService>().cancelDownload(
+        message.accountId, message.chatId, message.msgId,
+      );
+      return;
+    }
+    context.read<ChatState>().requestDownload(message);
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(Icons.audiotrack, size: 20, color: theme.colorScheme.primary),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  message.mediaFileName.isNotEmpty ? message.mediaFileName : 'Audio',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium,
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+    final songName = _formatSongName(
+      message.mediaFileName, message.audioTitle, message.audioPerformer,
+    );
+    final hasCover = message.mediaThumbB64.isNotEmpty;
+    final isDownloaded = message.mediaDownloadState == 2;
+    final isDownloading = message.mediaDownloadState == 1;
+
+    final statusParts = <String>[];
+    if (message.mediaDuration > 0) {
+      statusParts.add(_VisualMedia._formatDuration(message.mediaDuration));
+    }
+    if (message.mediaSizeLabel.isNotEmpty) {
+      statusParts.add(message.mediaSizeLabel);
+    }
+
+    return GestureDetector(
+      onTap: () => _onTap(context),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: SizedBox(
+          height: 44,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildIcon(hasCover, isDownloaded, isDownloading),
+              const SizedBox(width: 11),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    if (message.mediaDuration > 0)
+                    Text(
+                      songName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (statusParts.isNotEmpty) ...[
+                      const SizedBox(height: 2),
                       Text(
-                        _VisualMedia._formatDuration(message.mediaDuration),
+                        statusParts.join(' \u00b7 '),
                         style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
                       ),
-                    if (message.mediaDuration > 0 && message.mediaSizeLabel.isNotEmpty)
-                      Text(' · ', style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color)),
-                    if (message.mediaSizeLabel.isNotEmpty)
-                      Text(
-                        message.mediaSizeLabel,
-                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
-                      ),
+                    ],
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildIcon(bool hasCover, bool isDownloaded, bool isDownloading) {
+    if (hasCover) {
+      return ClipOval(
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Image.memory(
+                base64Decode(message.mediaThumbB64),
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => _defaultIcon(isDownloaded, isDownloading),
+              ),
+              Container(
+                width: 44,
+                height: 44,
+                color: Colors.black.withValues(alpha: 0.3),
+              ),
+              Icon(
+                isDownloaded ? Icons.play_arrow : (isDownloading ? Icons.close : Icons.arrow_downward),
+                size: 22,
+                color: Colors.white,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return _defaultIcon(isDownloaded, isDownloading);
+  }
+
+  Widget _defaultIcon(bool isDownloaded, bool isDownloading) {
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primary,
+        shape: BoxShape.circle,
+      ),
+      child: isDownloading
+          ? Padding(
+              padding: const EdgeInsets.all(10),
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Colors.white,
+              ),
+            )
+          : Icon(
+              isDownloaded ? Icons.play_arrow : Icons.arrow_downward,
+              size: 22,
+              color: Colors.white,
+            ),
     );
   }
 }

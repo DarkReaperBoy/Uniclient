@@ -1013,6 +1013,8 @@ class EngineService {
       stickerSetId: _int64FieldFromRaw(contentRaw, 'sticker_set_id'),
       stickerSetAccessHash: _int64FieldFromRaw(contentRaw, 'sticker_set_access_hash'),
       stickerPremium: _boolExtraFromRaw(contentRaw, 'sticker_premium'),
+      audioTitle: _topicFieldFromRaw(contentRaw, 'audio_title') ?? '',
+      audioPerformer: _topicFieldFromRaw(contentRaw, 'audio_performer') ?? '',
     );
   }
 

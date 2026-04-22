@@ -9707,6 +9707,18 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 							}
 							m.Extra["waveform"] = base64.StdEncoding.EncodeToString(wf)
 						}
+						if title, ok := a.GetTitle(); ok && title != "" {
+							if m.Extra == nil {
+								m.Extra = make(map[string]interface{})
+							}
+							m.Extra["audio_title"] = title
+						}
+						if performer, ok := a.GetPerformer(); ok && performer != "" {
+							if m.Extra == nil {
+								m.Extra = make(map[string]interface{})
+							}
+							m.Extra["audio_performer"] = performer
+						}
 					case *tg.DocumentAttributeImageSize:
 						ref.Width = a.W
 						ref.Height = a.H

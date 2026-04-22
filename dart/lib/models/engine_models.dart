@@ -349,6 +349,10 @@ class CachedMessage {
   // Premium sticker flag (has premium effect animation via VideoSize type "f").
   final bool stickerPremium;
 
+  // Audio/music metadata (extracted from contentRaw extra fields).
+  final String audioTitle;
+  final String audioPerformer;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -395,6 +399,8 @@ class CachedMessage {
     this.stickerSetId = 0,
     this.stickerSetAccessHash = 0,
     this.stickerPremium = false,
+    this.audioTitle = '',
+    this.audioPerformer = '',
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -498,6 +504,8 @@ class CachedMessage {
     int? views,
     int? forwards,
     bool? stickerPremium,
+    String? audioTitle,
+    String? audioPerformer,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -544,6 +552,8 @@ class CachedMessage {
     stickerSetId: stickerSetId,
     stickerSetAccessHash: stickerSetAccessHash,
     stickerPremium: stickerPremium ?? this.stickerPremium,
+    audioTitle: audioTitle ?? this.audioTitle,
+    audioPerformer: audioPerformer ?? this.audioPerformer,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;

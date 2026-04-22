@@ -319,8 +319,7 @@
 
 ### §6.10 Audio/Music
 
-- [x] Audio indicator: play/pause icon + filename + duration + file size — spec §6, DONE in message_bubble.dart (_AudioIndicator). Track title/artist via filename only, no cover art
-- [ ] 44px play/pause button, FormatSongNameFor (artist–title split), "played/total" format during playback, cover art — spec §6. Not fully implemented
+- [x] Audio indicator: 44px play/pause button, FormatSongNameFor (artist–title split), duration·size status, cover art from thumbnail, download/cancel states — spec §6, DONE in message_bubble.dart (_AudioIndicator). Go extracts audio_title/audio_performer from DocumentAttributeAudio into Extra map.
 
 ### §6.11 Polls
 
