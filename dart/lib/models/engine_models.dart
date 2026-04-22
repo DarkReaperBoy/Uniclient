@@ -340,6 +340,11 @@ class CachedMessage {
   final int views;    // view count (channel posts)
   final int forwards; // forward/share count (channel posts)
 
+  // Sticker set info (extracted from contentRaw extra fields).
+  final String stickerSetShortName;
+  final int stickerSetId;
+  final int stickerSetAccessHash;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -381,6 +386,9 @@ class CachedMessage {
     this.groupedId = '',
     this.views = 0,
     this.forwards = 0,
+    this.stickerSetShortName = '',
+    this.stickerSetId = 0,
+    this.stickerSetAccessHash = 0,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -522,7 +530,12 @@ class CachedMessage {
     groupedId: groupedId ?? this.groupedId,
     views: views ?? this.views,
     forwards: forwards ?? this.forwards,
+    stickerSetShortName: stickerSetShortName,
+    stickerSetId: stickerSetId,
+    stickerSetAccessHash: stickerSetAccessHash,
   );
+
+  bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
 }
 
 // ── Message reaction ──
@@ -1022,5 +1035,43 @@ class PeerColorEntry {
     this.dayColors = const [],
     this.nightColors = const [],
     this.hidden = false,
+  });
+}
+
+// ── Sticker set info (for sticker pack viewer) ──
+
+class StickerInfoItem {
+  final String emoji;
+  final String thumbB64;
+  final int width;
+  final int height;
+  final String mimeType;
+  final String fileId;
+
+  const StickerInfoItem({
+    this.emoji = '',
+    this.thumbB64 = '',
+    this.width = 0,
+    this.height = 0,
+    this.mimeType = '',
+    this.fileId = '',
+  });
+}
+
+class StickerSetInfo {
+  final String title;
+  final String shortName;
+  final int count;
+  final bool installed;
+  final bool archived;
+  final List<StickerInfoItem> stickers;
+
+  const StickerSetInfo({
+    this.title = '',
+    this.shortName = '',
+    this.count = 0,
+    this.installed = false,
+    this.archived = false,
+    this.stickers = const [],
   });
 }

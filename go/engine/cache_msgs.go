@@ -810,3 +810,24 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 		}
 	}
 }
+
+// StickerSetFetcher is implemented by cores that can retrieve sticker set info.
+type StickerSetFetcher interface {
+	GetStickerSetInfo(shortName string, setID int64, accessHash int64) (*cores.StickerSetResult, error)
+}
+
+// GetStickerSetInfo retrieves sticker set info from the appropriate core.
+func (e *Engine) GetStickerSetInfo(accountID, shortName string, setID, accessHash int64) (*cores.StickerSetResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StickerSetFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support sticker sets")
+	}
+	return fetcher.GetStickerSetInfo(shortName, setID, accessHash)
+}

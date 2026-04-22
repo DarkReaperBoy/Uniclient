@@ -301,7 +301,7 @@
 
 - [x] Sticker renders without bubble background (isStickerOnly transparent) — spec §6, DONE in message_bubble.dart
 - [x] Sticker display size 224px max (spec §6: 224px static/animated) — DONE in message_bubble.dart (_VisualMedia clamps to 224px for type 6)
-- [ ] Click opens sticker pack viewer — spec §6. Not implemented
+- [x] Click opens sticker pack viewer — spec §6. DONE: tap sticker → DraggableScrollableSheet with pack title, sticker count, Add button, 5-col emoji grid. Go GetStickerSetInfo fetches via MessagesGetStickerSet. Works in both desktop & mobile modes.
 - [ ] No outline/glow/drop-shadow; msgStickerOverlay tint only during selection — spec §6. Not implemented
 - [ ] Premium effect multiplier 1.49×, incoming mirrored horizontally, outgoing not — spec §6. Not implemented
 

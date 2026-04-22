@@ -13,6 +13,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import '../models/engine_models.dart';
 import '../theme/theme.dart';
 import 'media_viewer.dart';
+import 'sticker_pack_viewer.dart';
 
 /// Single message bubble. Spec §5: max 430px, 16/6px radius, sender colors.
 class MessageBubble extends StatelessWidget {
@@ -1336,6 +1337,8 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
             message.mediaType == 7) &&
         message.mediaLocalPath.isNotEmpty;
 
+    final canOpenStickerPack = message.mediaType == 6;
+
     return GestureDetector(
       onTap: canOpenViewer
           ? () => MediaViewer.open(
@@ -1343,7 +1346,9 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                 message: message,
                 allMessages: widget.allMessages,
               )
-          : null,
+          : canOpenStickerPack
+              ? () => StickerPackViewer.show(context, message)
+              : null,
       child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: ClipRRect(

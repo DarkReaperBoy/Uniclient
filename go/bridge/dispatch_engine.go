@@ -771,6 +771,36 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetStickerSetInfo":
+		var req pb.EngineGetStickerSetInfoRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		info, err := e.GetStickerSetInfo(req.AccountId, req.ShortName, req.SetId, req.AccessHash)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetStickerSetInfoResponse{
+			Title:     info.Title,
+			ShortName: info.ShortName,
+			Count:     int32(info.Count),
+			Installed: info.Installed,
+			Archived:  info.Archived,
+			Animated:  info.Animated,
+			Video:     info.Video,
+		}
+		for _, s := range info.Stickers {
+			resp.Stickers = append(resp.Stickers, &pb.EngineStickerInfo{
+				Emoji:    s.Emoji,
+				ThumbB64: s.ThumbB64,
+				Width:    int32(s.Width),
+				Height:   int32(s.Height),
+				MimeType: s.MimeType,
+				FileId:   s.FileID,
+			})
+		}
+		return proto.Marshal(resp)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

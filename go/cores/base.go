@@ -249,6 +249,28 @@ type Reaction struct {
 	ByMe  bool   `json:"by_me"`
 }
 
+// StickerInfo holds data for a single sticker in a set.
+type StickerInfo struct {
+	Emoji    string `json:"emoji"`
+	ThumbB64 string `json:"thumb_b64"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+	MimeType string `json:"mime_type"`
+	FileID   string `json:"file_id"`
+}
+
+// StickerSetResult holds the structured result of a sticker set lookup.
+type StickerSetResult struct {
+	Title     string        `json:"title"`
+	ShortName string        `json:"short_name"`
+	Count     int           `json:"count"`
+	Installed bool          `json:"installed"`
+	Archived  bool          `json:"archived"`
+	Animated  bool          `json:"animated"`
+	Video     bool          `json:"video"`
+	Stickers  []StickerInfo `json:"stickers"`
+}
+
 // ReadState tracks the last-read message positions for the current user and peers.
 type ReadState struct {
 	MyLastRead   string            `json:"my_last_read"`

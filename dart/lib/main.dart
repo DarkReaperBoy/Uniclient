@@ -269,6 +269,9 @@ class _UniClientAppState extends State<UniClientApp>
             'text': m.contentText.length > 40 ? m.contentText.substring(0, 40) : m.contentText,
             'status': m.status.name,
             'isSent': m.isSent,
+            'mediaType': m.mediaType,
+            'mediaMimeType': m.mediaMimeType,
+            'stickerSetShortName': m.stickerSetShortName,
           }).toList();
           File('/tmp/uniclient_debug_out.json').writeAsStringSync(
             const JsonEncoder.withIndent('  ').convert(out),

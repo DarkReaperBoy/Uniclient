@@ -702,3 +702,34 @@ message EngineGetPeerColorsRequest {
 message EngineGetPeerColorsResponse {
   repeated EnginePeerColorEntry colors = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sticker Set Info (for sticker pack viewer)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetStickerSetInfoRequest {
+  string account_id = 1;
+  string short_name = 2;  // sticker set short name (e.g. "AnimatedEmojis")
+  int64  set_id     = 3;  // alternative: sticker set numeric ID (used when short_name is empty)
+  int64  access_hash = 4; // required when using set_id
+}
+
+message EngineStickerInfo {
+  string emoji     = 1;  // emoji associated with this sticker
+  string thumb_b64 = 2;  // base64 stripped thumbnail
+  int32  width     = 3;
+  int32  height    = 4;
+  string mime_type = 5;  // e.g. "image/webp", "application/x-tgsticker", "video/webm"
+  string file_id   = 6;  // document ID for downloading
+}
+
+message EngineGetStickerSetInfoResponse {
+  string title      = 1;  // display title of the set
+  string short_name = 2;  // canonical short name
+  int32  count      = 3;  // total number of stickers
+  bool   installed  = 4;  // whether the user has this set installed
+  bool   archived   = 5;
+  bool   animated   = 6;
+  bool   video      = 7;
+  repeated EngineStickerInfo stickers = 8;
+}

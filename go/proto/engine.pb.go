@@ -5899,6 +5899,258 @@ func (x *EngineGetPeerColorsResponse) GetColors() []*EnginePeerColorEntry {
 	return nil
 }
 
+type EngineGetStickerSetInfoRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ShortName     string                 `protobuf:"bytes,2,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"`     // sticker set short name (e.g. "AnimatedEmojis")
+	SetId         int64                  `protobuf:"varint,3,opt,name=set_id,json=setId,proto3" json:"set_id,omitempty"`                // alternative: sticker set numeric ID (used when short_name is empty)
+	AccessHash    int64                  `protobuf:"varint,4,opt,name=access_hash,json=accessHash,proto3" json:"access_hash,omitempty"` // required when using set_id
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetStickerSetInfoRequest) Reset() {
+	*x = EngineGetStickerSetInfoRequest{}
+	mi := &file_proto_engine_proto_msgTypes[90]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetStickerSetInfoRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetStickerSetInfoRequest) ProtoMessage() {}
+
+func (x *EngineGetStickerSetInfoRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[90]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetStickerSetInfoRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetStickerSetInfoRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{90}
+}
+
+func (x *EngineGetStickerSetInfoRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetStickerSetInfoRequest) GetShortName() string {
+	if x != nil {
+		return x.ShortName
+	}
+	return ""
+}
+
+func (x *EngineGetStickerSetInfoRequest) GetSetId() int64 {
+	if x != nil {
+		return x.SetId
+	}
+	return 0
+}
+
+func (x *EngineGetStickerSetInfoRequest) GetAccessHash() int64 {
+	if x != nil {
+		return x.AccessHash
+	}
+	return 0
+}
+
+type EngineStickerInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Emoji         string                 `protobuf:"bytes,1,opt,name=emoji,proto3" json:"emoji,omitempty"`                       // emoji associated with this sticker
+	ThumbB64      string                 `protobuf:"bytes,2,opt,name=thumb_b64,json=thumbB64,proto3" json:"thumb_b64,omitempty"` // base64 stripped thumbnail
+	Width         int32                  `protobuf:"varint,3,opt,name=width,proto3" json:"width,omitempty"`
+	Height        int32                  `protobuf:"varint,4,opt,name=height,proto3" json:"height,omitempty"`
+	MimeType      string                 `protobuf:"bytes,5,opt,name=mime_type,json=mimeType,proto3" json:"mime_type,omitempty"` // e.g. "image/webp", "application/x-tgsticker", "video/webm"
+	FileId        string                 `protobuf:"bytes,6,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`       // document ID for downloading
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineStickerInfo) Reset() {
+	*x = EngineStickerInfo{}
+	mi := &file_proto_engine_proto_msgTypes[91]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineStickerInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineStickerInfo) ProtoMessage() {}
+
+func (x *EngineStickerInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[91]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineStickerInfo.ProtoReflect.Descriptor instead.
+func (*EngineStickerInfo) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{91}
+}
+
+func (x *EngineStickerInfo) GetEmoji() string {
+	if x != nil {
+		return x.Emoji
+	}
+	return ""
+}
+
+func (x *EngineStickerInfo) GetThumbB64() string {
+	if x != nil {
+		return x.ThumbB64
+	}
+	return ""
+}
+
+func (x *EngineStickerInfo) GetWidth() int32 {
+	if x != nil {
+		return x.Width
+	}
+	return 0
+}
+
+func (x *EngineStickerInfo) GetHeight() int32 {
+	if x != nil {
+		return x.Height
+	}
+	return 0
+}
+
+func (x *EngineStickerInfo) GetMimeType() string {
+	if x != nil {
+		return x.MimeType
+	}
+	return ""
+}
+
+func (x *EngineStickerInfo) GetFileId() string {
+	if x != nil {
+		return x.FileId
+	}
+	return ""
+}
+
+type EngineGetStickerSetInfoResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`                          // display title of the set
+	ShortName     string                 `protobuf:"bytes,2,opt,name=short_name,json=shortName,proto3" json:"short_name,omitempty"` // canonical short name
+	Count         int32                  `protobuf:"varint,3,opt,name=count,proto3" json:"count,omitempty"`                         // total number of stickers
+	Installed     bool                   `protobuf:"varint,4,opt,name=installed,proto3" json:"installed,omitempty"`                 // whether the user has this set installed
+	Archived      bool                   `protobuf:"varint,5,opt,name=archived,proto3" json:"archived,omitempty"`
+	Animated      bool                   `protobuf:"varint,6,opt,name=animated,proto3" json:"animated,omitempty"`
+	Video         bool                   `protobuf:"varint,7,opt,name=video,proto3" json:"video,omitempty"`
+	Stickers      []*EngineStickerInfo   `protobuf:"bytes,8,rep,name=stickers,proto3" json:"stickers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetStickerSetInfoResponse) Reset() {
+	*x = EngineGetStickerSetInfoResponse{}
+	mi := &file_proto_engine_proto_msgTypes[92]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetStickerSetInfoResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetStickerSetInfoResponse) ProtoMessage() {}
+
+func (x *EngineGetStickerSetInfoResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[92]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetStickerSetInfoResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetStickerSetInfoResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{92}
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetShortName() string {
+	if x != nil {
+		return x.ShortName
+	}
+	return ""
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetCount() int32 {
+	if x != nil {
+		return x.Count
+	}
+	return 0
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetInstalled() bool {
+	if x != nil {
+		return x.Installed
+	}
+	return false
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetArchived() bool {
+	if x != nil {
+		return x.Archived
+	}
+	return false
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetAnimated() bool {
+	if x != nil {
+		return x.Animated
+	}
+	return false
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetVideo() bool {
+	if x != nil {
+		return x.Video
+	}
+	return false
+}
+
+func (x *EngineGetStickerSetInfoResponse) GetStickers() []*EngineStickerInfo {
+	if x != nil {
+		return x.Stickers
+	}
+	return nil
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -6427,7 +6679,32 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\"V\n" +
 	"\x1bEngineGetPeerColorsResponse\x127\n" +
-	"\x06colors\x18\x01 \x03(\v2\x1f.uniclient.EnginePeerColorEntryR\x06colorsB\x11Z\x0funiclient/protob\x06proto3"
+	"\x06colors\x18\x01 \x03(\v2\x1f.uniclient.EnginePeerColorEntryR\x06colors\"\x96\x01\n" +
+	"\x1eEngineGetStickerSetInfoRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1d\n" +
+	"\n" +
+	"short_name\x18\x02 \x01(\tR\tshortName\x12\x15\n" +
+	"\x06set_id\x18\x03 \x01(\x03R\x05setId\x12\x1f\n" +
+	"\vaccess_hash\x18\x04 \x01(\x03R\n" +
+	"accessHash\"\xaa\x01\n" +
+	"\x11EngineStickerInfo\x12\x14\n" +
+	"\x05emoji\x18\x01 \x01(\tR\x05emoji\x12\x1b\n" +
+	"\tthumb_b64\x18\x02 \x01(\tR\bthumbB64\x12\x14\n" +
+	"\x05width\x18\x03 \x01(\x05R\x05width\x12\x16\n" +
+	"\x06height\x18\x04 \x01(\x05R\x06height\x12\x1b\n" +
+	"\tmime_type\x18\x05 \x01(\tR\bmimeType\x12\x17\n" +
+	"\afile_id\x18\x06 \x01(\tR\x06fileId\"\x92\x02\n" +
+	"\x1fEngineGetStickerSetInfoResponse\x12\x14\n" +
+	"\x05title\x18\x01 \x01(\tR\x05title\x12\x1d\n" +
+	"\n" +
+	"short_name\x18\x02 \x01(\tR\tshortName\x12\x14\n" +
+	"\x05count\x18\x03 \x01(\x05R\x05count\x12\x1c\n" +
+	"\tinstalled\x18\x04 \x01(\bR\tinstalled\x12\x1a\n" +
+	"\barchived\x18\x05 \x01(\bR\barchived\x12\x1a\n" +
+	"\banimated\x18\x06 \x01(\bR\banimated\x12\x14\n" +
+	"\x05video\x18\a \x01(\bR\x05video\x128\n" +
+	"\bstickers\x18\b \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickersB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -6441,7 +6718,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 90)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 93)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -6533,6 +6810,9 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EnginePeerColorEntry)(nil),            // 87: uniclient.EnginePeerColorEntry
 	(*EngineGetPeerColorsRequest)(nil),      // 88: uniclient.EngineGetPeerColorsRequest
 	(*EngineGetPeerColorsResponse)(nil),     // 89: uniclient.EngineGetPeerColorsResponse
+	(*EngineGetStickerSetInfoRequest)(nil),  // 90: uniclient.EngineGetStickerSetInfoRequest
+	(*EngineStickerInfo)(nil),               // 91: uniclient.EngineStickerInfo
+	(*EngineGetStickerSetInfoResponse)(nil), // 92: uniclient.EngineGetStickerSetInfoResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -6553,11 +6833,12 @@ var file_proto_engine_proto_depIdxs = []int32{
 	80, // 15: uniclient.EngineGroupCallInfo.participants:type_name -> uniclient.EngineGroupCallParticipant
 	81, // 16: uniclient.EngineGetGroupCallResponse.group_call:type_name -> uniclient.EngineGroupCallInfo
 	87, // 17: uniclient.EngineGetPeerColorsResponse.colors:type_name -> uniclient.EnginePeerColorEntry
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	91, // 18: uniclient.EngineGetStickerSetInfoResponse.stickers:type_name -> uniclient.EngineStickerInfo
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -6571,7 +6852,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   90,
+			NumMessages:   93,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

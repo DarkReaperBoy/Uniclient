@@ -7745,6 +7745,254 @@ class EngineGetPeerColorsResponse extends $pb.GeneratedMessage {
   $core.List<EnginePeerColorEntry> get colors => $_getList(0);
 }
 
+class EngineGetStickerSetInfoRequest extends $pb.GeneratedMessage {
+  factory EngineGetStickerSetInfoRequest({
+    $core.String? accountId,
+    $core.String? shortName,
+    $fixnum.Int64? setId,
+    $fixnum.Int64? accessHash,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (shortName != null) $result.shortName = shortName;
+    if (setId != null) $result.setId = setId;
+    if (accessHash != null) $result.accessHash = accessHash;
+    return $result;
+  }
+  EngineGetStickerSetInfoRequest._() : super();
+  factory EngineGetStickerSetInfoRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetStickerSetInfoRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetStickerSetInfoRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'shortName')
+    ..aInt64(3, _omitFieldNames ? '' : 'setId')
+    ..aInt64(4, _omitFieldNames ? '' : 'accessHash')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetStickerSetInfoRequest clone() => EngineGetStickerSetInfoRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetStickerSetInfoRequest copyWith(void Function(EngineGetStickerSetInfoRequest) updates) => super.copyWith((message) => updates(message as EngineGetStickerSetInfoRequest)) as EngineGetStickerSetInfoRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStickerSetInfoRequest create() => EngineGetStickerSetInfoRequest._();
+  EngineGetStickerSetInfoRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetStickerSetInfoRequest> createRepeated() => $pb.PbList<EngineGetStickerSetInfoRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStickerSetInfoRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetStickerSetInfoRequest>(create);
+  static EngineGetStickerSetInfoRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get shortName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set shortName($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasShortName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearShortName() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get setId => $_getI64(2);
+  @$pb.TagNumber(3)
+  set setId($fixnum.Int64 v) { $_setInt64(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasSetId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearSetId() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get accessHash => $_getI64(3);
+  @$pb.TagNumber(4)
+  set accessHash($fixnum.Int64 v) { $_setInt64(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasAccessHash() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearAccessHash() => clearField(4);
+}
+
+class EngineStickerInfo extends $pb.GeneratedMessage {
+  factory EngineStickerInfo({
+    $core.String? emoji,
+    $core.String? thumbB64,
+    $core.int? width,
+    $core.int? height,
+    $core.String? mimeType,
+    $core.String? fileId,
+  }) {
+    final $result = create();
+    if (emoji != null) $result.emoji = emoji;
+    if (thumbB64 != null) $result.thumbB64 = thumbB64;
+    if (width != null) $result.width = width;
+    if (height != null) $result.height = height;
+    if (mimeType != null) $result.mimeType = mimeType;
+    if (fileId != null) $result.fileId = fileId;
+    return $result;
+  }
+  EngineStickerInfo._() : super();
+  factory EngineStickerInfo.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineStickerInfo.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineStickerInfo', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'emoji')
+    ..aOS(2, _omitFieldNames ? '' : 'thumbB64')
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'width', $pb.PbFieldType.O3)
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'height', $pb.PbFieldType.O3)
+    ..aOS(5, _omitFieldNames ? '' : 'mimeType')
+    ..aOS(6, _omitFieldNames ? '' : 'fileId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineStickerInfo clone() => EngineStickerInfo()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineStickerInfo copyWith(void Function(EngineStickerInfo) updates) => super.copyWith((message) => updates(message as EngineStickerInfo)) as EngineStickerInfo;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineStickerInfo create() => EngineStickerInfo._();
+  EngineStickerInfo createEmptyInstance() => create();
+  static $pb.PbList<EngineStickerInfo> createRepeated() => $pb.PbList<EngineStickerInfo>();
+  @$core.pragma('dart2js:noInline')
+  static EngineStickerInfo getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineStickerInfo>(create);
+  static EngineStickerInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get emoji => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set emoji($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get thumbB64 => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set thumbB64($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.int get width => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set width($core.int v) { $_setSignedInt32(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.int get height => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set height($core.int v) { $_setSignedInt32(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.String get mimeType => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set mimeType($core.String v) { $_setString(4, v); }
+
+  @$pb.TagNumber(6)
+  $core.String get fileId => $_getSZ(5);
+  @$pb.TagNumber(6)
+  set fileId($core.String v) { $_setString(5, v); }
+}
+
+class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
+  factory EngineGetStickerSetInfoResponse({
+    $core.String? title,
+    $core.String? shortName,
+    $core.int? count,
+    $core.bool? installed,
+    $core.bool? archived,
+    $core.bool? animated,
+    $core.bool? video,
+    $core.Iterable<EngineStickerInfo>? stickers,
+  }) {
+    final $result = create();
+    if (title != null) $result.title = title;
+    if (shortName != null) $result.shortName = shortName;
+    if (count != null) $result.count = count;
+    if (installed != null) $result.installed = installed;
+    if (archived != null) $result.archived = archived;
+    if (animated != null) $result.animated = animated;
+    if (video != null) $result.video = video;
+    if (stickers != null) $result.stickers.addAll(stickers);
+    return $result;
+  }
+  EngineGetStickerSetInfoResponse._() : super();
+  factory EngineGetStickerSetInfoResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetStickerSetInfoResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetStickerSetInfoResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'title')
+    ..aOS(2, _omitFieldNames ? '' : 'shortName')
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'count', $pb.PbFieldType.O3)
+    ..aOB(4, _omitFieldNames ? '' : 'installed')
+    ..aOB(5, _omitFieldNames ? '' : 'archived')
+    ..aOB(6, _omitFieldNames ? '' : 'animated')
+    ..aOB(7, _omitFieldNames ? '' : 'video')
+    ..pc<EngineStickerInfo>(8, _omitFieldNames ? '' : 'stickers', $pb.PbFieldType.PM, subBuilder: EngineStickerInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetStickerSetInfoResponse clone() => EngineGetStickerSetInfoResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetStickerSetInfoResponse copyWith(void Function(EngineGetStickerSetInfoResponse) updates) => super.copyWith((message) => updates(message as EngineGetStickerSetInfoResponse)) as EngineGetStickerSetInfoResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStickerSetInfoResponse create() => EngineGetStickerSetInfoResponse._();
+  EngineGetStickerSetInfoResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetStickerSetInfoResponse> createRepeated() => $pb.PbList<EngineGetStickerSetInfoResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetStickerSetInfoResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetStickerSetInfoResponse>(create);
+  static EngineGetStickerSetInfoResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get title => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set title($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get shortName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set shortName($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.int get count => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set count($core.int v) { $_setSignedInt32(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.bool get installed => $_getBF(3);
+  @$pb.TagNumber(4)
+  set installed($core.bool v) { $_setBool(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.bool get archived => $_getBF(4);
+  @$pb.TagNumber(5)
+  set archived($core.bool v) { $_setBool(4, v); }
+
+  @$pb.TagNumber(6)
+  $core.bool get animated => $_getBF(5);
+  @$pb.TagNumber(6)
+  set animated($core.bool v) { $_setBool(5, v); }
+
+  @$pb.TagNumber(7)
+  $core.bool get video => $_getBF(6);
+  @$pb.TagNumber(7)
+  set video($core.bool v) { $_setBool(6, v); }
+
+  @$pb.TagNumber(8)
+  $core.List<EngineStickerInfo> get stickers => $_getList(7);
+}
+
 
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

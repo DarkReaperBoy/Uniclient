@@ -9683,6 +9683,18 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 						isAnimated = true
 					case *tg.DocumentAttributeSticker:
 						isSticker = true
+						if sn, ok := a.Stickerset.(*tg.InputStickerSetShortName); ok && sn.ShortName != "" {
+							if m.Extra == nil {
+								m.Extra = make(map[string]interface{})
+							}
+							m.Extra["sticker_set_short_name"] = sn.ShortName
+						} else if sid, ok := a.Stickerset.(*tg.InputStickerSetID); ok && sid.ID != 0 {
+							if m.Extra == nil {
+								m.Extra = make(map[string]interface{})
+							}
+							m.Extra["sticker_set_id"] = sid.ID
+							m.Extra["sticker_set_access_hash"] = sid.AccessHash
+						}
 					case *tg.DocumentAttributeVideo:
 						ref.Width = a.W
 						ref.Height = a.H
@@ -11136,6 +11148,79 @@ func (t *TelegramCore) GetStickerSet(shortName string) (*tg.MessagesStickerSet, 
 	}
 
 	return stickerSet, nil
+}
+
+// GetStickerSetInfo implements engine.StickerSetFetcher for the sticker pack viewer.
+func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHash int64) (*StickerSetResult, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	var stickersetInput tg.InputStickerSetClass
+	if shortName != "" {
+		stickersetInput = &tg.InputStickerSetShortName{ShortName: shortName}
+	} else if setID != 0 {
+		stickersetInput = &tg.InputStickerSetID{ID: setID, AccessHash: accessHash}
+	} else {
+		return nil, fmt.Errorf("either short_name or set_id required")
+	}
+
+	result, err := t.api.MessagesGetStickerSet(t.ctx, &tg.MessagesGetStickerSetRequest{
+		Stickerset: stickersetInput,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get sticker set: %w", err)
+	}
+	stickerSet, ok := result.(*tg.MessagesStickerSet)
+	if !ok {
+		return nil, ErrNotFound
+	}
+
+	// Build emoji lookup from packs.
+	emojiByDocID := make(map[int64]string)
+	for _, pack := range stickerSet.Packs {
+		for _, docID := range pack.Documents {
+			emojiByDocID[docID] = pack.Emoticon
+		}
+	}
+
+	_, installed := stickerSet.Set.GetInstalledDate()
+	res := &StickerSetResult{
+		Title:     stickerSet.Set.Title,
+		ShortName: stickerSet.Set.ShortName,
+		Count:     stickerSet.Set.Count,
+		Installed: installed,
+		Archived:  stickerSet.Set.Archived,
+	}
+
+	for _, doc := range stickerSet.Documents {
+		d, ok := doc.(*tg.Document)
+		if !ok {
+			continue
+		}
+		t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+
+		si := StickerInfo{
+			Emoji:    emojiByDocID[d.ID],
+			ThumbB64: extractStrippedThumbB64(d.Thumbs),
+			MimeType: d.MimeType,
+			FileID:   strconv.FormatInt(d.ID, 10),
+		}
+		for _, attr := range d.Attributes {
+			switch a := attr.(type) {
+			case *tg.DocumentAttributeImageSize:
+				si.Width = a.W
+				si.Height = a.H
+			case *tg.DocumentAttributeVideo:
+				si.Width = a.W
+				si.Height = a.H
+			}
+		}
+		res.Stickers = append(res.Stickers, si)
+	}
+	return res, nil
 }
 
 // DeleteFolder deletes a dialog filter/folder by ID.

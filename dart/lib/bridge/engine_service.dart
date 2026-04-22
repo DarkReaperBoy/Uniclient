@@ -298,6 +298,39 @@ class EngineService {
     )).toList();
   }
 
+  // ── Sticker sets ──
+
+  Future<StickerSetInfo?> getStickerSetInfo(String accountId, {String shortName = '', int setId = 0, int accessHash = 0}) async {
+    final req = epb.EngineGetStickerSetInfoRequest()
+      ..accountId = accountId
+      ..shortName = shortName
+      ..setId = Int64(setId)
+      ..accessHash = Int64(accessHash);
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStickerSetInfo', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineGetStickerSetInfoResponse.fromBuffer(respBytes);
+      return StickerSetInfo(
+        title: resp.title,
+        shortName: resp.shortName,
+        count: resp.count,
+        installed: resp.installed,
+        archived: resp.archived,
+        stickers: resp.stickers.map((s) => StickerInfoItem(
+          emoji: s.emoji,
+          thumbB64: s.thumbB64,
+          width: s.width,
+          height: s.height,
+          mimeType: s.mimeType,
+          fileId: s.fileId,
+        )).toList(),
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'getStickerSetInfo failed', e);
+      return null;
+    }
+  }
+
   // ── Group calls ──
 
   /// Get active group call info for a chat, or null if no active call.
@@ -957,6 +990,9 @@ class EngineService {
       mediaSpoiler: _boolExtraFromRaw(contentRaw, 'media_spoiler'),
       views: _intFieldFromRaw(contentRaw, 'views'),
       forwards: _intFieldFromRaw(contentRaw, 'forwards'),
+      stickerSetShortName: _topicFieldFromRaw(contentRaw, 'sticker_set_short_name') ?? '',
+      stickerSetId: _int64FieldFromRaw(contentRaw, 'sticker_set_id'),
+      stickerSetAccessHash: _int64FieldFromRaw(contentRaw, 'sticker_set_access_hash'),
     );
   }
 
@@ -1032,6 +1068,22 @@ class EngineService {
       final decoded = jsonDecode(contentRaw);
       if (decoded is! Map<String, dynamic>) return 0;
       final v = decoded[key];
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static int _int64FieldFromRaw(String contentRaw, String key) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return 0;
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return 0;
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return 0;
+      final v = extra[key];
       if (v is int) return v;
       if (v is num) return v.toInt();
       return 0;
