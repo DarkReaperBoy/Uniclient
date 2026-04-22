@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -160,6 +161,9 @@ class _ChatViewState extends State<ChatView>
   final GlobalKey _moreVertKey = GlobalKey();
   List<String> _detectedLinks = const [];
   WebPagePreview? _webPreview;
+  bool _isDragOver = false;
+  int _dragHoveredCard = 0; // 0=none, 1=document, 2=photo
+  late final AnimationController _dragOverlayAnimCtrl;
   bool _webPreviewCancelled = false;
   String _lastPreviewUrl = '';
   Timer? _previewDebounce;
@@ -189,6 +193,10 @@ class _ChatViewState extends State<ChatView>
     );
     _pollVotesAnimCtrl = AnimationController(
       duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _dragOverlayAnimCtrl = AnimationController(
+      duration: const Duration(milliseconds: 200),
       vsync: this,
     );
     _scrollController.addListener(_onScroll);
@@ -246,6 +254,7 @@ class _ChatViewState extends State<ChatView>
     if (ChatView.getComposeEntitiesRequest == _getComposeEntities) {
       ChatView.getComposeEntitiesRequest = null;
     }
+    _dragOverlayAnimCtrl.dispose();
     _selectionCurvedAnim.dispose();
     _selectionAnimCtrl.dispose();
     _fabAnimCtrl.dispose();
@@ -1135,7 +1144,42 @@ class _ChatViewState extends State<ChatView>
         }
         return KeyEventResult.ignored;
       },
-      child: Container(
+      child: DropTarget(
+      onDragEntered: (_) {
+        setState(() => _isDragOver = true);
+        _dragOverlayAnimCtrl.forward();
+      },
+      onDragExited: (_) {
+        setState(() {
+          _isDragOver = false;
+          _dragHoveredCard = 0;
+        });
+        _dragOverlayAnimCtrl.reverse();
+      },
+      onDragUpdated: (details) {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        final localY = details.localPosition.dy;
+        final h = box.size.height;
+        final newCard = localY < h / 2 ? 1 : 2;
+        if (newCard != _dragHoveredCard) {
+          setState(() => _dragHoveredCard = newCard);
+        }
+      },
+      onDragDone: (details) {
+        setState(() {
+          _isDragOver = false;
+          _dragHoveredCard = 0;
+        });
+        _dragOverlayAnimCtrl.reverse();
+        final paths = details.files.map((f) => f.path).toList();
+        if (paths.isNotEmpty) {
+          _uploadFiles(context.read<ChatState>(), paths);
+        }
+      },
+      child: Stack(
+      children: [
+      Container(
       color: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
@@ -1449,6 +1493,24 @@ class _ChatViewState extends State<ChatView>
               },
             ),
         ],
+      ),
+      ),
+      Positioned.fill(
+        child: AnimatedBuilder(
+          animation: _dragOverlayAnimCtrl,
+          builder: (context, child) {
+            if (_dragOverlayAnimCtrl.isDismissed) return const SizedBox.shrink();
+            return Opacity(
+              opacity: _dragOverlayAnimCtrl.value,
+              child: child,
+            );
+          },
+          child: _DragOverlay(
+            hoveredCard: _dragHoveredCard,
+          ),
+        ),
+      ),
+      ],
       ),
       ),
     );
@@ -6449,4 +6511,125 @@ String _formatTime12h(DateTime dt) {
   if (h < 12) return '$h:$m AM';
   if (h == 12) return '12:$m PM';
   return '${h - 12}:$m PM';
+}
+
+class _DragOverlay extends StatelessWidget {
+  final int hoveredCard;
+  const _DragOverlay({required this.hoveredCard});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final boxBg = isDark ? const Color(0xFF17212B) : Colors.white;
+    final shadowColor = isDark
+        ? const Color(0x40000000)
+        : const Color(0x26000000);
+    final restColor = isDark
+        ? const Color(0xFF7c99b2)
+        : const Color(0xFF999999);
+    final activeColor = isDark
+        ? const Color(0xFF6ab3f3)
+        : const Color(0xFF168acd);
+
+    return Container(
+      color: const Color(0x80000000),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Column(
+        children: [
+          Expanded(
+            child: _DragCard(
+              title: 'Drop files here',
+              subtitle: 'to send them as files',
+              icon: Icons.insert_drive_file_outlined,
+              isHovered: hoveredCard == 1,
+              boxBg: boxBg,
+              shadowColor: shadowColor,
+              restColor: restColor,
+              activeColor: activeColor,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: _DragCard(
+              title: 'Drop photos here',
+              subtitle: 'to send them quick',
+              icon: Icons.image_outlined,
+              isHovered: hoveredCard == 2,
+              boxBg: boxBg,
+              shadowColor: shadowColor,
+              restColor: restColor,
+              activeColor: activeColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DragCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final bool isHovered;
+  final Color boxBg;
+  final Color shadowColor;
+  final Color restColor;
+  final Color activeColor;
+
+  const _DragCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.isHovered,
+    required this.boxBg,
+    required this.shadowColor,
+    required this.restColor,
+    required this.activeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isHovered ? activeColor : restColor;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: boxBg,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: shadowColor,
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 48, color: textColor),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 27,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w600,
+                color: textColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

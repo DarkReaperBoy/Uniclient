@@ -360,8 +360,6 @@
 
 ### §7.8 Drag & Drop
 
-- [ ] File drag overlay: rounded card (not full-screen wash) with boxBg fill + boxRoundShadow, two cards (document top / photo bottom), five DragState modes, 72px area height, 27px/19px semibold fonts, windowSubTextFg resting / windowActiveTextFg hovered, opacity 0→1 animation — spec §7.6. Not implemented
-
 ### §7.9 SendFilesBox
 
 - [ ] SendFilesBox dialog: 308px preview, AlbumPreview thumbnail grid (up to 10 items), compress-images checkbox, group-as-album checkbox, caption field (max 158px), per-item right-click context menu (Replace/Edit/Rename/Caption/Spoiler/Cover) — spec §7.7. Not implemented (currently jumps straight to OS picker without preview/confirmation dialog)
