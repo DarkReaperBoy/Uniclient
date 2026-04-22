@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -149,6 +150,7 @@ class _ChatViewState extends State<ChatView>
   // into _ChatTopBar on every rebuild; the button's RenderBox is read
   // from `_moreVertKey.currentContext` when the shortcut fires.
   final GlobalKey _moreVertKey = GlobalKey();
+  List<String> _detectedLinks = const [];
 
   @override
   void initState() {
@@ -1279,6 +1281,9 @@ class _ChatViewState extends State<ChatView>
             chatType: chat.type,
             onEditLast: _editLastOutgoing,
             onCycleReply: _cycleReply,
+            onLinksDetected: (links) {
+              setState(() => _detectedLinks = links);
+            },
           ),
         ],
       ),
@@ -4015,6 +4020,7 @@ class _ComposeArea extends StatefulWidget {
   /// the reply target (spec §24.6 lines 2982-2983). Returns true when the
   /// event was consumed.
   final bool Function(int direction)? onCycleReply;
+  final ValueChanged<List<String>>? onLinksDetected;
 
   const _ComposeArea({
     required this.controller,
@@ -4024,6 +4030,7 @@ class _ComposeArea extends StatefulWidget {
     this.chatType = ChatType.dm,
     this.onEditLast,
     this.onCycleReply,
+    this.onLinksDetected,
   });
 
   @override
@@ -4031,10 +4038,21 @@ class _ComposeArea extends StatefulWidget {
 }
 
 class _ComposeAreaState extends State<_ComposeArea> {
+  static final _urlRegex = RegExp(
+    r'(?:https?://|www\.)'
+    r'[^\s<>\[\](){}"'
+    "'"
+    r']+',
+    caseSensitive: false,
+  );
+
   late final FocusNode _focusNode;
   late final ScrollController _scrollController;
   bool _showTopFade = false;
   bool _showBottomFade = false;
+  Timer? _linkTimer;
+  int _prevTextLength = 0;
+  List<String> _detectedLinks = const [];
 
   @override
   void initState() {
@@ -4042,10 +4060,12 @@ class _ComposeAreaState extends State<_ComposeArea> {
     _focusNode = FocusNode(onKeyEvent: _onKey);
     _scrollController = ScrollController()..addListener(_updateFades);
     widget.controller.addListener(_scheduleUpdateFades);
+    _prevTextLength = widget.controller.text.length;
   }
 
   @override
   void dispose() {
+    _linkTimer?.cancel();
     widget.controller.removeListener(_scheduleUpdateFades);
     _scrollController.dispose();
     _focusNode.dispose();
@@ -4156,7 +4176,40 @@ class _ComposeAreaState extends State<_ComposeArea> {
 
   void _onTextChanged(String value) {
     _tryReplaceEmoticon();
-    widget.onDraftChanged(widget.controller.text);
+    final text = widget.controller.text;
+    widget.onDraftChanged(text);
+    _scheduleLinkParse(text);
+  }
+
+  void _scheduleLinkParse(String text) {
+    _linkTimer?.cancel();
+    final delta = (text.length - _prevTextLength).abs();
+    _prevTextLength = text.length;
+
+    if (text.isEmpty || delta > 2 || text.endsWith(' ') || text.endsWith('\n')) {
+      _parseLinks(text);
+    } else {
+      _linkTimer = Timer(const Duration(milliseconds: 500), () {
+        _parseLinks(widget.controller.text);
+      });
+    }
+  }
+
+  void _parseLinks(String text) {
+    final matches = _urlRegex.allMatches(text);
+    final urls = matches.map((m) => m.group(0)!).toList();
+    if (!_listEquals(urls, _detectedLinks)) {
+      _detectedLinks = urls;
+      widget.onLinksDetected?.call(urls);
+    }
+  }
+
+  static bool _listEquals(List<String> a, List<String> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   void _tryReplaceEmoticon() {
