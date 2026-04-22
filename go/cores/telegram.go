@@ -9792,6 +9792,12 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			m.Extra["poll_multiple"] = poll.MultipleChoice
 			m.Extra["poll_closed"] = poll.Closed
 			m.Extra["poll_public"] = poll.PublicVoters
+			if cp, ok := poll.GetClosePeriod(); ok {
+				m.Extra["poll_close_period"] = cp
+			}
+			if cd, ok := poll.GetCloseDate(); ok {
+				m.Extra["poll_close_date"] = cd
+			}
 
 			opts := make([]map[string]interface{}, 0, len(poll.Answers))
 			for _, ac := range poll.Answers {
@@ -9823,6 +9829,18 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			m.Extra["poll_options"] = opts
 			if tv, ok := res.GetTotalVoters(); ok {
 				m.Extra["poll_total_voters"] = tv
+			}
+			if rv, ok := res.GetRecentVoters(); ok && len(rv) > 0 {
+				voterIDs := make([]string, 0, len(rv))
+				for _, p := range rv {
+					switch v := p.(type) {
+					case *tg.PeerUser:
+						voterIDs = append(voterIDs, fmt.Sprintf("%d", v.UserID))
+					}
+				}
+				if len(voterIDs) > 0 {
+					m.Extra["poll_recent_voters"] = voterIDs
+				}
 			}
 
 			m.Attachments = []FileRef{{MimeType: "application/x-poll", Name: "poll"}}

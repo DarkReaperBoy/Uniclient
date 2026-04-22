@@ -1022,6 +1022,9 @@ class EngineService {
       pollClosed: _boolExtraFromRaw(contentRaw, 'poll_closed'),
       pollPublic: _boolExtraFromRaw(contentRaw, 'poll_public'),
       pollTotalVoters: _int64FieldFromRaw(contentRaw, 'poll_total_voters'),
+      pollCloseDate: _int64FieldFromRaw(contentRaw, 'poll_close_date'),
+      pollClosePeriod: _int64FieldFromRaw(contentRaw, 'poll_close_period'),
+      pollRecentVoters: _stringListExtraFromRaw(contentRaw, 'poll_recent_voters'),
     );
   }
 
@@ -1150,6 +1153,21 @@ class EngineService {
       return 0;
     } catch (_) {
       return 0;
+    }
+  }
+
+  static List<String> _stringListExtraFromRaw(String contentRaw, String key) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"$key"')) return const [];
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return const [];
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return const [];
+      final raw = extra[key];
+      if (raw is! List) return const [];
+      return raw.map((e) => e.toString()).toList(growable: false);
+    } catch (_) {
+      return const [];
     }
   }
 

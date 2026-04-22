@@ -323,7 +323,7 @@
 
 ### §6.11 Polls
 
-- [ ] Footer: total votes count; timed polls: remaining seconds; recent voter userpics row — spec §6. Not implemented
+
 
 ### §6.12 Locations
 

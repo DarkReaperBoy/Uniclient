@@ -3960,6 +3960,8 @@ class _PollWidgetState extends State<_PollWidget>
   late final AnimationController _barAnim;
   late final Animation<double> _barCurve;
   late final AnimationController _shakeAnim;
+  Timer? _countdownTimer;
+  int _remainingSeconds = 0;
 
   @override
   void initState() {
@@ -3984,10 +3986,30 @@ class _PollWidgetState extends State<_PollWidget>
       _hasVoted = true;
       _barAnim.value = 1.0;
     }
+    _startCountdownIfNeeded();
+  }
+
+  void _startCountdownIfNeeded() {
+    final closeDate = widget.message.pollCloseDate;
+    if (closeDate <= 0 || widget.message.pollClosed) return;
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    _remainingSeconds = closeDate - now;
+    if (_remainingSeconds <= 0) return;
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      setState(() {
+        _remainingSeconds--;
+        if (_remainingSeconds <= 0) {
+          _countdownTimer?.cancel();
+          _countdownTimer = null;
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _barAnim.dispose();
     _shakeAnim.dispose();
     super.dispose();
@@ -4091,17 +4113,8 @@ class _PollWidgetState extends State<_PollWidget>
                 onTap: () => _onOptionTap(i),
               );
             }),
-          if (totalVoters > 0 || _hasVoted)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                '$totalVoters vote${totalVoters == 1 ? '' : 's'}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? Colors.white54 : Colors.black45,
-                ),
-              ),
-            ),
+          if (totalVoters > 0 || _hasVoted || msg.pollCloseDate > 0)
+            _buildPollFooter(msg, totalVoters, isDark),
         ],
       ),
     );
@@ -4142,6 +4155,84 @@ class _PollWidgetState extends State<_PollWidget>
     }
 
     return content;
+  }
+
+  Widget _buildPollFooter(CachedMessage msg, int totalVoters, bool isDark) {
+    final footerColor = isDark ? Colors.white54 : Colors.black45;
+    final footerStyle = TextStyle(fontSize: 12, color: footerColor);
+    final recentVoters = msg.pollRecentVoters;
+    final hasCountdown = _remainingSeconds > 0 && !msg.pollClosed;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          if (recentVoters.isNotEmpty) ...[
+            SizedBox(
+              width: recentVoters.length * 16.0 + 8.0,
+              height: 20,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (int i = 0; i < recentVoters.length && i < 3; i++)
+                    Positioned(
+                      left: i * 14.0,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark
+                              ? const Color(0xFF3E546A)
+                              : const Color(0xFF40A7E3),
+                          border: Border.all(
+                            color: isDark
+                                ? const Color(0xFF17212B)
+                                : Colors.white,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            recentVoters[i].length > 1
+                                ? recentVoters[i]
+                                    .substring(recentVoters[i].length - 1)
+                                : '?',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          Text(
+            '$totalVoters vote${totalVoters == 1 ? '' : 's'}',
+            style: footerStyle,
+          ),
+          if (hasCountdown) ...[
+            Text(' · ', style: footerStyle),
+            Text(
+              _formatCountdown(_remainingSeconds),
+              style: footerStyle,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _formatCountdown(int seconds) {
+    if (seconds <= 0) return '0s';
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    if (m > 0) return '${m}m ${s}s';
+    return '${s}s';
   }
 
   void _onOptionTap(int index) {

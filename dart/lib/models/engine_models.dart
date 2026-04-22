@@ -361,6 +361,9 @@ class CachedMessage {
   final bool pollClosed;
   final bool pollPublic;
   final int pollTotalVoters;
+  final int pollCloseDate;
+  final int pollClosePeriod;
+  final List<String> pollRecentVoters;
 
   const CachedMessage({
     required this.accountId,
@@ -417,6 +420,9 @@ class CachedMessage {
     this.pollClosed = false,
     this.pollPublic = false,
     this.pollTotalVoters = 0,
+    this.pollCloseDate = 0,
+    this.pollClosePeriod = 0,
+    this.pollRecentVoters = const [],
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -530,6 +536,9 @@ class CachedMessage {
     bool? pollClosed,
     bool? pollPublic,
     int? pollTotalVoters,
+    int? pollCloseDate,
+    int? pollClosePeriod,
+    List<String>? pollRecentVoters,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -585,6 +594,9 @@ class CachedMessage {
     pollClosed: pollClosed ?? this.pollClosed,
     pollPublic: pollPublic ?? this.pollPublic,
     pollTotalVoters: pollTotalVoters ?? this.pollTotalVoters,
+    pollCloseDate: pollCloseDate ?? this.pollCloseDate,
+    pollClosePeriod: pollClosePeriod ?? this.pollClosePeriod,
+    pollRecentVoters: pollRecentVoters ?? this.pollRecentVoters,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
