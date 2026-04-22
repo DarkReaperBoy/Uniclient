@@ -83,6 +83,14 @@ class AppColors {
   static const msgStickerOverlay = Color(0x7F358CD4);      // day: #358CD47F
   static const msgStickerOverlayNight = Color(0x7F3585D4);  // night: #3585D47F
 
+  // Compose area — spec §7.1
+  static const historyComposeAreaBg = Color(0xFFFFFFFF);       // day
+  static const historyComposeAreaBgNight = Color(0xFF212121);  // night
+  static const historyComposeIconFg = Color(0xFFa0acb6);       // day icon
+  static const historyComposeIconFgOver = Color(0xFF639ac6);   // day hover
+  static const historyComposeIconFgNight = Color(0xFFa0acb6);  // night icon
+  static const historyComposeIconFgOverNight = Color(0xFF639ac6); // night hover
+
   // Bubble shadows — spec §5: 2px bottom shadow strip
   // Format: #RRGGBBAA in spec → 0xAARRGGBB in Flutter
   // msgOutShadow day / night (night disabled: alpha 00)

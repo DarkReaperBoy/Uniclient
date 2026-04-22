@@ -340,10 +340,6 @@
 
 ### §7.2 Compose Strip Layout & Slot Buttons
 
-- [ ] Exact strip layout: (botMenu)(attach|replaceMedia)(sendAs)--field--(ttl)(scheduled)(silent|botCmd) emojiToggle send — spec §7.1. Current: only field + send button, no slot buttons
-- [ ] Strip bg historyComposeAreaBg: day #ffffff / night #212121; no rounded corners (radius 0px); padding 2px horizontal / 9px vertical — spec §7.1. Current uses colorScheme.surface + 8px/6px padding + rounded field
-- [ ] Slot buttons inherit historyAttach: 44×46px, ripple 40×40 at (2,3); icon color historyComposeIconFg #a0acb6 / hover #639ac6 — spec §7.1. Not implemented
-- [ ] Emoji toggle: 20×20 circle ring, line 1.5 — spec §7.1. Not implemented
 
 ### §7.3 Attachment Button
 

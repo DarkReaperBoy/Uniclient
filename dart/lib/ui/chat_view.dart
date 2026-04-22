@@ -4299,28 +4299,119 @@ class _ComposeAreaState extends State<_ComposeArea> {
       );
     }
 
+    final isDark = theme.brightness == Brightness.dark;
+    final composeBg = isDark
+        ? AppColors.historyComposeAreaBgNight
+        : AppColors.historyComposeAreaBg;
+    final iconFg = isDark
+        ? AppColors.historyComposeIconFgNight
+        : AppColors.historyComposeIconFg;
+    final iconFgOver = isDark
+        ? AppColors.historyComposeIconFgOverNight
+        : AppColors.historyComposeIconFgOver;
+
     return Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+        color: composeBg,
         border: Border(
           top: BorderSide(color: theme.dividerColor, width: 1),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 9),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          _ComposeSlotButton(
+            icon: Icons.attach_file,
+            tooltip: 'Attach file',
+            iconColor: iconFg,
+            hoverColor: iconFgOver,
+            onPressed: () {},
+          ),
           Expanded(child: field),
-          IconButton(
+          _ComposeSlotButton(
+            icon: Icons.emoji_emotions_outlined,
+            tooltip: 'Emoji',
+            iconColor: iconFg,
+            hoverColor: iconFgOver,
+            isEmojiToggle: true,
+            onPressed: () {},
+          ),
+          _ComposeSlotButton(
+            icon: widget.isEditing ? Icons.check : Icons.send,
             tooltip: widget.isEditing ? 'Save' : 'Send',
-            icon: Icon(
-              widget.isEditing ? Icons.check : Icons.send,
-              size: 22,
-              color: theme.colorScheme.primary,
-            ),
+            iconColor: theme.colorScheme.primary,
+            hoverColor: theme.colorScheme.primary,
             onPressed: widget.onSend,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Compose strip slot button — spec §7.1 historyAttach: 44×46px, ripple 40×40.
+/// [isEmojiToggle] renders a 20×20 circle ring instead of a filled icon.
+class _ComposeSlotButton extends StatefulWidget {
+  final IconData icon;
+  final String tooltip;
+  final Color iconColor;
+  final Color hoverColor;
+  final VoidCallback onPressed;
+  final bool isEmojiToggle;
+
+  const _ComposeSlotButton({
+    required this.icon,
+    required this.tooltip,
+    required this.iconColor,
+    required this.hoverColor,
+    required this.onPressed,
+    this.isEmojiToggle = false,
+  });
+
+  @override
+  State<_ComposeSlotButton> createState() => _ComposeSlotButtonState();
+}
+
+class _ComposeSlotButtonState extends State<_ComposeSlotButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _hovered ? widget.hoverColor : widget.iconColor;
+    Widget iconWidget;
+    if (widget.isEmojiToggle) {
+      iconWidget = SizedBox(
+        width: 20,
+        height: 20,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color, width: 1.5),
+          ),
+          child: Center(
+            child: Icon(widget.icon, size: 14, color: color),
+          ),
+        ),
+      );
+    } else {
+      iconWidget = Icon(widget.icon, size: 22, color: color);
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Tooltip(
+        message: widget.tooltip,
+        child: InkResponse(
+          onTap: widget.onPressed,
+          radius: 20,
+          child: SizedBox(
+            width: 44,
+            height: 46,
+            child: Center(child: iconWidget),
+          ),
+        ),
       ),
     );
   }
