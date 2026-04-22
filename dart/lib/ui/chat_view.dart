@@ -3954,6 +3954,51 @@ class RichTextEditingController extends TextEditingController {
   }
 }
 
+const _kEmoticons = <String, String>{
+  '>:-(': '😠',
+  '>:-)': '😈',
+  'O:-)': '😇',
+  ":'-(": '😢',
+  ':-)': '😊',
+  ':-(': '😞',
+  ':-D': '😁',
+  ':-P': '😛',
+  ':-p': '😛',
+  ';-P': '😜',
+  ';-p': '😜',
+  ':-O': '😮',
+  ':-o': '😮',
+  '8-)': '😎',
+  'B-)': '😎',
+  ':-*': '😘',
+  ':-|': '😐',
+  ';-)': '😉',
+  '>:(': '😠',
+  '>:)': '😈',
+  'O:)': '😇',
+  ":'(": '😢',
+  ':)': '🙂',
+  ':(': '😞',
+  ':D': '😀',
+  ':P': '😛',
+  ':p': '😛',
+  ';P': '😜',
+  ';p': '😜',
+  ':O': '😮',
+  ':o': '😮',
+  ':*': '😘',
+  ':|': '😐',
+  ';)': '😉',
+  '(:': '🙃',
+  '<3': '❤️',
+};
+
+final _kEmoticonsSorted = () {
+  final list = _kEmoticons.entries.toList();
+  list.sort((a, b) => b.key.length.compareTo(a.key.length));
+  return list;
+}();
+
 /// Compose area at bottom. Spec §7.
 /// Enter sends, Shift+Enter for newline (matching Telegram Desktop).
 /// Up arrow with empty field → edit last outgoing message (spec §24.7).
@@ -4109,6 +4154,46 @@ class _ComposeAreaState extends State<_ComposeArea> {
     return KeyEventResult.ignored;
   }
 
+  void _onTextChanged(String value) {
+    _tryReplaceEmoticon();
+    widget.onDraftChanged(widget.controller.text);
+  }
+
+  void _tryReplaceEmoticon() {
+    final ctrl = widget.controller;
+    final text = ctrl.text;
+    final sel = ctrl.selection;
+    if (!sel.isValid || !sel.isCollapsed) return;
+    final cursor = sel.baseOffset;
+    if (cursor < 2) return;
+
+    final trigger = text[cursor - 1];
+    if (trigger != ' ' && trigger != '\n') return;
+
+    final beforeTrigger = cursor - 1;
+
+    for (final entry in _kEmoticonsSorted) {
+      final emoticon = entry.key;
+      final start = beforeTrigger - emoticon.length;
+      if (start < 0) continue;
+      if (text.substring(start, beforeTrigger) != emoticon) continue;
+      if (start > 0) {
+        final prev = text[start - 1];
+        if (prev != ' ' && prev != '\n' && prev != '\t') continue;
+      }
+
+      final emoji = entry.value;
+      final newText =
+          text.substring(0, start) + emoji + text.substring(beforeTrigger);
+      final newCursor = start + emoji.length + 1;
+      ctrl.value = TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newCursor),
+      );
+      break;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -4120,7 +4205,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
         controller: widget.controller,
         focusNode: _focusNode,
         scrollController: _scrollController,
-        onChanged: widget.onDraftChanged,
+        onChanged: _onTextChanged,
         maxLines: null,
         textInputAction: TextInputAction.newline,
         style: theme.textTheme.bodyMedium,
