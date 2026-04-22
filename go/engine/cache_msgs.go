@@ -831,3 +831,22 @@ func (e *Engine) GetStickerSetInfo(accountID, shortName string, setID, accessHas
 	}
 	return fetcher.GetStickerSetInfo(shortName, setID, accessHash)
 }
+
+type VoiceTranscriber interface {
+	TranscribeAudio(chatID, msgID string) (pending bool, transcriptionID int64, text string, err error)
+}
+
+func (e *Engine) TranscribeAudio(accountID, chatID, msgID string) (bool, int64, string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return false, 0, "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return false, 0, "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	transcriber, ok := acc.Core.(VoiceTranscriber)
+	if !ok {
+		return false, 0, "", fmt.Errorf("platform does not support voice transcription")
+	}
+	return transcriber.TranscribeAudio(chatID, msgID)
+}

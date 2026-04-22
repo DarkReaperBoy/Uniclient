@@ -16010,6 +16010,28 @@ func (t *TelegramCore) MessagesTranscribeAudio(request *tg.MessagesTranscribeAud
 	return t.api.MessagesTranscribeAudio(t.ctx, request)
 }
 
+func (t *TelegramCore) TranscribeAudio(chatID, msgID string) (bool, int64, string, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil {
+		return false, 0, "", err
+	}
+	defer unlock()
+
+	mid, err := tgMsgID(msgID)
+	if err != nil {
+		return false, 0, "", err
+	}
+
+	res, err := t.api.MessagesTranscribeAudio(t.ctx, &tg.MessagesTranscribeAudioRequest{
+		Peer:  inputPeer,
+		MsgID: mid,
+	})
+	if err != nil {
+		return false, 0, "", err
+	}
+	return res.Pending, res.TranscriptionID, res.Text, nil
+}
+
 // MessagesUninstallStickerSet removes a sticker set from the collection.
 func (t *TelegramCore) MessagesUninstallStickerSet(stickerset tg.InputStickerSetClass) (bool, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()

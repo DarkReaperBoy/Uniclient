@@ -733,3 +733,19 @@ message EngineGetStickerSetInfoResponse {
   bool   video      = 7;
   repeated EngineStickerInfo stickers = 8;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Voice Transcription (messages.transcribeAudio)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineTranscribeAudioRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string msg_id     = 3;
+}
+
+message EngineTranscribeAudioResponse {
+  bool   pending           = 1;
+  int64  transcription_id  = 2;
+  string text              = 3;
+}

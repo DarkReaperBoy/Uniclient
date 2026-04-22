@@ -6151,6 +6151,126 @@ func (x *EngineGetStickerSetInfoResponse) GetStickers() []*EngineStickerInfo {
 	return nil
 }
 
+type EngineTranscribeAudioRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineTranscribeAudioRequest) Reset() {
+	*x = EngineTranscribeAudioRequest{}
+	mi := &file_proto_engine_proto_msgTypes[93]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineTranscribeAudioRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineTranscribeAudioRequest) ProtoMessage() {}
+
+func (x *EngineTranscribeAudioRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[93]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineTranscribeAudioRequest.ProtoReflect.Descriptor instead.
+func (*EngineTranscribeAudioRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{93}
+}
+
+func (x *EngineTranscribeAudioRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineTranscribeAudioRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineTranscribeAudioRequest) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
+type EngineTranscribeAudioResponse struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Pending         bool                   `protobuf:"varint,1,opt,name=pending,proto3" json:"pending,omitempty"`
+	TranscriptionId int64                  `protobuf:"varint,2,opt,name=transcription_id,json=transcriptionId,proto3" json:"transcription_id,omitempty"`
+	Text            string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *EngineTranscribeAudioResponse) Reset() {
+	*x = EngineTranscribeAudioResponse{}
+	mi := &file_proto_engine_proto_msgTypes[94]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineTranscribeAudioResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineTranscribeAudioResponse) ProtoMessage() {}
+
+func (x *EngineTranscribeAudioResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[94]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineTranscribeAudioResponse.ProtoReflect.Descriptor instead.
+func (*EngineTranscribeAudioResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{94}
+}
+
+func (x *EngineTranscribeAudioResponse) GetPending() bool {
+	if x != nil {
+		return x.Pending
+	}
+	return false
+}
+
+func (x *EngineTranscribeAudioResponse) GetTranscriptionId() int64 {
+	if x != nil {
+		return x.TranscriptionId
+	}
+	return 0
+}
+
+func (x *EngineTranscribeAudioResponse) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -6704,7 +6824,16 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\barchived\x18\x05 \x01(\bR\barchived\x12\x1a\n" +
 	"\banimated\x18\x06 \x01(\bR\banimated\x12\x14\n" +
 	"\x05video\x18\a \x01(\bR\x05video\x128\n" +
-	"\bstickers\x18\b \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickersB\x11Z\x0funiclient/protob\x06proto3"
+	"\bstickers\x18\b \x03(\v2\x1c.uniclient.EngineStickerInfoR\bstickers\"m\n" +
+	"\x1cEngineTranscribeAudioRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\"x\n" +
+	"\x1dEngineTranscribeAudioResponse\x12\x18\n" +
+	"\apending\x18\x01 \x01(\bR\apending\x12)\n" +
+	"\x10transcription_id\x18\x02 \x01(\x03R\x0ftranscriptionId\x12\x12\n" +
+	"\x04text\x18\x03 \x01(\tR\x04textB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -6718,7 +6847,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 93)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 95)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -6813,6 +6942,8 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetStickerSetInfoRequest)(nil),  // 90: uniclient.EngineGetStickerSetInfoRequest
 	(*EngineStickerInfo)(nil),               // 91: uniclient.EngineStickerInfo
 	(*EngineGetStickerSetInfoResponse)(nil), // 92: uniclient.EngineGetStickerSetInfoResponse
+	(*EngineTranscribeAudioRequest)(nil),    // 93: uniclient.EngineTranscribeAudioRequest
+	(*EngineTranscribeAudioResponse)(nil),   // 94: uniclient.EngineTranscribeAudioResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -6852,7 +6983,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   93,
+			NumMessages:   95,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

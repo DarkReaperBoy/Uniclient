@@ -12,6 +12,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 
 import '../models/engine_models.dart';
+import '../bridge/engine_service.dart';
 import '../state/audio_service.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
@@ -1944,6 +1945,9 @@ class _VoiceIndicator extends StatefulWidget {
 
 class _VoiceIndicatorState extends State<_VoiceIndicator> {
   double? _hoverX;
+  bool _transcribing = false;
+  String? _transcriptionText;
+  bool _transcriptionExpanded = true;
 
   void _onPlayPause() {
     final msg = widget.message;
@@ -1975,6 +1979,38 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
     audio.seek(localX / totalWidth);
   }
 
+  void _onTranscribe() async {
+    if (_transcribing) return;
+    if (_transcriptionText != null) {
+      setState(() { _transcriptionExpanded = !_transcriptionExpanded; });
+      return;
+    }
+    setState(() { _transcribing = true; });
+    final engine = context.read<EngineService>();
+    final msg = widget.message;
+    final result = await engine.transcribeAudio(msg.accountId, msg.chatId, msg.msgId);
+    if (!mounted) return;
+    if (result == null) {
+      setState(() { _transcribing = false; });
+      return;
+    }
+    if (result.pending) {
+      await Future.delayed(const Duration(seconds: 3));
+      if (!mounted) return;
+      final retry = await engine.transcribeAudio(msg.accountId, msg.chatId, msg.msgId);
+      if (!mounted) return;
+      setState(() {
+        _transcribing = false;
+        _transcriptionText = retry?.text ?? '';
+      });
+    } else {
+      setState(() {
+        _transcribing = false;
+        _transcriptionText = result.text;
+      });
+    }
+  }
+
   String _formatDurationMs(Duration d) {
     final totalSecs = d.inSeconds;
     final m = totalSecs ~/ 60;
@@ -1995,116 +2031,169 @@ class _VoiceIndicatorState extends State<_VoiceIndicator> {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          GestureDetector(
-            onTap: downloading ? null : _onPlayPause,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: widget.theme.colorScheme.primary.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: downloading
-                  ? Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: widget.theme.colorScheme.primary,
-                      ),
-                    )
-                  : Icon(
-                      isPlaying ? Icons.pause : Icons.play_arrow,
-                      size: 24,
-                      color: widget.theme.colorScheme.primary,
-                    ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (hasWaveform)
-                  SizedBox(
-                    height: 17,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final width = constraints.maxWidth;
-                        return MouseRegion(
-                          onHover: (event) {
-                            setState(() { _hoverX = event.localPosition.dx; });
-                          },
-                          onExit: (_) {
-                            setState(() { _hoverX = null; });
-                          },
-                          child: GestureDetector(
-                            onTapDown: (details) {
-                              _onWaveformTap(details.localPosition.dx, width);
-                            },
-                            onHorizontalDragUpdate: (details) {
-                              if (isActive) {
-                                audio.seek(details.localPosition.dx / width);
-                              }
-                            },
-                            child: CustomPaint(
-                              size: Size(width, 17),
-                              painter: _WaveformPainter(
-                                samples: waveform,
-                                isOutgoing: isOut,
-                                progress: progress,
-                                hoverX: _hoverX,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  )
-                else
-                  Text(
-                    'Voice message',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: widget.theme.textTheme.bodyMedium,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                onTap: downloading ? null : _onPlayPause,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: widget.theme.colorScheme.primary.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
                   ),
-                const SizedBox(height: 2),
-                Row(
+                  child: downloading
+                      ? Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: widget.theme.colorScheme.primary,
+                          ),
+                        )
+                      : Icon(
+                          isPlaying ? Icons.pause : Icons.play_arrow,
+                          size: 24,
+                          color: widget.theme.colorScheme.primary,
+                        ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      isActive && audio.duration.inMilliseconds > 0
-                          ? _formatDurationMs(audio.position)
-                          : widget.message.mediaDuration > 0
-                              ? _VisualMedia._formatDuration(widget.message.mediaDuration)
-                              : '',
-                      style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                    if (hasWaveform)
+                      SizedBox(
+                        height: 17,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final width = constraints.maxWidth;
+                            return MouseRegion(
+                              onHover: (event) {
+                                setState(() { _hoverX = event.localPosition.dx; });
+                              },
+                              onExit: (_) {
+                                setState(() { _hoverX = null; });
+                              },
+                              child: GestureDetector(
+                                onTapDown: (details) {
+                                  _onWaveformTap(details.localPosition.dx, width);
+                                },
+                                onHorizontalDragUpdate: (details) {
+                                  if (isActive) {
+                                    audio.seek(details.localPosition.dx / width);
+                                  }
+                                },
+                                child: CustomPaint(
+                                  size: Size(width, 17),
+                                  painter: _WaveformPainter(
+                                    samples: waveform,
+                                    isOutgoing: isOut,
+                                    progress: progress,
+                                    hoverX: _hoverX,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      )
+                    else
+                      Text(
+                        'Voice message',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: widget.theme.textTheme.bodyMedium,
+                      ),
+                    const SizedBox(height: 2),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          isActive && audio.duration.inMilliseconds > 0
+                              ? _formatDurationMs(audio.position)
+                              : widget.message.mediaDuration > 0
+                                  ? _VisualMedia._formatDuration(widget.message.mediaDuration)
+                                  : '',
+                          style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                        ),
+                        if (isActive && audio.duration.inMilliseconds > 0) ...[
+                          Text(
+                            ' / ${_formatDurationMs(audio.duration)}',
+                            style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                          ),
+                        ] else if (widget.message.mediaDuration > 0 && widget.message.mediaSizeLabel.isNotEmpty) ...[
+                          Text(' · ', style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color)),
+                          Text(
+                            widget.message.mediaSizeLabel,
+                            style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                          ),
+                        ] else if (widget.message.mediaSizeLabel.isNotEmpty) ...[
+                          Text(
+                            widget.message.mediaSizeLabel,
+                            style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
+                          ),
+                        ],
+                      ],
                     ),
-                    if (isActive && audio.duration.inMilliseconds > 0) ...[
-                      Text(
-                        ' / ${_formatDurationMs(audio.duration)}',
-                        style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
-                      ),
-                    ] else if (widget.message.mediaDuration > 0 && widget.message.mediaSizeLabel.isNotEmpty) ...[
-                      Text(' · ', style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color)),
-                      Text(
-                        widget.message.mediaSizeLabel,
-                        style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
-                      ),
-                    ] else if (widget.message.mediaSizeLabel.isNotEmpty) ...[
-                      Text(
-                        widget.message.mediaSizeLabel,
-                        style: TextStyle(fontSize: 12, color: widget.theme.textTheme.bodySmall?.color),
-                      ),
-                    ],
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 4),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _onTranscribe,
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: _transcribing
+                      ? Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: widget.theme.colorScheme.primary.withValues(alpha: 0.6),
+                          ),
+                        )
+                      : Icon(
+                          _transcriptionText != null
+                              ? (_transcriptionExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down)
+                              : Icons.text_fields,
+                          size: 18,
+                          color: widget.theme.colorScheme.primary.withValues(alpha: 0.7),
+                        ),
+                ),
+              ),
+            ],
           ),
+          if (_transcriptionText != null && _transcriptionExpanded && _transcriptionText!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 52, top: 4, right: 4),
+              child: Text(
+                _transcriptionText!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.theme.textTheme.bodyMedium?.color,
+                ),
+              ),
+            ),
+          if (_transcriptionText != null && _transcriptionExpanded && _transcriptionText!.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 52, top: 4, right: 4),
+              child: Text(
+                'Transcription unavailable',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: widget.theme.textTheme.bodySmall?.color,
+                ),
+              ),
+            ),
         ],
       ),
     );

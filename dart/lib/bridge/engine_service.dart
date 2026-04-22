@@ -331,6 +331,24 @@ class EngineService {
     }
   }
 
+  // ── Voice transcription ──
+
+  Future<({bool pending, int transcriptionId, String text})?> transcribeAudio(String accountId, String chatId, String msgId) async {
+    final req = epb.EngineTranscribeAudioRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId;
+    try {
+      final respBytes = await _callAsync('__engine', 'TranscribeAudio', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineTranscribeAudioResponse.fromBuffer(respBytes);
+      return (pending: resp.pending, transcriptionId: resp.transcriptionId.toInt(), text: resp.text);
+    } catch (e) {
+      Debug.error('ENGINE', 'transcribeAudio failed', e);
+      return null;
+    }
+  }
+
   // ── Group calls ──
 
   /// Get active group call info for a chat, or null if no active call.

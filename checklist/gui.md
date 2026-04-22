@@ -308,7 +308,6 @@
 - [x] Voice message indicator: play button (44px) + waveform + duration + file size — spec §6, DONE in message_bubble.dart (_VoiceIndicator, _WaveformPainter). Waveform data piped from Go engine through contentRaw extra → Dart extraction → CustomPaint bars
 - [x] Interactive waveform: 100 samples, re-bucketed to bar count, 2px bars / 1px gap / 3px min / 17px max height, vertically centered, color split at playback position — spec §6. DONE: Go extracts waveform from DocumentAttributeAudio, stores in m.Extra["waveform"] as base64, Dart decodes 5-bit packed samples, _WaveformPainter renders with correct geometry
 - [x] Waveform colors: inbox played #40a7e3 / unplayed #d4dee6; outbox played #5ebd66 / unplayed #b3e2b4 — spec §6. DONE in _WaveformPainter
-- [ ] Optional transcribe button — spec §6. Not implemented
 
 ### §6.8 Video Messages (Round Video)
 

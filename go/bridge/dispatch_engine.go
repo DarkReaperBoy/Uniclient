@@ -801,6 +801,21 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "TranscribeAudio":
+		var req pb.EngineTranscribeAudioRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		pending, transcriptionID, text, err := e.TranscribeAudio(req.AccountId, req.ChatId, req.MsgId)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineTranscribeAudioResponse{
+			Pending:         pending,
+			TranscriptionId: transcriptionID,
+			Text:            text,
+		})
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

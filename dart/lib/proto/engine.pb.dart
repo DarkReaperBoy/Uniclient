@@ -7993,6 +7993,118 @@ class EngineGetStickerSetInfoResponse extends $pb.GeneratedMessage {
   $core.List<EngineStickerInfo> get stickers => $_getList(7);
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Voice Transcription
+// ═══════════════════════════════════════════════════════════════════════
+
+class EngineTranscribeAudioRequest extends $pb.GeneratedMessage {
+  factory EngineTranscribeAudioRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? msgId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (msgId != null) $result.msgId = msgId;
+    return $result;
+  }
+  EngineTranscribeAudioRequest._() : super();
+  factory EngineTranscribeAudioRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineTranscribeAudioRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineTranscribeAudioRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineTranscribeAudioRequest clone() => EngineTranscribeAudioRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineTranscribeAudioRequest copyWith(void Function(EngineTranscribeAudioRequest) updates) => super.copyWith((message) => updates(message as EngineTranscribeAudioRequest)) as EngineTranscribeAudioRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineTranscribeAudioRequest create() => EngineTranscribeAudioRequest._();
+  EngineTranscribeAudioRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineTranscribeAudioRequest> createRepeated() => $pb.PbList<EngineTranscribeAudioRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineTranscribeAudioRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineTranscribeAudioRequest>(create);
+  static EngineTranscribeAudioRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get msgId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.String v) { $_setString(2, v); }
+}
+
+class EngineTranscribeAudioResponse extends $pb.GeneratedMessage {
+  factory EngineTranscribeAudioResponse({
+    $core.bool? pending,
+    $fixnum.Int64? transcriptionId,
+    $core.String? text,
+  }) {
+    final $result = create();
+    if (pending != null) $result.pending = pending;
+    if (transcriptionId != null) $result.transcriptionId = transcriptionId;
+    if (text != null) $result.text = text;
+    return $result;
+  }
+  EngineTranscribeAudioResponse._() : super();
+  factory EngineTranscribeAudioResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineTranscribeAudioResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineTranscribeAudioResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'pending')
+    ..aInt64(2, _omitFieldNames ? '' : 'transcriptionId')
+    ..aOS(3, _omitFieldNames ? '' : 'text')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineTranscribeAudioResponse clone() => EngineTranscribeAudioResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineTranscribeAudioResponse copyWith(void Function(EngineTranscribeAudioResponse) updates) => super.copyWith((message) => updates(message as EngineTranscribeAudioResponse)) as EngineTranscribeAudioResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineTranscribeAudioResponse create() => EngineTranscribeAudioResponse._();
+  EngineTranscribeAudioResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineTranscribeAudioResponse> createRepeated() => $pb.PbList<EngineTranscribeAudioResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineTranscribeAudioResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineTranscribeAudioResponse>(create);
+  static EngineTranscribeAudioResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get pending => $_getBF(0);
+  @$pb.TagNumber(1)
+  set pending($core.bool v) { $_setBool(0, v); }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get transcriptionId => $_getI64(1);
+  @$pb.TagNumber(2)
+  set transcriptionId($fixnum.Int64 v) { $_setInt64(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get text => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set text($core.String v) { $_setString(2, v); }
+}
+
 
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');
