@@ -149,6 +149,9 @@ class _ChatViewState extends State<ChatView>
   int _searchResultIndex = -1;
   /// Currently active search query (for highlight in message list).
   String _activeSearchQuery = '';
+  List<String> _forwardingMsgIds = [];
+  bool _forwardHideSender = false;
+  bool get _isForwarding => _forwardingMsgIds.isNotEmpty;
   // GlobalKey attached to the top-bar more_vert IconButton so the Ctrl+\
   // keyboard shortcut (spec §24.4 `show_chat_menu`) can anchor the menu
   // at the same pixel position as clicking the button. The key is passed
@@ -283,13 +286,15 @@ class _ChatViewState extends State<ChatView>
       _mentionsAnimCtrl.value = 0;
       _reactionsAnimCtrl.value = 0;
       _pollVotesAnimCtrl.value = 0;
-      if (_editingMsgId != null || _replyToId != null || _isSearching || _pinnedBarDismissed) {
+      if (_editingMsgId != null || _replyToId != null || _isSearching || _pinnedBarDismissed || _isForwarding) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           setState(() {
             _editingMsgId = null;
             _editOriginalText = '';
             _replyToId = null;
+            _forwardingMsgIds = [];
+            _forwardHideSender = false;
             _composeController.clear();
             _isSearching = false;
             _searchController.clear();
@@ -707,20 +712,23 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _forwardSingle(BuildContext context, ChatState chatState, String msgId) {
-    showDialog(
-      context: context,
-      builder: (ctx) => _ForwardDialog(
-        chats: chatState.chats,
-        onSelect: (toChatId) async {
-          Navigator.of(ctx).pop();
-          await chatState.forwardMessages([msgId], toChatId);
-        },
-      ),
-    );
+    setState(() {
+      _forwardingMsgIds = [msgId];
+      _forwardHideSender = false;
+    });
   }
 
   void _forwardSelected(BuildContext context, ChatState chatState) {
     final msgIds = _selectedMsgIds.toList();
+    _modifySelection(() => _selectedMsgIds.clear());
+    setState(() {
+      _forwardingMsgIds = msgIds;
+      _forwardHideSender = false;
+    });
+  }
+
+  void _executeForward(BuildContext context, ChatState chatState) {
+    final msgIds = _forwardingMsgIds.toList();
     showDialog(
       context: context,
       builder: (ctx) => _ForwardDialog(
@@ -728,10 +736,20 @@ class _ChatViewState extends State<ChatView>
         onSelect: (toChatId) async {
           Navigator.of(ctx).pop();
           await chatState.forwardMessages(msgIds, toChatId);
-          _modifySelection(() => _selectedMsgIds.clear());
+          setState(() {
+            _forwardingMsgIds = [];
+            _forwardHideSender = false;
+          });
         },
       ),
     );
+  }
+
+  void _cancelForward() {
+    setState(() {
+      _forwardingMsgIds = [];
+      _forwardHideSender = false;
+    });
   }
 
   void _copySelected(ChatState chatState) {
@@ -778,6 +796,10 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _sendMessage() {
+    if (_isForwarding) {
+      _executeForward(context, context.read<ChatState>());
+      return;
+    }
     final text = _composeController.text.trim();
     if (text.isEmpty) return;
     final entities = _composeController.entitiesJson;
@@ -1002,6 +1024,10 @@ class _ChatViewState extends State<ChatView>
     }
     if (_editingMsgId != null) {
       _cancelEditing();
+      return KeyEventResult.handled;
+    }
+    if (_isForwarding) {
+      _cancelForward();
       return KeyEventResult.handled;
     }
     if (_replyToId != null) {
@@ -1293,12 +1319,21 @@ class _ChatViewState extends State<ChatView>
               ],
             ),
           ),
-          // Edit bar (takes precedence over reply bar).
+          // Edit bar (takes precedence over reply/forward bar).
           if (_editingMsgId != null)
             _EditBar(
               editingId: _editingMsgId!,
               messages: chatState.messages,
               onCancel: _cancelEditing,
+            )
+          else if (_isForwarding)
+            _ForwardBar(
+              forwardingMsgIds: _forwardingMsgIds,
+              messages: chatState.messages,
+              hideSender: _forwardHideSender,
+              onToggleHideSender: () => setState(() => _forwardHideSender = !_forwardHideSender),
+              onSend: () => _executeForward(context, chatState),
+              onCancel: _cancelForward,
             )
           else if (_replyToId != null)
             _ReplyBar(
@@ -1315,6 +1350,7 @@ class _ChatViewState extends State<ChatView>
             onSendWhenOnline: _sendMessage,
             onDraftChanged: (text) => chatState.saveDraft(text),
             isEditing: _editingMsgId != null,
+            isForwarding: _isForwarding,
             chatType: chat.type,
             isSelfChat: chat.title == 'Saved Messages' && chat.type == ChatType.dm,
             voiceRestricted: chat.voiceRestricted,
@@ -2668,6 +2704,168 @@ class _EditBar extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _ForwardBar extends StatelessWidget {
+  final List<String> forwardingMsgIds;
+  final List<CachedMessage> messages;
+  final bool hideSender;
+  final VoidCallback onToggleHideSender;
+  final VoidCallback onSend;
+  final VoidCallback onCancel;
+
+  const _ForwardBar({
+    required this.forwardingMsgIds,
+    required this.messages,
+    required this.hideSender,
+    required this.onToggleHideSender,
+    required this.onSend,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleColor = isDark ? const Color(0xFF429BDB) : theme.colorScheme.primary;
+    final descColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+    final cancelColor = isDark ? const Color(0xFF6C7883) : const Color(0xFFA0ACB6);
+
+    final firstMsg = messages.where((m) => forwardingMsgIds.contains(m.msgId)).firstOrNull;
+    final count = forwardingMsgIds.length;
+    final hasThumb = firstMsg != null && firstMsg.mediaThumbB64.isNotEmpty;
+
+    final titleText = count == 1
+        ? (firstMsg?.senderName ?? 'Forward')
+        : '$count forwarded messages';
+
+    return Container(
+      height: 49,
+      color: theme.colorScheme.surface,
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 7, top: 7),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Icon(Icons.shortcut, size: 22, color: titleColor),
+            ),
+          ),
+          const SizedBox(width: 24),
+          Container(width: 2, height: 36, color: titleColor),
+          const SizedBox(width: 10),
+          if (hasThumb) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: _buildThumb(firstMsg!),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: GestureDetector(
+              onTap: onSend,
+              behavior: HitTestBehavior.opaque,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titleText,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.25,
+                      color: titleColor,
+                    ),
+                  ),
+                  Text(
+                    _descriptionText(firstMsg, count),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      height: 1.25,
+                      color: descColor.withValues(alpha: 0.7),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 36,
+            height: 36,
+            child: IconButton(
+              onPressed: onToggleHideSender,
+              icon: Icon(
+                hideSender ? Icons.person_off : Icons.person,
+                size: 18,
+                color: hideSender ? titleColor : cancelColor,
+              ),
+              splashRadius: 18,
+              padding: EdgeInsets.zero,
+              tooltip: hideSender ? 'Show sender name' : 'Hide sender name',
+            ),
+          ),
+          SizedBox(
+            width: 49,
+            height: 49,
+            child: IconButton(
+              onPressed: onCancel,
+              icon: Icon(Icons.close, size: 18, color: cancelColor),
+              splashRadius: 20,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThumb(CachedMessage msg) {
+    if (msg.mediaThumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(msg.mediaThumbB64);
+        return Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          width: 32,
+          height: 32,
+          gaplessPlayback: true,
+        );
+      } catch (_) {}
+    }
+    return Container(
+      color: Colors.grey.withValues(alpha: 0.3),
+      child: const Icon(Icons.image, size: 16, color: Colors.grey),
+    );
+  }
+
+  String _descriptionText(CachedMessage? msg, int count) {
+    if (count > 1) {
+      return 'Tap to choose destination';
+    }
+    if (msg == null) return 'Tap to choose destination';
+    if (msg.contentText.isNotEmpty) return msg.contentText;
+    switch (msg.mediaType) {
+      case 1: return 'Photo';
+      case 2: return 'Video';
+      case 3: return 'Audio';
+      case 4: return 'Voice message';
+      case 5: return 'Video message';
+      case 6: return 'Sticker';
+      case 7: return 'GIF';
+      case 8: return 'File';
+      default: return 'Tap to choose destination';
+    }
   }
 }
 
@@ -4135,6 +4333,7 @@ class _ComposeArea extends StatefulWidget {
   final VoidCallback? onSendWhenOnline;
   final ValueChanged<String> onDraftChanged;
   final bool isEditing;
+  final bool isForwarding;
   final ChatType chatType;
   final bool isSelfChat;
   /// Called when Up is pressed with empty field + no edit/reply active.
@@ -4160,6 +4359,7 @@ class _ComposeArea extends StatefulWidget {
     this.onSendWhenOnline,
     required this.onDraftChanged,
     this.isEditing = false,
+    this.isForwarding = false,
     this.chatType = ChatType.dm,
     this.isSelfChat = false,
     this.onEditLast,
@@ -4362,6 +4562,7 @@ class _ComposeAreaState extends State<_ComposeArea>
 
   SendButtonType _computeSendButtonType() {
     if (widget.isEditing) return SendButtonType.save;
+    if (widget.isForwarding) return SendButtonType.send;
     if (_slowmodeSecondsLeft > 0) return SendButtonType.slowmode;
     if (!_hasText) {
       final appState = context.read<AppState>();
