@@ -1289,6 +1289,8 @@ class _ChatViewState extends State<ChatView>
             onDraftChanged: (text) => chatState.saveDraft(text),
             isEditing: _editingMsgId != null,
             chatType: chat.type,
+            voiceRestricted: chat.voiceRestricted,
+            videoRestricted: chat.videoRestricted,
             onEditLast: _editLastOutgoing,
             onCycleReply: _cycleReply,
             onLinksDetected: (links) {
@@ -4035,6 +4037,8 @@ class _ComposeArea extends StatefulWidget {
   final bool Function(int direction)? onCycleReply;
   final ValueChanged<List<String>>? onLinksDetected;
   final ValueChanged<List<String>>? onFilesSelected;
+  final bool voiceRestricted;
+  final bool videoRestricted;
 
   const _ComposeArea({
     required this.controller,
@@ -4046,6 +4050,8 @@ class _ComposeArea extends StatefulWidget {
     this.onCycleReply,
     this.onLinksDetected,
     this.onFilesSelected,
+    this.voiceRestricted = false,
+    this.videoRestricted = false,
   });
 
   @override
@@ -4464,17 +4470,23 @@ class _ComposeAreaState extends State<_ComposeArea> {
             isEmojiToggle: true,
             onPressed: () {},
           ),
-          _SendButton(
-            type: _computeSendButtonType(),
-            accentColor: theme.colorScheme.primary,
-            iconFg: iconFg,
-            onSend: widget.onSend,
-            onToggleVoiceRound: () {
-              final appState = context.read<AppState>();
-              appState.recordVideoMessages = !appState.recordVideoMessages;
-              setState(() {});
-            },
-          ),
+          Builder(builder: (context) {
+            final type = _computeSendButtonType();
+            final forbidden = (type == SendButtonType.record && widget.voiceRestricted) ||
+                (type == SendButtonType.round && widget.videoRestricted);
+            return _SendButton(
+              type: type,
+              accentColor: theme.colorScheme.primary,
+              iconFg: iconFg,
+              onSend: widget.onSend,
+              forbidden: forbidden,
+              onToggleVoiceRound: () {
+                final appState = context.read<AppState>();
+                appState.recordVideoMessages = !appState.recordVideoMessages;
+                setState(() {});
+              },
+            );
+          }),
         ],
       ),
     );
@@ -4555,6 +4567,7 @@ class _SendButton extends StatefulWidget {
   final Color iconFg;
   final VoidCallback onSend;
   final VoidCallback? onToggleVoiceRound;
+  final bool forbidden;
 
   const _SendButton({
     required this.type,
@@ -4562,6 +4575,7 @@ class _SendButton extends StatefulWidget {
     required this.iconFg,
     required this.onSend,
     this.onToggleVoiceRound,
+    this.forbidden = false,
   });
 
   @override
@@ -4644,6 +4658,15 @@ class _SendButtonState extends State<_SendButton>
   };
 
   void _onTap() {
+    if (widget.forbidden && _isForbiddable(widget.type)) {
+      final msg = widget.type == SendButtonType.round
+          ? 'The admins of this group restricted you from sending video messages here.'
+          : 'The admins of this group restricted you from sending voice messages here.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+      );
+      return;
+    }
     switch (widget.type) {
       case SendButtonType.send:
       case SendButtonType.save:
@@ -4660,6 +4683,9 @@ class _SendButtonState extends State<_SendButton>
         break;
     }
   }
+
+  static bool _isForbiddable(SendButtonType type) =>
+      type == SendButtonType.record || type == SendButtonType.round;
 
   Color _colorFor(SendButtonType type) {
     final isSendLike = type == SendButtonType.send ||
@@ -4746,6 +4772,16 @@ class _SendButtonState extends State<_SendButton>
   Widget build(BuildContext context) {
     final isRecordOrRound =
         widget.type == SendButtonType.record || widget.type == SendButtonType.round;
+    final isForbidden = widget.forbidden && _isForbiddable(widget.type);
+
+    Widget iconContent = ClipRect(
+      child: _isVoiceRoundTransition && _rollController.value < 1.0
+          ? _buildRollTransition()
+          : _buildBloomTransition(),
+    );
+    if (isForbidden) {
+      iconContent = Opacity(opacity: 0.5, child: iconContent);
+    }
 
     return Listener(
       onPointerDown: isRecordOrRound
@@ -4760,19 +4796,16 @@ class _SendButtonState extends State<_SendButton>
         onExit: (_) => setState(() => _hovered = false),
         child: Tooltip(
           message: _tooltipFor(widget.type),
-          child: InkResponse(
-            onTap: _onTap,
-            radius: 20,
-            child: SizedBox(
-              width: 44,
-              height: 46,
-              child: ClipRect(
-                child: _isVoiceRoundTransition && _rollController.value < 1.0
-                    ? _buildRollTransition()
-                    : _buildBloomTransition(),
-              ),
-            ),
-          ),
+          child: isForbidden
+              ? GestureDetector(
+                  onTap: _onTap,
+                  child: SizedBox(width: 44, height: 46, child: iconContent),
+                )
+              : InkResponse(
+                  onTap: _onTap,
+                  radius: 20,
+                  child: SizedBox(width: 44, height: 46, child: iconContent),
+                ),
         ),
       ),
     );

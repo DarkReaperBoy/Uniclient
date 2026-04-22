@@ -208,6 +208,8 @@ class ChatInfo {
   final bool isVerified;
   final bool isScam;
   final bool isFake;
+  final bool voiceRestricted;
+  final bool videoRestricted;
 
   const ChatInfo({
     required this.accountId,
@@ -243,6 +245,8 @@ class ChatInfo {
     this.isVerified = false,
     this.isScam = false,
     this.isFake = false,
+    this.voiceRestricted = false,
+    this.videoRestricted = false,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -279,6 +283,8 @@ class ChatInfo {
     isVerified: j['is_verified'] as bool? ?? false,
     isScam: j['is_scam'] as bool? ?? false,
     isFake: j['is_fake'] as bool? ?? false,
+    voiceRestricted: j['voice_restricted'] as bool? ?? false,
+    videoRestricted: j['video_restricted'] as bool? ?? false,
   );
 
   /// Time as DateTime for display.
