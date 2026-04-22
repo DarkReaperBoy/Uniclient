@@ -993,6 +993,7 @@ class EngineService {
       stickerSetShortName: _topicFieldFromRaw(contentRaw, 'sticker_set_short_name') ?? '',
       stickerSetId: _int64FieldFromRaw(contentRaw, 'sticker_set_id'),
       stickerSetAccessHash: _int64FieldFromRaw(contentRaw, 'sticker_set_access_hash'),
+      stickerPremium: _boolExtraFromRaw(contentRaw, 'sticker_premium'),
     );
   }
 

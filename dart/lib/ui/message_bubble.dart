@@ -1331,6 +1331,13 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
       displayHeight = displayHeight.clamp(100, 224);
     }
 
+    // §6.6: Premium sticker effect bounding box = stickerSize × 1.49.
+    // kPremiumMultiplier = 1 + 0.245 * 2 = 1.49
+    final isPremiumSticker = message.mediaType == 6 && message.stickerPremium;
+    const kPremiumMultiplier = 1.49;
+    final effectWidth = isPremiumSticker ? displayWidth * kPremiumMultiplier : displayWidth;
+    final effectHeight = isPremiumSticker ? displayHeight * kPremiumMultiplier : displayHeight;
+
     final hasFullImage = message.mediaLocalPath.isNotEmpty;
     final hasThumb = _thumbBytes != null;
     final hasSpoiler = message.mediaSpoiler && !_spoilerRevealed;
@@ -1357,7 +1364,11 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
               : null,
       child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: ClipRRect(
+      child: SizedBox(
+        width: effectWidth,
+        height: effectHeight,
+        child: Center(
+        child: ClipRRect(
         borderRadius: BorderRadius.circular(message.mediaType == 6 ? 0 : 8),
         child: SizedBox(
           width: displayWidth,
@@ -1606,6 +1617,8 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
           ),
         ),
       ),
+      ),  // Center
+      ),  // outer SizedBox (effectWidth × effectHeight)
     ),
     );
   }

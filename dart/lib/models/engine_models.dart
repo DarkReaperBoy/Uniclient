@@ -345,6 +345,9 @@ class CachedMessage {
   final int stickerSetId;
   final int stickerSetAccessHash;
 
+  // Premium sticker flag (has premium effect animation via VideoSize type "f").
+  final bool stickerPremium;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -389,6 +392,7 @@ class CachedMessage {
     this.stickerSetShortName = '',
     this.stickerSetId = 0,
     this.stickerSetAccessHash = 0,
+    this.stickerPremium = false,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -489,6 +493,7 @@ class CachedMessage {
     String? groupedId,
     int? views,
     int? forwards,
+    bool? stickerPremium,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -533,6 +538,7 @@ class CachedMessage {
     stickerSetShortName: stickerSetShortName,
     stickerSetId: stickerSetId,
     stickerSetAccessHash: stickerSetAccessHash,
+    stickerPremium: stickerPremium ?? this.stickerPremium,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;

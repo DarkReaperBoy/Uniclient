@@ -9712,6 +9712,17 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				if isSticker && ref.MimeType == "video/webm" {
 					ref.MimeType = "video/webm+sticker"
 				}
+				if isSticker {
+					for _, vt := range d.VideoThumbs {
+						if vs, ok := vt.(*tg.VideoSize); ok && vs.Type == "f" {
+							if m.Extra == nil {
+								m.Extra = make(map[string]interface{})
+							}
+							m.Extra["sticker_premium"] = true
+							break
+						}
+					}
+				}
 				// Extract stripped thumbnail from document's thumb sizes (videos, stickers, GIFs).
 				ref.ThumbB64 = extractStrippedThumbB64(d.Thumbs)
 				m.Attachments = []FileRef{ref}
