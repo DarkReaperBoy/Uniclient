@@ -21,12 +21,14 @@ class SendFilesResult {
   final String caption;
   final bool silent;
   final DateTime? scheduledDate;
+  final List<bool> spoilers;
 
   const SendFilesResult({
     required this.paths,
     this.caption = '',
     this.silent = false,
     this.scheduledDate,
+    this.spoilers = const [],
   });
 }
 
@@ -157,12 +159,76 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
     } catch (_) {}
   }
 
+  bool get _canSpoiler =>
+      _compressImages && _files.any((f) => f.type == _FileType.photo || f.type == _FileType.video);
+
+  bool get _allSpoilered =>
+      _files.where((f) => f.type == _FileType.photo || f.type == _FileType.video)
+          .every((f) => f.spoiler);
+
+  bool get _anySpoilered =>
+      _files.any((f) => f.spoiler);
+
+  void _toggleSpoiler(int index) {
+    setState(() => _files[index].spoiler = !_files[index].spoiler);
+  }
+
+  void _toggleAllSpoilers() {
+    final target = !_allSpoilered;
+    setState(() {
+      for (final f in _files) {
+        if (f.type == _FileType.photo || f.type == _FileType.video) {
+          f.spoiler = target;
+        }
+      }
+    });
+  }
+
+  void _showTopMenu(Offset position) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF707579);
+    final textColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF222222);
+    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final checkColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: menuBg,
+      elevation: 8,
+      items: [
+        PopupMenuItem<String>(
+          value: 'spoiler',
+          height: 40,
+          child: Row(
+            children: [
+              Icon(
+                _allSpoilered ? Icons.check : Icons.blur_on,
+                size: 20,
+                color: _allSpoilered ? checkColor : iconColor,
+              ),
+              const SizedBox(width: 14),
+              Text(
+                _anySpoilered ? 'Remove spoiler' : 'Hide with spoiler',
+                style: TextStyle(fontSize: 14, color: textColor),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'spoiler') _toggleAllSpoilers();
+    });
+  }
+
   void _send({bool silent = false, DateTime? scheduledDate}) {
     Navigator.of(context).pop(SendFilesResult(
       paths: _resultPaths,
       caption: _captionController.text,
       silent: silent,
       scheduledDate: scheduledDate,
+      spoilers: _files.map((f) => f.spoiler).toList(),
     ));
   }
 
@@ -291,7 +357,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                   ),
                   _TopMenuButton(
                     isDark: isDark,
-                    onPressed: () {},
+                    onPressed: !_canSpoiler ? null : () {
+                      final btnBox = context.findRenderObject() as RenderBox;
+                      final pos = btnBox.localToGlobal(Offset(btnBox.size.width - 48, 48));
+                      _showTopMenu(pos);
+                    },
                   ),
                 ],
               ),
@@ -312,6 +382,11 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
                           final idx = _files.indexOf(file);
                           if (idx >= 0) _removeFile(idx);
                         },
+                        onToggleSpoiler: (file) {
+                          final idx = _files.indexOf(file);
+                          if (idx >= 0) _toggleSpoiler(idx);
+                        },
+                        canSpoiler: _canSpoiler,
                       ),
                     if (showMediaPreview && mediaFiles.isNotEmpty && docFiles.isNotEmpty)
                       SizedBox(height: _rowSkip),
@@ -417,7 +492,7 @@ class _SendFilesBoxDialogState extends State<_SendFilesBoxDialog> {
 
 class _TopMenuButton extends StatelessWidget {
   final bool isDark;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _TopMenuButton({required this.isDark, required this.onPressed});
 
@@ -428,7 +503,9 @@ class _TopMenuButton extends StatelessWidget {
       height: 48,
       child: IconButton(
         icon: Icon(Icons.more_vert,
-            color: isDark ? const Color(0xFF8B9BAA) : const Color(0xFF999999)),
+            color: onPressed != null
+                ? (isDark ? const Color(0xFF8B9BAA) : const Color(0xFF999999))
+                : (isDark ? const Color(0xFF4A5560) : const Color(0xFFCCCCCC))),
         onPressed: onPressed,
         splashRadius: 21,
       ),
@@ -440,11 +517,15 @@ class _MediaPreview extends StatelessWidget {
   final List<_PreparedFile> files;
   final List<_PreparedFile> allFiles;
   final void Function(_PreparedFile) onRemove;
+  final void Function(_PreparedFile) onToggleSpoiler;
+  final bool canSpoiler;
 
   const _MediaPreview({
     required this.files,
     required this.allFiles,
     required this.onRemove,
+    required this.onToggleSpoiler,
+    required this.canSpoiler,
   });
 
   @override
@@ -454,12 +535,16 @@ class _MediaPreview extends StatelessWidget {
         file: files.first,
         canRemove: allFiles.length > 1,
         onRemove: () => onRemove(files.first),
+        onToggleSpoiler: () => onToggleSpoiler(files.first),
+        canSpoiler: canSpoiler,
       );
     }
     return _AlbumPreview(
       files: files,
       allFiles: allFiles,
       onRemove: onRemove,
+      onToggleSpoiler: onToggleSpoiler,
+      canSpoiler: canSpoiler,
     );
   }
 }
@@ -468,54 +553,105 @@ class _SingleMediaPreview extends StatelessWidget {
   final _PreparedFile file;
   final bool canRemove;
   final VoidCallback onRemove;
+  final VoidCallback onToggleSpoiler;
+  final bool canSpoiler;
 
   const _SingleMediaPreview({
     required this.file,
     required this.canRemove,
     required this.onRemove,
+    required this.onToggleSpoiler,
+    required this.canSpoiler,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(_thumbCornerRadius),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: _previewWidth,
-          maxHeight: _previewWidth,
-        ),
-        child: Stack(
-          children: [
-            Image.file(
-              File(file.path),
-              width: _previewWidth,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
+    return GestureDetector(
+      onSecondaryTapUp: canSpoiler ? (details) {
+        _showThumbContextMenu(context, details.globalPosition);
+      } : null,
+      onLongPress: canSpoiler ? () {
+        final box = context.findRenderObject() as RenderBox;
+        final center = box.localToGlobal(box.size.center(Offset.zero));
+        _showThumbContextMenu(context, center);
+      } : null,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_thumbCornerRadius),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            maxWidth: _previewWidth,
+            maxHeight: _previewWidth,
+          ),
+          child: Stack(
+            children: [
+              Image.file(
+                File(file.path),
                 width: _previewWidth,
-                height: 200,
-                color: Colors.grey[800],
-                child: const Icon(Icons.broken_image, color: Colors.white54, size: 48),
-              ),
-            ),
-            if (canRemove)
-              Positioned(
-                top: 5,
-                right: 5,
-                child: _ThumbButton(
-                  icon: Icons.close,
-                  onPressed: onRemove,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  width: _previewWidth,
+                  height: 200,
+                  color: Colors.grey[800],
+                  child: const Icon(Icons.broken_image, color: Colors.white54, size: 48),
                 ),
               ),
-            if (file.type == _FileType.video)
-              const Positioned.fill(
-                child: Center(
-                  child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 48),
+              if (file.spoiler)
+                const Positioned.fill(child: _SpoilerOverlay()),
+              if (canRemove)
+                Positioned(
+                  top: 5,
+                  right: 5,
+                  child: _ThumbButton(
+                    icon: Icons.close,
+                    onPressed: onRemove,
+                  ),
                 ),
-              ),
-          ],
+              if (file.type == _FileType.video)
+                const Positioned.fill(
+                  child: Center(
+                    child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 48),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _showThumbContextMenu(BuildContext context, Offset position) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF707579);
+    final textColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF222222);
+    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final checkColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: menuBg,
+      elevation: 8,
+      items: [
+        PopupMenuItem<String>(
+          value: 'spoiler',
+          height: 40,
+          child: Row(
+            children: [
+              Icon(
+                file.spoiler ? Icons.check : Icons.blur_on,
+                size: 20,
+                color: file.spoiler ? checkColor : iconColor,
+              ),
+              const SizedBox(width: 14),
+              Text('Spoiler effect', style: TextStyle(fontSize: 14, color: textColor)),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'spoiler') onToggleSpoiler();
+    });
   }
 }
 
@@ -523,11 +659,15 @@ class _AlbumPreview extends StatelessWidget {
   final List<_PreparedFile> files;
   final List<_PreparedFile> allFiles;
   final void Function(_PreparedFile) onRemove;
+  final void Function(_PreparedFile) onToggleSpoiler;
+  final bool canSpoiler;
 
   const _AlbumPreview({
     required this.files,
     required this.allFiles,
     required this.onRemove,
+    required this.onToggleSpoiler,
+    required this.canSpoiler,
   });
 
   @override
@@ -557,6 +697,8 @@ class _AlbumPreview extends StatelessWidget {
                         height: rows[rowIdx].height,
                         canRemove: allFiles.length > 1,
                         onRemove: () => onRemove(files[rows[rowIdx].items[colIdx].fileIndex]),
+                        onToggleSpoiler: () => onToggleSpoiler(files[rows[rowIdx].items[colIdx].fileIndex]),
+                        canSpoiler: canSpoiler,
                         cornerRadius: _cornerForPosition(
                           rowIdx, colIdx,
                           rows.length, rows[rowIdx].items.length,
@@ -654,6 +796,8 @@ class _AlbumThumb extends StatelessWidget {
   final double height;
   final bool canRemove;
   final VoidCallback onRemove;
+  final VoidCallback onToggleSpoiler;
+  final bool canSpoiler;
   final BorderRadius cornerRadius;
 
   const _AlbumThumb({
@@ -661,44 +805,93 @@ class _AlbumThumb extends StatelessWidget {
     required this.height,
     required this.canRemove,
     required this.onRemove,
+    required this.onToggleSpoiler,
+    required this.canSpoiler,
     required this.cornerRadius,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: cornerRadius,
-      child: SizedBox(
-        height: height,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.file(
-              File(file.path),
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                color: Colors.grey[800],
-                child: const Icon(Icons.broken_image, color: Colors.white54, size: 32),
-              ),
-            ),
-            if (canRemove)
-              Positioned(
-                top: 5,
-                right: 5,
-                child: _ThumbButton(
-                  icon: Icons.close,
-                  onPressed: onRemove,
-                  size: 22,
+    return GestureDetector(
+      onSecondaryTapUp: canSpoiler ? (details) {
+        _showThumbContextMenu(context, details.globalPosition);
+      } : null,
+      onLongPress: canSpoiler ? () {
+        final box = context.findRenderObject() as RenderBox;
+        final center = box.localToGlobal(box.size.center(Offset.zero));
+        _showThumbContextMenu(context, center);
+      } : null,
+      child: ClipRRect(
+        borderRadius: cornerRadius,
+        child: SizedBox(
+          height: height,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.file(
+                File(file.path),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: Colors.grey[800],
+                  child: const Icon(Icons.broken_image, color: Colors.white54, size: 32),
                 ),
               ),
-            if (file.type == _FileType.video)
-              const Center(
-                child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 32),
-              ),
-          ],
+              if (file.spoiler)
+                const _SpoilerOverlay(),
+              if (canRemove)
+                Positioned(
+                  top: 5,
+                  right: 5,
+                  child: _ThumbButton(
+                    icon: Icons.close,
+                    onPressed: onRemove,
+                    size: 22,
+                  ),
+                ),
+              if (file.type == _FileType.video)
+                const Center(
+                  child: Icon(Icons.play_circle_fill, color: Colors.white70, size: 32),
+                ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  void _showThumbContextMenu(BuildContext context, Offset position) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = isDark ? const Color(0xFFAAAAAA) : const Color(0xFF707579);
+    final textColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF222222);
+    final menuBg = isDark ? const Color(0xFF1E2C3A) : Colors.white;
+    final checkColor = isDark ? const Color(0xFF5288C1) : const Color(0xFF40A7E3);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx + 1, position.dy + 1),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: menuBg,
+      elevation: 8,
+      items: [
+        PopupMenuItem<String>(
+          value: 'spoiler',
+          height: 40,
+          child: Row(
+            children: [
+              Icon(
+                file.spoiler ? Icons.check : Icons.blur_on,
+                size: 20,
+                color: file.spoiler ? checkColor : iconColor,
+              ),
+              const SizedBox(width: 14),
+              Text('Spoiler effect', style: TextStyle(fontSize: 14, color: textColor)),
+            ],
+          ),
+        ),
+      ],
+    ).then((value) {
+      if (value == 'spoiler') onToggleSpoiler();
+    });
   }
 }
 
@@ -895,6 +1088,20 @@ class _FileCard extends StatelessWidget {
               size: 22,
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _SpoilerOverlay extends StatelessWidget {
+  const _SpoilerOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0x80000000),
+      child: const Center(
+        child: Icon(Icons.blur_on, color: Colors.white70, size: 36),
       ),
     );
   }

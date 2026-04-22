@@ -362,7 +362,7 @@
 
 ### §7.9 SendFilesBox
 
-- [ ] Spoiler per-item via context menu; bulk via top-right 3-dots menu — spec §7.7. Not implemented
+
 
 ### §7.10 Autocomplete
 
