@@ -1241,6 +1241,22 @@ class PeerColorEntry {
   });
 }
 
+class WebPagePreview {
+  final String url;
+  final String siteName;
+  final String title;
+  final String description;
+  final String thumbB64;
+
+  const WebPagePreview({
+    this.url = '',
+    this.siteName = '',
+    this.title = '',
+    this.description = '',
+    this.thumbB64 = '',
+  });
+}
+
 // ── Sticker set info (for sticker pack viewer) ──
 
 class StickerInfoItem {

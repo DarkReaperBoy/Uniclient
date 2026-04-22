@@ -159,6 +159,10 @@ class _ChatViewState extends State<ChatView>
   // from `_moreVertKey.currentContext` when the shortcut fires.
   final GlobalKey _moreVertKey = GlobalKey();
   List<String> _detectedLinks = const [];
+  WebPagePreview? _webPreview;
+  bool _webPreviewCancelled = false;
+  String _lastPreviewUrl = '';
+  Timer? _previewDebounce;
 
   @override
   void initState() {
@@ -252,6 +256,7 @@ class _ChatViewState extends State<ChatView>
     _scrollController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _previewDebounce?.cancel();
     super.dispose();
   }
 
@@ -752,6 +757,50 @@ class _ChatViewState extends State<ChatView>
     });
   }
 
+  void _onLinksChanged(List<String> links, ChatState chatState) {
+    _previewDebounce?.cancel();
+    if (links.isEmpty || _editingMsgId != null) {
+      if (_webPreview != null) {
+        setState(() {
+          _webPreview = null;
+          _lastPreviewUrl = '';
+        });
+      }
+      return;
+    }
+    final url = links.first;
+    if (url == _lastPreviewUrl) return;
+    if (_webPreviewCancelled && url == _lastPreviewUrl) return;
+    _webPreviewCancelled = false;
+    _previewDebounce = Timer(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      final accountId = chatState.activeChat?.accountId ?? '';
+      if (accountId.isEmpty) return;
+      final engine = context.read<EngineService>();
+      engine.getWebPagePreview(accountId, url).then((preview) {
+        if (!mounted) return;
+        if (preview != null) {
+          setState(() {
+            _webPreview = preview;
+            _lastPreviewUrl = url;
+          });
+        } else {
+          setState(() {
+            _webPreview = null;
+            _lastPreviewUrl = url;
+          });
+        }
+      });
+    });
+  }
+
+  void _cancelWebPreview() {
+    setState(() {
+      _webPreview = null;
+      _webPreviewCancelled = true;
+    });
+  }
+
   void _copySelected(ChatState chatState) {
     final msgs = chatState.messages
         .where((m) => _selectedMsgIds.contains(m.msgId))
@@ -785,6 +834,13 @@ class _ChatViewState extends State<ChatView>
         extentOffset: selEnd ?? text.length,
       ),
     );
+    final urlRegex = RegExp(r'https?://[^\s<]+', caseSensitive: false);
+    final urls = urlRegex.allMatches(text).map((m) => m.group(0)!).toList();
+    if (urls.toString() != _detectedLinks.toString()) {
+      setState(() => _detectedLinks = urls);
+      final chatState = context.read<ChatState>();
+      _onLinksChanged(urls, chatState);
+    }
   }
 
   void _toggleComposeFormat(FormatType type) {
@@ -812,7 +868,12 @@ class _ChatViewState extends State<ChatView>
     }
     chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities);
     _composeController.clear();
-    setState(() => _replyToId = null);
+    setState(() {
+      _replyToId = null;
+      _webPreview = null;
+      _webPreviewCancelled = false;
+      _lastPreviewUrl = '';
+    });
     _scrollToBottom();
   }
 
@@ -1340,6 +1401,11 @@ class _ChatViewState extends State<ChatView>
               replyId: _replyToId!,
               messages: chatState.messages,
               onCancel: () => setState(() => _replyToId = null),
+            )
+          else if (_webPreview != null)
+            _WebPreviewBar(
+              preview: _webPreview!,
+              onCancel: _cancelWebPreview,
             ),
           // Compose area.
           _ComposeArea(
@@ -1362,6 +1428,7 @@ class _ChatViewState extends State<ChatView>
             onCycleReply: _cycleReply,
             onLinksDetected: (links) {
               setState(() => _detectedLinks = links);
+              _onLinksChanged(links, chatState);
             },
             onFilesSelected: (paths) => _uploadFiles(chatState, paths),
           ),
@@ -2866,6 +2933,110 @@ class _ForwardBar extends StatelessWidget {
       case 8: return 'File';
       default: return 'Tap to choose destination';
     }
+  }
+}
+
+class _WebPreviewBar extends StatelessWidget {
+  final WebPagePreview preview;
+  final VoidCallback onCancel;
+
+  const _WebPreviewBar({
+    required this.preview,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleColor = isDark ? const Color(0xFF429BDB) : theme.colorScheme.primary;
+    final descColor = isDark ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+    final cancelColor = isDark ? const Color(0xFF6C7883) : const Color(0xFFA0ACB6);
+    final hasThumb = preview.thumbB64.isNotEmpty;
+
+    return Container(
+      height: 49,
+      color: theme.colorScheme.surface,
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 7, top: 7),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Icon(Icons.link, size: 22, color: titleColor),
+            ),
+          ),
+          const SizedBox(width: 24),
+          Container(width: 2, height: 36, color: titleColor),
+          const SizedBox(width: 10),
+          if (hasThumb) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: SizedBox(
+                width: 32,
+                height: 32,
+                child: Image.memory(
+                  base64Decode(preview.thumbB64),
+                  fit: BoxFit.cover,
+                  width: 32,
+                  height: 32,
+                  gaplessPlayback: true,
+                  errorBuilder: (_, __, ___) => Container(
+                    color: Colors.grey.withValues(alpha: 0.3),
+                    child: const Icon(Icons.language, size: 16, color: Colors.grey),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  preview.title.isNotEmpty
+                      ? preview.title
+                      : (preview.siteName.isNotEmpty ? preview.siteName : preview.url),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    height: 1.25,
+                    color: titleColor,
+                  ),
+                ),
+                Text(
+                  preview.description.isNotEmpty
+                      ? preview.description
+                      : preview.url,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.25,
+                    color: descColor.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 49,
+            height: 49,
+            child: IconButton(
+              onPressed: onCancel,
+              icon: Icon(Icons.close, size: 18, color: cancelColor),
+              splashRadius: 20,
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -11610,18 +11610,39 @@ func (t *TelegramCore) TranslateText(chatID string, msgID string, toLang string)
 	return "", nil
 }
 
-// GetWebPagePreview returns a preview of a URL for link embedding.
+// GetWebPagePreview returns the title of a URL preview for link embedding.
 func (t *TelegramCore) GetWebPagePreview(url string) (string, error) {
-	t.mu.RLock(); defer t.mu.RUnlock()
-	if !t.authed || t.api == nil { return "", ErrAuth }
-	result, err := t.api.MessagesGetWebPagePreview(t.ctx, &tg.MessagesGetWebPagePreviewRequest{Message: url})
+	r, err := t.GetWebPagePreviewFull(url)
 	if err != nil { return "", err }
+	if r != nil { return r.Title, nil }
+	return "", nil
+}
+
+// GetWebPagePreviewFull returns full structured web page preview data.
+func (t *TelegramCore) GetWebPagePreviewFull(url string) (*WebPagePreviewResult, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	result, err := t.api.MessagesGetWebPagePreview(t.ctx, &tg.MessagesGetWebPagePreviewRequest{Message: url})
+	if err != nil { return nil, err }
 	if result.Media != nil {
 		if mw, ok := result.Media.(*tg.MessageMediaWebPage); ok {
-			if wp, ok := mw.Webpage.(*tg.WebPage); ok { return wp.Title, nil }
+			if wp, ok := mw.Webpage.(*tg.WebPage); ok {
+				r := &WebPagePreviewResult{
+					URL:         wp.URL,
+					SiteName:    wp.SiteName,
+					Title:       wp.Title,
+					Description: wp.Description,
+				}
+				if wp.Photo != nil {
+					if photo, ok := wp.Photo.(*tg.Photo); ok {
+						r.ThumbB64 = extractStrippedThumbB64(photo.Sizes)
+					}
+				}
+				return r, nil
+			}
 		}
 	}
-	return "", nil
+	return nil, nil
 }
 
 // SetHistoryTTL sets the auto-delete timer for messages in a chat.

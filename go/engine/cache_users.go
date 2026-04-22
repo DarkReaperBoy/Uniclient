@@ -313,3 +313,21 @@ func (e *Engine) GetPeerColors(accountID string) ([]cores.PeerColorEntry, error)
 	}
 	return fetcher.GetPeerColorPalette()
 }
+
+func (e *Engine) GetWebPagePreview(accountID, url string) (*cores.WebPagePreviewResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type webPageFetcher interface {
+		GetWebPagePreviewFull(url string) (*cores.WebPagePreviewResult, error)
+	}
+	fetcher, ok := acc.Core.(webPageFetcher)
+	if !ok {
+		return nil, nil
+	}
+	return fetcher.GetWebPagePreviewFull(url)
+}

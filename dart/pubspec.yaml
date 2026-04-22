@@ -21,6 +21,7 @@ dependencies:
   media_kit: ^1.2.6
   media_kit_video: ^2.0.1
   media_kit_libs_linux: ^1.2.1
+  file_picker: ^3.0.4
 
 dev_dependencies:
   flutter_test:

@@ -770,3 +770,20 @@ message EngineAttachMenuBotInfo {
 message EngineGetAttachMenuBotsResponse {
   repeated EngineAttachMenuBotInfo bots = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Web Page Preview (link preview for compose FieldHeader)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetWebPagePreviewRequest {
+  string account_id = 1;
+  string url        = 2;
+}
+
+message EngineGetWebPagePreviewResponse {
+  string url         = 1;
+  string site_name   = 2;
+  string title       = 3;
+  string description = 4;
+  string thumb_b64   = 5;
+}

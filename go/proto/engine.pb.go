@@ -6443,6 +6443,134 @@ func (x *EngineGetAttachMenuBotsResponse) GetBots() []*EngineAttachMenuBotInfo {
 	return nil
 }
 
+type EngineGetWebPagePreviewRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	Url           string                 `protobuf:"bytes,2,opt,name=url,proto3" json:"url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetWebPagePreviewRequest) Reset() {
+	*x = EngineGetWebPagePreviewRequest{}
+	mi := &file_proto_engine_proto_msgTypes[98]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetWebPagePreviewRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetWebPagePreviewRequest) ProtoMessage() {}
+
+func (x *EngineGetWebPagePreviewRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[98]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetWebPagePreviewRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetWebPagePreviewRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{98}
+}
+
+func (x *EngineGetWebPagePreviewRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetWebPagePreviewRequest) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+type EngineGetWebPagePreviewResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	SiteName      string                 `protobuf:"bytes,2,opt,name=site_name,json=siteName,proto3" json:"site_name,omitempty"`
+	Title         string                 `protobuf:"bytes,3,opt,name=title,proto3" json:"title,omitempty"`
+	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
+	ThumbB64      string                 `protobuf:"bytes,5,opt,name=thumb_b64,json=thumbB64,proto3" json:"thumb_b64,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetWebPagePreviewResponse) Reset() {
+	*x = EngineGetWebPagePreviewResponse{}
+	mi := &file_proto_engine_proto_msgTypes[99]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetWebPagePreviewResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetWebPagePreviewResponse) ProtoMessage() {}
+
+func (x *EngineGetWebPagePreviewResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[99]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetWebPagePreviewResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetWebPagePreviewResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{99}
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetUrl() string {
+	if x != nil {
+		return x.Url
+	}
+	return ""
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetSiteName() string {
+	if x != nil {
+		return x.SiteName
+	}
+	return ""
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *EngineGetWebPagePreviewResponse) GetThumbB64() string {
+	if x != nil {
+		return x.ThumbB64
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -6542,7 +6670,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\x8e\x06\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xb2\x06\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -6573,7 +6701,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"is_blocked\x18\x15 \x01(\bR\tisBlocked\x12)\n" +
 	"\x10slowmode_seconds\x18\x16 \x01(\x05R\x0fslowmodeSeconds\x125\n" +
-	"\x17slowmode_next_send_date\x18\x17 \x01(\x03R\x14slowmodeNextSendDate\"\x83\x01\n" +
+	"\x17slowmode_next_send_date\x18\x17 \x01(\x03R\x14slowmodeNextSendDate\x12\"\n" +
+	"\rstars_to_send\x18\x18 \x01(\x05R\vstarsToSend\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +
@@ -7017,7 +7146,17 @@ const file_proto_engine_proto_rawDesc = "" +
 	"short_name\x18\x02 \x01(\tR\tshortName\x12\x1a\n" +
 	"\binactive\x18\x03 \x01(\bR\binactive\"Y\n" +
 	"\x1fEngineGetAttachMenuBotsResponse\x126\n" +
-	"\x04bots\x18\x01 \x03(\v2\".uniclient.EngineAttachMenuBotInfoR\x04botsB\x11Z\x0funiclient/protob\x06proto3"
+	"\x04bots\x18\x01 \x03(\v2\".uniclient.EngineAttachMenuBotInfoR\x04bots\"Q\n" +
+	"\x1eEngineGetWebPagePreviewRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x10\n" +
+	"\x03url\x18\x02 \x01(\tR\x03url\"\xa5\x01\n" +
+	"\x1fEngineGetWebPagePreviewResponse\x12\x10\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x12\x1b\n" +
+	"\tsite_name\x18\x02 \x01(\tR\bsiteName\x12\x14\n" +
+	"\x05title\x18\x03 \x01(\tR\x05title\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x1b\n" +
+	"\tthumb_b64\x18\x05 \x01(\tR\bthumbB64B\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -7031,7 +7170,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 98)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 100)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -7131,6 +7270,8 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetAttachMenuBotsRequest)(nil),  // 95: uniclient.EngineGetAttachMenuBotsRequest
 	(*EngineAttachMenuBotInfo)(nil),         // 96: uniclient.EngineAttachMenuBotInfo
 	(*EngineGetAttachMenuBotsResponse)(nil), // 97: uniclient.EngineGetAttachMenuBotsResponse
+	(*EngineGetWebPagePreviewRequest)(nil),  // 98: uniclient.EngineGetWebPagePreviewRequest
+	(*EngineGetWebPagePreviewResponse)(nil), // 99: uniclient.EngineGetWebPagePreviewResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -7171,7 +7312,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   98,
+			NumMessages:   100,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -2272,6 +2272,13 @@ message TelegramGetAppConfigCheckRequest {
 message TelegramGetAppConfigCheckResponse {
 }
 
+message TelegramGetAttachMenuBotsRequest {
+}
+
+message TelegramGetAttachMenuBotsResponse {
+  repeated AttachMenuBotInfo result_1 = 1;
+}
+
 message TelegramGetBirthdaysCountRequest {
 }
 
@@ -2792,6 +2799,16 @@ message TelegramGetStickerSetRequest {
 
 message TelegramGetStickerSetResponse {
   bytes result_1 = 1;
+}
+
+message TelegramGetStickerSetInfoRequest {
+  string short_name = 1;
+  int64 set_id = 2;
+  int64 access_hash = 3;
+}
+
+message TelegramGetStickerSetInfoResponse {
+  StickerSetResult result_1 = 1;
 }
 
 message TelegramGetStoryViewsRequest {
@@ -5945,6 +5962,17 @@ message TelegramToggleViewForumAsMessagesRequest {
 }
 
 message TelegramToggleViewForumAsMessagesResponse {
+}
+
+message TelegramTranscribeAudioRequest {
+  string chat_id = 1;
+  string msg_id = 2;
+}
+
+message TelegramTranscribeAudioResponse {
+  bool result_1 = 1;
+  int64 result_2 = 2;
+  string result_3 = 3;
 }
 
 message TelegramTranslateTextRequest {

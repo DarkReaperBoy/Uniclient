@@ -280,6 +280,14 @@ type AttachMenuBotInfo struct {
 	Inactive  bool   `json:"inactive"`
 }
 
+type WebPagePreviewResult struct {
+	URL         string `json:"url"`
+	SiteName    string `json:"site_name"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	ThumbB64    string `json:"thumb_b64"`
+}
+
 // ReadState tracks the last-read message positions for the current user and peers.
 type ReadState struct {
 	MyLastRead   string            `json:"my_last_read"`

@@ -835,6 +835,25 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetWebPagePreview":
+		var req pb.EngineGetWebPagePreviewRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		result, err := e.GetWebPagePreview(req.AccountId, req.Url)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetWebPagePreviewResponse{}
+		if result != nil {
+			resp.Url = result.URL
+			resp.SiteName = result.SiteName
+			resp.Title = result.Title
+			resp.Description = result.Description
+			resp.ThumbB64 = result.ThumbB64
+		}
+		return proto.Marshal(resp)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

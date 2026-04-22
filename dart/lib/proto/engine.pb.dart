@@ -8276,5 +8276,149 @@ class EngineGetAttachMenuBotsResponse extends $pb.GeneratedMessage {
   $core.List<EngineAttachMenuBotInfo> get bots => $_getList(0);
 }
 
+class EngineGetWebPagePreviewRequest extends $pb.GeneratedMessage {
+  factory EngineGetWebPagePreviewRequest({
+    $core.String? accountId,
+    $core.String? url,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (url != null) $result.url = url;
+    return $result;
+  }
+  EngineGetWebPagePreviewRequest._() : super();
+  factory EngineGetWebPagePreviewRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetWebPagePreviewRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetWebPagePreviewRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'url')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetWebPagePreviewRequest clone() => EngineGetWebPagePreviewRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetWebPagePreviewRequest copyWith(void Function(EngineGetWebPagePreviewRequest) updates) => super.copyWith((message) => updates(message as EngineGetWebPagePreviewRequest)) as EngineGetWebPagePreviewRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetWebPagePreviewRequest create() => EngineGetWebPagePreviewRequest._();
+  EngineGetWebPagePreviewRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetWebPagePreviewRequest> createRepeated() => $pb.PbList<EngineGetWebPagePreviewRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetWebPagePreviewRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetWebPagePreviewRequest>(create);
+  static EngineGetWebPagePreviewRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get url => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set url($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasUrl() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUrl() => clearField(2);
+}
+
+class EngineGetWebPagePreviewResponse extends $pb.GeneratedMessage {
+  factory EngineGetWebPagePreviewResponse({
+    $core.String? url,
+    $core.String? siteName,
+    $core.String? title,
+    $core.String? description,
+    $core.String? thumbB64,
+  }) {
+    final $result = create();
+    if (url != null) $result.url = url;
+    if (siteName != null) $result.siteName = siteName;
+    if (title != null) $result.title = title;
+    if (description != null) $result.description = description;
+    if (thumbB64 != null) $result.thumbB64 = thumbB64;
+    return $result;
+  }
+  EngineGetWebPagePreviewResponse._() : super();
+  factory EngineGetWebPagePreviewResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetWebPagePreviewResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetWebPagePreviewResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'url')
+    ..aOS(2, _omitFieldNames ? '' : 'siteName')
+    ..aOS(3, _omitFieldNames ? '' : 'title')
+    ..aOS(4, _omitFieldNames ? '' : 'description')
+    ..aOS(5, _omitFieldNames ? '' : 'thumbB64')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetWebPagePreviewResponse clone() => EngineGetWebPagePreviewResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Will be removed in next major version')
+  EngineGetWebPagePreviewResponse copyWith(void Function(EngineGetWebPagePreviewResponse) updates) => super.copyWith((message) => updates(message as EngineGetWebPagePreviewResponse)) as EngineGetWebPagePreviewResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetWebPagePreviewResponse create() => EngineGetWebPagePreviewResponse._();
+  EngineGetWebPagePreviewResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetWebPagePreviewResponse> createRepeated() => $pb.PbList<EngineGetWebPagePreviewResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetWebPagePreviewResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetWebPagePreviewResponse>(create);
+  static EngineGetWebPagePreviewResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get url => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set url($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasUrl() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearUrl() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get siteName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set siteName($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasSiteName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearSiteName() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get title => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set title($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasTitle() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTitle() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.String get description => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set description($core.String v) { $_setString(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasDescription() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearDescription() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.String get thumbB64 => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set thumbB64($core.String v) { $_setString(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasThumbB64() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearThumbB64() => clearField(5);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

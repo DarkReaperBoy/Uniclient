@@ -298,6 +298,29 @@ class EngineService {
     )).toList();
   }
 
+  // ── Web page preview ──
+
+  Future<WebPagePreview?> getWebPagePreview(String accountId, String url) async {
+    final req = epb.EngineGetWebPagePreviewRequest()
+      ..accountId = accountId
+      ..url = url;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetWebPagePreview', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineGetWebPagePreviewResponse.fromBuffer(respBytes);
+      if (resp.title.isEmpty && resp.description.isEmpty && resp.siteName.isEmpty) return null;
+      return WebPagePreview(
+        url: resp.url,
+        siteName: resp.siteName,
+        title: resp.title,
+        description: resp.description,
+        thumbB64: resp.thumbB64,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ── Sticker sets ──
 
   Future<StickerSetInfo?> getStickerSetInfo(String accountId, {String shortName = '', int setId = 0, int accessHash = 0}) async {
