@@ -1529,6 +1529,18 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                     ),
                   ),
                 ),
+              // §6.8: Progress arc overlay for round video playback.
+              if (message.mediaType == 5)
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _VideoNoteProgressPainter(
+                      progress: 0.0,
+                      color: theme.brightness == Brightness.dark
+                          ? AppColors.bubbleReceived
+                          : AppColors.bubbleReceivedLight,
+                    ),
+                  ),
+                ),
               // Spec §6: enlarge button in bottom-right for large photos.
               // Shows expand icon as visual affordance; tapping photo already opens viewer.
               if (message.mediaType == 1 &&
@@ -3569,4 +3581,34 @@ class _AlbumThumbState extends State<_AlbumThumb> {
     return Container(color: Colors.grey.shade800,
       child: const Center(child: Icon(Icons.image, color: Colors.white38, size: 24)));
   }
+}
+
+class _VideoNoteProgressPainter extends CustomPainter {
+  final double progress;
+  final Color color;
+
+  _VideoNoteProgressPainter({required this.progress, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0.0) return;
+    const strokeWidth = 3.0;
+    const inset = strokeWidth / 2;
+    final rect = Rect.fromLTWH(
+      inset, inset,
+      size.width - strokeWidth, size.height - strokeWidth,
+    );
+    final paint = Paint()
+      ..color = color.withValues(alpha: 0.72)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+    const startAngle = -math.pi / 2;
+    final sweepAngle = 2 * math.pi * progress.clamp(0.0, 1.0);
+    canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+  }
+
+  @override
+  bool shouldRepaint(_VideoNoteProgressPainter oldDelegate) =>
+      oldDelegate.progress != progress || oldDelegate.color != color;
 }
