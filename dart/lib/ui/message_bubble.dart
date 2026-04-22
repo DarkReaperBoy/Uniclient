@@ -2555,9 +2555,24 @@ class _FileIndicator extends StatelessWidget {
   IconData _stateIcon() {
     switch (message.mediaDownloadState) {
       case 1: return Icons.close;
-      case 2: return Icons.play_arrow;
+      case 2: return Icons.insert_drive_file;
       default: return Icons.arrow_downward;
     }
+  }
+
+  void _onTap(BuildContext context) {
+    final state = message.mediaDownloadState;
+    if (state == 2 && message.mediaLocalPath.isNotEmpty) {
+      Process.run('xdg-open', [message.mediaLocalPath]);
+      return;
+    }
+    if (state == 1) {
+      context.read<EngineService>().cancelDownload(
+        message.accountId, message.chatId, message.msgId,
+      );
+      return;
+    }
+    context.read<ChatState>().requestDownload(message);
   }
 
   @override
@@ -2565,73 +2580,86 @@ class _FileIndicator extends StatelessWidget {
     final fileName = message.mediaFileName.isNotEmpty ? message.mediaFileName : 'File';
     final ext = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : '';
     final displayName = _middleTruncate(fileName, 32);
+    final isDownloading = message.mediaDownloadState == 1;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: SizedBox(
-        height: 44,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.insert_drive_file, size: 20, color: theme.colorScheme.primary),
-                      if (ext.isNotEmpty && ext.length <= 4)
-                        Text(ext, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
-                    ],
-                  ),
-                  Positioned(
-                    right: 2,
-                    bottom: 2,
-                    child: Container(
-                      width: 16,
-                      height: 16,
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.primary,
-                        shape: BoxShape.circle,
+    return GestureDetector(
+      onTap: () => _onTap(context),
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: SizedBox(
+          height: 44,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.insert_drive_file, size: 20, color: theme.colorScheme.primary),
+                        if (ext.isNotEmpty && ext.length <= 4)
+                          Text(ext, style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: theme.colorScheme.primary)),
+                      ],
+                    ),
+                    Positioned(
+                      right: 2,
+                      bottom: 2,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: isDownloading
+                            ? Padding(
+                                padding: const EdgeInsets.all(2),
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Icon(_stateIcon(), size: 10, color: Colors.white),
                       ),
-                      child: Icon(_stateIcon(), size: 10, color: Colors.white),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 11),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(top: 0),
-                    child: Text(
-                      displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+              const SizedBox(width: 11),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 0),
+                      child: Text(
+                        displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  if (message.mediaSizeLabel.isNotEmpty)
-                    Text(
-                      message.mediaSizeLabel,
-                      style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
-                    ),
-                ],
+                    const SizedBox(height: 2),
+                    if (message.mediaSizeLabel.isNotEmpty)
+                      Text(
+                        message.mediaSizeLabel,
+                        style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

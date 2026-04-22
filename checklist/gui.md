@@ -316,7 +316,6 @@
 ### §6.9 Files/Documents
 
 - [x] File indicator: 44px icon left, 11px gap, middle-truncated filename, file size, extension badge, icon state variants (download arrow, cancel X, play triangle) — spec §6, DONE in message_bubble.dart (_FileIndicator)
-- [ ] Click to download/open file — spec §6. Not implemented
 
 ### §6.10 Audio/Music
 
