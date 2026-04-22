@@ -4100,6 +4100,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   Timer? _slowmodeTimer;
   int _slowmodeSecondsLeft = 0;
   bool _isRecording = false;
+  bool _isVideoRound = false;
   DateTime? _recordingStart;
   Timer? _recordingTimer;
   Duration _recordingDuration = Duration.zero;
@@ -4177,9 +4178,10 @@ class _ComposeAreaState extends State<_ComposeArea>
 
   static const double _lockThreshold = 80.0;
 
-  void _startRecording(double startY, int pointerId) {
+  void _startRecording(double startY, int pointerId, {bool videoRound = false}) {
     setState(() {
       _isRecording = true;
+      _isVideoRound = videoRound;
       _isRecordingLocked = false;
       _recordingStart = DateTime.now();
       _recordingDuration = Duration.zero;
@@ -4224,6 +4226,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     _lockShowController.reverse();
     setState(() {
       _isRecording = false;
+      _isVideoRound = false;
       _isRecordingLocked = false;
       _recordingStart = null;
       _recordingDuration = Duration.zero;
@@ -4241,6 +4244,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     _lockShowController.reverse();
     setState(() {
       _isRecording = false;
+      _isVideoRound = false;
       _isRecordingLocked = false;
       _recordingStart = null;
       _recordingDuration = Duration.zero;
@@ -4614,6 +4618,7 @@ class _ComposeAreaState extends State<_ComposeArea>
             duration: _recordingDuration,
             onCancel: _cancelRecording,
             isLocked: _isRecordingLocked,
+            isVideoRound: _isVideoRound,
             onStop: _stopAndSendRecording,
           ),
         ),
@@ -4641,6 +4646,7 @@ class _ComposeAreaState extends State<_ComposeArea>
                 child: _RecordLockWidget(
                   progress: _lockProgress,
                   isLocked: _isRecordingLocked,
+                  isVideoRound: _isVideoRound,
                   isDark: isDark,
                 ),
               ),
@@ -4787,7 +4793,7 @@ class _SendButton extends StatefulWidget {
   final Color iconFg;
   final VoidCallback onSend;
   final VoidCallback? onToggleVoiceRound;
-  final void Function(double startY, int pointerId)? onRecordStart;
+  final void Function(double startY, int pointerId, {bool videoRound})? onRecordStart;
   final VoidCallback? onSendSilent;
   final ValueChanged<DateTime>? onSendScheduled;
   final VoidCallback? onSendWhenOnline;
@@ -4870,9 +4876,10 @@ class _SendButtonState extends State<_SendButton>
     _holdTimer?.cancel();
     final globalY = e.position.dy;
     final pointerId = e.pointer;
+    final isRound = widget.type == SendButtonType.round;
     _holdTimer = Timer(const Duration(milliseconds: 200), () {
       _holdFired = true;
-      widget.onRecordStart?.call(globalY, pointerId);
+      widget.onRecordStart?.call(globalY, pointerId, videoRound: isRound);
     });
   }
 
@@ -4880,10 +4887,13 @@ class _SendButtonState extends State<_SendButton>
     _holdTimer?.cancel();
     _holdTimer = null;
     if (!_holdFired) {
+      final msg = widget.type == SendButtonType.round
+          ? 'Hold to record video'
+          : 'Hold to record';
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Hold to record'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text(msg),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -5282,12 +5292,14 @@ class _VoiceRecordBar extends StatefulWidget {
   final Duration duration;
   final VoidCallback onCancel;
   final bool isLocked;
+  final bool isVideoRound;
   final VoidCallback? onStop;
 
   const _VoiceRecordBar({
     required this.duration,
     required this.onCancel,
     this.isLocked = false,
+    this.isVideoRound = false,
     this.onStop,
   });
 
@@ -5321,6 +5333,31 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
     super.dispose();
   }
 
+  void _confirmCancel(BuildContext context) {
+    final msg = widget.isVideoRound
+        ? 'Are you sure you want to stop recording and discard your video message?'
+        : 'Are you sure you want to stop recording and discard your voice message?';
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel recording'),
+        content: Text(msg),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Continue'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    ).then((confirmed) {
+      if (confirmed == true) widget.onCancel();
+    });
+  }
+
   String _formatDuration(Duration d) {
     final totalMs = d.inMilliseconds;
     final minutes = totalMs ~/ 60000;
@@ -5349,6 +5386,7 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
                 painter: _BlobPainter(
                   level: _blobController.value,
                   signalDotOpacity: _signalDotController.value,
+                  isVideoRound: widget.isVideoRound,
                 ),
               );
             },
@@ -5373,7 +5411,7 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
                 onEnter: (_) => setState(() => _cancelHovered = true),
                 onExit: (_) => setState(() => _cancelHovered = false),
                 child: GestureDetector(
-                  onTap: widget.onCancel,
+                  onTap: () => _confirmCancel(context),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
@@ -5406,7 +5444,9 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
                     width: 12,
                     height: 12,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFe53935),
+                      color: widget.isVideoRound
+                          ? const Color(0xFF3f8ae0)
+                          : const Color(0xFFe53935),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -5461,14 +5501,17 @@ class _VoiceRecordBarState extends State<_VoiceRecordBar>
 class _BlobPainter extends CustomPainter {
   final double level;
   final double signalDotOpacity;
+  final bool isVideoRound;
 
-  _BlobPainter({required this.level, required this.signalDotOpacity});
+  _BlobPainter({required this.level, required this.signalDotOpacity, this.isVideoRound = false});
 
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
     final center = Offset(cx, cy);
+
+    final baseColor = isVideoRound ? const Color(0xFF3f8ae0) : const Color(0xFFe53935);
 
     final minorRadius = 40.0 + (47.0 - 40.0) * _wave(level, 0.3);
     final majorRadius = 43.0 + (50.0 - 43.0) * _wave(level, 0.6);
@@ -5477,19 +5520,43 @@ class _BlobPainter extends CustomPainter {
     final scale = 0.45;
 
     final minorPaint = Paint()
-      ..color = const Color(0xFFe53935).withValues(alpha: 0.12);
+      ..color = baseColor.withValues(alpha: 0.12);
     canvas.drawCircle(center, minorRadius * scale, minorPaint);
 
     final majorPaint = Paint()
-      ..color = const Color(0xFFe53935).withValues(alpha: 0.20);
+      ..color = baseColor.withValues(alpha: 0.20);
     canvas.drawCircle(center, majorRadius * scale, majorPaint);
 
-    final mainPaint = Paint()..color = const Color(0xFFe53935);
+    final mainPaint = Paint()..color = baseColor;
     canvas.drawCircle(center, mainRadius * scale, mainPaint);
 
-    final dotPaint = Paint()
-      ..color = const Color(0xFFe53935).withValues(alpha: signalDotOpacity);
-    canvas.drawCircle(center, 5.0 * scale, dotPaint);
+    if (isVideoRound) {
+      _drawCameraIcon(canvas, center, scale);
+    } else {
+      final dotPaint = Paint()
+        ..color = baseColor.withValues(alpha: signalDotOpacity);
+      canvas.drawCircle(center, 5.0 * scale, dotPaint);
+    }
+  }
+
+  void _drawCameraIcon(Canvas canvas, Offset center, double scale) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final bodyW = 12.0 * scale;
+    final bodyH = 8.0 * scale;
+    final bodyRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center.translate(-1.5 * scale, 0), width: bodyW, height: bodyH),
+      Radius.circular(1.5 * scale),
+    );
+    canvas.drawRRect(bodyRect, paint);
+
+    final lensPath = Path()
+      ..moveTo(center.dx + bodyW / 2 - 1.5 * scale, center.dy - 2.5 * scale)
+      ..lineTo(center.dx + bodyW / 2 + 2.5 * scale, center.dy)
+      ..lineTo(center.dx + bodyW / 2 - 1.5 * scale, center.dy + 2.5 * scale)
+      ..close();
+    canvas.drawPath(lensPath, paint);
   }
 
   double _wave(double t, double offset) {
@@ -5498,17 +5565,19 @@ class _BlobPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BlobPainter old) =>
-      old.level != level || old.signalDotOpacity != signalDotOpacity;
+      old.level != level || old.signalDotOpacity != signalDotOpacity || old.isVideoRound != isVideoRound;
 }
 
 class _RecordLockWidget extends StatelessWidget {
   final double progress;
   final bool isLocked;
+  final bool isVideoRound;
   final bool isDark;
 
   const _RecordLockWidget({
     required this.progress,
     required this.isLocked,
+    this.isVideoRound = false,
     required this.isDark,
   });
 
@@ -5550,9 +5619,13 @@ class _RecordLockWidget extends StatelessWidget {
             Transform.rotate(
               angle: lockAngle,
               child: Icon(
-                isLocked ? Icons.lock : Icons.lock_open,
+                isVideoRound
+                    ? (isLocked ? Icons.videocam : Icons.videocam_outlined)
+                    : (isLocked ? Icons.lock : Icons.lock_open),
                 size: 28,
-                color: isLocked ? const Color(0xFFe53935) : iconColor,
+                color: isLocked
+                    ? (isVideoRound ? const Color(0xFF3f8ae0) : const Color(0xFFe53935))
+                    : iconColor,
               ),
             ),
             const SizedBox(height: 8),
@@ -5562,7 +5635,9 @@ class _RecordLockWidget extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress,
                 backgroundColor: borderColor,
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFe53935)),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  isVideoRound ? const Color(0xFF3f8ae0) : const Color(0xFFe53935),
+                ),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
