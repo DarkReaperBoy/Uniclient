@@ -362,7 +362,6 @@
 
 ### §7.9 SendFilesBox
 
-- [ ] SendFilesBox dialog: 308px preview, AlbumPreview thumbnail grid (up to 10 items), compress-images checkbox, group-as-album checkbox, caption field (max 158px), per-item right-click context menu (Replace/Edit/Rename/Caption/Spoiler/Cover) — spec §7.7. Not implemented (currently jumps straight to OS picker without preview/confirmation dialog)
 - [ ] Send button: long-press opens send menu; paid peer overrides with price label — spec §7.7. Not implemented
 - [ ] Spoiler per-item via context menu; bulk via top-right 3-dots menu — spec §7.7. Not implemented
 

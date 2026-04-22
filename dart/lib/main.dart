@@ -453,6 +453,14 @@ class _UniClientAppState extends State<UniClientApp>
         case 'dismissPopup':
           // Tap at (0,0) to dismiss any popup/dialog/menu
           _dispatchTap(1, 1);
+
+        case 'sendFiles':
+          final paths = (cmd['paths'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ?? [];
+          if (paths.isNotEmpty) {
+            ChatView.showSendFilesBoxRequest?.call(paths);
+          }
       }
     } catch (e) {
       Debug.error('DEBUG_CMD', 'Error processing command', e, null);

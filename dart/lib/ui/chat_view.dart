@@ -17,6 +17,7 @@ import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import 'chat_list_row.dart' show ForwardDragData;
 import 'message_bubble.dart';
+import 'send_files_box.dart';
 
 /// Chat column: top bar + message list + compose area.
 /// Spec §4 (top bar 54px), §5 (messages), §7 (compose).
@@ -74,6 +75,8 @@ class ChatView extends StatefulWidget {
   /// reply. Set by the active [_ChatViewState] on mount, cleared on dispose.
   /// Returns true if consumed (active chat with messages and non-edit state).
   static bool Function(int direction)? cycleReplyRequest;
+
+  static void Function(List<String> paths)? showSendFilesBoxRequest;
 
   /// Invoked by the app-level Ctrl+Up / Ctrl+Down bindings. Returns true if
   /// consumed.
@@ -224,6 +227,9 @@ class _ChatViewState extends State<ChatView>
     ChatView.setComposeRequest = _setComposeText;
     ChatView.toggleFormatRequest = _toggleComposeFormat;
     ChatView.getComposeEntitiesRequest = _getComposeEntities;
+    ChatView.showSendFilesBoxRequest = (paths) {
+      _uploadFiles(context.read<ChatState>(), paths);
+    };
     _searchController.addListener(_onSearchQueryChanged);
   }
 
@@ -254,6 +260,7 @@ class _ChatViewState extends State<ChatView>
     if (ChatView.getComposeEntitiesRequest == _getComposeEntities) {
       ChatView.getComposeEntitiesRequest = null;
     }
+    ChatView.showSendFilesBoxRequest = null;
     _dragOverlayAnimCtrl.dispose();
     _selectionCurvedAnim.dispose();
     _selectionAnimCtrl.dispose();
@@ -886,8 +893,10 @@ class _ChatViewState extends State<ChatView>
     _scrollToBottom();
   }
 
-  void _uploadFiles(ChatState chatState, List<String> paths) {
-    for (final path in paths) {
+  Future<void> _uploadFiles(ChatState chatState, List<String> paths) async {
+    final confirmed = await showSendFilesBox(context, filePaths: paths);
+    if (confirmed == null || confirmed.isEmpty) return;
+    for (final path in confirmed) {
       chatState.uploadFile(path);
     }
   }
