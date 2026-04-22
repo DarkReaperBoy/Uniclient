@@ -349,7 +349,6 @@
 
 ### §7.5 Voice Record Bar
 
-- [ ] TTL "voice once" 2px ring on lock when armed — spec §7.4. Not implemented
 
 ### §7.6 Reply / Edit / Forward Bar (FieldHeader)
 

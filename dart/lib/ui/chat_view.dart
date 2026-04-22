@@ -4108,6 +4108,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   double _lockDragStartY = 0;
   int _trackingPointerId = -1;
   double _lockProgress = 0.0;
+  bool _ttlArmed = false;
   late AnimationController _lockShowController;
 
   @override
@@ -4231,6 +4232,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       _recordingStart = null;
       _recordingDuration = Duration.zero;
       _lockProgress = 0.0;
+      _ttlArmed = false;
     });
   }
 
@@ -4249,6 +4251,7 @@ class _ComposeAreaState extends State<_ComposeArea>
       _recordingStart = null;
       _recordingDuration = Duration.zero;
       _lockProgress = 0.0;
+      _ttlArmed = false;
     });
   }
 
@@ -4630,27 +4633,49 @@ class _ComposeAreaState extends State<_ComposeArea>
           Positioned(
             right: 1,
             top: -22,
-            child: IgnorePointer(
-              child: AnimatedBuilder(
-                animation: _lockShowController,
-                builder: (context, child) {
-                  if (_lockShowController.value == 0) return const SizedBox.shrink();
-                  return Opacity(
-                    opacity: _lockShowController.value,
-                    child: Transform.translate(
-                      offset: Offset(0, 133 * (1 - _lockShowController.value)),
-                      child: child,
+            child: _isRecordingLocked
+                ? GestureDetector(
+                    onTap: () => setState(() => _ttlArmed = !_ttlArmed),
+                    child: AnimatedBuilder(
+                      animation: _lockShowController,
+                      builder: (context, child) {
+                        if (_lockShowController.value == 0) return const SizedBox.shrink();
+                        return Opacity(
+                          opacity: _lockShowController.value,
+                          child: child,
+                        );
+                      },
+                      child: _RecordLockWidget(
+                        progress: _lockProgress,
+                        isLocked: _isRecordingLocked,
+                        isVideoRound: _isVideoRound,
+                        isDark: isDark,
+                        ttlArmed: _ttlArmed,
+                      ),
                     ),
-                  );
-                },
-                child: _RecordLockWidget(
-                  progress: _lockProgress,
-                  isLocked: _isRecordingLocked,
-                  isVideoRound: _isVideoRound,
-                  isDark: isDark,
-                ),
-              ),
-            ),
+                  )
+                : IgnorePointer(
+                    child: AnimatedBuilder(
+                      animation: _lockShowController,
+                      builder: (context, child) {
+                        if (_lockShowController.value == 0) return const SizedBox.shrink();
+                        return Opacity(
+                          opacity: _lockShowController.value,
+                          child: Transform.translate(
+                            offset: Offset(0, 133 * (1 - _lockShowController.value)),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: _RecordLockWidget(
+                        progress: _lockProgress,
+                        isLocked: _isRecordingLocked,
+                        isVideoRound: _isVideoRound,
+                        isDark: isDark,
+                        ttlArmed: false,
+                      ),
+                    ),
+                  ),
           ),
         ],
       );
@@ -5573,12 +5598,14 @@ class _RecordLockWidget extends StatelessWidget {
   final bool isLocked;
   final bool isVideoRound;
   final bool isDark;
+  final bool ttlArmed;
 
   const _RecordLockWidget({
     required this.progress,
     required this.isLocked,
     this.isVideoRound = false,
     required this.isDark,
+    this.ttlArmed = false,
   });
 
   @override
@@ -5587,6 +5614,7 @@ class _RecordLockWidget extends StatelessWidget {
     final borderColor = isDark ? const Color(0xFF2b3e50) : const Color(0xFFe0e0e0);
     final iconColor = isDark ? const Color(0xFF7e8e9f) : const Color(0xFF999999);
     final lockAngle = isLocked ? 15.0 * math.pi / 180.0 : 0.0;
+    final accentColor = isVideoRound ? const Color(0xFF3f8ae0) : const Color(0xFFe53935);
 
     return SizedBox(
       width: 75,
@@ -5595,7 +5623,10 @@ class _RecordLockWidget extends StatelessWidget {
         decoration: BoxDecoration(
           color: bgColor,
           borderRadius: BorderRadius.circular(37.5),
-          border: Border.all(color: borderColor, width: 1),
+          border: Border.all(
+            color: ttlArmed ? accentColor : borderColor,
+            width: ttlArmed ? 2 : 1,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -5623,9 +5654,7 @@ class _RecordLockWidget extends StatelessWidget {
                     ? (isLocked ? Icons.videocam : Icons.videocam_outlined)
                     : (isLocked ? Icons.lock : Icons.lock_open),
                 size: 28,
-                color: isLocked
-                    ? (isVideoRound ? const Color(0xFF3f8ae0) : const Color(0xFFe53935))
-                    : iconColor,
+                color: isLocked ? accentColor : iconColor,
               ),
             ),
             const SizedBox(height: 8),
@@ -5635,9 +5664,7 @@ class _RecordLockWidget extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress,
                 backgroundColor: borderColor,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  isVideoRound ? const Color(0xFF3f8ae0) : const Color(0xFFe53935),
-                ),
+                valueColor: AlwaysStoppedAnimation<Color>(accentColor),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
