@@ -343,7 +343,6 @@
 
 ### §7.3 Attachment Button
 
-- [ ] Paperclip button left of input: desktop fires native OS file picker directly (NOT mobile popup) — spec §7.2. Not implemented
 - [ ] Attach-bots menu on hover/click if user has registered bots; first entry ("Default") falls through to native picker — spec §7.2. Not implemented
 
 ### §7.4 Send Button States & Morph
