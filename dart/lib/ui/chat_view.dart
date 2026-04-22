@@ -4268,16 +4268,10 @@ class _ComposeAreaState extends State<_ComposeArea> {
               : widget.chatType == ChatType.channel
                   ? 'Broadcast a message...'
                   : 'Write a message...',
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: theme.brightness == Brightness.dark
-              ? const Color(0xFF1e2430)
-              : const Color(0xFFF0F0F0),
+          border: InputBorder.none,
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          isDense: true,
         ),
       ),
     );
@@ -4312,7 +4306,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
           top: BorderSide(color: theme.dividerColor, width: 1),
         ),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
