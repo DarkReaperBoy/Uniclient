@@ -9903,6 +9903,52 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				m.Text = "👤 " + name
 			}
 			m.Attachments = []FileRef{{MimeType: "application/x-contact", Name: "contact"}}
+		case *tg.MessageMediaWebPage:
+			if wp, ok := md.Webpage.(*tg.WebPage); ok {
+				if m.Extra == nil {
+					m.Extra = make(map[string]interface{})
+				}
+				m.Extra["wp_url"] = wp.URL
+				if sn, ok := wp.GetSiteName(); ok {
+					m.Extra["wp_site_name"] = sn
+				}
+				if t, ok := wp.GetTitle(); ok {
+					m.Extra["wp_title"] = t
+				}
+				if d, ok := wp.GetDescription(); ok {
+					m.Extra["wp_description"] = d
+				}
+				if t, ok := wp.GetType(); ok {
+					m.Extra["wp_type"] = t
+				}
+				if md.ForceLargeMedia {
+					m.Extra["wp_force_large_media"] = true
+				}
+				if md.ForceSmallMedia {
+					m.Extra["wp_force_small_media"] = true
+				}
+				if wp.HasLargeMedia {
+					m.Extra["wp_has_large_media"] = true
+				}
+				if p, ok := wp.GetPhoto(); ok {
+					if photo, ok := p.(*tg.Photo); ok {
+						thumbB64 := extractStrippedThumbB64(photo.Sizes)
+						if thumbB64 != "" {
+							m.Extra["wp_thumb_b64"] = thumbB64
+						}
+						for _, size := range photo.Sizes {
+							if s, ok := size.(*tg.PhotoSize); ok {
+								m.Extra["wp_photo_w"] = s.W
+								m.Extra["wp_photo_h"] = s.H
+								break
+							}
+						}
+					}
+				}
+				if du, ok := wp.GetDuration(); ok && du > 0 {
+					m.Extra["wp_duration"] = du
+				}
+			}
 		}
 	}
 
@@ -10265,9 +10311,10 @@ func tgStrippedToJPEG(data []byte) []byte {
 	}
 	footer := []byte{0xFF, 0xD9}
 
-	// Replace height and width in the SOF0 marker (byte 164 = height, 166 = width).
-	header[164] = data[1]
-	header[166] = data[2]
+	// Replace height and width in the SOF0 marker.
+	// SOF0 starts at byte 198: FF C0 00 11 08 [HH] [HL] [WH] [WL] 03
+	header[203] = data[1]
+	header[205] = data[2]
 
 	// Combine: header + scan data + footer.
 	result := make([]byte, 0, len(header)+len(data)-3+len(footer))

@@ -1035,6 +1035,18 @@ class EngineService {
       contactLastName: _topicFieldFromRaw(contentRaw, 'contact_last_name') ?? '',
       contactPhone: _topicFieldFromRaw(contentRaw, 'contact_phone') ?? '',
       contactUserId: _int64FieldFromRaw(contentRaw, 'contact_user_id'),
+      wpUrl: _topicFieldFromRaw(contentRaw, 'wp_url') ?? '',
+      wpSiteName: _topicFieldFromRaw(contentRaw, 'wp_site_name') ?? '',
+      wpTitle: _topicFieldFromRaw(contentRaw, 'wp_title') ?? '',
+      wpDescription: _topicFieldFromRaw(contentRaw, 'wp_description') ?? '',
+      wpType: _topicFieldFromRaw(contentRaw, 'wp_type') ?? '',
+      wpThumbB64: _topicFieldFromRaw(contentRaw, 'wp_thumb_b64') ?? '',
+      wpForceLargeMedia: _boolExtraFromRaw(contentRaw, 'wp_force_large_media'),
+      wpForceSmallMedia: _boolExtraFromRaw(contentRaw, 'wp_force_small_media'),
+      wpHasLargeMedia: _boolExtraFromRaw(contentRaw, 'wp_has_large_media'),
+      wpPhotoW: _int64FieldFromRaw(contentRaw, 'wp_photo_w'),
+      wpPhotoH: _int64FieldFromRaw(contentRaw, 'wp_photo_h'),
+      wpDuration: _int64FieldFromRaw(contentRaw, 'wp_duration'),
     );
   }
 

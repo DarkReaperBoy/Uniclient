@@ -452,9 +452,19 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		}
 		if result != nil {
 			e.ConfirmMessage(acc.ID, chatID, localID, result.ID)
-			// Don't call cacheMessage here — ConfirmMessage already updated
-			// the pending row (msg_id, status). Calling cacheMessage would
-			// overwrite our empty senderID that Dart uses to identify sent msgs.
+			rawBytes, _ := json.Marshal(result)
+			e.db.Exec(
+				`UPDATE messages SET content_raw = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+				rawBytes, acc.ID, chatID, result.ID)
+			if len(result.Extra) > 0 {
+				e.emitEvent(EventMsgEdited, acc.ID, MsgEditedEvent{
+					AccountID:  acc.ID,
+					ChatID:     chatID,
+					MsgID:      result.ID,
+					NewText:    result.Text,
+					ContentRaw: json.RawMessage(rawBytes),
+				})
+			}
 		}
 		return nil
 

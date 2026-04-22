@@ -330,14 +330,6 @@
 
 ### §6.13 Contacts
 
-### §6.14 Web Page Previews
-
-- [ ] Article mode: small square thumbnail right, text wraps, 3–5 line description cap, 8px gutter — spec §6. Not implemented
-- [ ] Standard mode: full-width media below text, site name + title semibold 13px, description regular — spec §6. Not implemented
-- [ ] Mode selection by webpage type (not media dimensions): ForceLargeMedia → Standard, ForceSmallMedia → Article, type-based fallback — spec §6. Not implemented
-- [ ] Video webpage: Standard mode, generic play button overlay, "Open" 36px button — spec §6. Not implemented
-- [ ] Twitter/Instagram hashtag/mention platform-linking — spec §6. Not implemented
-
 ---
 
 ## §7. Compose Area

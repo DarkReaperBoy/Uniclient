@@ -855,10 +855,28 @@ class ChatState extends ChangeNotifier {
     if (_activeChat?.accountId != event.accountId || _activeChat?.chatId != event.chatId) return;
     final idx = _messages.indexWhere((m) => m.msgId == event.msgId);
     if (idx >= 0) {
-      _messages[idx] = _messages[idx].copyWith(
+      var updated = _messages[idx].copyWith(
         contentText: event.newText,
         editedAt: event.editedAt,
       );
+      final extra = event.contentRaw?['extra'] as Map<String, dynamic>?;
+      if (extra != null) {
+        updated = updated.copyWith(
+          wpUrl: extra['wp_url'] as String? ?? '',
+          wpSiteName: extra['wp_site_name'] as String? ?? '',
+          wpTitle: extra['wp_title'] as String? ?? '',
+          wpDescription: extra['wp_description'] as String? ?? '',
+          wpType: extra['wp_type'] as String? ?? '',
+          wpThumbB64: extra['wp_thumb_b64'] as String? ?? '',
+          wpForceLargeMedia: extra['wp_force_large_media'] == true,
+          wpForceSmallMedia: extra['wp_force_small_media'] == true,
+          wpHasLargeMedia: extra['wp_has_large_media'] == true,
+          wpPhotoW: (extra['wp_photo_w'] as num?)?.toInt() ?? 0,
+          wpPhotoH: (extra['wp_photo_h'] as num?)?.toInt() ?? 0,
+          wpDuration: (extra['wp_duration'] as num?)?.toInt() ?? 0,
+        );
+      }
+      _messages[idx] = updated;
       notifyListeners();
     }
   }

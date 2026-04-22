@@ -379,6 +379,20 @@ class CachedMessage {
   final String contactPhone;
   final int contactUserId;
 
+  // Web page preview data (extracted from contentRaw extra fields).
+  final String wpUrl;
+  final String wpSiteName;
+  final String wpTitle;
+  final String wpDescription;
+  final String wpType;
+  final String wpThumbB64;
+  final bool wpForceLargeMedia;
+  final bool wpForceSmallMedia;
+  final bool wpHasLargeMedia;
+  final int wpPhotoW;
+  final int wpPhotoH;
+  final int wpDuration;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -447,6 +461,18 @@ class CachedMessage {
     this.contactLastName = '',
     this.contactPhone = '',
     this.contactUserId = 0,
+    this.wpUrl = '',
+    this.wpSiteName = '',
+    this.wpTitle = '',
+    this.wpDescription = '',
+    this.wpType = '',
+    this.wpThumbB64 = '',
+    this.wpForceLargeMedia = false,
+    this.wpForceSmallMedia = false,
+    this.wpHasLargeMedia = false,
+    this.wpPhotoW = 0,
+    this.wpPhotoH = 0,
+    this.wpDuration = 0,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -506,6 +532,7 @@ class CachedMessage {
   bool get isContact => mediaType == 11;
   bool get isMediaDownloaded => mediaDownloadState == 2;
   bool get isAlbumMember => groupedId.isNotEmpty;
+  bool get hasWebPage => wpUrl.isNotEmpty;
   String get mediaSizeLabel {
     if (mediaFileSize <= 0) return '';
     if (mediaFileSize < 1024) return '$mediaFileSize B';
@@ -575,6 +602,18 @@ class CachedMessage {
     String? contactLastName,
     String? contactPhone,
     int? contactUserId,
+    String? wpUrl,
+    String? wpSiteName,
+    String? wpTitle,
+    String? wpDescription,
+    String? wpType,
+    String? wpThumbB64,
+    bool? wpForceLargeMedia,
+    bool? wpForceSmallMedia,
+    bool? wpHasLargeMedia,
+    int? wpPhotoW,
+    int? wpPhotoH,
+    int? wpDuration,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -643,6 +682,18 @@ class CachedMessage {
     contactLastName: contactLastName ?? this.contactLastName,
     contactPhone: contactPhone ?? this.contactPhone,
     contactUserId: contactUserId ?? this.contactUserId,
+    wpUrl: wpUrl ?? this.wpUrl,
+    wpSiteName: wpSiteName ?? this.wpSiteName,
+    wpTitle: wpTitle ?? this.wpTitle,
+    wpDescription: wpDescription ?? this.wpDescription,
+    wpType: wpType ?? this.wpType,
+    wpThumbB64: wpThumbB64 ?? this.wpThumbB64,
+    wpForceLargeMedia: wpForceLargeMedia ?? this.wpForceLargeMedia,
+    wpForceSmallMedia: wpForceSmallMedia ?? this.wpForceSmallMedia,
+    wpHasLargeMedia: wpHasLargeMedia ?? this.wpHasLargeMedia,
+    wpPhotoW: wpPhotoW ?? this.wpPhotoW,
+    wpPhotoH: wpPhotoH ?? this.wpPhotoH,
+    wpDuration: wpDuration ?? this.wpDuration,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
@@ -968,7 +1019,8 @@ class MsgEditedEvent {
   final String msgId;
   final String newText;
   final int editedAt;
-  const MsgEditedEvent({this.accountId = '', this.chatId = '', this.msgId = '', this.newText = '', this.editedAt = 0});
+  final Map<String, dynamic>? contentRaw;
+  const MsgEditedEvent({this.accountId = '', this.chatId = '', this.msgId = '', this.newText = '', this.editedAt = 0, this.contentRaw});
 
   factory MsgEditedEvent.fromJson(Map<String, dynamic> j) => MsgEditedEvent(
     accountId: j['account_id'] as String? ?? '',
@@ -976,6 +1028,7 @@ class MsgEditedEvent {
     msgId: j['msg_id'] as String? ?? '',
     newText: safeStr(j['new_text'] as String? ?? ''),
     editedAt: j['edited_at'] as int? ?? 0,
+    contentRaw: j['content_raw'] as Map<String, dynamic>?,
   );
 }
 

@@ -71,11 +71,12 @@ type MsgReceivedEvent struct {
 }
 
 type MsgEditedEvent struct {
-	AccountID string `json:"account_id"`
-	ChatID    string `json:"chat_id"`
-	MsgID     string `json:"msg_id"`
-	NewText   string `json:"new_text"`
-	EditedAt  int64  `json:"edited_at"`
+	AccountID  string          `json:"account_id"`
+	ChatID     string          `json:"chat_id"`
+	MsgID      string          `json:"msg_id"`
+	NewText    string          `json:"new_text"`
+	EditedAt   int64           `json:"edited_at"`
+	ContentRaw json.RawMessage `json:"content_raw,omitempty"`
 }
 
 type MsgDeletedEvent struct {
@@ -296,17 +297,24 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 		editedAt = msg.EditedAt.UnixMilli()
 	}
 
+	rawBytes, _ := json.Marshal(msg)
+	var richBytes []byte
+	if len(msg.Entities) > 0 {
+		richBytes, _ = json.Marshal(msg.Entities)
+	}
+
 	e.db.Exec(
-		`UPDATE messages SET content_text = ?, edited_at = ?
+		`UPDATE messages SET content_text = ?, content_raw = ?, content_rich = ?, edited_at = ?
 		 WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
-		msg.Text, editedAt, accountID, chatID, msg.ID)
+		msg.Text, rawBytes, richBytes, editedAt, accountID, chatID, msg.ID)
 
 	e.emitEvent(EventMsgEdited, accountID, MsgEditedEvent{
-		AccountID: accountID,
-		ChatID:    chatID,
-		MsgID:     msg.ID,
-		NewText:   msg.Text,
-		EditedAt:  editedAt,
+		AccountID:  accountID,
+		ChatID:     chatID,
+		MsgID:      msg.ID,
+		NewText:    msg.Text,
+		EditedAt:   editedAt,
+		ContentRaw: json.RawMessage(rawBytes),
 	})
 }
 

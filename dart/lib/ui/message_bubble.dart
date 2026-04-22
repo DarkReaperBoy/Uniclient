@@ -297,6 +297,16 @@ class MessageBubble extends StatelessWidget {
                         theme: theme,
                         isOutgoing: isOutgoing,
                       ),
+                    if (message.hasWebPage)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: _WebPagePreview(
+                          message: message,
+                          theme: theme,
+                          isDark: isDark,
+                          isOutgoing: isOutgoing,
+                        ),
+                      ),
                     // Media indicator — album or single.
                     if (albumItems.length >= 2)
                       Padding(
@@ -5106,4 +5116,222 @@ class _FireworksPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FireworksPainter old) => old.progress != progress;
+}
+
+// ── Web Page Preview ──
+// Spec §6.14: Two modes — Article (small thumbnail right, text wraps) and
+// Standard (full-width, media below text). Mode selected by type, not dimensions.
+class _WebPagePreview extends StatelessWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+  final bool isDark;
+  final bool isOutgoing;
+
+  const _WebPagePreview({
+    required this.message,
+    required this.theme,
+    required this.isDark,
+    required this.isOutgoing,
+  });
+
+  static const _accentBlue = Color(0xFF168acd);
+  static const _accentBlueNight = Color(0xFF71baf7);
+
+  bool _useArticleMode() {
+    if (message.wpForceLargeMedia) return false;
+    if (message.wpForceSmallMedia) return true;
+    final t = message.wpType.toLowerCase();
+    if (t == 'video' || t == 'document' || t == 'photo' || t == 'story') return false;
+    if (t.startsWith('telegram_')) return false;
+    if ({'twitter', 'facebook'}.contains(message.wpSiteName.toLowerCase())) return false;
+    if (t == 'article_with_iv' || t == 'article') {
+      return false;
+    }
+    if (t == 'profile') return true;
+    if (message.wpThumbB64.isNotEmpty &&
+        (message.wpSiteName.isNotEmpty || message.wpTitle.isNotEmpty || message.wpDescription.isNotEmpty)) {
+      return true;
+    }
+    return false;
+  }
+
+  int _descMaxLines() {
+    int lines = 3;
+    if (message.wpSiteName.isEmpty) lines++;
+    if (message.wpTitle.isEmpty) lines++;
+    return lines;
+  }
+
+  static final _mentionHashtagRe = RegExp(r'([@#][\w.]+)');
+
+  Widget _buildDescription(Color accentColor) {
+    final descStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w400,
+      color: isDark ? const Color(0xFFc0c8d0) : const Color(0xFF444444),
+    );
+    final site = message.wpSiteName.toLowerCase();
+    final isTwitter = site.contains('twitter') || site == 'x' || site.startsWith('x (');
+    final isInstagram = site.contains('instagram');
+    if (!isTwitter && !isInstagram) {
+      return Text(message.wpDescription, style: descStyle, maxLines: _descMaxLines(), overflow: TextOverflow.ellipsis);
+    }
+    final spans = <InlineSpan>[];
+    int pos = 0;
+    for (final m in _mentionHashtagRe.allMatches(message.wpDescription)) {
+      if (m.start > pos) {
+        spans.add(TextSpan(text: message.wpDescription.substring(pos, m.start), style: descStyle));
+      }
+      final token = m.group(0)!;
+      final name = token.substring(1);
+      String url;
+      if (isInstagram) {
+        url = token.startsWith('@') ? 'https://instagram.com/$name' : 'https://instagram.com/explore/tags/$name';
+      } else {
+        url = token.startsWith('@') ? 'https://x.com/$name' : 'https://x.com/hashtag/$name';
+      }
+      spans.add(TextSpan(
+        text: token,
+        style: descStyle.copyWith(color: accentColor),
+        recognizer: TapGestureRecognizer()..onTap = () => Process.run('xdg-open', [url]),
+      ));
+      pos = m.end;
+    }
+    if (pos < message.wpDescription.length) {
+      spans.add(TextSpan(text: message.wpDescription.substring(pos), style: descStyle));
+    }
+    return RichText(text: TextSpan(children: spans), maxLines: _descMaxLines(), overflow: TextOverflow.ellipsis);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = isDark ? _accentBlueNight : _accentBlue;
+    final isArticle = _useArticleMode();
+    final isVideo = message.wpType.toLowerCase() == 'video';
+
+    Widget? thumbWidget;
+    if (message.wpThumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(message.wpThumbB64);
+        thumbWidget = Image.memory(
+          Uint8List.fromList(bytes),
+          fit: BoxFit.cover,
+          width: isArticle ? 48.0 : double.infinity,
+          height: isArticle ? 48.0 : null,
+          errorBuilder: (_, __, ___) => SizedBox(
+            width: isArticle ? 48.0 : double.infinity,
+            height: isArticle ? 48.0 : 100,
+            child: ColoredBox(color: isDark ? const Color(0xFF2a3a4a) : const Color(0xFFe8ecf0)),
+          ),
+        );
+      } catch (_) {}
+    }
+
+    final textWidgets = <Widget>[];
+
+    if (message.wpSiteName.isNotEmpty) {
+      textWidgets.add(Text(
+        message.wpSiteName,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: accentColor,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ));
+    }
+
+    if (message.wpTitle.isNotEmpty) {
+      textWidgets.add(Text(
+        message.wpTitle,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: isDark ? Colors.white : Colors.black87,
+        ),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+      ));
+    }
+
+    if (message.wpDescription.isNotEmpty) {
+      textWidgets.add(_buildDescription(accentColor));
+    }
+
+    if (isArticle) {
+      return Container(
+        padding: const EdgeInsets.only(left: 8),
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: accentColor, width: 2)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: textWidgets,
+              ),
+            ),
+            if (thumbWidget != null) ...[
+              const SizedBox(width: 8),
+              thumbWidget,
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Standard mode: full-width media below text.
+    return Container(
+      padding: const EdgeInsets.only(left: 8),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: accentColor, width: 2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ...textWidgets,
+          if (thumbWidget != null) ...[
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  thumbWidget,
+                  if (isVideo)
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: Colors.black45,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (isVideo) ...[
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 36,
+              child: OutlinedButton(
+                onPressed: () {},
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: accentColor,
+                  side: BorderSide(color: accentColor),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                ),
+                child: const Text('Open', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
