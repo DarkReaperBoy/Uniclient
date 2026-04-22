@@ -358,7 +358,6 @@
 
 ### §7.7 Bot Keyboard
 
-- [ ] Reply keyboard sticky below field: 38px row height (textTop 9, margin 10, padding 10), tiny variant 25px, 15px semibold, 200ms expand/collapse, single-use auto-hide — spec §7.5. Not implemented
 - [ ] Inline keyboard under messages: 36px height, 2px margin, 10px padding, URL/switchPM/payment/webview/copy icons with 4px padding — spec §7.5. Not implemented
 
 ### §7.8 Drag & Drop

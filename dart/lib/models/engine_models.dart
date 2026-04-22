@@ -408,6 +408,13 @@ class CachedMessage {
   final int wpPhotoH;
   final int wpDuration;
 
+  // Bot keyboard data (extracted from contentRaw extra fields).
+  final ReplyKeyboardData? replyKeyboard;
+  final List<List<InlineKeyboardButton>> inlineKeyboard;
+  final bool keyboardHide;
+  final bool forceReply;
+  final String forceReplyPlaceholder;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -488,6 +495,11 @@ class CachedMessage {
     this.wpPhotoW = 0,
     this.wpPhotoH = 0,
     this.wpDuration = 0,
+    this.replyKeyboard,
+    this.inlineKeyboard = const [],
+    this.keyboardHide = false,
+    this.forceReply = false,
+    this.forceReplyPlaceholder = '',
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -629,6 +641,11 @@ class CachedMessage {
     int? wpPhotoW,
     int? wpPhotoH,
     int? wpDuration,
+    ReplyKeyboardData? replyKeyboard,
+    List<List<InlineKeyboardButton>>? inlineKeyboard,
+    bool? keyboardHide,
+    bool? forceReply,
+    String? forceReplyPlaceholder,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -709,9 +726,16 @@ class CachedMessage {
     wpPhotoW: wpPhotoW ?? this.wpPhotoW,
     wpPhotoH: wpPhotoH ?? this.wpPhotoH,
     wpDuration: wpDuration ?? this.wpDuration,
+    replyKeyboard: replyKeyboard ?? this.replyKeyboard,
+    inlineKeyboard: inlineKeyboard ?? this.inlineKeyboard,
+    keyboardHide: keyboardHide ?? this.keyboardHide,
+    forceReply: forceReply ?? this.forceReply,
+    forceReplyPlaceholder: forceReplyPlaceholder ?? this.forceReplyPlaceholder,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
+  bool get hasReplyKeyboard => replyKeyboard != null && replyKeyboard!.rows.isNotEmpty;
+  bool get hasInlineKeyboard => inlineKeyboard.isNotEmpty;
 }
 
 // ── Message reaction ──
@@ -762,6 +786,79 @@ class PollOption {
     chosen: j['chosen'] as bool? ?? false,
     correct: j['correct'] as bool? ?? false,
   );
+}
+
+// ── Keyboard button (reply keyboard & inline keyboard) ──
+class KeyboardButton {
+  final String text;
+  final String type; // text, request_phone, request_location, request_poll, request_peer, web_view, simple_web_view
+  final String url;
+
+  const KeyboardButton({required this.text, this.type = 'text', this.url = ''});
+
+  factory KeyboardButton.fromJson(Map<String, dynamic> j) => KeyboardButton(
+    text: j['text'] as String? ?? '',
+    type: j['type'] as String? ?? 'text',
+    url: j['url'] as String? ?? '',
+  );
+}
+
+class InlineKeyboardButton {
+  final String text;
+  final String type; // url, callback, switch_inline, game, buy, url_auth, web_view, simple_web_view, copy
+  final String url;
+  final String data;
+  final String query;
+  final String copyText;
+
+  const InlineKeyboardButton({
+    required this.text,
+    this.type = 'callback',
+    this.url = '',
+    this.data = '',
+    this.query = '',
+    this.copyText = '',
+  });
+
+  factory InlineKeyboardButton.fromJson(Map<String, dynamic> j) => InlineKeyboardButton(
+    text: j['text'] as String? ?? '',
+    type: j['type'] as String? ?? 'callback',
+    url: j['url'] as String? ?? '',
+    data: j['data'] as String? ?? '',
+    query: j['query'] as String? ?? '',
+    copyText: j['copy_text'] as String? ?? '',
+  );
+}
+
+class ReplyKeyboardData {
+  final List<List<KeyboardButton>> rows;
+  final bool resize;
+  final bool singleUse;
+  final bool persistent;
+  final String placeholder;
+
+  const ReplyKeyboardData({
+    required this.rows,
+    this.resize = false,
+    this.singleUse = false,
+    this.persistent = false,
+    this.placeholder = '',
+  });
+
+  factory ReplyKeyboardData.fromJson(Map<String, dynamic> j) {
+    final rawRows = j['rows'] as List<dynamic>? ?? [];
+    final rows = rawRows.map((row) {
+      final r = row as List<dynamic>;
+      return r.map((b) => KeyboardButton.fromJson(b as Map<String, dynamic>)).toList();
+    }).toList();
+    return ReplyKeyboardData(
+      rows: rows,
+      resize: j['resize'] as bool? ?? false,
+      singleUse: j['single_use'] as bool? ?? false,
+      persistent: j['persistent'] as bool? ?? false,
+      placeholder: j['placeholder'] as String? ?? '',
+    );
+  }
 }
 
 // ── Shared media item ──

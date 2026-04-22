@@ -123,6 +123,34 @@ class ChatState extends ChangeNotifier {
 
   String? typingUserFor(String chatId) => _typingUsers[chatId];
 
+  ReplyKeyboardData? get activeReplyKeyboard {
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      final m = _messages[i];
+      if (m.keyboardHide) return null;
+      if (m.hasReplyKeyboard) return m.replyKeyboard;
+    }
+    return null;
+  }
+
+  String? _hiddenKeyboardMsgId;
+
+  void hideReplyKeyboard(String msgId) {
+    _hiddenKeyboardMsgId = msgId;
+    notifyListeners();
+  }
+
+  ReplyKeyboardData? get visibleReplyKeyboard {
+    for (int i = _messages.length - 1; i >= 0; i--) {
+      final m = _messages[i];
+      if (m.keyboardHide) return null;
+      if (m.hasReplyKeyboard) {
+        if (_hiddenKeyboardMsgId == m.msgId) return null;
+        return m.replyKeyboard;
+      }
+    }
+    return null;
+  }
+
   /// Get sender avatar base64 data by sender ID.
   String? senderAvatar(String senderId) => _senderAvatars[senderId];
 
@@ -338,6 +366,7 @@ class ChatState extends ChangeNotifier {
     _hasMoreMessages = true;
     _jumpedUntil = null; // clear jump lock on chat change
     _activeChannelId = null; // reset channel selection on chat change
+    _hiddenKeyboardMsgId = null;
     _engine.setActiveChat(chat.accountId, chat.chatId);
     _loadMessages();
     _loadPinnedMessages(chat.accountId, chat.chatId);

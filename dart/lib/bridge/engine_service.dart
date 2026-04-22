@@ -1092,7 +1092,45 @@ class EngineService {
       wpPhotoW: _int64FieldFromRaw(contentRaw, 'wp_photo_w'),
       wpPhotoH: _int64FieldFromRaw(contentRaw, 'wp_photo_h'),
       wpDuration: _int64FieldFromRaw(contentRaw, 'wp_duration'),
+      replyKeyboard: _replyKeyboardFromRaw(contentRaw),
+      inlineKeyboard: _inlineKeyboardFromRaw(contentRaw),
+      keyboardHide: _boolExtraFromRaw(contentRaw, 'keyboard_hide'),
+      forceReply: _boolExtraFromRaw(contentRaw, 'force_reply'),
+      forceReplyPlaceholder: _topicFieldFromRaw(contentRaw, 'force_reply_placeholder') ?? '',
     );
+  }
+
+  static ReplyKeyboardData? _replyKeyboardFromRaw(String contentRaw) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"reply_keyboard"')) return null;
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return null;
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return null;
+      final kb = extra['reply_keyboard'];
+      if (kb is! Map<String, dynamic>) return null;
+      return ReplyKeyboardData.fromJson(kb);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static List<List<InlineKeyboardButton>> _inlineKeyboardFromRaw(String contentRaw) {
+    if (contentRaw.isEmpty || !contentRaw.contains('"inline_keyboard"')) return const [];
+    try {
+      final decoded = jsonDecode(contentRaw);
+      if (decoded is! Map<String, dynamic>) return const [];
+      final extra = decoded['extra'];
+      if (extra is! Map<String, dynamic>) return const [];
+      final kb = extra['inline_keyboard'];
+      if (kb is! List) return const [];
+      return kb.map((row) {
+        final r = row as List<dynamic>;
+        return r.map((b) => InlineKeyboardButton.fromJson(b as Map<String, dynamic>)).toList();
+      }).toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   /// Parse reactions list from the raw JSON blob written by the Go engine

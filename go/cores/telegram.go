@@ -9968,6 +9968,96 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 	}
 
+	if markup, ok := msg.GetReplyMarkup(); ok {
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		switch rm := markup.(type) {
+		case *tg.ReplyKeyboardMarkup:
+			rows := make([][]map[string]interface{}, 0, len(rm.Rows))
+			for _, row := range rm.Rows {
+				btns := make([]map[string]interface{}, 0, len(row.Buttons))
+				for _, btn := range row.Buttons {
+					b := map[string]interface{}{"text": btn.GetText()}
+					switch bt := btn.(type) {
+					case *tg.KeyboardButtonRequestPhone:
+						b["type"] = "request_phone"
+					case *tg.KeyboardButtonRequestGeoLocation:
+						b["type"] = "request_location"
+					case *tg.KeyboardButtonRequestPoll:
+						b["type"] = "request_poll"
+					case *tg.KeyboardButtonRequestPeer:
+						b["type"] = "request_peer"
+					case *tg.KeyboardButtonWebView:
+						b["type"] = "web_view"
+						b["url"] = bt.URL
+					case *tg.KeyboardButtonSimpleWebView:
+						b["type"] = "simple_web_view"
+						b["url"] = bt.URL
+					default:
+						b["type"] = "text"
+					}
+					btns = append(btns, b)
+				}
+				rows = append(rows, btns)
+			}
+			m.Extra["reply_keyboard"] = map[string]interface{}{
+				"rows":        rows,
+				"resize":      rm.Resize,
+				"single_use":  rm.SingleUse,
+				"persistent":  rm.Persistent,
+				"placeholder": rm.Placeholder,
+			}
+		case *tg.ReplyInlineMarkup:
+			rows := make([][]map[string]interface{}, 0, len(rm.Rows))
+			for _, row := range rm.Rows {
+				btns := make([]map[string]interface{}, 0, len(row.Buttons))
+				for _, btn := range row.Buttons {
+					b := map[string]interface{}{"text": btn.GetText()}
+					switch bt := btn.(type) {
+					case *tg.KeyboardButtonURL:
+						b["type"] = "url"
+						b["url"] = bt.URL
+					case *tg.KeyboardButtonCallback:
+						b["type"] = "callback"
+						b["data"] = string(bt.Data)
+					case *tg.KeyboardButtonSwitchInline:
+						b["type"] = "switch_inline"
+						b["query"] = bt.Query
+					case *tg.KeyboardButtonGame:
+						b["type"] = "game"
+					case *tg.KeyboardButtonBuy:
+						b["type"] = "buy"
+					case *tg.KeyboardButtonURLAuth:
+						b["type"] = "url_auth"
+						b["url"] = bt.URL
+					case *tg.KeyboardButtonWebView:
+						b["type"] = "web_view"
+						b["url"] = bt.URL
+					case *tg.KeyboardButtonSimpleWebView:
+						b["type"] = "simple_web_view"
+						b["url"] = bt.URL
+					case *tg.KeyboardButtonCopy:
+						b["type"] = "copy"
+						b["copy_text"] = bt.CopyText
+					default:
+						b["type"] = "callback"
+					}
+					btns = append(btns, b)
+				}
+				rows = append(rows, btns)
+			}
+			m.Extra["inline_keyboard"] = rows
+		case *tg.ReplyKeyboardHide:
+			m.Extra["keyboard_hide"] = true
+		case *tg.ReplyKeyboardForceReply:
+			m.Extra["force_reply"] = true
+			if ph, ok := rm.GetPlaceholder(); ok {
+				m.Extra["force_reply_placeholder"] = ph
+			}
+		}
+	}
+
 	return m
 }
 
