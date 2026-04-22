@@ -116,6 +116,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV13,
 	migrateV14,
 	migrateV15,
+	migrateV16,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -506,4 +507,12 @@ func migrateV15(tx *sql.Tx) error {
 		}
 	}
 	return nil
+}
+
+func migrateV16(tx *sql.Tx) error {
+	if columnExists(tx, "chats", "stars_to_send") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN stars_to_send INTEGER NOT NULL DEFAULT 0`)
+	return err
 }

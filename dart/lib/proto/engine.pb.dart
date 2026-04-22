@@ -1429,6 +1429,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.bool? isBlocked,
     $core.int? slowmodeSeconds,
     $fixnum.Int64? slowmodeNextSendDate,
+    $core.int? starsToSend,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1500,6 +1501,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (slowmodeNextSendDate != null) {
       $result.slowmodeNextSendDate = slowmodeNextSendDate;
     }
+    if (starsToSend != null) {
+      $result.starsToSend = starsToSend;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1530,6 +1534,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aOB(21, _omitFieldNames ? '' : 'isBlocked')
     ..a<$core.int>(22, _omitFieldNames ? '' : 'slowmodeSeconds', $pb.PbFieldType.O3)
     ..aInt64(23, _omitFieldNames ? '' : 'slowmodeNextSendDate')
+    ..a<$core.int>(24, _omitFieldNames ? '' : 'starsToSend', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -1760,6 +1765,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasSlowmodeNextSendDate() => $_has(22);
   @$pb.TagNumber(23)
   void clearSlowmodeNextSendDate() => clearField(23);
+
+  @$pb.TagNumber(24)
+  $core.int get starsToSend => $_getIZ(23);
+  @$pb.TagNumber(24)
+  set starsToSend($core.int v) { $_setSignedInt32(23, v); }
+  @$pb.TagNumber(24)
+  $core.bool hasStarsToSend() => $_has(23);
+  @$pb.TagNumber(24)
+  void clearStarsToSend() => clearField(24);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {

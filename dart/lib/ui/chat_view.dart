@@ -1293,6 +1293,7 @@ class _ChatViewState extends State<ChatView>
             videoRestricted: chat.videoRestricted,
             slowmodeSeconds: chat.slowmodeSeconds,
             slowmodeNextSendDate: chat.slowmodeNextSendDate,
+            starsToSend: chat.starsToSend,
             onEditLast: _editLastOutgoing,
             onCycleReply: _cycleReply,
             onLinksDetected: (links) {
@@ -4043,6 +4044,7 @@ class _ComposeArea extends StatefulWidget {
   final bool videoRestricted;
   final int slowmodeSeconds;
   final int slowmodeNextSendDate;
+  final int starsToSend;
 
   const _ComposeArea({
     required this.controller,
@@ -4058,6 +4060,7 @@ class _ComposeArea extends StatefulWidget {
     this.videoRestricted = false,
     this.slowmodeSeconds = 0,
     this.slowmodeNextSendDate = 0,
+    this.starsToSend = 0,
   });
 
   @override
@@ -4535,6 +4538,7 @@ class _ComposeAreaState extends State<_ComposeArea> {
               slowmodeText: type == SendButtonType.slowmode
                   ? _formatSlowmode(_slowmodeSecondsLeft)
                   : null,
+              starsToSend: widget.starsToSend,
               onToggleVoiceRound: () {
                 final appState = context.read<AppState>();
                 appState.recordVideoMessages = !appState.recordVideoMessages;
@@ -4624,6 +4628,7 @@ class _SendButton extends StatefulWidget {
   final VoidCallback? onToggleVoiceRound;
   final bool forbidden;
   final String? slowmodeText;
+  final int starsToSend;
 
   const _SendButton({
     required this.type,
@@ -4633,6 +4638,7 @@ class _SendButton extends StatefulWidget {
     this.onToggleVoiceRound,
     this.forbidden = false,
     this.slowmodeText,
+    this.starsToSend = 0,
   });
 
   @override
@@ -4831,15 +4837,44 @@ class _SendButtonState extends State<_SendButton>
     );
   }
 
+  Widget _buildStarsPill(BuildContext context) {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: widget.accentColor,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star, size: 16, color: Colors.white),
+          const SizedBox(width: 4),
+          Text(
+            '${widget.starsToSend}',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRecordOrRound =
         widget.type == SendButtonType.record || widget.type == SendButtonType.round;
     final isForbidden = widget.forbidden && _isForbiddable(widget.type);
     final isSlowmode = widget.type == SendButtonType.slowmode;
+    final showStars = widget.starsToSend > 0 && widget.type == SendButtonType.send;
 
     Widget content;
-    if (isSlowmode && widget.slowmodeText != null) {
+    if (showStars) {
+      content = Center(child: _buildStarsPill(context));
+    } else if (isSlowmode && widget.slowmodeText != null) {
       final isDark = Theme.of(context).brightness == Brightness.dark;
       content = Padding(
         padding: const EdgeInsets.only(right: 10),
@@ -4867,6 +4902,8 @@ class _SendButtonState extends State<_SendButton>
       }
     }
 
+    final buttonWidth = showStars ? null : 44.0;
+
     return Listener(
       onPointerDown: isRecordOrRound
           ? (e) {
@@ -4880,16 +4917,25 @@ class _SendButtonState extends State<_SendButton>
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: Tooltip(
-          message: _tooltipFor(widget.type),
-          child: (isForbidden || isSlowmode)
+          message: showStars ? 'Send for ${widget.starsToSend} stars' : _tooltipFor(widget.type),
+          child: showStars
+              ? Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: InkResponse(
+                    onTap: _onTap,
+                    borderRadius: BorderRadius.circular(14),
+                    child: SizedBox(height: 46, child: content),
+                  ),
+                )
+              : (isForbidden || isSlowmode)
               ? GestureDetector(
                   onTap: _onTap,
-                  child: SizedBox(width: 44, height: 46, child: content),
+                  child: SizedBox(width: buttonWidth, height: 46, child: content),
                 )
               : InkResponse(
                   onTap: _onTap,
                   radius: 20,
-                  child: SizedBox(width: 44, height: 46, child: content),
+                  child: SizedBox(width: buttonWidth, height: 46, child: content),
                 ),
         ),
       ),

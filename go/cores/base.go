@@ -170,6 +170,7 @@ type Dialog struct {
 	IsFake              bool   `json:"is_fake,omitempty"`
 	SlowmodeSeconds     int    `json:"slowmode_seconds,omitempty"`
 	SlowmodeNextSendDate int64 `json:"slowmode_next_send_date,omitempty"`
+	StarsToSend         int    `json:"stars_to_send,omitempty"`
 	Platform            string `json:"platform"`
 }
 

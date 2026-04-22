@@ -1129,6 +1129,7 @@ type EngineChatInfo struct {
 	IsBlocked            bool                   `protobuf:"varint,21,opt,name=is_blocked,json=isBlocked,proto3" json:"is_blocked,omitempty"`
 	SlowmodeSeconds      int32                  `protobuf:"varint,22,opt,name=slowmode_seconds,json=slowmodeSeconds,proto3" json:"slowmode_seconds,omitempty"`
 	SlowmodeNextSendDate int64                  `protobuf:"varint,23,opt,name=slowmode_next_send_date,json=slowmodeNextSendDate,proto3" json:"slowmode_next_send_date,omitempty"`
+	StarsToSend          int32                  `protobuf:"varint,24,opt,name=stars_to_send,json=starsToSend,proto3" json:"stars_to_send,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1320,6 +1321,13 @@ func (x *EngineChatInfo) GetSlowmodeSeconds() int32 {
 func (x *EngineChatInfo) GetSlowmodeNextSendDate() int64 {
 	if x != nil {
 		return x.SlowmodeNextSendDate
+	}
+	return 0
+}
+
+func (x *EngineChatInfo) GetStarsToSend() int32 {
+	if x != nil {
+		return x.StarsToSend
 	}
 	return 0
 }

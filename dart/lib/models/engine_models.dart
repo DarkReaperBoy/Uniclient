@@ -212,6 +212,7 @@ class ChatInfo {
   final bool videoRestricted;
   final int slowmodeSeconds;
   final int slowmodeNextSendDate;
+  final int starsToSend;
 
   const ChatInfo({
     required this.accountId,
@@ -251,6 +252,7 @@ class ChatInfo {
     this.videoRestricted = false,
     this.slowmodeSeconds = 0,
     this.slowmodeNextSendDate = 0,
+    this.starsToSend = 0,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -291,6 +293,7 @@ class ChatInfo {
     videoRestricted: j['video_restricted'] as bool? ?? false,
     slowmodeSeconds: j['slowmode_seconds'] as int? ?? 0,
     slowmodeNextSendDate: j['slowmode_next_send_date'] as int? ?? 0,
+    starsToSend: j['stars_to_send'] as int? ?? 0,
   );
 
   /// Time as DateTime for display.

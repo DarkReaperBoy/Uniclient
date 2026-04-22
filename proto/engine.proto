@@ -172,6 +172,7 @@ message EngineChatInfo {
   bool   is_blocked      = 21;
   int32  slowmode_seconds         = 22;
   int64  slowmode_next_send_date  = 23;
+  int32  stars_to_send            = 24;
 }
 
 message EngineGetChatListRequest {
