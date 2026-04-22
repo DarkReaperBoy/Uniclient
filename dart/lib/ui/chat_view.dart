@@ -116,6 +116,7 @@ class _ChatViewState extends State<ChatView>
   final _scrollController = ScrollController();
   String? _replyToId;
   String? _editingMsgId;
+  String _editOriginalText = '';
   bool _showScrollToBottom = false;
   /// Spec §5: 150ms slide-up animation for scroll-to-bottom FAB.
   late final AnimationController _fabAnimCtrl;
@@ -287,6 +288,7 @@ class _ChatViewState extends State<ChatView>
           if (!mounted) return;
           setState(() {
             _editingMsgId = null;
+            _editOriginalText = '';
             _replyToId = null;
             _composeController.clear();
             _isSearching = false;
@@ -528,6 +530,7 @@ class _ChatViewState extends State<ChatView>
         case 'edit':
           setState(() {
             _editingMsgId = msgId;
+            _editOriginalText = msg.contentText;
             _replyToId = null; // edit and reply are mutually exclusive
             _composeController.text = msg.contentText;
             _composeController.selection = TextSelection.fromPosition(
@@ -782,7 +785,7 @@ class _ChatViewState extends State<ChatView>
     if (_editingMsgId != null) {
       chatState.editMessage(_editingMsgId!, text, entities: entities);
       _composeController.clear();
-      setState(() => _editingMsgId = null);
+      setState(() { _editingMsgId = null; _editOriginalText = ''; });
       return;
     }
     chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities);
@@ -813,6 +816,7 @@ class _ChatViewState extends State<ChatView>
     if (target == null) return false;
     setState(() {
       _editingMsgId = target.msgId;
+      _editOriginalText = target.contentText;
       _composeController.text = target.contentText;
       _composeController.selection = TextSelection.fromPosition(
         TextPosition(offset: _composeController.text.length),
@@ -950,6 +954,34 @@ class _ChatViewState extends State<ChatView>
     });
   }
 
+  Future<void> _cancelEditing() async {
+    if (_composeController.text != _editOriginalText) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text('You have unsaved changes to this message.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Keep Editing'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      );
+      if (discard != true) return;
+    }
+    setState(() {
+      _editingMsgId = null;
+      _editOriginalText = '';
+      _composeController.clear();
+    });
+  }
+
   /// Escape key handler — Telegram Desktop spec §8: cancels reply, edit,
   /// or selection in priority order (selection > edit > reply). Returns
   /// `handled` if anything was cancelled so the event doesn't bubble further.
@@ -969,10 +1001,7 @@ class _ChatViewState extends State<ChatView>
       return KeyEventResult.handled;
     }
     if (_editingMsgId != null) {
-      setState(() {
-        _editingMsgId = null;
-        _composeController.clear();
-      });
+      _cancelEditing();
       return KeyEventResult.handled;
     }
     if (_replyToId != null) {
@@ -1269,12 +1298,7 @@ class _ChatViewState extends State<ChatView>
             _EditBar(
               editingId: _editingMsgId!,
               messages: chatState.messages,
-              onCancel: () {
-                setState(() {
-                  _editingMsgId = null;
-                  _composeController.clear();
-                });
-              },
+              onCancel: _cancelEditing,
             )
           else if (_replyToId != null)
             _ReplyBar(
@@ -2599,7 +2623,7 @@ class _EditBar extends StatelessWidget {
     final msg = messages.where((m) => m.msgId == editingId).firstOrNull;
 
     return Container(
-      height: 44,
+      height: 49,
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(
