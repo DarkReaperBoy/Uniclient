@@ -1031,6 +1031,10 @@ class EngineService {
       geoPeriod: _int64FieldFromRaw(contentRaw, 'geo_period'),
       venueTitle: _topicFieldFromRaw(contentRaw, 'venue_title') ?? '',
       venueAddress: _topicFieldFromRaw(contentRaw, 'venue_address') ?? '',
+      contactFirstName: _topicFieldFromRaw(contentRaw, 'contact_first_name') ?? '',
+      contactLastName: _topicFieldFromRaw(contentRaw, 'contact_last_name') ?? '',
+      contactPhone: _topicFieldFromRaw(contentRaw, 'contact_phone') ?? '',
+      contactUserId: _int64FieldFromRaw(contentRaw, 'contact_user_id'),
     );
   }
 

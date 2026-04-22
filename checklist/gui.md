@@ -330,8 +330,6 @@
 
 ### §6.13 Contacts
 
-- [ ] Contact message: circular userpic left, name + phone number, action buttons (Send Message / Add Contact / View Details) — spec §6. Not implemented (renders as _FileIndicator or plain text)
-
 ### §6.14 Web Page Previews
 
 - [ ] Article mode: small square thumbnail right, text wraps, 3–5 line description cap, 8px gutter — spec §6. Not implemented

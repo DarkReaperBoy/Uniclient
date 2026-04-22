@@ -289,7 +289,7 @@ class MessageBubble extends StatelessWidget {
                     // Spec §6: For captioned media (photo/video/GIF + text),
                     // media renders first, caption text below it.
                     // For all other messages, text renders before media.
-                    if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9 && message.mediaType != 10)
+                    if (!isCaptionedMedia && message.contentText.isNotEmpty && message.mediaType != 9 && message.mediaType != 10 && message.mediaType != 11)
                       _RichMessageText(
                         text: message.contentText,
                         entitiesJson: message.contentRich,
@@ -756,6 +756,10 @@ class _MediaIndicator extends StatelessWidget {
     // Location — static/live/venue map.
     if (message.mediaType == 10) {
       return _LocationIndicator(message: message, theme: theme);
+    }
+    // Contact card.
+    if (message.mediaType == 11) {
+      return _ContactIndicator(message: message, theme: theme);
     }
     // Voice message — duration bar.
     if (message.mediaType == 4) {
@@ -2983,6 +2987,154 @@ class _MapGridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_MapGridPainter oldDelegate) => isDark != oldDelegate.isDark;
+}
+
+/// Contact card: circular userpic + name + phone + action buttons.
+class _ContactIndicator extends StatelessWidget {
+  final CachedMessage message;
+  final ThemeData theme;
+
+  const _ContactIndicator({required this.message, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final firstName = message.contactFirstName;
+    final lastName = message.contactLastName;
+    final fullName = [firstName, lastName].where((s) => s.isNotEmpty).join(' ');
+    final phone = message.contactPhone;
+    final hasUser = message.contactUserId > 0;
+
+    final accentColor = MessageBubble._senderColor(
+      message.contactUserId > 0 ? message.contactUserId.toString() : fullName,
+      isDark: isDark,
+    );
+
+    final initials = _initials(firstName, lastName);
+
+    final accentBg = accentColor.withValues(alpha: isDark ? 0.12 : 0.08);
+    final separatorColor = accentColor.withValues(alpha: 0.3);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: accentBg,
+        borderRadius: BorderRadius.circular(5),
+        border: Border(
+          left: BorderSide(color: accentColor, width: 3),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 5, 7, 7),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _buildUserpic(initials, accentColor),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        fullName.isNotEmpty ? fullName : 'Contact',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: accentColor,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (phone.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          _formatPhoneDisplay(phone),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isDark ? Colors.white70 : Colors.black87,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(height: 1, color: separatorColor),
+          SizedBox(
+            height: 36,
+            child: hasUser
+                ? Row(
+                    children: [
+                      _actionButton('SEND MESSAGE', accentColor),
+                      Container(width: 1, color: separatorColor),
+                      _actionButton('ADD CONTACT', accentColor),
+                    ],
+                  )
+                : _actionButton('VIEW DETAILS', accentColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserpic(String initials, Color accentColor) {
+    return Container(
+      width: 42,
+      height: 42,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: accentColor,
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Widget _actionButton(String label, Color color) {
+    return Expanded(
+      child: Center(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _initials(String first, String last) {
+    final f = first.isNotEmpty ? first.characters.first.toUpperCase() : '';
+    final l = last.isNotEmpty ? last.characters.first.toUpperCase() : '';
+    if (f.isEmpty && l.isEmpty) return '?';
+    if (l.isEmpty) return f;
+    return '$f$l';
+  }
+
+  static String _formatPhoneDisplay(String phone) {
+    if (phone.isEmpty) return '';
+    final digits = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (digits.length < 7) return phone;
+    if (!digits.startsWith('+')) return '+$digits';
+    return digits;
+  }
 }
 
 /// File/document attachment indicator.

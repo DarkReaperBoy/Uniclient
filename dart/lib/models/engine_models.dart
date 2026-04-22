@@ -373,6 +373,12 @@ class CachedMessage {
   final String venueTitle;
   final String venueAddress;
 
+  // Contact data (extracted from contentRaw extra fields).
+  final String contactFirstName;
+  final String contactLastName;
+  final String contactPhone;
+  final int contactUserId;
+
   const CachedMessage({
     required this.accountId,
     required this.chatId,
@@ -437,6 +443,10 @@ class CachedMessage {
     this.geoPeriod = 0,
     this.venueTitle = '',
     this.venueAddress = '',
+    this.contactFirstName = '',
+    this.contactLastName = '',
+    this.contactPhone = '',
+    this.contactUserId = 0,
   });
 
   factory CachedMessage.fromJson(Map<String, dynamic> j) => CachedMessage(
@@ -561,6 +571,10 @@ class CachedMessage {
     int? geoPeriod,
     String? venueTitle,
     String? venueAddress,
+    String? contactFirstName,
+    String? contactLastName,
+    String? contactPhone,
+    int? contactUserId,
   }) => CachedMessage(
     accountId: accountId ?? this.accountId,
     chatId: chatId ?? this.chatId,
@@ -625,6 +639,10 @@ class CachedMessage {
     geoPeriod: geoPeriod ?? this.geoPeriod,
     venueTitle: venueTitle ?? this.venueTitle,
     venueAddress: venueAddress ?? this.venueAddress,
+    contactFirstName: contactFirstName ?? this.contactFirstName,
+    contactLastName: contactLastName ?? this.contactLastName,
+    contactPhone: contactPhone ?? this.contactPhone,
+    contactUserId: contactUserId ?? this.contactUserId,
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
