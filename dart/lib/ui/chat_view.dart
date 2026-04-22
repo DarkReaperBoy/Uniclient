@@ -4731,6 +4731,8 @@ class _SendButtonState extends State<_SendButton>
   late AnimationController _rollController;
   SendButtonType? _prevType;
   bool _isVoiceRoundTransition = false;
+  Timer? _holdTimer;
+  bool _holdFired = false;
 
   static const _kWideScale = 5.0;
   static const _morphDuration = Duration(milliseconds: 120);
@@ -4757,9 +4759,45 @@ class _SendButtonState extends State<_SendButton>
 
   @override
   void dispose() {
+    _holdTimer?.cancel();
     _morphController.dispose();
     _rollController.dispose();
     super.dispose();
+  }
+
+  void _onRecordPointerDown(PointerDownEvent e) {
+    if (e.buttons == kSecondaryMouseButton) {
+      widget.onToggleVoiceRound?.call();
+      return;
+    }
+    if (e.buttons != kPrimaryMouseButton) return;
+    if (widget.forbidden && _isForbiddable(widget.type)) return;
+    _holdFired = false;
+    _holdTimer?.cancel();
+    _holdTimer = Timer(const Duration(milliseconds: 200), () {
+      _holdFired = true;
+      widget.onRecordTap?.call();
+    });
+  }
+
+  void _onRecordPointerUp(PointerUpEvent e) {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    if (!_holdFired) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hold to record'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+    _holdFired = false;
+  }
+
+  void _onRecordPointerCancel(PointerCancelEvent e) {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    _holdFired = false;
   }
 
   @override
@@ -5087,17 +5125,19 @@ class _SendButtonState extends State<_SendButton>
 
     return Listener(
       onPointerDown: isRecordOrRound
-          ? (e) {
-              if (e.buttons == kSecondaryMouseButton) {
-                widget.onToggleVoiceRound?.call();
-              }
-            }
+          ? _onRecordPointerDown
           : _canShowSendMenu
           ? (e) {
               if (e.buttons == kSecondaryMouseButton) {
                 _showSendMenu();
               }
             }
+          : null,
+      onPointerUp: isRecordOrRound && !isForbidden
+          ? _onRecordPointerUp
+          : null,
+      onPointerCancel: isRecordOrRound && !isForbidden
+          ? _onRecordPointerCancel
           : null,
       child: MouseRegion(
         cursor: isSlowmode ? SystemMouseCursors.basic : SystemMouseCursors.click,
@@ -5123,6 +5163,8 @@ class _SendButtonState extends State<_SendButton>
                   onTap: _onTap,
                   child: SizedBox(width: buttonWidth, height: 46, child: content),
                 )
+              : isRecordOrRound
+              ? SizedBox(width: buttonWidth, height: 46, child: content)
               : GestureDetector(
                   onLongPress: _canShowSendMenu ? _showSendMenu : null,
                   child: InkResponse(
