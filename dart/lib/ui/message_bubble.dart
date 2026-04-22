@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
@@ -1251,6 +1252,18 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
   String _lastThumbB64 = '';
   bool _spoilerRevealed = false;
 
+  // §6.8: Video note auto-play state.
+  Player? _vnPlayer;
+  VideoController? _vnCtrl;
+  bool _vnMuted = true;
+  double _vnProgress = 0.0;
+  StreamSubscription? _vnPosSub;
+  StreamSubscription? _vnDurSub;
+  Duration _vnPosition = Duration.zero;
+  Duration _vnDuration = Duration.zero;
+  bool _vnVisible = false;
+  ScrollPosition? _scrollPosition;
+
   @override
   void initState() {
     super.initState();
@@ -1267,20 +1280,102 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
       _fullImageLoaded = true;
       _fadeController.value = 1.0;
     }
+    _initVideoNoteIfNeeded();
   }
 
   @override
   void didUpdateWidget(_VisualMedia oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Thumb changed — re-decode.
     if (widget.message.mediaThumbB64 != oldWidget.message.mediaThumbB64) {
       _decodeThumb();
     }
-    // Full image just became available — animate crossfade.
     if (widget.message.mediaLocalPath.isNotEmpty && !_fullImageLoaded) {
       _fullImageLoaded = true;
       _fadeController.forward(from: 0.0);
     }
+    _initVideoNoteIfNeeded();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (widget.message.mediaType == 5) {
+      _scrollPosition?.removeListener(_checkVideoNoteVisibility);
+      _scrollPosition = Scrollable.maybeOf(context)?.position;
+      _scrollPosition?.addListener(_checkVideoNoteVisibility);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _checkVideoNoteVisibility();
+      });
+    }
+  }
+
+  void _checkVideoNoteVisibility() {
+    if (_vnPlayer == null || !mounted) return;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize || !renderBox.attached) return;
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    final screenHeight = MediaQuery.of(context).size.height;
+    final visibleTop = position.dy.clamp(0.0, screenHeight);
+    final visibleBottom = (position.dy + size.height).clamp(0.0, screenHeight);
+    final visibleFraction = size.height > 0 ? (visibleBottom - visibleTop) / size.height : 0.0;
+    final shouldBeVisible = visibleFraction > 0.3;
+    if (shouldBeVisible && !_vnVisible) {
+      _vnVisible = true;
+      _vnPlayer?.play();
+    } else if (!shouldBeVisible && _vnVisible) {
+      _vnVisible = false;
+      _vnPlayer?.pause();
+    }
+  }
+
+  void _initVideoNoteIfNeeded() {
+    if (widget.message.mediaType != 5 ||
+        widget.message.mediaLocalPath.isEmpty ||
+        _vnPlayer != null) return;
+    final player = Player();
+    _vnPlayer = player;
+    _vnCtrl = VideoController(player);
+    player.setVolume(0);
+    player.setPlaylistMode(PlaylistMode.loop);
+    _vnPosSub = player.stream.position.listen((pos) {
+      if (!mounted) return;
+      _vnPosition = pos;
+      _updateVnProgress();
+    });
+    _vnDurSub = player.stream.duration.listen((dur) {
+      if (!mounted) return;
+      _vnDuration = dur;
+      _updateVnProgress();
+    });
+    player.open(Media(widget.message.mediaLocalPath), play: false);
+  }
+
+  void _updateVnProgress() {
+    final dur = _vnDuration.inMilliseconds;
+    final pos = _vnPosition.inMilliseconds;
+    final p = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
+    if ((p - _vnProgress).abs() > 0.005) {
+      setState(() => _vnProgress = p);
+    }
+  }
+
+  void _toggleVideoNoteSound() {
+    if (_vnPlayer == null) return;
+    setState(() {
+      _vnMuted = !_vnMuted;
+      _vnPlayer!.setVolume(_vnMuted ? 0 : 100);
+    });
+  }
+
+  void _disposeVideoNote() {
+    _vnPosSub?.cancel();
+    _vnDurSub?.cancel();
+    _vnPosSub = null;
+    _vnDurSub = null;
+    _vnPlayer?.dispose();
+    _vnPlayer = null;
+    _vnCtrl = null;
   }
 
   void _decodeThumb() {
@@ -1297,6 +1392,9 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
 
   @override
   void dispose() {
+    _scrollPosition?.removeListener(_checkVideoNoteVisibility);
+    _scrollPosition = null;
+    _disposeVideoNote();
     _fadeController.dispose();
     super.dispose();
   }
@@ -1368,17 +1466,21 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
         message.mediaLocalPath.isNotEmpty;
 
     final canOpenStickerPack = message.mediaType == 6;
+    final isVideoNote = message.mediaType == 5;
+    final vnPlaying = isVideoNote && _vnCtrl != null;
 
     return GestureDetector(
-      onTap: canOpenViewer
-          ? () => MediaViewer.open(
-                context,
-                message: message,
-                allMessages: widget.allMessages,
-              )
-          : canOpenStickerPack
-              ? () => StickerPackViewer.show(context, message)
-              : null,
+      onTap: vnPlaying
+          ? _toggleVideoNoteSound
+          : canOpenViewer
+              ? () => MediaViewer.open(
+                    context,
+                    message: message,
+                    allMessages: widget.allMessages,
+                  )
+              : canOpenStickerPack
+                  ? () => StickerPackViewer.show(context, message)
+                  : null,
       child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: SizedBox(
@@ -1414,14 +1516,23 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                 _placeholder(displayWidth, displayHeight),
 
               // --- Tier 1: Full image/video (crossfades in over thumbnail) ---
-              // GIFs use inline video player for auto-play + loop.
-              // Hidden while spoiler is covering the media.
               if (hasFullImage && !hasSpoiler && message.mediaType == 7)
                 Positioned.fill(
                   child: _GifPlayer(
                     filePath: message.mediaLocalPath,
                     width: displayWidth,
                     height: displayHeight,
+                  ),
+                )
+              // §6.8: Video notes auto-play muted inline.
+              else if (vnPlaying)
+                Positioned.fill(
+                  child: Video(
+                    controller: _vnCtrl!,
+                    width: displayWidth,
+                    height: displayHeight,
+                    fit: BoxFit.cover,
+                    controls: NoVideoControls,
                   ),
                 )
               else if (hasFullImage && !hasSpoiler && _isTgsSticker(message))
@@ -1550,14 +1661,33 @@ class _VisualMediaState extends State<_VisualMedia> with SingleTickerProviderSta
                   ),
                 ),
               // §6.8: Progress arc overlay for round video playback.
-              if (message.mediaType == 5)
+              if (message.mediaType == 5 && _vnProgress > 0)
                 Positioned.fill(
                   child: CustomPaint(
                     painter: _VideoNoteProgressPainter(
-                      progress: 0.0,
+                      progress: _vnProgress,
                       color: theme.brightness == Brightness.dark
                           ? AppColors.bubbleReceived
                           : AppColors.bubbleReceivedLight,
+                    ),
+                  ),
+                ),
+              // §6.8: Mute indicator — small icon bottom-left when playing.
+              if (vnPlaying)
+                Positioned(
+                  bottom: 6,
+                  left: 6,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _vnMuted ? Icons.volume_off : Icons.volume_up,
+                      color: Colors.white,
+                      size: 14,
                     ),
                   ),
                 ),

@@ -312,7 +312,6 @@
 ### §6.8 Video Messages (Round Video)
 
 - [x] Circular clip + border shown for video notes (mediaType 5) — spec §6, DONE in message_bubble.dart (_VisualMedia). ClipOval + 360px max diameter + subtle 1px border
-- [ ] Auto-play muted when on-screen, tap toggles sound — spec §6. Not implemented
 
 ### §6.9 Files/Documents
 
