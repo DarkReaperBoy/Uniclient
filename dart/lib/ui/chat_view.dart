@@ -1286,9 +1286,13 @@ class _ChatViewState extends State<ChatView>
           _ComposeArea(
             controller: _composeController,
             onSend: _sendMessage,
+            onSendSilent: _sendMessage,
+            onSendScheduled: (date) => _sendMessage(),
+            onSendWhenOnline: _sendMessage,
             onDraftChanged: (text) => chatState.saveDraft(text),
             isEditing: _editingMsgId != null,
             chatType: chat.type,
+            isSelfChat: chat.title == 'Saved Messages' && chat.type == ChatType.dm,
             voiceRestricted: chat.voiceRestricted,
             videoRestricted: chat.videoRestricted,
             slowmodeSeconds: chat.slowmodeSeconds,
@@ -4028,9 +4032,13 @@ enum SendButtonType { send, schedule, save, record, round, cancel, slowmode, edi
 class _ComposeArea extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback? onSendSilent;
+  final ValueChanged<DateTime>? onSendScheduled;
+  final VoidCallback? onSendWhenOnline;
   final ValueChanged<String> onDraftChanged;
   final bool isEditing;
   final ChatType chatType;
+  final bool isSelfChat;
   /// Called when Up is pressed with empty field + no edit/reply active.
   /// Returns true if edit mode was entered (so the event is consumed).
   final bool Function()? onEditLast;
@@ -4049,9 +4057,13 @@ class _ComposeArea extends StatefulWidget {
   const _ComposeArea({
     required this.controller,
     required this.onSend,
+    this.onSendSilent,
+    this.onSendScheduled,
+    this.onSendWhenOnline,
     required this.onDraftChanged,
     this.isEditing = false,
     this.chatType = ChatType.dm,
+    this.isSelfChat = false,
     this.onEditLast,
     this.onCycleReply,
     this.onLinksDetected,
@@ -4534,6 +4546,11 @@ class _ComposeAreaState extends State<_ComposeArea> {
               accentColor: theme.colorScheme.primary,
               iconFg: iconFg,
               onSend: widget.onSend,
+              onSendSilent: widget.onSendSilent,
+              onSendScheduled: widget.onSendScheduled,
+              onSendWhenOnline: widget.onSendWhenOnline,
+              chatType: widget.chatType,
+              isSelfChat: widget.isSelfChat,
               forbidden: forbidden,
               slowmodeText: type == SendButtonType.slowmode
                   ? _formatSlowmode(_slowmodeSecondsLeft)
@@ -4626,6 +4643,11 @@ class _SendButton extends StatefulWidget {
   final Color iconFg;
   final VoidCallback onSend;
   final VoidCallback? onToggleVoiceRound;
+  final VoidCallback? onSendSilent;
+  final ValueChanged<DateTime>? onSendScheduled;
+  final VoidCallback? onSendWhenOnline;
+  final ChatType chatType;
+  final bool isSelfChat;
   final bool forbidden;
   final String? slowmodeText;
   final int starsToSend;
@@ -4636,6 +4658,11 @@ class _SendButton extends StatefulWidget {
     required this.iconFg,
     required this.onSend,
     this.onToggleVoiceRound,
+    this.onSendSilent,
+    this.onSendScheduled,
+    this.onSendWhenOnline,
+    this.chatType = ChatType.dm,
+    this.isSelfChat = false,
     this.forbidden = false,
     this.slowmodeText,
     this.starsToSend = 0,
@@ -4751,6 +4778,108 @@ class _SendButtonState extends State<_SendButton>
       case SendButtonType.editPrice:
         break;
     }
+  }
+
+  bool get _canShowSendMenu {
+    const sendLike = {SendButtonType.send, SendButtonType.schedule, SendButtonType.save};
+    return sendLike.contains(widget.type) && !widget.forbidden;
+  }
+
+  void _showSendMenu() {
+    final box = context.findRenderObject() as RenderBox;
+    final buttonTopLeft = box.localToGlobal(Offset.zero);
+    final buttonSize = box.size;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final position = RelativeRect.fromLTRB(
+      buttonTopLeft.dx,
+      buttonTopLeft.dy - 4,
+      buttonTopLeft.dx + buttonSize.width,
+      buttonTopLeft.dy + buttonSize.height,
+    );
+
+    showMenu<String>(
+      context: context,
+      position: position,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFffffff),
+      elevation: 8,
+      items: _buildSendMenuItems(isDark),
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'silent':
+          widget.onSendSilent?.call();
+        case 'schedule':
+          _pickScheduleDate();
+        case 'when_online':
+          widget.onSendWhenOnline?.call();
+      }
+    });
+  }
+
+  List<PopupMenuEntry<String>> _buildSendMenuItems(bool isDark) {
+    final iconColor = isDark ? const Color(0xFFaaaaaa) : const Color(0xFF707579);
+    final textColor = isDark ? const Color(0xFFffffff) : const Color(0xFF222222);
+    return [
+      if (!widget.isSelfChat)
+        PopupMenuItem<String>(
+          value: 'silent',
+          height: 40,
+          child: Row(
+            children: [
+              Icon(Icons.volume_off_outlined, size: 20, color: iconColor),
+              const SizedBox(width: 14),
+              Text('Send without Sound',
+                  style: TextStyle(fontSize: 14, color: textColor)),
+            ],
+          ),
+        ),
+      PopupMenuItem<String>(
+        value: 'schedule',
+        height: 40,
+        child: Row(
+          children: [
+            Icon(Icons.schedule_outlined, size: 20, color: iconColor),
+            const SizedBox(width: 14),
+            Text(widget.isSelfChat ? 'Set Reminder' : 'Schedule Message',
+                style: TextStyle(fontSize: 14, color: textColor)),
+          ],
+        ),
+      ),
+      if (widget.chatType == ChatType.dm && !widget.isSelfChat)
+        PopupMenuItem<String>(
+          value: 'when_online',
+          height: 40,
+          child: Row(
+            children: [
+              Icon(Icons.person_outline, size: 20, color: iconColor),
+              const SizedBox(width: 14),
+              Text('Send When Online',
+                  style: TextStyle(fontSize: 14, color: textColor)),
+            ],
+          ),
+        ),
+    ];
+  }
+
+  Future<void> _pickScheduleDate() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(now.add(const Duration(minutes: 5))),
+    );
+    if (time == null || !mounted) return;
+    final scheduled = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    if (scheduled.isBefore(DateTime.now())) return;
+    widget.onSendScheduled?.call(scheduled);
   }
 
   static bool _isForbiddable(SendButtonType type) =>
@@ -4911,6 +5040,12 @@ class _SendButtonState extends State<_SendButton>
                 widget.onToggleVoiceRound?.call();
               }
             }
+          : _canShowSendMenu
+          ? (e) {
+              if (e.buttons == kSecondaryMouseButton) {
+                _showSendMenu();
+              }
+            }
           : null,
       child: MouseRegion(
         cursor: isSlowmode ? SystemMouseCursors.basic : SystemMouseCursors.click,
@@ -4921,10 +5056,14 @@ class _SendButtonState extends State<_SendButton>
           child: showStars
               ? Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: InkResponse(
+                  child: GestureDetector(
                     onTap: _onTap,
-                    borderRadius: BorderRadius.circular(14),
-                    child: SizedBox(height: 46, child: content),
+                    onLongPress: _canShowSendMenu ? _showSendMenu : null,
+                    child: InkResponse(
+                      onTap: _onTap,
+                      borderRadius: BorderRadius.circular(14),
+                      child: SizedBox(height: 46, child: content),
+                    ),
                   ),
                 )
               : (isForbidden || isSlowmode)
@@ -4932,10 +5071,13 @@ class _SendButtonState extends State<_SendButton>
                   onTap: _onTap,
                   child: SizedBox(width: buttonWidth, height: 46, child: content),
                 )
-              : InkResponse(
-                  onTap: _onTap,
-                  radius: 20,
-                  child: SizedBox(width: buttonWidth, height: 46, child: content),
+              : GestureDetector(
+                  onLongPress: _canShowSendMenu ? _showSendMenu : null,
+                  child: InkResponse(
+                    onTap: _onTap,
+                    radius: 20,
+                    child: SizedBox(width: buttonWidth, height: 46, child: content),
+                  ),
                 ),
         ),
       ),
