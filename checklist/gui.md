@@ -395,7 +395,9 @@
 ### §8.1 Cover / TopBar Compression
 <!-- File: dart/lib/ui/info_panel.dart -->
 - [x] Flexible top bar: 236px expanded / 56px collapsed; three snap resting heights (0px, 112px, 180px scroll); easeOutQuint 260ms snap animation; height = clamp(236 - scrollTop, 56, 236) — spec §8.1 — DONE: _FlexibleCoverDelegate + SliverPersistentHeader(pinned:true) + debounced snap timer
-- [ ] Cover gradient for collectible/color profiles; animated emoji-status pattern behind avatar (Premium); story ring outline — spec §8.6
+- [x] Story ring outline on cover avatar: _InfoStoryRingPainter with gradient (unread green→blue) / solid gray (read), segmented arcs for multi-story; 2.5px line, 3px gap — spec §8.6 — DONE in info_panel.dart
+- [x] Cover gradient background for color profiles: _CoverGradientPainter with LinearGradient top→bottom, white text/icon override, collapsed bar uses first color — spec §8.6 — DONE in info_panel.dart (activates when profileBgColors provided; needs profile_color_id backend pipeline)
+- [ ] Animated emoji-status pattern behind avatar (Premium): requires emoji_status_id field in ChatInfo/MemberInfo + backend pipeline — spec §8.6
 
 ### §8.2 Action Button Row
 <!-- File: dart/lib/ui/info_panel.dart -->

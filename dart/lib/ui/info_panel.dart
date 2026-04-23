@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -284,10 +285,16 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final String collapsedTitle;
   final bool isMuted;
   final VoidCallback? onMuteToggle;
+  final int storyCount;
+  final bool hasUnreadStory;
+  final List<Color>? profileBgColors;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
   static const double _actionButtonSize = 52.0;
+  static const double _avatarSize = 80.0;
+  static const double _storyLineWidth = 2.5;
+  static const double _storyRingGap = 3.0;
 
   _FlexibleCoverDelegate({
     required this.displayName,
@@ -302,6 +309,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     required this.collapsedTitle,
     this.isMuted = false,
     this.onMuteToggle,
+    this.storyCount = 0,
+    this.hasUnreadStory = false,
+    this.profileBgColors,
   });
 
   @override
@@ -316,7 +326,10 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       avatarPath != old.avatarPath ||
       showBackButton != old.showBackButton ||
       collapsedTitle != old.collapsedTitle ||
-      isMuted != old.isMuted;
+      isMuted != old.isMuted ||
+      storyCount != old.storyCount ||
+      hasUnreadStory != old.hasUnreadStory ||
+      profileBgColors != old.profileBgColors;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -332,35 +345,71 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
             ? 0.0
             : (actionRatio - 0.5) / 0.5;
 
+    final hasGradientBg = profileBgColors != null && profileBgColors!.length >= 2;
+    final hasStories = storyCount > 0;
+    final ringTotal = hasStories ? _storyLineWidth + _storyRingGap : 0.0;
+    final avatarDisplaySize = _avatarSize;
+    final ringOuterSize = avatarDisplaySize + ringTotal * 2;
+
+    final isDark = theme.brightness == Brightness.dark;
+    final gradientTextColor = hasGradientBg ? Colors.white : null;
+
     return SizedBox(
       height: height,
       child: Material(
-        color: theme.colorScheme.surface,
+        color: hasGradientBg ? Colors.transparent : theme.colorScheme.surface,
         clipBehavior: Clip.hardEdge,
         child: Stack(
           children: [
+            if (hasGradientBg)
+              Positioned.fill(
+                child: CustomPaint(
+                  painter: _CoverGradientPainter(
+                    colors: profileBgColors!,
+                    maxHeight: maxHeight,
+                  ),
+                ),
+              ),
             Positioned(
-              top: 24,
+              top: 24 - ringTotal,
               left: 0,
               right: 0,
               child: Opacity(
                 opacity: t,
                 child: Center(
                   child: SizedBox(
-                    width: 80,
-                    height: 80,
-                    child: avatarPath.isNotEmpty
-                        ? ClipOval(
-                            child: Image.file(
-                              File(avatarPath),
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  _avatarFallback(avatarColor, initials, 80),
+                    width: ringOuterSize,
+                    height: ringOuterSize,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (hasStories)
+                          CustomPaint(
+                            size: Size(ringOuterSize, ringOuterSize),
+                            painter: _InfoStoryRingPainter(
+                              storyCount: storyCount,
+                              hasUnread: hasUnreadStory,
+                              isDark: isDark,
                             ),
-                          )
-                        : _avatarFallback(avatarColor, initials, 80),
+                          ),
+                        SizedBox(
+                          width: avatarDisplaySize,
+                          height: avatarDisplaySize,
+                          child: avatarPath.isNotEmpty
+                              ? ClipOval(
+                                  child: Image.file(
+                                    File(avatarPath),
+                                    width: avatarDisplaySize,
+                                    height: avatarDisplaySize,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                                  ),
+                                )
+                              : _avatarFallback(avatarColor, initials, avatarDisplaySize),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -374,8 +423,10 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                 child: Text(
                   displayName,
                   textAlign: TextAlign.center,
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w600),
+                  style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: gradientTextColor,
+                  ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -391,7 +442,12 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                   child: Text(
                     statusText,
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 13, color: statusColor),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: hasGradientBg
+                          ? Colors.white.withValues(alpha: 0.7)
+                          : statusColor,
+                    ),
                   ),
                 ),
               ),
@@ -414,7 +470,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
               right: 0,
               height: minHeight,
               child: Container(
-                color: theme.colorScheme.surface
+                color: (hasGradientBg
+                        ? profileBgColors!.first
+                        : theme.colorScheme.surface)
                     .withValues(alpha: collapseProgress),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Row(
@@ -423,6 +481,9 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                       icon: Icon(
                         showBackButton ? Icons.arrow_back : Icons.close,
                         size: 20,
+                        color: hasGradientBg && collapseProgress < 0.5
+                            ? Colors.white
+                            : null,
                       ),
                       onPressed: onClose,
                       tooltip: showBackButton ? 'Back' : 'Close',
@@ -436,8 +497,10 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                           opacity: collapseProgress,
                           child: Text(
                             collapsedTitle,
-                            style: theme.textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w600),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: gradientTextColor,
+                            ),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
@@ -531,6 +594,93 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       ),
     );
   }
+}
+
+class _CoverGradientPainter extends CustomPainter {
+  final List<Color> colors;
+  final double maxHeight;
+
+  _CoverGradientPainter({required this.colors, required this.maxHeight});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final gradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: colors,
+    );
+    final paint = Paint()
+      ..shader = gradient.createShader(
+        Rect.fromLTWH(0, 0, size.width, maxHeight),
+      );
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), paint);
+  }
+
+  @override
+  bool shouldRepaint(_CoverGradientPainter old) =>
+      colors != old.colors || maxHeight != old.maxHeight;
+}
+
+class _InfoStoryRingPainter extends CustomPainter {
+  final int storyCount;
+  final bool hasUnread;
+  final bool isDark;
+
+  _InfoStoryRingPainter({
+    required this.storyCount,
+    required this.hasUnread,
+    required this.isDark,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (storyCount <= 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final lineWidth = _FlexibleCoverDelegate._storyLineWidth;
+    final ringRadius = size.width / 2 - lineWidth / 2;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = lineWidth
+      ..strokeCap = StrokeCap.round;
+
+    if (hasUnread) {
+      paint.shader = const LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
+      ).createShader(Rect.fromCircle(center: center, radius: ringRadius));
+    } else {
+      paint.color = isDark
+          ? const Color(0xFF3e546a)
+          : const Color(0xFFbbbbbb);
+    }
+
+    if (storyCount == 1) {
+      canvas.drawCircle(center, ringRadius, paint);
+    } else {
+      const fullCircleUnits = 5760.0;
+      const separatorUnits = 160.0;
+      final separatorRadians = (separatorUnits / fullCircleUnits) * 2 * math.pi;
+      final totalSep = storyCount * separatorRadians;
+      final arcPerStory = (2 * math.pi - totalSep) / storyCount;
+
+      var startAngle = -math.pi / 2;
+      final rect = Rect.fromCircle(center: center, radius: ringRadius);
+
+      for (var i = 0; i < storyCount; i++) {
+        canvas.drawArc(rect, startAngle, arcPerStory, false, paint);
+        startAngle += arcPerStory + separatorRadians;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_InfoStoryRingPainter old) =>
+      storyCount != old.storyCount ||
+      hasUnread != old.hasUnread ||
+      isDark != old.isDark;
 }
 
 class _ChatInfoPage extends StatefulWidget {
@@ -653,6 +803,8 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   !widget.chat.isMuted,
                 );
               },
+              storyCount: widget.chat.storyCount,
+              hasUnreadStory: widget.chat.hasUnreadStory,
             ),
           ),
           SliverList(
