@@ -408,7 +408,6 @@
 ### §8.4 Members List
 <!-- File: dart/lib/ui/info_panel.dart — _MembersSection / _MemberRow -->
 - [x] Members section rendered with avatar, name, and online/role status — spec §8.4 — DONE (basic) in info_panel.dart
-- [ ] Member row spec dimensions: 42px avatar at pos(18,6), name at (79,11), status at (79,31), row height 52px — spec §8.4
 - [ ] Members header: 56px height; Add Member button (38x38 circle ripple); Search button (38x38) — spec §8.4
 - [ ] Admin/Creator pill badges: "owner" / "admin" pill, margins(5,-1,5,0); right-action area shows pill OR remove-cross — spec §8.4
 - [ ] Member row context menu: View Profile, Send Message, Promote, Demote, Restrict, Remove, Ban, Copy Username/ID — spec §8.4
@@ -1731,3 +1730,4 @@ Status key: `[ ]` not started · `[x]` done
 ## Bugs
 
 - [ ] Mobile (oneColumn) selection mode: context menu "Select" action doesn't activate selection mode — no selection bar, no checkboxes appear. Works fine in desktop (twoColumn) mode. Likely a state/animation issue in oneColumn layout.
+- [ ] Info panel scroll doesn't work via flutter_interact.sh scroll events — scroll goes to chat list instead of info panel CustomScrollView. Affects both desktop (third column) and mobile (full screen) modes. The SliverPersistentHeader cover never compresses.

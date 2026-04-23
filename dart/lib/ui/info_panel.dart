@@ -1871,47 +1871,64 @@ class _MembersSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Members',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.w600,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 56,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 18, right: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    memberCount > 0 ? '$memberCount Members' : 'Members',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
-              if (memberCount > 0) ...[
-                const SizedBox(width: 6),
-                Text(
-                  memberCount.toString(),
-                  style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
+                SizedBox(
+                  width: 38,
+                  height: 38,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(Icons.search, size: 20, color: theme.textTheme.bodyMedium?.color),
+                    onPressed: () {},
+                    splashRadius: 19,
+                  ),
+                ),
+                SizedBox(
+                  width: 38,
+                  height: 38,
+                  child: IconButton(
+                    padding: EdgeInsets.zero,
+                    icon: Icon(Icons.person_add_outlined, size: 20, color: theme.textTheme.bodyMedium?.color),
+                    onPressed: () {},
+                    splashRadius: 19,
+                  ),
                 ),
               ],
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (loading)
-            const Center(child: Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-            ))
-          else if (members != null && members!.isNotEmpty)
-            ...members!.map((m) => _MemberRow(member: m, theme: theme, onTap: onMemberTap != null ? () => onMemberTap!(m) : null))
-          else
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                'No members available',
-                style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
-              ),
             ),
-        ],
-      ),
+          ),
+        ),
+        if (loading)
+          const Center(child: Padding(
+            padding: EdgeInsets.all(16),
+            child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+          ))
+        else if (members != null && members!.isNotEmpty)
+          ...members!.map((m) => _MemberRow(member: m, theme: theme, onTap: onMemberTap != null ? () => onMemberTap!(m) : null))
+        else
+          Padding(
+            padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
+            child: Text(
+              'No members available',
+              style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1933,80 +1950,115 @@ class _MemberRow extends StatelessWidget {
       const Color(0xFF6ec9cb),
     ][colorIndex];
 
-    Widget row = Padding(
-      padding: const EdgeInsets.only(top: 6, bottom: 8),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 40,
-            height: 40,
-            child: Container(
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
-              alignment: Alignment.center,
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        name.isNotEmpty ? name : member.userId,
-                        style: theme.textTheme.bodyMedium,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+    final bool hasAdminTag = member.role == 'owner' || member.role == 'admin' || member.role == 'creator';
+
+    String statusText = '';
+    Color statusColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    if (member.isOnline) {
+      statusText = 'online';
+      statusColor = theme.colorScheme.primary;
+    } else if (member.role != 'member' && member.role.isNotEmpty && !hasAdminTag) {
+      statusText = member.role;
+    } else {
+      statusText = 'last seen recently';
+    }
+
+    Widget row = SizedBox(
+      height: 52,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 18),
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  width: 42,
+                  height: 42,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
                     ),
-                    if (member.isBot) ...[
-                      const SizedBox(width: 4),
-                      Icon(Icons.smart_toy, size: 14, color: theme.textTheme.bodySmall?.color),
-                    ],
-                  ],
-                ),
-                if (member.role != 'member' && member.role.isNotEmpty)
-                  Text(
-                    member.role,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: member.role == 'owner'
-                          ? theme.colorScheme.primary
-                          : theme.textTheme.bodySmall?.color,
-                    ),
-                  )
-                else if (member.isOnline)
-                  Text(
-                    'online',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: theme.colorScheme.primary,
+                    alignment: Alignment.center,
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
                     ),
                   ),
-              ],
+                ),
+              ),
             ),
-          ),
-          if (onTap != null)
-            Icon(Icons.chevron_right, size: 18, color: theme.textTheme.bodySmall?.color),
-        ],
+            const SizedBox(width: 19),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 11),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name.isNotEmpty ? name : member.userId,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: theme.textTheme.bodyMedium?.color,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (member.isBot) ...[
+                          const SizedBox(width: 4),
+                          Icon(Icons.smart_toy, size: 14, color: theme.textTheme.bodySmall?.color),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            statusText,
+                            style: TextStyle(fontSize: 13, color: statusColor),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (hasAdminTag)
+                          Container(
+                            margin: const EdgeInsets.only(left: 5, right: 5),
+                            padding: const EdgeInsets.only(left: 5, top: 0, right: 5, bottom: 1),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.primary.withAlpha(25),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              member.role == 'owner' || member.role == 'creator' ? 'owner' : 'admin',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
-    if (onTap != null) {
-      return InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: row,
-      );
-    }
-    return row;
+    return InkWell(
+      onTap: onTap,
+      child: row,
+    );
   }
 }
