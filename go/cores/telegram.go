@@ -11854,6 +11854,9 @@ func (t *TelegramCore) GetFullChannel(chatID string) (*Dialog, error) {
 	d := &Dialog{Platform: tgPlatform, ID: chatID}
 	if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
 		d.MemberCount = fc.ParticipantsCount
+		if fc.LinkedChatID != 0 {
+			d.LinkedChatId = strconv.Itoa(int(fc.LinkedChatID))
+		}
 	}
 	for _, c := range result.Chats {
 		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {

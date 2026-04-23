@@ -233,6 +233,24 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UnblockUser(req.AccountId, req.UserId)
 
+	case "ReportSpam":
+		var req pb.EngineLeaveChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.ReportSpam(req.AccountId, req.ChatId)
+
+	case "GetLinkedChatId":
+		var req pb.EngineLeaveChatRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		id, err := e.GetLinkedChatId(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		return []byte(id), nil
+
 	case "AddContact":
 		var req pb.EngineAddContactRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

@@ -215,6 +215,22 @@ class EngineService {
     await _callAsync('__engine', 'UnblockUser', req.writeToBuffer());
   }
 
+  Future<void> reportSpam(String accountId, String chatId) async {
+    final req = epb.EngineLeaveChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    await _callAsync('__engine', 'ReportSpam', req.writeToBuffer());
+  }
+
+  Future<String> getLinkedChatId(String accountId, String chatId) async {
+    final req = epb.EngineLeaveChatRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    final respBytes = await _callAsync('__engine', 'GetLinkedChatId', req.writeToBuffer());
+    if (respBytes == null || respBytes.isEmpty) return '';
+    return String.fromCharCodes(respBytes);
+  }
+
   Future<void> addContact(String accountId, String phone, String firstName, String lastName) async {
     final req = epb.EngineAddContactRequest()
       ..accountId = accountId

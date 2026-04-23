@@ -27,6 +27,7 @@ class ChatState extends ChangeNotifier {
   GroupCallInfo? _activeGroupCall; // active group call in current chat
   int _scheduledCount = 0;
   bool _isScheduledView = false;
+  String _linkedChatId = '';
 
   // ── Archive state ──
   bool _hasArchivedChats = false;
@@ -161,6 +162,7 @@ class ChatState extends ChangeNotifier {
 
   int get scheduledCount => _scheduledCount;
   bool get isScheduledView => _isScheduledView;
+  String get linkedChatId => _linkedChatId;
 
   void toggleScheduledView() {
     _isScheduledView = !_isScheduledView;
@@ -406,11 +408,15 @@ class ChatState extends ChangeNotifier {
     _activeGroupCall = null;
     _scheduledCount = 0;
     _isScheduledView = false;
+    _linkedChatId = '';
     _loadScheduledCount(chat.accountId, chat.chatId);
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
       _loadMemberAvatars(chat.accountId, chat.chatId);
       _loadOnlineCount(chat.accountId, chat.chatId);
       _loadGroupCall(chat.accountId, chat.chatId);
+      if (chat.type == ChatType.channel) {
+        _loadLinkedChatId(chat.accountId, chat.chatId);
+      }
     } else {
       _senderAvatars.clear();
     }
@@ -674,6 +680,11 @@ class ChatState extends ChangeNotifier {
     loadChats();
   }
 
+  Future<void> reportSpam(String accountId, String chatId) async {
+    await _engine.reportSpam(accountId, chatId);
+    loadChats();
+  }
+
   Future<void> addContact(String accountId, String phone, String firstName, String lastName) async {
     await _engine.addContact(accountId, phone, firstName, lastName);
     loadChats();
@@ -814,6 +825,18 @@ class ChatState extends ChangeNotifier {
       }
     } catch (_) {
       _scheduledCount = 0;
+    }
+  }
+
+  Future<void> _loadLinkedChatId(String accountId, String chatId) async {
+    try {
+      final id = await _engine.getLinkedChatId(accountId, chatId);
+      if (_activeChat?.chatId == chatId) {
+        _linkedChatId = id;
+        notifyListeners();
+      }
+    } catch (_) {
+      _linkedChatId = '';
     }
   }
 

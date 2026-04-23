@@ -373,7 +373,6 @@
 
 ### §7.12 Fallback Compose Buttons
 
-- [ ] Start bot / Discuss / Report spam button: 46px height, textTop 14px — spec §7.1. Not implemented
 - [ ] Contact status button: 49px height variant — spec §7.1. Not implemented
 # GUI Checklist — §8 through §13: Panels, Overlays, Auth, Calls, Responsive
 # Consolidated from gui.md micro-items into per-widget/per-feature tasks.

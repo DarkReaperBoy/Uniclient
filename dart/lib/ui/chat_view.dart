@@ -1161,6 +1161,10 @@ class _ChatViewState extends State<ChatView>
     _scrollToBottom();
   }
 
+  void _sendStartBot(ChatState chatState) {
+    chatState.sendMessage('/start');
+  }
+
   Future<void> _uploadFiles(ChatState chatState, List<String> paths) async {
     final chat = chatState.activeChat;
     final result = await showSendFilesBox(
@@ -1756,12 +1760,31 @@ class _ChatViewState extends State<ChatView>
               onPick: _pickInlineResult,
               loading: _inlineBotLoading,
             ),
-          // Compose area — or fallback button when blocked.
+          // Compose area — or fallback buttons for blocked/bot/channel/spam.
           if (chat.isBlocked)
             _FallbackComposeButton(
               label: chat.isBot ? 'RESTART' : 'UNBLOCK',
               color: const Color(0xFFdf3f40),
               onTap: () => chatState.unblockUser(chat.accountId, chat.chatId),
+            )
+          else if (chat.isBot && chat.type == ChatType.dm && chat.lastMsgId.isEmpty)
+            _FallbackComposeButton(
+              label: 'START',
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF6ab3f3) : const Color(0xFF168acd),
+              onTap: () => _sendStartBot(chatState),
+            )
+          else if ((chat.isScam || chat.isFake) && chat.type == ChatType.dm)
+            _FallbackComposeButton(
+              label: 'REPORT SPAM',
+              color: const Color(0xFFdf3f40),
+              onTap: () => chatState.reportSpam(chat.accountId, chat.chatId),
+            )
+          else if (chat.type == ChatType.channel)
+            _ChannelComposeBar(
+              chat: chat,
+              chatState: chatState,
+              linkedChatId: chatState.linkedChatId,
             )
           else
             _ComposeArea(
@@ -3832,6 +3855,56 @@ class _FallbackComposeButtonState extends State<_FallbackComposeButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Spec §7.1: Channel compose bar with MUTE/UNMUTE + DISCUSS buttons.
+/// Replaces the normal compose area for broadcast channels where users can't post.
+class _ChannelComposeBar extends StatelessWidget {
+  final ChatInfo chat;
+  final ChatState chatState;
+  final String linkedChatId;
+
+  const _ChannelComposeBar({
+    required this.chat,
+    required this.chatState,
+    required this.linkedChatId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accentColor = isDark
+        ? const Color(0xFF6ab3f3)
+        : const Color(0xFF168acd);
+
+    if (linkedChatId.isNotEmpty) {
+      return Row(
+        children: [
+          Expanded(
+            child: _FallbackComposeButton(
+              label: chat.isMuted ? 'UNMUTE' : 'MUTE',
+              color: accentColor,
+              onTap: () => chatState.muteChat(
+                  chat.accountId, chat.chatId, !chat.isMuted),
+            ),
+          ),
+          Expanded(
+            child: _FallbackComposeButton(
+              label: 'DISCUSS',
+              color: accentColor,
+              onTap: () => chatState.openChatById(linkedChatId),
+            ),
+          ),
+        ],
+      );
+    }
+    return _FallbackComposeButton(
+      label: chat.isMuted ? 'UNMUTE' : 'MUTE',
+      color: accentColor,
+      onTap: () =>
+          chatState.muteChat(chat.accountId, chat.chatId, !chat.isMuted),
     );
   }
 }
