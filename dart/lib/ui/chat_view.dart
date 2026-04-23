@@ -170,6 +170,12 @@ class _ChatViewState extends State<ChatView>
   bool _webPreviewCancelled = false;
   String _lastPreviewUrl = '';
   Timer? _previewDebounce;
+  AutocompleteQuery? _acQuery;
+  List<MemberInfo> _acMembers = [];
+  List<MemberInfo> _acFilteredMembers = [];
+  int _acSelectedIndex = 0;
+  bool _acMembersLoaded = false;
+  String? _acMembersChatId;
 
   @override
   void initState() {
@@ -323,6 +329,9 @@ class _ChatViewState extends State<ChatView>
             _searchResultIndex = -1;
             _activeSearchQuery = '';
             _pinnedBarDismissed = false;
+            _acQuery = null;
+            _acFilteredMembers = [];
+            _acMembersLoaded = false;
           });
         });
       }
@@ -815,6 +824,100 @@ class _ChatViewState extends State<ChatView>
       _webPreview = null;
       _webPreviewCancelled = true;
     });
+  }
+
+  void _onAutocompleteQuery(AutocompleteQuery? query) {
+    if (query == null) {
+      if (_acQuery != null) setState(() => _acQuery = null);
+      return;
+    }
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+
+    if (query.type == AutocompleteType.mention) {
+      _ensureMembersLoaded(chat.accountId, chat.chatId);
+      final q = query.query.toLowerCase();
+      final filtered = _acMembers.where((m) {
+        if (q.isEmpty) return true;
+        return m.displayName.toLowerCase().contains(q) ||
+            m.username.toLowerCase().contains(q);
+      }).toList();
+      setState(() {
+        _acQuery = query;
+        _acFilteredMembers = filtered;
+        _acSelectedIndex = 0;
+      });
+    } else {
+      setState(() {
+        _acQuery = query;
+        _acFilteredMembers = [];
+        _acSelectedIndex = 0;
+      });
+    }
+  }
+
+  void _ensureMembersLoaded(String accountId, String chatId) {
+    if (_acMembersLoaded && _acMembersChatId == chatId) return;
+    _acMembersChatId = chatId;
+    _acMembersLoaded = true;
+    final engine = context.read<EngineService>();
+    engine.getChatMembers(accountId, chatId, limit: 200).then((members) {
+      if (mounted && _acMembersChatId == chatId) {
+        _acMembers = members;
+        if (_acQuery?.type == AutocompleteType.mention) {
+          _onAutocompleteQuery(_acQuery);
+        }
+      }
+    }).catchError((_) {});
+  }
+
+  void _acMoveUp() {
+    if (_acFilteredMembers.isEmpty) return;
+    setState(() {
+      _acSelectedIndex = (_acSelectedIndex - 1).clamp(0, _acFilteredMembers.length - 1);
+    });
+  }
+
+  void _acMoveDown() {
+    if (_acFilteredMembers.isEmpty) return;
+    setState(() {
+      _acSelectedIndex = (_acSelectedIndex + 1).clamp(0, _acFilteredMembers.length - 1);
+    });
+  }
+
+  void _acPick() {
+    if (_acQuery == null) return;
+    if (_acQuery!.type == AutocompleteType.mention && _acSelectedIndex < _acFilteredMembers.length) {
+      final member = _acFilteredMembers[_acSelectedIndex];
+      _insertAutocomplete(member.username.isNotEmpty ? '@${member.username} ' : '@${member.displayName} ');
+    }
+  }
+
+  void _acPickIndex(int index) {
+    if (_acQuery?.type == AutocompleteType.mention && index < _acFilteredMembers.length) {
+      final member = _acFilteredMembers[index];
+      _insertAutocomplete(member.username.isNotEmpty ? '@${member.username} ' : '@${member.displayName} ');
+    }
+  }
+
+  void _insertAutocomplete(String replacement) {
+    final q = _acQuery;
+    if (q == null) return;
+    final text = _composeController.text;
+    final sel = _composeController.selection;
+    if (!sel.isValid || !sel.isCollapsed) return;
+    final cursor = sel.baseOffset;
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'(?:^|(?<=\s))([@#/])(\S*)$').firstMatch(before);
+    if (match == null) return;
+    final triggerStart = match.start + match.group(0)!.indexOf(match.group(1)!);
+    final newText = text.substring(0, triggerStart) + replacement + text.substring(cursor);
+    _composeController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: triggerStart + replacement.length),
+    );
+    setState(() => _acQuery = null);
   }
 
   void _copySelected(ChatState chatState) {
@@ -1467,6 +1570,13 @@ class _ChatViewState extends State<ChatView>
               preview: _webPreview!,
               onCancel: _cancelWebPreview,
             ),
+          if (_acQuery != null && _acQuery!.type == AutocompleteType.mention && _acFilteredMembers.isNotEmpty)
+            _AutocompletePanel(
+              members: _acFilteredMembers,
+              selectedIndex: _acSelectedIndex,
+              onPick: _acPickIndex,
+              onHover: (i) => setState(() => _acSelectedIndex = i),
+            ),
           // Compose area.
           _ComposeArea(
             controller: _composeController,
@@ -1491,6 +1601,11 @@ class _ChatViewState extends State<ChatView>
               _onLinksChanged(links, chatState);
             },
             onFilesSelected: (paths) => _uploadFiles(chatState, paths),
+            onAutocompleteQuery: _onAutocompleteQuery,
+            autocompleteActive: _acQuery != null && _acFilteredMembers.isNotEmpty,
+            onAutocompleteUp: _acMoveUp,
+            onAutocompleteDown: _acMoveDown,
+            onAutocompletePick: _acPick,
           ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
@@ -4730,6 +4845,15 @@ final _kEmoticonsSorted = () {
 /// Up arrow with empty field → edit last outgoing message (spec §24.7).
 enum SendButtonType { send, schedule, save, record, round, cancel, slowmode, editPrice }
 
+enum AutocompleteType { mention, hashtag, command }
+
+class AutocompleteQuery {
+  final AutocompleteType type;
+  final String query;
+  final int triggerOffset;
+  const AutocompleteQuery(this.type, this.query, this.triggerOffset);
+}
+
 class _ComposeArea extends StatefulWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -4755,6 +4879,11 @@ class _ComposeArea extends StatefulWidget {
   final int slowmodeSeconds;
   final int slowmodeNextSendDate;
   final int starsToSend;
+  final ValueChanged<AutocompleteQuery?>? onAutocompleteQuery;
+  final bool autocompleteActive;
+  final VoidCallback? onAutocompleteUp;
+  final VoidCallback? onAutocompleteDown;
+  final VoidCallback? onAutocompletePick;
 
   const _ComposeArea({
     required this.controller,
@@ -4776,6 +4905,11 @@ class _ComposeArea extends StatefulWidget {
     this.slowmodeSeconds = 0,
     this.slowmodeNextSendDate = 0,
     this.starsToSend = 0,
+    this.onAutocompleteQuery,
+    this.autocompleteActive = false,
+    this.onAutocompleteUp,
+    this.onAutocompleteDown,
+    this.onAutocompletePick,
   });
 
   @override
@@ -5007,6 +5141,26 @@ class _ComposeAreaState extends State<_ComposeArea>
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+    if (widget.autocompleteActive) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+        widget.onAutocompleteUp?.call();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+        widget.onAutocompleteDown?.call();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.enter ||
+          event.logicalKey == LogicalKeyboardKey.tab) {
+        widget.onAutocompletePick?.call();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        _dismissAutocomplete();
+        return KeyEventResult.handled;
+      }
+    }
+
     final ctrl = HardwareKeyboard.instance.isControlPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
     final richCtrl = widget.controller is RichTextEditingController
@@ -5092,6 +5246,54 @@ class _ComposeAreaState extends State<_ComposeArea>
     final text = widget.controller.text;
     widget.onDraftChanged(text);
     _scheduleLinkParse(text);
+    _checkAutocomplete();
+  }
+
+  AutocompleteQuery? _lastAcQuery;
+
+  void _checkAutocomplete() {
+    final sel = widget.controller.selection;
+    if (!sel.isValid || !sel.isCollapsed) {
+      _dismissAutocomplete();
+      return;
+    }
+    final text = widget.controller.text;
+    final cursor = sel.baseOffset;
+    if (cursor <= 0 || cursor > text.length) {
+      _dismissAutocomplete();
+      return;
+    }
+    final before = text.substring(0, cursor);
+    final match = RegExp(r'(?:^|(?<=\s))([@#/])(\S*)$').firstMatch(before);
+    if (match == null) {
+      _dismissAutocomplete();
+      return;
+    }
+    final trigger = match.group(1)!;
+    final query = match.group(2)!;
+    final triggerOffset = match.start + (match.group(0)!.length - 1 - query.length - 1);
+    final type = switch (trigger) {
+      '@' => AutocompleteType.mention,
+      '#' => AutocompleteType.hashtag,
+      '/' => AutocompleteType.command,
+      _ => null,
+    };
+    if (type == null) {
+      _dismissAutocomplete();
+      return;
+    }
+    final acQ = AutocompleteQuery(type, query, match.start + (match.group(0)!.indexOf(trigger)));
+    if (_lastAcQuery?.type != acQ.type || _lastAcQuery?.query != acQ.query) {
+      _lastAcQuery = acQ;
+      widget.onAutocompleteQuery?.call(acQ);
+    }
+  }
+
+  void _dismissAutocomplete() {
+    if (_lastAcQuery != null) {
+      _lastAcQuery = null;
+      widget.onAutocompleteQuery?.call(null);
+    }
   }
 
   void _scheduleLinkParse(String text) {
@@ -6645,6 +6847,108 @@ class _DragCard extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AutocompletePanel extends StatelessWidget {
+  final List<MemberInfo> members;
+  final int selectedIndex;
+  final ValueChanged<int> onPick;
+  final ValueChanged<int> onHover;
+
+  const _AutocompletePanel({
+    required this.members,
+    required this.selectedIndex,
+    required this.onPick,
+    required this.onHover,
+  });
+
+  static const _colorRemap = [0, 7, 4, 1, 6, 3, 5];
+  static const _userpicPalette = [
+    Color(0xFFe17076), Color(0xFF7bc862), Color(0xFFe5ca77), Color(0xFF65aadd),
+    Color(0xFFa695e7), Color(0xFFee7aae), Color(0xFF6ec9cb), Color(0xFFe8a64e),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
+    final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+    final borderColor = theme.dividerColor;
+
+    return TextFieldTapRegion(
+      child: Container(
+      constraints: const BoxConstraints(maxHeight: 180),
+      decoration: BoxDecoration(
+        color: bgColor,
+        border: Border(
+          top: BorderSide(color: borderColor, width: 1),
+        ),
+      ),
+      child: ListView.builder(
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        itemCount: members.length,
+        itemBuilder: (context, index) {
+          final m = members[index];
+          final isSelected = index == selectedIndex;
+          final numId = int.tryParse(m.userId) ?? m.userId.hashCode.abs();
+          final avatarColor = _userpicPalette[_colorRemap[numId.abs() % 7]];
+          return MouseRegion(
+            onEnter: (_) => onHover(index),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onPick(index),
+              child: Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                color: isSelected ? hoverColor : null,
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16.5,
+                      backgroundColor: m.avatarB64.isNotEmpty ? null : avatarColor,
+                      backgroundImage: m.avatarB64.isNotEmpty
+                          ? MemoryImage(base64Decode(m.avatarB64))
+                          : null,
+                      child: m.avatarB64.isEmpty
+                          ? Text(
+                              m.displayName.isNotEmpty ? m.displayName[0].toUpperCase() : '?',
+                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        m.displayName.isNotEmpty ? m.displayName : m.userId,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (m.username.isNotEmpty)
+                      Text(
+                        '@${m.username}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? const Color(0xFF5b7a93) : const Color(0xFF999999),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
       ),
     );
   }

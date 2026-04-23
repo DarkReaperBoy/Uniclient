@@ -366,7 +366,6 @@
 
 ### §7.10 Autocomplete
 
-- [ ] @mentions, #hashtags, /commands autocomplete panel above compose — spec §7. Not implemented
 - [ ] Inline bot results panel — spec §7. Not implemented
 - [ ] Emoji suggestions while typing :emoji_name — spec §7. Not implemented
 
