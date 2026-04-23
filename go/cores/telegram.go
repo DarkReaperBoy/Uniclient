@@ -11899,8 +11899,27 @@ func (t *TelegramCore) GetParticipants(chatID string, limit int) ([]User, error)
 	if err != nil { return nil, err }
 	cp, ok := result.(*tg.ChannelsChannelParticipants); if !ok { return nil, nil }
 	t.cacheEntities(cp.Users, cp.Chats)
+	roles := make(map[int64]string, len(cp.Participants))
+	for _, p := range cp.Participants {
+		switch pt := p.(type) {
+		case *tg.ChannelParticipantCreator:
+			roles[pt.UserID] = "creator"
+			t.setAdminRank(ch.ChannelID, pt.UserID, "owner")
+		case *tg.ChannelParticipantAdmin:
+			roles[pt.UserID] = "admin"
+			t.setAdminRank(ch.ChannelID, pt.UserID, "admin")
+		}
+	}
 	var users []User
-	for _, u := range cp.Users { if user, ok := u.(*tg.User); ok { users = append(users, *t.convertUser(user)) } }
+	for _, u := range cp.Users {
+		if user, ok := u.(*tg.User); ok {
+			cu := t.convertUser(user)
+			if r, ok := roles[user.ID]; ok {
+				cu.Role = r
+			}
+			users = append(users, *cu)
+		}
+	}
 	return users, nil
 }
 
@@ -17756,10 +17775,27 @@ func (t *TelegramCore) GetMembers(chatID string, opts PaginationOpts) ([]User, e
 		return nil, fullErr
 	}
 	t.cacheEntities(result.Users, result.Chats)
+	roles := make(map[int64]string)
+	if fc, ok := result.FullChat.(*tg.ChatFull); ok {
+		if cp, ok := fc.Participants.(*tg.ChatParticipants); ok {
+			for _, p := range cp.Participants {
+				switch pt := p.(type) {
+				case *tg.ChatParticipantCreator:
+					roles[pt.UserID] = "creator"
+				case *tg.ChatParticipantAdmin:
+					roles[pt.UserID] = "admin"
+				}
+			}
+		}
+	}
 	var members []User
 	for _, u := range result.Users {
 		if user, ok := u.(*tg.User); ok {
-			members = append(members, *t.convertUser(user))
+			cu := t.convertUser(user)
+			if r, ok := roles[user.ID]; ok {
+				cu.Role = r
+			}
+			members = append(members, *cu)
 		}
 	}
 	return members, nil

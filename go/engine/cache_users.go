@@ -137,6 +137,10 @@ func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]
 	members := make([]MemberInfo, 0, len(users))
 	for _, u := range users {
 		e.UpsertUser(accountID, u)
+		role := u.Role
+		if role == "" {
+			role = "member"
+		}
 		members = append(members, MemberInfo{
 			UserID:      u.ID,
 			Username:    u.Username,
@@ -144,7 +148,7 @@ func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]
 			AvatarB64:   u.AvatarB64,
 			IsBot:       u.IsBot,
 			IsOnline:    u.IsOnline,
-			Role:        "member", // default; cores can set this via Platform field
+			Role:        role,
 		})
 	}
 	return members, nil

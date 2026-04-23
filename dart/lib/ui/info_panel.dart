@@ -1990,6 +1990,10 @@ class _MemberRow extends StatelessWidget {
       statusText = 'last seen recently';
     }
 
+    final String? tagText = hasAdminTag
+        ? (member.role == 'owner' || member.role == 'creator' ? 'owner' : 'admin')
+        : null;
+
     Widget row = SizedBox(
       height: 52,
       child: Padding(
@@ -2045,39 +2049,38 @@ class _MemberRow extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            statusText,
-                            style: TextStyle(fontSize: 13, color: statusColor),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        if (hasAdminTag)
-                          Container(
-                            margin: const EdgeInsets.only(left: 5, right: 5),
-                            padding: const EdgeInsets.only(left: 5, top: 0, right: 5, bottom: 1),
-                            decoration: BoxDecoration(
-                              color: theme.colorScheme.primary.withAlpha(25),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              member.role == 'owner' || member.role == 'creator' ? 'owner' : 'admin',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ),
-                      ],
+                    Text(
+                      statusText,
+                      style: TextStyle(fontSize: 13, color: statusColor),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
             ),
+            if (tagText != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 18),
+                child: Transform.translate(
+                  offset: const Offset(0, -1),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(5, 0, 5, 0),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withAlpha(25),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      tagText,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
