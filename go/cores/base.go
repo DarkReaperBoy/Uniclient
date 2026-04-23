@@ -289,6 +289,22 @@ type WebPagePreviewResult struct {
 	ThumbB64    string `json:"thumb_b64"`
 }
 
+type StarGiftItem struct {
+	ID          int64  `json:"id"`
+	Stars       int64  `json:"stars"`
+	Title       string `json:"title,omitempty"`
+	Limited     bool   `json:"limited,omitempty"`
+	SoldOut     bool   `json:"sold_out,omitempty"`
+	Birthday    bool   `json:"birthday,omitempty"`
+	Remaining   int    `json:"remaining,omitempty"`
+	Total       int    `json:"total,omitempty"`
+	ThumbB64    string `json:"thumb_b64,omitempty"`
+}
+
+type StarGiftsResult struct {
+	Gifts []StarGiftItem `json:"gifts"`
+}
+
 // ReadState tracks the last-read message positions for the current user and peers.
 type ReadState struct {
 	MyLastRead   string            `json:"my_last_read"`

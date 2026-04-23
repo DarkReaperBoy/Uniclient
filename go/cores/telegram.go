@@ -11517,6 +11517,50 @@ func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHa
 	return res, nil
 }
 
+// GetStarGifts returns the list of available star gifts for purchase.
+func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	result, err := t.api.PaymentsGetStarGifts(t.ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("get star gifts: %w", err)
+	}
+	sg, ok := result.(*tg.PaymentsStarGifts)
+	if !ok {
+		return &StarGiftsResult{}, nil
+	}
+
+	res := &StarGiftsResult{}
+	for _, g := range sg.Gifts {
+		gift, ok := g.(*tg.StarGift)
+		if !ok {
+			continue
+		}
+		if gift.SoldOut {
+			continue
+		}
+		item := StarGiftItem{
+			ID:    gift.ID,
+			Stars: gift.Stars,
+		}
+		item.Limited = gift.Limited
+		item.Birthday = gift.Birthday
+		if gift.Limited {
+			item.Remaining, _ = gift.GetAvailabilityRemains()
+			item.Total, _ = gift.GetAvailabilityTotal()
+		}
+		if doc, ok := gift.Sticker.(*tg.Document); ok {
+			item.ThumbB64 = extractStrippedThumbB64(doc.Thumbs)
+		}
+		res.Gifts = append(res.Gifts, item)
+	}
+	return res, nil
+}
+
 // DeleteFolder deletes a dialog filter/folder by ID.
 func (t *TelegramCore) DeleteFolder(filterID int) error {
 	t.mu.RLock()

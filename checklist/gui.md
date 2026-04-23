@@ -370,7 +370,6 @@
 
 ### §7.11 Additional Controls
 
-- [ ] Gift button (historyGiftToUser) when canSendGift — spec §7.2. Not implemented
 
 ### §7.12 Fallback Compose Buttons
 

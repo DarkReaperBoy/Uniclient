@@ -664,6 +664,21 @@ class EngineService {
     }
   }
 
+  Future<StarGiftsResult?> getStarGifts(String accountId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetStarGifts', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return StarGiftsResult.fromJson(data);
+    } catch (e) {
+      Debug.error('ENGINE', 'getStarGifts failed', e);
+      return null;
+    }
+  }
+
   Future<String?> resolveUsername(String accountId, String username) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,

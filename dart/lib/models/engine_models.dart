@@ -1489,3 +1489,51 @@ class InlineBotResults {
     );
   }
 }
+
+class StarGiftItem {
+  final int id;
+  final int stars;
+  final String title;
+  final bool limited;
+  final bool soldOut;
+  final bool birthday;
+  final int remaining;
+  final int total;
+  final String thumbB64;
+
+  const StarGiftItem({
+    this.id = 0,
+    this.stars = 0,
+    this.title = '',
+    this.limited = false,
+    this.soldOut = false,
+    this.birthday = false,
+    this.remaining = 0,
+    this.total = 0,
+    this.thumbB64 = '',
+  });
+
+  factory StarGiftItem.fromJson(Map<String, dynamic> json) => StarGiftItem(
+    id: json['id'] as int? ?? 0,
+    stars: json['stars'] as int? ?? 0,
+    title: json['title'] as String? ?? '',
+    limited: json['limited'] as bool? ?? false,
+    soldOut: json['sold_out'] as bool? ?? false,
+    birthday: json['birthday'] as bool? ?? false,
+    remaining: json['remaining'] as int? ?? 0,
+    total: json['total'] as int? ?? 0,
+    thumbB64: json['thumb_b64'] as String? ?? '',
+  );
+}
+
+class StarGiftsResult {
+  final List<StarGiftItem> gifts;
+
+  const StarGiftsResult({this.gifts = const []});
+
+  factory StarGiftsResult.fromJson(Map<String, dynamic> json) => StarGiftsResult(
+    gifts: (json['gifts'] as List<dynamic>?)
+        ?.map((e) => StarGiftItem.fromJson(e as Map<String, dynamic>))
+        .toList() ?? [],
+  );
+}

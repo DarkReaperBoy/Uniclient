@@ -982,6 +982,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetStarGifts":
+		var params struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetStarGifts(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

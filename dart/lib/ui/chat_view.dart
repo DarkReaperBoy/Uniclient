@@ -5372,6 +5372,24 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
   }
 
+  void _showGiftSheet(BuildContext ctx) {
+    final chatState = ctx.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = ctx.read<EngineService>();
+    showModalBottomSheet<void>(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _StarGiftSheet(
+        accountId: chat.accountId,
+        chatId: chat.chatId,
+        peerName: chat.title,
+        engine: engine,
+      ),
+    );
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -5919,6 +5937,14 @@ class _ComposeAreaState extends State<_ComposeArea>
                   ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
                 }
               },
+            ),
+          if (!widget.isBot && widget.chatType == ChatType.dm && !widget.isSelfChat)
+            _ComposeSlotButton(
+              icon: Icons.card_giftcard,
+              tooltip: 'Send a Gift',
+              iconColor: iconFg,
+              hoverColor: iconFgOver,
+              onPressed: () => _showGiftSheet(context),
             ),
           _ComposeSlotButton(
             icon: Icons.emoji_emotions_outlined,
@@ -8024,5 +8050,184 @@ class _ListResultItemState extends State<_ListResultItem> {
       'document' || 'file' => Icon(Icons.insert_drive_file_outlined, size: 24, color: iconColor),
       _ => Icon(Icons.article_outlined, size: 24, color: iconColor),
     };
+  }
+}
+
+/// Star gift bottom sheet — fetches available gifts and displays in a grid.
+class _StarGiftSheet extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final String peerName;
+  final EngineService engine;
+
+  const _StarGiftSheet({
+    required this.accountId,
+    required this.chatId,
+    required this.peerName,
+    required this.engine,
+  });
+
+  @override
+  State<_StarGiftSheet> createState() => _StarGiftSheetState();
+}
+
+class _StarGiftSheetState extends State<_StarGiftSheet> {
+  List<StarGiftItem>? _gifts;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGifts();
+  }
+
+  Future<void> _loadGifts() async {
+    final result = await widget.engine.getStarGifts(widget.accountId);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (result == null || result.gifts.isEmpty) {
+        _error = 'No gifts available';
+      } else {
+        _gifts = result.gifts;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
+    return DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.85,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF3e546a) : const Color(0xFFcccccc),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                child: Text(
+                  'Send a Gift to ${widget.peerName}',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              Expanded(child: _buildContent(scrollController, isDark, textColor)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildContent(ScrollController controller, bool isDark, Color textColor) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(_error!, style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 14)),
+        ),
+      );
+    }
+    final gifts = _gifts!;
+    return GridView.builder(
+      controller: controller,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.85,
+      ),
+      itemCount: gifts.length,
+      itemBuilder: (context, index) {
+        final gift = gifts[index];
+        return _StarGiftCard(gift: gift, isDark: isDark);
+      },
+    );
+  }
+}
+
+class _StarGiftCard extends StatelessWidget {
+  final StarGiftItem gift;
+  final bool isDark;
+
+  const _StarGiftCard({required this.gift, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFF5F5F5);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (gift.thumbB64.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.memory(
+                base64Decode(gift.thumbB64),
+                width: 64,
+                height: 64,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+              ),
+            )
+          else
+            Icon(Icons.card_giftcard, size: 48, color: subColor),
+          const SizedBox(height: 6),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.star, size: 14, color: Color(0xFFFFAB00)),
+              const SizedBox(width: 2),
+              Text(
+                '${gift.stars}',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: textColor),
+              ),
+            ],
+          ),
+          if (gift.limited)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '${gift.remaining} left',
+                style: TextStyle(fontSize: 10, color: subColor),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }

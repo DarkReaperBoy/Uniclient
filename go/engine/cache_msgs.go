@@ -863,6 +863,25 @@ func (e *Engine) TranscribeAudio(accountID, chatID, msgID string) (bool, int64, 
 	return transcriber.TranscribeAudio(chatID, msgID)
 }
 
+type StarGiftsFetcher interface {
+	GetStarGifts() (*cores.StarGiftsResult, error)
+}
+
+func (e *Engine) GetStarGifts(accountID string) (*cores.StarGiftsResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(StarGiftsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support star gifts")
+	}
+	return fetcher.GetStarGifts()
+}
+
 type AttachMenuBotsFetcher interface {
 	GetAttachMenuBots() ([]cores.AttachMenuBotInfo, error)
 }
