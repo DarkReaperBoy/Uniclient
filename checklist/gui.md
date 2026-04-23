@@ -408,7 +408,6 @@
 ### §8.4 Members List
 <!-- File: dart/lib/ui/info_panel.dart — _MembersSection / _MemberRow -->
 - [x] Members section rendered with avatar, name, and online/role status — spec §8.4 — DONE (basic) in info_panel.dart
-- [ ] Members header: 56px height; Add Member button (38x38 circle ripple); Search button (38x38) — spec §8.4
 - [ ] Admin/Creator pill badges: "owner" / "admin" pill, margins(5,-1,5,0); right-action area shows pill OR remove-cross — spec §8.4
 - [ ] Member row context menu: View Profile, Send Message, Promote, Demote, Restrict, Remove, Ban, Copy Username/ID — spec §8.4
 - [ ] Flat list sorted online-first then alpha; no online/offline divider; stories ring on avatar — spec §8.4

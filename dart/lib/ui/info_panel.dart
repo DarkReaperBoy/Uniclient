@@ -1854,6 +1854,41 @@ class _SharedMediaRow extends StatelessWidget {
   }
 }
 
+class _MembersHeaderButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _MembersHeaderButton({
+    required this.icon,
+    required this.tooltip,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: SizedBox(
+        width: 38,
+        height: 38,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            customBorder: const CircleBorder(),
+            onTap: onTap,
+            child: Center(
+              child: Icon(icon, size: 20, color: color),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MembersSection extends StatelessWidget {
   final List<MemberInfo>? members;
   final bool loading;
@@ -1877,7 +1912,7 @@ class _MembersSection extends StatelessWidget {
         SizedBox(
           height: 56,
           child: Padding(
-            padding: const EdgeInsets.only(left: 18, right: 8),
+            padding: const EdgeInsets.only(left: 18, right: 12),
             child: Row(
               children: [
                 Expanded(
@@ -1889,25 +1924,17 @@ class _MembersSection extends StatelessWidget {
                     ),
                   ),
                 ),
-                SizedBox(
-                  width: 38,
-                  height: 38,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: Icon(Icons.search, size: 20, color: theme.textTheme.bodyMedium?.color),
-                    onPressed: () {},
-                    splashRadius: 19,
-                  ),
+                _MembersHeaderButton(
+                  icon: Icons.search,
+                  tooltip: 'Search members',
+                  color: theme.textTheme.bodyMedium?.color ?? theme.iconTheme.color!,
+                  onTap: () {},
                 ),
-                SizedBox(
-                  width: 38,
-                  height: 38,
-                  child: IconButton(
-                    padding: EdgeInsets.zero,
-                    icon: Icon(Icons.person_add_outlined, size: 20, color: theme.textTheme.bodyMedium?.color),
-                    onPressed: () {},
-                    splashRadius: 19,
-                  ),
+                _MembersHeaderButton(
+                  icon: Icons.person_add_outlined,
+                  tooltip: 'Add member',
+                  color: theme.textTheme.bodyMedium?.color ?? theme.iconTheme.color!,
+                  onTap: () {},
                 ),
               ],
             ),
