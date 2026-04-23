@@ -1627,6 +1627,9 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   ];
 
   static const _gridTypes = {'photo', 'video', 'stories'};
+  static const _masonryTypes = {'gif'};
+  static const _listTypes = {'file', 'audio', 'link', 'voice'};
+  static const _expandableTypes = {'photo', 'video', 'stories', 'gif', 'file', 'audio', 'link', 'voice'};
 
   static const _subTabSets = <String, List<(String, String)>>{
     'stories': [('archive', 'Archive'), ('recent', 'Recent')],
@@ -1660,6 +1663,11 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     'photo': 'image',
     'video': 'video',
     'stories': 'stories',
+    'file': 'file',
+    'audio': 'audio',
+    'voice': 'voice',
+    'gif': 'gif',
+    'link': 'link',
   };
 
   void _loadGridItems(String type) {
@@ -1746,17 +1754,31 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
               accentColor: accentColor,
               theme: widget.theme,
               expanded: _expandedGridType == type,
-              onTap: _gridTypes.contains(type)
+              onTap: _expandableTypes.contains(type)
                   ? () => _toggleGrid(type)
                   : null,
             ),
             if (_expandedGridType == type)
-              _MediaGrid(
-                items: _gridItems,
-                loading: _gridLoading,
-                theme: widget.theme,
-                mediaType: type,
-              ),
+              if (_gridTypes.contains(type))
+                _MediaGrid(
+                  items: _gridItems,
+                  loading: _gridLoading,
+                  theme: widget.theme,
+                  mediaType: type,
+                )
+              else if (_masonryTypes.contains(type))
+                _GifMasonryGrid(
+                  items: _gridItems,
+                  loading: _gridLoading,
+                  theme: widget.theme,
+                )
+              else
+                _MediaListView(
+                  items: _gridItems,
+                  loading: _gridLoading,
+                  theme: widget.theme,
+                  mediaType: type,
+                ),
           ],
         ],
       ),
@@ -2103,6 +2125,543 @@ class _MediaGrid extends StatelessWidget {
     '', 'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December',
   ][month];
+}
+
+class _GifMasonryGrid extends StatelessWidget {
+  final List<SharedMediaItem>? items;
+  final bool loading;
+  final ThemeData theme;
+
+  static const _skip = 2.0;
+  static const _sidePadding = 3.0;
+  static const _rowTargetHeight = 100.0;
+
+  const _GifMasonryGrid({
+    required this.items,
+    required this.loading,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: SizedBox(
+          width: 24, height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        )),
+      );
+    }
+    final mediaItems = items;
+    if (mediaItems == null || mediaItems.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            'No GIFs',
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.textTheme.bodySmall?.color ?? Colors.grey,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final grouped = _MediaGrid._groupByMonth(mediaItems);
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final availWidth = constraints.maxWidth - 2 * _sidePadding;
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final entry in grouped.entries) ...[
+              _DateHeader(label: entry.key, theme: theme),
+              _buildMasonryRows(entry.value, availWidth),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildMasonryRows(List<SharedMediaItem> items, double availWidth) {
+    final rows = <Widget>[];
+    var i = 0;
+    while (i < items.length) {
+      double totalAR = 0;
+      int count = 0;
+      while (i + count < items.length) {
+        final item = items[i + count];
+        final ar = (item.width > 0 && item.height > 0)
+            ? item.width / item.height
+            : 1.0;
+        final newAR = totalAR + ar;
+        final rowHeight = (availWidth - count * _skip) / newAR;
+        count++;
+        totalAR = newAR;
+        if (rowHeight <= _rowTargetHeight && count > 1) break;
+      }
+      final rowItems = items.sublist(i, i + count);
+      final rowHeight = math.min(
+        _rowTargetHeight,
+        (availWidth - (count - 1) * _skip) / totalAR,
+      );
+      rows.add(Padding(
+        padding: EdgeInsets.only(bottom: i + count < items.length ? _skip : 0),
+        child: SizedBox(
+          height: rowHeight,
+          child: Row(
+            children: [
+              for (var j = 0; j < rowItems.length; j++) ...[
+                if (j > 0) const SizedBox(width: _skip),
+                _buildGifCell(rowItems[j], rowHeight),
+              ],
+            ],
+          ),
+        ),
+      ));
+      i += count;
+    }
+    return Column(children: rows);
+  }
+
+  Widget _buildGifCell(SharedMediaItem item, double rowHeight) {
+    final ar = (item.width > 0 && item.height > 0)
+        ? item.width / item.height
+        : 1.0;
+    final cellWidth = rowHeight * ar;
+    final isDark = theme.brightness == Brightness.dark;
+    final placeholderColor = isDark
+        ? const Color(0xFF2b3945)
+        : const Color(0xFFe0e0e0);
+
+    Widget content;
+    if (item.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _GridCell._decodeThumb(item.thumbB64);
+        if (_GridCell._isValidImage(bytes)) {
+          content = Image.memory(
+            bytes,
+            width: cellWidth,
+            height: rowHeight,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => Container(color: placeholderColor),
+          );
+        } else {
+          content = Container(color: placeholderColor);
+        }
+      } catch (_) {
+        content = Container(color: placeholderColor);
+      }
+    } else {
+      content = Container(
+        color: placeholderColor,
+        child: Center(child: Icon(Icons.gif, size: 24, color: placeholderColor.withValues(alpha: 0.6))),
+      );
+    }
+
+    return SizedBox(
+      width: cellWidth,
+      height: rowHeight,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(child: content),
+          Positioned(
+            left: 4, bottom: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: const Text('GIF', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MediaListView extends StatelessWidget {
+  final List<SharedMediaItem>? items;
+  final bool loading;
+  final ThemeData theme;
+  final String mediaType;
+
+  const _MediaListView({
+    required this.items,
+    required this.loading,
+    required this.theme,
+    required this.mediaType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: SizedBox(
+          width: 24, height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        )),
+      );
+    }
+    final mediaItems = items;
+    if (mediaItems == null || mediaItems.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            'No ${_emptyLabel()}',
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.textTheme.bodySmall?.color ?? Colors.grey,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final grouped = _MediaGrid._groupByMonth(mediaItems);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final entry in grouped.entries) ...[
+            _DateHeader(label: entry.key, theme: theme),
+            for (final item in entry.value)
+              _buildListItem(item),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _emptyLabel() {
+    switch (mediaType) {
+      case 'file': return 'files';
+      case 'audio': return 'music';
+      case 'voice': return 'voice messages';
+      case 'link': return 'links';
+      default: return 'items';
+    }
+  }
+
+  Widget _buildListItem(SharedMediaItem item) {
+    switch (mediaType) {
+      case 'file': return _FileListItem(item: item, theme: theme);
+      case 'audio': return _AudioListItem(item: item, theme: theme);
+      case 'voice': return _VoiceListItem(item: item, theme: theme);
+      case 'link': return _LinkListItem(item: item, theme: theme);
+      default: return _FileListItem(item: item, theme: theme);
+    }
+  }
+}
+
+class _FileListItem extends StatelessWidget {
+  final SharedMediaItem item;
+  final ThemeData theme;
+
+  const _FileListItem({required this.item, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final ext = _extractExtension(item.fileName);
+    final extColor = _extensionColor(ext);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: extColor.withValues(alpha: isDark ? 0.25 : 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(
+                ext.isNotEmpty ? ext.toUpperCase() : '?',
+                style: TextStyle(
+                  fontSize: ext.length > 3 ? 9 : 11,
+                  fontWeight: FontWeight.w700,
+                  color: extColor,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.fileName.isNotEmpty ? item.fileName : 'Unknown file',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.fileSizeLabel,
+                  style: TextStyle(fontSize: 12, color: subtitleColor),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _extractExtension(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot < 0 || dot == fileName.length - 1) return '';
+    return fileName.substring(dot + 1).toLowerCase();
+  }
+
+  static Color _extensionColor(String ext) {
+    switch (ext) {
+      case 'pdf': return const Color(0xFFe74c3c);
+      case 'doc': case 'docx': return const Color(0xFF3498db);
+      case 'xls': case 'xlsx': return const Color(0xFF27ae60);
+      case 'ppt': case 'pptx': return const Color(0xFFe67e22);
+      case 'zip': case 'rar': case '7z': case 'tar': case 'gz':
+        return const Color(0xFF9b59b6);
+      case 'apk': return const Color(0xFF2ecc71);
+      case 'txt': case 'log': return const Color(0xFF95a5a6);
+      default: return const Color(0xFF40a7e3);
+    }
+  }
+}
+
+class _AudioListItem extends StatelessWidget {
+  final SharedMediaItem item;
+  final ThemeData theme;
+
+  const _AudioListItem({required this.item, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
+    final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
+    String title = item.fileName;
+    String artist = '';
+    if (title.isEmpty) title = 'Unknown track';
+    final dashIdx = title.indexOf(' - ');
+    if (dashIdx > 0) {
+      artist = title.substring(0, dashIdx).trim();
+      title = title.substring(dashIdx + 3).trim();
+    }
+    final dotIdx = title.lastIndexOf('.');
+    if (dotIdx > 0) title = title.substring(0, dotIdx);
+
+    final durationStr = _formatDuration(item.duration);
+    final sizeStr = item.fileSizeLabel;
+    final statusParts = <String>[if (durationStr.isNotEmpty) durationStr, if (sizeStr.isNotEmpty) sizeStr];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: accentColor,
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Icon(Icons.play_arrow, color: Colors.white, size: 22),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                ),
+                if (artist.isNotEmpty || statusParts.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    [if (artist.isNotEmpty) artist, ...statusParts].join(' \u00b7 '),
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 12, color: subtitleColor),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDuration(int seconds) {
+    if (seconds <= 0) return '';
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+class _VoiceListItem extends StatelessWidget {
+  final SharedMediaItem item;
+  final ThemeData theme;
+
+  const _VoiceListItem({required this.item, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
+    final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final waveColor = isDark ? const Color(0xFFd4dee6) : const Color(0xFFa0c4e0);
+
+    final durationStr = _formatDuration(item.duration);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: accentColor,
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Icon(Icons.play_arrow, color: Colors.white, size: 22),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  height: 20,
+                  child: CustomPaint(
+                    size: const Size(double.infinity, 20),
+                    painter: _MiniWaveformPainter(color: waveColor),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  durationStr.isNotEmpty ? durationStr : '0:00',
+                  style: TextStyle(fontSize: 12, color: subtitleColor),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _formatDuration(int seconds) {
+    if (seconds <= 0) return '';
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+}
+
+class _MiniWaveformPainter extends CustomPainter {
+  final Color color;
+  _MiniWaveformPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 2;
+    final barCount = (size.width / 3).floor();
+    final rng = 42;
+    for (var i = 0; i < barCount; i++) {
+      final x = i * 3.0 + 1;
+      final h = 3.0 + (((i * rng + 17) % 13) / 12.0) * (size.height - 6);
+      final top = (size.height - h) / 2;
+      canvas.drawLine(Offset(x, top), Offset(x, top + h), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _LinkListItem extends StatelessWidget {
+  final SharedMediaItem item;
+  final ThemeData theme;
+
+  const _LinkListItem({required this.item, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF40a7e3);
+    final subtitleColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
+    final url = item.fileName.isNotEmpty ? item.fileName : 'Link';
+    String domain = url;
+    final schemeEnd = url.indexOf('://');
+    if (schemeEnd > 0) domain = url.substring(schemeEnd + 3);
+    final slashIdx = domain.indexOf('/');
+    if (slashIdx > 0) domain = domain.substring(0, slashIdx);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          Container(
+            width: 44, height: 44,
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: isDark ? 0.25 : 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Icon(Icons.link, size: 22, color: accentColor),
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  domain,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  url,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: subtitleColor),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _DateHeader extends StatelessWidget {
