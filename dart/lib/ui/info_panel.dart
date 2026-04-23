@@ -1085,6 +1085,8 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   memberCount: widget.chat.memberCount,
                   theme: widget.theme,
                   onMemberTap: widget.onMemberTap,
+                  accountId: widget.chat.accountId,
+                  chatId: widget.chat.chatId,
                 ),
               ],
               const SizedBox(height: 16),
@@ -1895,12 +1897,16 @@ class _MembersSection extends StatelessWidget {
   final int memberCount;
   final ThemeData theme;
   final void Function(MemberInfo)? onMemberTap;
+  final String accountId;
+  final String chatId;
 
   const _MembersSection({
     required this.members,
     required this.loading,
     required this.memberCount,
     required this.theme,
+    required this.accountId,
+    required this.chatId,
     this.onMemberTap,
   });
 
@@ -1946,7 +1952,13 @@ class _MembersSection extends StatelessWidget {
             child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           ))
         else if (members != null && members!.isNotEmpty)
-          ...members!.map((m) => _MemberRow(member: m, theme: theme, onTap: onMemberTap != null ? () => onMemberTap!(m) : null))
+          ...members!.map((m) => _MemberRow(
+            member: m,
+            theme: theme,
+            onTap: onMemberTap != null ? () => onMemberTap!(m) : null,
+            accountId: accountId,
+            chatId: chatId,
+          ))
         else
           Padding(
             padding: const EdgeInsets.only(left: 18, top: 8, bottom: 8),
@@ -1964,8 +1976,16 @@ class _MemberRow extends StatelessWidget {
   final MemberInfo member;
   final ThemeData theme;
   final VoidCallback? onTap;
+  final String accountId;
+  final String chatId;
 
-  const _MemberRow({required this.member, required this.theme, this.onTap});
+  const _MemberRow({
+    required this.member,
+    required this.theme,
+    required this.accountId,
+    required this.chatId,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2086,9 +2106,176 @@ class _MemberRow extends StatelessWidget {
       ),
     );
 
-    return InkWell(
-      onTap: onTap,
-      child: row,
+    return GestureDetector(
+      onSecondaryTapDown: (details) {
+        _showContextMenu(context, details.globalPosition);
+      },
+      child: InkWell(
+        onTap: onTap,
+        child: row,
+      ),
     );
+  }
+
+  void _showContextMenu(BuildContext context, Offset position) {
+    final engine = context.read<EngineService>();
+    final isDark = theme.brightness == Brightness.dark;
+    final isOwnerOrCreator = member.role == 'owner' || member.role == 'creator';
+    final isAdmin = member.role == 'admin';
+    final attentionColor = isDark ? const Color(0xFFe85050) : const Color(0xFFdd4b39);
+    final iconColor = isDark ? const Color(0xFF8b9fad) : const Color(0xFF999999);
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx, position.dy, position.dx, position.dy,
+      ),
+      items: [
+        PopupMenuItem<String>(
+          value: 'view_profile',
+          child: Row(children: [
+            Icon(Icons.person_outline, size: 20, color: iconColor),
+            const SizedBox(width: 12),
+            const Text('View Profile'),
+          ]),
+        ),
+        PopupMenuItem<String>(
+          value: 'send_message',
+          child: Row(children: [
+            Icon(Icons.chat_bubble_outline, size: 20, color: iconColor),
+            const SizedBox(width: 12),
+            const Text('Send Message'),
+          ]),
+        ),
+        if (member.username.isNotEmpty)
+          PopupMenuItem<String>(
+            value: 'copy_username',
+            child: Row(children: [
+              Icon(Icons.alternate_email, size: 20, color: iconColor),
+              const SizedBox(width: 12),
+              const Text('Copy Username'),
+            ]),
+          ),
+        PopupMenuItem<String>(
+          value: 'copy_id',
+          child: Row(children: [
+            Icon(Icons.tag, size: 20, color: iconColor),
+            const SizedBox(width: 12),
+            const Text('Copy ID'),
+          ]),
+        ),
+        if (!isAdmin && !isOwnerOrCreator)
+          PopupMenuItem<String>(
+            value: 'promote',
+            child: Row(children: [
+              Icon(Icons.arrow_upward, size: 20, color: iconColor),
+              const SizedBox(width: 12),
+              const Text('Promote'),
+            ]),
+          ),
+        if (isAdmin && !isOwnerOrCreator)
+          PopupMenuItem<String>(
+            value: 'demote',
+            child: Row(children: [
+              Icon(Icons.arrow_downward, size: 20, color: iconColor),
+              const SizedBox(width: 12),
+              const Text('Demote'),
+            ]),
+          ),
+        if (!isOwnerOrCreator) ...[
+          PopupMenuItem<String>(
+            value: 'restrict',
+            child: Row(children: [
+              Icon(Icons.voice_over_off, size: 20, color: iconColor),
+              const SizedBox(width: 12),
+              const Text('Restrict'),
+            ]),
+          ),
+          PopupMenuItem<String>(
+            value: 'remove',
+            child: Row(children: [
+              Icon(Icons.person_remove_outlined, size: 20, color: attentionColor),
+              const SizedBox(width: 12),
+              Text('Remove', style: TextStyle(color: attentionColor)),
+            ]),
+          ),
+          PopupMenuItem<String>(
+            value: 'ban',
+            child: Row(children: [
+              Icon(Icons.block, size: 20, color: attentionColor),
+              const SizedBox(width: 12),
+              Text('Ban', style: TextStyle(color: attentionColor)),
+            ]),
+          ),
+        ],
+      ],
+    ).then((value) {
+      if (value == null) return;
+      switch (value) {
+        case 'view_profile':
+          onTap?.call();
+        case 'send_message':
+          final chatState = context.read<ChatState>();
+          chatState.openChat(ChatInfo(
+            accountId: accountId,
+            chatId: member.userId,
+            title: member.displayName.isNotEmpty ? member.displayName : member.username,
+            type: ChatType.dm,
+          ));
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        case 'copy_username':
+          Clipboard.setData(ClipboardData(text: '@${member.username}'));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Username copied'), duration: Duration(seconds: 2)),
+          );
+        case 'copy_id':
+          Clipboard.setData(ClipboardData(text: member.userId));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('ID copied'), duration: Duration(seconds: 2)),
+          );
+        case 'promote':
+          engine.promoteAdmin(accountId, chatId, member.userId).catchError((e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to promote: $e')),
+              );
+            }
+          });
+        case 'demote':
+          engine.demoteAdmin(accountId, chatId, member.userId).catchError((e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to demote: $e')),
+              );
+            }
+          });
+        case 'restrict':
+          engine.restrictMember(accountId, chatId, member.userId).catchError((e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to restrict: $e')),
+              );
+            }
+          });
+        case 'remove':
+          engine.removeMember(accountId, chatId, member.userId).catchError((e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to remove: $e')),
+              );
+            }
+          });
+        case 'ban':
+          engine.banMember(accountId, chatId, member.userId).catchError((e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to ban: $e')),
+              );
+            }
+          });
+      }
+    });
   }
 }

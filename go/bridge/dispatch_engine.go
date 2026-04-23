@@ -233,6 +233,41 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.UnblockUser(req.AccountId, req.UserId)
 
+	case "BanMember":
+		var req pb.EngineBanMemberRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.BanMember(req.AccountId, req.ChatId, req.UserId)
+
+	case "RemoveMember":
+		var req pb.EngineRemoveMemberRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.RemoveMember(req.AccountId, req.ChatId, req.UserId)
+
+	case "DemoteAdmin":
+		var req pb.EngineDemoteAdminRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.DemoteAdmin(req.AccountId, req.ChatId, req.UserId)
+
+	case "PromoteAdmin":
+		var req pb.EnginePromoteAdminRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.PromoteAdmin(req.AccountId, req.ChatId, req.UserId)
+
+	case "RestrictMember":
+		var req pb.EngineRestrictMemberRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.RestrictMember(req.AccountId, req.ChatId, req.UserId)
+
 	case "ReportSpam":
 		var req pb.EngineLeaveChatRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

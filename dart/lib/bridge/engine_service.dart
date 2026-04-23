@@ -215,6 +215,46 @@ class EngineService {
     await _callAsync('__engine', 'UnblockUser', req.writeToBuffer());
   }
 
+  Future<void> banMember(String accountId, String chatId, String userId) async {
+    final req = epb.EngineBanMemberRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..userId = userId;
+    await _callAsync('__engine', 'BanMember', req.writeToBuffer());
+  }
+
+  Future<void> removeMember(String accountId, String chatId, String userId) async {
+    final req = epb.EngineRemoveMemberRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..userId = userId;
+    await _callAsync('__engine', 'RemoveMember', req.writeToBuffer());
+  }
+
+  Future<void> demoteAdmin(String accountId, String chatId, String userId) async {
+    final req = epb.EngineDemoteAdminRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..userId = userId;
+    await _callAsync('__engine', 'DemoteAdmin', req.writeToBuffer());
+  }
+
+  Future<void> promoteAdmin(String accountId, String chatId, String userId) async {
+    final req = epb.EnginePromoteAdminRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..userId = userId;
+    await _callAsync('__engine', 'PromoteAdmin', req.writeToBuffer());
+  }
+
+  Future<void> restrictMember(String accountId, String chatId, String userId) async {
+    final req = epb.EngineRestrictMemberRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..userId = userId;
+    await _callAsync('__engine', 'RestrictMember', req.writeToBuffer());
+  }
+
   Future<void> reportSpam(String accountId, String chatId) async {
     final req = epb.EngineLeaveChatRequest()
       ..accountId = accountId

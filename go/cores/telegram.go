@@ -11335,9 +11335,34 @@ func (t *TelegramCore) PromoteAdmin(chatID, userID string, rights tg.ChatAdminRi
 	return err
 }
 
+// PromoteToAdmin promotes a user to admin with default rights.
+func (t *TelegramCore) PromoteToAdmin(chatID, userID string) error {
+	return t.PromoteAdmin(chatID, userID, tg.ChatAdminRights{
+		ChangeInfo:     true,
+		DeleteMessages: true,
+		BanUsers:       true,
+		InviteUsers:    true,
+		PinMessages:    true,
+		ManageCall:     true,
+	})
+}
+
 // DemoteAdmin removes admin rights from a user.
 func (t *TelegramCore) DemoteAdmin(chatID, userID string) error {
 	return t.PromoteAdmin(chatID, userID, tg.ChatAdminRights{})
+}
+
+// RestrictMember restricts a user from sending messages (until_date=0 means forever).
+func (t *TelegramCore) RestrictMember(chatID, userID string) error {
+	return t.RestrictUser(chatID, userID, tg.ChatBannedRights{
+		SendMessages: true,
+		SendMedia:    true,
+		SendStickers: true,
+		SendGifs:     true,
+		SendGames:    true,
+		SendInline:   true,
+		SendPolls:    true,
+	})
 }
 
 // RestrictUser restricts a user in a channel/supergroup.

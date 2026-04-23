@@ -286,6 +286,64 @@ func (e *Engine) UnblockUser(accountID, userID string) error {
 	return nil
 }
 
+func (e *Engine) BanMember(accountID, chatID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	return acc.Core.BanMember(chatID, userID)
+}
+
+func (e *Engine) RemoveMember(accountID, chatID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	return acc.Core.RemoveMember(chatID, userID)
+}
+
+func (e *Engine) DemoteAdmin(accountID, chatID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type demotable interface {
+		DemoteAdmin(chatID, userID string) error
+	}
+	if d, ok := acc.Core.(demotable); ok {
+		return d.DemoteAdmin(chatID, userID)
+	}
+	return fmt.Errorf("platform does not support DemoteAdmin")
+}
+
+func (e *Engine) PromoteAdmin(accountID, chatID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type promotable interface {
+		PromoteToAdmin(chatID, userID string) error
+	}
+	if p, ok := acc.Core.(promotable); ok {
+		return p.PromoteToAdmin(chatID, userID)
+	}
+	return fmt.Errorf("platform does not support PromoteAdmin")
+}
+
+func (e *Engine) RestrictMember(accountID, chatID, userID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	type restrictable interface {
+		RestrictMember(chatID, userID string) error
+	}
+	if r, ok := acc.Core.(restrictable); ok {
+		return r.RestrictMember(chatID, userID)
+	}
+	return fmt.Errorf("platform does not support RestrictMember")
+}
+
 // ReportSpam reports a chat as spam via the core and blocks the sender.
 func (e *Engine) ReportSpam(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)

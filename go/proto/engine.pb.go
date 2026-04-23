@@ -7199,6 +7199,306 @@ func (x *EngineSaveDefaultSendAsResponse) GetOk() bool {
 	return false
 }
 
+type EngineBanMemberRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineBanMemberRequest) Reset() {
+	*x = EngineBanMemberRequest{}
+	mi := &file_proto_engine_proto_msgTypes[111]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineBanMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineBanMemberRequest) ProtoMessage() {}
+
+func (x *EngineBanMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[111]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineBanMemberRequest.ProtoReflect.Descriptor instead.
+func (*EngineBanMemberRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{111}
+}
+
+func (x *EngineBanMemberRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineBanMemberRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineBanMemberRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type EngineRemoveMemberRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineRemoveMemberRequest) Reset() {
+	*x = EngineRemoveMemberRequest{}
+	mi := &file_proto_engine_proto_msgTypes[112]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineRemoveMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineRemoveMemberRequest) ProtoMessage() {}
+
+func (x *EngineRemoveMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[112]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineRemoveMemberRequest.ProtoReflect.Descriptor instead.
+func (*EngineRemoveMemberRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{112}
+}
+
+func (x *EngineRemoveMemberRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineRemoveMemberRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineRemoveMemberRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type EngineDemoteAdminRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineDemoteAdminRequest) Reset() {
+	*x = EngineDemoteAdminRequest{}
+	mi := &file_proto_engine_proto_msgTypes[113]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineDemoteAdminRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineDemoteAdminRequest) ProtoMessage() {}
+
+func (x *EngineDemoteAdminRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[113]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineDemoteAdminRequest.ProtoReflect.Descriptor instead.
+func (*EngineDemoteAdminRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{113}
+}
+
+func (x *EngineDemoteAdminRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineDemoteAdminRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineDemoteAdminRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type EnginePromoteAdminRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnginePromoteAdminRequest) Reset() {
+	*x = EnginePromoteAdminRequest{}
+	mi := &file_proto_engine_proto_msgTypes[114]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnginePromoteAdminRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnginePromoteAdminRequest) ProtoMessage() {}
+
+func (x *EnginePromoteAdminRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[114]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnginePromoteAdminRequest.ProtoReflect.Descriptor instead.
+func (*EnginePromoteAdminRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{114}
+}
+
+func (x *EnginePromoteAdminRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EnginePromoteAdminRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EnginePromoteAdminRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+type EngineRestrictMemberRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	UserId        string                 `protobuf:"bytes,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineRestrictMemberRequest) Reset() {
+	*x = EngineRestrictMemberRequest{}
+	mi := &file_proto_engine_proto_msgTypes[115]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineRestrictMemberRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineRestrictMemberRequest) ProtoMessage() {}
+
+func (x *EngineRestrictMemberRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[115]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineRestrictMemberRequest.ProtoReflect.Descriptor instead.
+func (*EngineRestrictMemberRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{115}
+}
+
+func (x *EngineRestrictMemberRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineRestrictMemberRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineRestrictMemberRequest) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -7834,7 +8134,32 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
 	"\apeer_id\x18\x03 \x01(\tR\x06peerId\"1\n" +
 	"\x1fEngineSaveDefaultSendAsResponse\x12\x0e\n" +
-	"\x02ok\x18\x01 \x01(\bR\x02okB\x11Z\x0funiclient/protob\x06proto3"
+	"\x02ok\x18\x01 \x01(\bR\x02ok\"i\n" +
+	"\x16EngineBanMemberRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"l\n" +
+	"\x19EngineRemoveMemberRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"k\n" +
+	"\x18EngineDemoteAdminRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"l\n" +
+	"\x19EnginePromoteAdminRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"n\n" +
+	"\x1bEngineRestrictMemberRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\tR\x06userIdB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -7848,7 +8173,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 111)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 116)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                        // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                        // 1: uniclient.AccountInfo
@@ -7961,6 +8286,11 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetSendAsResponse)(nil),            // 108: uniclient.EngineGetSendAsResponse
 	(*EngineSaveDefaultSendAsRequest)(nil),     // 109: uniclient.EngineSaveDefaultSendAsRequest
 	(*EngineSaveDefaultSendAsResponse)(nil),    // 110: uniclient.EngineSaveDefaultSendAsResponse
+	(*EngineBanMemberRequest)(nil),             // 111: uniclient.EngineBanMemberRequest
+	(*EngineRemoveMemberRequest)(nil),          // 112: uniclient.EngineRemoveMemberRequest
+	(*EngineDemoteAdminRequest)(nil),           // 113: uniclient.EngineDemoteAdminRequest
+	(*EnginePromoteAdminRequest)(nil),          // 114: uniclient.EnginePromoteAdminRequest
+	(*EngineRestrictMemberRequest)(nil),        // 115: uniclient.EngineRestrictMemberRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -8003,7 +8333,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   111,
+			NumMessages:   116,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -857,3 +857,33 @@ message EngineSaveDefaultSendAsRequest {
 message EngineSaveDefaultSendAsResponse {
   bool ok = 1;
 }
+
+message EngineBanMemberRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string user_id    = 3;
+}
+
+message EngineRemoveMemberRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string user_id    = 3;
+}
+
+message EngineDemoteAdminRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string user_id    = 3;
+}
+
+message EnginePromoteAdminRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string user_id    = 3;
+}
+
+message EngineRestrictMemberRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string user_id    = 3;
+}

@@ -9121,5 +9121,290 @@ class EngineSaveDefaultSendAsResponse extends $pb.GeneratedMessage {
   void clearOk() => clearField(1);
 }
 
+class EngineBanMemberRequest extends $pb.GeneratedMessage {
+  factory EngineBanMemberRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (userId != null) $result.userId = userId;
+    return $result;
+  }
+  EngineBanMemberRequest._() : super();
+  factory EngineBanMemberRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineBanMemberRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineBanMemberRequest clone() => EngineBanMemberRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineBanMemberRequest copyWith(void Function(EngineBanMemberRequest) updates) => super.copyWith((message) => updates(message as EngineBanMemberRequest)) as EngineBanMemberRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineBanMemberRequest create() => EngineBanMemberRequest._();
+  EngineBanMemberRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineBanMemberRequest> createRepeated() => $pb.PbList<EngineBanMemberRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineBanMemberRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineBanMemberRequest>(create);
+  static EngineBanMemberRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+
+  @$pb.TagNumber(3)
+  $core.String get userId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set userId($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasUserId() => $_has(2);
+}
+
+class EngineRemoveMemberRequest extends $pb.GeneratedMessage {
+  factory EngineRemoveMemberRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (userId != null) $result.userId = userId;
+    return $result;
+  }
+  EngineRemoveMemberRequest._() : super();
+  factory EngineRemoveMemberRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineRemoveMemberRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineRemoveMemberRequest clone() => EngineRemoveMemberRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineRemoveMemberRequest copyWith(void Function(EngineRemoveMemberRequest) updates) => super.copyWith((message) => updates(message as EngineRemoveMemberRequest)) as EngineRemoveMemberRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineRemoveMemberRequest create() => EngineRemoveMemberRequest._();
+  EngineRemoveMemberRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineRemoveMemberRequest> createRepeated() => $pb.PbList<EngineRemoveMemberRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineRemoveMemberRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineRemoveMemberRequest>(create);
+  static EngineRemoveMemberRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+
+  @$pb.TagNumber(3)
+  $core.String get userId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set userId($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasUserId() => $_has(2);
+}
+
+class EngineDemoteAdminRequest extends $pb.GeneratedMessage {
+  factory EngineDemoteAdminRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (userId != null) $result.userId = userId;
+    return $result;
+  }
+  EngineDemoteAdminRequest._() : super();
+  factory EngineDemoteAdminRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineDemoteAdminRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineDemoteAdminRequest clone() => EngineDemoteAdminRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineDemoteAdminRequest copyWith(void Function(EngineDemoteAdminRequest) updates) => super.copyWith((message) => updates(message as EngineDemoteAdminRequest)) as EngineDemoteAdminRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineDemoteAdminRequest create() => EngineDemoteAdminRequest._();
+  EngineDemoteAdminRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineDemoteAdminRequest> createRepeated() => $pb.PbList<EngineDemoteAdminRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineDemoteAdminRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineDemoteAdminRequest>(create);
+  static EngineDemoteAdminRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+
+  @$pb.TagNumber(3)
+  $core.String get userId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set userId($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasUserId() => $_has(2);
+}
+
+class EnginePromoteAdminRequest extends $pb.GeneratedMessage {
+  factory EnginePromoteAdminRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (userId != null) $result.userId = userId;
+    return $result;
+  }
+  EnginePromoteAdminRequest._() : super();
+  factory EnginePromoteAdminRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EnginePromoteAdminRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EnginePromoteAdminRequest clone() => EnginePromoteAdminRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EnginePromoteAdminRequest copyWith(void Function(EnginePromoteAdminRequest) updates) => super.copyWith((message) => updates(message as EnginePromoteAdminRequest)) as EnginePromoteAdminRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EnginePromoteAdminRequest create() => EnginePromoteAdminRequest._();
+  EnginePromoteAdminRequest createEmptyInstance() => create();
+  static $pb.PbList<EnginePromoteAdminRequest> createRepeated() => $pb.PbList<EnginePromoteAdminRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EnginePromoteAdminRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EnginePromoteAdminRequest>(create);
+  static EnginePromoteAdminRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+
+  @$pb.TagNumber(3)
+  $core.String get userId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set userId($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasUserId() => $_has(2);
+}
+
+class EngineRestrictMemberRequest extends $pb.GeneratedMessage {
+  factory EngineRestrictMemberRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? userId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (userId != null) $result.userId = userId;
+    return $result;
+  }
+  EngineRestrictMemberRequest._() : super();
+  factory EngineRestrictMemberRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineRestrictMemberRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'userId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineRestrictMemberRequest clone() => EngineRestrictMemberRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineRestrictMemberRequest copyWith(void Function(EngineRestrictMemberRequest) updates) => super.copyWith((message) => updates(message as EngineRestrictMemberRequest)) as EngineRestrictMemberRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineRestrictMemberRequest create() => EngineRestrictMemberRequest._();
+  EngineRestrictMemberRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineRestrictMemberRequest> createRepeated() => $pb.PbList<EngineRestrictMemberRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineRestrictMemberRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineRestrictMemberRequest>(create);
+  static EngineRestrictMemberRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+
+  @$pb.TagNumber(3)
+  $core.String get userId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set userId($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasUserId() => $_has(2);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');
