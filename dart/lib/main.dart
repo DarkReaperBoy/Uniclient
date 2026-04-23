@@ -813,6 +813,18 @@ class _UniClientAppState extends State<UniClientApp>
         // pattern as Ctrl+F above, and it matches what the real Up binding
         // ends up calling anyway.
         ChatView.requestEditLastOutgoing();
+      case 'tab':
+        final ts = Duration(milliseconds: DateTime.now().millisecondsSinceEpoch);
+        HardwareKeyboard.instance.handleKeyEvent(KeyDownEvent(
+          physicalKey: PhysicalKeyboardKey.tab,
+          logicalKey: LogicalKeyboardKey.tab,
+          timeStamp: ts,
+        ));
+        HardwareKeyboard.instance.handleKeyEvent(KeyUpEvent(
+          physicalKey: PhysicalKeyboardKey.tab,
+          logicalKey: LogicalKeyboardKey.tab,
+          timeStamp: ts,
+        ));
     }
   }
 

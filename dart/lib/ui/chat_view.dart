@@ -16,6 +16,7 @@ import '../models/engine_models.dart';
 import '../state/app_state.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
+import '../data/emoji_data.dart';
 import 'chat_list_row.dart' show ForwardDragData;
 import 'message_bubble.dart';
 import 'send_files_box.dart';
@@ -174,6 +175,7 @@ class _ChatViewState extends State<ChatView>
   AutocompleteQuery? _acQuery;
   List<MemberInfo> _acMembers = [];
   List<MemberInfo> _acFilteredMembers = [];
+  List<EmojiEntry> _acFilteredEmojis = [];
   int _acSelectedIndex = 0;
   bool _acMembersLoaded = false;
   String? _acMembersChatId;
@@ -838,7 +840,7 @@ class _ChatViewState extends State<ChatView>
 
   void _onAutocompleteQuery(AutocompleteQuery? query) {
     if (query == null) {
-      if (_acQuery != null) setState(() => _acQuery = null);
+      if (_acQuery != null) setState(() { _acQuery = null; _acFilteredEmojis = []; });
       return;
     }
     final chatState = context.read<ChatState>();
@@ -856,12 +858,22 @@ class _ChatViewState extends State<ChatView>
       setState(() {
         _acQuery = query;
         _acFilteredMembers = filtered;
+        _acFilteredEmojis = [];
+        _acSelectedIndex = 0;
+      });
+    } else if (query.type == AutocompleteType.emoji) {
+      final results = searchEmoji(query.query, limit: 30);
+      setState(() {
+        _acQuery = query;
+        _acFilteredMembers = [];
+        _acFilteredEmojis = results;
         _acSelectedIndex = 0;
       });
     } else {
       setState(() {
         _acQuery = query;
         _acFilteredMembers = [];
+        _acFilteredEmojis = [];
         _acSelectedIndex = 0;
       });
     }
@@ -882,22 +894,31 @@ class _ChatViewState extends State<ChatView>
     }).catchError((_) {});
   }
 
+  int get _acItemCount {
+    if (_acQuery?.type == AutocompleteType.emoji) return _acFilteredEmojis.length;
+    return _acFilteredMembers.length;
+  }
+
   void _acMoveUp() {
-    if (_acFilteredMembers.isEmpty) return;
+    if (_acItemCount == 0) return;
     setState(() {
-      _acSelectedIndex = (_acSelectedIndex - 1).clamp(0, _acFilteredMembers.length - 1);
+      _acSelectedIndex = (_acSelectedIndex - 1).clamp(0, _acItemCount - 1);
     });
   }
 
   void _acMoveDown() {
-    if (_acFilteredMembers.isEmpty) return;
+    if (_acItemCount == 0) return;
     setState(() {
-      _acSelectedIndex = (_acSelectedIndex + 1).clamp(0, _acFilteredMembers.length - 1);
+      _acSelectedIndex = (_acSelectedIndex + 1).clamp(0, _acItemCount - 1);
     });
   }
 
   void _acPick() {
     if (_acQuery == null) return;
+    if (_acQuery!.type == AutocompleteType.emoji && _acSelectedIndex < _acFilteredEmojis.length) {
+      _insertAutocomplete(_acFilteredEmojis[_acSelectedIndex].emoji);
+      return;
+    }
     if (_acQuery!.type == AutocompleteType.mention && _acSelectedIndex < _acFilteredMembers.length) {
       final member = _acFilteredMembers[_acSelectedIndex];
       _insertAutocomplete(member.username.isNotEmpty ? '@${member.username} ' : '@${member.displayName} ');
@@ -905,6 +926,10 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _acPickIndex(int index) {
+    if (_acQuery?.type == AutocompleteType.emoji && index < _acFilteredEmojis.length) {
+      _insertAutocomplete(_acFilteredEmojis[index].emoji);
+      return;
+    }
     if (_acQuery?.type == AutocompleteType.mention && index < _acFilteredMembers.length) {
       final member = _acFilteredMembers[index];
       _insertAutocomplete(member.username.isNotEmpty ? '@${member.username} ' : '@${member.displayName} ');
@@ -919,15 +944,22 @@ class _ChatViewState extends State<ChatView>
     if (!sel.isValid || !sel.isCollapsed) return;
     final cursor = sel.baseOffset;
     final before = text.substring(0, cursor);
-    final match = RegExp(r'(?:^|(?<=\s))([@#/])(\S*)$').firstMatch(before);
+    final RegExpMatch? match;
+    if (q.type == AutocompleteType.emoji) {
+      match = RegExp(r'(?:^|(?<=\s)):(\w+)$').firstMatch(before);
+    } else {
+      match = RegExp(r'(?:^|(?<=\s))([@#/])(\S*)$').firstMatch(before);
+    }
     if (match == null) return;
-    final triggerStart = match.start + match.group(0)!.indexOf(match.group(1)!);
+    final triggerStart = q.type == AutocompleteType.emoji
+        ? match.start + match.group(0)!.indexOf(':')
+        : match.start + match.group(0)!.indexOf(match.group(1)!);
     final newText = text.substring(0, triggerStart) + replacement + text.substring(cursor);
     _composeController.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(offset: triggerStart + replacement.length),
     );
-    setState(() => _acQuery = null);
+    setState(() { _acQuery = null; _acFilteredEmojis = []; });
   }
 
   static final _inlineBotRegex = RegExp(r'^@([a-zA-Z][a-zA-Z0-9_]{2,}[bB]ot)\s(.*)$', dotAll: true);
@@ -1678,6 +1710,13 @@ class _ChatViewState extends State<ChatView>
               onPick: _acPickIndex,
               onHover: (i) => setState(() => _acSelectedIndex = i),
             ),
+          if (_acQuery != null && _acQuery!.type == AutocompleteType.emoji && _acFilteredEmojis.isNotEmpty)
+            _EmojiSuggestionPanel(
+              emojis: _acFilteredEmojis,
+              selectedIndex: _acSelectedIndex,
+              onPick: _acPickIndex,
+              onHover: (i) => setState(() => _acSelectedIndex = i),
+            ),
           if (_inlineBotResults != null && _inlineBotResults!.results.isNotEmpty)
             _InlineBotResultsPanel(
               results: _inlineBotResults!,
@@ -1713,7 +1752,7 @@ class _ChatViewState extends State<ChatView>
             },
             onFilesSelected: (paths) => _uploadFiles(chatState, paths),
             onAutocompleteQuery: _onAutocompleteQuery,
-            autocompleteActive: _acQuery != null && _acFilteredMembers.isNotEmpty,
+            autocompleteActive: _acQuery != null && (_acFilteredMembers.isNotEmpty || _acFilteredEmojis.isNotEmpty),
             onAutocompleteUp: _acMoveUp,
             onAutocompleteDown: _acMoveDown,
             onAutocompletePick: _acPick,
@@ -4956,7 +4995,7 @@ final _kEmoticonsSorted = () {
 /// Up arrow with empty field → edit last outgoing message (spec §24.7).
 enum SendButtonType { send, schedule, save, record, round, cancel, slowmode, editPrice }
 
-enum AutocompleteType { mention, hashtag, command }
+enum AutocompleteType { mention, hashtag, command, emoji }
 
 class AutocompleteQuery {
   final AutocompleteType type;
@@ -5375,6 +5414,19 @@ class _ComposeAreaState extends State<_ComposeArea>
       return;
     }
     final before = text.substring(0, cursor);
+
+    final emojiMatch = RegExp(r'(?:^|(?<=\s)):(\w{2,})$').firstMatch(before);
+    if (emojiMatch != null) {
+      final query = emojiMatch.group(1)!;
+      final triggerOffset = emojiMatch.start + emojiMatch.group(0)!.indexOf(':');
+      final acQ = AutocompleteQuery(AutocompleteType.emoji, query, triggerOffset);
+      if (_lastAcQuery?.type != acQ.type || _lastAcQuery?.query != acQ.query) {
+        _lastAcQuery = acQ;
+        widget.onAutocompleteQuery?.call(acQ);
+      }
+      return;
+    }
+
     final match = RegExp(r'(?:^|(?<=\s))([@#/])(\S*)$').firstMatch(before);
     if (match == null) {
       _dismissAutocomplete();
@@ -5382,7 +5434,6 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
     final trigger = match.group(1)!;
     final query = match.group(2)!;
-    final triggerOffset = match.start + (match.group(0)!.length - 1 - query.length - 1);
     final type = switch (trigger) {
       '@' => AutocompleteType.mention,
       '#' => AutocompleteType.hashtag,
@@ -7060,6 +7111,73 @@ class _AutocompletePanel extends StatelessWidget {
           );
         },
       ),
+      ),
+    );
+  }
+}
+
+class _EmojiSuggestionPanel extends StatelessWidget {
+  final List<EmojiEntry> emojis;
+  final int selectedIndex;
+  final ValueChanged<int> onPick;
+  final ValueChanged<int> onHover;
+
+  const _EmojiSuggestionPanel({
+    required this.emojis,
+    required this.selectedIndex,
+    required this.onPick,
+    required this.onHover,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
+    final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+    final borderColor = theme.dividerColor;
+
+    return TextFieldTapRegion(
+      child: Container(
+        height: 44,
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border(top: BorderSide(color: borderColor, width: 1)),
+        ),
+        child: ShaderMask(
+          shaderCallback: (bounds) => LinearGradient(
+            colors: const [Colors.transparent, Colors.white, Colors.white, Colors.transparent],
+            stops: const [0.0, 0.03, 0.97, 1.0],
+          ).createShader(bounds),
+          blendMode: BlendMode.dstIn,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            itemCount: emojis.length,
+            itemBuilder: (context, index) {
+              final e = emojis[index];
+              final isSelected = index == selectedIndex;
+              return MouseRegion(
+                onEnter: (_) => onHover(index),
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => onPick(index),
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    margin: const EdgeInsets.symmetric(vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isSelected ? hoverColor : null,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(e.emoji, style: const TextStyle(fontSize: 24)),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
