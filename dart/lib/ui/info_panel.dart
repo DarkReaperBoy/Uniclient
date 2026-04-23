@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -168,15 +169,9 @@ class _InfoPanelState extends State<InfoPanel> {
     final isDark = theme.brightness == Brightness.dark;
     final isLayer = widget.wrapMode == InfoWrapMode.layer;
     final isNarrow = widget.wrapMode == InfoWrapMode.narrow;
-    final topBarHeight = isLayer ? 56.0 : 54.0;
     final bgColor = isLayer
         ? (isDark ? const Color(0xFF1b2734) : const Color(0xFFf0f0f0))
         : theme.colorScheme.surface;
-
-    final hasBack = _navStack.length > 1 || isNarrow;
-    final topBarTitle = _navStack.length > 1
-        ? _currentPage.title
-        : _panelTitle(chat.type);
 
     final pageContent = _buildCurrentPage(chat, chatState, theme);
 
@@ -193,19 +188,18 @@ class _InfoPanelState extends State<InfoPanel> {
       clipBehavior: isLayer ? Clip.antiAlias : Clip.none,
       child: Column(
         children: [
-          _TopBar(
-            chat: chat,
-            onClose: hasBack ? _popPage : widget.onClose,
-            theme: theme,
-            height: topBarHeight,
-            showBackButton: hasBack,
-            titleOverride: topBarTitle,
-          ),
           Expanded(
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeOutCubic,
+              layoutBuilder: (currentChild, previousChildren) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  ...previousChildren,
+                  if (currentChild != null) currentChild,
+                ],
+              ),
               transitionBuilder: (child, animation) {
                 final isNewPage = child.key == ValueKey(_navStack.length);
                 final beginOffset = _isPushing
@@ -232,6 +226,10 @@ class _InfoPanelState extends State<InfoPanel> {
 
   Widget _buildCurrentPage(ChatInfo chat, ChatState chatState, ThemeData theme) {
     final page = _currentPage;
+    final isNarrow = widget.wrapMode == InfoWrapMode.narrow;
+    final hasBack = _navStack.length > 1 || isNarrow;
+    final onClose = hasBack ? _popPage : widget.onClose;
+
     switch (page.type) {
       case _InfoPageType.userProfile:
         return _UserProfilePage(
@@ -239,6 +237,9 @@ class _InfoPanelState extends State<InfoPanel> {
           chat: chat,
           theme: theme,
           scrollController: _getScrollController(),
+          onClose: onClose,
+          showBackButton: hasBack,
+          title: page.title,
         );
       case _InfoPageType.chatInfo:
         return _ChatInfoPage(
@@ -254,6 +255,9 @@ class _InfoPanelState extends State<InfoPanel> {
               member: member,
             ));
           },
+          onClose: onClose,
+          showBackButton: hasBack,
+          title: _panelTitle(chat.type),
         );
     }
   }
@@ -267,63 +271,173 @@ class _InfoPanelState extends State<InfoPanel> {
   };
 }
 
-class _TopBar extends StatelessWidget {
-  final ChatInfo chat;
-  final VoidCallback onClose;
+class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
+  final String displayName;
+  final String statusText;
+  final Color? statusColor;
+  final String avatarPath;
+  final Color avatarColor;
+  final String initials;
   final ThemeData theme;
-  final double height;
+  final VoidCallback onClose;
   final bool showBackButton;
-  final String titleOverride;
+  final String collapsedTitle;
 
-  const _TopBar({
-    required this.chat,
-    required this.onClose,
+  static const double maxHeight = 236.0;
+  static const double minHeight = 56.0;
+
+  _FlexibleCoverDelegate({
+    required this.displayName,
+    required this.statusText,
+    required this.statusColor,
+    required this.avatarPath,
+    required this.avatarColor,
+    required this.initials,
     required this.theme,
-    this.height = 54,
-    this.showBackButton = false,
-    this.titleOverride = '',
+    required this.onClose,
+    required this.showBackButton,
+    required this.collapsedTitle,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
+  double get maxExtent => maxHeight;
+  @override
+  double get minExtent => minHeight;
+
+  @override
+  bool shouldRebuild(covariant _FlexibleCoverDelegate old) =>
+      displayName != old.displayName ||
+      statusText != old.statusText ||
+      avatarPath != old.avatarPath ||
+      showBackButton != old.showBackButton ||
+      collapsedTitle != old.collapsedTitle;
+
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+    final height = (maxHeight - shrinkOffset).clamp(minHeight, maxHeight);
+    final t = ((height - minHeight) / (maxHeight - minHeight)).clamp(0.0, 1.0);
+
+    return SizedBox(
       height: height,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: theme.dividerColor, width: 1),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(showBackButton ? Icons.arrow_back : Icons.close, size: 20),
-            onPressed: onClose,
-            tooltip: showBackButton ? 'Back' : 'Close',
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              titleOverride.isNotEmpty ? titleOverride : _panelTitle(chat.type),
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-              overflow: TextOverflow.ellipsis,
+      child: Material(
+        color: theme.colorScheme.surface,
+        clipBehavior: Clip.hardEdge,
+        child: Stack(
+          children: [
+            Positioned(
+              top: 24,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: avatarPath.isNotEmpty
+                      ? ClipOval(
+                          child: Image.file(
+                            File(avatarPath),
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) =>
+                                _avatarFallback(avatarColor, initials, 80),
+                          ),
+                        )
+                      : _avatarFallback(avatarColor, initials, 80),
+                ),
+              ),
             ),
-          ),
-        ],
+            Positioned(
+              top: 113,
+              left: 20,
+              right: 20,
+              child: Text(
+                displayName,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (statusText.isNotEmpty)
+              Positioned(
+                top: 134,
+                left: 20,
+                right: 20,
+                child: Text(
+                  statusText,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: statusColor),
+                ),
+              ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: minHeight,
+              child: Container(
+                color: theme.colorScheme.surface
+                    .withValues(alpha: (1.0 - t).clamp(0.0, 1.0)),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        showBackButton ? Icons.arrow_back : Icons.close,
+                        size: 20,
+                      ),
+                      onPressed: onClose,
+                      tooltip: showBackButton ? 'Back' : 'Close',
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Opacity(
+                        opacity: (1.0 - t).clamp(0.0, 1.0),
+                        child: Text(
+                          collapsedTitle,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 1,
+              child: ColoredBox(color: theme.dividerColor),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  static String _panelTitle(ChatType type) => switch (type) {
-    ChatType.dm => 'User Info',
-    ChatType.group => 'Group Info',
-    ChatType.channel => 'Channel Info',
-    ChatType.topic => 'Topic Info',
-    _ => 'Info',
-  };
+  static Widget _avatarFallback(Color color, String initials, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(
+        initials,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.35,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
 }
 
-class _ChatInfoPage extends StatelessWidget {
+class _ChatInfoPage extends StatefulWidget {
   final ChatInfo chat;
   final ChatState chatState;
   final ThemeData theme;
@@ -331,6 +445,9 @@ class _ChatInfoPage extends StatelessWidget {
   final bool loadingMembers;
   final ScrollController scrollController;
   final void Function(MemberInfo) onMemberTap;
+  final VoidCallback onClose;
+  final bool showBackButton;
+  final String title;
 
   const _ChatInfoPage({
     required this.chat,
@@ -340,149 +457,297 @@ class _ChatInfoPage extends StatelessWidget {
     required this.loadingMembers,
     required this.scrollController,
     required this.onMemberTap,
+    required this.onClose,
+    required this.showBackButton,
+    required this.title,
   });
 
   @override
+  State<_ChatInfoPage> createState() => _ChatInfoPageState();
+}
+
+class _ChatInfoPageState extends State<_ChatInfoPage> {
+  static const _snapPoints = [0.0, 112.0, 180.0];
+  Timer? _snapTimer;
+
+  @override
+  void dispose() {
+    _snapTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleSnap() {
+    _snapTimer?.cancel();
+    _snapTimer = Timer(const Duration(milliseconds: 150), () {
+      if (mounted) _snapToNearest();
+    });
+  }
+
+  void _snapToNearest() {
+    if (!widget.scrollController.hasClients) return;
+    final position = widget.scrollController.position;
+    final offset = position.pixels;
+    final maxExtent = position.maxScrollExtent;
+    if (offset > _snapPoints.last + 5 || offset < -5) return;
+
+    var nearest = _snapPoints[0];
+    var minDist = (offset - nearest).abs();
+    for (final p in _snapPoints) {
+      if (p > maxExtent + 1) continue;
+      final d = (offset - p).abs();
+      if (d < minDist) {
+        minDist = d;
+        nearest = p;
+      }
+    }
+    if (minDist < 1.0) return;
+
+    widget.scrollController.animateTo(
+      nearest.clamp(0.0, maxExtent),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutQuint,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return ListView(
-      controller: scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        _AvatarHeader(
-          chat: chat,
-          theme: theme,
-          isOnline: chatState.isChatOnline(chat),
-          lastSeen: chatState.chatLastSeen(chat),
-        ),
-        const SizedBox(height: 16),
-        _ChatDetails(chat: chat, theme: theme),
-        const Divider(height: 24),
-        _NotificationToggle(chat: chat, theme: theme),
-        if (chat.type == ChatType.group || chat.type == ChatType.topic) ...[
-          const Divider(height: 24),
-          _MembersSection(
-            members: members,
-            loading: loadingMembers,
-            memberCount: chat.memberCount,
-            theme: theme,
-            onMemberTap: onMemberTap,
+    final isDm = widget.chat.type == ChatType.dm;
+    final isOnline = widget.chatState.isChatOnline(widget.chat);
+    final lastSeen = widget.chatState.chatLastSeen(widget.chat);
+    final statusText = isDm
+        ? (isOnline ? 'online' : formatChatLastSeen(lastSeen))
+        : _AvatarHeader._groupStatusText(widget.chat);
+    final statusColor = isDm && isOnline
+        ? const Color(0xFF3BA55C)
+        : widget.theme.textTheme.bodySmall?.color;
+    final colorIndex = widget.chat.chatId.hashCode.abs() % 7;
+    final tailPad = MediaQuery.sizeOf(context).height -
+        _FlexibleCoverDelegate.minHeight;
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollUpdateNotification ||
+            notification is ScrollEndNotification) {
+          _scheduleSnap();
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        controller: widget.scrollController,
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _FlexibleCoverDelegate(
+              displayName: widget.chat.title.isNotEmpty
+                  ? widget.chat.title
+                  : widget.chat.chatId,
+              statusText: statusText,
+              statusColor: statusColor,
+              avatarPath: widget.chat.avatarPath,
+              avatarColor: _AvatarHeader._avatarColors[colorIndex],
+              initials: _AvatarHeader._initials(widget.chat.title),
+              theme: widget.theme,
+              onClose: widget.onClose,
+              showBackButton: widget.showBackButton,
+              collapsedTitle: widget.title,
+            ),
           ),
+          SliverList(
+            delegate: SliverChildListDelegate([
+              const SizedBox(height: 16),
+              _ChatDetails(chat: widget.chat, theme: widget.theme),
+              const Divider(height: 24),
+              _NotificationToggle(chat: widget.chat, theme: widget.theme),
+              if (widget.chat.type == ChatType.group ||
+                  widget.chat.type == ChatType.topic) ...[
+                const Divider(height: 24),
+                _MembersSection(
+                  members: widget.members,
+                  loading: widget.loadingMembers,
+                  memberCount: widget.chat.memberCount,
+                  theme: widget.theme,
+                  onMemberTap: widget.onMemberTap,
+                ),
+              ],
+              const SizedBox(height: 16),
+            ]),
+          ),
+          SliverToBoxAdapter(child: SizedBox(height: tailPad)),
         ],
-      ],
+      ),
     );
   }
 }
 
-class _UserProfilePage extends StatelessWidget {
+class _UserProfilePage extends StatefulWidget {
   final MemberInfo member;
   final ChatInfo chat;
   final ThemeData theme;
   final ScrollController scrollController;
+  final VoidCallback onClose;
+  final bool showBackButton;
+  final String title;
 
   const _UserProfilePage({
     required this.member,
     required this.chat,
     required this.theme,
     required this.scrollController,
+    required this.onClose,
+    required this.showBackButton,
+    required this.title,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final colorIndex = member.userId.hashCode.abs() % 7;
-    final color = _AvatarHeader._avatarColors[colorIndex];
-    final name = member.label;
-    final initials = _AvatarHeader._initials(name);
+  State<_UserProfilePage> createState() => _UserProfilePageState();
+}
 
-    return ListView(
-      controller: scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        Column(
-          children: [
-            SizedBox(
-              width: 72,
-              height: 72,
-              child: Container(
-                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                alignment: Alignment.center,
-                child: Text(
-                  initials,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
+class _UserProfilePageState extends State<_UserProfilePage> {
+  static const _snapPoints = [0.0, 112.0, 180.0];
+  Timer? _snapTimer;
+
+  @override
+  void dispose() {
+    _snapTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleSnap() {
+    _snapTimer?.cancel();
+    _snapTimer = Timer(const Duration(milliseconds: 150), () {
+      if (mounted) _snapToNearest();
+    });
+  }
+
+  void _snapToNearest() {
+    if (!widget.scrollController.hasClients) return;
+    final position = widget.scrollController.position;
+    final offset = position.pixels;
+    final maxExtent = position.maxScrollExtent;
+    if (offset > _snapPoints.last + 5 || offset < -5) return;
+
+    var nearest = _snapPoints[0];
+    var minDist = (offset - nearest).abs();
+    for (final p in _snapPoints) {
+      if (p > maxExtent + 1) continue;
+      final d = (offset - p).abs();
+      if (d < minDist) {
+        minDist = d;
+        nearest = p;
+      }
+    }
+    if (minDist < 1.0) return;
+
+    widget.scrollController.animateTo(
+      nearest.clamp(0.0, maxExtent),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutQuint,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorIndex = widget.member.userId.hashCode.abs() % 7;
+    final color = _AvatarHeader._avatarColors[colorIndex];
+    final name = widget.member.label;
+    final initials = _AvatarHeader._initials(name);
+    final statusText = widget.member.isOnline
+        ? 'online'
+        : widget.member.isBot
+            ? 'bot'
+            : '';
+    final statusColor = widget.member.isOnline
+        ? const Color(0xFF3BA55C)
+        : widget.theme.textTheme.bodySmall?.color;
+    final tailPad = MediaQuery.sizeOf(context).height -
+        _FlexibleCoverDelegate.minHeight;
+
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollUpdateNotification ||
+            notification is ScrollEndNotification) {
+          _scheduleSnap();
+        }
+        return false;
+      },
+      child: CustomScrollView(
+        controller: widget.scrollController,
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: _FlexibleCoverDelegate(
+              displayName: name,
+              statusText: statusText,
+              statusColor: statusColor,
+              avatarPath: '',
+              avatarColor: color,
+              initials: initials,
+              theme: widget.theme,
+              onClose: widget.onClose,
+              showBackButton: widget.showBackButton,
+              collapsedTitle: widget.title,
             ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                name,
-                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (member.isOnline)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  'online',
-                  style: TextStyle(fontSize: 13, color: const Color(0xFF3BA55C)),
-                ),
-              ),
-            if (member.isBot)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('bot', style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color)),
-              ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (member.username.isNotEmpty)
-                _DetailRow(
-                  icon: Icons.alternate_email,
-                  label: 'Username',
-                  value: member.username,
-                  theme: theme,
-                  onTap: () {
-                    Clipboard.setData(ClipboardData(text: member.username));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Username copied'), duration: Duration(seconds: 2), behavior: SnackBarBehavior.floating),
-                    );
-                  },
-                ),
-              _DetailRow(
-                icon: Icons.person,
-                label: 'ID',
-                value: member.userId,
-                theme: theme,
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: member.userId));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('ID copied'), duration: Duration(seconds: 2), behavior: SnackBarBehavior.floating),
-                  );
-                },
-              ),
-              if (member.role.isNotEmpty && member.role != 'member')
-                _DetailRow(
-                  icon: Icons.shield,
-                  label: 'Role',
-                  value: member.role,
-                  theme: theme,
-                ),
-            ],
           ),
-        ),
-      ],
+          SliverList(
+            delegate: SliverChildListDelegate([
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (widget.member.username.isNotEmpty)
+                      _DetailRow(
+                        icon: Icons.alternate_email,
+                        label: 'Username',
+                        value: widget.member.username,
+                        theme: widget.theme,
+                        onTap: () {
+                          Clipboard.setData(
+                              ClipboardData(text: widget.member.username));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Username copied'),
+                              duration: Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        },
+                      ),
+                    _DetailRow(
+                      icon: Icons.person,
+                      label: 'ID',
+                      value: widget.member.userId,
+                      theme: widget.theme,
+                      onTap: () {
+                        Clipboard.setData(
+                            ClipboardData(text: widget.member.userId));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('ID copied'),
+                            duration: Duration(seconds: 2),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                    ),
+                    if (widget.member.role.isNotEmpty &&
+                        widget.member.role != 'member')
+                      _DetailRow(
+                        icon: Icons.shield,
+                        label: 'Role',
+                        value: widget.member.role,
+                        theme: widget.theme,
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ]),
+          ),
+          SliverToBoxAdapter(child: SizedBox(height: tailPad)),
+        ],
+      ),
     );
   }
 }

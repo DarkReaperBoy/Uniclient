@@ -394,7 +394,7 @@
 
 ### §8.1 Cover / TopBar Compression
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] Flexible top bar: 236px expanded / 56px collapsed; three snap resting heights (0px, 112px, 180px scroll); easeOutQuint 260ms snap animation; height = clamp(236 - scrollTop, 56, 236) — spec §8.1
+- [x] Flexible top bar: 236px expanded / 56px collapsed; three snap resting heights (0px, 112px, 180px scroll); easeOutQuint 260ms snap animation; height = clamp(236 - scrollTop, 56, 236) — spec §8.1 — DONE: _FlexibleCoverDelegate + SliverPersistentHeader(pinned:true) + debounced snap timer
 - [ ] Avatar: 80px diameter (currently 72px — fix), centered, top offset 24px; name at y=113px, status at y=134px — spec §8.1
 - [ ] Back/title fade on collapse: FadeWrap scale 0.7, 150ms; action-row opacity linear with scroll; direction-reversal mid-animation re-base — spec §8.1
 - [ ] Cover gradient for collectible/color profiles; animated emoji-status pattern behind avatar (Premium); story ring outline — spec §8.6
