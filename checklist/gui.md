@@ -404,7 +404,6 @@
 
 ### §8.3 Shared Media Navigation
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] Shared media section: vertical type-button stack (Photo, Video, File, Audio, Link, Voice, GIF, Poll, Stories, Saved, Gifts, Common Groups, Similar Channels, Downloads); each row hidden when count=0 — spec §8.3
 - [ ] In-section search row: 44px height (46px in Layer mode), margins(8,6,8,6); sub-tab chips for stories-archive / gift-category — spec §8.3
 
 ### §8.4 Members List

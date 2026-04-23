@@ -849,6 +849,19 @@ class EngineService {
     return resp.items.map(_sharedMediaItemFromProto).toList();
   }
 
+  Map<String, int> getSharedMediaCounts(String accountId, String chatId) {
+    final req = epb.EngineGetSharedMediaCountsRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    final respBytes = _callRaw('__engine', 'GetSharedMediaCounts', req.writeToBuffer());
+    final resp = epb.EngineGetSharedMediaCountsResponse.fromBuffer(respBytes);
+    final counts = <String, int>{};
+    for (final c in resp.counts) {
+      counts[c.mediaType] = c.count;
+    }
+    return counts;
+  }
+
   // ── Config ──
 
   AppConfig getConfig() {

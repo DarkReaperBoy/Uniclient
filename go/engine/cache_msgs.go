@@ -601,6 +601,51 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 	return items, rows.Err()
 }
 
+type SharedMediaCountItem struct {
+	MediaType string `json:"media_type"`
+	Count     int    `json:"count"`
+}
+
+func (e *Engine) GetSharedMediaCounts(accountID, chatID string) ([]SharedMediaCountItem, error) {
+	query := `
+		SELECT m.media_type, COUNT(*) as cnt
+		FROM media m
+		WHERE m.account_id = ? AND m.chat_id = ? AND m.seq = 0
+		GROUP BY m.media_type
+		ORDER BY m.media_type`
+
+	rows, err := e.db.Query(query, accountID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	typeLabel := map[int]string{
+		MediaImage:     "photo",
+		MediaVideo:     "video",
+		MediaAudio:     "audio",
+		MediaVoice:     "voice",
+		MediaVideoNote: "videonote",
+		MediaSticker:   "sticker",
+		MediaGIF:       "gif",
+		MediaFile:      "file",
+	}
+
+	var result []SharedMediaCountItem
+	for rows.Next() {
+		var mt, cnt int
+		if err := rows.Scan(&mt, &cnt); err != nil {
+			return result, err
+		}
+		label, ok := typeLabel[mt]
+		if !ok {
+			label = fmt.Sprintf("type_%d", mt)
+		}
+		result = append(result, SharedMediaCountItem{MediaType: label, Count: cnt})
+	}
+	return result, rows.Err()
+}
+
 // --- Helpers ---
 
 func msgStatusFromCore(s cores.MessageStatus) int {

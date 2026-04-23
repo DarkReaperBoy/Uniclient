@@ -507,6 +507,20 @@ message EngineGetSharedMediaResponse {
   repeated EngineSharedMediaItem items = 1;
 }
 
+message EngineGetSharedMediaCountsRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineSharedMediaCount {
+  string media_type = 1; // "photo", "video", "file", "audio", "link", "voice", "gif"
+  int32  count      = 2;
+}
+
+message EngineGetSharedMediaCountsResponse {
+  repeated EngineSharedMediaCount counts = 1;
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Config
 // ═══════════════════════════════════════════════════════════════════════

@@ -5734,6 +5734,160 @@ class EngineGetSharedMediaResponse extends $pb.GeneratedMessage {
   $core.List<EngineSharedMediaItem> get items => $_getList(0);
 }
 
+class EngineGetSharedMediaCountsRequest extends $pb.GeneratedMessage {
+  factory EngineGetSharedMediaCountsRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    return $result;
+  }
+  EngineGetSharedMediaCountsRequest._() : super();
+  factory EngineGetSharedMediaCountsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetSharedMediaCountsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetSharedMediaCountsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.deepCopy] instead.')
+  EngineGetSharedMediaCountsRequest clone() => EngineGetSharedMediaCountsRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.rebuild] instead.')
+  EngineGetSharedMediaCountsRequest copyWith(void Function(EngineGetSharedMediaCountsRequest) updates) => super.copyWith((message) => updates(message as EngineGetSharedMediaCountsRequest)) as EngineGetSharedMediaCountsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSharedMediaCountsRequest create() => EngineGetSharedMediaCountsRequest._();
+  EngineGetSharedMediaCountsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSharedMediaCountsRequest> createRepeated() => $pb.PbList<EngineGetSharedMediaCountsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSharedMediaCountsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetSharedMediaCountsRequest>(create);
+  static EngineGetSharedMediaCountsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
+class EngineSharedMediaCount extends $pb.GeneratedMessage {
+  factory EngineSharedMediaCount({
+    $core.String? mediaType,
+    $core.int? count,
+  }) {
+    final $result = create();
+    if (mediaType != null) {
+      $result.mediaType = mediaType;
+    }
+    if (count != null) {
+      $result.count = count;
+    }
+    return $result;
+  }
+  EngineSharedMediaCount._() : super();
+  factory EngineSharedMediaCount.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSharedMediaCount.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSharedMediaCount', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'mediaType')
+    ..a<$core.int>(2, _omitFieldNames ? '' : 'count', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.deepCopy] instead.')
+  EngineSharedMediaCount clone() => EngineSharedMediaCount()..mergeFromMessage(this);
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.rebuild] instead.')
+  EngineSharedMediaCount copyWith(void Function(EngineSharedMediaCount) updates) => super.copyWith((message) => updates(message as EngineSharedMediaCount)) as EngineSharedMediaCount;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSharedMediaCount create() => EngineSharedMediaCount._();
+  EngineSharedMediaCount createEmptyInstance() => create();
+  static $pb.PbList<EngineSharedMediaCount> createRepeated() => $pb.PbList<EngineSharedMediaCount>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSharedMediaCount getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSharedMediaCount>(create);
+  static EngineSharedMediaCount? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get mediaType => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set mediaType($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasMediaType() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMediaType() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.int get count => $_getIZ(1);
+  @$pb.TagNumber(2)
+  set count($core.int v) { $_setSignedInt32(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasCount() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCount() => clearField(2);
+}
+
+class EngineGetSharedMediaCountsResponse extends $pb.GeneratedMessage {
+  factory EngineGetSharedMediaCountsResponse({
+    $core.Iterable<EngineSharedMediaCount>? counts,
+  }) {
+    final $result = create();
+    if (counts != null) {
+      $result.counts.addAll(counts);
+    }
+    return $result;
+  }
+  EngineGetSharedMediaCountsResponse._() : super();
+  factory EngineGetSharedMediaCountsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetSharedMediaCountsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetSharedMediaCountsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineSharedMediaCount>(1, _omitFieldNames ? '' : 'counts', $pb.PbFieldType.PM, subBuilder: EngineSharedMediaCount.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.deepCopy] instead.')
+  EngineGetSharedMediaCountsResponse clone() => EngineGetSharedMediaCountsResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use [GeneratedMessageGenericExtensions.rebuild] instead.')
+  EngineGetSharedMediaCountsResponse copyWith(void Function(EngineGetSharedMediaCountsResponse) updates) => super.copyWith((message) => updates(message as EngineGetSharedMediaCountsResponse)) as EngineGetSharedMediaCountsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSharedMediaCountsResponse create() => EngineGetSharedMediaCountsResponse._();
+  EngineGetSharedMediaCountsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSharedMediaCountsResponse> createRepeated() => $pb.PbList<EngineGetSharedMediaCountsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSharedMediaCountsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetSharedMediaCountsResponse>(create);
+  static EngineGetSharedMediaCountsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineSharedMediaCount> get counts => $_getList(0);
+}
+
 class EngineGetConfigResponse extends $pb.GeneratedMessage {
   factory EngineGetConfigResponse({
     $core.String? theme,

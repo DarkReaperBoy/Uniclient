@@ -46,6 +46,7 @@ class _InfoPanelState extends State<InfoPanel> {
   List<MemberInfo>? _members;
   bool _loadingMembers = false;
   String? _loadedChatId;
+  Map<String, int> _mediaCounts = {};
 
   final List<_InfoNavPage> _navStack = [_InfoNavPage(type: _InfoPageType.chatInfo)];
   bool _isPushing = true;
@@ -136,22 +137,24 @@ class _InfoPanelState extends State<InfoPanel> {
       _loadedChatId = chat.chatId;
     });
 
+    final engine = context.read<EngineService>();
+
+    Map<String, int> counts = {};
     try {
-      final engine = context.read<EngineService>();
-      final members = await engine.getChatMembers(chat.accountId, chat.chatId);
-      if (mounted) {
-        setState(() {
-          _members = members;
-          _loadingMembers = false;
-        });
-      }
-    } catch (_) {
-      if (mounted) {
-        setState(() {
-          _members = [];
-          _loadingMembers = false;
-        });
-      }
+      counts = engine.getSharedMediaCounts(chat.accountId, chat.chatId);
+    } catch (_) {}
+
+    List<MemberInfo> members = [];
+    try {
+      members = await engine.getChatMembers(chat.accountId, chat.chatId);
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _members = members;
+        _mediaCounts = counts;
+        _loadingMembers = false;
+      });
     }
   }
 
@@ -249,6 +252,7 @@ class _InfoPanelState extends State<InfoPanel> {
           theme: theme,
           members: _members,
           loadingMembers: _loadingMembers,
+          mediaCounts: _mediaCounts,
           scrollController: _getScrollController(),
           onMemberTap: (member) {
             _pushPage(_InfoNavPage(
@@ -931,6 +935,7 @@ class _ChatInfoPage extends StatefulWidget {
   final ThemeData theme;
   final List<MemberInfo>? members;
   final bool loadingMembers;
+  final Map<String, int> mediaCounts;
   final ScrollController scrollController;
   final void Function(MemberInfo) onMemberTap;
   final VoidCallback onClose;
@@ -943,6 +948,7 @@ class _ChatInfoPage extends StatefulWidget {
     required this.theme,
     required this.members,
     required this.loadingMembers,
+    required this.mediaCounts,
     required this.scrollController,
     required this.onMemberTap,
     required this.onClose,
@@ -1059,6 +1065,13 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               _ChatDetails(chat: widget.chat, theme: widget.theme),
               const Divider(height: 24),
               _NotificationToggle(chat: widget.chat, theme: widget.theme),
+              if (widget.mediaCounts.isNotEmpty) ...[
+                const Divider(height: 24),
+                _SharedMediaSection(
+                  counts: widget.mediaCounts,
+                  theme: widget.theme,
+                ),
+              ],
               if (widget.chat.type == ChatType.group ||
                   widget.chat.type == ChatType.topic) ...[
                 const Divider(height: 24),
@@ -1499,6 +1512,113 @@ class _NotificationToggle extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _SharedMediaSection extends StatelessWidget {
+  final Map<String, int> counts;
+  final ThemeData theme;
+
+  const _SharedMediaSection({required this.counts, required this.theme});
+
+  static const _types = [
+    ('photo', Icons.photo_outlined, 'Photos'),
+    ('video', Icons.videocam_outlined, 'Videos'),
+    ('file', Icons.insert_drive_file_outlined, 'Files'),
+    ('audio', Icons.music_note_outlined, 'Music'),
+    ('link', Icons.link, 'Links'),
+    ('voice', Icons.mic_outlined, 'Voice'),
+    ('gif', Icons.gif_box_outlined, 'GIFs'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _types.where((t) => (counts[t.$1] ?? 0) > 0).toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+
+    final iconColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final isDark = theme.brightness == Brightness.dark;
+    final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF168acd);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final (type, icon, label) in visible)
+            _SharedMediaRow(
+              icon: icon,
+              label: label,
+              count: counts[type]!,
+              iconColor: iconColor,
+              accentColor: accentColor,
+              theme: theme,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SharedMediaRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int count;
+  final Color iconColor;
+  final Color accentColor;
+  final ThemeData theme;
+
+  const _SharedMediaRow({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.iconColor,
+    required this.accentColor,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {},
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Icon(icon, size: 20, color: iconColor),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            Text(
+              _formatCount(count),
+              style: TextStyle(
+                fontSize: 13,
+                color: iconColor,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right, size: 18, color: iconColor),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _formatCount(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
   }
 }
 

@@ -560,6 +560,24 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetSharedMediaCounts":
+		var req pb.EngineGetSharedMediaCountsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		counts, err := e.GetSharedMediaCounts(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetSharedMediaCountsResponse{}
+		for _, c := range counts {
+			resp.Counts = append(resp.Counts, &pb.EngineSharedMediaCount{
+				MediaType: c.MediaType,
+				Count:     int32(c.Count),
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "GetCacheSize":
 		size, err := e.GetCacheSize()
 		if err != nil {
