@@ -272,6 +272,13 @@ class _InfoPanelState extends State<InfoPanel> {
   };
 }
 
+class _ActionBtnData {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  const _ActionBtnData(this.icon, this.label, this.onTap);
+}
+
 class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final String displayName;
   final String statusText;
@@ -285,6 +292,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final String collapsedTitle;
   final bool isMuted;
   final VoidCallback? onMuteToggle;
+  final ChatType chatType;
+  final bool isSelf;
   final int storyCount;
   final bool hasUnreadStory;
   final List<Color>? profileBgColors;
@@ -310,6 +319,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     required this.collapsedTitle,
     this.isMuted = false,
     this.onMuteToggle,
+    this.chatType = ChatType.dm,
+    this.isSelf = false,
     this.storyCount = 0,
     this.hasUnreadStory = false,
     this.profileBgColors,
@@ -329,6 +340,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       showBackButton != old.showBackButton ||
       collapsedTitle != old.collapsedTitle ||
       isMuted != old.isMuted ||
+      chatType != old.chatType ||
+      isSelf != old.isSelf ||
       storyCount != old.storyCount ||
       hasUnreadStory != old.hasUnreadStory ||
       profileBgColors != old.profileBgColors ||
@@ -461,7 +474,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                   ),
                 ),
               ),
-            if (actionProgress > 0 && onMuteToggle != null)
+            if (actionProgress > 0 && !isSelf)
               Positioned(
                 bottom: 16,
                 left: 18,
@@ -533,56 +546,114 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     );
   }
 
+  List<_ActionBtnData> _actionButtons() {
+    final buttons = <_ActionBtnData>[];
+    if (chatType == ChatType.dm && !isSelf) {
+      buttons.add(_ActionBtnData(Icons.chat_bubble_outline, 'Message', null));
+    }
+    if (!isSelf && onMuteToggle != null) {
+      buttons.add(_ActionBtnData(
+        isMuted ? Icons.notifications_off : Icons.notifications,
+        isMuted ? 'Unmute' : 'Mute',
+        onMuteToggle,
+      ));
+    }
+    if (chatType == ChatType.dm && !isSelf) {
+      buttons.add(_ActionBtnData(Icons.call_outlined, 'Call', null));
+    }
+    if (buttons.length > 3) {
+      final overflow = buttons.sublist(2);
+      buttons.removeRange(2, buttons.length);
+      buttons.add(_ActionBtnData(Icons.more_horiz, 'More', () {
+        // overflow popup placeholder — wired when call UI lands
+      }));
+    }
+    return buttons;
+  }
+
   Widget _buildActionRow(double progress) {
     final iconScale = ((progress - 0.4) / 0.6).clamp(0.0, 1.0);
     final textScale = progress.clamp(0.4, 1.0);
     final isDark = theme.brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF2b3945) : const Color(0xFFe9ecef);
-    final fg = theme.colorScheme.primary;
+    final hasGradientBg = profileBgColors != null && profileBgColors!.length >= 2;
+    final bg = hasGradientBg
+        ? Colors.white.withValues(alpha: 0.15)
+        : (isDark ? const Color(0xFF2b3945) : const Color(0xFFe9ecef));
+    final fg = hasGradientBg
+        ? Colors.white
+        : theme.colorScheme.onSurface;
+
+    final buttons = _actionButtons();
+    if (buttons.isEmpty) return const SizedBox.shrink();
+
+    const largeR = 8.0;
+    const smallR = 4.0;
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _actionBtn(
-          isMuted ? Icons.notifications_off : Icons.notifications,
-          isMuted ? 'Unmute' : 'Mute',
-          bg, fg, iconScale, textScale, onMuteToggle,
-        ),
+        for (int i = 0; i < buttons.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(
+            child: _actionBtn(
+              buttons[i],
+              bg,
+              fg,
+              iconScale,
+              textScale,
+              _cornersFor(i, buttons.length, largeR, smallR),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _actionBtn(IconData icon, String label, Color bg, Color fg,
-      double iconScale, double textScale, VoidCallback? onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: _actionButtonSize,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-              alignment: Alignment.center,
-              child: Transform.scale(
+  static BorderRadius _cornersFor(int i, int count, double lg, double sm) {
+    if (count == 1) return BorderRadius.circular(lg);
+    if (i == 0) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(lg), bottomLeft: Radius.circular(lg),
+        topRight: Radius.circular(sm), bottomRight: Radius.circular(sm),
+      );
+    }
+    if (i == count - 1) {
+      return BorderRadius.only(
+        topLeft: Radius.circular(sm), bottomLeft: Radius.circular(sm),
+        topRight: Radius.circular(lg), bottomRight: Radius.circular(lg),
+      );
+    }
+    return BorderRadius.circular(sm);
+  }
+
+  Widget _actionBtn(_ActionBtnData data, Color bg, Color fg,
+      double iconScale, double textScale, BorderRadius radius) {
+    return Material(
+      color: bg,
+      borderRadius: radius,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: data.onTap,
+        borderRadius: radius,
+        child: SizedBox(
+          height: _actionButtonSize,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Transform.scale(
                 scale: iconScale,
-                child: Icon(icon, size: 20, color: fg),
+                child: Icon(data.icon, size: 23, color: fg),
               ),
-            ),
-            Transform.scale(
-              scale: textScale,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 1),
+              const SizedBox(height: 2),
+              Transform.scale(
+                scale: textScale,
                 child: Text(
-                  label,
-                  style: TextStyle(fontSize: 10, color: fg),
+                  data.label,
+                  style: TextStyle(fontSize: 11, color: fg),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -907,6 +978,9 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   !widget.chat.isMuted,
                 );
               },
+              chatType: widget.chat.type,
+              isSelf: widget.chat.title == 'Saved Messages' &&
+                  widget.chat.type == ChatType.dm,
               storyCount: widget.chat.storyCount,
               hasUnreadStory: widget.chat.hasUnreadStory,
               emojiStatusId: widget.chat.emojiStatusId,

@@ -401,10 +401,7 @@
 
 ### §8.2 Action Button Row
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] Action buttons: 52px square, 23px icons, 68px total row height, 10px spacing, 18px side padding; HorizontalFitContainer layout; max 3 primary buttons, overflow to "More" popup — spec §8.2
-- [ ] Button roster by peer type: Message, Join, Mute/Unmute, Call, Video Call, Discuss, Manage/Edit, Leave, Gift, Report, More — spec §8.2
 - [ ] Mute button: Lottie crossfade animation (profile_muting/unmuting); right-click opens mute-duration submenu — spec §8.2
-- [ ] Action-row collapse animation: buttons shrink 52→0 past 50% scroll; per-button opacity and icon-scale follow scroll progress — spec §8.1 / §8.2
 
 ### §8.3 Shared Media Navigation
 <!-- File: dart/lib/ui/info_panel.dart -->
