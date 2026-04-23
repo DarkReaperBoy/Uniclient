@@ -411,7 +411,6 @@
 
 ### §8.5 Grid Columns (Photos / Videos / Gifts)
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] Empty-state widget when list height <= threshold; gifts grid with taller aspect override — spec §8.5
 
 ### §8.6 Additional Info Features
 <!-- File: dart/lib/ui/info_panel.dart — not yet implemented -->

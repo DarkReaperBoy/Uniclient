@@ -1619,6 +1619,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     ('photo', Icons.photo_outlined, 'Photos'),
     ('video', Icons.videocam_outlined, 'Videos'),
     ('stories', Icons.auto_stories_outlined, 'Stories'),
+    ('gifts', Icons.card_giftcard_outlined, 'Gifts'),
     ('file', Icons.insert_drive_file_outlined, 'Files'),
     ('audio', Icons.music_note_outlined, 'Music'),
     ('link', Icons.link, 'Links'),
@@ -1626,10 +1627,10 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     ('gif', Icons.gif_box_outlined, 'GIFs'),
   ];
 
-  static const _gridTypes = {'photo', 'video', 'stories'};
+  static const _gridTypes = {'photo', 'video', 'stories', 'gifts'};
   static const _masonryTypes = {'gif'};
   static const _listTypes = {'file', 'audio', 'link', 'voice'};
-  static const _expandableTypes = {'photo', 'video', 'stories', 'gif', 'file', 'audio', 'link', 'voice'};
+  static const _expandableTypes = {'photo', 'video', 'stories', 'gifts', 'gif', 'file', 'audio', 'link', 'voice'};
 
   static const _subTabSets = <String, List<(String, String)>>{
     'stories': [('archive', 'Archive'), ('recent', 'Recent')],
@@ -1663,6 +1664,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     'photo': 'image',
     'video': 'video',
     'stories': 'stories',
+    'gifts': 'gifts',
     'file': 'file',
     'audio': 'audio',
     'voice': 'voice',
@@ -2014,6 +2016,87 @@ class _SharedMediaRow extends StatelessWidget {
   }
 }
 
+class _MediaEmptyState extends StatelessWidget {
+  final String mediaType;
+  final ThemeData theme;
+  final bool isSearch;
+
+  const _MediaEmptyState({
+    required this.mediaType,
+    required this.theme,
+    this.isSearch = false,
+  });
+
+  static const _iconTop = 120.0;
+  static const _labelTop = 40.0;
+  static const _labelSkip = 20.0;
+  static const _minLabelWidth = 220.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final emptyFg = theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final icon = _iconForType(mediaType);
+    final text = isSearch ? _searchEmptyText(mediaType) : _emptyText(mediaType);
+
+    return SizedBox(
+      height: _iconTop + _labelTop + 60,
+      child: Column(
+        children: [
+          const Spacer(flex: 1),
+          Icon(icon, size: 48, color: emptyFg.withAlpha(128)),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: _labelSkip),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: _minLabelWidth),
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: emptyFg),
+              ),
+            ),
+          ),
+          const Spacer(flex: 2),
+        ],
+      ),
+    );
+  }
+
+  static IconData _iconForType(String type) => switch (type) {
+    'photo' => Icons.photo_outlined,
+    'video' => Icons.videocam_outlined,
+    'gif' => Icons.photo_outlined,
+    'audio' => Icons.music_note_outlined,
+    'file' => Icons.insert_drive_file_outlined,
+    'voice' => Icons.mic_outlined,
+    'link' => Icons.link_outlined,
+    'stories' => Icons.auto_stories_outlined,
+    'gifts' => Icons.card_giftcard_outlined,
+    _ => Icons.photo_outlined,
+  };
+
+  static String _emptyText(String type) => switch (type) {
+    'photo' => 'No photos here yet',
+    'video' => 'No videos here yet',
+    'gif' => 'No GIFs here yet',
+    'audio' => 'No music files here yet',
+    'file' => 'No files here yet',
+    'voice' => 'No voice messages here yet',
+    'link' => 'No shared links here yet',
+    'stories' => 'No stories here yet',
+    'gifts' => 'No gifts here yet',
+    _ => 'No media here yet',
+  };
+
+  static String _searchEmptyText(String type) => switch (type) {
+    'audio' => 'No music files found',
+    'file' => 'No files found',
+    'link' => 'No shared links found',
+    'gifts' => 'No matching gifts',
+    _ => _emptyText(type),
+  };
+}
+
 class _MediaGrid extends StatelessWidget {
   final List<SharedMediaItem>? items;
   final bool loading;
@@ -2024,6 +2107,7 @@ class _MediaGrid extends StatelessWidget {
   static const _skip = 2.0;
   static const _sidePadding = 3.0;
   static const _storyRatio = 16.0 / 9.0;
+  static const _giftRatio = 1.4;
 
   const _MediaGrid({
     required this.items,
@@ -2045,18 +2129,7 @@ class _MediaGrid extends StatelessWidget {
     }
     final mediaItems = items;
     if (mediaItems == null || mediaItems.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Center(
-          child: Text(
-            'No media',
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.textTheme.bodySmall?.color ?? Colors.grey,
-            ),
-          ),
-        ),
-      );
+      return _MediaEmptyState(mediaType: mediaType, theme: theme);
     }
 
     final grouped = _groupByMonth(mediaItems);
@@ -2066,8 +2139,11 @@ class _MediaGrid extends StatelessWidget {
       final contentWidth = listWidth - 2 * _sidePadding;
       final columns = math.max(1, ((contentWidth + _skip) / (_minGridSize + _skip)).floor());
       final cellSide = ((contentWidth - (columns - 1) * _skip) / columns).floorToDouble();
-      final isStories = mediaType == 'stories';
-      final cellHeight = isStories ? (cellSide * _storyRatio).floorToDouble() : cellSide;
+      final cellHeight = switch (mediaType) {
+        'stories' => (cellSide * _storyRatio).floorToDouble(),
+        'gifts' => (cellSide * _giftRatio).floorToDouble(),
+        _ => cellSide,
+      };
 
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
@@ -2155,18 +2231,7 @@ class _GifMasonryGrid extends StatelessWidget {
     }
     final mediaItems = items;
     if (mediaItems == null || mediaItems.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Center(
-          child: Text(
-            'No GIFs',
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.textTheme.bodySmall?.color ?? Colors.grey,
-            ),
-          ),
-        ),
-      );
+      return _MediaEmptyState(mediaType: 'gif', theme: theme);
     }
 
     final grouped = _MediaGrid._groupByMonth(mediaItems);
@@ -2316,18 +2381,7 @@ class _MediaListView extends StatelessWidget {
     }
     final mediaItems = items;
     if (mediaItems == null || mediaItems.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Center(
-          child: Text(
-            'No ${_emptyLabel()}',
-            style: TextStyle(
-              fontSize: 13,
-              color: theme.textTheme.bodySmall?.color ?? Colors.grey,
-            ),
-          ),
-        ),
-      );
+      return _MediaEmptyState(mediaType: mediaType, theme: theme);
     }
 
     final grouped = _MediaGrid._groupByMonth(mediaItems);
@@ -2344,16 +2398,6 @@ class _MediaListView extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  String _emptyLabel() {
-    switch (mediaType) {
-      case 'file': return 'files';
-      case 'audio': return 'music';
-      case 'voice': return 'voice messages';
-      case 'link': return 'links';
-      default: return 'items';
-    }
   }
 
   Widget _buildListItem(SharedMediaItem item) {
