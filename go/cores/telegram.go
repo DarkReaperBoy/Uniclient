@@ -10468,6 +10468,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 			UnreadMentionCount:  dlg.UnreadMentionsCount,
 			UnreadReactionCount: dlg.UnreadReactionsCount,
 			IsPinned:            dlg.Pinned,
+			TtlPeriod:           dlg.TTLPeriod,
 			Platform:            tgPlatform,
 		}
 

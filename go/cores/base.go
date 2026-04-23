@@ -171,6 +171,7 @@ type Dialog struct {
 	SlowmodeSeconds     int    `json:"slowmode_seconds,omitempty"`
 	SlowmodeNextSendDate int64 `json:"slowmode_next_send_date,omitempty"`
 	StarsToSend         int    `json:"stars_to_send,omitempty"`
+	TtlPeriod           int    `json:"ttl_period,omitempty"`
 	Platform            string `json:"platform"`
 }
 

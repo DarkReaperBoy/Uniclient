@@ -1430,6 +1430,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $core.int? slowmodeSeconds,
     $fixnum.Int64? slowmodeNextSendDate,
     $core.int? starsToSend,
+    $core.int? ttlPeriod,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1504,6 +1505,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (starsToSend != null) {
       $result.starsToSend = starsToSend;
     }
+    if (ttlPeriod != null) {
+      $result.ttlPeriod = ttlPeriod;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1535,6 +1539,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..a<$core.int>(22, _omitFieldNames ? '' : 'slowmodeSeconds', $pb.PbFieldType.O3)
     ..aInt64(23, _omitFieldNames ? '' : 'slowmodeNextSendDate')
     ..a<$core.int>(24, _omitFieldNames ? '' : 'starsToSend', $pb.PbFieldType.O3)
+    ..a<$core.int>(25, _omitFieldNames ? '' : 'ttlPeriod', $pb.PbFieldType.O3)
     ..hasRequiredFields = false
   ;
 
@@ -1774,6 +1779,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasStarsToSend() => $_has(23);
   @$pb.TagNumber(24)
   void clearStarsToSend() => clearField(24);
+
+  @$pb.TagNumber(25)
+  $core.int get ttlPeriod => $_getIZ(24);
+  @$pb.TagNumber(25)
+  set ttlPeriod($core.int v) { $_setSignedInt32(24, v); }
+  @$pb.TagNumber(25)
+  $core.bool hasTtlPeriod() => $_has(24);
+  @$pb.TagNumber(25)
+  void clearTtlPeriod() => clearField(25);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {
@@ -2222,6 +2236,75 @@ class EngineArchiveChatRequest extends $pb.GeneratedMessage {
   $core.bool hasArchived() => $_has(2);
   @$pb.TagNumber(3)
   void clearArchived() => clearField(3);
+}
+
+class EngineSetHistoryTTLRequest extends $pb.GeneratedMessage {
+  factory EngineSetHistoryTTLRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.int? period,
+  }) {
+    final $result = create();
+    if (accountId != null) {
+      $result.accountId = accountId;
+    }
+    if (chatId != null) {
+      $result.chatId = chatId;
+    }
+    if (period != null) {
+      $result.period = period;
+    }
+    return $result;
+  }
+  EngineSetHistoryTTLRequest._() : super();
+  factory EngineSetHistoryTTLRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSetHistoryTTLRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSetHistoryTTLRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..a<$core.int>(3, _omitFieldNames ? '' : 'period', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false
+  ;
+
+  EngineSetHistoryTTLRequest clone() => EngineSetHistoryTTLRequest()..mergeFromMessage(this);
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSetHistoryTTLRequest create() => EngineSetHistoryTTLRequest._();
+  EngineSetHistoryTTLRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineSetHistoryTTLRequest> createRepeated() => $pb.PbList<EngineSetHistoryTTLRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSetHistoryTTLRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSetHistoryTTLRequest>(create);
+  static EngineSetHistoryTTLRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.int get period => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set period($core.int v) { $_setSignedInt32(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasPeriod() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearPeriod() => clearField(3);
 }
 
 class EngineMarkChatReadRequest extends $pb.GeneratedMessage {

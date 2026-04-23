@@ -193,6 +193,14 @@ class EngineService {
     _callRaw('__engine', 'ArchiveChat', req.writeToBuffer());
   }
 
+  void setHistoryTTL(String accountId, String chatId, int period) {
+    final req = epb.EngineSetHistoryTTLRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..period = period;
+    _callRaw('__engine', 'SetHistoryTTL', req.writeToBuffer());
+  }
+
   Future<void> blockUser(String accountId, String userId) async {
     final req = epb.EngineBlockUserRequest()
       ..accountId = accountId
@@ -1145,6 +1153,7 @@ class EngineService {
     slowmodeSeconds: p.slowmodeSeconds,
     slowmodeNextSendDate: p.slowmodeNextSendDate.toInt(),
     starsToSend: p.starsToSend,
+    ttlPeriod: p.ttlPeriod,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

@@ -370,7 +370,6 @@
 
 ### §7.11 Additional Controls
 
-- [ ] TTL/disappearing message timer button — spec §7. Not implemented
 - [ ] Characters-remaining counter near limit — spec §7. Not implemented
 - [ ] Bot Command Start "/" button — spec §7. Not implemented
 - [ ] Gift button (historyGiftToUser) when canSendGift — spec §7.2. Not implemented

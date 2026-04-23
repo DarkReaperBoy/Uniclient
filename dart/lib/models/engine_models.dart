@@ -213,6 +213,7 @@ class ChatInfo {
   final int slowmodeSeconds;
   final int slowmodeNextSendDate;
   final int starsToSend;
+  final int ttlPeriod;
 
   const ChatInfo({
     required this.accountId,
@@ -253,6 +254,7 @@ class ChatInfo {
     this.slowmodeSeconds = 0,
     this.slowmodeNextSendDate = 0,
     this.starsToSend = 0,
+    this.ttlPeriod = 0,
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -294,6 +296,7 @@ class ChatInfo {
     slowmodeSeconds: j['slowmode_seconds'] as int? ?? 0,
     slowmodeNextSendDate: j['slowmode_next_send_date'] as int? ?? 0,
     starsToSend: j['stars_to_send'] as int? ?? 0,
+    ttlPeriod: j['ttl_period'] as int? ?? 0,
   );
 
   /// Time as DateTime for display.

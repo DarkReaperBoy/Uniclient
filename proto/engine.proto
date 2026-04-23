@@ -173,6 +173,7 @@ message EngineChatInfo {
   int32  slowmode_seconds         = 22;
   int64  slowmode_next_send_date  = 23;
   int32  stars_to_send            = 24;
+  int32  ttl_period               = 25;
 }
 
 message EngineGetChatListRequest {
@@ -208,6 +209,12 @@ message EngineArchiveChatRequest {
   string account_id = 1;
   string chat_id    = 2;
   bool   archived   = 3;
+}
+
+message EngineSetHistoryTTLRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  int32  period     = 3;
 }
 
 message EngineMarkChatReadRequest {

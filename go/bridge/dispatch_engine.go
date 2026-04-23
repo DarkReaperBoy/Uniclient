@@ -205,6 +205,13 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.PinChat(req.AccountId, req.ChatId, req.Pinned)
 
+	case "SetHistoryTTL":
+		var req pb.EngineSetHistoryTTLRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.SetHistoryTTL(req.AccountId, req.ChatId, int(req.Period))
+
 	case "ArchiveChat":
 		var req pb.EngineArchiveChatRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
@@ -1038,6 +1045,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		SlowmodeSeconds:       int32(c.SlowmodeSeconds),
 		SlowmodeNextSendDate:  c.SlowmodeNextSendDate,
 		StarsToSend:           int32(c.StarsToSend),
+		TtlPeriod:             int32(c.TtlPeriod),
 	}
 }
 

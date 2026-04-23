@@ -608,6 +608,11 @@ class ChatState extends ChangeNotifier {
     loadChats(); // refresh to reflect change
   }
 
+  void setHistoryTTL(String accountId, String chatId, int period) {
+    _engine.setHistoryTTL(accountId, chatId, period);
+    loadChats();
+  }
+
   void pinChat(String accountId, String chatId, bool pinned) {
     _engine.pinChat(accountId, chatId, pinned);
     // Invalidate custom pin order so it gets rebuilt from fresh data.

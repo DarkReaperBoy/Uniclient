@@ -1797,6 +1797,10 @@ class _ChatViewState extends State<ChatView>
             },
             scheduledCount: chatState.scheduledCount,
             onScheduledPressed: () => chatState.toggleScheduledView(),
+            ttlPeriod: chat.ttlPeriod,
+            onTtlChanged: (period) {
+              chatState.setHistoryTTL(chat.accountId, chat.chatId, period);
+            },
           ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
@@ -5080,6 +5084,8 @@ class _ComposeArea extends StatefulWidget {
   final ValueChanged<String>? onSendAsChanged;
   final int scheduledCount;
   final VoidCallback? onScheduledPressed;
+  final int ttlPeriod;
+  final ValueChanged<int>? onTtlChanged;
 
   const _ComposeArea({
     required this.controller,
@@ -5111,6 +5117,8 @@ class _ComposeArea extends StatefulWidget {
     this.onSendAsChanged,
     this.scheduledCount = 0,
     this.onScheduledPressed,
+    this.ttlPeriod = 0,
+    this.onTtlChanged,
   });
 
   @override
@@ -5838,6 +5846,13 @@ class _ComposeAreaState extends State<_ComposeArea>
               isDark: isDark,
             ),
           Expanded(child: field),
+          _TtlButton(
+            ttlPeriod: widget.ttlPeriod,
+            iconColor: iconFg,
+            hoverColor: iconFgOver,
+            accentColor: theme.colorScheme.primary,
+            onChanged: widget.onTtlChanged,
+          ),
           if (widget.scheduledCount > 0)
             _ScheduledToggleButton(
               iconColor: iconFg,
@@ -5953,6 +5968,130 @@ class _ComposeSlotButtonState extends State<_ComposeSlotButton> {
             width: 44,
             height: 46,
             child: Center(child: iconWidget),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Spec §7: TTL/disappearing message timer button.
+/// Shows auto-delete timer icon; tapping opens popup with period options.
+class _TtlButton extends StatefulWidget {
+  final int ttlPeriod;
+  final Color iconColor;
+  final Color hoverColor;
+  final Color accentColor;
+  final ValueChanged<int>? onChanged;
+
+  const _TtlButton({
+    required this.ttlPeriod,
+    required this.iconColor,
+    required this.hoverColor,
+    required this.accentColor,
+    this.onChanged,
+  });
+
+  @override
+  State<_TtlButton> createState() => _TtlButtonState();
+}
+
+class _TtlButtonState extends State<_TtlButton> {
+  bool _hovered = false;
+
+  static String _formatTtl(int seconds) {
+    if (seconds <= 0) return 'Off';
+    if (seconds < 60) return '${seconds}s';
+    if (seconds < 3600) return '${seconds ~/ 60}m';
+    if (seconds < 86400) return '${seconds ~/ 3600}h';
+    final days = seconds ~/ 86400;
+    if (days < 31) return '${days}d';
+    return '${days ~/ 30}mo';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = widget.ttlPeriod > 0;
+    final color = active
+        ? widget.accentColor
+        : (_hovered ? widget.hoverColor : widget.iconColor);
+    final label = active ? _formatTtl(widget.ttlPeriod) : null;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: PopupMenuButton<int>(
+        tooltip: active
+            ? 'Auto-delete: ${_formatTtl(widget.ttlPeriod)}'
+            : 'Auto-delete messages',
+        onSelected: (value) {
+          if (value != widget.ttlPeriod) {
+            widget.onChanged?.call(value);
+          }
+        },
+        itemBuilder: (_) => [
+          for (final e in const <MapEntry<int, String>>[
+            MapEntry(0, 'Off'),
+            MapEntry(86400, '1 day'),
+            MapEntry(604800, '7 days'),
+            MapEntry(2678400, '1 month'),
+          ])
+            PopupMenuItem<int>(
+              value: e.key,
+              child: Row(
+                children: [
+                  Icon(
+                    e.key == 0 ? Icons.timer_off_outlined : Icons.timer_outlined,
+                    size: 20,
+                    color: e.key == widget.ttlPeriod
+                        ? widget.accentColor
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    e.value,
+                    style: TextStyle(
+                      fontWeight: e.key == widget.ttlPeriod
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      color: e.key == widget.ttlPeriod
+                          ? widget.accentColor
+                          : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+        child: SizedBox(
+          width: 44,
+          height: 46,
+          child: Center(
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(Icons.timer_outlined, size: 22, color: color),
+                if (label != null)
+                  Positioned(
+                    right: -6,
+                    bottom: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      decoration: BoxDecoration(
+                        color: widget.accentColor,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 8,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFFFFFFF),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
