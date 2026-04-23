@@ -606,6 +606,35 @@ class EngineService {
     await _callAsync('__engine', 'ReactToMessage', req.writeToBuffer());
   }
 
+  Future<int> getScheduledCount(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetScheduledCount', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return 0;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return (data['count'] as num?)?.toInt() ?? 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  Future<List<CachedMessage>> getScheduledMessages(String accountId, String chatId) async {
+    final req = epb.EngineGetMessagesRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetScheduledMessages', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetMessagesResponse.fromBuffer(respBytes);
+      return resp.messages.map(_cachedMsgFromProto).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
   // ── Inline bot results (JSON-based, no proto) ──
 
   Future<InlineBotResults?> getInlineBotResults(String accountId, String botId, String query, {String offset = '', String chatId = ''}) async {

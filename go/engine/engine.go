@@ -549,3 +549,72 @@ func (e *Engine) SendScheduledNow(accountID, chatID string, msgIDs []string) err
 
 	return ss.SendScheduledNow(chatID, intIDs)
 }
+
+func (e *Engine) GetScheduledCount(accountID, chatID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return 0, nil
+	}
+
+	type scheduledGetter interface {
+		GetScheduledMessages(chatID string) ([]cores.Message, error)
+	}
+	sg, ok := acc.Core.(scheduledGetter)
+	if !ok {
+		return 0, nil
+	}
+
+	msgs, err := sg.GetScheduledMessages(chatID)
+	if err != nil {
+		return 0, err
+	}
+	return len(msgs), nil
+}
+
+func (e *Engine) GetScheduledMessages(accountID, chatID string) ([]CachedMessage, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return nil, fmt.Errorf("account %q not found or not connected", accountID)
+	}
+
+	type scheduledGetter interface {
+		GetScheduledMessages(chatID string) ([]cores.Message, error)
+	}
+	sg, ok := acc.Core.(scheduledGetter)
+	if !ok {
+		return nil, nil
+	}
+
+	msgs, err := sg.GetScheduledMessages(chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]CachedMessage, len(msgs))
+	for i, m := range msgs {
+		hasMedia := len(m.Attachments) > 0
+		result[i] = CachedMessage{
+			AccountID:   accountID,
+			ChatID:      chatID,
+			MsgID:       m.ID,
+			SenderID:    m.SenderID,
+			SenderName:  m.SenderName,
+			ContentText: m.Text,
+			Timestamp:   m.Timestamp.UnixMilli(),
+			IsOutgoing:  m.IsOutgoing,
+			HasMedia:    hasMedia,
+		}
+		if hasMedia {
+			att := m.Attachments[0]
+			result[i].MediaType = guessMediaType(att.MimeType, att.Name)
+			result[i].MediaFileName = att.Name
+			result[i].MediaMimeType = att.MimeType
+			result[i].MediaFileSize = att.Size
+			result[i].MediaThumbB64 = att.ThumbB64
+			result[i].MediaWidth = att.Width
+			result[i].MediaHeight = att.Height
+			result[i].MediaDuration = att.Duration
+		}
+	}
+	return result, nil
+}

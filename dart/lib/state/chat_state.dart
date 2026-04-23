@@ -25,6 +25,8 @@ class ChatState extends ChangeNotifier {
   final Map<String, String> _senderAvatars = {}; // senderId → base64 avatar thumbnail
   int _groupOnlineCount = 0; // online members in active group/channel chat
   GroupCallInfo? _activeGroupCall; // active group call in current chat
+  int _scheduledCount = 0;
+  bool _isScheduledView = false;
 
   // ── Archive state ──
   bool _hasArchivedChats = false;
@@ -156,6 +158,35 @@ class ChatState extends ChangeNotifier {
 
   /// Online member count for the active group/channel chat.
   int get groupOnlineCount => _groupOnlineCount;
+
+  int get scheduledCount => _scheduledCount;
+  bool get isScheduledView => _isScheduledView;
+
+  void toggleScheduledView() {
+    _isScheduledView = !_isScheduledView;
+    if (_isScheduledView) {
+      _loadScheduledMessages();
+    } else {
+      _loadMessages();
+    }
+    notifyListeners();
+  }
+
+  Future<void> _loadScheduledMessages() async {
+    final chat = _activeChat;
+    if (chat == null) return;
+    try {
+      final msgs = await _engine.getScheduledMessages(chat.accountId, chat.chatId);
+      if (_activeChat?.chatId == chat.chatId && _isScheduledView) {
+        _messages = msgs;
+        _hasMoreMessages = false;
+        notifyListeners();
+      }
+    } catch (_) {
+      _messages = [];
+      notifyListeners();
+    }
+  }
 
   /// All loaded folders across accounts.
   List<FolderInfo> get folders => _folders;
@@ -373,6 +404,9 @@ class ChatState extends ChangeNotifier {
     // Fetch member avatars and online count for group chats.
     _groupOnlineCount = 0;
     _activeGroupCall = null;
+    _scheduledCount = 0;
+    _isScheduledView = false;
+    _loadScheduledCount(chat.accountId, chat.chatId);
     if (chat.type == ChatType.group || chat.type == ChatType.channel || chat.type == ChatType.topic) {
       _loadMemberAvatars(chat.accountId, chat.chatId);
       _loadOnlineCount(chat.accountId, chat.chatId);
@@ -763,6 +797,18 @@ class ChatState extends ChangeNotifier {
       _pinnedMessages = _engine.getPinnedMessages(accountId, chatId);
     } catch (_) {
       _pinnedMessages = [];
+    }
+  }
+
+  Future<void> _loadScheduledCount(String accountId, String chatId) async {
+    try {
+      final count = await _engine.getScheduledCount(accountId, chatId);
+      if (_activeChat?.chatId == chatId) {
+        _scheduledCount = count;
+        notifyListeners();
+      }
+    } catch (_) {
+      _scheduledCount = 0;
     }
   }
 

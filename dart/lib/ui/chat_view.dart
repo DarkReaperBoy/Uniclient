@@ -1527,8 +1527,8 @@ class _ChatViewState extends State<ChatView>
                             onDelete: () => _deleteSelected(chatState),
                             onCopy: () => _copySelected(chatState),
                             onForward: () => _forwardSelected(context, chatState),
-                            isScheduledView: widget.isScheduledView,
-                            onSendNow: widget.isScheduledView
+                            isScheduledView: widget.isScheduledView || chatState.isScheduledView,
+                            onSendNow: (widget.isScheduledView || chatState.isScheduledView)
                                 ? () => _sendNowSelected(chatState)
                                 : null,
                             forwardDragData: ForwardDragData(
@@ -1795,6 +1795,8 @@ class _ChatViewState extends State<ChatView>
               final engine = context.read<EngineService>();
               engine.saveDefaultSendAs(chat.accountId, chat.chatId, peerId);
             },
+            scheduledCount: chatState.scheduledCount,
+            onScheduledPressed: () => chatState.toggleScheduledView(),
           ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
@@ -5076,6 +5078,8 @@ class _ComposeArea extends StatefulWidget {
   final List<SendAsPeerInfo> sendAsPeers;
   final String? selectedSendAsPeerId;
   final ValueChanged<String>? onSendAsChanged;
+  final int scheduledCount;
+  final VoidCallback? onScheduledPressed;
 
   const _ComposeArea({
     required this.controller,
@@ -5105,6 +5109,8 @@ class _ComposeArea extends StatefulWidget {
     this.sendAsPeers = const [],
     this.selectedSendAsPeerId,
     this.onSendAsChanged,
+    this.scheduledCount = 0,
+    this.onScheduledPressed,
   });
 
   @override
@@ -5832,6 +5838,12 @@ class _ComposeAreaState extends State<_ComposeArea>
               isDark: isDark,
             ),
           Expanded(child: field),
+          if (widget.scheduledCount > 0)
+            _ScheduledToggleButton(
+              iconColor: iconFg,
+              hoverColor: iconFgOver,
+              onPressed: widget.onScheduledPressed,
+            ),
           if (widget.chatType == ChatType.channel)
             _ComposeSlotButton(
               icon: _silentMode ? Icons.notifications_off : Icons.notifications,
@@ -5941,6 +5953,67 @@ class _ComposeSlotButtonState extends State<_ComposeSlotButton> {
             width: 44,
             height: 46,
             child: Center(child: iconWidget),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Spec §23.3: Scheduled messages toggle — clock icon with red attention dot.
+/// Shown when scheduledMessages.count > 0. Click opens scheduled messages view.
+class _ScheduledToggleButton extends StatefulWidget {
+  final Color iconColor;
+  final Color hoverColor;
+  final VoidCallback? onPressed;
+
+  const _ScheduledToggleButton({
+    required this.iconColor,
+    required this.hoverColor,
+    this.onPressed,
+  });
+
+  @override
+  State<_ScheduledToggleButton> createState() => _ScheduledToggleButtonState();
+}
+
+class _ScheduledToggleButtonState extends State<_ScheduledToggleButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _hovered ? widget.hoverColor : widget.iconColor;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Tooltip(
+        message: 'Scheduled messages',
+        child: InkResponse(
+          onTap: widget.onPressed,
+          radius: 20,
+          child: SizedBox(
+            width: 44,
+            height: 46,
+            child: Center(
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Icon(Icons.schedule, size: 22, color: color),
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFe53935),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),

@@ -946,6 +946,35 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(&pb.EngineSaveDefaultSendAsResponse{Ok: true})
 
+	case "GetScheduledCount":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		count, err := e.GetScheduledCount(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"count": count})
+
+	case "GetScheduledMessages":
+		var req pb.EngineGetMessagesRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msgs, err := e.GetScheduledMessages(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetMessagesResponse{}
+		for _, m := range msgs {
+			resp.Messages = append(resp.Messages, cachedMsgToProto(&m))
+		}
+		return proto.Marshal(resp)
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}
