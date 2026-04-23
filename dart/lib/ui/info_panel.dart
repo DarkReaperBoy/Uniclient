@@ -783,16 +783,15 @@ class _AvatarHeader extends StatelessWidget {
 
     return Column(
       children: [
-        // 72x72 avatar.
         SizedBox(
-          width: 72,
-          height: 72,
+          width: 80,
+          height: 80,
           child: chat.avatarPath.isNotEmpty
               ? ClipOval(
                   child: Image.file(
                     File(chat.avatarPath),
-                    width: 72,
-                    height: 72,
+                    width: 80,
+                    height: 80,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => _avatarFallback(color, initials),
                   ),
@@ -843,8 +842,8 @@ class _AvatarHeader extends StatelessWidget {
 
   static Widget _avatarFallback(Color color, String initials) {
     return Container(
-      width: 72,
-      height: 72,
+      width: 80,
+      height: 80,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
       alignment: Alignment.center,
       child: Text(
