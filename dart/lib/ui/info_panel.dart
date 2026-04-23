@@ -1618,6 +1618,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   static const _types = [
     ('photo', Icons.photo_outlined, 'Photos'),
     ('video', Icons.videocam_outlined, 'Videos'),
+    ('stories', Icons.auto_stories_outlined, 'Stories'),
     ('file', Icons.insert_drive_file_outlined, 'Files'),
     ('audio', Icons.music_note_outlined, 'Music'),
     ('link', Icons.link, 'Links'),
@@ -1625,7 +1626,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     ('gif', Icons.gif_box_outlined, 'GIFs'),
   ];
 
-  static const _gridTypes = {'photo', 'video'};
+  static const _gridTypes = {'photo', 'video', 'stories'};
 
   static const _subTabSets = <String, List<(String, String)>>{
     'stories': [('archive', 'Archive'), ('recent', 'Recent')],
@@ -1658,6 +1659,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   static const _typeToFilter = {
     'photo': 'image',
     'video': 'video',
+    'stories': 'stories',
   };
 
   void _loadGridItems(String type) {
@@ -1753,6 +1755,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
                 items: _gridItems,
                 loading: _gridLoading,
                 theme: widget.theme,
+                mediaType: type,
               ),
           ],
         ],
@@ -1993,15 +1996,18 @@ class _MediaGrid extends StatelessWidget {
   final List<SharedMediaItem>? items;
   final bool loading;
   final ThemeData theme;
+  final String mediaType;
 
   static const _minGridSize = 82.0;
   static const _skip = 2.0;
   static const _sidePadding = 3.0;
+  static const _storyRatio = 16.0 / 9.0;
 
   const _MediaGrid({
     required this.items,
     required this.loading,
     required this.theme,
+    this.mediaType = 'photo',
   });
 
   @override
@@ -2038,6 +2044,8 @@ class _MediaGrid extends StatelessWidget {
       final contentWidth = listWidth - 2 * _sidePadding;
       final columns = math.max(1, ((contentWidth + _skip) / (_minGridSize + _skip)).floor());
       final cellSide = ((contentWidth - (columns - 1) * _skip) / columns).floorToDouble();
+      final isStories = mediaType == 'stories';
+      final cellHeight = isStories ? (cellSide * _storyRatio).floorToDouble() : cellSide;
 
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
@@ -2046,7 +2054,7 @@ class _MediaGrid extends StatelessWidget {
           children: [
             for (final entry in grouped.entries) ...[
               _DateHeader(label: entry.key, theme: theme),
-              _buildGridRows(entry.value, columns, cellSide),
+              _buildGridRows(entry.value, columns, cellSide, cellHeight),
             ],
           ],
         ),
@@ -2054,7 +2062,7 @@ class _MediaGrid extends StatelessWidget {
     });
   }
 
-  Widget _buildGridRows(List<SharedMediaItem> items, int columns, double cellSide) {
+  Widget _buildGridRows(List<SharedMediaItem> items, int columns, double cellSide, double cellHeight) {
     final rows = <Widget>[];
     for (var i = 0; i < items.length; i += columns) {
       final rowItems = items.sublist(i, math.min(i + columns, items.length));
@@ -2064,7 +2072,7 @@ class _MediaGrid extends StatelessWidget {
           children: [
             for (var j = 0; j < rowItems.length; j++) ...[
               if (j > 0) const SizedBox(width: _skip),
-              _GridCell(item: rowItems[j], size: cellSide, theme: theme),
+              _GridCell(item: rowItems[j], size: cellSide, height: cellHeight, theme: theme),
             ],
           ],
         ),
@@ -2124,13 +2132,15 @@ class _DateHeader extends StatelessWidget {
 class _GridCell extends StatelessWidget {
   final SharedMediaItem item;
   final double size;
+  final double height;
   final ThemeData theme;
 
   const _GridCell({
     required this.item,
     required this.size,
+    double? height,
     required this.theme,
-  });
+  }) : height = height ?? size;
 
   @override
   Widget build(BuildContext context) {
@@ -2147,7 +2157,7 @@ class _GridCell extends StatelessWidget {
           content = Image.memory(
             bytes,
             width: size,
-            height: size,
+            height: height,
             fit: BoxFit.cover,
             gaplessPlayback: true,
             errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
@@ -2162,7 +2172,7 @@ class _GridCell extends StatelessWidget {
       content = Image.file(
         File(item.localPath),
         width: size,
-        height: size,
+        height: height,
         fit: BoxFit.cover,
         gaplessPlayback: true,
         errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
@@ -2174,7 +2184,7 @@ class _GridCell extends StatelessWidget {
     final isVideo = item.isVideo;
     return SizedBox(
       width: size,
-      height: size,
+      height: height,
       child: Stack(
         fit: StackFit.expand,
         children: [

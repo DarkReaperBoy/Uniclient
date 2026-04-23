@@ -411,7 +411,6 @@
 
 ### §8.5 Grid Columns (Photos / Videos / Gifts)
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] Stories grid: 9:16 aspect ratio cells — spec §8.5
 - [ ] GIF layout: masonry/waterfall (variable aspect ratios); Files/Links/Audio/Voice: single-column list items — spec §8.5
 - [ ] Empty-state widget when list height <= threshold; gifts grid with taller aspect override — spec §8.5
 
