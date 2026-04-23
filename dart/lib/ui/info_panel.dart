@@ -276,7 +276,10 @@ class _ActionBtnData {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
-  const _ActionBtnData(this.icon, this.label, this.onTap);
+  final bool isMute;
+  final bool isMuted;
+  const _ActionBtnData(this.icon, this.label, this.onTap,
+      {this.isMute = false, this.isMuted = false});
 }
 
 class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
@@ -483,7 +486,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                   opacity: actionProgress,
                   child: SizedBox(
                     height: _actionButtonSize,
-                    child: _buildActionRow(actionProgress),
+                    child: _buildActionRow(context, actionProgress),
                   ),
                 ),
               ),
@@ -556,6 +559,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
         isMuted ? Icons.notifications_off : Icons.notifications,
         isMuted ? 'Unmute' : 'Mute',
         onMuteToggle,
+        isMute: true,
+        isMuted: isMuted,
       ));
     }
     if (chatType == ChatType.dm && !isSelf) {
@@ -571,7 +576,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     return buttons;
   }
 
-  Widget _buildActionRow(double progress) {
+  Widget _buildActionRow(BuildContext context, double progress) {
     final iconScale = ((progress - 0.4) / 0.6).clamp(0.0, 1.0);
     final textScale = progress.clamp(0.4, 1.0);
     final isDark = theme.brightness == Brightness.dark;
@@ -595,6 +600,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
           if (i > 0) const SizedBox(width: 10),
           Expanded(
             child: _actionBtn(
+              context,
               buttons[i],
               bg,
               fg,
@@ -625,38 +631,99 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     return BorderRadius.circular(sm);
   }
 
-  Widget _actionBtn(_ActionBtnData data, Color bg, Color fg,
-      double iconScale, double textScale, BorderRadius radius) {
+  Widget _actionBtn(BuildContext context, _ActionBtnData data, Color bg,
+      Color fg, double iconScale, double textScale, BorderRadius radius) {
+    final iconWidget = data.isMute
+        ? AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: ScaleTransition(scale: animation, child: child),
+            ),
+            child: Icon(data.icon, size: 23, color: fg,
+                key: ValueKey(data.isMuted)),
+          )
+        : Icon(data.icon, size: 23, color: fg);
+
+    final labelWidget = data.isMute
+        ? AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Text(data.label, key: ValueKey(data.label),
+                style: TextStyle(fontSize: 11, color: fg),
+                overflow: TextOverflow.ellipsis),
+          )
+        : Text(data.label, style: TextStyle(fontSize: 11, color: fg),
+              overflow: TextOverflow.ellipsis);
+
     return Material(
       color: bg,
       borderRadius: radius,
       clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: data.onTap,
-        borderRadius: radius,
-        child: SizedBox(
-          height: _actionButtonSize,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Transform.scale(
-                scale: iconScale,
-                child: Icon(data.icon, size: 23, color: fg),
-              ),
-              const SizedBox(height: 2),
-              Transform.scale(
-                scale: textScale,
-                child: Text(
-                  data.label,
-                  style: TextStyle(fontSize: 11, color: fg),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+      child: GestureDetector(
+        onSecondaryTapUp: data.isMute
+            ? (details) => _showMuteMenu(context, details.globalPosition, data)
+            : null,
+        child: InkWell(
+          onTap: data.onTap,
+          borderRadius: radius,
+          child: SizedBox(
+            height: _actionButtonSize,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Transform.scale(scale: iconScale, child: iconWidget),
+                const SizedBox(height: 2),
+                Transform.scale(scale: textScale, child: labelWidget),
+              ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  void _showMuteMenu(BuildContext context, Offset position,
+      _ActionBtnData data) {
+    final isDark = theme.brightness == Brightness.dark;
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+          position.dx, position.dy, position.dx, position.dy),
+      items: [
+        if (data.isMuted)
+          PopupMenuItem<String>(
+            value: 'unmute',
+            child: Row(
+              children: [
+                Icon(Icons.notifications, size: 20,
+                    color: const Color(0xFF4dc920)),
+                const SizedBox(width: 12),
+                const Text('Unmute'),
+              ],
+            ),
+          )
+        else
+          PopupMenuItem<String>(
+            value: 'mute_forever',
+            child: Row(
+              children: [
+                Icon(Icons.notifications_off, size: 20,
+                    color: isDark
+                        ? const Color(0xFFe85050)
+                        : const Color(0xFFdd4b39)),
+                const SizedBox(width: 12),
+                const Text('Mute forever'),
+              ],
+            ),
+          ),
+      ],
+    ).then((value) {
+      if (value == 'unmute' || value == 'mute_forever') {
+        data.onTap?.call();
+      }
+    });
   }
 
   static Widget _avatarFallback(Color color, String initials, double size) {

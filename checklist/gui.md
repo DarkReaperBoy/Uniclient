@@ -401,7 +401,6 @@
 
 ### §8.2 Action Button Row
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] Mute button: Lottie crossfade animation (profile_muting/unmuting); right-click opens mute-duration submenu — spec §8.2
 
 ### §8.3 Shared Media Navigation
 <!-- File: dart/lib/ui/info_panel.dart -->
