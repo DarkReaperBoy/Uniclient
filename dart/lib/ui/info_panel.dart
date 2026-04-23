@@ -282,9 +282,12 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final VoidCallback onClose;
   final bool showBackButton;
   final String collapsedTitle;
+  final bool isMuted;
+  final VoidCallback? onMuteToggle;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
+  static const double _actionButtonSize = 52.0;
 
   _FlexibleCoverDelegate({
     required this.displayName,
@@ -297,6 +300,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     required this.onClose,
     required this.showBackButton,
     required this.collapsedTitle,
+    this.isMuted = false,
+    this.onMuteToggle,
   });
 
   @override
@@ -310,12 +315,22 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       statusText != old.statusText ||
       avatarPath != old.avatarPath ||
       showBackButton != old.showBackButton ||
-      collapsedTitle != old.collapsedTitle;
+      collapsedTitle != old.collapsedTitle ||
+      isMuted != old.isMuted;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     final height = (maxHeight - shrinkOffset).clamp(minHeight, maxHeight);
     final t = ((height - minHeight) / (maxHeight - minHeight)).clamp(0.0, 1.0);
+
+    final collapseProgress = (1.0 - t).clamp(0.0, 1.0);
+    final titleScale = 0.7 + 0.3 * collapseProgress;
+    final actionRatio = height / (_actionButtonSize + minHeight);
+    final actionProgress = (actionRatio >= 1.0)
+        ? 1.0
+        : (actionRatio <= 0.5)
+            ? 0.0
+            : (actionRatio - 0.5) / 0.5;
 
     return SizedBox(
       height: height,
@@ -328,22 +343,25 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
               top: 24,
               left: 0,
               right: 0,
-              child: Center(
-                child: SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: avatarPath.isNotEmpty
-                      ? ClipOval(
-                          child: Image.file(
-                            File(avatarPath),
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) =>
-                                _avatarFallback(avatarColor, initials, 80),
-                          ),
-                        )
-                      : _avatarFallback(avatarColor, initials, 80),
+              child: Opacity(
+                opacity: t,
+                child: Center(
+                  child: SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: avatarPath.isNotEmpty
+                        ? ClipOval(
+                            child: Image.file(
+                              File(avatarPath),
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  _avatarFallback(avatarColor, initials, 80),
+                            ),
+                          )
+                        : _avatarFallback(avatarColor, initials, 80),
+                  ),
                 ),
               ),
             ),
@@ -351,13 +369,16 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
               top: 113,
               left: 20,
               right: 20,
-              child: Text(
-                displayName,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w600),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
+              child: Opacity(
+                opacity: t,
+                child: Text(
+                  displayName,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ),
             if (statusText.isNotEmpty)
@@ -365,10 +386,26 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                 top: 134,
                 left: 20,
                 right: 20,
-                child: Text(
-                  statusText,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: statusColor),
+                child: Opacity(
+                  opacity: t,
+                  child: Text(
+                    statusText,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 13, color: statusColor),
+                  ),
+                ),
+              ),
+            if (actionProgress > 0 && onMuteToggle != null)
+              Positioned(
+                bottom: 16,
+                left: 18,
+                right: 18,
+                child: Opacity(
+                  opacity: actionProgress,
+                  child: SizedBox(
+                    height: _actionButtonSize,
+                    child: _buildActionRow(actionProgress),
+                  ),
                 ),
               ),
             Positioned(
@@ -378,7 +415,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
               height: minHeight,
               child: Container(
                 color: theme.colorScheme.surface
-                    .withValues(alpha: (1.0 - t).clamp(0.0, 1.0)),
+                    .withValues(alpha: collapseProgress),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Row(
                   children: [
@@ -392,13 +429,17 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                     ),
                     const SizedBox(width: 4),
                     Expanded(
-                      child: Opacity(
-                        opacity: (1.0 - t).clamp(0.0, 1.0),
-                        child: Text(
-                          collapsedTitle,
-                          style: theme.textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
+                      child: Transform.scale(
+                        scale: titleScale,
+                        alignment: Alignment.centerLeft,
+                        child: Opacity(
+                          opacity: collapseProgress,
+                          child: Text(
+                            collapsedTitle,
+                            style: theme.textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                       ),
                     ),
@@ -412,6 +453,61 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
               right: 0,
               height: 1,
               child: ColoredBox(color: theme.dividerColor),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionRow(double progress) {
+    final iconScale = ((progress - 0.4) / 0.6).clamp(0.0, 1.0);
+    final textScale = progress.clamp(0.4, 1.0);
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF2b3945) : const Color(0xFFe9ecef);
+    final fg = theme.colorScheme.primary;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _actionBtn(
+          isMuted ? Icons.notifications_off : Icons.notifications,
+          isMuted ? 'Unmute' : 'Mute',
+          bg, fg, iconScale, textScale, onMuteToggle,
+        ),
+      ],
+    );
+  }
+
+  Widget _actionBtn(IconData icon, String label, Color bg, Color fg,
+      double iconScale, double textScale, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: _actionButtonSize,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: Transform.scale(
+                scale: iconScale,
+                child: Icon(icon, size: 20, color: fg),
+              ),
+            ),
+            Transform.scale(
+              scale: textScale,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 1),
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 10, color: fg),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
           ],
         ),
@@ -550,6 +646,13 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               onClose: widget.onClose,
               showBackButton: widget.showBackButton,
               collapsedTitle: widget.title,
+              isMuted: widget.chat.isMuted,
+              onMuteToggle: () {
+                widget.chatState.muteChat(
+                  widget.chat.accountId, widget.chat.chatId,
+                  !widget.chat.isMuted,
+                );
+              },
             ),
           ),
           SliverList(
