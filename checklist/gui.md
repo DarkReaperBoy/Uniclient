@@ -370,7 +370,6 @@
 
 ### §7.11 Additional Controls
 
-- [ ] Bot Command Start "/" button — spec §7. Not implemented
 - [ ] Gift button (historyGiftToUser) when canSendGift — spec §7.2. Not implemented
 
 ### §7.12 Fallback Compose Buttons

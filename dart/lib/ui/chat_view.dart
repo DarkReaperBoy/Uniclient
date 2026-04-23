@@ -1801,6 +1801,7 @@ class _ChatViewState extends State<ChatView>
             onTtlChanged: (period) {
               chatState.setHistoryTTL(chat.accountId, chat.chatId, period);
             },
+            isBot: chat.isBot,
           ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
@@ -5086,6 +5087,7 @@ class _ComposeArea extends StatefulWidget {
   final VoidCallback? onScheduledPressed;
   final int ttlPeriod;
   final ValueChanged<int>? onTtlChanged;
+  final bool isBot;
 
   const _ComposeArea({
     required this.controller,
@@ -5119,6 +5121,7 @@ class _ComposeArea extends StatefulWidget {
     this.onScheduledPressed,
     this.ttlPeriod = 0,
     this.onTtlChanged,
+    this.isBot = false,
   });
 
   @override
@@ -5905,6 +5908,18 @@ class _ComposeAreaState extends State<_ComposeArea>
               hoverColor: _silentMode ? theme.colorScheme.primary : iconFgOver,
               onPressed: () => setState(() => _silentMode = !_silentMode),
             ),
+          if (widget.isBot && widget.chatType == ChatType.dm)
+            _BotCommandButton(
+              iconColor: iconFg,
+              hoverColor: iconFgOver,
+              onPressed: () {
+                final ctrl = widget.controller;
+                if (ctrl.text.isEmpty || !ctrl.text.startsWith('/')) {
+                  ctrl.text = '/${ctrl.text}';
+                  ctrl.selection = TextSelection.collapsed(offset: ctrl.text.length);
+                }
+              },
+            ),
           _ComposeSlotButton(
             icon: Icons.emoji_emotions_outlined,
             tooltip: 'Emoji',
@@ -6006,6 +6021,56 @@ class _ComposeSlotButtonState extends State<_ComposeSlotButton> {
             width: 44,
             height: 46,
             child: Center(child: iconWidget),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BotCommandButton extends StatefulWidget {
+  final Color iconColor;
+  final Color hoverColor;
+  final VoidCallback onPressed;
+
+  const _BotCommandButton({
+    required this.iconColor,
+    required this.hoverColor,
+    required this.onPressed,
+  });
+
+  @override
+  State<_BotCommandButton> createState() => _BotCommandButtonState();
+}
+
+class _BotCommandButtonState extends State<_BotCommandButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _hovered ? widget.hoverColor : widget.iconColor;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Tooltip(
+        message: 'Bot Commands',
+        child: InkResponse(
+          onTap: widget.onPressed,
+          radius: 20,
+          child: SizedBox(
+            width: 44,
+            height: 46,
+            child: Center(
+              child: Text(
+                '/',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  height: 1,
+                ),
+              ),
+            ),
           ),
         ),
       ),
