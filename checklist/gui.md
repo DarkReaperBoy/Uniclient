@@ -391,7 +391,6 @@
 
 ### §8.0 Panel Chrome & Layout
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] Navigation stack: push on sub-section click, pop on back; slide animations (FromRight open / FromLeft back); Memento restores scroll position, search query, active media tab — spec §8
 
 ### §8.1 Cover / TopBar Compression
 <!-- File: dart/lib/ui/info_panel.dart -->

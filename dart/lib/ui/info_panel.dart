@@ -11,6 +11,21 @@ import 'chat_view.dart' show formatChatLastSeen;
 
 enum InfoWrapMode { side, narrow, layer }
 
+enum _InfoPageType { chatInfo, userProfile }
+
+class _InfoNavPage {
+  final _InfoPageType type;
+  final MemberInfo? member;
+  double scrollOffset = 0.0;
+
+  _InfoNavPage({required this.type, this.member});
+
+  String get title => switch (type) {
+    _InfoPageType.chatInfo => '',
+    _InfoPageType.userProfile => member?.label ?? 'User Info',
+  };
+}
+
 class InfoPanel extends StatefulWidget {
   final VoidCallback onClose;
   final InfoWrapMode wrapMode;
@@ -30,12 +45,84 @@ class _InfoPanelState extends State<InfoPanel> {
   bool _loadingMembers = false;
   String? _loadedChatId;
 
+  final List<_InfoNavPage> _navStack = [_InfoNavPage(type: _InfoPageType.chatInfo)];
+  bool _isPushing = true;
+
+  _InfoNavPage get _currentPage => _navStack.last;
+
+  void _pushPage(_InfoNavPage page) {
+    _saveCurrentScroll();
+    setState(() {
+      _isPushing = true;
+      _navStack.add(page);
+    });
+  }
+
+  void _popPage() {
+    if (_navStack.length <= 1) {
+      widget.onClose();
+      return;
+    }
+    setState(() {
+      _isPushing = false;
+      _navStack.removeLast();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _restoreScroll());
+  }
+
+  final Map<int, ScrollController> _scrollControllers = {};
+
+  ScrollController _getScrollController() {
+    final idx = _navStack.length - 1;
+    return _scrollControllers.putIfAbsent(idx, () {
+      final ctrl = ScrollController(initialScrollOffset: _currentPage.scrollOffset);
+      return ctrl;
+    });
+  }
+
+  void _saveCurrentScroll() {
+    final idx = _navStack.length - 1;
+    final ctrl = _scrollControllers[idx];
+    if (ctrl != null && ctrl.hasClients) {
+      _currentPage.scrollOffset = ctrl.offset;
+    }
+  }
+
+  void _restoreScroll() {
+    final idx = _navStack.length - 1;
+    final old = _scrollControllers.remove(idx + 1);
+    old?.dispose();
+    final ctrl = _scrollControllers[idx];
+    if (ctrl != null && ctrl.hasClients) {
+      ctrl.jumpTo(_currentPage.scrollOffset);
+    }
+  }
+
+  void _resetNavStack() {
+    for (final c in _scrollControllers.values) {
+      c.dispose();
+    }
+    _scrollControllers.clear();
+    _navStack.clear();
+    _navStack.add(_InfoNavPage(type: _InfoPageType.chatInfo));
+    _isPushing = true;
+  }
+
+  @override
+  void dispose() {
+    for (final c in _scrollControllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final chatState = context.read<ChatState>();
     final chat = chatState.activeChat;
     if (chat != null && chat.chatId != _loadedChatId) {
+      _resetNavStack();
       _loadMembers(chat);
     }
   }
@@ -74,7 +161,6 @@ class _InfoPanelState extends State<InfoPanel> {
 
     if (chat == null) return const SizedBox.shrink();
 
-    // Reload members if chat changed.
     if (chat.chatId != _loadedChatId) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadMembers(chat));
     }
@@ -86,6 +172,13 @@ class _InfoPanelState extends State<InfoPanel> {
     final bgColor = isLayer
         ? (isDark ? const Color(0xFF1b2734) : const Color(0xFFf0f0f0))
         : theme.colorScheme.surface;
+
+    final hasBack = _navStack.length > 1 || isNarrow;
+    final topBarTitle = _navStack.length > 1
+        ? _currentPage.title
+        : _panelTitle(chat.type);
+
+    final pageContent = _buildCurrentPage(chat, chatState, theme);
 
     Widget panel = Container(
       decoration: BoxDecoration(
@@ -102,35 +195,32 @@ class _InfoPanelState extends State<InfoPanel> {
         children: [
           _TopBar(
             chat: chat,
-            onClose: widget.onClose,
+            onClose: hasBack ? _popPage : widget.onClose,
             theme: theme,
             height: topBarHeight,
-            showBackButton: isNarrow,
+            showBackButton: hasBack,
+            titleOverride: topBarTitle,
           ),
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                _AvatarHeader(
-                  chat: chat,
-                  theme: theme,
-                  isOnline: chatState.isChatOnline(chat),
-                  lastSeen: chatState.chatLastSeen(chat),
-                ),
-                const SizedBox(height: 16),
-                _ChatDetails(chat: chat, theme: theme),
-                const Divider(height: 24),
-                _NotificationToggle(chat: chat, theme: theme),
-                if (chat.type == ChatType.group || chat.type == ChatType.topic) ...[
-                  const Divider(height: 24),
-                  _MembersSection(
-                    members: _members,
-                    loading: _loadingMembers,
-                    memberCount: chat.memberCount,
-                    theme: theme,
-                  ),
-                ],
-              ],
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              transitionBuilder: (child, animation) {
+                final isNewPage = child.key == ValueKey(_navStack.length);
+                final beginOffset = _isPushing
+                    ? (isNewPage ? const Offset(1, 0) : const Offset(-0.3, 0))
+                    : (isNewPage ? const Offset(-0.3, 0) : const Offset(1, 0));
+                return SlideTransition(
+                  position: Tween<Offset>(begin: beginOffset, end: Offset.zero)
+                      .animate(animation),
+                  child: child,
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey(_navStack.length),
+                child: pageContent,
+              ),
             ),
           ),
         ],
@@ -139,6 +229,42 @@ class _InfoPanelState extends State<InfoPanel> {
 
     return panel;
   }
+
+  Widget _buildCurrentPage(ChatInfo chat, ChatState chatState, ThemeData theme) {
+    final page = _currentPage;
+    switch (page.type) {
+      case _InfoPageType.userProfile:
+        return _UserProfilePage(
+          member: page.member!,
+          chat: chat,
+          theme: theme,
+          scrollController: _getScrollController(),
+        );
+      case _InfoPageType.chatInfo:
+        return _ChatInfoPage(
+          chat: chat,
+          chatState: chatState,
+          theme: theme,
+          members: _members,
+          loadingMembers: _loadingMembers,
+          scrollController: _getScrollController(),
+          onMemberTap: (member) {
+            _pushPage(_InfoNavPage(
+              type: _InfoPageType.userProfile,
+              member: member,
+            ));
+          },
+        );
+    }
+  }
+
+  static String _panelTitle(ChatType type) => switch (type) {
+    ChatType.dm => 'User Info',
+    ChatType.group => 'Group Info',
+    ChatType.channel => 'Channel Info',
+    ChatType.topic => 'Topic Info',
+    _ => 'Info',
+  };
 }
 
 class _TopBar extends StatelessWidget {
@@ -147,6 +273,7 @@ class _TopBar extends StatelessWidget {
   final ThemeData theme;
   final double height;
   final bool showBackButton;
+  final String titleOverride;
 
   const _TopBar({
     required this.chat,
@@ -154,6 +281,7 @@ class _TopBar extends StatelessWidget {
     required this.theme,
     this.height = 54,
     this.showBackButton = false,
+    this.titleOverride = '',
   });
 
   @override
@@ -176,7 +304,7 @@ class _TopBar extends StatelessWidget {
           const SizedBox(width: 4),
           Expanded(
             child: Text(
-              _panelTitle(chat.type),
+              titleOverride.isNotEmpty ? titleOverride : _panelTitle(chat.type),
               style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
               overflow: TextOverflow.ellipsis,
             ),
@@ -193,6 +321,170 @@ class _TopBar extends StatelessWidget {
     ChatType.topic => 'Topic Info',
     _ => 'Info',
   };
+}
+
+class _ChatInfoPage extends StatelessWidget {
+  final ChatInfo chat;
+  final ChatState chatState;
+  final ThemeData theme;
+  final List<MemberInfo>? members;
+  final bool loadingMembers;
+  final ScrollController scrollController;
+  final void Function(MemberInfo) onMemberTap;
+
+  const _ChatInfoPage({
+    required this.chat,
+    required this.chatState,
+    required this.theme,
+    required this.members,
+    required this.loadingMembers,
+    required this.scrollController,
+    required this.onMemberTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      controller: scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        _AvatarHeader(
+          chat: chat,
+          theme: theme,
+          isOnline: chatState.isChatOnline(chat),
+          lastSeen: chatState.chatLastSeen(chat),
+        ),
+        const SizedBox(height: 16),
+        _ChatDetails(chat: chat, theme: theme),
+        const Divider(height: 24),
+        _NotificationToggle(chat: chat, theme: theme),
+        if (chat.type == ChatType.group || chat.type == ChatType.topic) ...[
+          const Divider(height: 24),
+          _MembersSection(
+            members: members,
+            loading: loadingMembers,
+            memberCount: chat.memberCount,
+            theme: theme,
+            onMemberTap: onMemberTap,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _UserProfilePage extends StatelessWidget {
+  final MemberInfo member;
+  final ChatInfo chat;
+  final ThemeData theme;
+  final ScrollController scrollController;
+
+  const _UserProfilePage({
+    required this.member,
+    required this.chat,
+    required this.theme,
+    required this.scrollController,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorIndex = member.userId.hashCode.abs() % 7;
+    final color = _AvatarHeader._avatarColors[colorIndex];
+    final name = member.label;
+    final initials = _AvatarHeader._initials(name);
+
+    return ListView(
+      controller: scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        Column(
+          children: [
+            SizedBox(
+              width: 72,
+              height: 72,
+              child: Container(
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: Text(
+                  initials,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                name,
+                style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (member.isOnline)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'online',
+                  style: TextStyle(fontSize: 13, color: const Color(0xFF3BA55C)),
+                ),
+              ),
+            if (member.isBot)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text('bot', style: TextStyle(fontSize: 13, color: theme.textTheme.bodySmall?.color)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (member.username.isNotEmpty)
+                _DetailRow(
+                  icon: Icons.alternate_email,
+                  label: 'Username',
+                  value: member.username,
+                  theme: theme,
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: member.username));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Username copied'), duration: Duration(seconds: 2), behavior: SnackBarBehavior.floating),
+                    );
+                  },
+                ),
+              _DetailRow(
+                icon: Icons.person,
+                label: 'ID',
+                value: member.userId,
+                theme: theme,
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: member.userId));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('ID copied'), duration: Duration(seconds: 2), behavior: SnackBarBehavior.floating),
+                  );
+                },
+              ),
+              if (member.role.isNotEmpty && member.role != 'member')
+                _DetailRow(
+                  icon: Icons.shield,
+                  label: 'Role',
+                  value: member.role,
+                  theme: theme,
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _AvatarHeader extends StatelessWidget {
@@ -450,12 +742,14 @@ class _MembersSection extends StatelessWidget {
   final bool loading;
   final int memberCount;
   final ThemeData theme;
+  final void Function(MemberInfo)? onMemberTap;
 
   const _MembersSection({
     required this.members,
     required this.loading,
     required this.memberCount,
     required this.theme,
+    this.onMemberTap,
   });
 
   @override
@@ -490,7 +784,7 @@ class _MembersSection extends StatelessWidget {
               child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
             ))
           else if (members != null && members!.isNotEmpty)
-            ...members!.map((m) => _MemberRow(member: m, theme: theme))
+            ...members!.map((m) => _MemberRow(member: m, theme: theme, onTap: onMemberTap != null ? () => onMemberTap!(m) : null))
           else
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -508,8 +802,9 @@ class _MembersSection extends StatelessWidget {
 class _MemberRow extends StatelessWidget {
   final MemberInfo member;
   final ThemeData theme;
+  final VoidCallback? onTap;
 
-  const _MemberRow({required this.member, required this.theme});
+  const _MemberRow({required this.member, required this.theme, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -521,11 +816,10 @@ class _MemberRow extends StatelessWidget {
       const Color(0xFF6ec9cb),
     ][colorIndex];
 
-    return Padding(
+    Widget row = Padding(
       padding: const EdgeInsets.only(top: 6, bottom: 8),
       child: Row(
         children: [
-          // 40px avatar.
           SizedBox(
             width: 40,
             height: 40,
@@ -583,8 +877,19 @@ class _MemberRow extends StatelessWidget {
               ],
             ),
           ),
+          if (onTap != null)
+            Icon(Icons.chevron_right, size: 18, color: theme.textTheme.bodySmall?.color),
         ],
       ),
     );
+
+    if (onTap != null) {
+      return InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: row,
+      );
+    }
+    return row;
   }
 }
