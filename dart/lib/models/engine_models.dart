@@ -1374,6 +1374,20 @@ class StickerInfoItem {
   });
 }
 
+class SendAsPeerInfo {
+  final String peerId;
+  final String displayName;
+  final String avatarPath;
+  final bool isChannel;
+
+  const SendAsPeerInfo({
+    this.peerId = '',
+    this.displayName = '',
+    this.avatarPath = '',
+    this.isChannel = false,
+  });
+}
+
 class AttachMenuBotInfo {
   final int botId;
   final String shortName;

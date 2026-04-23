@@ -11890,6 +11890,25 @@ func (t *TelegramCore) GetSendAs(chatID string) ([]string, error) {
 	return ids, nil
 }
 
+// SaveDefaultSendAs sets the default send-as peer for a channel chat.
+func (t *TelegramCore) SaveDefaultSendAs(chatID, peerID string) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	chatPeer, err := t.resolvePeer(chatID)
+	if err != nil { return err }
+	chatInput, err := t.toInputPeer(chatPeer)
+	if err != nil { return err }
+	sendAsPeer, err := t.resolvePeer(peerID)
+	if err != nil { return err }
+	sendAsInput, err := t.toInputPeer(sendAsPeer)
+	if err != nil { return err }
+	_, err = t.api.MessagesSaveDefaultSendAs(t.ctx, &tg.MessagesSaveDefaultSendAsRequest{
+		Peer:       chatInput,
+		SendAs:     sendAsInput,
+	})
+	return err
+}
+
 // JoinChannel joins a public channel or supergroup by its username.
 func (t *TelegramCore) JoinChannel(chatID string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()

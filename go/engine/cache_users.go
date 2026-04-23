@@ -331,3 +331,70 @@ func (e *Engine) GetWebPagePreview(accountID, url string) (*cores.WebPagePreview
 	}
 	return fetcher.GetWebPagePreviewFull(url)
 }
+
+// SendAsPeerInfo describes a peer the user can send messages as.
+type SendAsPeerInfo struct {
+	PeerID      string `json:"peer_id"`
+	DisplayName string `json:"display_name"`
+	AvatarPath  string `json:"avatar_path,omitempty"`
+	IsChannel   bool   `json:"is_channel"`
+}
+
+// GetSendAs returns the list of peers the user can send as in a given chat.
+func (e *Engine) GetSendAs(accountID, chatID string) ([]SendAsPeerInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type sendAsFetcher interface {
+		GetSendAs(chatID string) ([]string, error)
+	}
+	fetcher, ok := acc.Core.(sendAsFetcher)
+	if !ok {
+		return nil, nil
+	}
+	ids, err := fetcher.GetSendAs(chatID)
+	if err != nil {
+		return nil, err
+	}
+	var result []SendAsPeerInfo
+	for _, id := range ids {
+		info := SendAsPeerInfo{PeerID: id}
+		if u, err := e.GetUser(accountID, id); err == nil && u != nil {
+			info.DisplayName = u.DisplayName
+			info.AvatarPath = u.AvatarPath
+		} else {
+			var title, avatarPath sql.NullString
+			e.db.QueryRow(
+				"SELECT title, avatar_path FROM chats WHERE account_id = ? AND chat_id = ?",
+				accountID, id).Scan(&title, &avatarPath)
+			info.DisplayName = title.String
+			info.AvatarPath = avatarPath.String
+			info.IsChannel = true
+		}
+		result = append(result, info)
+	}
+	return result, nil
+}
+
+// SaveDefaultSendAs sets the default send-as peer for a channel.
+func (e *Engine) SaveDefaultSendAs(accountID, chatID, peerID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	type sendAsSaver interface {
+		SaveDefaultSendAs(chatID, peerID string) error
+	}
+	saver, ok := acc.Core.(sendAsSaver)
+	if !ok {
+		return fmt.Errorf("platform does not support send-as")
+	}
+	return saver.SaveDefaultSendAs(chatID, peerID)
+}

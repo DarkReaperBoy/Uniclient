@@ -804,3 +804,33 @@ message EngineBotCallbackResponse {
   bool   show_alert  = 2;
   string url         = 3;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Send As (channel sender identity selector)
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetSendAsRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+}
+
+message EngineSendAsPeerInfo {
+  string peer_id      = 1;
+  string display_name = 2;
+  string avatar_path  = 3;
+  bool   is_channel   = 4;
+}
+
+message EngineGetSendAsResponse {
+  repeated EngineSendAsPeerInfo peers = 1;
+}
+
+message EngineSaveDefaultSendAsRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string peer_id    = 3;
+}
+
+message EngineSaveDefaultSendAsResponse {
+  bool ok = 1;
+}

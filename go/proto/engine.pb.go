@@ -6699,6 +6699,274 @@ func (x *EngineBotCallbackResponse) GetUrl() string {
 	return ""
 }
 
+type EngineGetSendAsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetSendAsRequest) Reset() {
+	*x = EngineGetSendAsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[102]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetSendAsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetSendAsRequest) ProtoMessage() {}
+
+func (x *EngineGetSendAsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[102]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetSendAsRequest.ProtoReflect.Descriptor instead.
+func (*EngineGetSendAsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{102}
+}
+
+func (x *EngineGetSendAsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineGetSendAsRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+type EngineSendAsPeerInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PeerId        string                 `protobuf:"bytes,1,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	AvatarPath    string                 `protobuf:"bytes,3,opt,name=avatar_path,json=avatarPath,proto3" json:"avatar_path,omitempty"`
+	IsChannel     bool                   `protobuf:"varint,4,opt,name=is_channel,json=isChannel,proto3" json:"is_channel,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSendAsPeerInfo) Reset() {
+	*x = EngineSendAsPeerInfo{}
+	mi := &file_proto_engine_proto_msgTypes[103]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSendAsPeerInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSendAsPeerInfo) ProtoMessage() {}
+
+func (x *EngineSendAsPeerInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[103]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSendAsPeerInfo.ProtoReflect.Descriptor instead.
+func (*EngineSendAsPeerInfo) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{103}
+}
+
+func (x *EngineSendAsPeerInfo) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+func (x *EngineSendAsPeerInfo) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *EngineSendAsPeerInfo) GetAvatarPath() string {
+	if x != nil {
+		return x.AvatarPath
+	}
+	return ""
+}
+
+func (x *EngineSendAsPeerInfo) GetIsChannel() bool {
+	if x != nil {
+		return x.IsChannel
+	}
+	return false
+}
+
+type EngineGetSendAsResponse struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Peers         []*EngineSendAsPeerInfo `protobuf:"bytes,1,rep,name=peers,proto3" json:"peers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineGetSendAsResponse) Reset() {
+	*x = EngineGetSendAsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[104]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineGetSendAsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineGetSendAsResponse) ProtoMessage() {}
+
+func (x *EngineGetSendAsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[104]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineGetSendAsResponse.ProtoReflect.Descriptor instead.
+func (*EngineGetSendAsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{104}
+}
+
+func (x *EngineGetSendAsResponse) GetPeers() []*EngineSendAsPeerInfo {
+	if x != nil {
+		return x.Peers
+	}
+	return nil
+}
+
+type EngineSaveDefaultSendAsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	PeerId        string                 `protobuf:"bytes,3,opt,name=peer_id,json=peerId,proto3" json:"peer_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSaveDefaultSendAsRequest) Reset() {
+	*x = EngineSaveDefaultSendAsRequest{}
+	mi := &file_proto_engine_proto_msgTypes[105]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSaveDefaultSendAsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSaveDefaultSendAsRequest) ProtoMessage() {}
+
+func (x *EngineSaveDefaultSendAsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[105]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSaveDefaultSendAsRequest.ProtoReflect.Descriptor instead.
+func (*EngineSaveDefaultSendAsRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{105}
+}
+
+func (x *EngineSaveDefaultSendAsRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineSaveDefaultSendAsRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineSaveDefaultSendAsRequest) GetPeerId() string {
+	if x != nil {
+		return x.PeerId
+	}
+	return ""
+}
+
+type EngineSaveDefaultSendAsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSaveDefaultSendAsResponse) Reset() {
+	*x = EngineSaveDefaultSendAsResponse{}
+	mi := &file_proto_engine_proto_msgTypes[106]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSaveDefaultSendAsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSaveDefaultSendAsResponse) ProtoMessage() {}
+
+func (x *EngineSaveDefaultSendAsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[106]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSaveDefaultSendAsResponse.ProtoReflect.Descriptor instead.
+func (*EngineSaveDefaultSendAsResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{106}
+}
+
+func (x *EngineSaveDefaultSendAsResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -7295,7 +7563,27 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x1d\n" +
 	"\n" +
 	"show_alert\x18\x02 \x01(\bR\tshowAlert\x12\x10\n" +
-	"\x03url\x18\x03 \x01(\tR\x03urlB\x11Z\x0funiclient/protob\x06proto3"
+	"\x03url\x18\x03 \x01(\tR\x03url\"P\n" +
+	"\x16EngineGetSendAsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\"\x92\x01\n" +
+	"\x14EngineSendAsPeerInfo\x12\x17\n" +
+	"\apeer_id\x18\x01 \x01(\tR\x06peerId\x12!\n" +
+	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x1f\n" +
+	"\vavatar_path\x18\x03 \x01(\tR\n" +
+	"avatarPath\x12\x1d\n" +
+	"\n" +
+	"is_channel\x18\x04 \x01(\bR\tisChannel\"P\n" +
+	"\x17EngineGetSendAsResponse\x125\n" +
+	"\x05peers\x18\x01 \x03(\v2\x1f.uniclient.EngineSendAsPeerInfoR\x05peers\"q\n" +
+	"\x1eEngineSaveDefaultSendAsRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
+	"\apeer_id\x18\x03 \x01(\tR\x06peerId\"1\n" +
+	"\x1fEngineSaveDefaultSendAsResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02okB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -7309,7 +7597,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 102)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 107)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                     // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                     // 1: uniclient.AccountInfo
@@ -7413,33 +7701,39 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineGetWebPagePreviewResponse)(nil), // 99: uniclient.EngineGetWebPagePreviewResponse
 	(*EngineBotCallbackRequest)(nil),        // 100: uniclient.EngineBotCallbackRequest
 	(*EngineBotCallbackResponse)(nil),       // 101: uniclient.EngineBotCallbackResponse
+	(*EngineGetSendAsRequest)(nil),          // 102: uniclient.EngineGetSendAsRequest
+	(*EngineSendAsPeerInfo)(nil),            // 103: uniclient.EngineSendAsPeerInfo
+	(*EngineGetSendAsResponse)(nil),         // 104: uniclient.EngineGetSendAsResponse
+	(*EngineSaveDefaultSendAsRequest)(nil),  // 105: uniclient.EngineSaveDefaultSendAsRequest
+	(*EngineSaveDefaultSendAsResponse)(nil), // 106: uniclient.EngineSaveDefaultSendAsResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
-	1,  // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
-	11, // 1: uniclient.EngineAuthState.options:type_name -> uniclient.AuthOption
-	12, // 2: uniclient.EngineStartAuthResponse.state:type_name -> uniclient.EngineAuthState
-	12, // 3: uniclient.EngineSubmitAuthInputResponse.state:type_name -> uniclient.EngineAuthState
-	18, // 4: uniclient.EngineGetChatListResponse.chats:type_name -> uniclient.EngineChatInfo
-	18, // 5: uniclient.EngineGetForumTopicsResponse.chats:type_name -> uniclient.EngineChatInfo
-	31, // 6: uniclient.EngineGetMessagesResponse.messages:type_name -> uniclient.EngineCachedMessage
-	48, // 7: uniclient.EngineGetChatMembersResponse.members:type_name -> uniclient.EngineMemberInfo
-	52, // 8: uniclient.EngineSearchMessagesResponse.results:type_name -> uniclient.EngineSearchResult
-	18, // 9: uniclient.EngineSearchChatsResponse.chats:type_name -> uniclient.EngineChatInfo
-	62, // 10: uniclient.EngineGetSharedMediaResponse.items:type_name -> uniclient.EngineSharedMediaItem
-	66, // 11: uniclient.EngineGetFoldersResponse.folders:type_name -> uniclient.EngineFolderInfo
-	31, // 12: uniclient.EngineGetPinnedMessagesResponse.messages:type_name -> uniclient.EngineCachedMessage
-	18, // 13: uniclient.EngineCreateChannelResponse.chat:type_name -> uniclient.EngineChatInfo
-	75, // 14: uniclient.EngineGetContactsResponse.contacts:type_name -> uniclient.EngineContactInfo
-	80, // 15: uniclient.EngineGroupCallInfo.participants:type_name -> uniclient.EngineGroupCallParticipant
-	81, // 16: uniclient.EngineGetGroupCallResponse.group_call:type_name -> uniclient.EngineGroupCallInfo
-	87, // 17: uniclient.EngineGetPeerColorsResponse.colors:type_name -> uniclient.EnginePeerColorEntry
-	91, // 18: uniclient.EngineGetStickerSetInfoResponse.stickers:type_name -> uniclient.EngineStickerInfo
-	96, // 19: uniclient.EngineGetAttachMenuBotsResponse.bots:type_name -> uniclient.EngineAttachMenuBotInfo
-	20, // [20:20] is the sub-list for method output_type
-	20, // [20:20] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
+	11,  // 1: uniclient.EngineAuthState.options:type_name -> uniclient.AuthOption
+	12,  // 2: uniclient.EngineStartAuthResponse.state:type_name -> uniclient.EngineAuthState
+	12,  // 3: uniclient.EngineSubmitAuthInputResponse.state:type_name -> uniclient.EngineAuthState
+	18,  // 4: uniclient.EngineGetChatListResponse.chats:type_name -> uniclient.EngineChatInfo
+	18,  // 5: uniclient.EngineGetForumTopicsResponse.chats:type_name -> uniclient.EngineChatInfo
+	31,  // 6: uniclient.EngineGetMessagesResponse.messages:type_name -> uniclient.EngineCachedMessage
+	48,  // 7: uniclient.EngineGetChatMembersResponse.members:type_name -> uniclient.EngineMemberInfo
+	52,  // 8: uniclient.EngineSearchMessagesResponse.results:type_name -> uniclient.EngineSearchResult
+	18,  // 9: uniclient.EngineSearchChatsResponse.chats:type_name -> uniclient.EngineChatInfo
+	62,  // 10: uniclient.EngineGetSharedMediaResponse.items:type_name -> uniclient.EngineSharedMediaItem
+	66,  // 11: uniclient.EngineGetFoldersResponse.folders:type_name -> uniclient.EngineFolderInfo
+	31,  // 12: uniclient.EngineGetPinnedMessagesResponse.messages:type_name -> uniclient.EngineCachedMessage
+	18,  // 13: uniclient.EngineCreateChannelResponse.chat:type_name -> uniclient.EngineChatInfo
+	75,  // 14: uniclient.EngineGetContactsResponse.contacts:type_name -> uniclient.EngineContactInfo
+	80,  // 15: uniclient.EngineGroupCallInfo.participants:type_name -> uniclient.EngineGroupCallParticipant
+	81,  // 16: uniclient.EngineGetGroupCallResponse.group_call:type_name -> uniclient.EngineGroupCallInfo
+	87,  // 17: uniclient.EngineGetPeerColorsResponse.colors:type_name -> uniclient.EnginePeerColorEntry
+	91,  // 18: uniclient.EngineGetStickerSetInfoResponse.stickers:type_name -> uniclient.EngineStickerInfo
+	96,  // 19: uniclient.EngineGetAttachMenuBotsResponse.bots:type_name -> uniclient.EngineAttachMenuBotInfo
+	103, // 20: uniclient.EngineGetSendAsResponse.peers:type_name -> uniclient.EngineSendAsPeerInfo
+	21,  // [21:21] is the sub-list for method output_type
+	21,  // [21:21] is the sub-list for method input_type
+	21,  // [21:21] is the sub-list for extension type_name
+	21,  // [21:21] is the sub-list for extension extendee
+	0,   // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -7453,7 +7747,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   102,
+			NumMessages:   107,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

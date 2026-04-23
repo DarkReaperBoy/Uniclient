@@ -180,6 +180,11 @@ class _ChatViewState extends State<ChatView>
   bool _acMembersLoaded = false;
   String? _acMembersChatId;
 
+  // Send As state (channel sender identity selector)
+  List<SendAsPeerInfo> _sendAsPeers = [];
+  String? _selectedSendAsPeerId;
+  String? _sendAsChatId;
+
   // Inline bot results state
   InlineBotResults? _inlineBotResults;
   String? _inlineBotUsername;
@@ -349,6 +354,8 @@ class _ChatViewState extends State<ChatView>
       }
       // Delay slightly to ensure messages are loaded.
       Future.microtask(() => chatState.markRead());
+      // Fetch send-as peers for channels.
+      _loadSendAs(chatState);
     }
   }
 
@@ -877,6 +884,31 @@ class _ChatViewState extends State<ChatView>
         _acSelectedIndex = 0;
       });
     }
+  }
+
+  void _loadSendAs(ChatState chatState) {
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    if (chat.chatId == _sendAsChatId) return;
+    _sendAsChatId = chat.chatId;
+    if (chat.type != ChatType.channel && chat.type != ChatType.group) {
+      if (_sendAsPeers.isNotEmpty) {
+        setState(() {
+          _sendAsPeers = [];
+          _selectedSendAsPeerId = null;
+        });
+      }
+      return;
+    }
+    final engine = context.read<EngineService>();
+    engine.getSendAs(chat.accountId, chat.chatId).then((peers) {
+      if (mounted && _sendAsChatId == chat.chatId) {
+        setState(() {
+          _sendAsPeers = peers;
+          _selectedSendAsPeerId = peers.isNotEmpty ? peers.first.peerId : null;
+        });
+      }
+    }).catchError((_) {});
   }
 
   void _ensureMembersLoaded(String accountId, String chatId) {
@@ -1756,6 +1788,13 @@ class _ChatViewState extends State<ChatView>
             onAutocompleteUp: _acMoveUp,
             onAutocompleteDown: _acMoveDown,
             onAutocompletePick: _acPick,
+            sendAsPeers: _sendAsPeers,
+            selectedSendAsPeerId: _selectedSendAsPeerId,
+            onSendAsChanged: (peerId) {
+              setState(() => _selectedSendAsPeerId = peerId);
+              final engine = context.read<EngineService>();
+              engine.saveDefaultSendAs(chat.accountId, chat.chatId, peerId);
+            },
           ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
@@ -5034,6 +5073,9 @@ class _ComposeArea extends StatefulWidget {
   final VoidCallback? onAutocompleteUp;
   final VoidCallback? onAutocompleteDown;
   final VoidCallback? onAutocompletePick;
+  final List<SendAsPeerInfo> sendAsPeers;
+  final String? selectedSendAsPeerId;
+  final ValueChanged<String>? onSendAsChanged;
 
   const _ComposeArea({
     required this.controller,
@@ -5060,6 +5102,9 @@ class _ComposeArea extends StatefulWidget {
     this.onAutocompleteUp,
     this.onAutocompleteDown,
     this.onAutocompletePick,
+    this.sendAsPeers = const [],
+    this.selectedSendAsPeerId,
+    this.onSendAsChanged,
   });
 
   @override
@@ -5770,6 +5815,13 @@ class _ComposeAreaState extends State<_ComposeArea>
             onPressed: _onAttachPressed,
           ),
           ),
+          if (widget.sendAsPeers.length > 1)
+            _SendAsButton(
+              peers: widget.sendAsPeers,
+              selectedPeerId: widget.selectedSendAsPeerId,
+              onChanged: widget.onSendAsChanged,
+              isDark: isDark,
+            ),
           Expanded(child: field),
           _ComposeSlotButton(
             icon: Icons.emoji_emotions_outlined,
@@ -5872,6 +5924,155 @@ class _ComposeSlotButtonState extends State<_ComposeSlotButton> {
             width: 44,
             height: 46,
             child: Center(child: iconWidget),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Spec §7: Send As selector — shows current sender identity avatar,
+/// click opens popup menu to switch between available sender peers.
+class _SendAsButton extends StatelessWidget {
+  final List<SendAsPeerInfo> peers;
+  final String? selectedPeerId;
+  final ValueChanged<String>? onChanged;
+  final bool isDark;
+
+  const _SendAsButton({
+    required this.peers,
+    this.selectedPeerId,
+    this.onChanged,
+    this.isDark = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = peers.firstWhere(
+      (p) => p.peerId == selectedPeerId,
+      orElse: () => peers.first,
+    );
+
+    return Tooltip(
+      message: 'Send as ${selected.displayName}',
+      child: InkResponse(
+        onTap: () => _showMenu(context),
+        radius: 20,
+        child: SizedBox(
+          width: 44,
+          height: 46,
+          child: Center(
+            child: _SendAsAvatar(
+              peer: selected,
+              size: 28,
+              isDark: isDark,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMenu(BuildContext context) {
+    final button = context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final position = RelativeRect.fromRect(
+      Rect.fromPoints(
+        button.localToGlobal(Offset.zero, ancestor: overlay),
+        button.localToGlobal(button.size.bottomRight(Offset.zero), ancestor: overlay),
+      ),
+      Offset.zero & overlay.size,
+    );
+
+    showMenu<String>(
+      context: context,
+      position: position,
+      items: peers.map((peer) {
+        final isSelected = peer.peerId == selectedPeerId;
+        return PopupMenuItem<String>(
+          value: peer.peerId,
+          height: 44,
+          child: Row(
+            children: [
+              _SendAsAvatar(peer: peer, size: 30, isDark: isDark),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  peer.displayName,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check, size: 18, color: Theme.of(context).colorScheme.primary),
+            ],
+          ),
+        );
+      }).toList(),
+    ).then((value) {
+      if (value != null && value != selectedPeerId) {
+        onChanged?.call(value);
+      }
+    });
+  }
+}
+
+class _SendAsAvatar extends StatelessWidget {
+  final SendAsPeerInfo peer;
+  final double size;
+  final bool isDark;
+
+  const _SendAsAvatar({
+    required this.peer,
+    required this.size,
+    this.isDark = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (peer.avatarPath.isNotEmpty) {
+      return ClipOval(
+        child: Image.file(
+          File(peer.avatarPath),
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallback(),
+        ),
+      );
+    }
+    return _fallback();
+  }
+
+  Widget _fallback() {
+    final colors = [
+      const Color(0xFFE17076),
+      const Color(0xFF7BC862),
+      const Color(0xFF65AADD),
+      const Color(0xFFEE7AE6),
+      const Color(0xFFE5AE43),
+      const Color(0xFF6EC9CB),
+      const Color(0xFFCDA0DE),
+    ];
+    final idx = peer.peerId.hashCode.abs() % colors.length;
+    final initial = peer.displayName.isNotEmpty ? peer.displayName[0].toUpperCase() : '?';
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: colors[idx],
+      ),
+      child: Center(
+        child: Text(
+          initial,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: size * 0.45,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),

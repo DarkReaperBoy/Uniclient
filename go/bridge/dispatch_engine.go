@@ -913,6 +913,39 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]int{"msg_id": msgID})
 
+	// ── Send As ──
+
+	case "GetSendAs":
+		var req pb.EngineGetSendAsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		peers, err := e.GetSendAs(req.AccountId, req.ChatId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetSendAsResponse{}
+		for _, p := range peers {
+			resp.Peers = append(resp.Peers, &pb.EngineSendAsPeerInfo{
+				PeerId:      p.PeerID,
+				DisplayName: sanitizeUTF8(p.DisplayName),
+				AvatarPath:  p.AvatarPath,
+				IsChannel:   p.IsChannel,
+			})
+		}
+		return proto.Marshal(resp)
+
+	case "SaveDefaultSendAs":
+		var req pb.EngineSaveDefaultSendAsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		err := e.SaveDefaultSendAs(req.AccountId, req.ChatId, req.PeerId)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineSaveDefaultSendAsResponse{Ok: true})
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

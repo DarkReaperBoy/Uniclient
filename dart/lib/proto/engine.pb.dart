@@ -8578,5 +8578,283 @@ class EngineBotCallbackResponse extends $pb.GeneratedMessage {
   void clearUrl() => clearField(3);
 }
 
+// ── Send As (channel sender identity selector) ──
+
+class EngineGetSendAsRequest extends $pb.GeneratedMessage {
+  factory EngineGetSendAsRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+  }) {
+    final $result = create();
+    if (accountId != null) { $result.accountId = accountId; }
+    if (chatId != null) { $result.chatId = chatId; }
+    return $result;
+  }
+  EngineGetSendAsRequest._() : super();
+  factory EngineGetSendAsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetSendAsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetSendAsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetSendAsRequest clone() => EngineGetSendAsRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineGetSendAsRequest copyWith(void Function(EngineGetSendAsRequest) updates) => super.copyWith((message) => updates(message as EngineGetSendAsRequest)) as EngineGetSendAsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSendAsRequest create() => EngineGetSendAsRequest._();
+  EngineGetSendAsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSendAsRequest> createRepeated() => $pb.PbList<EngineGetSendAsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSendAsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetSendAsRequest>(create);
+  static EngineGetSendAsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+}
+
+class EngineSendAsPeerInfo extends $pb.GeneratedMessage {
+  factory EngineSendAsPeerInfo({
+    $core.String? peerId,
+    $core.String? displayName,
+    $core.String? avatarPath,
+    $core.bool? isChannel,
+  }) {
+    final $result = create();
+    if (peerId != null) { $result.peerId = peerId; }
+    if (displayName != null) { $result.displayName = displayName; }
+    if (avatarPath != null) { $result.avatarPath = avatarPath; }
+    if (isChannel != null) { $result.isChannel = isChannel; }
+    return $result;
+  }
+  EngineSendAsPeerInfo._() : super();
+  factory EngineSendAsPeerInfo.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSendAsPeerInfo.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSendAsPeerInfo', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'peerId')
+    ..aOS(2, _omitFieldNames ? '' : 'displayName')
+    ..aOS(3, _omitFieldNames ? '' : 'avatarPath')
+    ..aOB(4, _omitFieldNames ? '' : 'isChannel')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineSendAsPeerInfo clone() => EngineSendAsPeerInfo()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineSendAsPeerInfo copyWith(void Function(EngineSendAsPeerInfo) updates) => super.copyWith((message) => updates(message as EngineSendAsPeerInfo)) as EngineSendAsPeerInfo;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSendAsPeerInfo create() => EngineSendAsPeerInfo._();
+  EngineSendAsPeerInfo createEmptyInstance() => create();
+  static $pb.PbList<EngineSendAsPeerInfo> createRepeated() => $pb.PbList<EngineSendAsPeerInfo>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSendAsPeerInfo getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSendAsPeerInfo>(create);
+  static EngineSendAsPeerInfo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get peerId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set peerId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasPeerId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPeerId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get displayName => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set displayName($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasDisplayName() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDisplayName() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get avatarPath => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set avatarPath($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasAvatarPath() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAvatarPath() => clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.bool get isChannel => $_getBF(3);
+  @$pb.TagNumber(4)
+  set isChannel($core.bool v) { $_setBool(3, v); }
+  @$pb.TagNumber(4)
+  $core.bool hasIsChannel() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearIsChannel() => clearField(4);
+}
+
+class EngineGetSendAsResponse extends $pb.GeneratedMessage {
+  factory EngineGetSendAsResponse({
+    $core.List<EngineSendAsPeerInfo>? peers,
+  }) {
+    final $result = create();
+    if (peers != null) { $result.peers.addAll(peers); }
+    return $result;
+  }
+  EngineGetSendAsResponse._() : super();
+  factory EngineGetSendAsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetSendAsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetSendAsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineSendAsPeerInfo>(1, _omitFieldNames ? '' : 'peers', $pb.PbFieldType.PM, subBuilder: EngineSendAsPeerInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetSendAsResponse clone() => EngineGetSendAsResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineGetSendAsResponse copyWith(void Function(EngineGetSendAsResponse) updates) => super.copyWith((message) => updates(message as EngineGetSendAsResponse)) as EngineGetSendAsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSendAsResponse create() => EngineGetSendAsResponse._();
+  EngineGetSendAsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetSendAsResponse> createRepeated() => $pb.PbList<EngineGetSendAsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetSendAsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetSendAsResponse>(create);
+  static EngineGetSendAsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineSendAsPeerInfo> get peers => $_getList(0);
+}
+
+class EngineSaveDefaultSendAsRequest extends $pb.GeneratedMessage {
+  factory EngineSaveDefaultSendAsRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? peerId,
+  }) {
+    final $result = create();
+    if (accountId != null) { $result.accountId = accountId; }
+    if (chatId != null) { $result.chatId = chatId; }
+    if (peerId != null) { $result.peerId = peerId; }
+    return $result;
+  }
+  EngineSaveDefaultSendAsRequest._() : super();
+  factory EngineSaveDefaultSendAsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSaveDefaultSendAsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSaveDefaultSendAsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'peerId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineSaveDefaultSendAsRequest clone() => EngineSaveDefaultSendAsRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineSaveDefaultSendAsRequest copyWith(void Function(EngineSaveDefaultSendAsRequest) updates) => super.copyWith((message) => updates(message as EngineSaveDefaultSendAsRequest)) as EngineSaveDefaultSendAsRequest;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSaveDefaultSendAsRequest create() => EngineSaveDefaultSendAsRequest._();
+  EngineSaveDefaultSendAsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineSaveDefaultSendAsRequest> createRepeated() => $pb.PbList<EngineSaveDefaultSendAsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSaveDefaultSendAsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSaveDefaultSendAsRequest>(create);
+  static EngineSaveDefaultSendAsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasAccountId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAccountId() => clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+  @$pb.TagNumber(2)
+  $core.bool hasChatId() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearChatId() => clearField(2);
+
+  @$pb.TagNumber(3)
+  $core.String get peerId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set peerId($core.String v) { $_setString(2, v); }
+  @$pb.TagNumber(3)
+  $core.bool hasPeerId() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearPeerId() => clearField(3);
+}
+
+class EngineSaveDefaultSendAsResponse extends $pb.GeneratedMessage {
+  factory EngineSaveDefaultSendAsResponse({
+    $core.bool? ok,
+  }) {
+    final $result = create();
+    if (ok != null) { $result.ok = ok; }
+    return $result;
+  }
+  EngineSaveDefaultSendAsResponse._() : super();
+  factory EngineSaveDefaultSendAsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSaveDefaultSendAsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSaveDefaultSendAsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOB(1, _omitFieldNames ? '' : 'ok')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineSaveDefaultSendAsResponse clone() => EngineSaveDefaultSendAsResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineSaveDefaultSendAsResponse copyWith(void Function(EngineSaveDefaultSendAsResponse) updates) => super.copyWith((message) => updates(message as EngineSaveDefaultSendAsResponse)) as EngineSaveDefaultSendAsResponse;
+
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  static EngineSaveDefaultSendAsResponse create() => EngineSaveDefaultSendAsResponse._();
+  EngineSaveDefaultSendAsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineSaveDefaultSendAsResponse> createRepeated() => $pb.PbList<EngineSaveDefaultSendAsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSaveDefaultSendAsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSaveDefaultSendAsResponse>(create);
+  static EngineSaveDefaultSendAsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.bool get ok => $_getBF(0);
+  @$pb.TagNumber(1)
+  set ok($core.bool v) { $_setBool(0, v); }
+  @$pb.TagNumber(1)
+  $core.bool hasOk() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearOk() => clearField(1);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

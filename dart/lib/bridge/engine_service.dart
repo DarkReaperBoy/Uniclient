@@ -391,6 +391,44 @@ class EngineService {
     }
   }
 
+  // ── Send As (channel sender identity) ──
+
+  Future<List<SendAsPeerInfo>> getSendAs(String accountId, String chatId) async {
+    final req = epb.EngineGetSendAsRequest()
+      ..accountId = accountId
+      ..chatId = chatId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSendAs', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetSendAsResponse.fromBuffer(respBytes);
+      return resp.peers.map((p) => SendAsPeerInfo(
+        peerId: p.peerId,
+        displayName: p.displayName,
+        avatarPath: p.avatarPath,
+        isChannel: p.isChannel,
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getSendAs failed', e);
+      return [];
+    }
+  }
+
+  Future<bool> saveDefaultSendAs(String accountId, String chatId, String peerId) async {
+    final req = epb.EngineSaveDefaultSendAsRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..peerId = peerId;
+    try {
+      final respBytes = await _callAsync('__engine', 'SaveDefaultSendAs', req.writeToBuffer());
+      if (respBytes.isEmpty) return false;
+      final resp = epb.EngineSaveDefaultSendAsResponse.fromBuffer(respBytes);
+      return resp.ok;
+    } catch (e) {
+      Debug.error('ENGINE', 'saveDefaultSendAs failed', e);
+      return false;
+    }
+  }
+
   // ── Group calls ──
 
   /// Get active group call info for a chat, or null if no active call.
