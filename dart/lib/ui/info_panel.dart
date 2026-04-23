@@ -836,6 +836,68 @@ class _InfoStoryRingPainter extends CustomPainter {
       isDark != old.isDark;
 }
 
+class _MemberStoryRingPainter extends CustomPainter {
+  final int storyCount;
+  final bool hasUnread;
+  final bool isDark;
+
+  _MemberStoryRingPainter({
+    required this.storyCount,
+    required this.hasUnread,
+    required this.isDark,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (storyCount <= 0) return;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    const lineWidth = 2.0;
+    final ringRadius = size.width / 2 - lineWidth / 2;
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = lineWidth
+      ..strokeCap = StrokeCap.round;
+
+    if (hasUnread) {
+      paint.shader = const LinearGradient(
+        begin: Alignment.topRight,
+        end: Alignment.bottomLeft,
+        colors: [Color(0xFF0dcc39), Color(0xFF0992ef)],
+      ).createShader(Rect.fromCircle(center: center, radius: ringRadius));
+    } else {
+      paint.color = isDark
+          ? const Color(0xFF3e546a)
+          : const Color(0xFFbbbbbb);
+    }
+
+    if (storyCount == 1) {
+      canvas.drawCircle(center, ringRadius, paint);
+    } else {
+      const fullCircleUnits = 5760.0;
+      const separatorUnits = 160.0;
+      final separatorRadians = (separatorUnits / fullCircleUnits) * 2 * math.pi;
+      final totalSep = storyCount * separatorRadians;
+      final arcPerStory = (2 * math.pi - totalSep) / storyCount;
+
+      var startAngle = -math.pi / 2;
+      final rect = Rect.fromCircle(center: center, radius: ringRadius);
+
+      for (var i = 0; i < storyCount; i++) {
+        canvas.drawArc(rect, startAngle, arcPerStory, false, paint);
+        startAngle += arcPerStory + separatorRadians;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_MemberStoryRingPainter old) =>
+      storyCount != old.storyCount ||
+      hasUnread != old.hasUnread ||
+      isDark != old.isDark;
+}
+
 class _AnimatedEmojiPattern extends StatefulWidget {
   final double size;
   final bool isDark;
@@ -1910,6 +1972,15 @@ class _MembersSection extends StatelessWidget {
     this.onMemberTap,
   });
 
+  List<MemberInfo> _sortedMembers() {
+    final list = List<MemberInfo>.from(members!);
+    list.sort((a, b) {
+      if (a.isOnline != b.isOnline) return a.isOnline ? -1 : 1;
+      return a.label.toLowerCase().compareTo(b.label.toLowerCase());
+    });
+    return list;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1952,7 +2023,7 @@ class _MembersSection extends StatelessWidget {
             child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
           ))
         else if (members != null && members!.isNotEmpty)
-          ...members!.map((m) => _MemberRow(
+          ..._sortedMembers().map((m) => _MemberRow(
             member: m,
             theme: theme,
             onTap: onMemberTap != null ? () => onMemberTap!(m) : null,
@@ -2027,17 +2098,42 @@ class _MemberRow extends StatelessWidget {
                 child: SizedBox(
                   width: 42,
                   height: 42,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                  ),
+                  child: member.hasStories
+                      ? CustomPaint(
+                          painter: _MemberStoryRingPainter(
+                            storyCount: member.storyCount,
+                            hasUnread: member.hasUnreadStory,
+                            isDark: theme.brightness == Brightness.dark,
+                          ),
+                          child: Center(
+                            child: SizedBox(
+                              width: 36,
+                              height: 36,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : Container(
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : '?',
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                          ),
+                        ),
                 ),
               ),
             ),

@@ -408,7 +408,6 @@
 ### §8.4 Members List
 <!-- File: dart/lib/ui/info_panel.dart — _MembersSection / _MemberRow -->
 - [x] Members section rendered with avatar, name, and online/role status — spec §8.4 — DONE (basic) in info_panel.dart
-- [ ] Flat list sorted online-first then alpha; no online/offline divider; stories ring on avatar — spec §8.4
 
 ### §8.5 Grid Columns (Photos / Videos / Gifts)
 <!-- File: dart/lib/ui/info_panel.dart — not yet implemented -->

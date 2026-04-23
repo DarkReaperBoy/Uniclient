@@ -985,6 +985,8 @@ class MemberInfo {
   final bool isBot;
   final bool isOnline;
   final String role; // "owner", "admin", "member", "restricted", "banned"
+  final int storyCount;
+  final bool hasUnreadStory;
 
   const MemberInfo({
     required this.userId,
@@ -994,7 +996,11 @@ class MemberInfo {
     this.isBot = false,
     this.isOnline = false,
     this.role = 'member',
+    this.storyCount = 0,
+    this.hasUnreadStory = false,
   });
+
+  bool get hasStories => storyCount > 0;
 
   /// Display label: displayName if available, else username, else userId.
   String get label => displayName.isNotEmpty
