@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
@@ -177,6 +178,14 @@ class _ChatViewState extends State<ChatView>
   bool _acMembersLoaded = false;
   String? _acMembersChatId;
 
+  // Inline bot results state
+  InlineBotResults? _inlineBotResults;
+  String? _inlineBotUsername;
+  String? _inlineBotUserId;
+  String _inlineBotQuery = '';
+  Timer? _inlineBotDebounce;
+  bool _inlineBotLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -279,6 +288,7 @@ class _ChatViewState extends State<ChatView>
     _searchController.dispose();
     _searchFocusNode.dispose();
     _previewDebounce?.cancel();
+    _inlineBotDebounce?.cancel();
     super.dispose();
   }
 
@@ -920,6 +930,96 @@ class _ChatViewState extends State<ChatView>
     setState(() => _acQuery = null);
   }
 
+  static final _inlineBotRegex = RegExp(r'^@([a-zA-Z][a-zA-Z0-9_]{2,}[bB]ot)\s(.*)$', dotAll: true);
+  static final _inlineBotAnyRegex = RegExp(r'^@([a-zA-Z][a-zA-Z0-9_]{2,})\s(.*)$', dotAll: true);
+
+  void _checkInlineBot(String text) {
+    final match = _inlineBotRegex.firstMatch(text) ?? _inlineBotAnyRegex.firstMatch(text);
+    if (match == null) {
+      if (_inlineBotUsername != null) {
+        _inlineBotDebounce?.cancel();
+        setState(() {
+          _inlineBotResults = null;
+          _inlineBotUsername = null;
+          _inlineBotUserId = null;
+          _inlineBotQuery = '';
+          _inlineBotLoading = false;
+        });
+      }
+      return;
+    }
+    final botUsername = match.group(1)!;
+    final query = match.group(2) ?? '';
+    if (botUsername == _inlineBotUsername && query == _inlineBotQuery) return;
+    _inlineBotQuery = query;
+    if (botUsername != _inlineBotUsername) {
+      _inlineBotUsername = botUsername;
+      _inlineBotUserId = null;
+      _resolveInlineBot(botUsername);
+    } else if (_inlineBotUserId != null) {
+      _debounceInlineQuery();
+    }
+  }
+
+  void _resolveInlineBot(String username) {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    engine.resolveUsername(chat.accountId, username).then((userId) {
+      if (!mounted || _inlineBotUsername != username) return;
+      if (userId == null) {
+        setState(() { _inlineBotUsername = null; _inlineBotResults = null; });
+        return;
+      }
+      _inlineBotUserId = userId;
+      _debounceInlineQuery();
+    });
+  }
+
+  void _debounceInlineQuery() {
+    _inlineBotDebounce?.cancel();
+    setState(() => _inlineBotLoading = true);
+    _inlineBotDebounce = Timer(const Duration(milliseconds: 350), _fetchInlineResults);
+  }
+
+  void _fetchInlineResults() {
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null || _inlineBotUserId == null) return;
+    final engine = context.read<EngineService>();
+    final botId = _inlineBotUserId!;
+    final query = _inlineBotQuery;
+    engine.getInlineBotResults(chat.accountId, botId, query, chatId: chat.chatId).then((results) {
+      if (!mounted || _inlineBotUserId != botId) return;
+      setState(() {
+        _inlineBotResults = results;
+        _inlineBotLoading = false;
+      });
+    });
+  }
+
+  void _pickInlineResult(InlineBotResult result) {
+    if (_inlineBotResults == null) return;
+    final chatState = context.read<ChatState>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final engine = context.read<EngineService>();
+    engine.sendInlineBotResult(
+      chat.accountId, chat.chatId, _inlineBotResults!.queryId, result.id,
+    ).then((_) {
+      if (!mounted) return;
+      _composeController.clear();
+      setState(() {
+        _inlineBotResults = null;
+        _inlineBotUsername = null;
+        _inlineBotUserId = null;
+        _inlineBotQuery = '';
+      });
+      _scrollToBottom();
+    });
+  }
+
   void _copySelected(ChatState chatState) {
     final msgs = chatState.messages
         .where((m) => _selectedMsgIds.contains(m.msgId))
@@ -960,6 +1060,7 @@ class _ChatViewState extends State<ChatView>
       final chatState = context.read<ChatState>();
       _onLinksChanged(urls, chatState);
     }
+    _checkInlineBot(text);
   }
 
   void _toggleComposeFormat(FormatType type) {
@@ -1577,6 +1678,13 @@ class _ChatViewState extends State<ChatView>
               onPick: _acPickIndex,
               onHover: (i) => setState(() => _acSelectedIndex = i),
             ),
+          if (_inlineBotResults != null && _inlineBotResults!.results.isNotEmpty)
+            _InlineBotResultsPanel(
+              results: _inlineBotResults!,
+              gallery: _inlineBotResults!.gallery,
+              onPick: _pickInlineResult,
+              loading: _inlineBotLoading,
+            ),
           // Compose area.
           _ComposeArea(
             controller: _composeController,
@@ -1584,7 +1692,10 @@ class _ChatViewState extends State<ChatView>
             onSendSilent: _sendMessage,
             onSendScheduled: (date) => _sendMessage(),
             onSendWhenOnline: _sendMessage,
-            onDraftChanged: (text) => chatState.saveDraft(text),
+            onDraftChanged: (text) {
+              chatState.saveDraft(text);
+              _checkInlineBot(text);
+            },
             isEditing: _editingMsgId != null,
             isForwarding: _isForwarding,
             chatType: chat.type,
@@ -6951,5 +7062,316 @@ class _AutocompletePanel extends StatelessWidget {
       ),
       ),
     );
+  }
+}
+
+class _InlineBotResultsPanel extends StatelessWidget {
+  final InlineBotResults results;
+  final bool gallery;
+  final ValueChanged<InlineBotResult> onPick;
+  final bool loading;
+  final VoidCallback? onSwitchPM;
+
+  const _InlineBotResultsPanel({
+    required this.results,
+    required this.gallery,
+    required this.onPick,
+    this.loading = false,
+    this.onSwitchPM,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
+
+    return SizedBox(
+      height: 200,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border(top: BorderSide(color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8))),
+        ),
+        child: gallery ? _buildGalleryGrid(isDark) : _buildListView(isDark),
+      ),
+    );
+  }
+
+  Widget _buildGalleryGrid(bool isDark) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(3),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 120,
+        mainAxisSpacing: 3,
+        crossAxisSpacing: 3,
+      ),
+      itemCount: results.results.length,
+      itemBuilder: (context, index) {
+        final item = results.results[index];
+        return _GalleryResultItem(item: item, onTap: () => onPick(item), isDark: isDark);
+      },
+    );
+  }
+
+  Widget _buildListView(bool isDark) {
+    return ListView.separated(
+      padding: EdgeInsets.zero,
+      itemCount: results.results.length,
+      separatorBuilder: (_, __) => Divider(
+        height: 1,
+        thickness: 1,
+        color: isDark ? const Color(0xFF1e2c3a) : const Color(0xFFe8e8e8),
+      ),
+      itemBuilder: (context, index) {
+        final item = results.results[index];
+        return _ListResultItem(item: item, onTap: () => onPick(item), isDark: isDark);
+      },
+    );
+  }
+}
+
+class _SwitchPMButton extends StatefulWidget {
+  final String text;
+  final VoidCallback? onTap;
+  final bool isDark;
+
+  const _SwitchPMButton({required this.text, this.onTap, required this.isDark});
+
+  @override
+  State<_SwitchPMButton> createState() => _SwitchPMButtonState();
+}
+
+class _SwitchPMButtonState extends State<_SwitchPMButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = widget.isDark ? const Color(0xFF5288c1) : const Color(0xFF40a7e3);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 11),
+          color: _hovered
+              ? (widget.isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1))
+              : null,
+          child: Row(
+            children: [
+              Icon(Icons.open_in_new, size: 18, color: accentColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.text,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: accentColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GalleryResultItem extends StatefulWidget {
+  final InlineBotResult item;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _GalleryResultItem({required this.item, required this.onTap, required this.isDark});
+
+  @override
+  State<_GalleryResultItem> createState() => _GalleryResultItemState();
+}
+
+class _GalleryResultItemState extends State<_GalleryResultItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf0f0f0),
+            borderRadius: BorderRadius.circular(4),
+            border: _hovered
+                ? Border.all(color: widget.isDark ? const Color(0xFF5288c1) : const Color(0xFF40a7e3), width: 2)
+                : null,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: _buildThumb(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThumb() {
+    if (widget.item.thumbUrl.isNotEmpty) {
+      return Image.network(widget.item.thumbUrl, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _fallbackContent());
+    }
+    if (widget.item.thumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(widget.item.thumbB64);
+        return Image.memory(Uint8List.fromList(bytes), fit: BoxFit.cover, gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _fallbackContent());
+      } catch (_) {}
+    }
+    return _fallbackContent();
+  }
+
+  Widget _fallbackContent() {
+    if (widget.item.title.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: Text(
+            widget.item.title,
+            style: TextStyle(
+              fontSize: 11,
+              color: widget.isDark ? const Color(0xFFaaaaaa) : const Color(0xFF666666),
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      );
+    }
+    final iconColor = widget.isDark ? const Color(0xFF5b7a93) : const Color(0xFFbbbbbb);
+    return Center(
+      child: Icon(
+        widget.item.type == 'gif' ? Icons.gif_box_outlined : Icons.image_outlined,
+        size: 32,
+        color: iconColor,
+      ),
+    );
+  }
+}
+
+class _ListResultItem extends StatefulWidget {
+  final InlineBotResult item;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _ListResultItem({required this.item, required this.onTap, required this.isDark});
+
+  @override
+  State<_ListResultItem> createState() => _ListResultItemState();
+}
+
+class _ListResultItemState extends State<_ListResultItem> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hoverColor = widget.isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+    final thumbBg = widget.isDark ? const Color(0xFF1e2c3a) : const Color(0xFFf0f0f0);
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          height: 64,
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          color: _hovered ? hoverColor : null,
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: thumbBg,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: _buildListThumb(),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (widget.item.title.isNotEmpty)
+                      Text(
+                        widget.item.title,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: theme.textTheme.bodyMedium?.color,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    if (widget.item.description.isNotEmpty)
+                      Text(
+                        widget.item.description,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: widget.isDark ? const Color(0xFF5b7a93) : const Color(0xFF999999),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListThumb() {
+    if (widget.item.thumbUrl.isNotEmpty) {
+      return Image.network(widget.item.thumbUrl, fit: BoxFit.cover,
+          width: 48, height: 48,
+          errorBuilder: (_, __, ___) => Center(child: _thumbIcon()));
+    }
+    if (widget.item.thumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(widget.item.thumbB64);
+        return Image.memory(bytes, fit: BoxFit.cover,
+            width: 48, height: 48, gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => Center(child: _thumbIcon()));
+      } catch (_) {}
+    }
+    return Center(child: _thumbIcon());
+  }
+
+  Widget _thumbIcon() {
+    final iconColor = widget.isDark ? const Color(0xFF5b7a93) : const Color(0xFFbbbbbb);
+    return switch (widget.item.type) {
+      'photo' => Icon(Icons.photo, size: 24, color: iconColor),
+      'gif' => Icon(Icons.gif_box_outlined, size: 24, color: iconColor),
+      'video' => Icon(Icons.videocam_outlined, size: 24, color: iconColor),
+      'audio' || 'voice' => Icon(Icons.audiotrack, size: 24, color: iconColor),
+      'sticker' => Icon(Icons.emoji_emotions_outlined, size: 24, color: iconColor),
+      'document' || 'file' => Icon(Icons.insert_drive_file_outlined, size: 24, color: iconColor),
+      _ => Icon(Icons.article_outlined, size: 24, color: iconColor),
+    };
   }
 }

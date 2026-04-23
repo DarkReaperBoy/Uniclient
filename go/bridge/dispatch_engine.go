@@ -1,6 +1,7 @@
 package bridge
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -864,6 +865,53 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		return proto.Marshal(&pb.EngineBotCallbackResponse{Message: msg})
+
+	case "GetInlineBotResults":
+		var params struct {
+			AccountID string `json:"account_id"`
+			BotID     string `json:"bot_id"`
+			Query     string `json:"query"`
+			Offset    string `json:"offset"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		results, err := e.GetInlineBotResultsFull(params.AccountID, params.BotID, params.Query, params.Offset, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(results)
+
+	case "ResolveUsername":
+		var params struct {
+			AccountID string `json:"account_id"`
+			Username  string `json:"username"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		userID, err := e.ResolveUsername(params.AccountID, params.Username)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]string{"user_id": userID})
+
+	case "SendInlineBotResult":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+			QueryID   int64  `json:"query_id"`
+			ResultID  string `json:"result_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		msgID, err := e.SendInlineBotResult(params.AccountID, params.ChatID, params.QueryID, params.ResultID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(map[string]int{"msg_id": msgID})
 
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)

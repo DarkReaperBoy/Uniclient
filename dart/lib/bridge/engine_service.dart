@@ -567,6 +567,63 @@ class EngineService {
     await _callAsync('__engine', 'ReactToMessage', req.writeToBuffer());
   }
 
+  // ── Inline bot results (JSON-based, no proto) ──
+
+  Future<InlineBotResults?> getInlineBotResults(String accountId, String botId, String query, {String offset = '', String chatId = ''}) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'bot_id': botId,
+      'query': query,
+      'offset': offset,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetInlineBotResults', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return InlineBotResults.fromJson(data);
+    } catch (e) {
+      Debug.error('ENGINE', 'getInlineBotResults failed', e);
+      return null;
+    }
+  }
+
+  Future<String?> resolveUsername(String accountId, String username) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'username': username,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'ResolveUsername', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['user_id'] as String?;
+    } catch (e) {
+      Debug.error('ENGINE', 'resolveUsername failed', e);
+      return null;
+    }
+  }
+
+  Future<int?> sendInlineBotResult(String accountId, String chatId, int queryId, String resultId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+      'query_id': queryId,
+      'result_id': resultId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'SendInlineBotResult', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return data['msg_id'] as int?;
+    } catch (e) {
+      Debug.error('ENGINE', 'sendInlineBotResult failed', e);
+      return null;
+    }
+  }
+
+  // ── Bot callback ──
+
   Future<String> botCallback(String accountId, String chatId, String msgId, String data) async {
     final req = epb.EngineBotCallbackRequest()
       ..accountId = accountId

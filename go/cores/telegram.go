@@ -10403,8 +10403,8 @@ func tgStrippedToJPEG(data []byte) []byte {
 
 	// Replace height and width in the SOF0 marker.
 	// SOF0 starts at byte 198: FF C0 00 11 08 [HH] [HL] [WH] [WL] 03
-	header[203] = data[1]
-	header[205] = data[2]
+	header[204] = data[1]
+	header[206] = data[2]
 
 	// Combine: header + scan data + footer.
 	result := make([]byte, 0, len(header)+len(data)-3+len(footer))
@@ -12153,6 +12153,29 @@ func (t *TelegramCore) GetBotCallbackAnswer(chatID string, msgID string, data []
 	return result.Message, nil
 }
 
+// InlineBotResult represents a single inline bot result for the UI.
+type InlineBotResult struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	ThumbURL    string `json:"thumb_url,omitempty"`
+	ContentURL  string `json:"content_url,omitempty"`
+	ThumbW      int    `json:"thumb_w,omitempty"`
+	ThumbH      int    `json:"thumb_h,omitempty"`
+	ThumbB64    string `json:"thumb_b64,omitempty"`
+}
+
+// InlineBotResults holds the full response from an inline bot query.
+type InlineBotResults struct {
+	QueryID    int64              `json:"query_id"`
+	NextOffset string             `json:"next_offset"`
+	Gallery    bool               `json:"gallery"`
+	Results    []InlineBotResult  `json:"results"`
+	SwitchPM   string             `json:"switch_pm,omitempty"`
+	SwitchPMParam string          `json:"switch_pm_param,omitempty"`
+}
+
 // GetInlineBotResults queries an inline bot and returns its results.
 func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, error) {
 	t.mu.RLock(); defer t.mu.RUnlock()
@@ -12166,6 +12189,98 @@ func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, err
 	})
 	if err != nil { return 0, err }
 	return len(result.Results), nil
+}
+
+// GetInlineBotResultsFull queries an inline bot and returns structured results.
+func (t *TelegramCore) GetInlineBotResultsFull(botID string, query string, offset string, chatID string) (*InlineBotResults, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	bid, err := tgUserID(botID)
+	if err != nil { return nil, err }
+	bhash := t.getCachedUserHash(bid)
+	peer := tg.InputPeerClass(&tg.InputPeerSelf{})
+	if chatID != "" {
+		t.mu.RUnlock()
+		inputPeer, unlock, perr := t.withPeer(chatID)
+		if perr == nil {
+			peer = inputPeer
+			unlock()
+		}
+		t.mu.RLock()
+	}
+	result, err := t.api.MessagesGetInlineBotResults(t.ctx, &tg.MessagesGetInlineBotResultsRequest{
+		Bot: &tg.InputUser{UserID: bid, AccessHash: bhash},
+		Peer: peer, Query: query, Offset: offset,
+	})
+	if err != nil { return nil, err }
+	out := &InlineBotResults{
+		QueryID:    result.QueryID,
+		NextOffset: result.NextOffset,
+		Gallery:    result.Gallery,
+	}
+	if pm, ok := result.GetSwitchPm(); ok {
+		out.SwitchPM = pm.Text
+		out.SwitchPMParam = pm.StartParam
+	}
+	for _, r := range result.Results {
+		item := InlineBotResult{}
+		switch v := r.(type) {
+		case *tg.BotInlineResult:
+			item.ID = v.ID
+			item.Type = v.Type
+			item.Title, _ = v.GetTitle()
+			item.Description, _ = v.GetDescription()
+			if thumb, ok := v.GetThumb(); ok {
+				item.ThumbURL = thumb.GetURL()
+				if sized, ok := thumb.(*tg.WebDocument); ok {
+					for _, attr := range sized.Attributes {
+						if ds, ok := attr.(*tg.DocumentAttributeImageSize); ok {
+							item.ThumbW = ds.W
+							item.ThumbH = ds.H
+						}
+					}
+				}
+			}
+			if content, ok := v.GetContent(); ok {
+				item.ContentURL = content.GetURL()
+			}
+		case *tg.BotInlineMediaResult:
+			item.ID = v.ID
+			item.Type = v.Type
+			item.Title, _ = v.GetTitle()
+			item.Description, _ = v.GetDescription()
+			if photo, ok := v.GetPhoto(); ok {
+				if p, ok := photo.(*tg.Photo); ok {
+					for _, sz := range p.Sizes {
+						if ps, ok := sz.(*tg.PhotoSize); ok {
+							item.ThumbW = ps.W
+							item.ThumbH = ps.H
+							break
+						}
+					}
+					item.ThumbB64 = extractStrippedThumbB64(p.Sizes)
+				}
+			}
+			if doc, ok := v.GetDocument(); ok {
+				if d, ok := doc.(*tg.Document); ok {
+					if item.ThumbB64 == "" {
+						item.ThumbB64 = extractStrippedThumbB64(d.Thumbs)
+					}
+					if item.ThumbW == 0 {
+						for _, sz := range d.Thumbs {
+							if ps, ok := sz.(*tg.PhotoSize); ok {
+								item.ThumbW = ps.W
+								item.ThumbH = ps.H
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+		out.Results = append(out.Results, item)
+	}
+	return out, nil
 }
 
 // GetCallConfig returns the WebRTC configuration for voice and video calls.

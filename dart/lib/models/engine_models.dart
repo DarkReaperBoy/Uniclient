@@ -1403,3 +1403,72 @@ class StickerSetInfo {
     this.stickers = const [],
   });
 }
+
+class InlineBotResult {
+  final String id;
+  final String type;
+  final String title;
+  final String description;
+  final String thumbUrl;
+  final String contentUrl;
+  final int thumbW;
+  final int thumbH;
+  final String thumbB64;
+
+  const InlineBotResult({
+    this.id = '',
+    this.type = '',
+    this.title = '',
+    this.description = '',
+    this.thumbUrl = '',
+    this.contentUrl = '',
+    this.thumbW = 0,
+    this.thumbH = 0,
+    this.thumbB64 = '',
+  });
+
+  factory InlineBotResult.fromJson(Map<String, dynamic> json) {
+    return InlineBotResult(
+      id: json['id'] as String? ?? '',
+      type: json['type'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      thumbUrl: json['thumb_url'] as String? ?? '',
+      contentUrl: json['content_url'] as String? ?? '',
+      thumbW: json['thumb_w'] as int? ?? 0,
+      thumbH: json['thumb_h'] as int? ?? 0,
+      thumbB64: json['thumb_b64'] as String? ?? '',
+    );
+  }
+}
+
+class InlineBotResults {
+  final int queryId;
+  final String nextOffset;
+  final bool gallery;
+  final List<InlineBotResult> results;
+  final String switchPM;
+  final String switchPMParam;
+
+  const InlineBotResults({
+    this.queryId = 0,
+    this.nextOffset = '',
+    this.gallery = false,
+    this.results = const [],
+    this.switchPM = '',
+    this.switchPMParam = '',
+  });
+
+  factory InlineBotResults.fromJson(Map<String, dynamic> json) {
+    return InlineBotResults(
+      queryId: json['query_id'] as int? ?? 0,
+      nextOffset: json['next_offset'] as String? ?? '',
+      gallery: json['gallery'] as bool? ?? false,
+      results: (json['results'] as List<dynamic>?)
+          ?.map((e) => InlineBotResult.fromJson(e as Map<String, dynamic>))
+          .toList() ?? [],
+      switchPM: json['switch_pm'] as String? ?? '',
+      switchPMParam: json['switch_pm_param'] as String? ?? '',
+    );
+  }
+}

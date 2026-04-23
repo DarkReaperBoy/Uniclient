@@ -366,7 +366,7 @@
 
 ### §7.10 Autocomplete
 
-- [ ] Inline bot results panel — spec §7. Not implemented
+- [x] Inline bot results panel — spec §7. Gallery grid with stripped JPEG thumbnails, list view, hover, pick-to-send
 - [ ] Emoji suggestions while typing :emoji_name — spec §7. Not implemented
 
 ### §7.11 Additional Controls

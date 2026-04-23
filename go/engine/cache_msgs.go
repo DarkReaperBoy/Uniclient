@@ -900,3 +900,60 @@ func (e *Engine) BotCallback(accountID, chatID, msgID, data string) (string, err
 	}
 	return answerer.GetBotCallbackAnswer(chatID, msgID, []byte(data))
 }
+
+type InlineBotQuerier interface {
+	GetInlineBotResultsFull(botID string, query string, offset string, chatID string) (*cores.InlineBotResults, error)
+}
+
+func (e *Engine) GetInlineBotResultsFull(accountID, botID, query, offset, chatID string) (*cores.InlineBotResults, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	querier, ok := acc.Core.(InlineBotQuerier)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support inline bots")
+	}
+	return querier.GetInlineBotResultsFull(botID, query, offset, chatID)
+}
+
+type UsernameResolver interface {
+	ResolveUsername(username string) (string, error)
+}
+
+func (e *Engine) ResolveUsername(accountID, username string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	resolver, ok := acc.Core.(UsernameResolver)
+	if !ok {
+		return "", fmt.Errorf("platform does not support username resolution")
+	}
+	return resolver.ResolveUsername(username)
+}
+
+type InlineBotResultSender interface {
+	SendInlineBotResult(chatID string, queryID int64, resultID string) (int, error)
+}
+
+func (e *Engine) SendInlineBotResult(accountID, chatID string, queryID int64, resultID string) (int, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return 0, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return 0, fmt.Errorf("account not connected: %s", accountID)
+	}
+	sender, ok := acc.Core.(InlineBotResultSender)
+	if !ok {
+		return 0, fmt.Errorf("platform does not support inline bot results")
+	}
+	return sender.SendInlineBotResult(chatID, queryID, resultID)
+}
