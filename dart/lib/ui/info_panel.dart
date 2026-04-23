@@ -9,12 +9,17 @@ import '../models/engine_models.dart';
 import '../state/chat_state.dart';
 import 'chat_view.dart' show formatChatLastSeen;
 
-/// Spec: Third column info panel, min 292px, max 392px.
-/// Shows user/group/channel info with members and shared media links.
+enum InfoWrapMode { side, narrow, layer }
+
 class InfoPanel extends StatefulWidget {
   final VoidCallback onClose;
+  final InfoWrapMode wrapMode;
 
-  const InfoPanel({super.key, required this.onClose});
+  const InfoPanel({
+    super.key,
+    required this.onClose,
+    this.wrapMode = InfoWrapMode.side,
+  });
 
   @override
   State<InfoPanel> createState() => _InfoPanelState();
@@ -74,23 +79,38 @@ class _InfoPanelState extends State<InfoPanel> {
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadMembers(chat));
     }
 
-    return Container(
+    final isDark = theme.brightness == Brightness.dark;
+    final isLayer = widget.wrapMode == InfoWrapMode.layer;
+    final isNarrow = widget.wrapMode == InfoWrapMode.narrow;
+    final topBarHeight = isLayer ? 56.0 : 54.0;
+    final bgColor = isLayer
+        ? (isDark ? const Color(0xFF1b2734) : const Color(0xFFf0f0f0))
+        : theme.colorScheme.surface;
+
+    Widget panel = Container(
       decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        border: Border(
-          left: BorderSide(color: theme.dividerColor, width: 1),
-        ),
+        color: bgColor,
+        borderRadius: isLayer
+            ? const BorderRadius.vertical(top: Radius.circular(12))
+            : null,
+        border: (!isLayer && !isNarrow)
+            ? Border(left: BorderSide(color: theme.dividerColor, width: 1))
+            : null,
       ),
+      clipBehavior: isLayer ? Clip.antiAlias : Clip.none,
       child: Column(
         children: [
-          // Top bar with close button.
-          _TopBar(chat: chat, onClose: widget.onClose, theme: theme),
-          // Scrollable content.
+          _TopBar(
+            chat: chat,
+            onClose: widget.onClose,
+            theme: theme,
+            height: topBarHeight,
+            showBackButton: isNarrow,
+          ),
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               children: [
-                // Avatar + name header.
                 _AvatarHeader(
                   chat: chat,
                   theme: theme,
@@ -98,12 +118,9 @@ class _InfoPanelState extends State<InfoPanel> {
                   lastSeen: chatState.chatLastSeen(chat),
                 ),
                 const SizedBox(height: 16),
-                // Chat details.
                 _ChatDetails(chat: chat, theme: theme),
                 const Divider(height: 24),
-                // Notifications toggle.
                 _NotificationToggle(chat: chat, theme: theme),
-                // Members list (for groups).
                 if (chat.type == ChatType.group || chat.type == ChatType.topic) ...[
                   const Divider(height: 24),
                   _MembersSection(
@@ -119,6 +136,8 @@ class _InfoPanelState extends State<InfoPanel> {
         ],
       ),
     );
+
+    return panel;
   }
 }
 
@@ -126,13 +145,21 @@ class _TopBar extends StatelessWidget {
   final ChatInfo chat;
   final VoidCallback onClose;
   final ThemeData theme;
+  final double height;
+  final bool showBackButton;
 
-  const _TopBar({required this.chat, required this.onClose, required this.theme});
+  const _TopBar({
+    required this.chat,
+    required this.onClose,
+    required this.theme,
+    this.height = 54,
+    this.showBackButton = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 54,
+      height: height,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         border: Border(
@@ -142,9 +169,9 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.close, size: 20),
+            icon: Icon(showBackButton ? Icons.arrow_back : Icons.close, size: 20),
             onPressed: onClose,
-            tooltip: 'Close',
+            tooltip: showBackButton ? 'Back' : 'Close',
           ),
           const SizedBox(width: 4),
           Expanded(

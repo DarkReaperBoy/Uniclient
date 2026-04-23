@@ -52,7 +52,7 @@ class _UniClientShellState extends State<UniClientShell>
   static const _dialogsMax = 540.0;
   static const _dialogsCollapseThreshold = 130.0;
   static const _chatMin = 380.0;
-  static const _thirdMin = 292.0;
+  static const _thirdMin = 324.0;
   static const _thirdMax = 392.0;
   static const _filtersWidth = 72.0;
 
@@ -124,6 +124,7 @@ class _UniClientShellState extends State<UniClientShell>
   void _toggleInfo() {
     setState(() {
       _infoOpen = !_infoOpen;
+      _navForward = _infoOpen;
       if (_infoOpen) {
         _thirdColumnAnim.forward();
       } else {
@@ -136,6 +137,7 @@ class _UniClientShellState extends State<UniClientShell>
     if (!_infoOpen) return;
     setState(() {
       _infoOpen = false;
+      _navForward = false;
       _thirdColumnAnim.reverse();
     });
   }
@@ -242,7 +244,10 @@ class _UniClientShellState extends State<UniClientShell>
   /// animation (spec §1: horizontal slide with content snapshot crossfade).
   Widget _buildOneColumn(BuildContext context, ChatState chatState) {
     final showChat = chatState.activeChat != null;
+    final showInfo = _infoOpen && showChat;
     final forward = _navForward;
+
+    final String currentKey = showInfo ? 'info' : (showChat ? 'chat' : 'chatlist');
 
     return ClipRect(
       child: AnimatedSwitcher(
@@ -257,8 +262,7 @@ class _UniClientShellState extends State<UniClientShell>
           );
         },
         transitionBuilder: (child, animation) {
-          final isIncoming =
-              child.key == ValueKey(showChat ? 'chat' : 'chatlist');
+          final isIncoming = child.key == ValueKey(currentKey);
           final beginOffset = isIncoming
               ? Offset(forward ? 1.0 : -1.0, 0)
               : Offset(forward ? -0.3 : 0.3, 0);
@@ -275,42 +279,45 @@ class _UniClientShellState extends State<UniClientShell>
             ),
           );
         },
-        child: showChat
-            ? ChatView(
-                key: const ValueKey('chat'),
-                onBack: () => chatState.closeChat(),
-                showBackButton: true,
-                hideTopBarDivider: _oneColumnAnimating,
+        child: showInfo
+            ? InfoPanel(
+                key: const ValueKey('info'),
+                onClose: _closeInfo,
+                wrapMode: InfoWrapMode.narrow,
               )
-            : ChatListPanel(
-                key: const ValueKey('chatlist'),
-                onOpenDrawer: () => _openDrawer(context),
-                showHamburger: true,
-              ),
+            : showChat
+                ? ChatView(
+                    key: const ValueKey('chat'),
+                    onBack: () => chatState.closeChat(),
+                    showBackButton: true,
+                    hideTopBarDivider: _oneColumnAnimating,
+                    onToggleInfo: _toggleInfo,
+                    isInfoOpen: _infoOpen,
+                  )
+                : ChatListPanel(
+                    key: const ValueKey('chatlist'),
+                    onOpenDrawer: () => _openDrawer(context),
+                    showHamburger: true,
+                  ),
       ),
     );
   }
 
-  /// Two columns: dialogs + chat.
   Widget _buildTwoColumn(BuildContext context, double bodyWidth,
       bool showFilters, ChatState chatState) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Spec §1: clamp dialogs width to [min, bodyWidth - chatMin] so chat
-    // never shrinks below 380px.
     final maxDialogs = (bodyWidth - _chatMin).clamp(_dialogsMin, _dialogsMax);
     final dialogsWidth = _dialogsCollapsed
-        ? 72.0 // avatar-only collapsed mode
+        ? 72.0
         : (bodyWidth * _dialogsWidthRatio).clamp(_dialogsMin, maxDialogs);
 
-    return Row(
+    final columns = Row(
       children: [
-        // Filters sidebar (when folders exist).
         if (showFilters)
           FilterColumn(
             onOpenDrawer: () => _openDrawer(context),
           ),
         if (showFilters) _ColumnShadow(isDark: isDark),
-        // Dialogs column.
         AnimatedContainer(
           duration: _isDragging ? Duration.zero : const Duration(milliseconds: 180),
           curve: Curves.easeOutCirc,
@@ -322,7 +329,6 @@ class _UniClientShellState extends State<UniClientShell>
             collapsed: _dialogsCollapsed,
           ),
         ),
-        // Resize handle + shadow separator.
         _ColumnShadow(isDark: isDark),
         _ResizeHandle(
           onDragStart: () => setState(() => _isDragging = true),
@@ -330,7 +336,6 @@ class _UniClientShellState extends State<UniClientShell>
           onDrag: (dx) {
             setState(() {
               final raw = (bodyWidth * _dialogsWidthRatio + dx);
-              // Spec §1: below 130px threshold, snap to collapsed mode.
               if (raw < _dialogsCollapseThreshold) {
                 _dialogsCollapsed = true;
               } else {
@@ -342,7 +347,6 @@ class _UniClientShellState extends State<UniClientShell>
             });
           },
         ),
-        // Chat column.
         Expanded(
           child: chatState.activeChat != null
               ? ChatView(
@@ -352,6 +356,15 @@ class _UniClientShellState extends State<UniClientShell>
                 )
               : _EmptyChatPlaceholder(),
         ),
+      ],
+    );
+
+    if (!_infoOpen || chatState.activeChat == null) return columns;
+
+    return Stack(
+      children: [
+        columns,
+        _InfoLayerOverlay(onClose: _closeInfo),
       ],
     );
   }
@@ -503,6 +516,34 @@ class _UniClientShellState extends State<UniClientShell>
 /// Light theme: #00000018 (black at 9.4% opacity).
 /// Dark theme: #04080e56 (near-black at 33.7% opacity).
 /// No animation — static paint, toggled by show/hide.
+class _InfoLayerOverlay extends StatelessWidget {
+  final VoidCallback onClose;
+
+  const _InfoLayerOverlay({required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onClose,
+      child: Container(
+        color: Colors.black54,
+        alignment: Alignment.topCenter,
+        padding: const EdgeInsets.only(left: 48, right: 48, top: 20),
+        child: GestureDetector(
+          onTap: () {},
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 392),
+            child: InfoPanel(
+              onClose: onClose,
+              wrapMode: InfoWrapMode.layer,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ColumnShadow extends StatelessWidget {
   final bool isDark;
 

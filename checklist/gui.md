@@ -391,7 +391,6 @@
 
 ### §8.0 Panel Chrome & Layout
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] Panel chrome: 324px min / 392px preferred width; three wrap modes (Side, Narrow, Layer); layer mode with 48px margin each side, rounded top edges, boxBg background, top whitespace 20-40px — spec §8 / §8.6
 - [ ] Navigation stack: push on sub-section click, pop on back; slide animations (FromRight open / FromLeft back); Memento restores scroll position, search query, active media tab — spec §8
 
 ### §8.1 Cover / TopBar Compression
