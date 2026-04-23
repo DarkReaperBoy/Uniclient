@@ -263,6 +263,7 @@ class _InfoPanelState extends State<InfoPanel> {
           onClose: onClose,
           showBackButton: hasBack,
           title: _panelTitle(chat.type),
+          isLayer: widget.wrapMode == InfoWrapMode.layer,
         );
     }
   }
@@ -941,6 +942,7 @@ class _ChatInfoPage extends StatefulWidget {
   final VoidCallback onClose;
   final bool showBackButton;
   final String title;
+  final bool isLayer;
 
   const _ChatInfoPage({
     required this.chat,
@@ -954,6 +956,7 @@ class _ChatInfoPage extends StatefulWidget {
     required this.onClose,
     required this.showBackButton,
     required this.title,
+    this.isLayer = false,
   });
 
   @override
@@ -1070,6 +1073,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                 _SharedMediaSection(
                   counts: widget.mediaCounts,
                   theme: widget.theme,
+                  isLayer: widget.isLayer,
                 ),
               ],
               if (widget.chat.type == ChatType.group ||
@@ -1515,11 +1519,26 @@ class _NotificationToggle extends StatelessWidget {
   }
 }
 
-class _SharedMediaSection extends StatelessWidget {
+class _SharedMediaSection extends StatefulWidget {
   final Map<String, int> counts;
   final ThemeData theme;
+  final bool isLayer;
 
-  const _SharedMediaSection({required this.counts, required this.theme});
+  const _SharedMediaSection({
+    required this.counts,
+    required this.theme,
+    this.isLayer = false,
+  });
+
+  @override
+  State<_SharedMediaSection> createState() => _SharedMediaSectionState();
+}
+
+class _SharedMediaSectionState extends State<_SharedMediaSection> {
+  bool _searchActive = false;
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  String _activeSubTab = '';
 
   static const _types = [
     ('photo', Icons.photo_outlined, 'Photos'),
@@ -1531,30 +1550,243 @@ class _SharedMediaSection extends StatelessWidget {
     ('gif', Icons.gif_box_outlined, 'GIFs'),
   ];
 
+  static const _subTabSets = <String, List<(String, String)>>{
+    'stories': [('archive', 'Archive'), ('recent', 'Recent')],
+    'gifts': [('all', 'All'), ('unique', 'Unique'), ('limited', 'Limited')],
+  };
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final visible = _types.where((t) => (counts[t.$1] ?? 0) > 0).toList();
+    final visible =
+        _types.where((t) => (widget.counts[t.$1] ?? 0) > 0).toList();
     if (visible.isEmpty) return const SizedBox.shrink();
 
-    final iconColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
-    final isDark = theme.brightness == Brightness.dark;
-    final accentColor = isDark ? const Color(0xFF6AB2F2) : const Color(0xFF168acd);
+    final iconColor = widget.theme.textTheme.bodySmall?.color ?? Colors.grey;
+    final isDark = widget.theme.brightness == Brightness.dark;
+    final accentColor =
+        isDark ? const Color(0xFF6AB2F2) : const Color(0xFF168acd);
+
+    final hasStories = (widget.counts['stories'] ?? 0) > 0;
+    final hasGifts = (widget.counts['gifts'] ?? 0) > 0;
+    final showSubTabs = hasStories || hasGifts;
+    final subTabKey = hasStories ? 'stories' : (hasGifts ? 'gifts' : '');
+    final subTabs = _subTabSets[subTabKey] ?? [];
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          _MediaSearchRow(
+            isLayer: widget.isLayer,
+            active: _searchActive,
+            controller: _searchController,
+            focusNode: _searchFocusNode,
+            theme: widget.theme,
+            onToggle: () {
+              setState(() {
+                _searchActive = !_searchActive;
+                if (_searchActive) {
+                  _searchFocusNode.requestFocus();
+                } else {
+                  _searchController.clear();
+                  _searchFocusNode.unfocus();
+                }
+              });
+            },
+            onCancel: () {
+              setState(() {
+                _searchActive = false;
+                _searchController.clear();
+                _searchFocusNode.unfocus();
+              });
+            },
+          ),
+          if (showSubTabs && subTabs.isNotEmpty)
+            _SubTabChips(
+              tabs: subTabs,
+              activeTab: _activeSubTab.isEmpty
+                  ? subTabs.first.$1
+                  : _activeSubTab,
+              accentColor: accentColor,
+              theme: widget.theme,
+              onSelected: (tab) => setState(() => _activeSubTab = tab),
+            ),
           for (final (type, icon, label) in visible)
             _SharedMediaRow(
               icon: icon,
               label: label,
-              count: counts[type]!,
+              count: widget.counts[type]!,
               iconColor: iconColor,
               accentColor: accentColor,
-              theme: theme,
+              theme: widget.theme,
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _MediaSearchRow extends StatelessWidget {
+  final bool isLayer;
+  final bool active;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ThemeData theme;
+  final VoidCallback onToggle;
+  final VoidCallback onCancel;
+
+  const _MediaSearchRow({
+    required this.isLayer,
+    required this.active,
+    required this.controller,
+    required this.focusNode,
+    required this.theme,
+    required this.onToggle,
+    required this.onCancel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final height = isLayer ? 46.0 : 44.0;
+    final isDark = theme.brightness == Brightness.dark;
+    final fieldBg = isDark ? const Color(0xFF1c2733) : const Color(0xFFe8e8e8);
+    final iconColor = theme.textTheme.bodySmall?.color ?? Colors.grey;
+
+    return SizedBox(
+      height: height,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: height - 12,
+                decoration: BoxDecoration(
+                  color: fieldBg,
+                  borderRadius: BorderRadius.circular((height - 12) / 2),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 8),
+                    Icon(Icons.search, size: 18, color: iconColor),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: active
+                          ? TextField(
+                              controller: controller,
+                              focusNode: focusNode,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: theme.textTheme.bodyMedium?.color,
+                              ),
+                              decoration: const InputDecoration(
+                                hintText: 'Search',
+                                hintStyle: TextStyle(fontSize: 13),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                              ),
+                            )
+                          : GestureDetector(
+                              onTap: onToggle,
+                              behavior: HitTestBehavior.opaque,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Search',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: iconColor,
+                                  ),
+                                ),
+                              ),
+                            ),
+                    ),
+                    if (active)
+                      GestureDetector(
+                        onTap: onCancel,
+                        behavior: HitTestBehavior.opaque,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          child: Icon(Icons.close, size: 16, color: iconColor),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SubTabChips extends StatelessWidget {
+  final List<(String, String)> tabs;
+  final String activeTab;
+  final Color accentColor;
+  final ThemeData theme;
+  final ValueChanged<String> onSelected;
+
+  const _SubTabChips({
+    required this.tabs,
+    required this.activeTab,
+    required this.accentColor,
+    required this.theme,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final inactiveColor = isDark ? const Color(0xFF3e546a) : const Color(0xFFbbbbbb);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      child: Row(
+        children: [
+          for (int i = 0; i < tabs.length; i++) ...[
+            if (i > 0) const SizedBox(width: 8),
+            _buildChip(tabs[i].$1, tabs[i].$2, inactiveColor),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChip(String key, String label, Color inactiveColor) {
+    final isActive = activeTab == key;
+    return GestureDetector(
+      onTap: () => onSelected(key),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: isActive ? accentColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isActive ? accentColor : inactiveColor,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: isActive ? Colors.white : theme.textTheme.bodyMedium?.color,
+          ),
+        ),
       ),
     );
   }

@@ -404,7 +404,6 @@
 
 ### §8.3 Shared Media Navigation
 <!-- File: dart/lib/ui/info_panel.dart -->
-- [ ] In-section search row: 44px height (46px in Layer mode), margins(8,6,8,6); sub-tab chips for stories-archive / gift-category — spec §8.3
 
 ### §8.4 Members List
 <!-- File: dart/lib/ui/info_panel.dart — _MembersSection / _MemberRow -->
