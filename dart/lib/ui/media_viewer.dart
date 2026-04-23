@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -67,6 +68,7 @@ class _MediaViewerState extends State<MediaViewer>
 
   Player? _player;
   VideoController? _videoController;
+  List<StreamSubscription> _playerSubs = [];
   bool _isPlaying = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -104,21 +106,23 @@ class _MediaViewerState extends State<MediaViewer>
       _player = player;
       _videoController = VideoController(player);
 
-      player.stream.playing.listen((playing) {
-        if (mounted) setState(() => _isPlaying = playing);
-      });
-      player.stream.position.listen((pos) {
-        if (mounted && !_isSeeking) setState(() => _position = pos);
-      });
-      player.stream.duration.listen((dur) {
-        if (mounted) setState(() => _duration = dur);
-      });
-      player.stream.completed.listen((completed) {
-        if (completed && msg.mediaType == 7) {
-          player.seek(Duration.zero);
-          player.play();
-        }
-      });
+      _playerSubs = [
+        player.stream.playing.listen((playing) {
+          if (mounted) setState(() => _isPlaying = playing);
+        }),
+        player.stream.position.listen((pos) {
+          if (mounted && !_isSeeking) setState(() => _position = pos);
+        }),
+        player.stream.duration.listen((dur) {
+          if (mounted) setState(() => _duration = dur);
+        }),
+        player.stream.completed.listen((completed) {
+          if (completed && msg.mediaType == 7) {
+            player.seek(Duration.zero);
+            player.play();
+          }
+        }),
+      ];
 
       player.setVolume(msg.mediaType == 7 ? 0.0 : _volume * 100.0);
       player.setPlaylistMode(
@@ -128,6 +132,10 @@ class _MediaViewerState extends State<MediaViewer>
   }
 
   void _disposePlayer() {
+    for (final sub in _playerSubs) {
+      sub.cancel();
+    }
+    _playerSubs = [];
     _player?.dispose();
     _player = null;
     _videoController = null;

@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1136,6 +1138,8 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   counts: widget.mediaCounts,
                   theme: widget.theme,
                   isLayer: widget.isLayer,
+                  accountId: widget.chat.accountId,
+                  chatId: widget.chat.chatId,
                 ),
               ],
               if (widget.chat.type == ChatType.group ||
@@ -1587,11 +1591,15 @@ class _SharedMediaSection extends StatefulWidget {
   final Map<String, int> counts;
   final ThemeData theme;
   final bool isLayer;
+  final String accountId;
+  final String chatId;
 
   const _SharedMediaSection({
     required this.counts,
     required this.theme,
     this.isLayer = false,
+    required this.accountId,
+    required this.chatId,
   });
 
   @override
@@ -1603,6 +1611,9 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   String _activeSubTab = '';
+  String? _expandedGridType;
+  List<SharedMediaItem>? _gridItems;
+  bool _gridLoading = false;
 
   static const _types = [
     ('photo', Icons.photo_outlined, 'Photos'),
@@ -1614,6 +1625,8 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     ('gif', Icons.gif_box_outlined, 'GIFs'),
   ];
 
+  static const _gridTypes = {'photo', 'video'};
+
   static const _subTabSets = <String, List<(String, String)>>{
     'stories': [('archive', 'Archive'), ('recent', 'Recent')],
     'gifts': [('all', 'All'), ('unique', 'Unique'), ('limited', 'Limited')],
@@ -1624,6 +1637,45 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  void _toggleGrid(String type) {
+    if (_expandedGridType == type) {
+      setState(() {
+        _expandedGridType = null;
+        _gridItems = null;
+      });
+      return;
+    }
+    setState(() {
+      _expandedGridType = type;
+      _gridItems = null;
+      _gridLoading = true;
+    });
+    _loadGridItems(type);
+  }
+
+  static const _typeToFilter = {
+    'photo': 'image',
+    'video': 'video',
+  };
+
+  void _loadGridItems(String type) {
+    final engine = context.read<EngineService>();
+    try {
+      final items = engine.getSharedMedia(
+        widget.accountId, widget.chatId,
+        mediaType: _typeToFilter[type] ?? type, limit: 100,
+      );
+      if (mounted && _expandedGridType == type) {
+        setState(() {
+          _gridItems = items;
+          _gridLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _gridLoading = false);
+    }
   }
 
   @override
@@ -1683,7 +1735,7 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
               theme: widget.theme,
               onSelected: (tab) => setState(() => _activeSubTab = tab),
             ),
-          for (final (type, icon, label) in visible)
+          for (final (type, icon, label) in visible) ...[
             _SharedMediaRow(
               icon: icon,
               label: label,
@@ -1691,7 +1743,18 @@ class _SharedMediaSectionState extends State<_SharedMediaSection> {
               iconColor: iconColor,
               accentColor: accentColor,
               theme: widget.theme,
+              expanded: _expandedGridType == type,
+              onTap: _gridTypes.contains(type)
+                  ? () => _toggleGrid(type)
+                  : null,
             ),
+            if (_expandedGridType == type)
+              _MediaGrid(
+                items: _gridItems,
+                loading: _gridLoading,
+                theme: widget.theme,
+              ),
+          ],
         ],
       ),
     );
@@ -1863,6 +1926,8 @@ class _SharedMediaRow extends StatelessWidget {
   final Color iconColor;
   final Color accentColor;
   final ThemeData theme;
+  final bool expanded;
+  final VoidCallback? onTap;
 
   const _SharedMediaRow({
     required this.icon,
@@ -1871,12 +1936,14 @@ class _SharedMediaRow extends StatelessWidget {
     required this.iconColor,
     required this.accentColor,
     required this.theme,
+    this.expanded = false,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap ?? () {},
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Row(
@@ -1904,7 +1971,11 @@ class _SharedMediaRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
-            Icon(Icons.chevron_right, size: 18, color: iconColor),
+            AnimatedRotation(
+              turns: expanded ? 0.25 : 0.0,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(Icons.chevron_right, size: 18, color: iconColor),
+            ),
           ],
         ),
       ),
@@ -1915,6 +1986,326 @@ class _SharedMediaRow extends StatelessWidget {
     if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
     if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
     return n.toString();
+  }
+}
+
+class _MediaGrid extends StatelessWidget {
+  final List<SharedMediaItem>? items;
+  final bool loading;
+  final ThemeData theme;
+
+  static const _minGridSize = 82.0;
+  static const _skip = 2.0;
+  static const _sidePadding = 3.0;
+
+  const _MediaGrid({
+    required this.items,
+    required this.loading,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(child: SizedBox(
+          width: 24, height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        )),
+      );
+    }
+    final mediaItems = items;
+    if (mediaItems == null || mediaItems.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            'No media',
+            style: TextStyle(
+              fontSize: 13,
+              color: theme.textTheme.bodySmall?.color ?? Colors.grey,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final grouped = _groupByMonth(mediaItems);
+
+    return LayoutBuilder(builder: (context, constraints) {
+      final listWidth = constraints.maxWidth;
+      final contentWidth = listWidth - 2 * _sidePadding;
+      final columns = math.max(1, ((contentWidth + _skip) / (_minGridSize + _skip)).floor());
+      final cellSide = ((contentWidth - (columns - 1) * _skip) / columns).floorToDouble();
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: _sidePadding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final entry in grouped.entries) ...[
+              _DateHeader(label: entry.key, theme: theme),
+              _buildGridRows(entry.value, columns, cellSide),
+            ],
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildGridRows(List<SharedMediaItem> items, int columns, double cellSide) {
+    final rows = <Widget>[];
+    for (var i = 0; i < items.length; i += columns) {
+      final rowItems = items.sublist(i, math.min(i + columns, items.length));
+      rows.add(Padding(
+        padding: EdgeInsets.only(bottom: i + columns < items.length ? _skip : 0),
+        child: Row(
+          children: [
+            for (var j = 0; j < rowItems.length; j++) ...[
+              if (j > 0) const SizedBox(width: _skip),
+              _GridCell(item: rowItems[j], size: cellSide, theme: theme),
+            ],
+          ],
+        ),
+      ));
+    }
+    return Column(children: rows);
+  }
+
+  static Map<String, List<SharedMediaItem>> _groupByMonth(List<SharedMediaItem> items) {
+    final grouped = <String, List<SharedMediaItem>>{};
+    for (final item in items) {
+      final dt = item.dateTime;
+      final now = DateTime.now();
+      String key;
+      if (dt.year == now.year && dt.month == now.month) {
+        key = 'This month';
+      } else if (dt.year == now.year) {
+        key = _monthName(dt.month);
+      } else {
+        key = '${_monthName(dt.month)} ${dt.year}';
+      }
+      grouped.putIfAbsent(key, () => []).add(item);
+    }
+    return grouped;
+  }
+
+  static String _monthName(int month) => const [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ][month];
+}
+
+class _DateHeader extends StatelessWidget {
+  final String label;
+  final ThemeData theme;
+
+  const _DateHeader({required this.label, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 14, top: 6),
+        child: Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GridCell extends StatelessWidget {
+  final SharedMediaItem item;
+  final double size;
+  final ThemeData theme;
+
+  const _GridCell({
+    required this.item,
+    required this.size,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = theme.brightness == Brightness.dark;
+    final placeholderColor = isDark
+        ? const Color(0xFF2b3945)
+        : const Color(0xFFe0e0e0);
+
+    Widget content;
+    if (item.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeThumb(item.thumbB64);
+        if (_isValidImage(bytes)) {
+          content = Image.memory(
+            bytes,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
+          );
+        } else {
+          content = _placeholder(placeholderColor);
+        }
+      } catch (_) {
+        content = _placeholder(placeholderColor);
+      }
+    } else if (item.localPath.isNotEmpty && File(item.localPath).existsSync()) {
+      content = Image.file(
+        File(item.localPath),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => _placeholder(placeholderColor),
+      );
+    } else {
+      content = _placeholder(placeholderColor);
+    }
+
+    final isVideo = item.isVideo;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(child: content),
+          if (isVideo && item.duration > 0)
+            Positioned(
+              right: 4,
+              bottom: 4,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Text(
+                  _formatDuration(item.duration),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder(Color color) {
+    final isVideo = item.isVideo;
+    return Container(
+      color: color,
+      child: Center(
+        child: Icon(
+          isVideo ? Icons.videocam : Icons.photo,
+          size: 24,
+          color: color.withValues(alpha: 0.6),
+        ),
+      ),
+    );
+  }
+
+  static String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  static bool _isValidImage(Uint8List data) {
+    if (data.length < 4) return false;
+    if (data[0] == 0xFF && data[1] == 0xD8) return true; // JPEG
+    if (data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47) return true; // PNG
+    if (data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46) return true; // WebP (RIFF)
+    return false;
+  }
+
+  static Uint8List _decodeThumb(String b64) {
+    final data = base64Decode(b64);
+    if (data.length >= 3 && data[0] == 0x01) {
+      final w = data[1];
+      final h = data[2];
+      final header = _jpegHeader(w, h);
+      const footer = [0xFF, 0xD9];
+      final buf = Uint8List(header.length + data.length - 3 + footer.length);
+      buf.setAll(0, header);
+      buf.setAll(header.length, data.sublist(3));
+      buf.setAll(header.length + data.length - 3, footer);
+      return buf;
+    }
+    return data;
+  }
+
+  static Uint8List _jpegHeader(int w, int h) {
+    final tmpl = Uint8List.fromList([
+      0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+      0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
+      0x00, 0x28, 0x1C, 0x1E, 0x23, 0x1E, 0x19, 0x28, 0x23, 0x21, 0x23, 0x2D,
+      0x2B, 0x28, 0x30, 0x3C, 0x64, 0x41, 0x3C, 0x37, 0x37, 0x3C, 0x7B, 0x58,
+      0x5D, 0x49, 0x64, 0x91, 0x80, 0x99, 0x96, 0x8F, 0x80, 0x8C, 0x8A, 0xA0,
+      0xB4, 0xE6, 0xC3, 0xA0, 0xAA, 0xDA, 0xAD, 0x8A, 0x8C, 0xC8, 0xFF, 0xCB,
+      0xDA, 0xEE, 0xF5, 0xFF, 0xFF, 0xFF, 0x9B, 0xC1, 0xFF, 0xFF, 0xFF, 0xFA,
+      0xFF, 0xE6, 0xFD, 0xFF, 0xF8, 0xFF, 0xDB, 0x00, 0x43, 0x01, 0x2B, 0x2D,
+      0x2D, 0x3C, 0x35, 0x3C, 0x76, 0x41, 0x41, 0x76, 0xF8, 0xA5, 0x8C, 0xA5,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x00, 0x00, 0x00, 0x03,
+      0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, 0xFF, 0xC4, 0x00,
+      0x1F, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+      0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xC4, 0x00, 0xB5, 0x10, 0x00,
+      0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03, 0x05, 0x05, 0x04, 0x04, 0x00,
+      0x00, 0x01, 0x7D, 0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21,
+      0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07, 0x22, 0x71, 0x14, 0x32, 0x81,
+      0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0, 0x24,
+      0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x25,
+      0x26, 0x27, 0x28, 0x29, 0x2A, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A,
+      0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x53, 0x54, 0x55, 0x56,
+      0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A,
+      0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x83, 0x84, 0x85, 0x86,
+      0x87, 0x88, 0x89, 0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
+      0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xB2, 0xB3,
+      0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6,
+      0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9,
+      0xDA, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xF1,
+      0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFF, 0xC4, 0x00,
+      0x1F, 0x01, 0x00, 0x03, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01,
+      0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+      0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xC4, 0x00, 0xB5, 0x11, 0x00,
+      0x02, 0x01, 0x02, 0x04, 0x04, 0x03, 0x04, 0x07, 0x05, 0x04, 0x04, 0x00,
+      0x01, 0x02, 0x77, 0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31,
+      0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71, 0x13, 0x22, 0x32, 0x81, 0x08,
+      0x14, 0x42, 0x91, 0xA1, 0xB1, 0xC1, 0x09, 0x23, 0x33, 0x52, 0xF0, 0x15,
+      0x62, 0x72, 0xD1, 0x0A, 0x16, 0x24, 0x34, 0xE1, 0x25, 0xF1, 0x17, 0x18,
+      0x19, 0x1A, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x35, 0x36, 0x37, 0x38, 0x39,
+      0x3A, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x53, 0x54, 0x55,
+      0x56, 0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
+      0x6A, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x82, 0x83, 0x84,
+      0x85, 0x86, 0x87, 0x88, 0x89, 0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97,
+      0x98, 0x99, 0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA,
+      0xB2, 0xB3, 0xB4, 0xB5, 0xB6, 0xB7, 0xB8, 0xB9, 0xBA, 0xC2, 0xC3, 0xC4,
+      0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7,
+      0xD8, 0xD9, 0xDA, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA,
+      0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFF, 0xDA, 0x00,
+      0x0C, 0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3F, 0x00,
+    ]);
+    tmpl[164] = h;
+    tmpl[166] = w;
+    return tmpl;
   }
 }
 

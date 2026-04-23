@@ -410,10 +410,8 @@
 - [x] Members section rendered with avatar, name, and online/role status — spec §8.4 — DONE (basic) in info_panel.dart
 
 ### §8.5 Grid Columns (Photos / Videos / Gifts)
-<!-- File: dart/lib/ui/info_panel.dart — not yet implemented -->
-- [ ] Photo/video grid: column count = max(1, floor((width-4)/84)); cell side = floor((width-6-2(cols-1))/cols); 2px gap, 3px side padding; square thumbnails — spec §8.5
+<!-- File: dart/lib/ui/info_panel.dart -->
 - [ ] Stories grid: 9:16 aspect ratio cells — spec §8.5
-- [ ] Date section headers: 28px height, semibold text at offset(14,6) — spec §8.5
 - [ ] GIF layout: masonry/waterfall (variable aspect ratios); Files/Links/Audio/Voice: single-column list items — spec §8.5
 - [ ] Empty-state widget when list height <= threshold; gifts grid with taller aspect override — spec §8.5
 
