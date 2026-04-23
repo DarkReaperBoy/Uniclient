@@ -1756,53 +1756,60 @@ class _ChatViewState extends State<ChatView>
               onPick: _pickInlineResult,
               loading: _inlineBotLoading,
             ),
-          // Compose area.
-          _ComposeArea(
-            controller: _composeController,
-            onSend: _sendMessage,
-            onSendSilent: () => _sendMessage(silent: true),
-            onSendScheduled: (date) => _sendMessage(),
-            onSendWhenOnline: _sendMessage,
-            onDraftChanged: (text) {
-              chatState.saveDraft(text);
-              _checkInlineBot(text);
-            },
-            isEditing: _editingMsgId != null,
-            isForwarding: _isForwarding,
-            chatType: chat.type,
-            isSelfChat: chat.title == 'Saved Messages' && chat.type == ChatType.dm,
-            voiceRestricted: chat.voiceRestricted,
-            videoRestricted: chat.videoRestricted,
-            slowmodeSeconds: chat.slowmodeSeconds,
-            slowmodeNextSendDate: chat.slowmodeNextSendDate,
-            starsToSend: chat.starsToSend,
-            onEditLast: _editLastOutgoing,
-            onCycleReply: _cycleReply,
-            onLinksDetected: (links) {
-              setState(() => _detectedLinks = links);
-              _onLinksChanged(links, chatState);
-            },
-            onFilesSelected: (paths) => _uploadFiles(chatState, paths),
-            onAutocompleteQuery: _onAutocompleteQuery,
-            autocompleteActive: _acQuery != null && (_acFilteredMembers.isNotEmpty || _acFilteredEmojis.isNotEmpty),
-            onAutocompleteUp: _acMoveUp,
-            onAutocompleteDown: _acMoveDown,
-            onAutocompletePick: _acPick,
-            sendAsPeers: _sendAsPeers,
-            selectedSendAsPeerId: _selectedSendAsPeerId,
-            onSendAsChanged: (peerId) {
-              setState(() => _selectedSendAsPeerId = peerId);
-              final engine = context.read<EngineService>();
-              engine.saveDefaultSendAs(chat.accountId, chat.chatId, peerId);
-            },
-            scheduledCount: chatState.scheduledCount,
-            onScheduledPressed: () => chatState.toggleScheduledView(),
-            ttlPeriod: chat.ttlPeriod,
-            onTtlChanged: (period) {
-              chatState.setHistoryTTL(chat.accountId, chat.chatId, period);
-            },
-            isBot: chat.isBot,
-          ),
+          // Compose area — or fallback button when blocked.
+          if (chat.isBlocked)
+            _FallbackComposeButton(
+              label: chat.isBot ? 'RESTART' : 'UNBLOCK',
+              color: const Color(0xFFdf3f40),
+              onTap: () => chatState.unblockUser(chat.accountId, chat.chatId),
+            )
+          else
+            _ComposeArea(
+              controller: _composeController,
+              onSend: _sendMessage,
+              onSendSilent: () => _sendMessage(silent: true),
+              onSendScheduled: (date) => _sendMessage(),
+              onSendWhenOnline: _sendMessage,
+              onDraftChanged: (text) {
+                chatState.saveDraft(text);
+                _checkInlineBot(text);
+              },
+              isEditing: _editingMsgId != null,
+              isForwarding: _isForwarding,
+              chatType: chat.type,
+              isSelfChat: chat.title == 'Saved Messages' && chat.type == ChatType.dm,
+              voiceRestricted: chat.voiceRestricted,
+              videoRestricted: chat.videoRestricted,
+              slowmodeSeconds: chat.slowmodeSeconds,
+              slowmodeNextSendDate: chat.slowmodeNextSendDate,
+              starsToSend: chat.starsToSend,
+              onEditLast: _editLastOutgoing,
+              onCycleReply: _cycleReply,
+              onLinksDetected: (links) {
+                setState(() => _detectedLinks = links);
+                _onLinksChanged(links, chatState);
+              },
+              onFilesSelected: (paths) => _uploadFiles(chatState, paths),
+              onAutocompleteQuery: _onAutocompleteQuery,
+              autocompleteActive: _acQuery != null && (_acFilteredMembers.isNotEmpty || _acFilteredEmojis.isNotEmpty),
+              onAutocompleteUp: _acMoveUp,
+              onAutocompleteDown: _acMoveDown,
+              onAutocompletePick: _acPick,
+              sendAsPeers: _sendAsPeers,
+              selectedSendAsPeerId: _selectedSendAsPeerId,
+              onSendAsChanged: (peerId) {
+                setState(() => _selectedSendAsPeerId = peerId);
+                final engine = context.read<EngineService>();
+                engine.saveDefaultSendAs(chat.accountId, chat.chatId, peerId);
+              },
+              scheduledCount: chatState.scheduledCount,
+              onScheduledPressed: () => chatState.toggleScheduledView(),
+              ttlPeriod: chat.ttlPeriod,
+              onTtlChanged: (period) {
+                chatState.setHistoryTTL(chat.accountId, chat.chatId, period);
+              },
+              isBot: chat.isBot,
+            ),
           if (chatState.visibleReplyKeyboard != null)
             _BotReplyKeyboard(
               keyboard: chatState.visibleReplyKeyboard!,
@@ -3769,6 +3776,58 @@ class _ContactStatusButtonState extends State<_ContactStatusButton> {
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: widget.color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FallbackComposeButton extends StatefulWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  final double height;
+
+  const _FallbackComposeButton({
+    required this.label,
+    required this.color,
+    required this.onTap,
+    this.height = 46,
+  });
+
+  @override
+  State<_FallbackComposeButton> createState() => _FallbackComposeButtonState();
+}
+
+class _FallbackComposeButtonState extends State<_FallbackComposeButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212b) : const Color(0xFFffffff);
+    final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFF1F1F1);
+    return Container(
+      color: _hovered ? hoverColor : bgColor,
+      height: widget.height,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: Container(
+            alignment: Alignment.topCenter,
+            padding: const EdgeInsets.only(top: 14),
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: widget.color,
+              ),
             ),
           ),
         ),
