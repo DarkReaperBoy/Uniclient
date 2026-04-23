@@ -10268,6 +10268,20 @@ func convertTgEntities(entities []tg.MessageEntityClass) []TextEntity {
 	return result
 }
 
+func extractEmojiStatusID(es tg.EmojiStatusClass) string {
+	if es == nil {
+		return ""
+	}
+	switch s := es.(type) {
+	case *tg.EmojiStatus:
+		return strconv.FormatInt(s.DocumentID, 10)
+	case *tg.EmojiStatusCollectible:
+		return strconv.FormatInt(s.DocumentID, 10)
+	default:
+		return ""
+	}
+}
+
 func (t *TelegramCore) convertUser(user *tg.User) *User {
 	u := &User{
 		ID:          strconv.FormatInt(user.ID, 10),
@@ -10278,6 +10292,7 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		IsContact:   user.Contact,
 		IsVerified:  user.Verified,
 		IsPremium:   user.Premium,
+		EmojiStatusID: extractEmojiStatusID(user.EmojiStatus),
 		Platform:    tgPlatform,
 	}
 
@@ -10484,6 +10499,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 				dialog.IsVerified = user.Verified
 				dialog.IsScam = user.Scam
 				dialog.IsFake = user.Fake
+				dialog.EmojiStatusID = extractEmojiStatusID(user.EmojiStatus)
 				if _, ok := user.Photo.(*tg.UserProfilePhoto); ok {
 					dialog.AvatarURL = "has_photo"
 				}
@@ -10509,6 +10525,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 					dialog.IsVerified = c.Verified
 					dialog.IsScam = c.Scam
 					dialog.IsFake = c.Fake
+					dialog.EmojiStatusID = extractEmojiStatusID(c.EmojiStatus)
 					if c.Broadcast {
 						dialog.Type = ChatTypeChannel
 					} else {

@@ -1185,6 +1185,7 @@ class EngineService {
     slowmodeNextSendDate: p.slowmodeNextSendDate.toInt(),
     starsToSend: p.starsToSend,
     ttlPeriod: p.ttlPeriod,
+    emojiStatusId: p.emojiStatusId,
   );
 
   static CachedMessage _cachedMsgFromProto(epb.EngineCachedMessage p) {

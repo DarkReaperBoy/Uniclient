@@ -1131,6 +1131,7 @@ type EngineChatInfo struct {
 	SlowmodeNextSendDate int64                  `protobuf:"varint,23,opt,name=slowmode_next_send_date,json=slowmodeNextSendDate,proto3" json:"slowmode_next_send_date,omitempty"`
 	StarsToSend          int32                  `protobuf:"varint,24,opt,name=stars_to_send,json=starsToSend,proto3" json:"stars_to_send,omitempty"`
 	TtlPeriod            int32                  `protobuf:"varint,25,opt,name=ttl_period,json=ttlPeriod,proto3" json:"ttl_period,omitempty"`
+	EmojiStatusId        string                 `protobuf:"bytes,26,opt,name=emoji_status_id,json=emojiStatusId,proto3" json:"emoji_status_id,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1338,6 +1339,13 @@ func (x *EngineChatInfo) GetTtlPeriod() int32 {
 		return x.TtlPeriod
 	}
 	return 0
+}
+
+func (x *EngineChatInfo) GetEmojiStatusId() string {
+	if x != nil {
+		return x.EmojiStatusId
+	}
+	return ""
 }
 
 type EngineGetChatListRequest struct {
@@ -7142,7 +7150,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\v2\x1a.uniclient.EngineAuthStateR\x05state\"8\n" +
 	"\x17EngineCancelAuthRequest\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x01 \x01(\tR\taccountId\"\xd1\x06\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\"\xf9\x06\n" +
 	"\x0eEngineChatInfo\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -7176,7 +7184,8 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x17slowmode_next_send_date\x18\x17 \x01(\x03R\x14slowmodeNextSendDate\x12\"\n" +
 	"\rstars_to_send\x18\x18 \x01(\x05R\vstarsToSend\x12\x1d\n" +
 	"\n" +
-	"ttl_period\x18\x19 \x01(\x05R\tttlPeriod\"\x83\x01\n" +
+	"ttl_period\x18\x19 \x01(\x05R\tttlPeriod\x12&\n" +
+	"\x0femoji_status_id\x18\x1a \x01(\tR\remojiStatusId\"\x83\x01\n" +
 	"\x18EngineGetChatListRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x1a\n" +

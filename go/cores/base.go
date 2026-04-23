@@ -143,9 +143,10 @@ type User struct {
 	IsContact   bool   `json:"is_contact"`
 	IsBlocked   bool   `json:"is_blocked"`
 	LastSeen    *time.Time `json:"last_seen,omitempty"`
-	IsVerified  bool   `json:"is_verified,omitempty"`
-	IsPremium   bool   `json:"is_premium,omitempty"`
-	Platform    string `json:"platform"`
+	IsVerified    bool   `json:"is_verified,omitempty"`
+	IsPremium     bool   `json:"is_premium,omitempty"`
+	EmojiStatusID string `json:"emoji_status_id,omitempty"`
+	Platform      string `json:"platform"`
 }
 
 // Dialog represents a conversation (DM, group, channel, or topic) in the chat list.
@@ -173,6 +174,7 @@ type Dialog struct {
 	StarsToSend         int    `json:"stars_to_send,omitempty"`
 	TtlPeriod           int    `json:"ttl_period,omitempty"`
 	LinkedChatId        string `json:"linked_chat_id,omitempty"`
+	EmojiStatusID       string `json:"emoji_status_id,omitempty"`
 	Platform            string `json:"platform"`
 }
 

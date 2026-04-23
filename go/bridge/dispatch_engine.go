@@ -1077,6 +1077,7 @@ func chatInfoToProto(c *engine.ChatInfo) *pb.EngineChatInfo {
 		SlowmodeNextSendDate:  c.SlowmodeNextSendDate,
 		StarsToSend:           int32(c.StarsToSend),
 		TtlPeriod:             int32(c.TtlPeriod),
+		EmojiStatusId:         c.EmojiStatusID,
 	}
 }
 

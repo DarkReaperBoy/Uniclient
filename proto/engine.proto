@@ -174,6 +174,7 @@ message EngineChatInfo {
   int64  slowmode_next_send_date  = 23;
   int32  stars_to_send            = 24;
   int32  ttl_period               = 25;
+  string emoji_status_id          = 26;
 }
 
 message EngineGetChatListRequest {

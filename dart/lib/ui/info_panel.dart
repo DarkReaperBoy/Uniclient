@@ -288,6 +288,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final int storyCount;
   final bool hasUnreadStory;
   final List<Color>? profileBgColors;
+  final String emojiStatusId;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
@@ -312,6 +313,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.storyCount = 0,
     this.hasUnreadStory = false,
     this.profileBgColors,
+    this.emojiStatusId = '',
   });
 
   @override
@@ -329,7 +331,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       isMuted != old.isMuted ||
       storyCount != old.storyCount ||
       hasUnreadStory != old.hasUnreadStory ||
-      profileBgColors != old.profileBgColors;
+      profileBgColors != old.profileBgColors ||
+      emojiStatusId != old.emojiStatusId;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -347,9 +350,11 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
 
     final hasGradientBg = profileBgColors != null && profileBgColors!.length >= 2;
     final hasStories = storyCount > 0;
+    final hasEmojiStatus = emojiStatusId.isNotEmpty;
     final ringTotal = hasStories ? _storyLineWidth + _storyRingGap : 0.0;
     final avatarDisplaySize = _avatarSize;
     final ringOuterSize = avatarDisplaySize + ringTotal * 2;
+    final patternSize = avatarDisplaySize + 24;
 
     final isDark = theme.brightness == Brightness.dark;
     final gradientTextColor = hasGradientBg ? Colors.white : null;
@@ -383,6 +388,11 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
+                        if (hasEmojiStatus)
+                          _AnimatedEmojiPattern(
+                            size: patternSize,
+                            isDark: isDark,
+                          ),
                         if (hasStories)
                           CustomPaint(
                             size: Size(ringOuterSize, ringOuterSize),
@@ -683,6 +693,100 @@ class _InfoStoryRingPainter extends CustomPainter {
       isDark != old.isDark;
 }
 
+class _AnimatedEmojiPattern extends StatefulWidget {
+  final double size;
+  final bool isDark;
+
+  const _AnimatedEmojiPattern({required this.size, required this.isDark});
+
+  @override
+  State<_AnimatedEmojiPattern> createState() => _AnimatedEmojiPatternState();
+}
+
+class _AnimatedEmojiPatternState extends State<_AnimatedEmojiPattern>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 8),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return CustomPaint(
+          size: Size(widget.size, widget.size),
+          painter: _EmojiStatusPatternPainter(
+            progress: _ctrl.value,
+            isDark: widget.isDark,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _EmojiStatusPatternPainter extends CustomPainter {
+  final double progress;
+  final bool isDark;
+
+  static const int _shapeCount = 8;
+  static const double _shapeSize = 6.0;
+
+  _EmojiStatusPatternPainter({required this.progress, required this.isDark});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final orbitRadius = size.width / 2 + 4;
+    final baseAngle = progress * 2 * math.pi;
+
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (var i = 0; i < _shapeCount; i++) {
+      final angle = baseAngle + (i / _shapeCount) * 2 * math.pi;
+      final pulseFactor = 0.7 + 0.3 * math.sin(baseAngle * 3 + i * 0.8);
+      final x = center.dx + orbitRadius * math.cos(angle);
+      final y = center.dy + orbitRadius * math.sin(angle);
+      final shapeRadius = _shapeSize * pulseFactor;
+
+      final opacity = (0.25 + 0.2 * pulseFactor).clamp(0.0, 1.0);
+      paint.color = isDark
+          ? Color.fromRGBO(139, 92, 246, opacity)
+          : Color.fromRGBO(99, 102, 241, opacity);
+
+      _drawDiamond(canvas, Offset(x, y), shapeRadius, paint);
+    }
+  }
+
+  void _drawDiamond(Canvas canvas, Offset center, double radius, Paint paint) {
+    final path = Path()
+      ..moveTo(center.dx, center.dy - radius)
+      ..lineTo(center.dx + radius * 0.7, center.dy)
+      ..lineTo(center.dx, center.dy + radius)
+      ..lineTo(center.dx - radius * 0.7, center.dy)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_EmojiStatusPatternPainter old) =>
+      progress != old.progress || isDark != old.isDark;
+}
+
 class _ChatInfoPage extends StatefulWidget {
   final ChatInfo chat;
   final ChatState chatState;
@@ -805,6 +909,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               },
               storyCount: widget.chat.storyCount,
               hasUnreadStory: widget.chat.hasUnreadStory,
+              emojiStatusId: widget.chat.emojiStatusId,
             ),
           ),
           SliverList(

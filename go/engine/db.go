@@ -118,6 +118,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV15,
 	migrateV16,
 	migrateV17,
+	migrateV18,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -523,5 +524,13 @@ func migrateV17(tx *sql.Tx) error {
 		return nil
 	}
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN ttl_period INTEGER NOT NULL DEFAULT 0`)
+	return err
+}
+
+func migrateV18(tx *sql.Tx) error {
+	if columnExists(tx, "chats", "emoji_status_id") {
+		return nil
+	}
+	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN emoji_status_id TEXT`)
 	return err
 }

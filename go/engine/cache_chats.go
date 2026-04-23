@@ -41,10 +41,11 @@ type ChatInfo struct {
 	IsVerified           bool  `json:"is_verified"`
 	IsScam               bool  `json:"is_scam"`
 	IsFake               bool  `json:"is_fake"`
-	SlowmodeSeconds      int   `json:"slowmode_seconds,omitempty"`
-	SlowmodeNextSendDate int64 `json:"slowmode_next_send_date,omitempty"`
-	StarsToSend          int   `json:"stars_to_send,omitempty"`
-	TtlPeriod            int   `json:"ttl_period,omitempty"`
+	SlowmodeSeconds      int    `json:"slowmode_seconds,omitempty"`
+	SlowmodeNextSendDate int64  `json:"slowmode_next_send_date,omitempty"`
+	StarsToSend          int    `json:"stars_to_send,omitempty"`
+	TtlPeriod            int    `json:"ttl_period,omitempty"`
+	EmojiStatusID        string `json:"emoji_status_id,omitempty"`
 }
 
 // chatTypeToInt converts cores.ChatType to DB integer.
@@ -78,7 +79,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake,
 		        c.slowmode_seconds, c.slowmode_next_send_date,
-		        c.stars_to_send, c.ttl_period
+		        c.stars_to_send, c.ttl_period, c.emoji_status_id
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 ORDER BY c.is_archived ASC, c.is_pinned DESC, c.last_msg_time DESC
@@ -109,7 +110,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		        c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
 		        c.is_verified, c.is_scam, c.is_fake,
 		        c.slowmode_seconds, c.slowmode_next_send_date,
-		        c.stars_to_send, c.ttl_period
+		        c.stars_to_send, c.ttl_period, c.emoji_status_id
 		 FROM chats c
 		 LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
 		 WHERE c.account_id = ? AND c.is_archived = ?
@@ -127,7 +128,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 	for rows.Next() {
 		var c ChatInfo
 		var avatarPath, lastMsgID, lastMsgText, lastMsgSender, draftText, parentID sql.NullString
-		var lastMsgThumbB64 sql.NullString
+		var lastMsgThumbB64, emojiStatusID sql.NullString
 		var lastMsgTime sql.NullInt64
 		var memberCount sql.NullInt64
 		var isMuted, isPinned, isArchived, lastMsgIsOutgoing, isBot int
@@ -143,7 +144,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 			&isVerified, &isScam, &isFake,
 			&c.SlowmodeSeconds, &c.SlowmodeNextSendDate,
-			&c.StarsToSend, &c.TtlPeriod,
+			&c.StarsToSend, &c.TtlPeriod, &emojiStatusID,
 		); err != nil {
 			return chats, err
 		}
@@ -172,6 +173,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 		c.IsVerified = isVerified == 1
 		c.IsScam = isScam == 1
 		c.IsFake = isFake == 1
+		c.EmojiStatusID = emojiStatusID.String
 
 		chats = append(chats, c)
 	}
@@ -214,8 +216,9 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		                     is_archived, member_count, parent_id,
 		                     unread_mark, unread_mention_count, unread_reaction_count,
 		                     is_verified, is_scam, is_fake,
-		                     slowmode_seconds, slowmode_next_send_date, stars_to_send, ttl_period, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		                     slowmode_seconds, slowmode_next_send_date, stars_to_send, ttl_period,
+		                     emoji_status_id, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, chat_id) DO UPDATE SET
 		     type = excluded.type,
 		     title = excluded.title,
@@ -243,6 +246,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		     slowmode_next_send_date = excluded.slowmode_next_send_date,
 		     stars_to_send = excluded.stars_to_send,
 		     ttl_period = excluded.ttl_period,
+		     emoji_status_id = excluded.emoji_status_id,
 		     updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
 		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgStatus, lastMsgMediaType, lastMsgThumbB64,
@@ -250,7 +254,8 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		boolToInt(d.IsArchived), d.MemberCount, d.ParentID,
 		boolToInt(d.UnreadMark), d.UnreadMentionCount, d.UnreadReactionCount,
 		boolToInt(d.IsVerified), boolToInt(d.IsScam), boolToInt(d.IsFake),
-		d.SlowmodeSeconds, d.SlowmodeNextSendDate, d.StarsToSend, d.TtlPeriod, now)
+		d.SlowmodeSeconds, d.SlowmodeNextSendDate, d.StarsToSend, d.TtlPeriod,
+		d.EmojiStatusID, now)
 	if err != nil {
 		return err
 	}

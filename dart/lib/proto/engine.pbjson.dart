@@ -321,6 +321,11 @@ const EngineChatInfo$json = {
     {'1': 'last_msg_status', '3': 19, '4': 1, '5': 5, '10': 'lastMsgStatus'},
     {'1': 'is_contact', '3': 20, '4': 1, '5': 8, '10': 'isContact'},
     {'1': 'is_blocked', '3': 21, '4': 1, '5': 8, '10': 'isBlocked'},
+    {'1': 'slowmode_seconds', '3': 22, '4': 1, '5': 5, '10': 'slowmodeSeconds'},
+    {'1': 'slowmode_next_send_date', '3': 23, '4': 1, '5': 3, '10': 'slowmodeNextSendDate'},
+    {'1': 'stars_to_send', '3': 24, '4': 1, '5': 5, '10': 'starsToSend'},
+    {'1': 'ttl_period', '3': 25, '4': 1, '5': 5, '10': 'ttlPeriod'},
+    {'1': 'emoji_status_id', '3': 26, '4': 1, '5': 9, '10': 'emojiStatusId'},
   ],
 };
 

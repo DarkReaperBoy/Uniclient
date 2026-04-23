@@ -214,6 +214,7 @@ class ChatInfo {
   final int slowmodeNextSendDate;
   final int starsToSend;
   final int ttlPeriod;
+  final String emojiStatusId;
 
   const ChatInfo({
     required this.accountId,
@@ -255,6 +256,7 @@ class ChatInfo {
     this.slowmodeNextSendDate = 0,
     this.starsToSend = 0,
     this.ttlPeriod = 0,
+    this.emojiStatusId = '',
   });
 
   factory ChatInfo.fromJson(Map<String, dynamic> j) => ChatInfo(
@@ -297,6 +299,7 @@ class ChatInfo {
     slowmodeNextSendDate: j['slowmode_next_send_date'] as int? ?? 0,
     starsToSend: j['stars_to_send'] as int? ?? 0,
     ttlPeriod: j['ttl_period'] as int? ?? 0,
+    emojiStatusId: j['emoji_status_id'] as String? ?? '',
   );
 
   /// Time as DateTime for display.

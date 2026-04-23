@@ -1431,6 +1431,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     $fixnum.Int64? slowmodeNextSendDate,
     $core.int? starsToSend,
     $core.int? ttlPeriod,
+    $core.String? emojiStatusId,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -1508,6 +1509,9 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     if (ttlPeriod != null) {
       $result.ttlPeriod = ttlPeriod;
     }
+    if (emojiStatusId != null) {
+      $result.emojiStatusId = emojiStatusId;
+    }
     return $result;
   }
   EngineChatInfo._() : super();
@@ -1540,6 +1544,7 @@ class EngineChatInfo extends $pb.GeneratedMessage {
     ..aInt64(23, _omitFieldNames ? '' : 'slowmodeNextSendDate')
     ..a<$core.int>(24, _omitFieldNames ? '' : 'starsToSend', $pb.PbFieldType.O3)
     ..a<$core.int>(25, _omitFieldNames ? '' : 'ttlPeriod', $pb.PbFieldType.O3)
+    ..aOS(26, _omitFieldNames ? '' : 'emojiStatusId')
     ..hasRequiredFields = false
   ;
 
@@ -1788,6 +1793,15 @@ class EngineChatInfo extends $pb.GeneratedMessage {
   $core.bool hasTtlPeriod() => $_has(24);
   @$pb.TagNumber(25)
   void clearTtlPeriod() => clearField(25);
+
+  @$pb.TagNumber(26)
+  $core.String get emojiStatusId => $_getSZ(25);
+  @$pb.TagNumber(26)
+  set emojiStatusId($core.String v) { $_setString(25, v); }
+  @$pb.TagNumber(26)
+  $core.bool hasEmojiStatusId() => $_has(25);
+  @$pb.TagNumber(26)
+  void clearEmojiStatusId() => clearField(26);
 }
 
 class EngineGetChatListRequest extends $pb.GeneratedMessage {
