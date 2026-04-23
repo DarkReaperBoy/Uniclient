@@ -5127,6 +5127,8 @@ class _ComposeArea extends StatefulWidget {
 
 class _ComposeAreaState extends State<_ComposeArea>
     with TickerProviderStateMixin {
+  static const int _kMaxMessageLength = 4096;
+
   static final _urlRegex = RegExp(
     r'(?:https?://|www\.)'
     r'[^\s<>\[\](){}"'
@@ -5143,6 +5145,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   int _prevTextLength = 0;
   List<String> _detectedLinks = const [];
   bool _hasText = false;
+  int _charRemaining = _kMaxMessageLength;
   Timer? _slowmodeTimer;
   int _slowmodeSecondsLeft = 0;
   bool _isRecording = false;
@@ -5167,6 +5170,7 @@ class _ComposeAreaState extends State<_ComposeArea>
     widget.controller.addListener(_onTextLengthChanged);
     _prevTextLength = widget.controller.text.length;
     _hasText = widget.controller.text.isNotEmpty;
+    _charRemaining = _kMaxMessageLength - widget.controller.text.length;
     _startSlowmodeTimer();
     _lockShowController = AnimationController(
       vsync: this,
@@ -5304,8 +5308,17 @@ class _ComposeAreaState extends State<_ComposeArea>
 
   void _onTextLengthChanged() {
     final has = widget.controller.text.isNotEmpty;
-    if (has != _hasText) {
-      setState(() => _hasText = has);
+    final remaining = _kMaxMessageLength - widget.controller.text.length;
+    final counterChanged =
+        (remaining <= 100 || _charRemaining <= 100) &&
+        remaining != _charRemaining;
+    if (has != _hasText || counterChanged) {
+      setState(() {
+        _hasText = has;
+        _charRemaining = remaining;
+      });
+    } else {
+      _charRemaining = remaining;
     }
   }
 
@@ -5845,7 +5858,32 @@ class _ComposeAreaState extends State<_ComposeArea>
               onChanged: widget.onSendAsChanged,
               isDark: isDark,
             ),
-          Expanded(child: field),
+          Expanded(
+            child: Stack(
+              children: [
+                field,
+                if (_charRemaining <= 100)
+                  Positioned(
+                    right: 4,
+                    top: 2,
+                    child: IgnorePointer(
+                      child: Text(
+                        '$_charRemaining',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: _charRemaining < 0
+                              ? const Color(0xFFE53935)
+                              : isDark
+                                  ? const Color(0xFF7e8b93)
+                                  : const Color(0xFF999999),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
           _TtlButton(
             ttlPeriod: widget.ttlPeriod,
             iconColor: iconFg,
