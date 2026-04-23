@@ -370,7 +370,6 @@
 
 ### §7.11 Additional Controls
 
-- [ ] Silent Toggle button — spec §7. Not implemented
 - [ ] Scheduled Messages button — spec §7. Not implemented
 - [ ] TTL/disappearing message timer button — spec §7. Not implemented
 - [ ] Characters-remaining counter near limit — spec §7. Not implemented

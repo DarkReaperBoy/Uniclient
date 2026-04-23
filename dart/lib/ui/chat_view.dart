@@ -1135,7 +1135,7 @@ class _ChatViewState extends State<ChatView>
     return _composeController.entitiesJson;
   }
 
-  void _sendMessage() {
+  void _sendMessage({bool silent = false}) {
     if (_isForwarding) {
       _executeForward(context, context.read<ChatState>());
       return;
@@ -1150,7 +1150,7 @@ class _ChatViewState extends State<ChatView>
       setState(() { _editingMsgId = null; _editOriginalText = ''; });
       return;
     }
-    chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities);
+    chatState.sendMessage(text, replyToId: _replyToId ?? '', entities: entities, silent: silent);
     _composeController.clear();
     setState(() {
       _replyToId = null;
@@ -1760,7 +1760,7 @@ class _ChatViewState extends State<ChatView>
           _ComposeArea(
             controller: _composeController,
             onSend: _sendMessage,
-            onSendSilent: _sendMessage,
+            onSendSilent: () => _sendMessage(silent: true),
             onSendScheduled: (date) => _sendMessage(),
             onSendWhenOnline: _sendMessage,
             onDraftChanged: (text) {
@@ -5141,6 +5141,7 @@ class _ComposeAreaState extends State<_ComposeArea>
   int _trackingPointerId = -1;
   double _lockProgress = 0.0;
   bool _ttlArmed = false;
+  bool _silentMode = false;
   late AnimationController _lockShowController;
 
   @override
@@ -5333,6 +5334,14 @@ class _ComposeAreaState extends State<_ComposeArea>
     }
   }
 
+  void _doSend() {
+    if (_silentMode && widget.onSendSilent != null) {
+      widget.onSendSilent!();
+    } else {
+      widget.onSend();
+    }
+  }
+
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -5392,13 +5401,13 @@ class _ComposeAreaState extends State<_ComposeArea>
     // EditableText handling which would otherwise insert a newline.
     if (event.logicalKey == LogicalKeyboardKey.enter &&
         ctrl && shift) {
-      widget.onSend();
+      _doSend();
       return KeyEventResult.handled;
     }
     // Enter without Shift → send (spec §7).
     if (event.logicalKey == LogicalKeyboardKey.enter &&
         !HardwareKeyboard.instance.isShiftPressed) {
-      widget.onSend();
+      _doSend();
       return KeyEventResult.handled;
     }
     // Up-arrow-to-edit-last-outgoing (spec §24.7): only when field is empty
@@ -5823,6 +5832,14 @@ class _ComposeAreaState extends State<_ComposeArea>
               isDark: isDark,
             ),
           Expanded(child: field),
+          if (widget.chatType == ChatType.channel)
+            _ComposeSlotButton(
+              icon: _silentMode ? Icons.notifications_off : Icons.notifications,
+              tooltip: _silentMode ? 'Send with Sound' : 'Send without Sound',
+              iconColor: _silentMode ? theme.colorScheme.primary : iconFg,
+              hoverColor: _silentMode ? theme.colorScheme.primary : iconFgOver,
+              onPressed: () => setState(() => _silentMode = !_silentMode),
+            ),
           _ComposeSlotButton(
             icon: Icons.emoji_emotions_outlined,
             tooltip: 'Emoji',
@@ -5839,7 +5856,7 @@ class _ComposeAreaState extends State<_ComposeArea>
               type: type,
               accentColor: theme.colorScheme.primary,
               iconFg: iconFg,
-              onSend: widget.onSend,
+              onSend: _doSend,
               onSendSilent: widget.onSendSilent,
               onSendScheduled: widget.onSendScheduled,
               onSendWhenOnline: widget.onSendWhenOnline,

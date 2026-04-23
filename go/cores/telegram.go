@@ -998,6 +998,9 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 	}
 
 	target := t.sender.To(inputPeer)
+	if _, ok := msg.Extra["silent"]; ok {
+		target.Silent()
+	}
 	var result tg.UpdatesClass
 
 	if msg.ReplyToID != "" {

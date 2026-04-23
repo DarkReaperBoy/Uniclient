@@ -30,6 +30,7 @@ const (
 type sendPayload struct {
 	Text      string `json:"text"`
 	ReplyToID string `json:"reply_to_id,omitempty"`
+	Silent    bool   `json:"silent,omitempty"`
 }
 
 // editPayload is the serialized payload for an "edit" action.
@@ -96,8 +97,8 @@ func getChatLock(accountID, chatID string) *sync.Mutex {
 
 // SendMessage queues a message for sending through the pending queue.
 // Returns the local_id for optimistic UI display.
-func (e *Engine) SendMessage(accountID, chatID, text, replyToID string) (string, error) {
-	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q", accountID, chatID, text, replyToID)
+func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, silent bool) (string, error) {
+	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q silent=%v", accountID, chatID, text, replyToID, silent)
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return "", fmt.Errorf("account %q not found", accountID)
@@ -109,6 +110,7 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string) (string,
 	payload, _ := json.Marshal(sendPayload{
 		Text:      text,
 		ReplyToID: replyToID,
+		Silent:    silent,
 	})
 
 	// Write to pending table.
@@ -436,8 +438,12 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		var p sendPayload
 		json.Unmarshal(payload, &p)
 
-		msg := cores.OutgoingMessage{Text: p.Text, ReplyToID: p.ReplyToID}
-		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q", chatID, p.ReplyToID, p.Text)
+		extra := map[string]interface{}{}
+		if p.Silent {
+			extra["silent"] = true
+		}
+		msg := cores.OutgoingMessage{Text: p.Text, ReplyToID: p.ReplyToID, Extra: extra}
+		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q silent=%v", chatID, p.ReplyToID, p.Text, p.Silent)
 
 		var result *cores.Message
 		var err error

@@ -3257,6 +3257,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     $core.String? chatId,
     $core.String? text,
     $core.String? replyToId,
+    $core.bool? silent,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -3271,6 +3272,9 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     if (replyToId != null) {
       $result.replyToId = replyToId;
     }
+    if (silent != null) {
+      $result.silent = silent;
+    }
     return $result;
   }
   EngineSendMessageRequest._() : super();
@@ -3282,6 +3286,7 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
     ..aOS(2, _omitFieldNames ? '' : 'chatId')
     ..aOS(3, _omitFieldNames ? '' : 'text')
     ..aOS(4, _omitFieldNames ? '' : 'replyToId')
+    ..aOB(5, _omitFieldNames ? '' : 'silent')
     ..hasRequiredFields = false
   ;
 
@@ -3341,6 +3346,15 @@ class EngineSendMessageRequest extends $pb.GeneratedMessage {
   $core.bool hasReplyToId() => $_has(3);
   @$pb.TagNumber(4)
   void clearReplyToId() => clearField(4);
+
+  @$pb.TagNumber(5)
+  $core.bool get silent => $_getBF(4);
+  @$pb.TagNumber(5)
+  set silent($core.bool v) { $_setBool(4, v); }
+  @$pb.TagNumber(5)
+  $core.bool hasSilent() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearSilent() => clearField(5);
 }
 
 class EngineSendMessageResponse extends $pb.GeneratedMessage {

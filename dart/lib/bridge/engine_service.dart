@@ -513,12 +513,13 @@ class EngineService {
     return resp.messages.map(_cachedMsgFromProto).toList();
   }
 
-  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = ''}) async {
+  Future<String> sendMessage(String accountId, String chatId, String text, {String replyToId = '', String entities = '', bool silent = false}) async {
     final req = epb.EngineSendMessageRequest()
       ..accountId = accountId
       ..chatId = chatId
       ..text = text
-      ..replyToId = replyToId;
+      ..replyToId = replyToId
+      ..silent = silent;
     final respBytes = await _callAsync('__engine', 'SendMessage', req.writeToBuffer());
     final resp = epb.EngineSendMessageResponse.fromBuffer(respBytes);
     return resp.localId;

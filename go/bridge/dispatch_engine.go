@@ -307,7 +307,7 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		if err := proto.Unmarshal(payload, &req); err != nil {
 			return nil, err
 		}
-		localID, err := e.SendMessage(req.AccountId, req.ChatId, req.Text, req.ReplyToId)
+		localID, err := e.SendMessage(req.AccountId, req.ChatId, req.Text, req.ReplyToId, req.Silent)
 		if err != nil {
 			return nil, err
 		}

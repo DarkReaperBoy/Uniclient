@@ -2423,6 +2423,7 @@ type EngineSendMessageRequest struct {
 	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
 	Text          string                 `protobuf:"bytes,3,opt,name=text,proto3" json:"text,omitempty"`
 	ReplyToId     string                 `protobuf:"bytes,4,opt,name=reply_to_id,json=replyToId,proto3" json:"reply_to_id,omitempty"`
+	Silent        bool                   `protobuf:"varint,5,opt,name=silent,proto3" json:"silent,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2483,6 +2484,13 @@ func (x *EngineSendMessageRequest) GetReplyToId() string {
 		return x.ReplyToId
 	}
 	return ""
+}
+
+func (x *EngineSendMessageRequest) GetSilent() bool {
+	if x != nil {
+		return x.Silent
+	}
+	return false
 }
 
 type EngineSendMessageResponse struct {

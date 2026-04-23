@@ -427,11 +427,11 @@ class ChatState extends ChangeNotifier {
 
   /// Send a message in the active chat.
   /// Go handles optimistic insert + event emission; we refresh after send.
-  Future<String?> sendMessage(String text, {String replyToId = '', String entities = ''}) async {
+  Future<String?> sendMessage(String text, {String replyToId = '', String entities = '', bool silent = false}) async {
     final chat = _activeChat;
     if (chat == null || text.trim().isEmpty) return null;
 
-    final localId = await _engine.sendMessage(chat.accountId, chat.chatId, text, replyToId: replyToId, entities: entities);
+    final localId = await _engine.sendMessage(chat.accountId, chat.chatId, text, replyToId: replyToId, entities: entities, silent: silent);
 
     // Refresh messages — Go inserted the optimistic message into cache,
     // so re-fetching picks it up even if the event callback didn't fire.
