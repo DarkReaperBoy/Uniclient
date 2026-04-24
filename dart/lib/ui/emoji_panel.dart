@@ -13,6 +13,89 @@ const Duration _kHideTimeout = Duration(milliseconds: 300);
 const double _kEmojiCellSize = 40.0;
 const double _kEmojiGridPadding = 8.0;
 const double _kCategoryBarHeight = 38.0;
+const double _kEmojiColorsPadding = 8.0;
+const double _kEmojiColorsSep = 1.0;
+const double _kPopupPad = 4.0;
+
+Map<String, int> _skinTonePrefs = {};
+
+const Set<int> _emojiModifierBases = {
+  0x261D, 0x26F9,
+  0x270A, 0x270B, 0x270C, 0x270D,
+  0x1F385,
+  0x1F3C2, 0x1F3C3, 0x1F3C4, 0x1F3C7, 0x1F3CA, 0x1F3CB, 0x1F3CC,
+  0x1F442, 0x1F443, 0x1F446, 0x1F447, 0x1F448, 0x1F449, 0x1F44A,
+  0x1F44B, 0x1F44C, 0x1F44D, 0x1F44E, 0x1F44F, 0x1F450,
+  0x1F466, 0x1F467, 0x1F468, 0x1F469, 0x1F46B, 0x1F46C, 0x1F46D,
+  0x1F46E, 0x1F470, 0x1F471, 0x1F472, 0x1F473, 0x1F474, 0x1F475,
+  0x1F476, 0x1F477, 0x1F478, 0x1F47C,
+  0x1F481, 0x1F482, 0x1F483, 0x1F485, 0x1F486, 0x1F487,
+  0x1F4AA,
+  0x1F574, 0x1F575, 0x1F57A,
+  0x1F590, 0x1F595, 0x1F596,
+  0x1F645, 0x1F646, 0x1F647, 0x1F64B, 0x1F64C, 0x1F64D, 0x1F64E, 0x1F64F,
+  0x1F6A3, 0x1F6B4, 0x1F6B5, 0x1F6B6, 0x1F6C0, 0x1F6CC,
+  0x1F90C, 0x1F90F,
+  0x1F918, 0x1F919, 0x1F91A, 0x1F91B, 0x1F91C, 0x1F91D, 0x1F91E, 0x1F91F,
+  0x1F926, 0x1F930, 0x1F931, 0x1F932, 0x1F933, 0x1F934, 0x1F935, 0x1F936,
+  0x1F937, 0x1F938, 0x1F939, 0x1F93D, 0x1F93E,
+  0x1F9B5, 0x1F9B6, 0x1F9B8, 0x1F9B9, 0x1F9BB,
+  0x1F9CD, 0x1F9CE, 0x1F9CF,
+  0x1F9D1, 0x1F9D2, 0x1F9D3, 0x1F9D4, 0x1F9D5, 0x1F9D6, 0x1F9D7,
+  0x1F9D8, 0x1F9D9, 0x1F9DA, 0x1F9DB, 0x1F9DC, 0x1F9DD,
+  0x1FAC3, 0x1FAC4, 0x1FAC5,
+  0x1FAF0, 0x1FAF1, 0x1FAF2, 0x1FAF3, 0x1FAF4, 0x1FAF5, 0x1FAF6, 0x1FAF7, 0x1FAF8,
+};
+
+String _getBaseEmoji(String emoji) {
+  final buf = StringBuffer();
+  for (final rune in emoji.runes) {
+    if (rune >= 0x1F3FB && rune <= 0x1F3FF) continue;
+    buf.writeCharCode(rune);
+  }
+  return buf.toString();
+}
+
+String _emojiPrefKey(String emoji) {
+  final buf = StringBuffer();
+  for (final rune in emoji.runes) {
+    if (rune >= 0x1F3FB && rune <= 0x1F3FF) continue;
+    if (rune == 0xFE0F) continue;
+    buf.writeCharCode(rune);
+  }
+  return buf.toString();
+}
+
+String _applySkinTone(String baseEmoji, int modifierIndex) {
+  if (modifierIndex <= 0 || modifierIndex > 5) return baseEmoji;
+  final stripped = _getBaseEmoji(baseEmoji);
+  final runes = stripped.runes.toList();
+  if (runes.isEmpty) return baseEmoji;
+  final result = StringBuffer();
+  result.writeCharCode(runes[0]);
+  var i = 1;
+  if (i < runes.length && runes[i] == 0xFE0F) i++;
+  result.writeCharCode(0x1F3FA + modifierIndex);
+  for (; i < runes.length; i++) {
+    result.writeCharCode(runes[i]);
+  }
+  return result.toString();
+}
+
+bool _supportsSkinTone(String emoji) {
+  final key = _emojiPrefKey(emoji);
+  final runes = key.runes.toList();
+  if (runes.isEmpty) return false;
+  return _emojiModifierBases.contains(runes[0]);
+}
+
+String _displayEmoji(String emoji) {
+  if (!_supportsSkinTone(emoji)) return emoji;
+  final key = _emojiPrefKey(emoji);
+  final pref = _skinTonePrefs[key];
+  if (pref != null && pref > 0) return _applySkinTone(emoji, pref);
+  return emoji;
+}
 
 class EmojiTabbedPanel extends StatefulWidget {
   final bool visible;
@@ -583,6 +666,10 @@ class _EmojiTab extends StatefulWidget {
 class _EmojiTabState extends State<_EmojiTab> {
   int _activeCategory = 1;
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey _stackKey = GlobalKey();
+  String? _skinToneTarget;
+  Offset _skinToneAnchorGlobal = Offset.zero;
+  Size _skinToneAnchorSize = Size.zero;
 
   @override
   void dispose() {
@@ -592,17 +679,42 @@ class _EmojiTabState extends State<_EmojiTab> {
 
   void _selectCategory(int index) {
     if (index == 0 && _recentEmojis.isEmpty) return;
+    _dismissSkinTone();
     setState(() => _activeCategory = index);
     _scrollController.jumpTo(0);
   }
 
   void _onEmojiTap(String emoji) {
-    _recentEmojis.remove(emoji);
+    if (_supportsSkinTone(emoji)) {
+      final key = _emojiPrefKey(emoji);
+      _recentEmojis.removeWhere((e) => _emojiPrefKey(e) == key);
+    } else {
+      _recentEmojis.remove(emoji);
+    }
     _recentEmojis.insert(0, emoji);
     if (_recentEmojis.length > 50) {
       _recentEmojis = _recentEmojis.sublist(0, 50);
     }
     widget.onEmojiSelected?.call(emoji);
+  }
+
+  void _showSkinTone(String emoji, Offset globalPos, Size size) {
+    setState(() {
+      _skinToneTarget = emoji;
+      _skinToneAnchorGlobal = globalPos;
+      _skinToneAnchorSize = size;
+    });
+  }
+
+  void _dismissSkinTone() {
+    if (_skinToneTarget == null) return;
+    setState(() => _skinToneTarget = null);
+  }
+
+  void _onSkinToneSelected(String emoji, int index) {
+    _skinTonePrefs[_emojiPrefKey(_skinToneTarget!)] = index;
+    _dismissSkinTone();
+    _onEmojiTap(emoji);
   }
 
   @override
@@ -611,47 +723,132 @@ class _EmojiTabState extends State<_EmojiTab> {
     final activeCategory = _emojiCategories[_activeCategory];
     final emojis = _activeCategory == 0 ? _recentEmojis : activeCategory.emojis;
 
-    return Column(
+    return Stack(
+      key: _stackKey,
+      clipBehavior: Clip.none,
       children: [
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = ((constraints.maxWidth - 2 * _kEmojiGridPadding) / _kEmojiCellSize).floor().clamp(1, 20);
-              return GridView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.all(_kEmojiGridPadding),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: columns,
-                  childAspectRatio: 1.0,
-                ),
-                itemCount: emojis.length,
-                itemBuilder: (context, index) {
-                  return _EmojiCell(
-                    emoji: emojis[index],
-                    onTap: () => _onEmojiTap(emojis[index]),
+        Column(
+          children: [
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = ((constraints.maxWidth - 2 * _kEmojiGridPadding) / _kEmojiCellSize).floor().clamp(1, 20);
+                  return GridView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(_kEmojiGridPadding),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      childAspectRatio: 1.0,
+                    ),
+                    itemCount: emojis.length,
+                    itemBuilder: (context, index) {
+                      return _EmojiCell(
+                        emoji: emojis[index],
+                        onEmojiSelected: _onEmojiTap,
+                        onSkinToneLongPress: _showSkinTone,
+                      );
+                    },
                   );
                 },
-              );
-            },
+              ),
+            ),
+            _EmojiCategoryBar(
+              activeIndex: _activeCategory,
+              onCategoryChanged: _selectCategory,
+              hasRecent: _recentEmojis.isNotEmpty,
+            ),
+          ],
+        ),
+        if (_skinToneTarget != null) ...[
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _dismissSkinTone,
+              behavior: HitTestBehavior.translucent,
+            ),
+          ),
+          _buildSkinTonePopup(context),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSkinTonePopup(BuildContext context) {
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null) return const SizedBox.shrink();
+
+    final localAnchor = stackBox.globalToLocal(_skinToneAnchorGlobal);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF1e2c3a) : const Color(0xFFFFFFFF);
+    final sepColor = isDark ? const Color(0xFF2d3d4d) : const Color(0xFFdadada);
+
+    final base = _getBaseEmoji(_skinToneTarget!);
+    final variants = <String>[
+      base,
+      for (var i = 1; i <= 5; i++) _applySkinTone(base, i),
+    ];
+
+    const cs = _kEmojiCellSize;
+    const sep = _kEmojiColorsSep;
+    const gap = _kEmojiColorsPadding;
+    const pad = _kPopupPad;
+    final popupW = pad * 2 + cs + sep + 5 * cs + 4 * gap;
+    const popupH = pad * 2 + cs;
+
+    final stackSize = stackBox.size;
+    final left = (localAnchor.dx + _skinToneAnchorSize.width / 2 - popupW / 2)
+        .clamp(4.0, stackSize.width - popupW - 4);
+    final top = (localAnchor.dy - popupH - 4).clamp(4.0, double.infinity);
+    return Positioned(
+      left: left,
+      top: top,
+      child: Material(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+        elevation: 4,
+        shadowColor: isDark
+            ? const Color(0x80000000)
+            : const Color(0x40000000),
+        child: SizedBox(
+          width: popupW,
+          height: popupH,
+          child: Padding(
+            padding: const EdgeInsets.all(pad),
+            child: Row(
+              children: [
+                _PopupEmojiCell(
+                  emoji: variants[0],
+                  onTap: () => _onSkinToneSelected(variants[0], 0),
+                ),
+                Container(
+                  width: sep,
+                  height: cs * 0.6,
+                  color: sepColor,
+                ),
+                for (var i = 1; i <= 5; i++) ...[
+                  if (i > 1) SizedBox(width: gap),
+                  _PopupEmojiCell(
+                    emoji: variants[i],
+                    onTap: () => _onSkinToneSelected(variants[i], i),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
-        _EmojiCategoryBar(
-          activeIndex: _activeCategory,
-          onCategoryChanged: _selectCategory,
-          hasRecent: _recentEmojis.isNotEmpty,
-        ),
-      ],
+      ),
     );
   }
 }
 
 class _EmojiCell extends StatefulWidget {
   final String emoji;
-  final VoidCallback onTap;
+  final ValueChanged<String> onEmojiSelected;
+  final void Function(String emoji, Offset globalPos, Size size)? onSkinToneLongPress;
 
   const _EmojiCell({
     required this.emoji,
-    required this.onTap,
+    required this.onEmojiSelected,
+    this.onSkinToneLongPress,
   });
 
   @override
@@ -660,6 +857,15 @@ class _EmojiCell extends StatefulWidget {
 
 class _EmojiCellState extends State<_EmojiCell> {
   bool _hovered = false;
+
+  String get _shownEmoji => _displayEmoji(widget.emoji);
+
+  void _handleLongPress() {
+    if (!_supportsSkinTone(widget.emoji)) return;
+    final box = context.findRenderObject() as RenderBox;
+    final pos = box.localToGlobal(Offset.zero);
+    widget.onSkinToneLongPress?.call(widget.emoji, pos, box.size);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -672,9 +878,53 @@ class _EmojiCellState extends State<_EmojiCell> {
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
-        onTap: widget.onTap,
+        onTap: () => widget.onEmojiSelected(_shownEmoji),
+        onLongPress: _supportsSkinTone(widget.emoji) ? _handleLongPress : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 100),
+          decoration: BoxDecoration(
+            color: _hovered ? hoverBg : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            _shownEmoji,
+            style: const TextStyle(fontSize: 26),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PopupEmojiCell extends StatefulWidget {
+  final String emoji;
+  final VoidCallback onTap;
+
+  const _PopupEmojiCell({super.key, required this.emoji, required this.onTap});
+
+  @override
+  State<_PopupEmojiCell> createState() => _PopupEmojiCellState();
+}
+
+class _PopupEmojiCellState extends State<_PopupEmojiCell> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hoverBg = isDark
+        ? const Color(0xFF2b3d4f)
+        : const Color(0xFFf0f0f0);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Container(
+          width: _kEmojiCellSize,
+          height: _kEmojiCellSize,
           decoration: BoxDecoration(
             color: _hovered ? hoverBg : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
