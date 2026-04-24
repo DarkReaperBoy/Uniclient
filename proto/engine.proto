@@ -291,6 +291,8 @@ message EngineCachedMessage {
   int32  sender_color_id = 30; // name color palette index (0..63)
   bool   is_service    = 31; // service/action message (e.g. "X joined the group")
   string grouped_id   = 32; // album group ID (messages with same ID form a media album)
+  string media_remote_ref = 33; // document/file ID for sticker/GIF operations
+  string media_extra      = 34; // encoded access hash + file reference
 }
 
 message EngineGetMessagesRequest {
@@ -886,4 +888,22 @@ message EngineRestrictMemberRequest {
   string account_id = 1;
   string chat_id    = 2;
   string user_id    = 3;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Sticker/GIF Actions
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineFaveStickerRequest {
+  string account_id = 1;
+  int64  file_id    = 2;
+  bool   unfave     = 3;
+  string extra      = 4;
+}
+
+message EngineSaveGifRequest {
+  string account_id = 1;
+  int64  file_id    = 2;
+  bool   unsave     = 3;
+  string extra      = 4;
 }

@@ -2119,10 +2119,12 @@ type EngineCachedMessage struct {
 	MediaDuration      int32  `protobuf:"varint,26,opt,name=media_duration,json=mediaDuration,proto3" json:"media_duration,omitempty"`                  // seconds (audio/video)
 	MediaDownloadState int32  `protobuf:"varint,27,opt,name=media_download_state,json=mediaDownloadState,proto3" json:"media_download_state,omitempty"` // 0=none, 1=in_progress, 2=complete, 3=failed
 	IsOutgoing         bool   `protobuf:"varint,28,opt,name=is_outgoing,json=isOutgoing,proto3" json:"is_outgoing,omitempty"`
-	SenderRank         string `protobuf:"bytes,29,opt,name=sender_rank,json=senderRank,proto3" json:"sender_rank,omitempty"`             // admin/creator custom title (e.g. "admin", "owner")
-	SenderColorId      int32  `protobuf:"varint,30,opt,name=sender_color_id,json=senderColorId,proto3" json:"sender_color_id,omitempty"` // name color palette index (0..63)
-	IsService          bool   `protobuf:"varint,31,opt,name=is_service,json=isService,proto3" json:"is_service,omitempty"`               // service/action message (e.g. "X joined the group")
-	GroupedId          string `protobuf:"bytes,32,opt,name=grouped_id,json=groupedId,proto3" json:"grouped_id,omitempty"`                // album group ID (messages with same ID form a media album)
+	SenderRank         string `protobuf:"bytes,29,opt,name=sender_rank,json=senderRank,proto3" json:"sender_rank,omitempty"`               // admin/creator custom title (e.g. "admin", "owner")
+	SenderColorId      int32  `protobuf:"varint,30,opt,name=sender_color_id,json=senderColorId,proto3" json:"sender_color_id,omitempty"`   // name color palette index (0..63)
+	IsService          bool   `protobuf:"varint,31,opt,name=is_service,json=isService,proto3" json:"is_service,omitempty"`                 // service/action message (e.g. "X joined the group")
+	GroupedId          string `protobuf:"bytes,32,opt,name=grouped_id,json=groupedId,proto3" json:"grouped_id,omitempty"`                  // album group ID (messages with same ID form a media album)
+	MediaRemoteRef     string `protobuf:"bytes,33,opt,name=media_remote_ref,json=mediaRemoteRef,proto3" json:"media_remote_ref,omitempty"` // document/file ID for sticker/GIF operations
+	MediaExtra         string `protobuf:"bytes,34,opt,name=media_extra,json=mediaExtra,proto3" json:"media_extra,omitempty"`               // encoded access hash + file reference
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -2377,6 +2379,20 @@ func (x *EngineCachedMessage) GetIsService() bool {
 func (x *EngineCachedMessage) GetGroupedId() string {
 	if x != nil {
 		return x.GroupedId
+	}
+	return ""
+}
+
+func (x *EngineCachedMessage) GetMediaRemoteRef() string {
+	if x != nil {
+		return x.MediaRemoteRef
+	}
+	return ""
+}
+
+func (x *EngineCachedMessage) GetMediaExtra() string {
+	if x != nil {
+		return x.MediaExtra
 	}
 	return ""
 }
@@ -7499,6 +7515,142 @@ func (x *EngineRestrictMemberRequest) GetUserId() string {
 	return ""
 }
 
+type EngineFaveStickerRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	FileId        int64                  `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	Unfave        bool                   `protobuf:"varint,3,opt,name=unfave,proto3" json:"unfave,omitempty"`
+	Extra         string                 `protobuf:"bytes,4,opt,name=extra,proto3" json:"extra,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineFaveStickerRequest) Reset() {
+	*x = EngineFaveStickerRequest{}
+	mi := &file_proto_engine_proto_msgTypes[116]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineFaveStickerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineFaveStickerRequest) ProtoMessage() {}
+
+func (x *EngineFaveStickerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[116]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineFaveStickerRequest.ProtoReflect.Descriptor instead.
+func (*EngineFaveStickerRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{116}
+}
+
+func (x *EngineFaveStickerRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineFaveStickerRequest) GetFileId() int64 {
+	if x != nil {
+		return x.FileId
+	}
+	return 0
+}
+
+func (x *EngineFaveStickerRequest) GetUnfave() bool {
+	if x != nil {
+		return x.Unfave
+	}
+	return false
+}
+
+func (x *EngineFaveStickerRequest) GetExtra() string {
+	if x != nil {
+		return x.Extra
+	}
+	return ""
+}
+
+type EngineSaveGifRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	FileId        int64                  `protobuf:"varint,2,opt,name=file_id,json=fileId,proto3" json:"file_id,omitempty"`
+	Unsave        bool                   `protobuf:"varint,3,opt,name=unsave,proto3" json:"unsave,omitempty"`
+	Extra         string                 `protobuf:"bytes,4,opt,name=extra,proto3" json:"extra,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineSaveGifRequest) Reset() {
+	*x = EngineSaveGifRequest{}
+	mi := &file_proto_engine_proto_msgTypes[117]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineSaveGifRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineSaveGifRequest) ProtoMessage() {}
+
+func (x *EngineSaveGifRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[117]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineSaveGifRequest.ProtoReflect.Descriptor instead.
+func (*EngineSaveGifRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{117}
+}
+
+func (x *EngineSaveGifRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineSaveGifRequest) GetFileId() int64 {
+	if x != nil {
+		return x.FileId
+	}
+	return 0
+}
+
+func (x *EngineSaveGifRequest) GetUnsave() bool {
+	if x != nil {
+		return x.Unsave
+	}
+	return false
+}
+
+func (x *EngineSaveGifRequest) GetExtra() string {
+	if x != nil {
+		return x.Extra
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -7692,7 +7844,7 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\"O\n" +
 	"\x1cEngineGetForumTopicsResponse\x12/\n" +
-	"\x05chats\x18\x01 \x03(\v2\x19.uniclient.EngineChatInfoR\x05chats\"\xc7\b\n" +
+	"\x05chats\x18\x01 \x03(\v2\x19.uniclient.EngineChatInfoR\x05chats\"\x92\t\n" +
 	"\x13EngineCachedMessage\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -7735,7 +7887,10 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"is_service\x18\x1f \x01(\bR\tisService\x12\x1d\n" +
 	"\n" +
-	"grouped_id\x18  \x01(\tR\tgroupedId\"\x85\x01\n" +
+	"grouped_id\x18  \x01(\tR\tgroupedId\x12(\n" +
+	"\x10media_remote_ref\x18! \x01(\tR\x0emediaRemoteRef\x12\x1f\n" +
+	"\vmedia_extra\x18\" \x01(\tR\n" +
+	"mediaExtra\"\x85\x01\n" +
 	"\x18EngineGetMessagesRequest\x12\x1d\n" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
@@ -8159,7 +8314,19 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\n" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\tR\x06userIdB\x11Z\x0funiclient/protob\x06proto3"
+	"\auser_id\x18\x03 \x01(\tR\x06userId\"\x80\x01\n" +
+	"\x18EngineFaveStickerRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\afile_id\x18\x02 \x01(\x03R\x06fileId\x12\x16\n" +
+	"\x06unfave\x18\x03 \x01(\bR\x06unfave\x12\x14\n" +
+	"\x05extra\x18\x04 \x01(\tR\x05extra\"|\n" +
+	"\x14EngineSaveGifRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\afile_id\x18\x02 \x01(\x03R\x06fileId\x12\x16\n" +
+	"\x06unsave\x18\x03 \x01(\bR\x06unsave\x12\x14\n" +
+	"\x05extra\x18\x04 \x01(\tR\x05extraB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -8173,7 +8340,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 116)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                        // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                        // 1: uniclient.AccountInfo
@@ -8291,6 +8458,8 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineDemoteAdminRequest)(nil),           // 113: uniclient.EngineDemoteAdminRequest
 	(*EnginePromoteAdminRequest)(nil),          // 114: uniclient.EnginePromoteAdminRequest
 	(*EngineRestrictMemberRequest)(nil),        // 115: uniclient.EngineRestrictMemberRequest
+	(*EngineFaveStickerRequest)(nil),           // 116: uniclient.EngineFaveStickerRequest
+	(*EngineSaveGifRequest)(nil),               // 117: uniclient.EngineSaveGifRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -8333,7 +8502,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   116,
+			NumMessages:   118,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

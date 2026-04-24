@@ -12739,14 +12739,34 @@ func (t *TelegramCore) EditForumTopic(chatID string, topicID int, title string) 
 }
 
 // FaveSticker adds or removes a sticker from favorites.
-func (t *TelegramCore) FaveSticker(fileID int64, unfave bool) error {
+func (t *TelegramCore) FaveSticker(fileID int64, extra string, unfave bool) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
 	if !t.authed || t.api == nil { return ErrAuth }
 	accessHash := t.getCachedFileHash(fileID)
 	fileRef := t.getCachedFileRef(fileID)
+	if accessHash == 0 && extra != "" {
+		accessHash, fileRef = decodeFileExtra(extra)
+		t.cacheFileInfo(fileID, accessHash, fileRef)
+	}
 	_, err := t.api.MessagesFaveSticker(t.ctx, &tg.MessagesFaveStickerRequest{
 		ID: &tg.InputDocument{ID: fileID, AccessHash: accessHash, FileReference: fileRef},
 		Unfave: unfave,
+	}); return err
+}
+
+// SaveGif saves or unsaves a GIF animation.
+func (t *TelegramCore) SaveGif(fileID int64, extra string, unsave bool) error {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return ErrAuth }
+	accessHash := t.getCachedFileHash(fileID)
+	fileRef := t.getCachedFileRef(fileID)
+	if accessHash == 0 && extra != "" {
+		accessHash, fileRef = decodeFileExtra(extra)
+		t.cacheFileInfo(fileID, accessHash, fileRef)
+	}
+	_, err := t.api.MessagesSaveGif(t.ctx, &tg.MessagesSaveGifRequest{
+		ID: &tg.InputDocument{ID: fileID, AccessHash: accessHash, FileReference: fileRef},
+		Unsave: unsave,
 	}); return err
 }
 

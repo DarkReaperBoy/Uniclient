@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	"uniclient/cores"
@@ -52,6 +53,8 @@ type CachedMessage struct {
 	MediaHeight        int    `json:"media_height,omitempty"`
 	MediaDuration      int    `json:"media_duration,omitempty"`
 	MediaDownloadState int    `json:"media_download_state,omitempty"`
+	MediaRemoteRef     string `json:"media_remote_ref,omitempty"`
+	MediaExtra         string `json:"media_extra,omitempty"`
 }
 
 // GetMessages returns cached messages for a chat, paginated by timestamp.
@@ -217,17 +220,17 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 			continue
 		}
 		var mediaType int
-		var fileName, mimeType, thumbB64, localPath sql.NullString
+		var fileName, mimeType, thumbB64, localPath, remoteRef, extra sql.NullString
 		var fileSize, durationMs sql.NullInt64
 		var width, height sql.NullInt64
 		var downloadState int
 		err := e.db.QueryRow(
 			`SELECT media_type, file_name, mime_type, file_size, thumb_b64, local_path,
-			        width, height, duration_ms, download_state
+			        width, height, duration_ms, download_state, remote_ref, extra
 			 FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0`,
 			msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID,
 		).Scan(&mediaType, &fileName, &mimeType, &fileSize, &thumbB64, &localPath,
-			&width, &height, &durationMs, &downloadState)
+			&width, &height, &durationMs, &downloadState, &remoteRef, &extra)
 		if err != nil {
 			continue
 		}
@@ -249,6 +252,8 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 			msgs[i].MediaDuration = int(durationMs.Int64 / 1000) // DB stores ms, struct uses seconds
 		}
 		msgs[i].MediaDownloadState = downloadState
+		msgs[i].MediaRemoteRef = remoteRef.String
+		msgs[i].MediaExtra = extra.String
 	}
 }
 
@@ -887,6 +892,59 @@ func (e *Engine) GetStickerSetInfo(accountID, shortName string, setID, accessHas
 		return nil, fmt.Errorf("platform does not support sticker sets")
 	}
 	return fetcher.GetStickerSetInfo(shortName, setID, accessHash)
+}
+
+type StickerFaver interface {
+	FaveSticker(fileID int64, extra string, unfave bool) error
+}
+
+func (e *Engine) FaveSticker(accountID string, fileID int64, extra string, unfave bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	faver, ok := acc.Core.(StickerFaver)
+	if !ok {
+		return fmt.Errorf("platform does not support sticker favorites")
+	}
+	if extra == "" {
+		extra = e.lookupMediaExtra(accountID, fileID)
+	}
+	return faver.FaveSticker(fileID, extra, unfave)
+}
+
+type GifSaver interface {
+	SaveGif(fileID int64, extra string, unsave bool) error
+}
+
+func (e *Engine) SaveGif(accountID string, fileID int64, extra string, unsave bool) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	saver, ok := acc.Core.(GifSaver)
+	if !ok {
+		return fmt.Errorf("platform does not support GIF saving")
+	}
+	if extra == "" {
+		extra = e.lookupMediaExtra(accountID, fileID)
+	}
+	return saver.SaveGif(fileID, extra, unsave)
+}
+
+func (e *Engine) lookupMediaExtra(accountID string, fileID int64) string {
+	ref := strconv.FormatInt(fileID, 10)
+	var extra sql.NullString
+	e.db.QueryRow(
+		"SELECT extra FROM media WHERE account_id = ? AND remote_ref = ? LIMIT 1",
+		accountID, ref).Scan(&extra)
+	return extra.String
 }
 
 type VoiceTranscriber interface {

@@ -2761,6 +2761,8 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     $core.int? senderColorId,
     $core.bool? isService,
     $core.String? groupedId,
+    $core.String? mediaRemoteRef,
+    $core.String? mediaExtra,
   }) {
     final $result = create();
     if (accountId != null) {
@@ -2859,6 +2861,12 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     if (groupedId != null) {
       $result.groupedId = groupedId;
     }
+    if (mediaRemoteRef != null) {
+      $result.mediaRemoteRef = mediaRemoteRef;
+    }
+    if (mediaExtra != null) {
+      $result.mediaExtra = mediaExtra;
+    }
     return $result;
   }
   EngineCachedMessage._() : super();
@@ -2898,6 +2906,8 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
     ..a<$core.int>(30, _omitFieldNames ? '' : 'senderColorId', $pb.PbFieldType.O3)
     ..aOB(31, _omitFieldNames ? '' : 'isService')
     ..aOS(32, _omitFieldNames ? '' : 'groupedId')
+    ..aOS(33, _omitFieldNames ? '' : 'mediaRemoteRef')
+    ..aOS(34, _omitFieldNames ? '' : 'mediaExtra')
     ..hasRequiredFields = false
   ;
 
@@ -3210,6 +3220,24 @@ class EngineCachedMessage extends $pb.GeneratedMessage {
   $core.bool hasGroupedId() => $_has(31);
   @$pb.TagNumber(32)
   void clearGroupedId() => clearField(32);
+
+  @$pb.TagNumber(33)
+  $core.String get mediaRemoteRef => $_getSZ(32);
+  @$pb.TagNumber(33)
+  set mediaRemoteRef($core.String v) { $_setString(32, v); }
+  @$pb.TagNumber(33)
+  $core.bool hasMediaRemoteRef() => $_has(32);
+  @$pb.TagNumber(33)
+  void clearMediaRemoteRef() => clearField(33);
+
+  @$pb.TagNumber(34)
+  $core.String get mediaExtra => $_getSZ(33);
+  @$pb.TagNumber(34)
+  set mediaExtra($core.String v) { $_setString(33, v); }
+  @$pb.TagNumber(34)
+  $core.bool hasMediaExtra() => $_has(33);
+  @$pb.TagNumber(34)
+  void clearMediaExtra() => clearField(34);
 }
 
 class EngineGetMessagesRequest extends $pb.GeneratedMessage {
@@ -9404,6 +9432,126 @@ class EngineRestrictMemberRequest extends $pb.GeneratedMessage {
   set userId($core.String v) { $_setString(2, v); }
   @$pb.TagNumber(3)
   $core.bool hasUserId() => $_has(2);
+}
+
+class EngineFaveStickerRequest extends $pb.GeneratedMessage {
+  factory EngineFaveStickerRequest({
+    $core.String? accountId,
+    $fixnum.Int64? fileId,
+    $core.bool? unfave,
+    $core.String? extra,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (fileId != null) $result.fileId = fileId;
+    if (unfave != null) $result.unfave = unfave;
+    if (extra != null) $result.extra = extra;
+    return $result;
+  }
+  EngineFaveStickerRequest._() : super();
+  factory EngineFaveStickerRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineFaveStickerRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineFaveStickerRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aInt64(2, _omitFieldNames ? '' : 'fileId')
+    ..aOB(3, _omitFieldNames ? '' : 'unfave')
+    ..aOS(4, _omitFieldNames ? '' : 'extra')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineFaveStickerRequest clone() => EngineFaveStickerRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineFaveStickerRequest copyWith(void Function(EngineFaveStickerRequest) updates) => super.copyWith((message) => updates(message as EngineFaveStickerRequest)) as EngineFaveStickerRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineFaveStickerRequest create() => EngineFaveStickerRequest._();
+  EngineFaveStickerRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineFaveStickerRequest> createRepeated() => $pb.PbList<EngineFaveStickerRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineFaveStickerRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineFaveStickerRequest>(create);
+  static EngineFaveStickerRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get fileId => $_getI64(1);
+  @$pb.TagNumber(2)
+  set fileId($fixnum.Int64 v) { $_setInt64(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.bool get unfave => $_getBF(2);
+  @$pb.TagNumber(3)
+  set unfave($core.bool v) { $_setBool(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get extra => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set extra($core.String v) { $_setString(3, v); }
+}
+
+class EngineSaveGifRequest extends $pb.GeneratedMessage {
+  factory EngineSaveGifRequest({
+    $core.String? accountId,
+    $fixnum.Int64? fileId,
+    $core.bool? unsave,
+    $core.String? extra,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (fileId != null) $result.fileId = fileId;
+    if (unsave != null) $result.unsave = unsave;
+    if (extra != null) $result.extra = extra;
+    return $result;
+  }
+  EngineSaveGifRequest._() : super();
+  factory EngineSaveGifRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineSaveGifRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineSaveGifRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aInt64(2, _omitFieldNames ? '' : 'fileId')
+    ..aOB(3, _omitFieldNames ? '' : 'unsave')
+    ..aOS(4, _omitFieldNames ? '' : 'extra')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineSaveGifRequest clone() => EngineSaveGifRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineSaveGifRequest copyWith(void Function(EngineSaveGifRequest) updates) => super.copyWith((message) => updates(message as EngineSaveGifRequest)) as EngineSaveGifRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineSaveGifRequest create() => EngineSaveGifRequest._();
+  EngineSaveGifRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineSaveGifRequest> createRepeated() => $pb.PbList<EngineSaveGifRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineSaveGifRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineSaveGifRequest>(create);
+  static EngineSaveGifRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get fileId => $_getI64(1);
+  @$pb.TagNumber(2)
+  set fileId($fixnum.Int64 v) { $_setInt64(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.bool get unsave => $_getBF(2);
+  @$pb.TagNumber(3)
+  set unsave($core.bool v) { $_setBool(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get extra => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set extra($core.String v) { $_setString(3, v); }
 }
 
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');

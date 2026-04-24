@@ -443,6 +443,38 @@ class EngineService {
     }
   }
 
+  // ── Sticker/GIF actions ──
+
+  Future<bool> faveSticker(String accountId, int fileId, {String extra = '', bool unfave = false}) async {
+    final req = epb.EngineFaveStickerRequest()
+      ..accountId = accountId
+      ..fileId = Int64(fileId)
+      ..unfave = unfave
+      ..extra = extra;
+    try {
+      await _callAsync('__engine', 'FaveSticker', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'faveSticker failed', e);
+      return false;
+    }
+  }
+
+  Future<bool> saveGif(String accountId, int fileId, {String extra = '', bool unsave = false}) async {
+    final req = epb.EngineSaveGifRequest()
+      ..accountId = accountId
+      ..fileId = Int64(fileId)
+      ..unsave = unsave
+      ..extra = extra;
+    try {
+      await _callAsync('__engine', 'SaveGif', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'saveGif failed', e);
+      return false;
+    }
+  }
+
   // ── Attach menu bots ──
 
   Future<List<AttachMenuBotInfo>> getAttachMenuBots(String accountId) async {
@@ -1349,6 +1381,8 @@ class EngineService {
       mediaHeight: p.mediaHeight,
       mediaDuration: p.mediaDuration,
       mediaDownloadState: p.mediaDownloadState,
+      mediaRemoteRef: p.mediaRemoteRef,
+      mediaExtra: p.mediaExtra,
       mediaWaveform: _waveformFromRaw(contentRaw),
       reactions: _reactionsFromRaw(contentRaw),
       topicId: _topicFieldFromRaw(contentRaw, 'topic_id') ?? '',

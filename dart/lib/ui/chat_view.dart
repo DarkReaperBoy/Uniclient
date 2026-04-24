@@ -18,6 +18,7 @@ import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import '../data/emoji_data.dart';
 import 'chat_list_row.dart' show ForwardDragData;
+import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
 import 'send_files_box.dart';
@@ -541,6 +542,10 @@ class _ChatViewState extends State<ChatView>
     final hasVideo = msg.mediaType == 2 && msg.mediaLocalPath.isNotEmpty;
     final hasFile = msg.hasMedia && msg.mediaLocalPath.isNotEmpty && msg.mediaType == 8;
     final hasForwardOrigin = msg.forwardFrom.isNotEmpty;
+    final isSticker = msg.mediaType == 6;
+    final isGif = msg.mediaType == 7;
+    final hasStickerSet = isSticker && msg.hasStickerSet;
+    final hasDocId = msg.mediaRemoteRef.isNotEmpty;
     final chat = chatState.activeChat;
 
     showTelegramMenu<String>(
@@ -580,6 +585,12 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save Video'),
         if (hasFile)
           const TelegramMenuItem(value: 'save_image', icon: Icon(Icons.save_alt), label: 'Save File'),
+        if (isGif && hasDocId)
+          const TelegramMenuItem(value: 'save_gif', icon: Icon(Icons.gif_box), label: 'Save GIF'),
+        if (hasStickerSet)
+          const TelegramMenuItem(value: 'view_sticker_set', icon: Icon(Icons.emoji_emotions), label: 'View Sticker Set'),
+        if (isSticker && hasDocId)
+          const TelegramMenuItem(value: 'fave_sticker', icon: Icon(Icons.star_outline), label: 'Add to Favorites'),
         const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
@@ -621,6 +632,12 @@ class _ChatViewState extends State<ChatView>
           _showReschedulePicker(msgId);
         case 'save_image':
           _saveMediaToDownloads(msg);
+        case 'save_gif':
+          _saveGif(msg);
+        case 'view_sticker_set':
+          StickerPackViewer.show(context, msg);
+        case 'fave_sticker':
+          _faveSticker(msg);
         case 'copy_link':
           _copyMessageLink(msg, chat);
         case 'delete':
@@ -682,6 +699,38 @@ class _ChatViewState extends State<ChatView>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Saved to ${destPath.split('/').last}'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _faveSticker(CachedMessage msg) async {
+    if (msg.mediaRemoteRef.isEmpty) return;
+    final fileId = int.tryParse(msg.mediaRemoteRef);
+    if (fileId == null) return;
+    final engine = context.read<EngineService>();
+    final ok = await engine.faveSticker(msg.accountId, fileId, extra: msg.mediaExtra);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Added to favorites' : 'Failed to add to favorites'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _saveGif(CachedMessage msg) async {
+    if (msg.mediaRemoteRef.isEmpty) return;
+    final fileId = int.tryParse(msg.mediaRemoteRef);
+    if (fileId == null) return;
+    final engine = context.read<EngineService>();
+    final ok = await engine.saveGif(msg.accountId, fileId, extra: msg.mediaExtra);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'GIF saved' : 'Failed to save GIF'),
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),

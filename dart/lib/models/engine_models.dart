@@ -341,6 +341,8 @@ class CachedMessage {
   final int mediaHeight;
   final int mediaDuration; // seconds
   final int mediaDownloadState; // 0=none, 1=in_progress, 2=complete, 3=failed (matches Go engine/db.go)
+  final String mediaRemoteRef; // document/file ID for sticker/GIF operations
+  final String mediaExtra; // encoded access hash + file reference
   final List<int> mediaWaveform; // 5-bit amplitude samples (0–31), typically 100 entries for voice messages
   final List<MessageReaction> reactions;
 
@@ -453,6 +455,8 @@ class CachedMessage {
     this.mediaHeight = 0,
     this.mediaDuration = 0,
     this.mediaDownloadState = 0,
+    this.mediaRemoteRef = '',
+    this.mediaExtra = '',
     this.mediaWaveform = const [],
     this.reactions = const [],
     this.topicId = '',
@@ -605,6 +609,8 @@ class CachedMessage {
     int? mediaHeight,
     int? mediaDuration,
     int? mediaDownloadState,
+    String? mediaRemoteRef,
+    String? mediaExtra,
     List<int>? mediaWaveform,
     List<MessageReaction>? reactions,
     String? viaBotName,
@@ -684,6 +690,8 @@ class CachedMessage {
     mediaHeight: mediaHeight ?? this.mediaHeight,
     mediaDuration: mediaDuration ?? this.mediaDuration,
     mediaDownloadState: mediaDownloadState ?? this.mediaDownloadState,
+    mediaRemoteRef: mediaRemoteRef ?? this.mediaRemoteRef,
+    mediaExtra: mediaExtra ?? this.mediaExtra,
     mediaWaveform: mediaWaveform ?? this.mediaWaveform,
     reactions: reactions ?? this.reactions,
     topicId: topicId,

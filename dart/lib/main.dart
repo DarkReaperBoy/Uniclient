@@ -299,6 +299,8 @@ class _UniClientAppState extends State<UniClientApp>
             'mediaType': m.mediaType,
             'mediaMimeType': m.mediaMimeType,
             'stickerSetShortName': m.stickerSetShortName,
+            'stickerSetId': m.stickerSetId,
+            'mediaRemoteRef': m.mediaRemoteRef,
           }).toList();
           File('/tmp/uniclient_debug_out.json').writeAsStringSync(
             const JsonEncoder.withIndent('  ').convert(out),

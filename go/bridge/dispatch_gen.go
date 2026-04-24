@@ -19651,7 +19651,7 @@ func dispatchTelegram(c *cores.TelegramCore, method string, payload []byte) ([]b
 	case "FaveSticker":
 		var req pbcores.TelegramFaveStickerRequest
 		if err := proto.Unmarshal(payload, &req); err != nil { return nil, err }
-		err := c.FaveSticker(req.FileId, req.Unfave)
+		err := c.FaveSticker(req.FileId, "", req.Unfave)
 		if err != nil { return nil, err }
 		return nil, nil
 	case "ForwardMessage":

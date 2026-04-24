@@ -932,6 +932,26 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			Text:            text,
 		})
 
+	case "FaveSticker":
+		var req pb.EngineFaveStickerRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.FaveSticker(req.AccountId, req.FileId, req.Extra, req.Unfave); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
+	case "SaveGif":
+		var req pb.EngineSaveGifRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.SaveGif(req.AccountId, req.FileId, req.Extra, req.Unsave); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
 	case "GetAttachMenuBots":
 		var req pb.EngineGetAttachMenuBotsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {
@@ -1233,5 +1253,7 @@ func cachedMsgToProto(m *engine.CachedMessage) *pb.EngineCachedMessage {
 		MediaDuration:      int32(m.MediaDuration),
 		MediaDownloadState: int32(m.MediaDownloadState),
 		GroupedId:          m.GroupedID,
+		MediaRemoteRef:     m.MediaRemoteRef,
+		MediaExtra:         m.MediaExtra,
 	}
 }
