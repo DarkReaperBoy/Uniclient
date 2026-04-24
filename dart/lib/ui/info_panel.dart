@@ -1251,6 +1251,15 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
                   chatId: widget.chat.chatId,
                 ),
               ],
+              if (widget.chat.type == ChatType.group ||
+                  widget.chat.type == ChatType.topic) ...[
+                const Divider(height: 24),
+                _GroupActionsSection(
+                  chat: widget.chat,
+                  theme: widget.theme,
+                  members: widget.members,
+                ),
+              ],
               if (widget.chat.type == ChatType.dm &&
                   widget.chat.title != 'Saved Messages') ...[
                 const Divider(height: 24),
@@ -1722,6 +1731,178 @@ class _NotificationToggle extends StatelessWidget {
               final chatState = context.read<ChatState>();
               chatState.muteChat(chat.accountId, chat.chatId, !value);
             },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupActionsSection extends StatelessWidget {
+  final ChatInfo chat;
+  final ThemeData theme;
+  final List<MemberInfo>? members;
+
+  const _GroupActionsSection({
+    required this.chat,
+    required this.theme,
+    this.members,
+  });
+
+  bool get _isSelfAdmin {
+    if (members == null) return false;
+    final accountId = chat.accountId;
+    for (final m in members!) {
+      if (m.role == 'owner' || m.role == 'admin' || m.role == 'creator') {
+        if (m.userId == accountId || accountId.contains(m.userId) || m.userId.contains(accountId)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chatState = context.read<ChatState>();
+    final attentionColor = const Color(0xFFDD4B39);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_isSelfAdmin)
+          _ActionRow(
+            icon: Icons.edit,
+            label: 'Edit Group',
+            theme: theme,
+            onTap: () => _editGroup(context, chatState),
+          ),
+        _ActionRow(
+          icon: Icons.flag_outlined,
+          label: 'Report',
+          theme: theme,
+          onTap: () => _confirmReport(context, chatState),
+        ),
+        _ActionRow(
+          icon: Icons.logout,
+          label: 'Leave Group',
+          theme: theme,
+          color: attentionColor,
+          onTap: () => _confirmLeave(context, chatState),
+        ),
+      ],
+    );
+  }
+
+  void _editGroup(BuildContext context, ChatState chatState) {
+    final engine = context.read<EngineService>();
+    final titleCtrl = TextEditingController(text: chat.title);
+    final descCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Group'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: titleCtrl,
+              decoration: const InputDecoration(labelText: 'Group name'),
+              autofocus: true,
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: descCtrl,
+              decoration: const InputDecoration(labelText: 'Description'),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              final newTitle = titleCtrl.text.trim();
+              final newDesc = descCtrl.text.trim();
+              if (newTitle.isNotEmpty && newTitle != chat.title) {
+                engine.editChatTitle(chat.accountId, chat.chatId, newTitle).catchError((e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to update title: $e')),
+                    );
+                  }
+                });
+              }
+              if (newDesc.isNotEmpty) {
+                engine.editChatDescription(chat.accountId, chat.chatId, newDesc).catchError((e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to update description: $e')),
+                    );
+                  }
+                });
+              }
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmReport(BuildContext context, ChatState chatState) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Report Group'),
+        content: Text('Report ${chat.title} as spam?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
+            onPressed: () {
+              chatState.reportSpam(chat.accountId, chat.chatId);
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Group reported'),
+                  duration: Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('Report'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmLeave(BuildContext context, ChatState chatState) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Leave Group'),
+        content: Text('Leave ${chat.title}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: const Color(0xFFDD4B39)),
+            onPressed: () {
+              chatState.leaveChat(chat.accountId, chat.chatId);
+              Navigator.pop(ctx);
+            },
+            child: const Text('Leave'),
           ),
         ],
       ),

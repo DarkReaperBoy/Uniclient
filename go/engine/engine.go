@@ -375,6 +375,30 @@ func (e *Engine) LeaveChat(accountID, chatID string) error {
 	return nil
 }
 
+func (e *Engine) EditChatTitle(accountID, chatID, title string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	if err := acc.Core.EditChatTitle(chatID, title); err != nil {
+		return err
+	}
+	e.db.Exec("UPDATE chats SET title = ? WHERE account_id = ? AND chat_id = ?", title, accountID, chatID)
+	go func() {
+		ctx := context.Background()
+		e.syncAccount(ctx, accountID)
+	}()
+	return nil
+}
+
+func (e *Engine) EditChatDescription(accountID, chatID, description string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return fmt.Errorf("account %q not found or not connected", accountID)
+	}
+	return acc.Core.EditChatDescription(chatID, description)
+}
+
 // ClearHistory deletes the message history for a chat on the server and locally,
 // but keeps the chat visible in the chat list.
 func (e *Engine) ClearHistory(accountID, chatID string) error {

@@ -408,6 +408,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return nil, e.LeaveChat(req.AccountId, req.ChatId)
 
+	case "EditChatTitle":
+		var req pb.EngineSaveDraftRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.EditChatTitle(req.AccountId, req.ChatId, req.Text)
+
+	case "EditChatDescription":
+		var req pb.EngineSaveDraftRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		return nil, e.EditChatDescription(req.AccountId, req.ChatId, req.Text)
+
 	case "ClearHistory":
 		var req pb.EngineLeaveChatRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

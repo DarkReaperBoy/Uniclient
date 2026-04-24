@@ -627,6 +627,22 @@ class EngineService {
     await _callAsync('__engine', 'LeaveChat', req.writeToBuffer());
   }
 
+  Future<void> editChatTitle(String accountId, String chatId, String title) async {
+    final req = epb.EngineSaveDraftRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..text = title;
+    await _callAsync('__engine', 'EditChatTitle', req.writeToBuffer());
+  }
+
+  Future<void> editChatDescription(String accountId, String chatId, String description) async {
+    final req = epb.EngineSaveDraftRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..text = description;
+    await _callAsync('__engine', 'EditChatDescription', req.writeToBuffer());
+  }
+
   Future<void> clearHistory(String accountId, String chatId) async {
     final req = epb.EngineLeaveChatRequest()
       ..accountId = accountId
