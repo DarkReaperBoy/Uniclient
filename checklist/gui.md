@@ -482,7 +482,6 @@
 
 ### §10.7 Power-save & Edge Cases
 <!-- File: dart/lib/ui/emoji_panel.dart -->
-- [ ] Power-save gating: skip panel animation when PowerSaving::kEmojiPanel is on; no Masks tab in default build — spec §10.7
 
 ---
 

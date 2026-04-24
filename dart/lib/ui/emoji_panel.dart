@@ -192,8 +192,19 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
       duration: const Duration(milliseconds: 200),
     );
     if (widget.visible) {
-      _showController.forward();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_powerSaveSkipAnim) {
+          _showController.value = 1.0;
+        } else {
+          _showController.forward();
+        }
+      });
     }
+  }
+
+  bool get _powerSaveSkipAnim {
+    final appState = context.read<AppState>();
+    return appState.powerSaving(AppState.kPowerSavingEmojiPanel);
   }
 
   @override
@@ -201,9 +212,17 @@ class _EmojiTabbedPanelState extends State<EmojiTabbedPanel>
     super.didUpdateWidget(oldWidget);
     if (widget.visible && !oldWidget.visible) {
       _cancelHideTimer();
-      _showController.forward();
+      if (_powerSaveSkipAnim) {
+        _showController.value = 1.0;
+      } else {
+        _showController.forward();
+      }
     } else if (!widget.visible && oldWidget.visible) {
-      _showController.reverse();
+      if (_powerSaveSkipAnim) {
+        _showController.value = 0.0;
+      } else {
+        _showController.reverse();
+      }
     }
   }
 

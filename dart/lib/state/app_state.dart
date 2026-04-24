@@ -43,6 +43,18 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
   /// Spec §7.3: When true, empty-field send button shows Round (camera) instead of Record (mic).
   bool _recordVideoMessages = false;
 
+  // Spec §17.7.1: PowerSaving bitfield (matches tdesktop bit positions).
+  static const kPowerSavingStickersPanel = 1 << 0;
+  static const kPowerSavingStickersChat  = 1 << 1;
+  static const kPowerSavingEmojiPanel    = 1 << 3;
+  static const kPowerSavingEmojiReactions = 1 << 4;
+  static const kPowerSavingEmojiChat     = 1 << 5;
+  static const kPowerSavingEmojiStatus   = 1 << 9;
+  static const kPowerSavingChatSpoiler   = 1 << 7;
+  static const kPowerSavingCalls         = 1 << 10;
+  static const kPowerSavingAnimations    = 1 << 11;
+  int _powerSavingFlags = 0;
+
   /// Callback for showing connection-state notifications (set by UI layer).
   void Function(String text, IconData icon, Color color)? onConnStateNotification;
 
@@ -164,6 +176,19 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _saveWindowPrefs();
       notifyListeners();
     }
+  }
+
+  int get powerSavingFlags => _powerSavingFlags;
+  bool powerSaving(int flag) => _powerSavingFlags & flag != 0;
+
+  void setPowerSaving(int flag, bool on) {
+    final updated = on
+        ? (_powerSavingFlags | flag)
+        : (_powerSavingFlags & ~flag);
+    if (updated == _powerSavingFlags) return;
+    _powerSavingFlags = updated;
+    _saveWindowPrefs();
+    notifyListeners();
   }
 
   ThemeMode get themeMode => switch (_config.theme) {
@@ -383,6 +408,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
       _mainMenuAccountsShown = data['mainMenuAccountsShown'] as bool? ?? false;
       _systemDarkMode = data['systemDarkMode'] as bool? ?? false;
       _recordVideoMessages = data['recordVideoMessages'] as bool? ?? false;
+      _powerSavingFlags = data['powerSavingFlags'] as int? ?? 0;
       final order = data['accountOrder'] as List<dynamic>?;
       if (order != null) _accountOrder = order.cast<String>();
     } catch (_) {}
@@ -397,6 +423,7 @@ class AppState extends ChangeNotifier with WidgetsBindingObserver {
         'mainMenuAccountsShown': _mainMenuAccountsShown,
         'systemDarkMode': _systemDarkMode,
         'recordVideoMessages': _recordVideoMessages,
+        'powerSavingFlags': _powerSavingFlags,
         'accountOrder': _accountOrder,
       }));
     } catch (_) {}
