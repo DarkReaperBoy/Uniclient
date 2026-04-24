@@ -185,9 +185,13 @@ class _ChatViewState extends State<ChatView>
   List<MemberInfo> _acFilteredMembers = [];
   List<EmojiEntry> _acFilteredEmojis = [];
   List<StickerInfoItem> _acStickerSuggestions = [];
+  List<BotCommandInfo> _acBotCommands = [];
+  List<BotCommandInfo> _acFilteredCommands = [];
   int _acSelectedIndex = 0;
   bool _acMembersLoaded = false;
   String? _acMembersChatId;
+  bool _acCommandsLoaded = false;
+  String? _acCommandsChatId;
 
   // Send As state (channel sender identity selector)
   List<SendAsPeerInfo> _sendAsPeers = [];
@@ -360,8 +364,10 @@ class _ChatViewState extends State<ChatView>
             _hiddenMsgIds.clear();
             _acQuery = null;
             _acFilteredMembers = [];
+            _acFilteredCommands = [];
             _acStickerSuggestions = [];
             _acMembersLoaded = false;
+            _acCommandsLoaded = false;
           });
         });
       }
@@ -1926,7 +1932,7 @@ class _ChatViewState extends State<ChatView>
 
   void _onAutocompleteQuery(AutocompleteQuery? query) {
     if (query == null) {
-      if (_acQuery != null) setState(() { _acQuery = null; _acFilteredEmojis = []; _acStickerSuggestions = []; });
+      if (_acQuery != null) setState(() { _acQuery = null; _acFilteredEmojis = []; _acStickerSuggestions = []; _acFilteredCommands = []; });
       return;
     }
     final chatState = context.read<ChatState>();
@@ -1946,6 +1952,23 @@ class _ChatViewState extends State<ChatView>
         _acFilteredMembers = filtered;
         _acFilteredEmojis = [];
         _acStickerSuggestions = [];
+        _acFilteredCommands = [];
+        _acSelectedIndex = 0;
+      });
+    } else if (query.type == AutocompleteType.command) {
+      _ensureCommandsLoaded(chat.accountId, chat.chatId);
+      final q = query.query.toLowerCase();
+      final filtered = _acBotCommands.where((c) {
+        if (q.isEmpty) return true;
+        return c.command.toLowerCase().contains(q) ||
+            c.description.toLowerCase().contains(q);
+      }).toList();
+      setState(() {
+        _acQuery = query;
+        _acFilteredCommands = filtered;
+        _acFilteredMembers = [];
+        _acFilteredEmojis = [];
+        _acStickerSuggestions = [];
         _acSelectedIndex = 0;
       });
     } else if (query.type == AutocompleteType.emoji) {
@@ -1955,6 +1978,7 @@ class _ChatViewState extends State<ChatView>
         _acFilteredMembers = [];
         _acFilteredEmojis = results;
         _acStickerSuggestions = [];
+        _acFilteredCommands = [];
         _acSelectedIndex = 0;
       });
     } else if (query.type == AutocompleteType.stickerSuggestion) {
@@ -1962,6 +1986,7 @@ class _ChatViewState extends State<ChatView>
         _acQuery = query;
         _acFilteredMembers = [];
         _acFilteredEmojis = [];
+        _acFilteredCommands = [];
         _acSelectedIndex = 0;
       });
       _loadStickerSuggestions(chat.accountId, query.query);
@@ -1971,6 +1996,7 @@ class _ChatViewState extends State<ChatView>
         _acFilteredMembers = [];
         _acFilteredEmojis = [];
         _acStickerSuggestions = [];
+        _acFilteredCommands = [];
         _acSelectedIndex = 0;
       });
     }
@@ -2016,6 +2042,21 @@ class _ChatViewState extends State<ChatView>
     }).catchError((_) {});
   }
 
+  void _ensureCommandsLoaded(String accountId, String chatId) {
+    if (_acCommandsLoaded && _acCommandsChatId == chatId) return;
+    _acCommandsChatId = chatId;
+    _acCommandsLoaded = true;
+    final engine = context.read<EngineService>();
+    engine.getChatBotCommands(accountId, chatId).then((commands) {
+      if (mounted && _acCommandsChatId == chatId) {
+        _acBotCommands = commands;
+        if (_acQuery?.type == AutocompleteType.command) {
+          _onAutocompleteQuery(_acQuery);
+        }
+      }
+    }).catchError((_) {});
+  }
+
   String? _stickerSuggestEmoji;
 
   void _loadStickerSuggestions(String accountId, String emoji) {
@@ -2034,6 +2075,7 @@ class _ChatViewState extends State<ChatView>
   int get _acItemCount {
     if (_acQuery?.type == AutocompleteType.emoji) return _acFilteredEmojis.length;
     if (_acQuery?.type == AutocompleteType.stickerSuggestion) return _acStickerSuggestions.length;
+    if (_acQuery?.type == AutocompleteType.command) return _acFilteredCommands.length;
     return _acFilteredMembers.length;
   }
 
@@ -2062,6 +2104,10 @@ class _ChatViewState extends State<ChatView>
       _insertAutocomplete(member.username.isNotEmpty ? '@${member.username} ' : '@${member.displayName} ');
       return;
     }
+    if (_acQuery!.type == AutocompleteType.command && _acSelectedIndex < _acFilteredCommands.length) {
+      _insertAutocomplete('/${_acFilteredCommands[_acSelectedIndex].command} ');
+      return;
+    }
     if (_acQuery!.type == AutocompleteType.stickerSuggestion && _acSelectedIndex < _acStickerSuggestions.length) {
       _sendStickerSuggestion(_acStickerSuggestions[_acSelectedIndex]);
     }
@@ -2075,6 +2121,10 @@ class _ChatViewState extends State<ChatView>
     if (_acQuery?.type == AutocompleteType.mention && index < _acFilteredMembers.length) {
       final member = _acFilteredMembers[index];
       _insertAutocomplete(member.username.isNotEmpty ? '@${member.username} ' : '@${member.displayName} ');
+      return;
+    }
+    if (_acQuery?.type == AutocompleteType.command && index < _acFilteredCommands.length) {
+      _insertAutocomplete('/${_acFilteredCommands[index].command} ');
       return;
     }
     if (_acQuery?.type == AutocompleteType.stickerSuggestion && index < _acStickerSuggestions.length) {
@@ -2922,6 +2972,13 @@ class _ChatViewState extends State<ChatView>
               onPick: _acPickIndex,
               onHover: (i) => setState(() => _acSelectedIndex = i),
             ),
+          if (_acQuery != null && _acQuery!.type == AutocompleteType.command && _acFilteredCommands.isNotEmpty)
+            _CommandAutocompletePanel(
+              commands: _acFilteredCommands,
+              selectedIndex: _acSelectedIndex,
+              onPick: _acPickIndex,
+              onHover: (i) => setState(() => _acSelectedIndex = i),
+            ),
           if (_acQuery != null && _acQuery!.type == AutocompleteType.emoji && _acFilteredEmojis.isNotEmpty)
             _EmojiSuggestionPanel(
               emojis: _acFilteredEmojis,
@@ -2997,7 +3054,7 @@ class _ChatViewState extends State<ChatView>
               },
               onFilesSelected: (paths) => _uploadFiles(chatState, paths),
               onAutocompleteQuery: _onAutocompleteQuery,
-              autocompleteActive: _acQuery != null && (_acFilteredMembers.isNotEmpty || _acFilteredEmojis.isNotEmpty || _acStickerSuggestions.isNotEmpty),
+              autocompleteActive: _acQuery != null && (_acFilteredMembers.isNotEmpty || _acFilteredEmojis.isNotEmpty || _acStickerSuggestions.isNotEmpty || _acFilteredCommands.isNotEmpty),
               onAutocompleteUp: _acMoveUp,
               onAutocompleteDown: _acMoveDown,
               onAutocompletePick: _acPick,
@@ -9534,6 +9591,114 @@ class _AutocompletePanel extends StatelessWidget {
           );
         },
       ),
+      ),
+    );
+  }
+}
+
+class _CommandAutocompletePanel extends StatelessWidget {
+  final List<BotCommandInfo> commands;
+  final int selectedIndex;
+  final ValueChanged<int> onPick;
+  final ValueChanged<int> onHover;
+
+  const _CommandAutocompletePanel({
+    required this.commands,
+    required this.selectedIndex,
+    required this.onPick,
+    required this.onHover,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF17212b) : Colors.white;
+    final hoverColor = isDark ? const Color(0xFF202b36) : const Color(0xFFf1f1f1);
+    final borderColor = theme.dividerColor;
+    final subtitleColor = isDark ? const Color(0xFF5b7a93) : const Color(0xFF999999);
+
+    return TextFieldTapRegion(
+      child: Container(
+        constraints: const BoxConstraints(maxHeight: 180),
+        decoration: BoxDecoration(
+          color: bgColor,
+          border: Border(
+            top: BorderSide(color: borderColor, width: 1),
+          ),
+        ),
+        child: ListView.builder(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: commands.length,
+          itemBuilder: (context, index) {
+            final cmd = commands[index];
+            final isSelected = index == selectedIndex;
+            return MouseRegion(
+              onEnter: (_) => onHover(index),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => onPick(index),
+                child: Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 0),
+                  color: isSelected ? hoverColor : null,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 33,
+                        height: 33,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: isDark ? const Color(0xFF3a5368) : const Color(0xFF5eaade),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: Text(
+                              '/',
+                              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700, height: 1),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '/${cmd.command}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: theme.textTheme.bodyMedium?.color,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (cmd.description.isNotEmpty)
+                              Text(
+                                cmd.description,
+                                style: TextStyle(fontSize: 12, color: subtitleColor),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
+                        ),
+                      ),
+                      if (cmd.botUsername.isNotEmpty)
+                        Text(
+                          '@${cmd.botUsername}',
+                          style: TextStyle(fontSize: 12, color: subtitleColor),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
       ),
     );
   }

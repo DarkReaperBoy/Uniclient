@@ -241,6 +241,48 @@ func (e *Engine) GetSimilarChannels(accountID, chatID string) ([]SimilarChannelI
 	return result, nil
 }
 
+// BotCommandInfo is a bot command returned to the UI for autocomplete.
+type BotCommandInfo struct {
+	Command     string `json:"command"`
+	Description string `json:"description"`
+	BotID       string `json:"bot_id"`
+	BotName     string `json:"bot_name"`
+	BotUsername string `json:"bot_username"`
+}
+
+// GetChatBotCommands returns bot commands available in a chat.
+func (e *Engine) GetChatBotCommands(accountID, chatID string) ([]BotCommandInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type botCommandProvider interface {
+		GetChatBotCommands(chatID string) ([]cores.BotCommandEntry, error)
+	}
+	bp, ok := acc.Core.(botCommandProvider)
+	if !ok {
+		return nil, nil
+	}
+	entries, err := bp.GetChatBotCommands(chatID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]BotCommandInfo, 0, len(entries))
+	for _, e := range entries {
+		result = append(result, BotCommandInfo{
+			Command:     e.Command,
+			Description: e.Description,
+			BotID:       e.BotID,
+			BotName:     e.BotName,
+			BotUsername: e.BotUsername,
+		})
+	}
+	return result, nil
+}
+
 // ContactInfo is the contact data returned to the UI for the contacts list.
 type ContactInfo struct {
 	UserID      string `json:"user_id"`

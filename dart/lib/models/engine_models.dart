@@ -1083,6 +1083,31 @@ class SimilarChannelInfo {
   );
 }
 
+// ── Bot command info ──
+class BotCommandInfo {
+  final String command;
+  final String description;
+  final String botId;
+  final String botName;
+  final String botUsername;
+
+  const BotCommandInfo({
+    required this.command,
+    this.description = '',
+    this.botId = '',
+    this.botName = '',
+    this.botUsername = '',
+  });
+
+  factory BotCommandInfo.fromJson(Map<String, dynamic> j) => BotCommandInfo(
+    command: j['command'] as String? ?? '',
+    description: j['description'] as String? ?? '',
+    botId: j['bot_id'] as String? ?? '',
+    botName: j['bot_name'] as String? ?? '',
+    botUsername: j['bot_username'] as String? ?? '',
+  );
+}
+
 // ── User profile (full, with phone/bio) ──
 class UserProfile {
   final String userId;

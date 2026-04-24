@@ -12889,6 +12889,102 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 	return nil, ErrNotFound
 }
 
+// BotCommandEntry is a bot command with bot identity info.
+type BotCommandEntry struct {
+	Command     string `json:"command"`
+	Description string `json:"description"`
+	BotID       string `json:"bot_id"`
+	BotName     string `json:"bot_name"`
+	BotUsername string `json:"bot_username"`
+}
+
+// GetChatBotCommands returns bot commands available in a chat.
+// For DM bots: returns the bot's commands from UsersGetFullUser.
+// For groups/channels: returns all bot commands from MessagesGetFullChat/ChannelsGetFullChannel.
+func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, error) {
+	t.mu.RLock(); defer t.mu.RUnlock()
+	if !t.authed || t.api == nil { return nil, ErrAuth }
+	peer, err := t.resolvePeer(chatID)
+	if err != nil { return nil, err }
+
+	userMap := make(map[int64]*tg.User)
+
+	switch p := peer.(type) {
+	case *tg.PeerUser:
+		hash := t.getCachedUserHash(p.UserID)
+		result, err := t.api.UsersGetFullUser(t.ctx, &tg.InputUser{UserID: p.UserID, AccessHash: hash})
+		if err != nil { return nil, err }
+		t.cacheEntities(result.Users, nil)
+		for _, u := range result.Users {
+			if user, ok := u.(*tg.User); ok { userMap[user.ID] = user }
+		}
+		bi, ok := result.FullUser.GetBotInfo()
+		if !ok { return nil, nil }
+		cmds, _ := bi.GetCommands()
+		var entries []BotCommandEntry
+		for _, c := range cmds {
+			e := BotCommandEntry{Command: c.Command, Description: c.Description, BotID: strconv.FormatInt(p.UserID, 10)}
+			if u, ok := userMap[p.UserID]; ok {
+				e.BotName = userDisplayName(u)
+				e.BotUsername = u.Username
+			}
+			entries = append(entries, e)
+		}
+		return entries, nil
+
+	case *tg.PeerChat:
+		result, err := t.api.MessagesGetFullChat(t.ctx, p.ChatID)
+		if err != nil { return nil, err }
+		t.cacheEntities(result.Users, result.Chats)
+		for _, u := range result.Users {
+			if user, ok := u.(*tg.User); ok { userMap[user.ID] = user }
+		}
+		cf, ok := result.FullChat.(*tg.ChatFull)
+		if !ok { return nil, nil }
+		botInfos, _ := cf.GetBotInfo()
+		return t.extractBotCommands(botInfos, userMap), nil
+
+	case *tg.PeerChannel:
+		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
+		result, err := t.api.ChannelsGetFullChannel(t.ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
+		if err != nil { return nil, err }
+		t.cacheEntities(result.Users, result.Chats)
+		for _, u := range result.Users {
+			if user, ok := u.(*tg.User); ok { userMap[user.ID] = user }
+		}
+		cf, ok := result.FullChat.(*tg.ChannelFull)
+		if !ok { return nil, nil }
+		botInfos := cf.GetBotInfo()
+		return t.extractBotCommands(botInfos, userMap), nil
+	}
+	return nil, nil
+}
+
+func (t *TelegramCore) extractBotCommands(botInfos []tg.BotInfo, userMap map[int64]*tg.User) []BotCommandEntry {
+	var entries []BotCommandEntry
+	for _, bi := range botInfos {
+		uid, _ := bi.GetUserID()
+		cmds, _ := bi.GetCommands()
+		for _, c := range cmds {
+			e := BotCommandEntry{Command: c.Command, Description: c.Description, BotID: strconv.FormatInt(uid, 10)}
+			if u, ok := userMap[uid]; ok {
+				e.BotName = userDisplayName(u)
+				e.BotUsername = u.Username
+			}
+			entries = append(entries, e)
+		}
+	}
+	return entries
+}
+
+func userDisplayName(u *tg.User) string {
+	name := u.FirstName
+	if u.LastName != "" {
+		name += " " + u.LastName
+	}
+	return name
+}
+
 // UpdateProfile updates the user's first name, last name, or bio.
 func (t *TelegramCore) UpdateProfile(firstName, lastName, about string) error {
 	t.mu.RLock(); defer t.mu.RUnlock()
