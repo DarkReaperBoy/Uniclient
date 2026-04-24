@@ -531,7 +531,7 @@ class _ChatViewState extends State<ChatView>
     });
   }
 
-  void _showMessageContextMenu(String msgId, Offset position) {
+  void _showMessageContextMenu(String msgId, Offset position, [String selectedText = '']) {
     final chatState = context.read<ChatState>();
     final msg = chatState.messages.where((m) => m.msgId == msgId).firstOrNull;
     if (msg == null) return;
@@ -551,6 +551,8 @@ class _ChatViewState extends State<ChatView>
         const TelegramMenuItem(value: 'reply', icon: Icon(Icons.reply), label: 'Reply'),
         if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'quote_reply', icon: Icon(Icons.format_quote), label: 'Quote and Reply'),
+        if (selectedText.isNotEmpty)
+          const TelegramMenuItem(value: 'copy_selected', icon: Icon(Icons.copy), label: 'Copy Selected Text'),
         // Pass 2: message actions
         if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'copy', icon: Icon(Icons.copy), label: 'Copy Text'),
@@ -591,6 +593,8 @@ class _ChatViewState extends State<ChatView>
           setState(() => _replyToId = msgId);
         case 'quote_reply':
           _quoteAndReply(msg);
+        case 'copy_selected':
+          Clipboard.setData(ClipboardData(text: selectedText));
         case 'copy':
           Clipboard.setData(ClipboardData(text: msg.contentText));
         case 'go_to_message':
@@ -1732,7 +1736,7 @@ class _ChatViewState extends State<ChatView>
                   onLongPress: (msgId) => _modifySelection(() {
                     _selectedMsgIds.add(msgId);
                   }),
-                  onContextMenu: _showMessageContextMenu,
+                  onContextMenu: (msgId, pos, selectedText) => _showMessageContextMenu(msgId, pos, selectedText),
                   onSenderTap: (senderId) => _showSenderProfile(context, chatState, senderId),
                   onReplyTap: (replyToId) => _jumpToReply(chatState, replyToId),
                   searchHighlightId: _searchResultIndex >= 0 && _searchResultIndex < _searchResultIds.length
@@ -2722,7 +2726,7 @@ class _MessageList extends StatelessWidget {
   final Set<String> selectedIds;
   final ValueChanged<String> onToggleSelect;
   final ValueChanged<String> onLongPress;
-  final void Function(String msgId, Offset position) onContextMenu;
+  final void Function(String msgId, Offset position, String selectedText) onContextMenu;
   final ValueChanged<String>? onSenderTap;
   final ValueChanged<String>? onReplyTap;
   /// Spec §4.3: ID of the currently highlighted search result message.
@@ -2844,7 +2848,7 @@ class _MessageList extends StatelessWidget {
                             albumItems: item.albumMessages,
                             senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
                             onReply: () => onReply(msg.msgId),
-                            onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
+                            onContextMenu: (pos, sel) => onContextMenu(msg.msgId, pos, sel),
                             onSenderTap: onSenderTap,
                             onReplyTap: onReplyTap,
                           )
@@ -2858,7 +2862,7 @@ class _MessageList extends StatelessWidget {
                             allMessages: messages,
                             senderAvatarB64: senderAvatars?.senderAvatar(msg.senderId),
                             onReply: () => onReply(msg.msgId),
-                            onContextMenu: (pos) => onContextMenu(msg.msgId, pos),
+                            onContextMenu: (pos, sel) => onContextMenu(msg.msgId, pos, sel),
                             onSenderTap: onSenderTap,
                             onReplyTap: onReplyTap,
                           ),

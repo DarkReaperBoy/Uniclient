@@ -29,7 +29,7 @@ class MessageBubble extends StatelessWidget {
   final bool isGroupChat;
   final String? senderAvatarB64;
   final VoidCallback? onReply;
-  final void Function(Offset position)? onContextMenu;
+  final void Function(Offset position, String selectedText)? onContextMenu;
   final ValueChanged<String>? onSenderTap;
   final ValueChanged<String>? onReplyTap;
   final bool isSelected;
@@ -158,10 +158,10 @@ class MessageBubble extends StatelessWidget {
           Flexible(
             child: GestureDetector(
             onLongPressStart: onContextMenu != null
-                ? (details) => onContextMenu!(details.globalPosition)
+                ? (details) => onContextMenu!(details.globalPosition, '')
                 : null,
             onSecondaryTapUp: onContextMenu != null
-                ? (details) => onContextMenu!(details.globalPosition)
+                ? (details) => onContextMenu!(details.globalPosition, '')
                 : null,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: showAvatar ? _maxWidth - 40 : _maxWidth),
@@ -301,6 +301,7 @@ class MessageBubble extends StatelessWidget {
                         baseStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
                         theme: theme,
                         isOutgoing: isOutgoing,
+                        onContextMenu: onContextMenu,
                       ),
                     if (message.hasWebPage)
                       Padding(
@@ -340,6 +341,7 @@ class MessageBubble extends StatelessWidget {
                         baseStyle: theme.textTheme.bodyMedium ?? const TextStyle(),
                         theme: theme,
                         isOutgoing: isOutgoing,
+                        onContextMenu: onContextMenu,
                       ),
                     // Reactions row — pill badges above the timestamp.
                     if (message.reactions.isNotEmpty) ...[
@@ -3537,6 +3539,7 @@ class _RichMessageText extends StatefulWidget {
   final TextStyle baseStyle;
   final ThemeData theme;
   final bool isOutgoing;
+  final void Function(Offset position, String selectedText)? onContextMenu;
 
   const _RichMessageText({
     required this.text,
@@ -3544,6 +3547,7 @@ class _RichMessageText extends StatefulWidget {
     required this.baseStyle,
     required this.theme,
     required this.isOutgoing,
+    this.onContextMenu,
   });
 
   @override
@@ -3560,6 +3564,21 @@ class _RichMessageTextState extends State<_RichMessageText> {
       r.dispose();
     }
     super.dispose();
+  }
+
+  void _triggerContextMenu(EditableTextState editableTextState) {
+    final sel = editableTextState.currentTextEditingValue.selection;
+    final text = widget.text;
+    var selectedText = '';
+    if (sel.isValid && !sel.isCollapsed) {
+      final start = sel.start.clamp(0, text.length);
+      final end = sel.end.clamp(0, text.length);
+      if (end > start) selectedText = text.substring(start, end);
+    }
+    final anchor = editableTextState.contextMenuAnchors.primaryAnchor;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      widget.onContextMenu?.call(anchor, selectedText);
+    });
   }
 
   List<_TextEntity> _parseEntities() {
@@ -3581,13 +3600,23 @@ class _RichMessageTextState extends State<_RichMessageText> {
     _recognizers.clear();
 
     var entities = _parseEntities();
+    final text = widget.text;
     if (entities.isEmpty) {
-      return Text(widget.text, style: widget.baseStyle);
+      if (widget.onContextMenu != null) {
+        return SelectableText(
+          text,
+          style: widget.baseStyle,
+          contextMenuBuilder: (ctx, editableTextState) {
+            _triggerContextMenu(editableTextState);
+            return const SizedBox.shrink();
+          },
+        );
+      }
+      return Text(text, style: widget.baseStyle);
     }
 
     final isDark = widget.theme.brightness == Brightness.dark;
-    final text = widget.text;
-    final textLen = text.length; // already UTF-16 in Dart
+    final textLen = text.length;
 
     // Sort by offset for stable processing.
     entities.sort((a, b) => a.offset.compareTo(b.offset));
@@ -3601,13 +3630,25 @@ class _RichMessageTextState extends State<_RichMessageText> {
     final blockquotes = entities.where((e) => e.type == 'blockquote').toList();
     final inlineEntities = entities.where((e) => e.type != 'blockquote').toList();
 
+    // SelectableText.rich can't handle WidgetSpan (pre/spoiler) or blockquotes.
+    final hasWidgetSpans = entities.any((e) => e.type == 'pre' || e.type == 'spoiler');
+    final canBeSelectable = !hasWidgetSpans && blockquotes.isEmpty && widget.onContextMenu != null;
+
     Widget result;
     if (blockquotes.isEmpty) {
-      // Simple case: no blockquotes, just inline rich text.
-      result = Text.rich(
-        TextSpan(children: _buildInlineSpans(text, 0, textLen, inlineEntities, isDark)),
-        style: widget.baseStyle,
-      );
+      final textSpan = TextSpan(children: _buildInlineSpans(text, 0, textLen, inlineEntities, isDark));
+      if (canBeSelectable) {
+        result = SelectableText.rich(
+          textSpan,
+          style: widget.baseStyle,
+          contextMenuBuilder: (ctx, editableTextState) {
+            _triggerContextMenu(editableTextState);
+            return const SizedBox.shrink();
+          },
+        );
+      } else {
+        result = Text.rich(textSpan, style: widget.baseStyle);
+      }
     } else {
 
     // Complex case: split text into blockquote blocks and normal blocks.
