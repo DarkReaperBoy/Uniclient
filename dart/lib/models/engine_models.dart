@@ -1037,6 +1037,28 @@ class ContactInfo {
           : userId;
 }
 
+// ── Similar channel info ──
+class SimilarChannelInfo {
+  final String chatId;
+  final String title;
+  final String avatarB64;
+  final int memberCount;
+
+  const SimilarChannelInfo({
+    required this.chatId,
+    this.title = '',
+    this.avatarB64 = '',
+    this.memberCount = 0,
+  });
+
+  factory SimilarChannelInfo.fromJson(Map<String, dynamic> j) => SimilarChannelInfo(
+    chatId: j['chat_id'] as String? ?? '',
+    title: j['title'] as String? ?? '',
+    avatarB64: j['avatar_b64'] as String? ?? '',
+    memberCount: j['member_count'] as int? ?? 0,
+  );
+}
+
 // ── User profile (full, with phone/bio) ──
 class UserProfile {
   final String userId;

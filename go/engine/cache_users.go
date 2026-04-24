@@ -201,6 +201,46 @@ func (e *Engine) GetOnlineCount(accountID, chatID string) (int, error) {
 	return 0, nil
 }
 
+// SimilarChannelInfo is the data returned to the UI for similar channels.
+type SimilarChannelInfo struct {
+	ChatID      string `json:"chat_id"`
+	Title       string `json:"title"`
+	AvatarB64   string `json:"avatar_b64,omitempty"`
+	MemberCount int    `json:"member_count,omitempty"`
+}
+
+// GetSimilarChannels returns channels similar to the given channel.
+func (e *Engine) GetSimilarChannels(accountID, chatID string) ([]SimilarChannelInfo, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	type similarProvider interface {
+		GetSimilarChannels(chatID string) ([]cores.Dialog, error)
+	}
+	sp, ok := acc.Core.(similarProvider)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support similar channels")
+	}
+	dialogs, err := sp.GetSimilarChannels(chatID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]SimilarChannelInfo, 0, len(dialogs))
+	for _, d := range dialogs {
+		result = append(result, SimilarChannelInfo{
+			ChatID:      d.ID,
+			Title:       d.Title,
+			AvatarB64:   d.AvatarB64,
+			MemberCount: d.MemberCount,
+		})
+	}
+	return result, nil
+}
+
 // ContactInfo is the contact data returned to the UI for the contacts list.
 type ContactInfo struct {
 	UserID      string `json:"user_id"`

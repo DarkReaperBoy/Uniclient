@@ -1932,6 +1932,12 @@ class _ChannelActionsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ActionRow(
+          icon: Icons.people_outline,
+          label: 'Similar Channels',
+          theme: theme,
+          onTap: () => _showSimilarChannels(context),
+        ),
+        _ActionRow(
           icon: Icons.flag_outlined,
           label: 'Report',
           theme: theme,
@@ -1945,6 +1951,21 @@ class _ChannelActionsSection extends StatelessWidget {
           onTap: () => _confirmLeave(context, chatState),
         ),
       ],
+    );
+  }
+
+  void _showSimilarChannels(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (ctx) => _SimilarChannelsSheet(
+        accountId: chat.accountId,
+        chatId: chat.chatId,
+        theme: theme,
+      ),
     );
   }
 
@@ -4085,5 +4106,181 @@ class _MemberRow extends StatelessWidget {
           });
       }
     });
+  }
+}
+
+class _SimilarChannelsSheet extends StatefulWidget {
+  final String accountId;
+  final String chatId;
+  final ThemeData theme;
+
+  const _SimilarChannelsSheet({
+    required this.accountId,
+    required this.chatId,
+    required this.theme,
+  });
+
+  @override
+  State<_SimilarChannelsSheet> createState() => _SimilarChannelsSheetState();
+}
+
+class _SimilarChannelsSheetState extends State<_SimilarChannelsSheet> {
+  List<SimilarChannelInfo>? _channels;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final engine = context.read<EngineService>();
+    try {
+      final result = await engine.getSimilarChannels(widget.accountId, widget.chatId);
+      if (mounted) setState(() { _channels = result; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.5,
+      minChildSize: 0.3,
+      maxChildSize: 0.85,
+      expand: false,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                color: t.dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
+            child: Text(
+              'Similar Channels',
+              style: t.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(child: _buildBody(scrollController, t)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody(ScrollController sc, ThemeData t) {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_error != null) {
+      return Center(child: Text(_error!, style: TextStyle(color: t.colorScheme.error)));
+    }
+    final channels = _channels;
+    if (channels == null || channels.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Text(
+            'No similar channels found',
+            style: t.textTheme.bodyMedium?.copyWith(color: t.hintColor),
+          ),
+        ),
+      );
+    }
+    return ListView.builder(
+      controller: sc,
+      itemCount: channels.length,
+      itemBuilder: (ctx, i) {
+        final ch = channels[i];
+        return _SimilarChannelRow(channel: ch, theme: t, onTap: () {
+          Navigator.pop(context);
+          final chatState = context.read<ChatState>();
+          chatState.openChatById(ch.chatId);
+        });
+      },
+    );
+  }
+}
+
+class _SimilarChannelRow extends StatelessWidget {
+  final SimilarChannelInfo channel;
+  final ThemeData theme;
+  final VoidCallback onTap;
+
+  const _SimilarChannelRow({
+    required this.channel,
+    required this.theme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          children: [
+            _buildAvatar(),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    channel.title,
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (channel.memberCount > 0)
+                    Text(
+                      '${_formatCount(channel.memberCount)} subscribers',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatar() {
+    if (channel.avatarB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(channel.avatarB64);
+        return CircleAvatar(
+          radius: 23,
+          backgroundImage: MemoryImage(Uint8List.fromList(bytes)),
+        );
+      } catch (_) {}
+    }
+    return CircleAvatar(
+      radius: 23,
+      backgroundColor: const Color(0xFF40A7E3),
+      child: Text(
+        channel.title.isNotEmpty ? channel.title[0].toUpperCase() : '?',
+        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+
+  static String _formatCount(int n) {
+    if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+    if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+    return n.toString();
   }
 }

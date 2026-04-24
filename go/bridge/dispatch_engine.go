@@ -518,6 +518,22 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	// ── Similar channels ──
+
+	case "GetSimilarChannels":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		channels, err := e.GetSimilarChannels(params.AccountID, params.ChatID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(channels)
+
 	// ── Active chat ──
 
 	case "SetActiveChat":

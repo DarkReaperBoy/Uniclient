@@ -824,6 +824,24 @@ class EngineService {
     }
   }
 
+  // ── Similar channels ──
+
+  Future<List<SimilarChannelInfo>> getSimilarChannels(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetSimilarChannels', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return [];
+      final list = json.decode(utf8.decode(respBytes)) as List<dynamic>;
+      return list.map((e) => SimilarChannelInfo.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getSimilarChannels failed', e);
+      return [];
+    }
+  }
+
   // ── Bot callback ──
 
   Future<String> botCallback(String accountId, String chatId, String msgId, String data) async {
