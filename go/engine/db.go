@@ -119,6 +119,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV16,
 	migrateV17,
 	migrateV18,
+	migrateV19,
 }
 
 func migrateDB(db *sql.DB) error {
@@ -260,6 +261,8 @@ func migrateV1(tx *sql.Tx) error {
 			user_id       TEXT NOT NULL,
 			display_name  TEXT,
 			username      TEXT,
+			phone         TEXT,
+			bio           TEXT,
 			avatar_path   TEXT,
 			is_bot        INTEGER NOT NULL DEFAULT 0,
 			is_online     INTEGER NOT NULL DEFAULT 0,
@@ -533,4 +536,18 @@ func migrateV18(tx *sql.Tx) error {
 	}
 	_, err := tx.Exec(`ALTER TABLE chats ADD COLUMN emoji_status_id TEXT`)
 	return err
+}
+
+func migrateV19(tx *sql.Tx) error {
+	if !columnExists(tx, "users", "phone") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN phone TEXT`); err != nil {
+			return err
+		}
+	}
+	if !columnExists(tx, "users", "bio") {
+		if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN bio TEXT`); err != nil {
+			return err
+		}
+	}
+	return nil
 }

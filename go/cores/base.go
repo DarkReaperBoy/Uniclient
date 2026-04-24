@@ -136,6 +136,7 @@ type User struct {
 	Username    string `json:"username,omitempty"`
 	DisplayName string `json:"display_name"`
 	Phone       string `json:"phone,omitempty"`
+	Bio         string `json:"bio,omitempty"`
 	AvatarURL   string `json:"avatar_url,omitempty"`
 	AvatarB64   string `json:"avatar_b64,omitempty"` // base64-encoded thumbnail
 	IsBot       bool   `json:"is_bot"`
@@ -307,6 +308,15 @@ type StarGiftItem struct {
 
 type StarGiftsResult struct {
 	Gifts []StarGiftItem `json:"gifts"`
+}
+
+type PinnedGiftItem struct {
+	ID       int64  `json:"id"`
+	ThumbB64 string `json:"thumb_b64,omitempty"`
+}
+
+type PinnedGiftsResult struct {
+	Gifts []PinnedGiftItem `json:"gifts"`
 }
 
 // ReadState tracks the last-read message positions for the current user and peers.

@@ -414,12 +414,6 @@
 
 ### §8.6 Additional Info Features
 <!-- File: dart/lib/ui/info_panel.dart — not yet implemented -->
-- [ ] Pinned-to-top gifts row: 6 slots around avatar, 20px gift size — spec §8.6
-- [ ] "Show my last seen" pill: 18px height, 12px font, pos(3,58) — spec §8.6
-- [ ] Stars-rating badge: left 107px, top 57px; unique-badge tooltip on click — spec §8.6
-- [ ] Business Hours / Location / Birthday / Personal Channel detail rows — spec §8.6
-- [ ] AyuGram ID row (unconditional) — spec §8.6
-- [ ] Music mini-player hook in info panel: performer + title labels, padding margins(12,8,24,8) — spec §8.6
 
 ### §8.7 Per-Peer-Type Sections
 <!-- File: dart/lib/ui/info_panel.dart -->
@@ -427,7 +421,8 @@
 - [x] Group: member count as status subtitle — spec §8 — DONE in _AvatarHeader
 - [x] Channel: subscriber count as status subtitle — spec §8 — DONE in _AvatarHeader
 - [x] Notifications toggle (mute/unmute) — spec §8 — DONE in _NotificationToggle
-- [ ] DM details: phone, username, bio fields with TextWithLabel style; empty fields auto-hide; Share/Edit/Delete Contact, Block/Unblock actions — spec §8
+- [x] DM details: phone, username, bio fields with TextWithLabel style; empty fields auto-hide — spec §8 — DONE in _ChatDetails + _TextWithLabel (uses GetUserProfile engine method)
+- [ ] DM action buttons: Share/Edit/Delete Contact, Block/Unblock actions in info panel — spec §8
 - [ ] Group info: Leave Group, Report, Edit Group (if admin); click member pushes user profile — spec §8
 - [ ] Channel info: Similar Channels button; Join/Leave actions; no inline members list — spec §8
 - [ ] Live reactivity: name, phone, bio, member count, notifications update as live streams — spec §8

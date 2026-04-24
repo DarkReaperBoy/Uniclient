@@ -14,6 +14,8 @@ type CachedUser struct {
 	UserID      string `json:"user_id"`
 	DisplayName string `json:"display_name,omitempty"`
 	Username    string `json:"username,omitempty"`
+	Phone       string `json:"phone,omitempty"`
+	Bio         string `json:"bio,omitempty"`
 	AvatarPath  string `json:"avatar_path,omitempty"`
 	IsBot       bool   `json:"is_bot"`
 	IsOnline    bool   `json:"is_online"`
@@ -31,18 +33,20 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	}
 
 	_, err := e.db.Exec(
-		`INSERT INTO users (account_id, user_id, display_name, username, is_bot, is_online, is_contact, is_blocked, last_seen, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`INSERT INTO users (account_id, user_id, display_name, username, phone, bio, is_bot, is_online, is_contact, is_blocked, last_seen, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(account_id, user_id) DO UPDATE SET
 		     display_name = excluded.display_name,
 		     username = excluded.username,
+		     phone = COALESCE(NULLIF(excluded.phone, ''), users.phone),
+		     bio = COALESCE(NULLIF(excluded.bio, ''), users.bio),
 		     is_bot = excluded.is_bot,
 		     is_online = excluded.is_online,
 		     is_contact = excluded.is_contact,
 		     is_blocked = excluded.is_blocked,
 		     last_seen = COALESCE(excluded.last_seen, users.last_seen),
 		     updated_at = excluded.updated_at`,
-		accountID, u.ID, u.DisplayName, u.Username,
+		accountID, u.ID, u.DisplayName, u.Username, u.Phone, u.Bio,
 		boolToInt(u.IsBot), boolToInt(u.IsOnline), boolToInt(u.IsContact), boolToInt(u.IsBlocked), lastSeen, now)
 	return err
 }
@@ -50,16 +54,16 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 // GetUser retrieves a cached user profile.
 func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var u CachedUser
-	var displayName, username, avatarPath sql.NullString
+	var displayName, username, phone, bio, avatarPath sql.NullString
 	var lastSeen sql.NullInt64
 	var isBot, isOnline, isContact, isBlocked int
 
 	err := e.db.QueryRow(
-		`SELECT account_id, user_id, display_name, username, avatar_path,
+		`SELECT account_id, user_id, display_name, username, phone, bio, avatar_path,
 		        is_bot, is_online, is_contact, is_blocked, last_seen
 		 FROM users WHERE account_id = ? AND user_id = ?`,
 		accountID, userID).Scan(
-		&u.AccountID, &u.UserID, &displayName, &username, &avatarPath,
+		&u.AccountID, &u.UserID, &displayName, &username, &phone, &bio, &avatarPath,
 		&isBot, &isOnline, &isContact, &isBlocked, &lastSeen)
 	if err != nil {
 		return nil, err
@@ -67,6 +71,8 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 
 	u.DisplayName = displayName.String
 	u.Username = username.String
+	u.Phone = phone.String
+	u.Bio = bio.String
 	u.AvatarPath = avatarPath.String
 	u.IsBot = isBot == 1
 	u.IsOnline = isOnline == 1
@@ -98,6 +104,28 @@ func (e *Engine) GetOrFetchUser(accountID, userID string) (*CachedUser, error) {
 
 	e.UpsertUser(accountID, *profile)
 	return e.GetUser(accountID, userID)
+}
+
+type fullUserProvider interface {
+	GetFullUser(userID string) (*cores.User, error)
+}
+
+// GetUserProfile returns a full user profile, fetching bio via GetFullUser if supported.
+func (e *Engine) GetUserProfile(accountID, userID string) (*CachedUser, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok || acc.Core == nil {
+		return e.GetUser(accountID, userID)
+	}
+
+	if fup, ok := acc.Core.(fullUserProvider); ok {
+		fullUser, err := fup.GetFullUser(userID)
+		if err == nil {
+			e.UpsertUser(accountID, *fullUser)
+			return e.GetUser(accountID, userID)
+		}
+	}
+
+	return e.GetOrFetchUser(accountID, userID)
 }
 
 // MemberInfo is the member data returned to the UI for a chat member list.

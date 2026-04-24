@@ -49,6 +49,7 @@ class _InfoPanelState extends State<InfoPanel> {
   bool _loadingMembers = false;
   String? _loadedChatId;
   Map<String, int> _mediaCounts = {};
+  List<PinnedGiftItem> _pinnedGifts = [];
 
   final List<_InfoNavPage> _navStack = [_InfoNavPage(type: _InfoPageType.chatInfo)];
   bool _isPushing = true;
@@ -151,10 +152,19 @@ class _InfoPanelState extends State<InfoPanel> {
       members = await engine.getChatMembers(chat.accountId, chat.chatId);
     } catch (_) {}
 
+    List<PinnedGiftItem> gifts = [];
+    if (chat.type == ChatType.dm) {
+      try {
+        final result = await engine.getPinnedStarGifts(chat.accountId, chat.chatId);
+        if (result != null) gifts = result.gifts;
+      } catch (_) {}
+    }
+
     if (mounted) {
       setState(() {
         _members = members;
         _mediaCounts = counts;
+        _pinnedGifts = gifts;
         _loadingMembers = false;
       });
     }
@@ -255,6 +265,7 @@ class _InfoPanelState extends State<InfoPanel> {
           members: _members,
           loadingMembers: _loadingMembers,
           mediaCounts: _mediaCounts,
+          pinnedGifts: _pinnedGifts,
           scrollController: _getScrollController(),
           onMemberTap: (member) {
             _pushPage(_InfoNavPage(
@@ -308,6 +319,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   final bool hasUnreadStory;
   final List<Color>? profileBgColors;
   final String emojiStatusId;
+  final List<PinnedGiftItem> pinnedGifts;
 
   static const double maxHeight = 236.0;
   static const double minHeight = 56.0;
@@ -335,6 +347,7 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
     this.hasUnreadStory = false,
     this.profileBgColors,
     this.emojiStatusId = '',
+    this.pinnedGifts = const [],
   });
 
   @override
@@ -355,7 +368,8 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
       storyCount != old.storyCount ||
       hasUnreadStory != old.hasUnreadStory ||
       profileBgColors != old.profileBgColors ||
-      emojiStatusId != old.emojiStatusId;
+      emojiStatusId != old.emojiStatusId ||
+      pinnedGifts.length != old.pinnedGifts.length;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
@@ -447,6 +461,52 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
                 ),
               ),
             ),
+            if (pinnedGifts.isNotEmpty)
+              Positioned(
+                top: 24 - ringTotal,
+                left: 0,
+                right: 0,
+                child: Opacity(
+                  opacity: t,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final panelW = constraints.maxWidth;
+                      final acx = panelW / 2;
+                      const acy = 40.0;
+                      const aw = _avatarSize;
+                      const giftSize = 20.0;
+                      final avatarTop = acy - aw / 2;
+                      final avatarBottom = acy + aw / 2;
+                      final positions = <Offset>[
+                        Offset(acx / 2 - 15, acy - 13),
+                        Offset(2 * acx / 3 - 4, avatarTop - 4),
+                        Offset(2 * acx / 3 - 9, avatarBottom - 16),
+                        Offset(acx + aw / 2 + 50, acy - 13),
+                        Offset(acx + aw / 3 + 30, avatarTop - 4),
+                        Offset(acx + aw / 3 + 40, avatarBottom - 13),
+                      ];
+                      return SizedBox(
+                        width: panelW,
+                        height: aw + ringTotal * 2,
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            for (var i = 0; i < pinnedGifts.length && i < 6; i++)
+                              Positioned(
+                                left: positions[i].dx,
+                                top: positions[i].dy,
+                                child: _PinnedGiftWidget(
+                                  gift: pinnedGifts[i],
+                                  size: giftSize,
+                                ),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             Positioned(
               top: 113,
               left: 20,
@@ -751,6 +811,39 @@ class _FlexibleCoverDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
+class _PinnedGiftWidget extends StatelessWidget {
+  final PinnedGiftItem gift;
+  final double size;
+
+  const _PinnedGiftWidget({required this.gift, required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    if (gift.thumbB64.isNotEmpty) {
+      try {
+        final bytes = base64Decode(gift.thumbB64);
+        return ClipOval(
+          child: Image.memory(
+            Uint8List.fromList(bytes),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          ),
+        );
+      } catch (_) {}
+    }
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Color(0x30808080),
+      ),
+      child: Icon(Icons.card_giftcard, size: size * 0.6, color: const Color(0xFF40a7e3)),
+    );
+  }
+}
+
 class _CoverGradientPainter extends CustomPainter {
   final List<Color> colors;
   final double maxHeight;
@@ -1007,6 +1100,7 @@ class _ChatInfoPage extends StatefulWidget {
   final bool showBackButton;
   final String title;
   final bool isLayer;
+  final List<PinnedGiftItem> pinnedGifts;
 
   const _ChatInfoPage({
     required this.chat,
@@ -1020,6 +1114,7 @@ class _ChatInfoPage extends StatefulWidget {
     required this.onClose,
     required this.showBackButton,
     required this.title,
+    this.pinnedGifts = const [],
     this.isLayer = false,
   });
 
@@ -1124,6 +1219,7 @@ class _ChatInfoPageState extends State<_ChatInfoPage> {
               storyCount: widget.chat.storyCount,
               hasUnreadStory: widget.chat.hasUnreadStory,
               emojiStatusId: widget.chat.emojiStatusId,
+              pinnedGifts: widget.pinnedGifts,
             ),
           ),
           SliverList(
@@ -1277,56 +1373,50 @@ class _UserProfilePageState extends State<_UserProfilePage> {
           SliverList(
             delegate: SliverChildListDelegate([
               const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (widget.member.username.isNotEmpty)
-                      _DetailRow(
-                        icon: Icons.alternate_email,
-                        label: 'Username',
-                        value: widget.member.username,
-                        theme: widget.theme,
-                        onTap: () {
-                          Clipboard.setData(
-                              ClipboardData(text: widget.member.username));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Username copied'),
-                              duration: Duration(seconds: 2),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                      ),
-                    _DetailRow(
-                      icon: Icons.person,
-                      label: 'ID',
-                      value: widget.member.userId,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (widget.member.username.isNotEmpty)
+                    _TextWithLabel(
+                      value: '@${widget.member.username}',
+                      label: 'Username',
                       theme: widget.theme,
                       onTap: () {
                         Clipboard.setData(
-                            ClipboardData(text: widget.member.userId));
+                            ClipboardData(text: '@${widget.member.username}'));
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('ID copied'),
+                            content: Text('Username copied'),
                             duration: Duration(seconds: 2),
                             behavior: SnackBarBehavior.floating,
                           ),
                         );
                       },
                     ),
-                    if (widget.member.role.isNotEmpty &&
-                        widget.member.role != 'member')
-                      _DetailRow(
-                        icon: Icons.shield,
-                        label: 'Role',
-                        value: widget.member.role,
-                        theme: widget.theme,
-                      ),
-                  ],
-                ),
+                  _TextWithLabel(
+                    value: widget.member.userId,
+                    label: 'ID',
+                    theme: widget.theme,
+                    onTap: () {
+                      Clipboard.setData(
+                          ClipboardData(text: widget.member.userId));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('ID copied'),
+                          duration: Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                  if (widget.member.role.isNotEmpty &&
+                      widget.member.role != 'member')
+                    _TextWithLabel(
+                      value: widget.member.role,
+                      label: 'Role',
+                      theme: widget.theme,
+                    ),
+                ],
               ),
               const SizedBox(height: 16),
             ]),
@@ -1460,13 +1550,49 @@ class _AvatarHeader extends StatelessWidget {
   ];
 }
 
-class _ChatDetails extends StatelessWidget {
+class _ChatDetails extends StatefulWidget {
   final ChatInfo chat;
   final ThemeData theme;
 
   const _ChatDetails({required this.chat, required this.theme});
 
-  void _copyToClipboard(BuildContext context, String value, String label) {
+  @override
+  State<_ChatDetails> createState() => _ChatDetailsState();
+}
+
+class _ChatDetailsState extends State<_ChatDetails> {
+  UserProfile? _profile;
+  bool _fetched = false;
+  String? _fetchedFor;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _fetchIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(_ChatDetails old) {
+    super.didUpdateWidget(old);
+    if (old.chat.chatId != widget.chat.chatId) {
+      _fetched = false;
+      _fetchIfNeeded();
+    }
+  }
+
+  void _fetchIfNeeded() {
+    if (widget.chat.type != ChatType.dm) return;
+    final key = '${widget.chat.accountId}:${widget.chat.chatId}';
+    if (_fetchedFor == key) return;
+    _fetchedFor = key;
+    _fetched = false;
+    final engine = context.read<EngineService>();
+    engine.getUserProfile(widget.chat.accountId, widget.chat.chatId).then((p) {
+      if (mounted && p != null) setState(() { _profile = p; _fetched = true; });
+    });
+  }
+
+  void _copy(String value, String label) {
     Clipboard.setData(ClipboardData(text: value));
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1479,81 +1605,89 @@ class _ChatDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
+    final isDm = widget.chat.type == ChatType.dm;
+    final profile = _profile;
+
+    if (isDm && profile != null) {
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Chat ID (as username-like field) — tap to copy.
-          if (chat.chatId.isNotEmpty)
-            _DetailRow(
-              icon: Icons.alternate_email,
-              label: 'ID',
-              value: chat.chatId,
-              theme: theme,
-              onTap: () => _copyToClipboard(context, chat.chatId, 'ID'),
+          if (profile.phone.isNotEmpty)
+            _TextWithLabel(
+              value: '+${profile.phone}',
+              label: 'Phone',
+              theme: widget.theme,
+              onTap: () => _copy('+${profile.phone}', 'Phone'),
             ),
-          // Account — tap to copy.
-          _DetailRow(
-            icon: Icons.account_circle,
-            label: 'Account',
-            value: chat.accountId,
-            theme: theme,
-            onTap: () => _copyToClipboard(context, chat.accountId, 'Account'),
-          ),
+          if (profile.username.isNotEmpty)
+            _TextWithLabel(
+              value: '@${profile.username}',
+              label: 'Username',
+              theme: widget.theme,
+              onTap: () => _copy('@${profile.username}', 'Username'),
+            ),
+          if (profile.bio.isNotEmpty)
+            _TextWithLabel(
+              value: profile.bio,
+              label: 'Bio',
+              theme: widget.theme,
+              onTap: () => _copy(profile.bio, 'Bio'),
+              selectable: true,
+            ),
         ],
-      ),
-    );
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
+class _TextWithLabel extends StatelessWidget {
   final String value;
+  final String label;
   final ThemeData theme;
   final VoidCallback? onTap;
+  final bool selectable;
 
-  const _DetailRow({
-    required this.icon,
-    required this.label,
+  const _TextWithLabel({
     required this.value,
+    required this.label,
     required this.theme,
     this.onTap,
+    this.selectable = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final row = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
+    final content = Padding(
+      padding: const EdgeInsets.only(left: 23, top: 9, right: 20, bottom: 7),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: theme.textTheme.bodySmall?.color),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(value, style: theme.textTheme.bodyMedium, maxLines: 2, overflow: TextOverflow.ellipsis),
-                Text(label, style: TextStyle(fontSize: 12, color: theme.textTheme.bodySmall?.color)),
-              ],
+          if (selectable)
+            SelectableText(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+              maxLines: 5,
+            )
+          else
+            Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(fontSize: 14),
+            ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: theme.colorScheme.primary,
             ),
           ),
-          if (onTap != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Icon(Icons.copy, size: 16, color: theme.textTheme.bodySmall?.color),
-            ),
         ],
       ),
     );
-    if (onTap == null) return row;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: row,
-    );
+    if (onTap == null) return content;
+    return InkWell(onTap: onTap, child: content);
   }
 }
 

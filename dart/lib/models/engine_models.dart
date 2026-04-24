@@ -1037,6 +1037,40 @@ class ContactInfo {
           : userId;
 }
 
+// ── User profile (full, with phone/bio) ──
+class UserProfile {
+  final String userId;
+  final String displayName;
+  final String username;
+  final String phone;
+  final String bio;
+  final bool isBot;
+  final bool isContact;
+  final bool isBlocked;
+
+  const UserProfile({
+    required this.userId,
+    this.displayName = '',
+    this.username = '',
+    this.phone = '',
+    this.bio = '',
+    this.isBot = false,
+    this.isContact = false,
+    this.isBlocked = false,
+  });
+
+  factory UserProfile.fromJson(Map<String, dynamic> j) => UserProfile(
+    userId: j['user_id'] as String? ?? '',
+    displayName: j['display_name'] as String? ?? '',
+    username: j['username'] as String? ?? '',
+    phone: j['phone'] as String? ?? '',
+    bio: j['bio'] as String? ?? '',
+    isBot: j['is_bot'] as bool? ?? false,
+    isContact: j['is_contact'] as bool? ?? false,
+    isBlocked: j['is_blocked'] as bool? ?? false,
+  );
+}
+
 // ── Menu Bot (attach-menu bot with inMainMenu + media) ──
 class MenuBotInfo {
   final String id;
@@ -1543,6 +1577,30 @@ class StarGiftsResult {
   factory StarGiftsResult.fromJson(Map<String, dynamic> json) => StarGiftsResult(
     gifts: (json['gifts'] as List<dynamic>?)
         ?.map((e) => StarGiftItem.fromJson(e as Map<String, dynamic>))
+        .toList() ?? [],
+  );
+}
+
+class PinnedGiftItem {
+  final int id;
+  final String thumbB64;
+
+  const PinnedGiftItem({this.id = 0, this.thumbB64 = ''});
+
+  factory PinnedGiftItem.fromJson(Map<String, dynamic> json) => PinnedGiftItem(
+    id: json['id'] as int? ?? 0,
+    thumbB64: json['thumb_b64'] as String? ?? '',
+  );
+}
+
+class PinnedGiftsResult {
+  final List<PinnedGiftItem> gifts;
+
+  const PinnedGiftsResult({this.gifts = const []});
+
+  factory PinnedGiftsResult.fromJson(Map<String, dynamic> json) => PinnedGiftsResult(
+    gifts: (json['gifts'] as List<dynamic>?)
+        ?.map((e) => PinnedGiftItem.fromJson(e as Map<String, dynamic>))
         .toList() ?? [],
   );
 }

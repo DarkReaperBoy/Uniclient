@@ -927,6 +927,25 @@ func (e *Engine) GetStarGifts(accountID string) (*cores.StarGiftsResult, error) 
 	return fetcher.GetStarGifts()
 }
 
+type PinnedGiftsFetcher interface {
+	GetPinnedStarGifts(chatID string) (*cores.PinnedGiftsResult, error)
+}
+
+func (e *Engine) GetPinnedStarGifts(accountID, chatID string) (*cores.PinnedGiftsResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(PinnedGiftsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support pinned gifts")
+	}
+	return fetcher.GetPinnedStarGifts(chatID)
+}
+
 type AttachMenuBotsFetcher interface {
 	GetAttachMenuBots() ([]cores.AttachMenuBotInfo, error)
 }

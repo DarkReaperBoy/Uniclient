@@ -11603,6 +11603,57 @@ func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 	return res, nil
 }
 
+// GetPinnedStarGifts returns the pinned (saved) star gifts for a given peer, max 6.
+func (t *TelegramCore) GetPinnedStarGifts(chatID string) (*PinnedGiftsResult, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	peer, err := t.resolvePeer(chatID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve peer: %w", err)
+	}
+	inputPeer, err := t.toInputPeer(peer)
+	if err != nil {
+		return nil, fmt.Errorf("to input peer: %w", err)
+	}
+
+	req := &tg.PaymentsGetSavedStarGiftsRequest{
+		Peer:           inputPeer,
+		ExcludeUnsaved: true,
+		Limit:          6,
+	}
+	req.SetFlags()
+	result, err := t.api.PaymentsGetSavedStarGifts(t.ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("get pinned star gifts: %w", err)
+	}
+
+	res := &PinnedGiftsResult{}
+	for _, sg := range result.Gifts {
+		if !sg.PinnedToTop {
+			continue
+		}
+		item := PinnedGiftItem{}
+		switch g := sg.Gift.(type) {
+		case *tg.StarGift:
+			item.ID = g.ID
+			if doc, ok := g.Sticker.(*tg.Document); ok {
+				item.ThumbB64 = extractStrippedThumbB64(doc.Thumbs)
+			}
+		case *tg.StarGiftUnique:
+			item.ID = g.ID
+		}
+		res.Gifts = append(res.Gifts, item)
+		if len(res.Gifts) >= 6 {
+			break
+		}
+	}
+	return res, nil
+}
+
 // DeleteFolder deletes a dialog filter/folder by ID.
 func (t *TelegramCore) DeleteFolder(filterID int) error {
 	t.mu.RLock()
@@ -12160,7 +12211,7 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 	for _, u := range result.Users {
 		if user, ok := u.(*tg.User); ok && user.ID == id {
 			cu := t.convertUser(user)
-			cu.Phone = result.FullUser.About
+			cu.Bio = result.FullUser.About
 			return cu, nil
 		}
 	}

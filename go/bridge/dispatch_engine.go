@@ -975,6 +975,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(map[string]string{"user_id": userID})
 
+	case "GetUserProfile":
+		var params struct {
+			AccountID string `json:"account_id"`
+			UserID    string `json:"user_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		user, err := e.GetUserProfile(params.AccountID, params.UserID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(user)
+
 	case "SendInlineBotResult":
 		var params struct {
 			AccountID string `json:"account_id"`
@@ -1061,6 +1075,20 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			return nil, err
 		}
 		result, err := e.GetStarGifts(params.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+
+	case "GetPinnedStarGifts":
+		var params struct {
+			AccountID string `json:"account_id"`
+			ChatID    string `json:"chat_id"`
+		}
+		if err := json.Unmarshal(payload, &params); err != nil {
+			return nil, err
+		}
+		result, err := e.GetPinnedStarGifts(params.AccountID, params.ChatID)
 		if err != nil {
 			return nil, err
 		}

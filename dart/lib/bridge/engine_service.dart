@@ -735,6 +735,22 @@ class EngineService {
     }
   }
 
+  Future<PinnedGiftsResult?> getPinnedStarGifts(String accountId, String chatId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'chat_id': chatId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetPinnedStarGifts', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return PinnedGiftsResult.fromJson(data);
+    } catch (e) {
+      Debug.error('ENGINE', 'getPinnedStarGifts failed', e);
+      return null;
+    }
+  }
+
   Future<String?> resolveUsername(String accountId, String username) async {
     final payload = utf8.encode(json.encode({
       'account_id': accountId,
@@ -747,6 +763,22 @@ class EngineService {
       return data['user_id'] as String?;
     } catch (e) {
       Debug.error('ENGINE', 'resolveUsername failed', e);
+      return null;
+    }
+  }
+
+  Future<UserProfile?> getUserProfile(String accountId, String userId) async {
+    final payload = utf8.encode(json.encode({
+      'account_id': accountId,
+      'user_id': userId,
+    }));
+    try {
+      final respBytes = await _callAsync('__engine', 'GetUserProfile', Uint8List.fromList(payload));
+      if (respBytes.isEmpty) return null;
+      final data = json.decode(utf8.decode(respBytes)) as Map<String, dynamic>;
+      return UserProfile.fromJson(data);
+    } catch (e) {
+      Debug.error('ENGINE', 'getUserProfile failed', e);
       return null;
     }
   }
