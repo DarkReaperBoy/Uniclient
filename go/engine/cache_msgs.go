@@ -951,6 +951,25 @@ type VoiceTranscriber interface {
 	TranscribeAudio(chatID, msgID string) (pending bool, transcriptionID int64, text string, err error)
 }
 
+type TextTranslator interface {
+	TranslateText(chatID, msgID, toLang string) (string, error)
+}
+
+func (e *Engine) TranslateText(accountID, chatID, msgID, toLang string) (string, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return "", fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return "", fmt.Errorf("account not connected: %s", accountID)
+	}
+	translator, ok := acc.Core.(TextTranslator)
+	if !ok {
+		return "", fmt.Errorf("platform does not support translation")
+	}
+	return translator.TranslateText(chatID, msgID, toLang)
+}
+
 func (e *Engine) TranscribeAudio(accountID, chatID, msgID string) (bool, int64, string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
@@ -14,6 +15,7 @@ import 'package:provider/provider.dart';
 import '../bridge/engine_service.dart';
 import '../models/engine_models.dart';
 import '../state/app_state.dart';
+import '../state/audio_service.dart';
 import '../state/chat_state.dart';
 import '../theme/theme.dart';
 import '../data/emoji_data.dart';
@@ -543,6 +545,9 @@ class _ChatViewState extends State<ChatView>
     final hasVideo = msg.mediaType == 2 && msg.mediaLocalPath.isNotEmpty;
     final hasFile = msg.hasMedia && msg.mediaLocalPath.isNotEmpty && msg.mediaType == 8;
     final hasForwardOrigin = msg.forwardFrom.isNotEmpty;
+    final isVoice = msg.mediaType == 3;
+    final audioService = context.read<AudioService>();
+    final isVoicePlaying = isVoice && audioService.isActiveMsg(msgId);
     final isSticker = msg.mediaType == 6;
     final isGif = msg.mediaType == 7;
     final hasStickerSet = isSticker && msg.hasStickerSet;
@@ -559,11 +564,17 @@ class _ChatViewState extends State<ChatView>
         const TelegramMenuItem(value: 'reply', icon: Icon(Icons.reply), label: 'Reply'),
         if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'quote_reply', icon: Icon(Icons.format_quote), label: 'Quote and Reply'),
+        if (isVoicePlaying)
+          TelegramMenuItem(value: 'voice_timecode', icon: const Icon(Icons.access_time), label: 'at ${_formatTimecode(audioService.position)}'),
         if (selectedText.isNotEmpty)
           const TelegramMenuItem(value: 'copy_selected', icon: Icon(Icons.copy), label: 'Copy Selected Text'),
+        if (selectedText.isNotEmpty)
+          const TelegramMenuItem(value: 'translate_selected', icon: Icon(Icons.translate), label: 'Translate Selected'),
         // Pass 2: message actions
         if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'copy', icon: Icon(Icons.copy), label: 'Copy Text'),
+        if (msg.contentText.isNotEmpty)
+          const TelegramMenuItem(value: 'translate', icon: Icon(Icons.translate), label: 'Translate'),
         if (hasForwardOrigin)
           const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
         if (msg.isOutgoing)
@@ -611,10 +622,16 @@ class _ChatViewState extends State<ChatView>
           setState(() => _replyToId = msgId);
         case 'quote_reply':
           _quoteAndReply(msg);
+        case 'voice_timecode':
+          _insertVoiceTimecode(msg);
         case 'copy_selected':
           Clipboard.setData(ClipboardData(text: selectedText));
+        case 'translate_selected':
+          _translateText(msg, selectedText: selectedText);
         case 'copy':
           Clipboard.setData(ClipboardData(text: msg.contentText));
+        case 'translate':
+          _translateText(msg);
         case 'go_to_message':
           _goToForwardedMessage(msg);
         case 'forward':
@@ -816,6 +833,65 @@ class _ChatViewState extends State<ChatView>
     if (scheduled.isBefore(DateTime.now())) return;
     final chatState = context.read<ChatState>();
     chatState.sendScheduledNow([msgId]);
+  }
+
+  static String _formatTimecode(Duration d) {
+    final m = d.inMinutes;
+    final s = d.inSeconds % 60;
+    return '$m:${s.toString().padLeft(2, '0')}';
+  }
+
+  void _insertVoiceTimecode(CachedMessage msg) {
+    final audioService = context.read<AudioService>();
+    final timecode = _formatTimecode(audioService.position);
+    setState(() {
+      _replyToId = msg.msgId;
+      _composeController.text = timecode;
+      _composeController.selection = TextSelection.fromPosition(
+        TextPosition(offset: timecode.length),
+      );
+    });
+  }
+
+  void _translateText(CachedMessage msg, {String selectedText = ''}) async {
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final langCode = ui.PlatformDispatcher.instance.locale.languageCode;
+    final result = await engine.translateText(
+      msg.accountId,
+      chat.chatId,
+      msg.msgId,
+      langCode,
+    );
+    if (!mounted) return;
+    if (result == null || result.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Translation not available'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Translation'),
+        content: SelectableText(result),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: result));
+              Navigator.pop(ctx);
+            },
+            child: const Text('Copy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showCopyInfoMenu(CachedMessage msg, Offset position) {

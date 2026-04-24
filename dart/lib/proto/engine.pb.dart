@@ -9554,5 +9554,99 @@ class EngineSaveGifRequest extends $pb.GeneratedMessage {
   set extra($core.String v) { $_setString(3, v); }
 }
 
+class EngineTranslateTextRequest extends $pb.GeneratedMessage {
+  factory EngineTranslateTextRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? msgId,
+    $core.String? toLang,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (msgId != null) $result.msgId = msgId;
+    if (toLang != null) $result.toLang = toLang;
+    return $result;
+  }
+  EngineTranslateTextRequest._() : super();
+  factory EngineTranslateTextRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineTranslateTextRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..aOS(4, _omitFieldNames ? '' : 'toLang')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineTranslateTextRequest clone() => EngineTranslateTextRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineTranslateTextRequest copyWith(void Function(EngineTranslateTextRequest) updates) => super.copyWith((message) => updates(message as EngineTranslateTextRequest)) as EngineTranslateTextRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineTranslateTextRequest create() => EngineTranslateTextRequest._();
+  EngineTranslateTextRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineTranslateTextRequest> createRepeated() => $pb.PbList<EngineTranslateTextRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineTranslateTextRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineTranslateTextRequest>(create);
+  static EngineTranslateTextRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get msgId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get toLang => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set toLang($core.String v) { $_setString(3, v); }
+}
+
+class EngineTranslateTextResponse extends $pb.GeneratedMessage {
+  factory EngineTranslateTextResponse({
+    $core.String? translatedText,
+  }) {
+    final $result = create();
+    if (translatedText != null) $result.translatedText = translatedText;
+    return $result;
+  }
+  EngineTranslateTextResponse._() : super();
+  factory EngineTranslateTextResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineTranslateTextResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'translatedText')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineTranslateTextResponse clone() => EngineTranslateTextResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineTranslateTextResponse copyWith(void Function(EngineTranslateTextResponse) updates) => super.copyWith((message) => updates(message as EngineTranslateTextResponse)) as EngineTranslateTextResponse;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineTranslateTextResponse create() => EngineTranslateTextResponse._();
+  EngineTranslateTextResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineTranslateTextResponse> createRepeated() => $pb.PbList<EngineTranslateTextResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineTranslateTextResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineTranslateTextResponse>(create);
+  static EngineTranslateTextResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get translatedText => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set translatedText($core.String v) { $_setString(0, v); }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

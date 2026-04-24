@@ -443,6 +443,23 @@ class EngineService {
     }
   }
 
+  Future<String?> translateText(String accountId, String chatId, String msgId, String toLang) async {
+    final req = epb.EngineTranslateTextRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..toLang = toLang;
+    try {
+      final respBytes = await _callAsync('__engine', 'TranslateText', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineTranslateTextResponse.fromBuffer(respBytes);
+      return resp.translatedText;
+    } catch (e) {
+      Debug.error('ENGINE', 'translateText failed', e);
+      return null;
+    }
+  }
+
   // ── Sticker/GIF actions ──
 
   Future<bool> faveSticker(String accountId, int fileId, {String extra = '', bool unfave = false}) async {

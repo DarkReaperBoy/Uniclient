@@ -439,7 +439,8 @@
 <!-- File: dart/lib/ui/chat_view.dart — _showMessageContextMenu -->
 - [x] Reply, Copy Text, Forward, Select, Edit (own messages), Delete — spec §9 — DONE in chat_view.dart
 - [x] Pin/Unpin toggle — spec §9 — DONE in chat_view.dart
-- [ ] Remaining message actions: Voice Timecode (needs audio player), Translate Selected (needs translation API), View Replies/Topic/Thread (needs thread data in message model) — spec §9
+- [x] Voice Timecode on playing voice messages, Translate message, Translate Selected — spec §9 — DONE in chat_view.dart (TranslateText engine pipeline: Go→bridge→Dart→dialog)
+- [ ] View Replies/Topic/Thread (needs thread data in message model) — spec §9
 - [ ] Report message (needs MessagesReport bridge method) — spec §9
 - [ ] Poll-specific: Translate Poll, Retract Vote, Stop Poll, per-option submenu — spec §9
 - [ ] AyuGram additions: Edits History, Hide Message, User's Messages, Repeat Message, Message Details submenu, Read Until, Burn — spec §9.6

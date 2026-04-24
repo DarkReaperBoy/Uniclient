@@ -952,6 +952,19 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return []byte{}, nil
 
+	case "TranslateText":
+		var req pb.EngineTranslateTextRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		text, err := e.TranslateText(req.AccountId, req.ChatId, req.MsgId, req.ToLang)
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(&pb.EngineTranslateTextResponse{
+			TranslatedText: text,
+		})
+
 	case "GetAttachMenuBots":
 		var req pb.EngineGetAttachMenuBotsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

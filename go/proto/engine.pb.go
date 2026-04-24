@@ -7651,6 +7651,118 @@ func (x *EngineSaveGifRequest) GetExtra() string {
 	return ""
 }
 
+type EngineTranslateTextRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	ToLang        string                 `protobuf:"bytes,4,opt,name=to_lang,json=toLang,proto3" json:"to_lang,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineTranslateTextRequest) Reset() {
+	*x = EngineTranslateTextRequest{}
+	mi := &file_proto_engine_proto_msgTypes[118]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineTranslateTextRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineTranslateTextRequest) ProtoMessage() {}
+
+func (x *EngineTranslateTextRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[118]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineTranslateTextRequest.ProtoReflect.Descriptor instead.
+func (*EngineTranslateTextRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{118}
+}
+
+func (x *EngineTranslateTextRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineTranslateTextRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineTranslateTextRequest) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
+func (x *EngineTranslateTextRequest) GetToLang() string {
+	if x != nil {
+		return x.ToLang
+	}
+	return ""
+}
+
+type EngineTranslateTextResponse struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TranslatedText string                 `protobuf:"bytes,1,opt,name=translated_text,json=translatedText,proto3" json:"translated_text,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *EngineTranslateTextResponse) Reset() {
+	*x = EngineTranslateTextResponse{}
+	mi := &file_proto_engine_proto_msgTypes[119]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineTranslateTextResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineTranslateTextResponse) ProtoMessage() {}
+
+func (x *EngineTranslateTextResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[119]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineTranslateTextResponse.ProtoReflect.Descriptor instead.
+func (*EngineTranslateTextResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{119}
+}
+
+func (x *EngineTranslateTextResponse) GetTranslatedText() string {
+	if x != nil {
+		return x.TranslatedText
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -8326,7 +8438,15 @@ const file_proto_engine_proto_rawDesc = "" +
 	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
 	"\afile_id\x18\x02 \x01(\x03R\x06fileId\x12\x16\n" +
 	"\x06unsave\x18\x03 \x01(\bR\x06unsave\x12\x14\n" +
-	"\x05extra\x18\x04 \x01(\tR\x05extraB\x11Z\x0funiclient/protob\x06proto3"
+	"\x05extra\x18\x04 \x01(\tR\x05extra\"\x84\x01\n" +
+	"\x1aEngineTranslateTextRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x17\n" +
+	"\ato_lang\x18\x04 \x01(\tR\x06toLang\"F\n" +
+	"\x1bEngineTranslateTextResponse\x12'\n" +
+	"\x0ftranslated_text\x18\x01 \x01(\tR\x0etranslatedTextB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -8340,7 +8460,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 118)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 120)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                        // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                        // 1: uniclient.AccountInfo
@@ -8460,6 +8580,8 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineRestrictMemberRequest)(nil),        // 115: uniclient.EngineRestrictMemberRequest
 	(*EngineFaveStickerRequest)(nil),           // 116: uniclient.EngineFaveStickerRequest
 	(*EngineSaveGifRequest)(nil),               // 117: uniclient.EngineSaveGifRequest
+	(*EngineTranslateTextRequest)(nil),         // 118: uniclient.EngineTranslateTextRequest
+	(*EngineTranslateTextResponse)(nil),        // 119: uniclient.EngineTranslateTextResponse
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -8502,7 +8624,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   118,
+			NumMessages:   120,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

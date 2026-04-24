@@ -907,3 +907,18 @@ message EngineSaveGifRequest {
   bool   unsave     = 3;
   string extra      = 4;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Translation
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineTranslateTextRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string msg_id     = 3;
+  string to_lang    = 4;
+}
+
+message EngineTranslateTextResponse {
+  string translated_text = 1;
+}
