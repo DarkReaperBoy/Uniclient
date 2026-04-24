@@ -917,6 +917,40 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return proto.Marshal(resp)
 
+	case "GetInstalledEmojiSets":
+		var req pb.EngineGetInstalledEmojiSetsRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		sets, err := e.GetInstalledEmojiSets(req.AccountId)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineGetInstalledEmojiSetsResponse{}
+		for _, s := range sets {
+			summary := &pb.EngineEmojiSetSummary{
+				SetId:      s.SetID,
+				AccessHash: s.AccessHash,
+				Title:      s.Title,
+				ShortName:  s.ShortName,
+				Count:      int32(s.Count),
+				Installed:  s.Installed,
+				Premium:    s.Premium,
+			}
+			for _, st := range s.Stickers {
+				summary.Stickers = append(summary.Stickers, &pb.EngineStickerInfo{
+					Emoji:    st.Emoji,
+					ThumbB64: st.ThumbB64,
+					Width:    int32(st.Width),
+					Height:   int32(st.Height),
+					MimeType: st.MimeType,
+					FileId:   st.FileID,
+				})
+			}
+			resp.Sets = append(resp.Sets, summary)
+		}
+		return proto.Marshal(resp)
+
 	case "TranscribeAudio":
 		var req pb.EngineTranscribeAudioRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

@@ -10052,5 +10052,165 @@ class EngineStopPollRequest extends $pb.GeneratedMessage {
   set msgId($core.String v) { $_setString(2, v); }
 }
 
+// ── Installed Custom Emoji Sets ──
+
+class EngineGetInstalledEmojiSetsRequest extends $pb.GeneratedMessage {
+  factory EngineGetInstalledEmojiSetsRequest({$core.String? accountId}) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    return $result;
+  }
+  EngineGetInstalledEmojiSetsRequest._() : super();
+  factory EngineGetInstalledEmojiSetsRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetInstalledEmojiSetsRequest.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetInstalledEmojiSetsRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetInstalledEmojiSetsRequest clone() => EngineGetInstalledEmojiSetsRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineGetInstalledEmojiSetsRequest copyWith(void Function(EngineGetInstalledEmojiSetsRequest) updates) => super.copyWith((message) => updates(message as EngineGetInstalledEmojiSetsRequest)) as EngineGetInstalledEmojiSetsRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetInstalledEmojiSetsRequest create() => EngineGetInstalledEmojiSetsRequest._();
+  EngineGetInstalledEmojiSetsRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineGetInstalledEmojiSetsRequest> createRepeated() => $pb.PbList<EngineGetInstalledEmojiSetsRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetInstalledEmojiSetsRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetInstalledEmojiSetsRequest>(create);
+  static EngineGetInstalledEmojiSetsRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+}
+
+class EngineEmojiSetSummary extends $pb.GeneratedMessage {
+  factory EngineEmojiSetSummary({
+    $fixnum.Int64? setId,
+    $fixnum.Int64? accessHash,
+    $core.String? title,
+    $core.String? shortName,
+    $core.int? count,
+    $core.bool? installed,
+    $core.bool? premium,
+    $core.Iterable<EngineStickerInfo>? stickers,
+  }) {
+    final $result = create();
+    if (setId != null) $result.setId = setId;
+    if (accessHash != null) $result.accessHash = accessHash;
+    if (title != null) $result.title = title;
+    if (shortName != null) $result.shortName = shortName;
+    if (count != null) $result.count = count;
+    if (installed != null) $result.installed = installed;
+    if (premium != null) $result.premium = premium;
+    if (stickers != null) $result.stickers.addAll(stickers);
+    return $result;
+  }
+  EngineEmojiSetSummary._() : super();
+  factory EngineEmojiSetSummary.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineEmojiSetSummary.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineEmojiSetSummary', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aInt64(1, _omitFieldNames ? '' : 'setId')
+    ..aInt64(2, _omitFieldNames ? '' : 'accessHash')
+    ..aOS(3, _omitFieldNames ? '' : 'title')
+    ..aOS(4, _omitFieldNames ? '' : 'shortName')
+    ..a<$core.int>(5, _omitFieldNames ? '' : 'count', $pb.PbFieldType.O3)
+    ..aOB(6, _omitFieldNames ? '' : 'installed')
+    ..aOB(7, _omitFieldNames ? '' : 'premium')
+    ..pc<EngineStickerInfo>(8, _omitFieldNames ? '' : 'stickers', $pb.PbFieldType.PM, subBuilder: EngineStickerInfo.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineEmojiSetSummary clone() => EngineEmojiSetSummary()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineEmojiSetSummary copyWith(void Function(EngineEmojiSetSummary) updates) => super.copyWith((message) => updates(message as EngineEmojiSetSummary)) as EngineEmojiSetSummary;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineEmojiSetSummary create() => EngineEmojiSetSummary._();
+  EngineEmojiSetSummary createEmptyInstance() => create();
+  static $pb.PbList<EngineEmojiSetSummary> createRepeated() => $pb.PbList<EngineEmojiSetSummary>();
+  @$core.pragma('dart2js:noInline')
+  static EngineEmojiSetSummary getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineEmojiSetSummary>(create);
+  static EngineEmojiSetSummary? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get setId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set setId($fixnum.Int64 v) { $_setInt64(0, v); }
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get accessHash => $_getI64(1);
+  @$pb.TagNumber(2)
+  set accessHash($fixnum.Int64 v) { $_setInt64(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get title => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set title($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.String get shortName => $_getSZ(3);
+  @$pb.TagNumber(4)
+  set shortName($core.String v) { $_setString(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.int get count => $_getIZ(4);
+  @$pb.TagNumber(5)
+  set count($core.int v) { $_setSignedInt32(4, v); }
+
+  @$pb.TagNumber(6)
+  $core.bool get installed => $_getBF(5);
+  @$pb.TagNumber(6)
+  set installed($core.bool v) { $_setBool(5, v); }
+
+  @$pb.TagNumber(7)
+  $core.bool get premium => $_getBF(6);
+  @$pb.TagNumber(7)
+  set premium($core.bool v) { $_setBool(6, v); }
+
+  @$pb.TagNumber(8)
+  $core.List<EngineStickerInfo> get stickers => $_getList(7);
+}
+
+class EngineGetInstalledEmojiSetsResponse extends $pb.GeneratedMessage {
+  factory EngineGetInstalledEmojiSetsResponse({
+    $core.Iterable<EngineEmojiSetSummary>? sets,
+  }) {
+    final $result = create();
+    if (sets != null) $result.sets.addAll(sets);
+    return $result;
+  }
+  EngineGetInstalledEmojiSetsResponse._() : super();
+  factory EngineGetInstalledEmojiSetsResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+  factory EngineGetInstalledEmojiSetsResponse.fromJson($core.String i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromJson(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineGetInstalledEmojiSetsResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..pc<EngineEmojiSetSummary>(1, _omitFieldNames ? '' : 'sets', $pb.PbFieldType.PM, subBuilder: EngineEmojiSetSummary.create)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineGetInstalledEmojiSetsResponse clone() => EngineGetInstalledEmojiSetsResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineGetInstalledEmojiSetsResponse copyWith(void Function(EngineGetInstalledEmojiSetsResponse) updates) => super.copyWith((message) => updates(message as EngineGetInstalledEmojiSetsResponse)) as EngineGetInstalledEmojiSetsResponse;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineGetInstalledEmojiSetsResponse create() => EngineGetInstalledEmojiSetsResponse._();
+  EngineGetInstalledEmojiSetsResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineGetInstalledEmojiSetsResponse> createRepeated() => $pb.PbList<EngineGetInstalledEmojiSetsResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineGetInstalledEmojiSetsResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineGetInstalledEmojiSetsResponse>(create);
+  static EngineGetInstalledEmojiSetsResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.List<EngineEmojiSetSummary> get sets => $_getList(0);
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

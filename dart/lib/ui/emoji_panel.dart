@@ -1,5 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../bridge/engine_service.dart';
+import '../models/engine_models.dart';
+import '../state/app_state.dart';
 
 const double _kPanelWidth = 345.0;
 const double _kPanelMinHeight = 278.0;
@@ -670,11 +677,37 @@ class _EmojiTabState extends State<_EmojiTab> {
   String? _skinToneTarget;
   Offset _skinToneAnchorGlobal = Offset.zero;
   Size _skinToneAnchorSize = Size.zero;
+  List<CustomEmojiSetSummary> _customPacks = [];
+  final Set<int> _expandedPacks = {};
+  bool _loadedPacks = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetchCustomPacks());
+  }
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchCustomPacks() async {
+    if (_loadedPacks) return;
+    try {
+      final appState = context.read<AppState>();
+      final engine = context.read<EngineService>();
+      final activeAccount = appState.activeAccount;
+      if (activeAccount == null) return;
+      final packs = await engine.getInstalledEmojiSets(activeAccount.id);
+      if (mounted) {
+        setState(() {
+          _customPacks = packs;
+          _loadedPacks = true;
+        });
+      }
+    } catch (_) {}
   }
 
   void _selectCategory(int index) {
@@ -717,6 +750,16 @@ class _EmojiTabState extends State<_EmojiTab> {
     _onEmojiTap(emoji);
   }
 
+  void _togglePackExpanded(int setId) {
+    setState(() {
+      if (_expandedPacks.contains(setId)) {
+        _expandedPacks.remove(setId);
+      } else {
+        _expandedPacks.add(setId);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -733,21 +776,29 @@ class _EmojiTabState extends State<_EmojiTab> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final columns = ((constraints.maxWidth - 2 * _kEmojiGridPadding) / _kEmojiCellSize).floor().clamp(1, 20);
-                  return GridView.builder(
+                  return CustomScrollView(
                     controller: _scrollController,
-                    padding: const EdgeInsets.all(_kEmojiGridPadding),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      childAspectRatio: 1.0,
-                    ),
-                    itemCount: emojis.length,
-                    itemBuilder: (context, index) {
-                      return _EmojiCell(
-                        emoji: emojis[index],
-                        onEmojiSelected: _onEmojiTap,
-                        onSkinToneLongPress: _showSkinTone,
-                      );
-                    },
+                    slivers: [
+                      SliverPadding(
+                        padding: const EdgeInsets.all(_kEmojiGridPadding),
+                        sliver: SliverGrid(
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: columns,
+                            childAspectRatio: 1.0,
+                          ),
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => _EmojiCell(
+                              emoji: emojis[index],
+                              onEmojiSelected: _onEmojiTap,
+                              onSkinToneLongPress: _showSkinTone,
+                            ),
+                            childCount: emojis.length,
+                          ),
+                        ),
+                      ),
+                      for (final pack in _customPacks)
+                        ..._buildPackSection(pack, columns, isDark),
+                    ],
                   );
                 },
               ),
@@ -770,6 +821,47 @@ class _EmojiTabState extends State<_EmojiTab> {
         ],
       ],
     );
+  }
+
+  List<Widget> _buildPackSection(CustomEmojiSetSummary pack, int columns, bool isDark) {
+    final isExpanded = _expandedPacks.contains(pack.setId);
+    final maxCollapsedItems = columns * 3;
+    final stickers = pack.stickers;
+    final showCollapsed = !isExpanded && stickers.length > maxCollapsedItems;
+    final visibleStickers = showCollapsed ? stickers.sublist(0, maxCollapsedItems) : stickers;
+    final hiddenCount = stickers.length - maxCollapsedItems;
+
+    return [
+      SliverToBoxAdapter(
+        child: _CustomPackHeader(
+          title: pack.title,
+          installed: pack.installed,
+          premium: pack.premium,
+          isDark: isDark,
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: _kEmojiGridPadding),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            childAspectRatio: 1.0,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _CustomEmojiCell(sticker: visibleStickers[index]),
+            childCount: visibleStickers.length,
+          ),
+        ),
+      ),
+      if (showCollapsed && hiddenCount > 0)
+        SliverToBoxAdapter(
+          child: _OverflowBadge(
+            count: hiddenCount,
+            isDark: isDark,
+            onTap: () => _togglePackExpanded(pack.setId),
+          ),
+        ),
+    ];
   }
 
   Widget _buildSkinTonePopup(BuildContext context) {
@@ -832,6 +924,214 @@ class _EmojiTabState extends State<_EmojiTab> {
                   ),
                 ],
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomPackHeader extends StatelessWidget {
+  final String title;
+  final bool installed;
+  final bool premium;
+  final bool isDark;
+
+  const _CustomPackHeader({
+    required this.title,
+    required this.installed,
+    required this.premium,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final headerColor = isDark ? const Color(0xFF7e8b93) : const Color(0xFF999999);
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        _kEmojiGridPadding, 12, _kEmojiGridPadding, 4,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: headerColor,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (!installed)
+            GestureDetector(
+              onTap: () {},
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: premium
+                      ? const Color(0xFF7B68EE)
+                      : accentColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  premium ? 'Unlock' : 'Add',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomEmojiCell extends StatefulWidget {
+  final StickerInfoItem sticker;
+
+  const _CustomEmojiCell({required this.sticker});
+
+  @override
+  State<_CustomEmojiCell> createState() => _CustomEmojiCellState();
+}
+
+class _CustomEmojiCellState extends State<_CustomEmojiCell> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hoverBg = isDark ? const Color(0xFF202b36) : const Color(0xFFf0f0f0);
+
+    Widget child;
+    if (widget.sticker.thumbB64.isNotEmpty) {
+      try {
+        final bytes = _decodeStrippedThumb(widget.sticker.thumbB64);
+        child = Padding(
+          padding: const EdgeInsets.all(4),
+          child: Image.memory(bytes, fit: BoxFit.contain, gaplessPlayback: true),
+        );
+      } catch (_) {
+        child = _fallbackEmoji();
+      }
+    } else {
+      child = _fallbackEmoji();
+    }
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        decoration: BoxDecoration(
+          color: _hovered ? hoverBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        alignment: Alignment.center,
+        child: child,
+      ),
+    );
+  }
+
+  Widget _fallbackEmoji() {
+    return Text(
+      widget.sticker.emoji.isNotEmpty ? widget.sticker.emoji : '?',
+      style: const TextStyle(fontSize: 26),
+    );
+  }
+
+  static Uint8List _decodeStrippedThumb(String b64) {
+    final stripped = base64Decode(b64);
+    if (stripped.length < 3 || stripped[0] != 0x01) return stripped;
+    final w = stripped[1];
+    final h = stripped[2];
+    final header = _jpegHeader(w, h);
+    const footer = [0xFF, 0xD9];
+    final buf = Uint8List(header.length + stripped.length - 3 + footer.length);
+    buf.setAll(0, header);
+    buf.setAll(header.length, stripped.sublist(3));
+    buf.setAll(header.length + stripped.length - 3, footer);
+    return buf;
+  }
+
+  static Uint8List _jpegHeader(int w, int h) {
+    final tmpl = Uint8List.fromList([
+      0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+      0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43,
+      0x00, 0x28, 0x1C, 0x1E, 0x23, 0x1E, 0x19, 0x28, 0x23, 0x21, 0x23, 0x2D,
+      0x2B, 0x28, 0x30, 0x3C, 0x64, 0x41, 0x3C, 0x37, 0x37, 0x3C, 0x7B, 0x58,
+      0x5D, 0x49, 0x64, 0x91, 0x80, 0x99, 0x96, 0x8F, 0x80, 0x8C, 0x8A, 0xA0,
+      0xB4, 0xE6, 0xC3, 0xA0, 0xAA, 0xDA, 0xAD, 0x8A, 0x8C, 0xC8, 0xFF, 0xCB,
+      0xDA, 0xEE, 0xF5, 0xFF, 0xFF, 0xFF, 0x9B, 0xC1, 0xFF, 0xFF, 0xFF, 0xFA,
+      0xFF, 0xE6, 0xFD, 0xFF, 0xF8, 0xFF, 0xDB, 0x00, 0x43, 0x01, 0x2B, 0x2D,
+      0x2D, 0x3C, 0x35, 0x3C, 0x76, 0x41, 0x41, 0x76, 0xF8, 0xA5, 0x8C, 0xA5,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8, 0xF8,
+      0xF8, 0xF8, 0xFF, 0xC0, 0x00, 0x11, 0x08, 0x00, 0x00, 0x00, 0x00, 0x03,
+      0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01, 0xFF, 0xC4, 0x00,
+      0x1F, 0x00, 0x00, 0x01, 0x05, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05,
+      0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0xFF, 0xC4, 0x00, 0xB5, 0x10, 0x00,
+      0x02, 0x01, 0x03, 0x03, 0x02, 0x04, 0x03, 0x05, 0x05, 0x04, 0x04, 0x00,
+      0x00, 0x01, 0x7D, 0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21,
+      0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07, 0x22, 0x71, 0x14, 0x32, 0x81,
+      0x91, 0xA1, 0x08, 0x23, 0x42, 0xB1, 0xC1, 0x15, 0x52, 0xD1, 0xF0, 0x24,
+      0x33, 0x62, 0x72, 0x82, 0x09, 0x0A, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x25,
+      0x26, 0x27, 0x28, 0x29, 0x2A, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A,
+      0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x53, 0x54, 0x55, 0x56,
+      0x57, 0x58, 0x59, 0x5A, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A,
+      0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x83, 0x84, 0x85, 0x86,
+      0x87, 0x88, 0x89, 0x8A, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99,
+      0x9A, 0xA2, 0xA3, 0xA4, 0xA5, 0xA6, 0xA7, 0xA8, 0xA9, 0xAA, 0xB2, 0xB3,
+    ]);
+    tmpl[164] = h;
+    tmpl[166] = w;
+    return tmpl;
+  }
+}
+
+class _OverflowBadge extends StatelessWidget {
+  final int count;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _OverflowBadge({
+    required this.count,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accentColor = isDark ? const Color(0xFF6ab3f3) : const Color(0xFF168acd);
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: accentColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '+$count',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: accentColor,
+              ),
             ),
           ),
         ),

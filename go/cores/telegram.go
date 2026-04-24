@@ -11585,6 +11585,84 @@ func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHa
 	return res, nil
 }
 
+// GetInstalledEmojiSets returns the user's installed custom emoji sticker sets with thumbnails.
+func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	if !t.authed || t.api == nil {
+		return nil, ErrAuth
+	}
+
+	result, err := t.api.MessagesGetEmojiStickers(t.ctx, 0)
+	if err != nil {
+		return nil, fmt.Errorf("get emoji stickers: %w", err)
+	}
+	allStickers, ok := result.(*tg.MessagesAllStickers)
+	if !ok {
+		return nil, nil
+	}
+
+	var sets []EmojiSetSummary
+	for _, s := range allStickers.Sets {
+		_, installed := s.GetInstalledDate()
+		summary := EmojiSetSummary{
+			SetID:      s.ID,
+			AccessHash: s.AccessHash,
+			Title:      s.Title,
+			ShortName:  s.ShortName,
+			Count:      s.Count,
+			Installed:  installed,
+		}
+
+		setResult, err := t.api.MessagesGetStickerSet(t.ctx, &tg.MessagesGetStickerSetRequest{
+			Stickerset: &tg.InputStickerSetID{ID: s.ID, AccessHash: s.AccessHash},
+		})
+		if err != nil {
+			sets = append(sets, summary)
+			continue
+		}
+		stickerSet, ok := setResult.(*tg.MessagesStickerSet)
+		if !ok {
+			sets = append(sets, summary)
+			continue
+		}
+
+		emojiByDocID := make(map[int64]string)
+		for _, pack := range stickerSet.Packs {
+			for _, docID := range pack.Documents {
+				emojiByDocID[docID] = pack.Emoticon
+			}
+		}
+
+		for _, doc := range stickerSet.Documents {
+			d, ok := doc.(*tg.Document)
+			if !ok {
+				continue
+			}
+			t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
+			si := StickerInfo{
+				Emoji:    emojiByDocID[d.ID],
+				ThumbB64: extractStrippedThumbB64(d.Thumbs),
+				MimeType: d.MimeType,
+				FileID:   strconv.FormatInt(d.ID, 10),
+			}
+			for _, attr := range d.Attributes {
+				switch a := attr.(type) {
+				case *tg.DocumentAttributeImageSize:
+					si.Width = a.W
+					si.Height = a.H
+				case *tg.DocumentAttributeVideo:
+					si.Width = a.W
+					si.Height = a.H
+				}
+			}
+			summary.Stickers = append(summary.Stickers, si)
+		}
+		sets = append(sets, summary)
+	}
+	return sets, nil
+}
+
 // GetStarGifts returns the list of available star gifts for purchase.
 func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 	t.mu.RLock()

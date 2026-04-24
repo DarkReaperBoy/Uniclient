@@ -280,6 +280,17 @@ type StickerSetResult struct {
 	Stickers  []StickerInfo `json:"stickers"`
 }
 
+type EmojiSetSummary struct {
+	SetID      int64         `json:"set_id"`
+	AccessHash int64         `json:"access_hash"`
+	Title      string        `json:"title"`
+	ShortName  string        `json:"short_name"`
+	Count      int           `json:"count"`
+	Installed  bool          `json:"installed"`
+	Premium    bool          `json:"premium"`
+	Stickers   []StickerInfo `json:"stickers"`
+}
+
 type AttachMenuBotInfo struct {
 	BotID     int64  `json:"bot_id"`
 	ShortName string `json:"short_name"`

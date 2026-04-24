@@ -894,6 +894,25 @@ func (e *Engine) GetStickerSetInfo(accountID, shortName string, setID, accessHas
 	return fetcher.GetStickerSetInfo(shortName, setID, accessHash)
 }
 
+type InstalledEmojiSetsFetcher interface {
+	GetInstalledEmojiSets() ([]cores.EmojiSetSummary, error)
+}
+
+func (e *Engine) GetInstalledEmojiSets(accountID string) ([]cores.EmojiSetSummary, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	fetcher, ok := acc.Core.(InstalledEmojiSetsFetcher)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support custom emoji sets")
+	}
+	return fetcher.GetInstalledEmojiSets()
+}
+
 type StickerFaver interface {
 	FaveSticker(fileID int64, extra string, unfave bool) error
 }

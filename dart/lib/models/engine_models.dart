@@ -1510,6 +1510,28 @@ class StickerSetInfo {
   });
 }
 
+class CustomEmojiSetSummary {
+  final int setId;
+  final int accessHash;
+  final String title;
+  final String shortName;
+  final int count;
+  final bool installed;
+  final bool premium;
+  final List<StickerInfoItem> stickers;
+
+  const CustomEmojiSetSummary({
+    this.setId = 0,
+    this.accessHash = 0,
+    this.title = '',
+    this.shortName = '',
+    this.count = 0,
+    this.installed = false,
+    this.premium = false,
+    this.stickers = const [],
+  });
+}
+
 class InlineBotResult {
   final String id;
   final String type;

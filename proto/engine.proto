@@ -980,3 +980,26 @@ message EngineStopPollRequest {
   string chat_id    = 2;
   string msg_id     = 3;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Installed Custom Emoji Sets
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineGetInstalledEmojiSetsRequest {
+  string account_id = 1;
+}
+
+message EngineEmojiSetSummary {
+  int64  set_id      = 1;
+  int64  access_hash = 2;
+  string title       = 3;
+  string short_name  = 4;
+  int32  count       = 5;
+  bool   installed   = 6;
+  bool   premium     = 7;
+  repeated EngineStickerInfo stickers = 8;
+}
+
+message EngineGetInstalledEmojiSetsResponse {
+  repeated EngineEmojiSetSummary sets = 1;
+}

@@ -470,7 +470,6 @@
 
 ### §10.3 Emoji Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->
-- [ ] Custom emoji pack sections: locked packs show "Unlock" (premium gate); free packs show "Add"; collapsed sets show 3 rows + "+N" overflow badge — spec §10.3
 
 ### §10.4 Sticker Tab
 <!-- File: dart/lib/ui/emoji_panel.dart -->

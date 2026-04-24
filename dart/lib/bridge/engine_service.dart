@@ -426,6 +426,38 @@ class EngineService {
     }
   }
 
+  // ── Installed custom emoji sets ──
+
+  Future<List<CustomEmojiSetSummary>> getInstalledEmojiSets(String accountId) async {
+    final req = epb.EngineGetInstalledEmojiSetsRequest()
+      ..accountId = accountId;
+    try {
+      final respBytes = await _callAsync('__engine', 'GetInstalledEmojiSets', req.writeToBuffer());
+      if (respBytes.isEmpty) return [];
+      final resp = epb.EngineGetInstalledEmojiSetsResponse.fromBuffer(respBytes);
+      return resp.sets.map((s) => CustomEmojiSetSummary(
+        setId: s.setId.toInt(),
+        accessHash: s.accessHash.toInt(),
+        title: s.title,
+        shortName: s.shortName,
+        count: s.count,
+        installed: s.installed,
+        premium: s.premium,
+        stickers: s.stickers.map((st) => StickerInfoItem(
+          emoji: st.emoji,
+          thumbB64: st.thumbB64,
+          width: st.width,
+          height: st.height,
+          mimeType: st.mimeType,
+          fileId: st.fileId,
+        )).toList(),
+      )).toList();
+    } catch (e) {
+      Debug.error('ENGINE', 'getInstalledEmojiSets failed', e);
+      return [];
+    }
+  }
+
   // ── Voice transcription ──
 
   Future<({bool pending, int transcriptionId, String text})?> transcribeAudio(String accountId, String chatId, String msgId) async {
