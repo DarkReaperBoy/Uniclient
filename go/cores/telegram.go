@@ -9613,6 +9613,19 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 	}
 
+	if replies, ok := msg.GetReplies(); ok && replies.Replies > 0 {
+		if m.Extra == nil {
+			m.Extra = make(map[string]interface{})
+		}
+		m.Extra["replies_count"] = replies.Replies
+		if replies.Comments {
+			m.Extra["replies_is_comments"] = true
+		}
+		if chID, ok := replies.GetChannelID(); ok && chID != 0 {
+			m.Extra["replies_channel_id"] = strconv.FormatInt(chID, 10)
+		}
+	}
+
 	if fwd, ok := msg.GetFwdFrom(); ok {
 		// Resolve forward origin to a display name.
 		// Priority: FromName (privacy-set) > cached user/channel name > PostAuthor > peer ID fallback.

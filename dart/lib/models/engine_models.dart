@@ -416,6 +416,11 @@ class CachedMessage {
   final int wpPhotoH;
   final int wpDuration;
 
+  // Thread/replies data (extracted from contentRaw extra fields).
+  final int repliesCount;
+  final String repliesChannelId;
+  final bool repliesIsComments;
+
   // Bot keyboard data (extracted from contentRaw extra fields).
   final ReplyKeyboardData? replyKeyboard;
   final List<List<InlineKeyboardButton>> inlineKeyboard;
@@ -505,6 +510,9 @@ class CachedMessage {
     this.wpPhotoW = 0,
     this.wpPhotoH = 0,
     this.wpDuration = 0,
+    this.repliesCount = 0,
+    this.repliesChannelId = '',
+    this.repliesIsComments = false,
     this.replyKeyboard,
     this.inlineKeyboard = const [],
     this.keyboardHide = false,
@@ -653,6 +661,9 @@ class CachedMessage {
     int? wpPhotoW,
     int? wpPhotoH,
     int? wpDuration,
+    int? repliesCount,
+    String? repliesChannelId,
+    bool? repliesIsComments,
     ReplyKeyboardData? replyKeyboard,
     List<List<InlineKeyboardButton>>? inlineKeyboard,
     bool? keyboardHide,
@@ -740,6 +751,9 @@ class CachedMessage {
     wpPhotoW: wpPhotoW ?? this.wpPhotoW,
     wpPhotoH: wpPhotoH ?? this.wpPhotoH,
     wpDuration: wpDuration ?? this.wpDuration,
+    repliesCount: repliesCount ?? this.repliesCount,
+    repliesChannelId: repliesChannelId ?? this.repliesChannelId,
+    repliesIsComments: repliesIsComments ?? this.repliesIsComments,
     replyKeyboard: replyKeyboard ?? this.replyKeyboard,
     inlineKeyboard: inlineKeyboard ?? this.inlineKeyboard,
     keyboardHide: keyboardHide ?? this.keyboardHide,
@@ -748,6 +762,8 @@ class CachedMessage {
   );
 
   bool get hasStickerSet => stickerSetShortName.isNotEmpty || stickerSetId != 0;
+  bool get hasReplies => repliesCount > 0;
+  bool get hasThread => topicId.isNotEmpty || hasReplies;
   bool get hasReplyKeyboard => replyKeyboard != null && replyKeyboard!.rows.isNotEmpty;
   bool get hasInlineKeyboard => inlineKeyboard.isNotEmpty;
 }

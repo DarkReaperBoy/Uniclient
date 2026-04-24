@@ -577,6 +577,16 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'translate', icon: Icon(Icons.translate), label: 'Translate'),
         if (hasForwardOrigin)
           const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
+        if (msg.hasThread)
+          TelegramMenuItem(
+            value: 'view_thread',
+            icon: const Icon(Icons.forum_outlined),
+            label: msg.topicId.isNotEmpty
+                ? 'View Topic'
+                : msg.repliesIsComments
+                    ? 'View Replies (${msg.repliesCount})'
+                    : 'View Thread (${msg.repliesCount})',
+          ),
         if (msg.isOutgoing)
           const TelegramMenuItem(value: 'edit', icon: Icon(Icons.edit), label: 'Edit'),
         TelegramMenuItem(
@@ -634,6 +644,8 @@ class _ChatViewState extends State<ChatView>
           _translateText(msg);
         case 'go_to_message':
           _goToForwardedMessage(msg);
+        case 'view_thread':
+          _viewThread(msg);
         case 'forward':
           _forwardSingle(context, chatState, msgId);
         case 'select':
@@ -703,6 +715,21 @@ class _ChatViewState extends State<ChatView>
         _scrollController.jumpTo(0);
       }
     });
+  }
+
+  void _viewThread(CachedMessage msg) {
+    final chatState = context.read<ChatState>();
+    if (msg.topicId.isNotEmpty) {
+      chatState.setActiveChannel(msg.topicId);
+      return;
+    }
+    if (msg.repliesChannelId.isNotEmpty) {
+      chatState.openChatById(msg.repliesChannelId);
+      return;
+    }
+    if (msg.hasReplies) {
+      chatState.setActiveChannel(msg.msgId);
+    }
   }
 
   void _saveMediaToDownloads(CachedMessage msg) async {
