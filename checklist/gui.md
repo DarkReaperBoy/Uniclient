@@ -456,11 +456,7 @@
 <!-- File: dart/lib/ui/chat_view.dart (_ShareBox, _ShareBoxItem) -->
 
 ### §9.8 Delete Confirmation Box
-<!-- File: not yet implemented -->
-- [ ] Delete/Leave confirmation: single message, bulk, date range, clear history, leave group/channel variants; per-peer-type body text matrix — spec §9.5
-- [ ] Moderate panel checkboxes: Ban User, Report Spam, Delete All from User; delete button gets "(N)" suffix when delete-all checked — spec §9.5
-- [ ] "Also delete for X" checkbox with remembered revoke preference; nested "Remember" checkbox; button text animates "Delete" ↔ "Leave" — spec §9.5
-- [ ] Dimensions: boxWidth, boxPadding, boxMediumSkip, boxLittleSkip; delete button is attentionBoxButton (red fill) — spec §9.5
+<!-- File: dart/lib/ui/confirm_box.dart (showDeleteConfirmBox) -->
 
 ---
 

@@ -24,6 +24,7 @@ import 'sticker_pack_viewer.dart';
 import 'message_bubble.dart';
 import 'popup_menu.dart';
 import 'send_files_box.dart';
+import 'confirm_box.dart';
 
 /// Chat column: top bar + message list + compose area.
 /// Spec §4 (top bar 54px), §5 (messages), §7 (compose).
@@ -713,7 +714,7 @@ class _ChatViewState extends State<ChatView>
         case 'report':
           _reportMessage(msg);
         case 'delete':
-          chatState.deleteMessage(msgId);
+          _showDeleteMessageConfirm(chatState, msg, chat);
         case 'edits_history':
           _showEditsHistory(msg);
         case 'hide_message':
@@ -1792,10 +1793,35 @@ class _ChatViewState extends State<ChatView>
   }
 
   void _deleteSelected(ChatState chatState) {
-    for (final id in _selectedMsgIds) {
-      chatState.deleteMessage(id);
-    }
-    _modifySelection(() => _selectedMsgIds.clear());
+    final chat = chatState.activeChat;
+    final count = _selectedMsgIds.length;
+    final ids = _selectedMsgIds.toList();
+    showDeleteConfirmBox(
+      context,
+      mode: DeleteBoxMode.bulkMessages,
+      chatType: chat?.type ?? ChatType.dm,
+      peerName: chat?.title ?? '',
+      messageCount: count,
+      canRevoke: chat?.type == ChatType.dm,
+    ).then((result) {
+      if (!result.confirmed) return;
+      for (final id in ids) {
+        chatState.deleteMessage(id);
+      }
+      _modifySelection(() => _selectedMsgIds.clear());
+    });
+  }
+
+  void _showDeleteMessageConfirm(ChatState chatState, CachedMessage msg, ChatInfo? chat) {
+    showDeleteConfirmBox(
+      context,
+      mode: DeleteBoxMode.singleMessage,
+      chatType: chat?.type ?? ChatType.dm,
+      peerName: chat?.title ?? '',
+      canRevoke: chat?.type == ChatType.dm && msg.isOutgoing,
+    ).then((result) {
+      if (result.confirmed) chatState.deleteMessage(msg.msgId);
+    });
   }
 
   void _forwardSingle(BuildContext context, ChatState chatState, String msgId) {
@@ -3176,11 +3202,34 @@ class _ChatTopBar extends StatelessWidget {
         case 'archive':
           chatState.archiveChat(chat.accountId, chat.chatId, !chat.isArchived);
         case 'clear_history':
-          chatState.clearHistory(chat.accountId, chat.chatId);
+          showDeleteConfirmBox(
+            btnCtx,
+            mode: DeleteBoxMode.clearHistory,
+            chatType: chat.type,
+            peerName: chat.title,
+            isSavedMessages: chat.title == 'Saved Messages',
+          ).then((r) {
+            if (r.confirmed) chatState.clearHistory(chat.accountId, chat.chatId);
+          });
         case 'delete_chat':
-          chatState.deleteChat(chat.accountId, chat.chatId);
+          showDeleteConfirmBox(
+            btnCtx,
+            mode: DeleteBoxMode.leaveChat,
+            chatType: chat.type,
+            peerName: chat.title,
+            canRevoke: chat.type == ChatType.dm,
+          ).then((r) {
+            if (r.confirmed) chatState.deleteChat(chat.accountId, chat.chatId);
+          });
         case 'leave':
-          chatState.leaveChat(chat.accountId, chat.chatId);
+          showDeleteConfirmBox(
+            btnCtx,
+            mode: DeleteBoxMode.leaveChat,
+            chatType: chat.type,
+            peerName: chat.title,
+          ).then((r) {
+            if (r.confirmed) chatState.leaveChat(chat.accountId, chat.chatId);
+          });
       }
     });
   }
