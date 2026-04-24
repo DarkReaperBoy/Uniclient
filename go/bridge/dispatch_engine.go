@@ -1191,6 +1191,36 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 		}
 		return json.Marshal(result)
 
+	case "VotePoll":
+		var req pb.EngineVotePollRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.VotePoll(req.AccountId, req.ChatId, req.MsgId, int(req.OptionIndex)); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
+	case "RetractPollVote":
+		var req pb.EngineRetractPollVoteRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.RetractPollVote(req.AccountId, req.ChatId, req.MsgId); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
+	case "StopPoll":
+		var req pb.EngineStopPollRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		if err := e.StopPoll(req.AccountId, req.ChatId, req.MsgId); err != nil {
+			return nil, err
+		}
+		return []byte{}, nil
+
 	default:
 		return nil, fmt.Errorf("unknown engine method: %s", method)
 	}

@@ -952,3 +952,26 @@ message ReportOption {
   string text   = 1;
   bytes  option = 2;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Poll Actions
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineVotePollRequest {
+  string account_id   = 1;
+  string chat_id      = 2;
+  string msg_id       = 3;
+  int32  option_index = 4;
+}
+
+message EngineRetractPollVoteRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string msg_id     = 3;
+}
+
+message EngineStopPollRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  string msg_id     = 3;
+}

@@ -985,6 +985,63 @@ func (e *Engine) TranscribeAudio(accountID, chatID, msgID string) (bool, int64, 
 	return transcriber.TranscribeAudio(chatID, msgID)
 }
 
+type PollVoter interface {
+	VotePoll(chatID string, msgID string, optionIndex int) error
+}
+
+type PollVoteRetracter interface {
+	RetractPollVote(chatID string, msgID string) error
+}
+
+type PollStopper interface {
+	StopPoll(chatID string, msgID string) error
+}
+
+func (e *Engine) VotePoll(accountID, chatID, msgID string, optionIndex int) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	voter, ok := acc.Core.(PollVoter)
+	if !ok {
+		return fmt.Errorf("platform does not support poll voting")
+	}
+	return voter.VotePoll(chatID, msgID, optionIndex)
+}
+
+func (e *Engine) RetractPollVote(accountID, chatID, msgID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	retracter, ok := acc.Core.(PollVoteRetracter)
+	if !ok {
+		return fmt.Errorf("platform does not support vote retraction")
+	}
+	return retracter.RetractPollVote(chatID, msgID)
+}
+
+func (e *Engine) StopPoll(accountID, chatID, msgID string) error {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return fmt.Errorf("account not connected: %s", accountID)
+	}
+	stopper, ok := acc.Core.(PollStopper)
+	if !ok {
+		return fmt.Errorf("platform does not support stopping polls")
+	}
+	return stopper.StopPoll(chatID, msgID)
+}
+
 type StarGiftsFetcher interface {
 	GetStarGifts() (*cores.StarGiftsResult, error)
 }

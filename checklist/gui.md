@@ -440,7 +440,6 @@
 - [x] Reply, Copy Text, Forward, Select, Edit (own messages), Delete — spec §9 — DONE in chat_view.dart
 - [x] Pin/Unpin toggle — spec §9 — DONE in chat_view.dart
 - [x] Voice Timecode on playing voice messages, Translate message, Translate Selected — spec §9 — DONE in chat_view.dart (TranslateText engine pipeline: Go→bridge→Dart→dialog)
-- [ ] Poll-specific: Translate Poll, Retract Vote, Stop Poll, per-option submenu — spec §9
 - [ ] AyuGram additions: Edits History, Hide Message, User's Messages, Repeat Message, Message Details submenu, Read Until, Burn — spec §9.6
 - [ ] Item ordering: Pass 1 top actions → Pass 2 message actions → Pass 3 post-actions; Copy is flat (not submenu) — spec §9.6
 - [ ] Selection-mode top-bar menu: Forward Selected, Send Now Selected, Delete Selected, Download Files, Clear Selection — spec §9.6

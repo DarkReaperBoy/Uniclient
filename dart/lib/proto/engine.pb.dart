@@ -9821,5 +9821,166 @@ class EngineReportMessageResponse extends $pb.GeneratedMessage {
   set commentOption($core.List<$core.int> v) { $_setBytes(4, v); }
 }
 
+class EngineVotePollRequest extends $pb.GeneratedMessage {
+  factory EngineVotePollRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? msgId,
+    $core.int? optionIndex,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (msgId != null) $result.msgId = msgId;
+    if (optionIndex != null) $result.optionIndex = optionIndex;
+    return $result;
+  }
+  EngineVotePollRequest._() : super();
+  factory EngineVotePollRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineVotePollRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..a<$core.int>(4, _omitFieldNames ? '' : 'optionIndex', $pb.PbFieldType.O3)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineVotePollRequest clone() => EngineVotePollRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineVotePollRequest copyWith(void Function(EngineVotePollRequest) updates) => super.copyWith((message) => updates(message as EngineVotePollRequest)) as EngineVotePollRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineVotePollRequest create() => EngineVotePollRequest._();
+  EngineVotePollRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineVotePollRequest> createRepeated() => $pb.PbList<EngineVotePollRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineVotePollRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineVotePollRequest>(create);
+  static EngineVotePollRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get msgId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.String v) { $_setString(2, v); }
+
+  @$pb.TagNumber(4)
+  $core.int get optionIndex => $_getIZ(3);
+  @$pb.TagNumber(4)
+  set optionIndex($core.int v) { $_setSignedInt32(3, v); }
+}
+
+class EngineRetractPollVoteRequest extends $pb.GeneratedMessage {
+  factory EngineRetractPollVoteRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? msgId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (msgId != null) $result.msgId = msgId;
+    return $result;
+  }
+  EngineRetractPollVoteRequest._() : super();
+  factory EngineRetractPollVoteRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineRetractPollVoteRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineRetractPollVoteRequest clone() => EngineRetractPollVoteRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineRetractPollVoteRequest copyWith(void Function(EngineRetractPollVoteRequest) updates) => super.copyWith((message) => updates(message as EngineRetractPollVoteRequest)) as EngineRetractPollVoteRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineRetractPollVoteRequest create() => EngineRetractPollVoteRequest._();
+  EngineRetractPollVoteRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineRetractPollVoteRequest> createRepeated() => $pb.PbList<EngineRetractPollVoteRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineRetractPollVoteRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineRetractPollVoteRequest>(create);
+  static EngineRetractPollVoteRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get msgId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.String v) { $_setString(2, v); }
+}
+
+class EngineStopPollRequest extends $pb.GeneratedMessage {
+  factory EngineStopPollRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.String? msgId,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (msgId != null) $result.msgId = msgId;
+    return $result;
+  }
+  EngineStopPollRequest._() : super();
+  factory EngineStopPollRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineStopPollRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..aOS(3, _omitFieldNames ? '' : 'msgId')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineStopPollRequest clone() => EngineStopPollRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineStopPollRequest copyWith(void Function(EngineStopPollRequest) updates) => super.copyWith((message) => updates(message as EngineStopPollRequest)) as EngineStopPollRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineStopPollRequest create() => EngineStopPollRequest._();
+  EngineStopPollRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineStopPollRequest> createRepeated() => $pb.PbList<EngineStopPollRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineStopPollRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineStopPollRequest>(create);
+  static EngineStopPollRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.String get msgId => $_getSZ(2);
+  @$pb.TagNumber(3)
+  set msgId($core.String v) { $_setString(2, v); }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

@@ -7972,6 +7972,194 @@ func (x *ReportOption) GetOption() []byte {
 	return nil
 }
 
+type EngineVotePollRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	OptionIndex   int32                  `protobuf:"varint,4,opt,name=option_index,json=optionIndex,proto3" json:"option_index,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineVotePollRequest) Reset() {
+	*x = EngineVotePollRequest{}
+	mi := &file_proto_engine_proto_msgTypes[123]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineVotePollRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineVotePollRequest) ProtoMessage() {}
+
+func (x *EngineVotePollRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[123]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineVotePollRequest.ProtoReflect.Descriptor instead.
+func (*EngineVotePollRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{123}
+}
+
+func (x *EngineVotePollRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineVotePollRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineVotePollRequest) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
+func (x *EngineVotePollRequest) GetOptionIndex() int32 {
+	if x != nil {
+		return x.OptionIndex
+	}
+	return 0
+}
+
+type EngineRetractPollVoteRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineRetractPollVoteRequest) Reset() {
+	*x = EngineRetractPollVoteRequest{}
+	mi := &file_proto_engine_proto_msgTypes[124]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineRetractPollVoteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineRetractPollVoteRequest) ProtoMessage() {}
+
+func (x *EngineRetractPollVoteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[124]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineRetractPollVoteRequest.ProtoReflect.Descriptor instead.
+func (*EngineRetractPollVoteRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{124}
+}
+
+func (x *EngineRetractPollVoteRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineRetractPollVoteRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineRetractPollVoteRequest) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
+type EngineStopPollRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgId         string                 `protobuf:"bytes,3,opt,name=msg_id,json=msgId,proto3" json:"msg_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineStopPollRequest) Reset() {
+	*x = EngineStopPollRequest{}
+	mi := &file_proto_engine_proto_msgTypes[125]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineStopPollRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineStopPollRequest) ProtoMessage() {}
+
+func (x *EngineStopPollRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[125]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineStopPollRequest.ProtoReflect.Descriptor instead.
+func (*EngineStopPollRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{125}
+}
+
+func (x *EngineStopPollRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineStopPollRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineStopPollRequest) GetMsgId() string {
+	if x != nil {
+		return x.MsgId
+	}
+	return ""
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -8672,7 +8860,23 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x0ecomment_option\x18\x05 \x01(\fR\rcommentOption\":\n" +
 	"\fReportOption\x12\x12\n" +
 	"\x04text\x18\x01 \x01(\tR\x04text\x12\x16\n" +
-	"\x06option\x18\x02 \x01(\fR\x06optionB\x11Z\x0funiclient/protob\x06proto3"
+	"\x06option\x18\x02 \x01(\fR\x06option\"\x89\x01\n" +
+	"\x15EngineVotePollRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12!\n" +
+	"\foption_index\x18\x04 \x01(\x05R\voptionIndex\"m\n" +
+	"\x1cEngineRetractPollVoteRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\"f\n" +
+	"\x15EngineStopPollRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x15\n" +
+	"\x06msg_id\x18\x03 \x01(\tR\x05msgIdB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -8686,7 +8890,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 123)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 126)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                        // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                        // 1: uniclient.AccountInfo
@@ -8811,6 +9015,9 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineReportMessageRequest)(nil),         // 120: uniclient.EngineReportMessageRequest
 	(*EngineReportMessageResponse)(nil),        // 121: uniclient.EngineReportMessageResponse
 	(*ReportOption)(nil),                       // 122: uniclient.ReportOption
+	(*EngineVotePollRequest)(nil),              // 123: uniclient.EngineVotePollRequest
+	(*EngineRetractPollVoteRequest)(nil),       // 124: uniclient.EngineRetractPollVoteRequest
+	(*EngineStopPollRequest)(nil),              // 125: uniclient.EngineStopPollRequest
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -8854,7 +9061,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   123,
+			NumMessages:   126,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

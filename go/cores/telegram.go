@@ -11959,6 +11959,84 @@ func (t *TelegramCore) VoteInPoll(chatID string, msgID string, optionIdx int) er
 	return err
 }
 
+// VoteInPollMulti casts votes for multiple options on a multi-choice poll.
+func (t *TelegramCore) VoteInPollMulti(chatID string, msgID string, optionIndices []int) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil { return err }
+	options := make([][]byte, len(optionIndices))
+	for i, idx := range optionIndices {
+		options[i] = []byte{byte(idx)}
+	}
+	_, err = t.api.MessagesSendVote(t.ctx, &tg.MessagesSendVoteRequest{
+		Peer: inputPeer, MsgID: id, Options: options,
+	})
+	return err
+}
+
+// RetractPollVote retracts the user's vote from a poll by sending empty options.
+func (t *TelegramCore) RetractPollVote(chatID string, msgID string) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil { return err }
+	_, err = t.api.MessagesSendVote(t.ctx, &tg.MessagesSendVoteRequest{
+		Peer: inputPeer, MsgID: id, Options: [][]byte{},
+	})
+	return err
+}
+
+// StopPoll closes a poll so no more votes can be cast (only poll creator can do this).
+func (t *TelegramCore) StopPoll(chatID string, msgID string) error {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return err }
+	defer unlock()
+	id, err := tgMsgID(msgID)
+	if err != nil { return err }
+	msgs, err := t.api.MessagesGetMessages(t.ctx, []tg.InputMessageClass{&tg.InputMessageID{ID: id}})
+	if err != nil { return err }
+	var poll *tg.Poll
+	switch m := msgs.(type) {
+	case *tg.MessagesMessages:
+		for _, msg := range m.Messages {
+			if pmsg, ok := msg.(*tg.Message); ok {
+				if mp, ok := pmsg.Media.(*tg.MessageMediaPoll); ok {
+					poll = &mp.Poll
+				}
+			}
+		}
+	case *tg.MessagesMessagesSlice:
+		for _, msg := range m.Messages {
+			if pmsg, ok := msg.(*tg.Message); ok {
+				if mp, ok := pmsg.Media.(*tg.MessageMediaPoll); ok {
+					poll = &mp.Poll
+				}
+			}
+		}
+	case *tg.MessagesChannelMessages:
+		for _, msg := range m.Messages {
+			if pmsg, ok := msg.(*tg.Message); ok {
+				if mp, ok := pmsg.Media.(*tg.MessageMediaPoll); ok {
+					poll = &mp.Poll
+				}
+			}
+		}
+	}
+	if poll == nil {
+		return fmt.Errorf("message is not a poll")
+	}
+	poll.SetClosed(true)
+	_, err = t.api.MessagesEditMessage(t.ctx, &tg.MessagesEditMessageRequest{
+		Peer:  inputPeer,
+		ID:    id,
+		Media: &tg.InputMediaPoll{Poll: *poll},
+	})
+	return err
+}
+
 // ExportChatInvite creates a new invite link for a chat.
 func (t *TelegramCore) ExportChatInvite(chatID string) (string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)

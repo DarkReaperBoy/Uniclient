@@ -876,6 +876,8 @@ class ChatState extends ChangeNotifier {
 
   /// Re-fetch the latest messages for the active chat and merge.
   /// Used after send and as a periodic fallback for event delivery issues.
+  void refreshMessages() => _refreshMessages();
+
   void _refreshMessages() {
     if (_disposed) return;
     final chat = _activeChat;

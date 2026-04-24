@@ -550,6 +550,9 @@ class _ChatViewState extends State<ChatView>
     final isVoicePlaying = isVoice && audioService.isActiveMsg(msgId);
     final isSticker = msg.mediaType == 6;
     final isGif = msg.mediaType == 7;
+    final isPoll = msg.isPoll;
+    final hasVoted = isPoll && msg.pollOptions.any((o) => o.chosen);
+    final canStopPoll = isPoll && msg.isOutgoing && !msg.pollClosed;
     final hasStickerSet = isSticker && msg.hasStickerSet;
     final hasDocId = msg.mediaRemoteRef.isNotEmpty;
     final chat = chatState.activeChat;
@@ -573,8 +576,16 @@ class _ChatViewState extends State<ChatView>
         // Pass 2: message actions
         if (msg.contentText.isNotEmpty)
           const TelegramMenuItem(value: 'copy', icon: Icon(Icons.copy), label: 'Copy Text'),
-        if (msg.contentText.isNotEmpty)
+        if (msg.contentText.isNotEmpty && !isPoll)
           const TelegramMenuItem(value: 'translate', icon: Icon(Icons.translate), label: 'Translate'),
+        if (isPoll && msg.pollQuestion.isNotEmpty)
+          const TelegramMenuItem(value: 'translate_poll', icon: Icon(Icons.translate), label: 'Translate Poll'),
+        if (hasVoted && !msg.pollClosed)
+          const TelegramMenuItem(value: 'retract_vote', icon: Icon(Icons.undo), label: 'Retract Vote'),
+        if (isPoll && !msg.pollClosed)
+          for (int i = 0; i < msg.pollOptions.length; i++)
+            if (!msg.pollOptions[i].chosen)
+              TelegramMenuItem(value: 'vote_option:$i', icon: const Icon(Icons.how_to_vote), label: 'Vote: ${msg.pollOptions[i].text}'),
         if (hasForwardOrigin)
           const TelegramMenuItem(value: 'go_to_message', icon: Icon(Icons.shortcut), label: 'Go to Message'),
         if (msg.hasThread)
@@ -619,6 +630,8 @@ class _ChatViewState extends State<ChatView>
           const TelegramMenuItem(value: 'show_in_folder', icon: Icon(Icons.folder_open), label: 'Show in Folder'),
         for (final url in urls.take(3))
           TelegramMenuItem(value: 'copy_url:$url', icon: const Icon(Icons.link), label: urls.length == 1 ? 'Copy Link' : 'Copy Link: ${Uri.tryParse(url)?.host ?? url}'),
+        if (canStopPoll)
+          const TelegramMenuItem(value: 'stop_poll', icon: Icon(Icons.poll), label: 'Stop Poll'),
         const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
         if (!msg.isOutgoing)
           const TelegramMenuItem(value: 'report', icon: Icon(Icons.flag_outlined), label: 'Report', isAttention: true),
@@ -644,6 +657,12 @@ class _ChatViewState extends State<ChatView>
           Clipboard.setData(ClipboardData(text: msg.contentText));
         case 'translate':
           _translateText(msg);
+        case 'translate_poll':
+          _translatePoll(msg);
+        case 'retract_vote':
+          _retractPollVote(msg);
+        case 'stop_poll':
+          _stopPoll(msg);
         case 'go_to_message':
           _goToForwardedMessage(msg);
         case 'view_thread':
@@ -695,6 +714,9 @@ class _ChatViewState extends State<ChatView>
                 const SnackBar(content: Text('Link copied'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
               );
             }
+          } else if (action.startsWith('vote_option:')) {
+            final idx = int.tryParse(action.substring('vote_option:'.length));
+            if (idx != null) _votePollOption(msg, idx);
           }
       }
     });
@@ -923,6 +945,114 @@ class _ChatViewState extends State<ChatView>
         ],
       ),
     );
+  }
+
+  void _translatePoll(CachedMessage msg) async {
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final langCode = ui.PlatformDispatcher.instance.locale.languageCode;
+    final result = await engine.translateText(
+      msg.accountId,
+      chat.chatId,
+      msg.msgId,
+      langCode,
+    );
+    if (!mounted) return;
+    if (result == null || result.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Translation not available'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Poll Translation'),
+        content: SelectableText(result),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: result));
+              Navigator.pop(ctx);
+            },
+            child: const Text('Copy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _retractPollVote(CachedMessage msg) async {
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final ok = await engine.retractPollVote(msg.accountId, chat.chatId, msg.msgId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Vote retracted' : 'Failed to retract vote'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    if (ok) chatState.refreshMessages();
+  }
+
+  void _stopPoll(CachedMessage msg) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Stop Poll'),
+        content: const Text('Are you sure you want to stop this poll? No more votes will be accepted.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
+            child: const Text('Stop Poll'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final ok = await engine.stopPoll(msg.accountId, chat.chatId, msg.msgId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Poll stopped' : 'Failed to stop poll'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    if (ok) chatState.refreshMessages();
+  }
+
+  void _votePollOption(CachedMessage msg, int optionIndex) async {
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final ok = await engine.votePoll(msg.accountId, chat.chatId, msg.msgId, optionIndex);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(ok ? 'Vote submitted' : 'Failed to vote'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    if (ok) chatState.refreshMessages();
   }
 
   void _reportMessage(CachedMessage msg) async {

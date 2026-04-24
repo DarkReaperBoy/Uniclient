@@ -460,6 +460,51 @@ class EngineService {
     }
   }
 
+  // ── Poll actions ──
+
+  Future<bool> votePoll(String accountId, String chatId, String msgId, int optionIndex) async {
+    final req = epb.EngineVotePollRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId
+      ..optionIndex = optionIndex;
+    try {
+      await _callAsync('__engine', 'VotePoll', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'votePoll failed', e);
+      return false;
+    }
+  }
+
+  Future<bool> retractPollVote(String accountId, String chatId, String msgId) async {
+    final req = epb.EngineRetractPollVoteRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId;
+    try {
+      await _callAsync('__engine', 'RetractPollVote', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'retractPollVote failed', e);
+      return false;
+    }
+  }
+
+  Future<bool> stopPoll(String accountId, String chatId, String msgId) async {
+    final req = epb.EngineStopPollRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgId = msgId;
+    try {
+      await _callAsync('__engine', 'StopPoll', req.writeToBuffer());
+      return true;
+    } catch (e) {
+      Debug.error('ENGINE', 'stopPoll failed', e);
+      return false;
+    }
+  }
+
   // ── Report message ──
 
   Future<ReportMessageResult?> reportMessage(String accountId, String chatId, List<int> msgIds, {List<int> option = const [], String message = ''}) async {
