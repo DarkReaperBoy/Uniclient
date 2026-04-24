@@ -607,10 +607,10 @@ class _UniClientAppState extends State<UniClientApp>
     }
   }
 
+  static const _hoverPointer = 999999;
   void _dispatchHover(double x, double y) {
-    final pointer = _pointerCounter++;
     GestureBinding.instance.handlePointerEvent(PointerHoverEvent(
-      pointer: pointer, position: Offset(x, y), kind: PointerDeviceKind.mouse,
+      pointer: _hoverPointer, position: Offset(x, y), kind: PointerDeviceKind.mouse,
     ));
   }
 

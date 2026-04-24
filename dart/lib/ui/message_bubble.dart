@@ -67,25 +67,31 @@ class MessageBubble extends StatefulWidget {
 
 class _MessageBubbleState extends State<MessageBubble> {
   bool _hovered = false;
-  Timer? _hoverTimer;
+  Timer? _showTimer;
+  Timer? _hideTimer;
 
   @override
   void dispose() {
-    _hoverTimer?.cancel();
+    _showTimer?.cancel();
+    _hideTimer?.cancel();
     super.dispose();
   }
 
   void _onHoverEnter() {
     if (widget.inSelectionMode) return;
-    _hoverTimer?.cancel();
-    _hoverTimer = Timer(const Duration(milliseconds: 300), () {
+    _hideTimer?.cancel();
+    _showTimer?.cancel();
+    _showTimer = Timer(const Duration(milliseconds: 300), () {
       if (mounted) setState(() => _hovered = true);
     });
   }
 
   void _onHoverExit() {
-    _hoverTimer?.cancel();
-    if (_hovered && mounted) setState(() => _hovered = false);
+    _showTimer?.cancel();
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _hovered = false);
+    });
   }
 
   void _onReactionTap(String emoji) {
@@ -481,7 +487,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                     isDark: isDark,
                   ),
                 ),
-              if (_hovered && !inSelectionMode)
+              if (_hovered && !inSelectionMode) ...[
                 Positioned(
                   top: -24,
                   right: isOutgoing ? 20 : null,
@@ -491,6 +497,16 @@ class _MessageBubbleState extends State<MessageBubble> {
                     isDark: isDark,
                   ),
                 ),
+                Positioned(
+                  top: 0,
+                  right: isOutgoing ? null : 0,
+                  left: isOutgoing ? 0 : null,
+                  child: _ReactionCornerButton(
+                    isDark: isDark,
+                    onTap: () => _onReactionTap('❤️'),
+                  ),
+                ),
+              ],
               ],
               ),
               if (message.hasInlineKeyboard)
@@ -686,6 +702,78 @@ class _SenderNameTapTarget extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: child,
+      ),
+    );
+  }
+}
+
+/// Spec §9.3: Per-message corner reaction button — 36x32 pill, 22px emoji, 120ms fade.
+class _ReactionCornerButton extends StatefulWidget {
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _ReactionCornerButton({
+    super.key,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  State<_ReactionCornerButton> createState() => _ReactionCornerButtonState();
+}
+
+class _ReactionCornerButtonState extends State<_ReactionCornerButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _fadeScale = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isDark ? const Color(0xFF2B3640) : Colors.white;
+    return FadeTransition(
+      opacity: _fadeScale,
+      child: ScaleTransition(
+        scale: _fadeScale,
+        alignment: Alignment.bottomCenter,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: Container(
+            width: 36,
+            height: 32,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.12),
+                  blurRadius: 8,
+                  spreadRadius: 0,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text('❤️', style: TextStyle(fontSize: 18)),
+            ),
+          ),
+        ),
       ),
     );
   }
