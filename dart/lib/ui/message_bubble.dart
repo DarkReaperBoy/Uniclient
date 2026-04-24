@@ -723,25 +723,48 @@ class _ReactionCornerButton extends StatefulWidget {
 }
 
 class _ReactionCornerButtonState extends State<_ReactionCornerButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+    with TickerProviderStateMixin {
+  late final AnimationController _toggleController;
   late final Animation<double> _fadeScale;
+  late final AnimationController _activateController;
+  late final Animation<double> _activateScale;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _toggleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 120),
     );
-    _fadeScale = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _controller.forward();
+    _fadeScale = CurvedAnimation(parent: _toggleController, curve: Curves.easeOut);
+    _toggleController.forward();
+    _activateController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _activateScale = Tween<double>(begin: 1.0, end: 0.85).animate(
+      CurvedAnimation(parent: _activateController, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _toggleController.dispose();
+    _activateController.dispose();
     super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) {
+    _activateController.forward();
+  }
+
+  void _onTapUp(TapUpDetails _) {
+    _activateController.reverse();
+    widget.onTap();
+  }
+
+  void _onTapCancel() {
+    _activateController.reverse();
   }
 
   @override
@@ -752,25 +775,34 @@ class _ReactionCornerButtonState extends State<_ReactionCornerButton>
       child: ScaleTransition(
         scale: _fadeScale,
         alignment: Alignment.bottomCenter,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: Container(
-            width: 36,
-            height: 32,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.12),
-                  blurRadius: 8,
-                  spreadRadius: 0,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: const Center(
-              child: Text('❤️', style: TextStyle(fontSize: 18)),
+        child: AnimatedBuilder(
+          animation: _activateScale,
+          builder: (context, child) => Transform.scale(
+            scale: _activateScale.value,
+            child: child,
+          ),
+          child: GestureDetector(
+            onTapDown: _onTapDown,
+            onTapUp: _onTapUp,
+            onTapCancel: _onTapCancel,
+            child: Container(
+              width: 36,
+              height: 32,
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 8,
+                    spreadRadius: 0,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Text('❤️', style: TextStyle(fontSize: 18)),
+              ),
             ),
           ),
         ),
@@ -798,20 +830,26 @@ class _ReactionStripState extends State<_ReactionStrip>
   late final AnimationController _controller;
   late final Animation<double> _fadeScale;
   int _hoveredIndex = -1;
+  int _pressedIndex = -1;
 
   static const _reactions = ['👍', '❤️', '🔥', '🥰', '👏', '😱', '😢', '🎉'];
   static const _stripHeight = 40.0;
   static const _slotSize = 32.0;
   static const _emojiSize = 26.0;
   static const _skip = 7.0;
-  static const _hoverScale = 1.24;
+  // Spec §9.3 animation constants
+  static const _kToggleDuration = Duration(milliseconds: 120);
+  static const _kActivateDuration = Duration(milliseconds: 150);
+  static const _kHoverScaleDuration = Duration(milliseconds: 200);
+  static const _kHoverScale = 1.24;
+  static const _kActivateScale = 0.85;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 120),
+      duration: _kToggleDuration,
     );
     _fadeScale = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
     _controller.forward();
@@ -821,6 +859,17 @@ class _ReactionStripState extends State<_ReactionStrip>
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  double _scaleFor(int i) {
+    if (_pressedIndex == i) return _kActivateScale;
+    if (_hoveredIndex == i) return _kHoverScale;
+    return 1.0;
+  }
+
+  Duration _scaleDurationFor(int i) {
+    if (_pressedIndex == i) return _kActivateDuration;
+    return _kHoverScaleDuration;
   }
 
   @override
@@ -853,10 +902,15 @@ class _ReactionStripState extends State<_ReactionStrip>
                   onEnter: (_) => setState(() => _hoveredIndex = i),
                   onExit: (_) => setState(() => _hoveredIndex = -1),
                   child: GestureDetector(
-                    onTap: () => widget.onReactionTap(_reactions[i]),
+                    onTapDown: (_) => setState(() => _pressedIndex = i),
+                    onTapUp: (_) {
+                      setState(() => _pressedIndex = -1);
+                      widget.onReactionTap(_reactions[i]);
+                    },
+                    onTapCancel: () => setState(() => _pressedIndex = -1),
                     child: AnimatedScale(
-                      scale: _hoveredIndex == i ? _hoverScale : 1.0,
-                      duration: const Duration(milliseconds: 200),
+                      scale: _scaleFor(i),
+                      duration: _scaleDurationFor(i),
                       child: SizedBox(
                         width: _slotSize,
                         height: _slotSize,

@@ -451,7 +451,6 @@
 
 ### §9.6 Reaction Picker
 <!-- File: dart/lib/ui/message_bubble.dart (_ReactionStrip) -->
-- [ ] Toggle/activate/expand/collapse animation durations (120ms/150ms/300ms/250ms); 8 quick-reaction slots — spec §9.3
 - [ ] Per-icon hover scale 1.24x over 200ms; reaction fly-up 50px on pick; inline reaction counter dimensions — spec §9.3
 - [ ] Expand chevron opens full emoji-grid panel with category tabs, search, sticker effects — spec §9.3
 
