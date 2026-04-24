@@ -25,6 +25,7 @@ Future<T?> showTelegramMenu<T>({
   required BuildContext context,
   required Offset position,
   required List<TelegramMenuItem<T>> items,
+  bool fullAttention = false,
 }) {
   final overlay = Overlay.of(context);
   final brightness = Theme.of(context).brightness;
@@ -39,6 +40,7 @@ Future<T?> showTelegramMenu<T>({
       brightness: brightness,
       screenSize: screenSize,
       screenPadding: screenPadding,
+      fullAttention: fullAttention,
       barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     ),
   );
@@ -79,6 +81,7 @@ class _TelegramMenuRoute<T> extends PopupRoute<T> {
   final Brightness brightness;
   final Size screenSize;
   final EdgeInsets screenPadding;
+  final bool fullAttention;
 
   _TelegramMenuRoute({
     required this.position,
@@ -87,6 +90,7 @@ class _TelegramMenuRoute<T> extends PopupRoute<T> {
     required this.screenSize,
     required this.screenPadding,
     required String barrierLabel,
+    this.fullAttention = false,
   }) : _barrierLabel = barrierLabel;
 
   final String _barrierLabel;
@@ -138,6 +142,7 @@ class _TelegramMenuRoute<T> extends PopupRoute<T> {
       brightness: brightness,
       screenSize: screenSize,
       screenPadding: screenPadding,
+      fullAttention: fullAttention,
       onSelected: (T? value) {
         if (value != null) {
           navigator?.pop(value);
@@ -198,6 +203,7 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
   final Size screenSize;
   final EdgeInsets screenPadding;
   final ValueChanged<T?> onSelected;
+  final bool fullAttention;
 
   const _TelegramMenuOverlay({
     required this.animation,
@@ -207,6 +213,7 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
     required this.screenSize,
     required this.screenPadding,
     required this.onSelected,
+    this.fullAttention = false,
   });
 
   @override
@@ -219,6 +226,7 @@ class _TelegramMenuOverlay<T> extends StatelessWidget {
       items: items,
       brightness: brightness,
       onSelected: onSelected,
+      fullAttention: fullAttention,
     );
 
     return LayoutBuilder(builder: (context, constraints) {
@@ -392,11 +400,13 @@ class _TelegramMenuContent<T> extends StatelessWidget {
   final List<TelegramMenuItem<T>> items;
   final Brightness brightness;
   final ValueChanged<T?> onSelected;
+  final bool fullAttention;
 
   const _TelegramMenuContent({
     required this.items,
     required this.brightness,
     required this.onSelected,
+    this.fullAttention = false,
   });
 
   @override
@@ -424,6 +434,7 @@ class _TelegramMenuContent<T> extends StatelessWidget {
           item: item,
           brightness: brightness,
           onSelected: onSelected,
+          fullAttention: fullAttention,
         );
       }).toList(),
     );
@@ -434,11 +445,13 @@ class _TelegramRippleItem<T> extends StatefulWidget {
   final TelegramMenuItem<T> item;
   final Brightness brightness;
   final ValueChanged<T?> onSelected;
+  final bool fullAttention;
 
   const _TelegramRippleItem({
     required this.item,
     required this.brightness,
     required this.onSelected,
+    this.fullAttention = false,
   });
 
   @override
@@ -503,13 +516,15 @@ class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
 
     final item = widget.item;
     final hasIcon = item.icon != null;
+    final attentionColor = isDark
+        ? const Color(0xFFec3942)
+        : const Color(0xFFd14e4e);
+    final useRedText = item.isAttention && (widget.fullAttention || !hasIcon);
     final effectiveTextColor =
-        item.labelColor ?? (item.isAttention
-            ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
-            : textColor);
+        item.labelColor ?? (useRedText ? attentionColor : textColor);
     final effectiveIconColor =
         item.iconColor ?? (item.isAttention
-            ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
+            ? attentionColor
             : (_hovering ? iconColorHover : iconColorResting));
 
     return MouseRegion(

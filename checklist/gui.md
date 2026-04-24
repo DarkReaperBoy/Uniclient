@@ -434,7 +434,6 @@
 ### §9.2 Attention-Style Items
 <!-- File: dart/lib/ui/chat_view.dart -->
 - [x] Delete item styled with error color (theme.colorScheme.error) — spec §9.2 — DONE (partial) in chat_view.dart
-- [ ] Full attention style: attentionButtonFg red icon, separate menuWithIconsAttention variant for full red text; confirmation box uses attentionBoxButton (red fill) — spec §9.2
 
 ### §9.3 Message Context Menu
 <!-- File: dart/lib/ui/chat_view.dart — _showMessageContextMenu -->

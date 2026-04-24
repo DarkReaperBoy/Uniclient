@@ -161,6 +161,9 @@ class _ConfirmBoxDialog extends StatelessWidget {
                     },
                     style: TextButton.styleFrom(
                       foregroundColor: confirmColor,
+                      overlayColor: isDestructive
+                          ? attentionFg.withOpacity(0.1)
+                          : null,
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 10),
                       textStyle: const TextStyle(
