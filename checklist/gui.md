@@ -430,7 +430,6 @@
 
 ### §9.1 Context Menu Chrome
 <!-- File: dart/lib/ui/popup_menu.dart (custom TelegramPopupMenu), all showMenu calls migrated -->
-- [ ] Ripple: 650ms show / 200ms hide, color windowBgRipple — spec §9.1
 - [ ] Top fade: fadeHeight 0.2, fadeBg menuBg — spec §9.1
 - [ ] Theme tokens: bg windowBg, hover windowBgOver, text windowFg, icon menuIconFg / menuIconFgOver — spec §9.1
 

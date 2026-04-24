@@ -363,15 +363,6 @@ class _TelegramMenuContent<T> extends StatelessWidget {
     final separatorColor = isDark
         ? const Color(0xFF232f39)
         : const Color(0xFFf1f1f1);
-    final hoverColor = isDark
-        ? const Color(0xFF232e3c)
-        : const Color(0xFFf1f1f1);
-    final textColor = isDark
-        ? const Color(0xFFf5f5f5)
-        : const Color(0xFF000000);
-    final iconColorResting = isDark
-        ? const Color(0xFF6c7883)
-        : const Color(0xFF999999);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -387,61 +378,155 @@ class _TelegramMenuContent<T> extends StatelessWidget {
           );
         }
 
-        final hasIcon = item.icon != null;
-        final effectiveTextColor =
-            item.labelColor ?? (item.isAttention
-                ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
-                : textColor);
-        final effectiveIconColor =
-            item.iconColor ?? (item.isAttention
-                ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
-                : iconColorResting);
-
-        return InkWell(
-          onTap: () => onSelected(item.value),
-          hoverColor: hoverColor,
-          splashColor: isDark
-              ? const Color(0xFF24303d)
-              : const Color(0xFFe5e5e5),
-          child: Container(
-            height: hasIcon ? 29 : 28,
-            padding: hasIcon
-                ? const EdgeInsets.only(left: 54, top: 8, right: 17, bottom: 8)
-                : const EdgeInsets.only(
-                    left: 17, top: 8, right: 17, bottom: 7),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                if (hasIcon)
-                  Positioned(
-                    left: -54 + 15,
-                    top: -8 + 5,
-                    child: IconTheme(
-                      data: IconThemeData(
-                        color: effectiveIconColor,
-                        size: 20,
-                      ),
-                      child: item.icon!,
-                    ),
-                  ),
-                Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: Text(
-                    item.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.normal,
-                      color: effectiveTextColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
+        return _TelegramRippleItem<T>(
+          item: item,
+          brightness: brightness,
+          onSelected: onSelected,
         );
       }).toList(),
+    );
+  }
+}
+
+class _TelegramRippleItem<T> extends StatefulWidget {
+  final TelegramMenuItem<T> item;
+  final Brightness brightness;
+  final ValueChanged<T?> onSelected;
+
+  const _TelegramRippleItem({
+    required this.item,
+    required this.brightness,
+    required this.onSelected,
+  });
+
+  @override
+  State<_TelegramRippleItem<T>> createState() => _TelegramRippleItemState<T>();
+}
+
+class _TelegramRippleItemState<T> extends State<_TelegramRippleItem<T>>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _rippleController;
+  bool _hovering = false;
+
+  static const _kRippleShowDuration = Duration(milliseconds: 650);
+  static const _kRippleHideDuration = Duration(milliseconds: 200);
+
+  @override
+  void initState() {
+    super.initState();
+    _rippleController = AnimationController(
+      vsync: this,
+      duration: _kRippleShowDuration,
+      reverseDuration: _kRippleHideDuration,
+    );
+  }
+
+  @override
+  void dispose() {
+    _rippleController.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) {
+    _rippleController.forward();
+  }
+
+  void _onTapUp(TapUpDetails _) {
+    widget.onSelected(widget.item.value);
+    _rippleController.reverse();
+  }
+
+  void _onTapCancel() {
+    _rippleController.reverse();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = widget.brightness == Brightness.dark;
+    final hoverColor = isDark
+        ? const Color(0xFF232e3c)
+        : const Color(0xFFf1f1f1);
+    final rippleColor = isDark
+        ? const Color(0xFF24303d)
+        : const Color(0xFFe5e5e5);
+    final textColor = isDark
+        ? const Color(0xFFf5f5f5)
+        : const Color(0xFF000000);
+    final iconColorResting = isDark
+        ? const Color(0xFF6c7883)
+        : const Color(0xFF999999);
+
+    final item = widget.item;
+    final hasIcon = item.icon != null;
+    final effectiveTextColor =
+        item.labelColor ?? (item.isAttention
+            ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
+            : textColor);
+    final effectiveIconColor =
+        item.iconColor ?? (item.isAttention
+            ? (isDark ? const Color(0xFFec3942) : const Color(0xFFd14e4e))
+            : iconColorResting);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit: (_) => setState(() => _hovering = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: _onTapDown,
+        onTapUp: _onTapUp,
+        onTapCancel: _onTapCancel,
+        child: AnimatedBuilder(
+          animation: _rippleController,
+          builder: (context, child) {
+            return Container(
+              height: hasIcon ? 29 : 28,
+              color: _rippleController.value > 0
+                  ? Color.lerp(
+                      _hovering ? hoverColor : null,
+                      rippleColor,
+                      _rippleController.value,
+                    )
+                  : (_hovering ? hoverColor : null),
+              padding: hasIcon
+                  ? const EdgeInsets.only(
+                      left: 54, top: 8, right: 17, bottom: 8)
+                  : const EdgeInsets.only(
+                      left: 17, top: 8, right: 17, bottom: 7),
+              child: child,
+            );
+          },
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              if (hasIcon)
+                Positioned(
+                  left: -54 + 15,
+                  top: -8 + 5,
+                  child: IconTheme(
+                    data: IconThemeData(
+                      color: effectiveIconColor,
+                      size: 20,
+                    ),
+                    child: item.icon!,
+                  ),
+                ),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: Text(
+                  item.label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.normal,
+                    color: effectiveTextColor,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
