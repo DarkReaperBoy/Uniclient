@@ -9648,5 +9648,178 @@ class EngineTranslateTextResponse extends $pb.GeneratedMessage {
   set translatedText($core.String v) { $_setString(0, v); }
 }
 
+class ReportOption extends $pb.GeneratedMessage {
+  factory ReportOption({
+    $core.String? text,
+    $core.List<$core.int>? option,
+  }) {
+    final $result = create();
+    if (text != null) $result.text = text;
+    if (option != null) $result.option = option;
+    return $result;
+  }
+  ReportOption._() : super();
+  factory ReportOption.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'ReportOption', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'text')
+    ..a<$core.List<$core.int>>(2, _omitFieldNames ? '' : 'option', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  ReportOption clone() => ReportOption()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  ReportOption copyWith(void Function(ReportOption) updates) => super.copyWith((message) => updates(message as ReportOption)) as ReportOption;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static ReportOption create() => ReportOption._();
+  ReportOption createEmptyInstance() => create();
+  static $pb.PbList<ReportOption> createRepeated() => $pb.PbList<ReportOption>();
+  @$core.pragma('dart2js:noInline')
+  static ReportOption getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ReportOption>(create);
+  static ReportOption? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get text => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set text($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get option => $_getN(1);
+  @$pb.TagNumber(2)
+  set option($core.List<$core.int> v) { $_setBytes(1, v); }
+}
+
+class EngineReportMessageRequest extends $pb.GeneratedMessage {
+  factory EngineReportMessageRequest({
+    $core.String? accountId,
+    $core.String? chatId,
+    $core.Iterable<$core.int>? msgIds,
+    $core.List<$core.int>? option,
+    $core.String? message,
+  }) {
+    final $result = create();
+    if (accountId != null) $result.accountId = accountId;
+    if (chatId != null) $result.chatId = chatId;
+    if (msgIds != null) $result.msgIds.addAll(msgIds);
+    if (option != null) $result.option = option;
+    if (message != null) $result.message = message;
+    return $result;
+  }
+  EngineReportMessageRequest._() : super();
+  factory EngineReportMessageRequest.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineReportMessageRequest', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'accountId')
+    ..aOS(2, _omitFieldNames ? '' : 'chatId')
+    ..p<$core.int>(3, _omitFieldNames ? '' : 'msgIds', $pb.PbFieldType.K3)
+    ..a<$core.List<$core.int>>(4, _omitFieldNames ? '' : 'option', $pb.PbFieldType.OY)
+    ..aOS(5, _omitFieldNames ? '' : 'message')
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineReportMessageRequest clone() => EngineReportMessageRequest()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineReportMessageRequest copyWith(void Function(EngineReportMessageRequest) updates) => super.copyWith((message) => updates(message as EngineReportMessageRequest)) as EngineReportMessageRequest;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineReportMessageRequest create() => EngineReportMessageRequest._();
+  EngineReportMessageRequest createEmptyInstance() => create();
+  static $pb.PbList<EngineReportMessageRequest> createRepeated() => $pb.PbList<EngineReportMessageRequest>();
+  @$core.pragma('dart2js:noInline')
+  static EngineReportMessageRequest getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineReportMessageRequest>(create);
+  static EngineReportMessageRequest? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get accountId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set accountId($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get chatId => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set chatId($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.List<$core.int> get msgIds => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.List<$core.int> get option => $_getN(3);
+  @$pb.TagNumber(4)
+  set option($core.List<$core.int> v) { $_setBytes(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.String get message => $_getSZ(4);
+  @$pb.TagNumber(5)
+  set message($core.String v) { $_setString(4, v); }
+}
+
+class EngineReportMessageResponse extends $pb.GeneratedMessage {
+  factory EngineReportMessageResponse({
+    $core.String? resultType,
+    $core.String? title,
+    $core.Iterable<ReportOption>? options,
+    $core.bool? commentOptional,
+    $core.List<$core.int>? commentOption,
+  }) {
+    final $result = create();
+    if (resultType != null) $result.resultType = resultType;
+    if (title != null) $result.title = title;
+    if (options != null) $result.options.addAll(options);
+    if (commentOptional != null) $result.commentOptional = commentOptional;
+    if (commentOption != null) $result.commentOption = commentOption;
+    return $result;
+  }
+  EngineReportMessageResponse._() : super();
+  factory EngineReportMessageResponse.fromBuffer($core.List<$core.int> i, [$pb.ExtensionRegistry r = $pb.ExtensionRegistry.EMPTY]) => create()..mergeFromBuffer(i, r);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(_omitMessageNames ? '' : 'EngineReportMessageResponse', package: const $pb.PackageName(_omitMessageNames ? '' : 'uniclient'), createEmptyInstance: create)
+    ..aOS(1, _omitFieldNames ? '' : 'resultType')
+    ..aOS(2, _omitFieldNames ? '' : 'title')
+    ..pc<ReportOption>(3, _omitFieldNames ? '' : 'options', $pb.PbFieldType.PM, subBuilder: ReportOption.create)
+    ..aOB(4, _omitFieldNames ? '' : 'commentOptional')
+    ..a<$core.List<$core.int>>(5, _omitFieldNames ? '' : 'commentOption', $pb.PbFieldType.OY)
+    ..hasRequiredFields = false
+  ;
+
+  @$core.Deprecated('Use deepCopy instead')
+  EngineReportMessageResponse clone() => EngineReportMessageResponse()..mergeFromMessage(this);
+  @$core.Deprecated('Use rebuild instead')
+  EngineReportMessageResponse copyWith(void Function(EngineReportMessageResponse) updates) => super.copyWith((message) => updates(message as EngineReportMessageResponse)) as EngineReportMessageResponse;
+  $pb.BuilderInfo get info_ => _i;
+  @$core.pragma('dart2js:noInline')
+  static EngineReportMessageResponse create() => EngineReportMessageResponse._();
+  EngineReportMessageResponse createEmptyInstance() => create();
+  static $pb.PbList<EngineReportMessageResponse> createRepeated() => $pb.PbList<EngineReportMessageResponse>();
+  @$core.pragma('dart2js:noInline')
+  static EngineReportMessageResponse getDefault() => _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<EngineReportMessageResponse>(create);
+  static EngineReportMessageResponse? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get resultType => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set resultType($core.String v) { $_setString(0, v); }
+
+  @$pb.TagNumber(2)
+  $core.String get title => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set title($core.String v) { $_setString(1, v); }
+
+  @$pb.TagNumber(3)
+  $core.List<ReportOption> get options => $_getList(2);
+
+  @$pb.TagNumber(4)
+  $core.bool get commentOptional => $_getBF(3);
+  @$pb.TagNumber(4)
+  set commentOptional($core.bool v) { $_setBool(3, v); }
+
+  @$pb.TagNumber(5)
+  $core.List<$core.int> get commentOption => $_getN(4);
+  @$pb.TagNumber(5)
+  set commentOption($core.List<$core.int> v) { $_setBytes(4, v); }
+}
+
 const _omitFieldNames = $core.bool.fromEnvironment('protobuf.omit_field_names');
 const _omitMessageNames = $core.bool.fromEnvironment('protobuf.omit_message_names');

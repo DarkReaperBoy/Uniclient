@@ -1117,3 +1117,22 @@ func (e *Engine) SendInlineBotResult(accountID, chatID string, queryID int64, re
 	}
 	return sender.SendInlineBotResult(chatID, queryID, resultID)
 }
+
+type MessageReporter interface {
+	ReportMessage(chatID string, msgIDs []int, option []byte, message string) (*cores.ReportResult, error)
+}
+
+func (e *Engine) ReportMessage(accountID, chatID string, msgIDs []int, option []byte, message string) (*cores.ReportResult, error) {
+	acc, ok := e.getAccount(accountID)
+	if !ok {
+		return nil, fmt.Errorf("account not found: %s", accountID)
+	}
+	if acc.Core == nil {
+		return nil, fmt.Errorf("account not connected: %s", accountID)
+	}
+	reporter, ok := acc.Core.(MessageReporter)
+	if !ok {
+		return nil, fmt.Errorf("platform does not support message reporting")
+	}
+	return reporter.ReportMessage(chatID, msgIDs, option, message)
+}

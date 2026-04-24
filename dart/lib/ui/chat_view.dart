@@ -620,6 +620,8 @@ class _ChatViewState extends State<ChatView>
         for (final url in urls.take(3))
           TelegramMenuItem(value: 'copy_url:$url', icon: const Icon(Icons.link), label: urls.length == 1 ? 'Copy Link' : 'Copy Link: ${Uri.tryParse(url)?.host ?? url}'),
         const TelegramMenuItem(value: 'select', icon: Icon(Icons.check_circle_outline), label: 'Select'),
+        if (!msg.isOutgoing)
+          const TelegramMenuItem(value: 'report', icon: Icon(Icons.flag_outlined), label: 'Report', isAttention: true),
         const TelegramMenuItem.separator(),
         const TelegramMenuItem(value: 'delete', icon: Icon(Icons.delete_outline), label: 'Delete', isAttention: true),
         const TelegramMenuItem.separator(),
@@ -678,6 +680,8 @@ class _ChatViewState extends State<ChatView>
           _copyMessageLink(msg, chat);
         case 'show_in_folder':
           _showInFolder(msg);
+        case 'report':
+          _reportMessage(msg);
         case 'delete':
           chatState.deleteMessage(msgId);
         case 'copy_info':
@@ -919,6 +923,105 @@ class _ChatViewState extends State<ChatView>
         ],
       ),
     );
+  }
+
+  void _reportMessage(CachedMessage msg) async {
+    final chatState = context.read<ChatState>();
+    final engine = context.read<EngineService>();
+    final chat = chatState.activeChat;
+    if (chat == null) return;
+    final msgIdInt = int.tryParse(msg.msgId);
+    if (msgIdInt == null) return;
+
+    List<int> currentOption = [];
+
+    while (true) {
+      final result = await engine.reportMessage(
+        msg.accountId,
+        chat.chatId,
+        [msgIdInt],
+        option: currentOption,
+      );
+      if (!mounted) return;
+
+      if (result == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Report failed'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
+        );
+        return;
+      }
+
+      if (result.resultType == 'reported') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Message reported'), behavior: SnackBarBehavior.floating, duration: Duration(seconds: 2)),
+        );
+        return;
+      }
+
+      if (result.resultType == 'choose_option') {
+        final picked = await showDialog<List<int>>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: Text(result.title.isNotEmpty ? result.title : 'Report'),
+            children: result.options.map((opt) => SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, opt.option),
+              child: Text(opt.text),
+            )).toList(),
+          ),
+        );
+        if (picked == null || !mounted) return;
+        currentOption = picked;
+        continue;
+      }
+
+      if (result.resultType == 'add_comment') {
+        final comment = await showDialog<String>(
+          context: context,
+          builder: (ctx) {
+            final controller = TextEditingController();
+            return AlertDialog(
+              title: const Text('Additional comment'),
+              content: TextField(
+                controller: controller,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: result.commentOptional ? 'Optional comment...' : 'Describe the issue...',
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, controller.text),
+                  child: const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+        if (comment == null || !mounted) return;
+        final finalResult = await engine.reportMessage(
+          msg.accountId,
+          chat.chatId,
+          [msgIdInt],
+          option: result.commentOption,
+          message: comment,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(finalResult?.resultType == 'reported' ? 'Message reported' : 'Report submitted'),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        return;
+      }
+
+      return;
+    }
   }
 
   void _showCopyInfoMenu(CachedMessage msg, Offset position) {

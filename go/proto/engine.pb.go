@@ -7763,6 +7763,215 @@ func (x *EngineTranslateTextResponse) GetTranslatedText() string {
 	return ""
 }
 
+type EngineReportMessageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AccountId     string                 `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	ChatId        string                 `protobuf:"bytes,2,opt,name=chat_id,json=chatId,proto3" json:"chat_id,omitempty"`
+	MsgIds        []int32                `protobuf:"varint,3,rep,packed,name=msg_ids,json=msgIds,proto3" json:"msg_ids,omitempty"`
+	Option        []byte                 `protobuf:"bytes,4,opt,name=option,proto3" json:"option,omitempty"`   // empty on first call, then chosen option bytes
+	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"` // comment text (for AddComment step)
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineReportMessageRequest) Reset() {
+	*x = EngineReportMessageRequest{}
+	mi := &file_proto_engine_proto_msgTypes[120]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineReportMessageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineReportMessageRequest) ProtoMessage() {}
+
+func (x *EngineReportMessageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[120]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineReportMessageRequest.ProtoReflect.Descriptor instead.
+func (*EngineReportMessageRequest) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{120}
+}
+
+func (x *EngineReportMessageRequest) GetAccountId() string {
+	if x != nil {
+		return x.AccountId
+	}
+	return ""
+}
+
+func (x *EngineReportMessageRequest) GetChatId() string {
+	if x != nil {
+		return x.ChatId
+	}
+	return ""
+}
+
+func (x *EngineReportMessageRequest) GetMsgIds() []int32 {
+	if x != nil {
+		return x.MsgIds
+	}
+	return nil
+}
+
+func (x *EngineReportMessageRequest) GetOption() []byte {
+	if x != nil {
+		return x.Option
+	}
+	return nil
+}
+
+func (x *EngineReportMessageRequest) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+type EngineReportMessageResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// "choose_option" | "add_comment" | "reported"
+	ResultType string `protobuf:"bytes,1,opt,name=result_type,json=resultType,proto3" json:"result_type,omitempty"`
+	// For choose_option: title of the option popup
+	Title string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	// For choose_option: list of options
+	Options []*ReportOption `protobuf:"bytes,3,rep,name=options,proto3" json:"options,omitempty"`
+	// For add_comment: whether comment is optional
+	CommentOptional bool `protobuf:"varint,4,opt,name=comment_optional,json=commentOptional,proto3" json:"comment_optional,omitempty"`
+	// For add_comment: the option bytes to pass back with comment
+	CommentOption []byte `protobuf:"bytes,5,opt,name=comment_option,json=commentOption,proto3" json:"comment_option,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EngineReportMessageResponse) Reset() {
+	*x = EngineReportMessageResponse{}
+	mi := &file_proto_engine_proto_msgTypes[121]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EngineReportMessageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EngineReportMessageResponse) ProtoMessage() {}
+
+func (x *EngineReportMessageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[121]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EngineReportMessageResponse.ProtoReflect.Descriptor instead.
+func (*EngineReportMessageResponse) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{121}
+}
+
+func (x *EngineReportMessageResponse) GetResultType() string {
+	if x != nil {
+		return x.ResultType
+	}
+	return ""
+}
+
+func (x *EngineReportMessageResponse) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *EngineReportMessageResponse) GetOptions() []*ReportOption {
+	if x != nil {
+		return x.Options
+	}
+	return nil
+}
+
+func (x *EngineReportMessageResponse) GetCommentOptional() bool {
+	if x != nil {
+		return x.CommentOptional
+	}
+	return false
+}
+
+func (x *EngineReportMessageResponse) GetCommentOption() []byte {
+	if x != nil {
+		return x.CommentOption
+	}
+	return nil
+}
+
+type ReportOption struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
+	Option        []byte                 `protobuf:"bytes,2,opt,name=option,proto3" json:"option,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReportOption) Reset() {
+	*x = ReportOption{}
+	mi := &file_proto_engine_proto_msgTypes[122]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReportOption) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReportOption) ProtoMessage() {}
+
+func (x *ReportOption) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_engine_proto_msgTypes[122]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReportOption.ProtoReflect.Descriptor instead.
+func (*ReportOption) Descriptor() ([]byte, []int) {
+	return file_proto_engine_proto_rawDescGZIP(), []int{122}
+}
+
+func (x *ReportOption) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *ReportOption) GetOption() []byte {
+	if x != nil {
+		return x.Option
+	}
+	return nil
+}
+
 var File_proto_engine_proto protoreflect.FileDescriptor
 
 const file_proto_engine_proto_rawDesc = "" +
@@ -8446,7 +8655,24 @@ const file_proto_engine_proto_rawDesc = "" +
 	"\x06msg_id\x18\x03 \x01(\tR\x05msgId\x12\x17\n" +
 	"\ato_lang\x18\x04 \x01(\tR\x06toLang\"F\n" +
 	"\x1bEngineTranslateTextResponse\x12'\n" +
-	"\x0ftranslated_text\x18\x01 \x01(\tR\x0etranslatedTextB\x11Z\x0funiclient/protob\x06proto3"
+	"\x0ftranslated_text\x18\x01 \x01(\tR\x0etranslatedText\"\x9f\x01\n" +
+	"\x1aEngineReportMessageRequest\x12\x1d\n" +
+	"\n" +
+	"account_id\x18\x01 \x01(\tR\taccountId\x12\x17\n" +
+	"\achat_id\x18\x02 \x01(\tR\x06chatId\x12\x17\n" +
+	"\amsg_ids\x18\x03 \x03(\x05R\x06msgIds\x12\x16\n" +
+	"\x06option\x18\x04 \x01(\fR\x06option\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"\xd9\x01\n" +
+	"\x1bEngineReportMessageResponse\x12\x1f\n" +
+	"\vresult_type\x18\x01 \x01(\tR\n" +
+	"resultType\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x121\n" +
+	"\aoptions\x18\x03 \x03(\v2\x17.uniclient.ReportOptionR\aoptions\x12)\n" +
+	"\x10comment_optional\x18\x04 \x01(\bR\x0fcommentOptional\x12%\n" +
+	"\x0ecomment_option\x18\x05 \x01(\fR\rcommentOption\":\n" +
+	"\fReportOption\x12\x12\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\x12\x16\n" +
+	"\x06option\x18\x02 \x01(\fR\x06optionB\x11Z\x0funiclient/protob\x06proto3"
 
 var (
 	file_proto_engine_proto_rawDescOnce sync.Once
@@ -8460,7 +8686,7 @@ func file_proto_engine_proto_rawDescGZIP() []byte {
 	return file_proto_engine_proto_rawDescData
 }
 
-var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 120)
+var file_proto_engine_proto_msgTypes = make([]protoimpl.MessageInfo, 123)
 var file_proto_engine_proto_goTypes = []any{
 	(*EngineEvent)(nil),                        // 0: uniclient.EngineEvent
 	(*AccountInfo)(nil),                        // 1: uniclient.AccountInfo
@@ -8582,6 +8808,9 @@ var file_proto_engine_proto_goTypes = []any{
 	(*EngineSaveGifRequest)(nil),               // 117: uniclient.EngineSaveGifRequest
 	(*EngineTranslateTextRequest)(nil),         // 118: uniclient.EngineTranslateTextRequest
 	(*EngineTranslateTextResponse)(nil),        // 119: uniclient.EngineTranslateTextResponse
+	(*EngineReportMessageRequest)(nil),         // 120: uniclient.EngineReportMessageRequest
+	(*EngineReportMessageResponse)(nil),        // 121: uniclient.EngineReportMessageResponse
+	(*ReportOption)(nil),                       // 122: uniclient.ReportOption
 }
 var file_proto_engine_proto_depIdxs = []int32{
 	1,   // 0: uniclient.EngineListAccountsResponse.accounts:type_name -> uniclient.AccountInfo
@@ -8606,11 +8835,12 @@ var file_proto_engine_proto_depIdxs = []int32{
 	95,  // 19: uniclient.EngineGetStickerSetInfoResponse.stickers:type_name -> uniclient.EngineStickerInfo
 	100, // 20: uniclient.EngineGetAttachMenuBotsResponse.bots:type_name -> uniclient.EngineAttachMenuBotInfo
 	107, // 21: uniclient.EngineGetSendAsResponse.peers:type_name -> uniclient.EngineSendAsPeerInfo
-	22,  // [22:22] is the sub-list for method output_type
-	22,  // [22:22] is the sub-list for method input_type
-	22,  // [22:22] is the sub-list for extension type_name
-	22,  // [22:22] is the sub-list for extension extendee
-	0,   // [0:22] is the sub-list for field type_name
+	122, // 22: uniclient.EngineReportMessageResponse.options:type_name -> uniclient.ReportOption
+	23,  // [23:23] is the sub-list for method output_type
+	23,  // [23:23] is the sub-list for method input_type
+	23,  // [23:23] is the sub-list for extension type_name
+	23,  // [23:23] is the sub-list for extension extendee
+	0,   // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_proto_engine_proto_init() }
@@ -8624,7 +8854,7 @@ func file_proto_engine_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_engine_proto_rawDesc), len(file_proto_engine_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   120,
+			NumMessages:   123,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

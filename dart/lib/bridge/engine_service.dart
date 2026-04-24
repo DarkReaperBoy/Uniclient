@@ -460,6 +460,32 @@ class EngineService {
     }
   }
 
+  // ── Report message ──
+
+  Future<ReportMessageResult?> reportMessage(String accountId, String chatId, List<int> msgIds, {List<int> option = const [], String message = ''}) async {
+    final req = epb.EngineReportMessageRequest()
+      ..accountId = accountId
+      ..chatId = chatId
+      ..msgIds.addAll(msgIds)
+      ..option = option
+      ..message = message;
+    try {
+      final respBytes = await _callAsync('__engine', 'ReportMessage', req.writeToBuffer());
+      if (respBytes.isEmpty) return null;
+      final resp = epb.EngineReportMessageResponse.fromBuffer(respBytes);
+      return ReportMessageResult(
+        resultType: resp.resultType,
+        title: resp.title,
+        options: resp.options.map((o) => ReportOptionItem(text: o.text, option: o.option)).toList(),
+        commentOptional: resp.commentOptional,
+        commentOption: resp.commentOption,
+      );
+    } catch (e) {
+      Debug.error('ENGINE', 'reportMessage failed', e);
+      return null;
+    }
+  }
+
   // ── Sticker/GIF actions ──
 
   Future<bool> faveSticker(String accountId, int fileId, {String extra = '', bool unfave = false}) async {

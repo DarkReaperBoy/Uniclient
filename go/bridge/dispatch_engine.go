@@ -965,6 +965,33 @@ func dispatchEngine(method string, payload []byte) ([]byte, error) {
 			TranslatedText: text,
 		})
 
+	case "ReportMessage":
+		var req pb.EngineReportMessageRequest
+		if err := proto.Unmarshal(payload, &req); err != nil {
+			return nil, err
+		}
+		msgIDs := make([]int, len(req.MsgIds))
+		for i, id := range req.MsgIds {
+			msgIDs[i] = int(id)
+		}
+		result, err := e.ReportMessage(req.AccountId, req.ChatId, msgIDs, req.Option, req.Message)
+		if err != nil {
+			return nil, err
+		}
+		resp := &pb.EngineReportMessageResponse{
+			ResultType:      result.Type,
+			Title:           result.Title,
+			CommentOptional: result.CommentOptional,
+			CommentOption:   result.CommentOption,
+		}
+		for _, o := range result.Options {
+			resp.Options = append(resp.Options, &pb.ReportOption{
+				Text:   o.Text,
+				Option: o.Option,
+			})
+		}
+		return proto.Marshal(resp)
+
 	case "GetAttachMenuBots":
 		var req pb.EngineGetAttachMenuBotsRequest
 		if err := proto.Unmarshal(payload, &req); err != nil {

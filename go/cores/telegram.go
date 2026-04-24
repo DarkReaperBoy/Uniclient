@@ -11854,6 +11854,29 @@ func (t *TelegramCore) TranslateText(chatID string, msgID string, toLang string)
 	return "", nil
 }
 
+func (t *TelegramCore) ReportMessage(chatID string, msgIDs []int, option []byte, message string) (*ReportResult, error) {
+	inputPeer, unlock, err := t.withPeer(chatID)
+	if err != nil { return nil, err }
+	defer unlock()
+	result, err := t.api.MessagesReport(t.ctx, &tg.MessagesReportRequest{
+		Peer: inputPeer, ID: msgIDs, Option: option, Message: message,
+	})
+	if err != nil { return nil, err }
+	switch r := result.(type) {
+	case *tg.ReportResultChooseOption:
+		opts := make([]ReportOption, len(r.Options))
+		for i, o := range r.Options {
+			opts[i] = ReportOption{Text: o.Text, Option: o.Option}
+		}
+		return &ReportResult{Type: "choose_option", Title: r.Title, Options: opts}, nil
+	case *tg.ReportResultAddComment:
+		return &ReportResult{Type: "add_comment", CommentOptional: r.Optional, CommentOption: r.Option}, nil
+	case *tg.ReportResultReported:
+		return &ReportResult{Type: "reported"}, nil
+	}
+	return &ReportResult{Type: "reported"}, nil
+}
+
 // GetWebPagePreview returns the title of a URL preview for link embedding.
 func (t *TelegramCore) GetWebPagePreview(url string) (string, error) {
 	r, err := t.GetWebPagePreviewFull(url)

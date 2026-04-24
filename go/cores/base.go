@@ -286,6 +286,19 @@ type AttachMenuBotInfo struct {
 	Inactive  bool   `json:"inactive"`
 }
 
+type ReportOption struct {
+	Text   string `json:"text"`
+	Option []byte `json:"option"`
+}
+
+type ReportResult struct {
+	Type            string         `json:"type"`
+	Title           string         `json:"title,omitempty"`
+	Options         []ReportOption `json:"options,omitempty"`
+	CommentOptional bool           `json:"comment_optional,omitempty"`
+	CommentOption   []byte         `json:"comment_option,omitempty"`
+}
+
 type WebPagePreviewResult struct {
 	URL         string `json:"url"`
 	SiteName    string `json:"site_name"`

@@ -922,3 +922,33 @@ message EngineTranslateTextRequest {
 message EngineTranslateTextResponse {
   string translated_text = 1;
 }
+
+// ═══════════════════════════════════════════════════════════════════════
+// Report Message
+// ═══════════════════════════════════════════════════════════════════════
+
+message EngineReportMessageRequest {
+  string account_id = 1;
+  string chat_id    = 2;
+  repeated int32 msg_ids = 3;
+  bytes  option     = 4; // empty on first call, then chosen option bytes
+  string message    = 5; // comment text (for AddComment step)
+}
+
+message EngineReportMessageResponse {
+  // "choose_option" | "add_comment" | "reported"
+  string result_type = 1;
+  // For choose_option: title of the option popup
+  string title       = 2;
+  // For choose_option: list of options
+  repeated ReportOption options = 3;
+  // For add_comment: whether comment is optional
+  bool comment_optional = 4;
+  // For add_comment: the option bytes to pass back with comment
+  bytes comment_option  = 5;
+}
+
+message ReportOption {
+  string text   = 1;
+  bytes  option = 2;
+}

@@ -1650,3 +1650,26 @@ class PinnedGiftsResult {
         .toList() ?? [],
   );
 }
+
+class ReportOptionItem {
+  final String text;
+  final List<int> option;
+
+  const ReportOptionItem({required this.text, required this.option});
+}
+
+class ReportMessageResult {
+  final String resultType;
+  final String title;
+  final List<ReportOptionItem> options;
+  final bool commentOptional;
+  final List<int> commentOption;
+
+  const ReportMessageResult({
+    required this.resultType,
+    this.title = '',
+    this.options = const [],
+    this.commentOptional = false,
+    this.commentOption = const [],
+  });
+}
